@@ -1,10 +1,10 @@
-# Cloud Run image for @scheduling/web (Next.js standalone, pnpm monorepo).
+# Cloud Run image for @oilio/web (Next.js standalone, pnpm monorepo).
 #
 # Built from the REPO ROOT as context (the pruned subtree needs the workspace):
-#   docker build -f apps/scheduling/web/Dockerfile -t <img> \
+#   docker build -f apps/oilio/web/Dockerfile -t <img> \
 #     --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=... [other NEXT_PUBLIC_* args] .
 #
-# Strategy: `turbo prune --docker` carves the monorepo down to @scheduling/web +
+# Strategy: `turbo prune --docker` carves the monorepo down to @oilio/web +
 # its workspace deps, split into a deps-only layer (out/json) and full source
 # (out/full) so dependency installs cache across source-only changes.
 #
@@ -16,11 +16,11 @@ FROM node:22.22.3-bookworm-slim AS base
 ENV PNPM_HOME="/pnpm" PATH="/pnpm:$PATH"
 RUN corepack enable && corepack prepare pnpm@10.33.4 --activate
 
-# --- Prune to the @scheduling/web subtree --------------------------------
+# --- Prune to the @oilio/web subtree --------------------------------
 FROM base AS pruner
 WORKDIR /app
 COPY . .
-RUN pnpm dlx turbo@2.9.14 prune @scheduling/web --docker
+RUN pnpm dlx turbo@2.9.14 prune @oilio/web --docker
 
 # --- Install deps + build ------------------------------------------------
 FROM base AS builder
@@ -53,7 +53,7 @@ ENV NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY \
     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID \
     NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
-RUN pnpm --filter @scheduling/web run build
+RUN pnpm --filter @oilio/web run build
 
 # --- Runtime -------------------------------------------------------------
 FROM base AS runner
@@ -64,15 +64,15 @@ RUN addgroup --system --gid 1001 nodejs \
 USER nextjs
 
 # Next standalone preserves the workspace path inside the bundle, so server.js
-# and static land under apps/scheduling/web/. Next does NOT fold public/ or
+# and static land under apps/oilio/web/. Next does NOT fold public/ or
 # .next/static into the standalone output — both are copied explicitly. public/
 # carries the PWA icons (manifest references /icons/*.png); without this COPY the
 # manifest points at 404s and the app is not installable.
-COPY --from=builder --chown=nextjs:nodejs /app/apps/scheduling/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/scheduling/web/.next/static ./apps/scheduling/web/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/apps/scheduling/web/public ./apps/scheduling/web/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/.next/static ./apps/oilio/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/public ./apps/oilio/web/public
 
 # Cloud Run injects $PORT (defaults 8080); Next standalone reads PORT/HOSTNAME.
 ENV HOSTNAME=0.0.0.0
 EXPOSE 8080
-CMD ["node", "apps/scheduling/web/server.js"]
+CMD ["node", "apps/oilio/web/server.js"]
