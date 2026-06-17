@@ -66,7 +66,7 @@ test.describe('Auto-cadastro (#840)', () => {
     await page.goto(`/${slug}`)
     await page.getByRole('link', { name: /cadastrar-se/i }).click()
     await expect(page).toHaveURL(new RegExp(`/signup\\?from=${slug}$`))
-    await expect(page.getByRole('heading', { name: /cadastrar-se no scheduling/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /cadastrar-se no oilio/i })).toBeVisible()
     await expect(page.getByText(new RegExp(`encaminhado por.*${seed.tenantId}`, 'i'))).toBeVisible()
   })
 
@@ -123,7 +123,7 @@ test.describe('Auto-cadastro (#840)', () => {
     await page.getByRole('button', { name: /continuar/i }).click()
 
     await expect(page).toHaveURL(/\/signup\/done$/, { timeout: 10_000 })
-    await expect(page.getByText(/sua conta no scheduling foi criada/i)).toBeVisible()
+    await expect(page.getByText(/sua conta no oilio foi criada/i)).toBeVisible()
 
     // Nenhum Customer materializado no tenant — usuário só existe como User global.
     const customers = listCustomers(seed.tenantId)
@@ -143,7 +143,7 @@ test.describe('Auto-cadastro (#840)', () => {
     // independente de from).
     await page.goto('/signup/done?from=slug-que-nao-existe-12345')
     await expect(page).toHaveURL(/\/signup\/done\?from=/)
-    await expect(page.getByText(/sua conta no scheduling foi criada/i)).toBeVisible()
+    await expect(page.getByText(/sua conta no oilio foi criada/i)).toBeVisible()
   })
 
   test('done sem sessão redireciona pra /signup preservando a origem', async ({ page }) => {
