@@ -1,0 +1,211 @@
+// Internal write/saga helpers for the agenda booking actions — extracted from
+// the 'use server' module so it stays under the module-size gate. These are NOT
+// server actions (never form-invoked directly); they're the imperative-shell
+// helpers the actions compose. `AppointmentMutationResult` is type-only imported
+// back from ./actions (erased at compile — no runtime cycle).
+
+import { revalidatePath } from 'next/cache'
+
+import type { resolveCatalogItemForUnit } from '@/domain'
+import {
+  AgendaBlock,
+  Appointment,
+  type AppointmentActorRole,
+  CatalogItem,
+  StoredProfessional,
+  computeNoticeMinutes,
+  findAppointmentConflicts,
+  getBlockSegmentsForDay,
+  getTenantDayBoundsUtc,
+  isCatalogService,
+  isOperational,
+} from '@/domain'
+import { AppointmentConfig } from '@/domain/aggregates'
+
+import { type SlotInput } from '@/features/agenda/core/appointment-form'
+
+import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointment-user-ids'
+import { fsConverter } from '@/shared/db/converter'
+import { emitEvent } from '@/shared/effect-bridge'
+import { assertCustomerIdNotBlocked } from '@/shared/privacy/assert-customer-not-blocked'
+
+import { AuthzError } from '@/shared/tenant/membership'
+
+export type AppointmentMutationResult =
+  | { ok: true; appointmentId: string }
+  | { ok: false; error: string; conflicts?: string[] }
+
+// Surfaces the per-tenant CUSTOMER write-guard (brief 0032, AC-11) as an action
+// error instead of a thrown `AuthzError`. Returns null when allowed.
+export async function guardCustomerNotBlocked(
+  tenantId: string,
+  customerId: string,
+): Promise<{ ok: false; error: string } | null> {
+  try {
+    await assertCustomerIdNotBlocked(tenantId, customerId)
+    return null
+  } catch (e) {
+    if (e instanceof AuthzError) {
+      return { ok: false, error: 'Cliente bloqueado neste estabelecimento (exclusão LGPD).' }
+    }
+    throw e
+  }
+}
+
+// Helpers return `T | string` (error message) — the form-parser convention used
+// across this app (see `parseAppointmentForm`).
+export async function loadActiveService(
+  tenantRef: FirebaseFirestore.DocumentReference,
+  serviceId: string,
+): Promise<CatalogItem | string> {
+  const snap = await tenantRef
+    .collection('catalog_items')
+    .withConverter(fsConverter(CatalogItem))
+    .doc(serviceId)
+    .get()
+  const item = snap.data()
+  if (!item) return 'Serviço não encontrado'
+  if (!isCatalogService(item)) return 'Item não é um serviço'
+  if (!item.active) return 'Serviço inativo'
+  return item
+}
+
+// Approval gate (#753): only `approved` professionals take bookings — re-checked
+// on update too (owner could move an appointment onto a non-approved pro).
+export async function loadApprovedProfessional(
+  tenantRef: FirebaseFirestore.DocumentReference,
+  professionalId: string,
+): Promise<StoredProfessional | string> {
+  const snap = await tenantRef
+    .collection('professionals')
+    .withConverter(fsConverter(StoredProfessional))
+    .doc(professionalId)
+    .get()
+  const professional = snap.data()
+  if (!professional) return 'Profissional não encontrado'
+  if (!isOperational(professional.operationalStatus)) {
+    return `Profissional não está operacional para receber agendamentos (status: ${professional.operationalStatus}).`
+  }
+  return professional
+}
+
+// Pre-flight conflict check (blocks + appointment overlap) for a proposed slot.
+// Returns a staff-friendly error + labels, or null when the slot is free. The
+// in-transaction check at commit time is the authoritative one under contention.
+export async function checkSlotConflicts(args: {
+  tenantRef: FirebaseFirestore.DocumentReference
+  tenant: { timezone: string }
+  parsed: SlotInput
+  startAt: string
+  endAt: string
+  excludeAppointmentId?: string
+}): Promise<{ error: string; conflicts: string[] } | null> {
+  const { tenantRef, tenant, parsed, startAt, endAt, excludeAppointmentId } = args
+  const { startUtc: dayStart, endUtc: dayEnd } = getTenantDayBoundsUtc(parsed.date, tenant.timezone)
+  const [apptSnap, blocksSnap] = await Promise.all([
+    tenantRef
+      .collection('appointments')
+      .withConverter(fsConverter(Appointment))
+      .where('unitId', '==', parsed.unitId)
+      .where('startAt', '>=', dayStart)
+      .where('startAt', '<=', dayEnd)
+      .get(),
+    tenantRef
+      .collection('agenda_blocks')
+      .withConverter(fsConverter(AgendaBlock))
+      .where('unitId', '==', parsed.unitId)
+      .get(),
+  ])
+  const existing = apptSnap.docs.map((d) => d.data())
+  const blocks = blocksSnap.docs.map((d) => d.data())
+  const blockSegments = getBlockSegmentsForDay(blocks, parsed.date, tenant.timezone)
+  const conflicts = findAppointmentConflicts({
+    proposed: { startAt, endAt },
+    professionalId: parsed.professionalId,
+    existing,
+    blockSegments,
+    date: parsed.date,
+    tz: tenant.timezone,
+    excludeAppointmentId,
+  })
+  if (conflicts.length === 0) return null
+  const labels = conflicts.map((c) =>
+    c.kind === 'appointment' ? 'agendamento existente' : `bloqueio "${c.reason}"`,
+  )
+  return { error: `Conflito com ${labels.join(', ')}`, conflicts: labels }
+}
+
+// Persist the edit event-first: refresh denormalized userIds when the customer
+// or professional changed, emit `appointment.updated` (diff of mutable fields),
+// and add `appointment.rescheduled` when the start instant moved.
+export async function persistAppointmentUpdate(args: {
+  tenantId: string
+  actorUid: string
+  appointmentId: string
+  parsed: SlotInput & { customerId: string }
+  previous: Appointment
+  startAt: string
+  endAt: string
+  resolved: ReturnType<typeof resolveCatalogItemForUnit>
+  serviceOrUnitChanged: boolean
+}): Promise<AppointmentMutationResult> {
+  const { tenantId, actorUid, appointmentId, parsed, previous, startAt, endAt, resolved } = args
+  const userIdsChanged =
+    parsed.customerId !== previous.customerId || parsed.professionalId !== previous.professionalId
+  let customerUserId = previous.customerUserId
+  let professionalUserId = previous.professionalUserId
+  if (userIdsChanged) {
+    const userIds = await resolveAppointmentUserIds(
+      tenantId,
+      parsed.customerId,
+      parsed.professionalId,
+    )
+    if (!userIds.ok) return userIds
+    customerUserId = userIds.ids.customerUserId
+    professionalUserId = userIds.ids.professionalUserId
+  }
+
+  const now = new Date().toISOString()
+  const isReschedule = startAt !== previous.startAt
+  const changes: Record<string, unknown> = {
+    unitId: parsed.unitId,
+    professionalId: parsed.professionalId,
+    serviceId: parsed.serviceId,
+    customerId: parsed.customerId,
+    startAt,
+    endAt,
+    customerUserId,
+    professionalUserId,
+  }
+  if (args.serviceOrUnitChanged) {
+    changes.servicePriceCentsSnapshot = resolved.priceCents
+    changes.serviceDurationMinutesSnapshot = resolved.durationMinutes
+    changes.commissionSnapshot = resolved.commission
+  }
+
+  const aggPath = `tenants/${tenantId}/appointments/${appointmentId}`
+  const edited = await emitEvent(AppointmentConfig, aggPath, {
+    _tag: 'appointment.updated',
+    actorId: actorUid,
+    payload: { changes },
+  })
+  if (!edited.ok) return { ok: false, error: edited.error }
+  if (isReschedule) {
+    const rescheduledBy: AppointmentActorRole = 'staff'
+    const resched = await emitEvent(AppointmentConfig, aggPath, {
+      _tag: 'appointment.rescheduled',
+      actorId: actorUid,
+      payload: {
+        newStartAt: startAt,
+        newEndAt: endAt,
+        rescheduledBy,
+        rescheduledAt: now,
+        noticeMinutes: computeNoticeMinutes(previous.startAt, now),
+      },
+    })
+    if (!resched.ok) return { ok: false, error: resched.error }
+  }
+
+  revalidatePath('/agenda')
+  return { ok: true, appointmentId }
+}

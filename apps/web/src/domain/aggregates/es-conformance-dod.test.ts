@@ -1,0 +1,204 @@
+// Feature-level test — brief 0025 § Definition of Done (parent #1010).
+// Prova de conformidade ES total: pra cada aggregate conformado nas 11 fatias,
+// valida os 3 cenários do DoD em um sweep:
+//   Cenário 1 — toda mutação é event-first (evento no stream + projeção derivada)
+//   Cenário 2 — replay reconstrói o estado completo (deep-equal à projeção)
+//   Cenário 3 — auditoria vem do stream (o evento carrega quem/quê/quando)
+// Os replay tests por-aggregate cobrem o detalhe de cada um; este é o gate do
+// parent — a garantia cross-aggregate de que a conformidade vale pra todos.
+
+import { Effect, Layer } from 'effect'
+import { describe, expect, it } from 'vitest'
+
+import { appendEvent, replayAggregate, type AggregateConfig } from '../effect/event-store'
+import type { FirestoreDoc } from '../effect/services'
+import { FirestoreService } from '../effect/services'
+import { defaultPermissionsForRole } from '../types/membership'
+import { CashMovementConfig } from './cash-movement/config'
+import { ChargeConfig } from './charge/config'
+import { CommissionConfig } from './commission/config'
+import { MembershipConfig } from './membership/config'
+import { OrderConfig } from './order/config'
+
+function makeStore() {
+  const store = new Map<string, FirestoreDoc>()
+  return {
+    store,
+    layer: Layer.succeed(FirestoreService, {
+      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
+      getDocs: (collectionPath: string) =>
+        Effect.succeed(
+          [...store.entries()]
+            .filter(([key]) => key.startsWith(collectionPath + '/'))
+            .map(([, doc]) => doc)
+            .sort(
+              (a, b) =>
+                (typeof a['version'] === 'number' ? a['version'] : 0) -
+                (typeof b['version'] === 'number' ? b['version'] : 0),
+            ),
+        ),
+      setDoc: (path: string, data: FirestoreDoc) =>
+        Effect.sync(() => {
+          store.set(path, { ...store.get(path), ...data })
+        }),
+      runTransaction: (fn) =>
+        fn({
+          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
+          setDoc: (path, data) =>
+            Effect.sync(() => {
+              store.set(path, { ...store.get(path), ...data })
+            }),
+        }),
+    }),
+  }
+}
+
+// Valida os 3 cenários do DoD pra um aggregate conformado, a partir de um
+// `created` (snapshot). Genérico → preserva os tipos concretos de cada config.
+async function checkDod<
+  State extends { readonly _version: number },
+  Event extends { readonly _tag: string },
+>(
+  config: AggregateConfig<State, Event>,
+  path: string,
+  createdTag: Event['_tag'],
+  data: Record<string, unknown>,
+): Promise<void> {
+  const { store, layer } = makeStore()
+
+  await Effect.runPromise(
+    appendEvent(config, path, {
+      _tag: createdTag,
+      actorId: 'actor-1',
+      payload: { data },
+    }).pipe(Effect.provide(layer)),
+  )
+
+  // Cenário 1 — a mutação é event-first: o evento existe no stream do aggregate
+  // e a projeção (doc) foi derivada dele.
+  const event = store.get(`${path}/events/v000001`)
+  const projection = store.get(path)
+  expect(event, 'evento no stream').toBeTruthy()
+  expect(projection, 'projeção derivada').toBeTruthy()
+
+  // Cenário 3 — auditoria vem do stream: o evento carrega quem (actorId),
+  // quando (timestamp) e o quê (_tag). Sem recordAudit paralelo.
+  expect(event!['actorId']).toBe('actor-1')
+  expect(event!['_tag']).toBe(createdTag)
+  expect(typeof event!['timestamp']).toBe('string')
+
+  // Cenário 2 — replay reconstrói o estado deep-equal à projeção.
+  const replayed = await Effect.runPromise(
+    replayAggregate(config, path).pipe(Effect.provide(layer)),
+  )
+  expect(replayed).toEqual(projection)
+  expect(replayed._version).toBe(1)
+}
+
+// Aggregates conformados nas fatias do 0025 (cada um tem replay test dedicado;
+// aqui provamos o invariante cross-aggregate como gate do parent).
+const CASES: { name: string; run: () => Promise<void> }[] = [
+  {
+    name: 'membership',
+    run: () =>
+      checkDod(MembershipConfig, 'memberships/t1_u1', 'membership.created', {
+        id: 't1_u1',
+        tenantId: 't1',
+        userId: 'u1',
+        role: 'owner',
+        status: 'active',
+        invitedBy: null,
+        joinedAt: '2026-06-01T12:00:00.000Z',
+        updatedAt: '2026-06-01T12:00:00.000Z',
+        unitId: null,
+        permissions: defaultPermissionsForRole('owner'),
+        commissionRate: null,
+      }),
+  },
+  {
+    name: 'commission',
+    run: () =>
+      checkDod(CommissionConfig, 'tenants/t1/commissions/c1', 'commission.created', {
+        id: 'c1',
+        tenantId: 't1',
+        orderId: 'o1',
+        orderItemId: 'item-1',
+        attributedUserId: 'pro-1',
+        attributedMemberName: 'Zé Profissional',
+        itemKind: 'service',
+        itemName: 'Corte',
+        itemTotalCents: 5000,
+        commissionKind: 'percentage',
+        commissionValue: 50,
+        amountCents: 2500,
+        createdAt: '2026-06-01T12:00:00.000Z',
+      }),
+  },
+  {
+    name: 'order',
+    run: () =>
+      checkDod(OrderConfig, 'tenants/t1/orders/o1', 'order.created', {
+        id: 'o1',
+        tenantId: 't1',
+        unitId: 'u1',
+        customerId: null,
+        appointmentId: null,
+        status: 'open',
+        items: [],
+        discountCents: 0,
+        closedAt: null,
+        paymentMethod: null,
+        subtotalCents: 0,
+        totalCents: 0,
+        createdAt: '2026-06-01T12:00:00.000Z',
+        updatedAt: '2026-06-01T12:00:00.000Z',
+      }),
+  },
+  {
+    name: 'charge',
+    run: () =>
+      checkDod(ChargeConfig, 'tenants/t1/charges/ch1', 'charge.created', {
+        id: 'ch1',
+        tenantId: 't1',
+        unitId: 'u1',
+        subscriptionId: 's1',
+        customerId: 'c1',
+        amountCents: 9900,
+        periodStartAt: '2026-06-01T00:00:00.000Z',
+        periodEndAt: '2026-07-01T00:00:00.000Z',
+        dueDate: '2026-07-01T00:00:00.000Z',
+        status: 'scheduled',
+        attempts: 0,
+        paidAt: null,
+        failedAt: null,
+        failureReason: null,
+        lastActorUid: null,
+        createdAt: '2026-06-01T12:00:00.000Z',
+        updatedAt: '2026-06-01T12:00:00.000Z',
+      }),
+  },
+  {
+    name: 'cash-movement',
+    run: () =>
+      checkDod(CashMovementConfig, 'tenants/t1/cash_movements/m1', 'cash_movement.created', {
+        id: 'm1',
+        tenantId: 't1',
+        unitId: 'u1',
+        kind: 'sale',
+        direction: 'in',
+        amountCents: 5000,
+        paymentMethod: 'cash',
+        description: null,
+        orderId: 'o1',
+        expenseCategoryId: null,
+        recordedByUid: 'actor-1',
+        createdAt: '2026-06-01T12:00:00.000Z',
+      }),
+  },
+]
+
+describe('Feature 0025 — Definition of Done (conformidade ES total)', () => {
+  for (const c of CASES) {
+    it(`${c.name}: event-first + auditoria no stream + replay == projeção`, c.run)
+  }
+})

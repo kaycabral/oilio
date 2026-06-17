@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the whole pure-TS domain (@oilio/shared) \u2014 utils, domain aggregates (reducers + replay), event-store, value objects, type validators. A surviving mutant = a behaviour no unit test pins. This package is where mutation pays off: pure logic, no Next/emulator, ~91% line coverage and a fast unit suite. The web is intentionally NOT mutated \u2014 its real net is the integration/e2e suite (Stryker reruns the unit suite per mutant; web unit coverage is ~14%, so mutating it would just yield no-coverage mutants).",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/domain/**/*.ts",
+    "!src/domain/**/*.test.ts",
+    "!src/domain/**/*.integration.test.ts",
+    "!src/domain/**/index.ts",
+    "!src/domain/**/*.d.ts"
+  ],
+  "reporters": ["clear-text", "progress", "json"],
+  "jsonReporter": {
+    "fileName": "reports/mutation/mutation.json"
+  },
+  "_thresholds_comment": "Whole-domain score (NOT cherry-picked) \u2248 77.4% after the 8-leva burndown. break = regression floor just below current; ratchet UP as survivors are killed. Remaining survivors are documented equivalents (INITIAL_* consts overwritten by `created`, deleted/default no-ops, type-unreachable guards) \u2014 ~77% is the honest plateau. Never set break above the real score to make it look good.",
+  "thresholds": {
+    "high": 85,
+    "low": 65,
+    "break": 75
+  },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true
+}

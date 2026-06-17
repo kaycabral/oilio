@@ -1,0 +1,141 @@
+import type { Commission, Order } from '@/domain'
+import { describe, expect, it } from 'vitest'
+import { shapeCommissionsSection } from './commissions'
+
+function makeCommission(partial: {
+  id: string
+  orderId: string
+  attributedUserId: string
+  attributedMemberName?: string
+  amountCents?: number
+  liquidationStatus?: 'pendente' | 'pago'
+}): Commission {
+  return {
+    id: partial.id,
+    tenantId: 't1',
+    orderId: partial.orderId,
+    orderItemId: `${partial.id}-item`,
+    attributedUserId: partial.attributedUserId,
+    attributedMemberName: partial.attributedMemberName ?? '',
+    itemKind: 'service',
+    itemName: 'Corte',
+    itemTotalCents: 10000,
+    commissionKind: 'percentage',
+    commissionValue: 50,
+    amountCents: partial.amountCents ?? 5000,
+    liquidationStatus: partial.liquidationStatus ?? 'pendente',
+    paidAt: null,
+    paymentProof: null,
+    createdAt: '2026-03-10T12:00:00.000Z',
+  }
+}
+
+function makeOrder(id: string, unitId: string): Order {
+  return {
+    id,
+    tenantId: 't1',
+    unitId,
+    customerId: null,
+    appointmentId: null,
+    status: 'closed',
+    items: [],
+    discountCents: 0,
+    closedAt: '2026-03-10T12:00:00.000Z',
+    paymentMethod: 'cash',
+    subtotalCents: 10000,
+    totalCents: 10000,
+    createdAt: '2026-03-10T11:00:00.000Z',
+    updatedAt: '2026-03-10T12:00:00.000Z',
+  }
+}
+
+const MEMBERS = [
+  { userId: 'u1', name: 'Ana' },
+  { userId: 'u2', name: 'Bruno' },
+]
+
+describe('shapeCommissionsSection', () => {
+  it('scopes commissions to the active unit via the order→unit map', () => {
+    const orders = [makeOrder('o1', 'unitA'), makeOrder('o2', 'unitB')]
+    const commissions = [
+      makeCommission({ id: 'c1', orderId: 'o1', attributedUserId: 'u1' }),
+      makeCommission({ id: 'c2', orderId: 'o2', attributedUserId: 'u2' }),
+    ]
+    const out = shapeCommissionsSection({
+      members: MEMBERS,
+      allCommissions: commissions,
+      allClosedOrders: orders,
+      unitId: 'unitA',
+      memberFilter: null,
+      statusFilter: null,
+    })
+    expect(out.commissions.map((c) => c.id)).toEqual(['c1'])
+  })
+
+  it('applies the member filter on top of unit scoping', () => {
+    const orders = [makeOrder('o1', 'unitA')]
+    const commissions = [
+      makeCommission({ id: 'c1', orderId: 'o1', attributedUserId: 'u1' }),
+      makeCommission({ id: 'c2', orderId: 'o1', attributedUserId: 'u2' }),
+    ]
+    const out = shapeCommissionsSection({
+      members: MEMBERS,
+      allCommissions: commissions,
+      allClosedOrders: orders,
+      unitId: 'unitA',
+      memberFilter: 'u2',
+      statusFilter: null,
+    })
+    expect(out.commissions.map((c) => c.id)).toEqual(['c2'])
+  })
+
+  it('applies the status filter', () => {
+    const orders = [makeOrder('o1', 'unitA')]
+    const commissions = [
+      makeCommission({
+        id: 'c1',
+        orderId: 'o1',
+        attributedUserId: 'u1',
+        liquidationStatus: 'pago',
+      }),
+      makeCommission({
+        id: 'c2',
+        orderId: 'o1',
+        attributedUserId: 'u1',
+        liquidationStatus: 'pendente',
+      }),
+    ]
+    const out = shapeCommissionsSection({
+      members: MEMBERS,
+      allCommissions: commissions,
+      allClosedOrders: orders,
+      unitId: 'unitA',
+      memberFilter: null,
+      statusFilter: 'pago',
+    })
+    expect(out.commissions.map((c) => c.id)).toEqual(['c1'])
+  })
+
+  it('prefers the snapshot member name over the live member list', () => {
+    const orders = [makeOrder('o1', 'unitA')]
+    const commissions = [
+      makeCommission({
+        id: 'c1',
+        orderId: 'o1',
+        attributedUserId: 'u1',
+        attributedMemberName: 'Ana (revogada)',
+      }),
+    ]
+    const out = shapeCommissionsSection({
+      members: MEMBERS,
+      allCommissions: commissions,
+      allClosedOrders: orders,
+      unitId: 'unitA',
+      memberFilter: null,
+      statusFilter: null,
+    })
+    expect(out.memberNameByUserId.u1).toBe('Ana (revogada)')
+    // Member without a commission snapshot falls back to the live name.
+    expect(out.memberNameByUserId.u2).toBe('Bruno')
+  })
+})

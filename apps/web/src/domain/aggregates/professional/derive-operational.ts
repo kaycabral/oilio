@@ -1,0 +1,31 @@
+// Derivation rule for `operationalStatus` (#1047 / brief 0028 AC-06). The status
+// is DERIVED from real facts — never written by a UI input. V0 rule:
+//
+//   operational ⇔ User.whatsapp present ∧ unitIds.length ≥ 1 ∧ serviceIds.length ≥ 1
+//   incomplete  ⇔ otherwise (accepted, but the profile isn't bookable yet)
+//
+// "Invite accepted" is implied by the professional projection existing (it is
+// born only from the accept saga, #1045). So callers that already hold a live
+// projection only need to feed identity (whatsapp) + operational completeness
+// (units/services). The pure helper keeps the rule in one place; the server
+// emits `professional.activated` when it flips to `operational`.
+
+import type { OperationalStatus } from '@/domain/types/enums'
+
+export type OperationalInputs = {
+  // Whether the invite was accepted (the projection exists). Callers holding a
+  // live projection pass `true`.
+  readonly inviteAccepted: boolean
+  // The linked User's whatsapp (canonical contact, #838). Empty/undefined = absent.
+  readonly whatsapp: string | null | undefined
+  readonly unitIds: readonly string[]
+  readonly serviceIds: readonly string[]
+}
+
+export function deriveOperationalStatus(inputs: OperationalInputs): OperationalStatus {
+  // The projection exists only after acceptance, so the floor is `incomplete`.
+  if (!inputs.inviteAccepted) return 'incomplete'
+  const hasWhatsapp = typeof inputs.whatsapp === 'string' && inputs.whatsapp.trim().length > 0
+  const profileComplete = hasWhatsapp && inputs.unitIds.length >= 1 && inputs.serviceIds.length >= 1
+  return profileComplete ? 'operational' : 'incomplete'
+}

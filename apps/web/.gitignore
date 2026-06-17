@@ -1,0 +1,3 @@
+
+# Bulk-suppressions are forbidden here (see scripts/no-eslint-suppressions.mjs)
+eslint-suppressions.json
