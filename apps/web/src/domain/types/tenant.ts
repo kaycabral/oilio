@@ -2,7 +2,7 @@ import { Schema } from 'effect'
 
 import type { WhatsappTemplates } from '../utils/whatsapp'
 import { Vertical } from './enums'
-import { TaxIdentity } from './tax'
+import { CompanyProfile, TaxIdentity } from './tax'
 
 // `WhatsappTemplates` (a hand-written `type` in `../utils/whatsapp`, outside the
 // read-model kernel) projected as a schema so the `Tenant.whatsappTemplates`
@@ -127,6 +127,11 @@ export const Tenant = Schema.mutable(
     slug: Schema.String,
     vertical: Vertical,
     taxIdentity: Schema.NullOr(TaxIdentity),
+    // Corporate registry data from the CNPJ lookup (brief 0046). NON-PII, so —
+    // unlike `taxIdentity` — it stays in `StoredTenant` and the `tenant.created`
+    // event: queryable + replay-safe. `optional` tolerates strict-decoding docs
+    // written before this field existed; populated on creation by `createTenant`.
+    companyProfile: Schema.optional(Schema.NullOr(CompanyProfile)),
     ownerUserId: Schema.String,
     // Self-booking publication gate (brief 0008 #988). The public page is only
     // reachable when `selfBookingPublished` is true — the owner publishes

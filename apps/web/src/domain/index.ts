@@ -13,7 +13,13 @@ export {
 } from './types/enums'
 
 export {
+  CnaeActivity,
+  CompanyProfile,
+  CompanySize,
   TaxIdentity,
+  TaxRegime,
+  deriveCompanySize,
+  deriveTaxRegime,
   isCompany,
   isValidCompanyTaxId,
   isValidIndividualTaxId,

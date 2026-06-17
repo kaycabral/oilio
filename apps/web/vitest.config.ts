@@ -38,10 +38,10 @@ export default defineConfig({
         // gate falhar no run mais baixo — o buffer absorve o ruído e ainda
         // ratcheta acima da main (29.76/28.62/30.63/30.66). Medido local com
         // filter-by-search + nav-items cobertos: 30.15/28.90/31.05/31.14.
-        statements: 29.9,
-        branches: 28.7,
-        functions: 30.7,
-        lines: 30.9,
+        statements: 30.36,
+        branches: 29.06,
+        functions: 31.23,
+        lines: 31.36,
         autoUpdate: true,
       },
     },
