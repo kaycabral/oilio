@@ -13,9 +13,7 @@ const nextConfig: NextConfig = {
   // recommended self-hosting approach for redirect on a custom domain.
   // Harmless in dev (emulator wiring overrides authDomain, so these are unused).
   async rewrites() {
-    // TODO(oilio Fase 0): set to the new GCP project's firebaseapp.com domain
-    // (`https://<oilio-project-id>.firebaseapp.com`) once the project exists.
-    const firebaseAppDomain = 'https://cbrl-scheduling-production.firebaseapp.com'
+    const firebaseAppDomain = 'https://cbrl-oilio-production.firebaseapp.com'
     return [
       { source: '/__/auth/:path*', destination: `${firebaseAppDomain}/__/auth/:path*` },
       { source: '/__/firebase/:path*', destination: `${firebaseAppDomain}/__/firebase/:path*` },
