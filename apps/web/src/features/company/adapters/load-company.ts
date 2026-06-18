@@ -9,6 +9,9 @@ import 'server-only'
 export type CompanyPageData = {
   org: Org
   canManage: boolean
+  // Formalization is owner-only (matches `formalizeOrg`); managers see the
+  // read-only fiscal section but not the CTA.
+  canFormalize: boolean
 }
 
 // Imperative shell for the company route: auth-gate + org fetch + role
@@ -27,5 +30,6 @@ export async function loadCompanyPage(): Promise<CompanyPageData> {
   if (!org) redirect('/onboarding')
 
   const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
-  return { org, canManage }
+  const canFormalize = ctx.membership.role === 'owner'
+  return { org, canManage, canFormalize }
 }

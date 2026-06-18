@@ -20,8 +20,6 @@ import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
 import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
-import { writeOrgTaxIdentity } from '@/shared/org/org'
-import { parseTaxIdentityFromForm } from '@/shared/org/tax-identity'
 import { revalidatePath } from 'next/cache'
 
 function isVertical(value: string): value is Vertical {
@@ -51,17 +49,14 @@ export async function updateCompany(formData: FormData): Promise<UpdateCompanyRe
     return { ok: false, error: 'Slug já está em uso' }
   }
 
-  const taxIdentity = parseTaxIdentityFromForm(formData)
-  if (typeof taxIdentity === 'string') return { ok: false, error: taxIdentity }
+  // Fiscal identity is NOT edited here anymore (brief 0048): an informal Org
+  // formalizes via the dedicated Formalizar flow (`formalize.actions`), and a
+  // formalized Org's fiscal data is read-only. This action only edits the
+  // operational/identity fields below.
   const cancellation = parseCancellationPolicy(formData)
   if (typeof cancellation === 'string') return { ok: false, error: cancellation }
   const branding = parseBranding(formData)
   if (typeof branding === 'string') return { ok: false, error: branding }
-
-  // PII (taxIdentity = owner CPF/CNPJ) goes to the deletable
-  // `orgs/{id}/private/taxIdentity` doc, never to the immutable event
-  // (LGPD — #1036). The event carries only operational fields.
-  await writeOrgTaxIdentity(orgId, taxIdentity)
 
   // Event-first: estado da empresa vem do evento (sem `.update` paralelo); o
   // reducer projeta todas as mudanças.

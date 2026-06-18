@@ -14,6 +14,7 @@ import type {
   Category,
   Commission,
   CommissionRule,
+  CompanyProfile,
   ExpenseCategory,
   InvitePii,
   LiquidationStatus,
@@ -607,6 +608,8 @@ async function seed(): Promise<void> {
     slug: ORG_SLUG,
     vertical: 'barbershop',
     taxIdentity: null,
+    // Barbearia do Zé stays informal (no CNPJ) — the operational baseline org.
+    fiscalProfile: { stage: 'informal' },
     ownerUserId: OWNER.uid,
     timezone: ORG_TZ,
     slotMinutes: 30,
@@ -992,6 +995,210 @@ async function seed(): Promise<void> {
   await seedOpenOrders()
   await seedAgendaBlocks(today)
   await seedExpenses()
+  await seedFormalizationOrgs()
+}
+
+// Formalization manual-testing fixtures (F3 / brief 0048). Leaves a SECOND
+// owner with two orgs ready to exercise the Formalizar flow tomorrow:
+//   (a) an INFORMAL org (no CNPJ) — see the "Formalizar empresa" CTA + flow;
+//   (b) a COMPANY (already formalized) org — see the read-only fiscal section.
+// Seeded directly (bypassing the UI). The owner alternates via the org switcher.
+const FORMALIZE_OWNER = {
+  uid: 'seed-formalize-owner',
+  email: 'fiscal@cbrl.local',
+  displayName: 'Ana Fiscal',
+  whatsapp: '5511988880000',
+}
+const FORMALIZE_INFORMAL_ORG_ID = 'seed-org-informal'
+const FORMALIZE_COMPANY_ORG_ID = 'seed-org-company'
+// Canonical fixture CNPJ (brief 0048): CABRAL TECNOLOGIA LTDA, Simples, ATIVA.
+const FIXTURE_CNPJ = '40148980000199'
+
+async function ensureFormalizeOwnerAuth(): Promise<void> {
+  try {
+    await auth.getUser(FORMALIZE_OWNER.uid)
+    return
+  } catch (err: unknown) {
+    if (!hasErrorCode(err, 'auth/user-not-found')) throw err
+  }
+  const result = await auth.importUsers([
+    {
+      uid: FORMALIZE_OWNER.uid,
+      email: FORMALIZE_OWNER.email,
+      emailVerified: true,
+      displayName: FORMALIZE_OWNER.displayName,
+      providerData: [
+        {
+          uid: FORMALIZE_OWNER.email,
+          providerId: 'google.com',
+          email: FORMALIZE_OWNER.email,
+          displayName: FORMALIZE_OWNER.displayName,
+        },
+      ],
+    },
+  ])
+  if (result.failureCount > 0) {
+    throw new Error(`importUsers failed: ${result.errors.map((e) => e.error.message).join('; ')}`)
+  }
+}
+
+async function seedFormalizationOrgs(): Promise<void> {
+  await ensureFormalizeOwnerAuth()
+  const batch = db.batch()
+  const now = NOW
+
+  const fixtureProfile: CompanyProfile = {
+    taxId: FIXTURE_CNPJ,
+    isMei: false,
+    taxRegime: 'simples_nacional',
+    primaryActivity: {
+      code: '6201501',
+      description: 'Desenvolvimento de programas de computador sob encomenda',
+    },
+    secondaryActivities: [],
+    companySize: 'micro',
+    legalNature: 'Sociedade Empresária Limitada',
+    registrationStatus: 'ATIVA',
+    shareCapital: 1000,
+    activityStartedAt: '2020-12-17',
+  }
+
+  // (a) Informal org — no CNPJ; the owner sees the Formalizar CTA.
+  const informalRef = db.collection('orgs').doc(FORMALIZE_INFORMAL_ORG_ID)
+  batch.set(informalRef, {
+    id: FORMALIZE_INFORMAL_ORG_ID,
+    name: 'Estúdio Informal',
+    slug: 'estudio-informal',
+    vertical: 'barbershop',
+    taxIdentity: null,
+    fiscalProfile: { stage: 'informal' },
+    ownerUserId: FORMALIZE_OWNER.uid,
+    timezone: ORG_TZ,
+    slotMinutes: 30,
+    branding: { logoUrl: null, bannerUrl: null, description: 'Opera sem CNPJ (estágio informal).' },
+    cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
+    whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
+    selfBookingPublished: false,
+    selfBookingPublishedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  } satisfies Org)
+  batch.set(informalRef.collection('private').doc('taxIdentity'), { taxIdentity: null })
+  seedFormalizeMatriz(batch, FORMALIZE_INFORMAL_ORG_ID, 'Estúdio Informal — Matriz', null)
+  seedFormalizeMembership(batch, FORMALIZE_INFORMAL_ORG_ID)
+
+  // (b) Company org — already formalized; the owner sees the read-only fiscal
+  // section. CompanyProfile in Stored; razão social/fantasia in the PII doc.
+  const companyRef = db.collection('orgs').doc(FORMALIZE_COMPANY_ORG_ID)
+  batch.set(companyRef, {
+    id: FORMALIZE_COMPANY_ORG_ID,
+    name: 'Cabral Tecnologia',
+    slug: 'cabral-tecnologia',
+    vertical: 'barbershop',
+    taxIdentity: null,
+    fiscalProfile: {
+      stage: 'company',
+      taxId: FIXTURE_CNPJ,
+      companyProfile: fixtureProfile,
+      formalizedAt: now,
+    },
+    ownerUserId: FORMALIZE_OWNER.uid,
+    timezone: ORG_TZ,
+    slotMinutes: 30,
+    branding: { logoUrl: null, bannerUrl: null, description: 'Empresa formalizada (CNPJ ATIVA).' },
+    cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
+    whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
+    selfBookingPublished: false,
+    selfBookingPublishedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  } satisfies Org)
+  // Razão social + nome fantasia → deletable PII doc (LGPD, ADR 0010).
+  batch.set(companyRef.collection('private').doc('taxIdentity'), {
+    taxIdentity: {
+      kind: 'company',
+      taxId: FIXTURE_CNPJ,
+      legalName: 'CABRAL TECNOLOGIA LTDA',
+      tradeName: 'CABRAL TECH',
+    },
+  })
+  // Matriz 0001 with the full CNPJ-14.
+  seedFormalizeMatriz(batch, FORMALIZE_COMPANY_ORG_ID, 'Cabral Tecnologia — Matriz', FIXTURE_CNPJ)
+  seedFormalizeMembership(batch, FORMALIZE_COMPANY_ORG_ID)
+
+  // The second owner's user doc (currentOrgId = the informal one, so the
+  // Formalizar flow is front-and-center on first login).
+  batch.set(db.collection('users').doc(FORMALIZE_OWNER.uid), {
+    uid: FORMALIZE_OWNER.uid,
+    email: FORMALIZE_OWNER.email,
+    displayName: FORMALIZE_OWNER.displayName,
+    avatarUrl: null,
+    emailVerified: true,
+    currentOrgId: FORMALIZE_INFORMAL_ORG_ID,
+    whatsapp: FORMALIZE_OWNER.whatsapp,
+    birthDate: '1990-03-10',
+    taxIdentity: null,
+    bio: null,
+    specialties: null,
+    completionCompleted: true,
+    claimedAt: now,
+    termsAcceptedAt: now,
+    termsVersion: '1',
+    privacyAcceptedAt: now,
+    privacyVersion: '1',
+    anonymizedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  } satisfies User)
+
+  await batch.commit()
+}
+
+function seedFormalizeMatriz(
+  batch: FirebaseFirestore.WriteBatch,
+  orgId: string,
+  name: string,
+  taxId: string | null,
+): void {
+  const unitRef = db.collection('orgs').doc(orgId).collection('units').doc(`${orgId}-matriz`)
+  const unit: Unit = {
+    id: unitRef.id,
+    orgId,
+    name,
+    slug: 'matriz',
+    whatsapp: FORMALIZE_OWNER.whatsapp,
+    email: null,
+    address: null,
+    businessHours: null,
+    hoursMode: 'appointment',
+    archivedAt: null,
+    createdAt: NOW,
+    updatedAt: NOW,
+  }
+  // A formalized matriz carries the full CNPJ-14; an informal one omits it.
+  if (taxId) unit.taxId = taxId
+  batch.set(unitRef, unit)
+  batch.set(db.collection('orgs').doc(orgId).collection('units_pii').doc(unitRef.id), {
+    whatsapp: FORMALIZE_OWNER.whatsapp,
+    email: null,
+  } satisfies UnitPii)
+}
+
+function seedFormalizeMembership(batch: FirebaseFirestore.WriteBatch, orgId: string): void {
+  const mId = membershipDocId(orgId, FORMALIZE_OWNER.uid)
+  batch.set(db.collection('memberships').doc(mId), {
+    id: mId,
+    orgId,
+    userId: FORMALIZE_OWNER.uid,
+    role: 'owner',
+    status: 'active',
+    invitedBy: null,
+    joinedAt: NOW,
+    updatedAt: NOW,
+    unitId: null,
+    permissions: defaultPermissionsForRole('owner'),
+    commissionRate: null,
+  } satisfies Membership)
 }
 
 // Agenda blocks (bloqueios): recurring weekly lunch breaks (whole unit) + a
@@ -2213,6 +2420,11 @@ seed()
     console.log(
       `  Relatórios:   http://127.0.0.1:3005/reports  (Vendas + Comissões — unidade ativa)`,
     )
+    console.log(line)
+    console.log('  Formalização fiscal (brief 0048) — 2º dono "Ana Fiscal" (fiscal@cbrl.local):')
+    console.log('    · Org informal "Estúdio Informal" → CTA Formalizar em /company')
+    console.log('    · Org "Cabral Tecnologia" já formalizada → seção fiscal read-only')
+    console.log('    (alterne entre as duas pelo switcher de org)')
     console.log(`${line}\n`)
     process.exit(0)
   })

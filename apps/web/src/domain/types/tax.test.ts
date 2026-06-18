@@ -2,9 +2,14 @@ import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   CompanyProfile,
+  FiscalProfile,
+  INFORMAL_FISCAL_PROFILE,
   deriveCompanySize,
   deriveTaxRegime,
+  formatCnpj,
+  isActiveRegistrationStatus,
   isCompany,
+  isCompanyFiscalProfile,
   isValidCompanyTaxId,
   isValidIndividualTaxId,
   normalizeTaxId,
@@ -134,5 +139,80 @@ describe('CompanyProfile (decode)', () => {
         activityStartedAt: '2020-01-01',
       }),
     ).toThrow()
+  })
+})
+
+describe('formatCnpj (brief 0048 AC-07)', () => {
+  it('masks a full CNPJ to 00.000.000/0000-00', () => {
+    expect(formatCnpj('40148980000199')).toBe('40.148.980/0001-99')
+  })
+
+  it('strips non-digits and caps at 14 digits', () => {
+    expect(formatCnpj('40.148.980/0001-99extra')).toBe('40.148.980/0001-99')
+  })
+
+  it('masks progressively for partial input', () => {
+    expect(formatCnpj('40')).toBe('40')
+    expect(formatCnpj('401')).toBe('40.1')
+    expect(formatCnpj('40148980')).toBe('40.148.980')
+    expect(formatCnpj('401489800001')).toBe('40.148.980/0001')
+  })
+
+  it('returns empty for empty input', () => {
+    expect(formatCnpj('')).toBe('')
+  })
+})
+
+describe('isActiveRegistrationStatus (ATIVA gate, brief 0048 AC-05)', () => {
+  it('accepts ATIVA case-insensitively with surrounding space', () => {
+    expect(isActiveRegistrationStatus('ATIVA')).toBe(true)
+    expect(isActiveRegistrationStatus('ativa')).toBe(true)
+    expect(isActiveRegistrationStatus(' Ativa ')).toBe(true)
+  })
+
+  it('rejects every non-ATIVA status', () => {
+    expect(isActiveRegistrationStatus('BAIXADA')).toBe(false)
+    expect(isActiveRegistrationStatus('SUSPENSA')).toBe(false)
+    expect(isActiveRegistrationStatus('INAPTA')).toBe(false)
+    expect(isActiveRegistrationStatus('')).toBe(false)
+  })
+})
+
+describe('FiscalProfile (brief 0048 AC-01)', () => {
+  const decode = Schema.decodeUnknownSync(FiscalProfile)
+
+  it('the informal default narrows as informal', () => {
+    expect(INFORMAL_FISCAL_PROFILE).toEqual({ stage: 'informal' })
+    expect(isCompanyFiscalProfile(INFORMAL_FISCAL_PROFILE)).toBe(false)
+  })
+
+  it('narrows the company variant', () => {
+    const company: FiscalProfile = {
+      stage: 'company',
+      taxId: '40148980000199',
+      companyProfile: {
+        taxId: '40148980000199',
+        isMei: false,
+        taxRegime: 'simples_nacional',
+        primaryActivity: { code: '6201501', description: 'Desenvolvimento de software' },
+        secondaryActivities: [],
+        companySize: 'micro',
+        legalNature: '2062',
+        registrationStatus: 'ATIVA',
+        shareCapital: 1000,
+        activityStartedAt: '2020-01-01',
+      },
+      formalizedAt: '2026-06-18T00:00:00.000Z',
+    }
+    expect(isCompanyFiscalProfile(company)).toBe(true)
+    expect(decode(company)).toEqual(company)
+  })
+
+  it('rejects a company variant missing the required corporate fields', () => {
+    expect(() => decode({ stage: 'company', taxId: '40148980000199' })).toThrow()
+  })
+
+  it('rejects an unknown stage', () => {
+    expect(() => decode({ stage: 'partial' })).toThrow()
   })
 })

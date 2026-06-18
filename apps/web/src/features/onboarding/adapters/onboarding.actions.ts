@@ -59,6 +59,9 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
     ownerUserId: session.uid,
     selfBookingPublished: false,
     selfBookingPublishedAt: null,
+    // A new Org is born informal — it operates without a CNPJ (brief 0048 /
+    // PRD Identidade). Formalization is a later upgrade via the Formalizar flow.
+    fiscalProfile: { stage: 'informal' as const },
     timezone: DEFAULT_ORG_TIMEZONE,
     slotMinutes: VERTICAL_DEFAULTS[vertical].defaultSlotMinutes,
     branding: { ...DEFAULT_ORG_BRANDING },

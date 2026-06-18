@@ -21,6 +21,7 @@ function buildOrg(overrides: Partial<Org> = {}): Org {
     slug: 'barbearia-joao',
     vertical: 'barbershop',
     taxIdentity: null,
+    fiscalProfile: { stage: 'informal' },
     ownerUserId: 'u1',
     selfBookingPublished: false,
     selfBookingPublishedAt: null,

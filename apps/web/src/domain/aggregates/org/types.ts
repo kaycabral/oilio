@@ -5,6 +5,7 @@ import {
   DEFAULT_ORG_TIMEZONE,
   DEFAULT_SLOT_MINUTES,
 } from '@/domain/types/org'
+import { INFORMAL_FISCAL_PROFILE } from '@/domain/types/tax'
 import { DEFAULT_WHATSAPP_TEMPLATES } from '@/domain/utils/whatsapp'
 
 // Projeção event-sourced = o doc operacional `StoredOrg` (PII taxIdentity =
@@ -21,6 +22,7 @@ export const INITIAL_ORG_STATE: OrgState = {
   ownerUserId: '',
   selfBookingPublished: false,
   selfBookingPublishedAt: null,
+  fiscalProfile: { ...INFORMAL_FISCAL_PROFILE },
   timezone: DEFAULT_ORG_TIMEZONE,
   slotMinutes: DEFAULT_SLOT_MINUTES,
   branding: { ...DEFAULT_ORG_BRANDING },

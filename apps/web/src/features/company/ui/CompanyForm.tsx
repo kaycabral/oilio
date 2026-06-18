@@ -36,9 +36,6 @@ const VERTICAL_LABELS: Record<Vertical, string> = {
 export function CompanyForm({ org, canManage }: { org: Org; canManage: boolean }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [taxKind, setTaxKind] = useState<'none' | 'individual' | 'company'>(
-    org.taxIdentity?.kind ?? 'none',
-  )
   const [cancellationEnabled, setCancellationEnabled] = useState(org.cancellationPolicy.enabled)
   const [cancellationMinNotice, setCancellationMinNotice] = useState<number>(
     org.cancellationPolicy.minNoticeMinutes || DEFAULT_CANCELLATION_POLICY.minNoticeMinutes,
@@ -105,59 +102,6 @@ export function CompanyForm({ org, canManage }: { org: Org; canManage: boolean }
             </SelectContent>
           </Select>
         </div>
-
-        <fieldset className="border-border rounded-md border p-4">
-          <legend className="px-1 text-sm font-medium">Identidade fiscal (opcional)</legend>
-          <div className="flex gap-3 py-2">
-            {(['none', 'individual', 'company'] as const).map((k) => (
-              <label key={k} className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="taxKind"
-                  value={k}
-                  checked={taxKind === k}
-                  onChange={() => setTaxKind(k)}
-                />
-                {(() => {
-                  if (k === 'none') return 'Sem informar'
-                  if (k === 'individual') return 'Pessoa física'
-                  return 'Pessoa jurídica'
-                })()}
-              </label>
-            ))}
-          </div>
-          {taxKind !== 'none' ? (
-            <div className="flex flex-col gap-3 pt-2">
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="company-taxId" className="text-sm font-medium">
-                  {taxKind === 'individual' ? 'CPF' : 'CNPJ'}
-                </Label>
-                <Input
-                  id="company-taxId"
-                  name="taxId"
-                  defaultValue={org.taxIdentity?.taxId ?? ''}
-                  placeholder={taxKind === 'individual' ? '000.000.000-00' : '00.000.000/0000-00'}
-                  required
-                />
-              </div>
-              {taxKind === 'company' ? (
-                <div className="flex flex-col gap-1">
-                  <Label htmlFor="company-legalName" className="text-sm font-medium">
-                    Razão social
-                  </Label>
-                  <Input
-                    id="company-legalName"
-                    name="legalName"
-                    defaultValue={
-                      org.taxIdentity?.kind === 'company' ? org.taxIdentity.legalName : ''
-                    }
-                    required
-                  />
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </fieldset>
 
         <fieldset className="border-border rounded-md border p-4">
           <legend className="px-1 text-sm font-medium">Identidade pública</legend>

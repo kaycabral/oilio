@@ -2,7 +2,7 @@ import { Schema } from 'effect'
 
 import type { WhatsappTemplates } from '../utils/whatsapp'
 import { Vertical } from './enums'
-import { CompanyProfile, TaxIdentity } from './tax'
+import { FiscalProfile, TaxIdentity } from './tax'
 
 // `WhatsappTemplates` (a hand-written `type` in `../utils/whatsapp`, outside the
 // read-model kernel) projected as a schema so the `Org.whatsappTemplates`
@@ -127,11 +127,13 @@ export const Org = Schema.mutable(
     slug: Schema.String,
     vertical: Vertical,
     taxIdentity: Schema.NullOr(TaxIdentity),
-    // Corporate registry data from the CNPJ lookup (brief 0046). NON-PII, so —
-    // unlike `taxIdentity` — it stays in `StoredOrg` and the `org.created`
-    // event: queryable + replay-safe. `optional` tolerates strict-decoding docs
-    // written before this field existed; populated on creation by `createOrg`.
-    companyProfile: Schema.optional(Schema.NullOr(CompanyProfile)),
+    // The Org's fiscal lifecycle stage (brief 0048). The SINGLE source of truth
+    // for informal vs. formalized: the `company` variant carries the matriz
+    // CNPJ-14, the registry `CompanyProfile` (NON-PII), and `formalizedAt`. So,
+    // unlike `taxIdentity`, it stays in `StoredOrg` + the `org.formalized`
+    // event: queryable + replay-safe. A new Org is born `informal`; the read
+    // path (`normalizeOrg`) backfills a missing field to informal.
+    fiscalProfile: FiscalProfile,
     ownerUserId: Schema.String,
     // Self-booking publication gate (brief 0008 #988). The public page is only
     // reachable when `selfBookingPublished` is true — the owner publishes

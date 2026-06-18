@@ -90,3 +90,66 @@ export const CompanyProfile = Schema.mutable(
   }),
 )
 export type CompanyProfile = typeof CompanyProfile.Type
+
+// --- Fiscal profile (the Org's fiscal lifecycle stage) ---------------------
+//
+// The single source of truth for whether an Org is operating informally or has
+// been formalized with a CNPJ (brief 0048 / PRD Identidade). Discriminated by
+// `stage`:
+//   - `informal` → no CNPJ; the Org operates (agenda, clients, services) but
+//     has no fiscal identity. The default for every new/existing Org.
+//   - `company`  → formalized. Carries the establishment's full CNPJ-14
+//     (`taxId`), the public registry `CompanyProfile` (NON-PII), and the
+//     `formalizedAt` boundary that dates the PF→PJ fiscal cut.
+//
+// LGPD: this union is NON-PII (a PJ's CNPJ + registry data identify a company,
+// not a natural person), so it rides in `StoredOrg` + the `org.formalized`
+// event payload — queryable and replay-safe. The name-bearing fields (razão
+// social / nome fantasia) deliberately stay OUT of here, in the deletable PII
+// doc `orgs/{id}/private/taxIdentity` (a MEI's razão social embeds a civil
+// name). See ADR 0010 + brief 0048.
+export const FiscalProfile = Schema.Union(
+  Schema.mutable(Schema.Struct({ stage: Schema.Literal('informal') })),
+  Schema.mutable(
+    Schema.Struct({
+      stage: Schema.Literal('company'),
+      // The matriz establishment's full CNPJ-14 (raiz(8) + ordem(4) + DV(2)).
+      taxId: Schema.String,
+      companyProfile: CompanyProfile,
+      // ISO timestamp of formalization — the dated PF→PJ fiscal boundary
+      // (brief 0048 AC-09): pre = renda PF (out of the DRE), post = receita PJ.
+      formalizedAt: Schema.String,
+    }),
+  ),
+)
+export type FiscalProfile = typeof FiscalProfile.Type
+
+export const INFORMAL_FISCAL_PROFILE: FiscalProfile = { stage: 'informal' }
+
+export function isCompanyFiscalProfile(
+  p: FiscalProfile,
+): p is Extract<FiscalProfile, { stage: 'company' }> {
+  return p.stage === 'company'
+}
+
+// The Receita situação cadastral that gates formalization (brief 0048 AC-05):
+// only an ATIVA company may formalize. Compared case-insensitively.
+export const ACTIVE_REGISTRATION_STATUS = 'ATIVA'
+
+export function isActiveRegistrationStatus(status: string): boolean {
+  return status.trim().toUpperCase() === ACTIVE_REGISTRATION_STATUS
+}
+
+// Masks a CNPJ to the canonical `00.000.000/0000-00` form as the owner types
+// (brief 0048 AC-07, owner feedback). Pure: strips non-digits, caps at 14, then
+// inserts the separators progressively so a partial entry stays legible.
+export function formatCnpj(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 14)
+  const parts = [d.slice(0, 2), d.slice(2, 5), d.slice(5, 8), d.slice(8, 12), d.slice(12, 14)]
+  let out = parts[0] ?? ''
+  if (d.length > 2) out += `.${parts[1]}`
+  if (d.length > 5) out += `.${parts[2]}`
+  if (d.length > 8) out += `/${parts[3]}`
+  if (d.length > 12) out += `-${parts[4]}`
+  return out
+}

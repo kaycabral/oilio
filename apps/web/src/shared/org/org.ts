@@ -1,6 +1,7 @@
 import {
   DEFAULT_ORG_TIMEZONE,
   DEFAULT_SLOT_MINUTES,
+  INFORMAL_FISCAL_PROFILE,
   type Org,
   StoredOrg,
   type TaxIdentity,
@@ -40,6 +41,9 @@ function normalizeOrg(t: StoredOrg, taxIdentity: TaxIdentity | null): Org {
     // (unpublished) so a missing flag never leaks a public page.
     selfBookingPublished: t.selfBookingPublished === true,
     selfBookingPublishedAt: t.selfBookingPublishedAt ?? null,
+    // An Org without a persisted `fiscalProfile` (pre-0048, or never
+    // formalized) reads as informal — the default stage (brief 0048 AC-01).
+    fiscalProfile: t.fiscalProfile ?? INFORMAL_FISCAL_PROFILE,
   }
 }
 

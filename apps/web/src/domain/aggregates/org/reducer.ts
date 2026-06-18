@@ -14,6 +14,18 @@ export function applyOrgEvent(state: OrgState, event: OrgEvent, meta: EventMeta)
       return { ...base, selfBookingPublished: true, selfBookingPublishedAt: meta.timestamp }
     case 'org.self_booking_unpublished':
       return { ...base, selfBookingPublished: false }
+    case 'org.formalized':
+      // informal → company: the fiscalProfile becomes the single source of the
+      // company stage (CNPJ-14 + registry profile + formalization boundary).
+      return {
+        ...base,
+        fiscalProfile: {
+          stage: 'company',
+          taxId: event.taxId,
+          companyProfile: event.companyProfile,
+          formalizedAt: event.formalizedAt,
+        },
+      }
     case 'org.deleted':
       return base
   }

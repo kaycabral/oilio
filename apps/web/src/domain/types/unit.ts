@@ -101,6 +101,13 @@ export const Unit = Schema.mutable(
     // timestamp). Archived units drop out of active lists/pickers but stay
     // resolvable for historical references. `null` = active (not archived).
     archivedAt: Schema.NullOr(Schema.String),
+    // The establishment's full CNPJ-14 (raiz(8) + ordem(4) + DV(2)), set when
+    // the Org formalizes (brief 0048 AC-03/AC-06): the informal matriz becomes
+    // the matriz `0001`. NON-PII (a PJ establishment's CNPJ is not personal —
+    // the MEI civil-name nuance lives in the Org's deletable taxIdentity doc),
+    // so it rides in `StoredUnit` + the `unit.updated` event. `undefined` while
+    // informal.
+    taxId: Schema.optional(Schema.String),
     createdAt: Schema.String,
     updatedAt: Schema.String,
   }),
