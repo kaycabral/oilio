@@ -152,7 +152,7 @@ describe('AppLayout — auth and org gating', () => {
     mockUnitsSnap([])
     // PRD Identidade v2 (simplification): a Negócio with no Unidade is a NORMAL
     // empty state, not a forced onboarding screen. The owner lands in the app and
-    // creates a Unidade as an ordinary action from /negocios — no redirect.
+    // creates a Unidade as an ordinary action from /orgs — no redirect.
     await expect(callLayout()).resolves.toBeTruthy()
   })
 

@@ -41,7 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // No first-unit gate (PRD Identidade v2 — simplification): a Negócio with no
   // Unidade is a normal empty state, NOT a forced onboarding screen. The owner
   // lands in the app normally and creates Unidades as an ordinary action from
-  // /negocios. Onboarding ends after profile + create-Negócio.
+  // /orgs. Onboarding ends after profile + create-Negócio.
 
   // Orgs the user can switch between (brief 0029, AC-09) — switcher shows the
   // org picker only when 2+. Single-unit members are locked (AC-05): the

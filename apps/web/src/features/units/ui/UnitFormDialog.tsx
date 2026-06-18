@@ -17,7 +17,7 @@ import { useState } from 'react'
 // surface (PRD Identidade v2 — simplification): a normal dialog hosting the
 // reusable `UnitForm`, NOT a separate page. The form is seeded with sensible
 // defaults (unit name = Negócio name, a Mon–Sat operating week) so the owner
-// only confirms address + WhatsApp. `createUnit` redirects to `/negocios` on
+// only confirms address + WhatsApp. `createUnit` redirects to `/orgs` on
 // success, which closes the dialog via navigation.
 export function UnitFormDialog({ orgName }: { orgName: string }) {
   const [open, setOpen] = useState(false)

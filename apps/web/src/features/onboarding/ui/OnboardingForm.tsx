@@ -14,6 +14,7 @@ import {
   SelectValue,
   Typography,
 } from '@cbrl/design'
+import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
 const VERTICAL_LABELS: Record<Vertical, string> = {
@@ -24,6 +25,7 @@ const VERTICAL_LABELS: Record<Vertical, string> = {
 }
 
 export function OnboardingForm() {
+  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const { formRef, isValid, refresh } = useFormValidity()
@@ -32,7 +34,13 @@ export function OnboardingForm() {
     setError(null)
     startTransition(async () => {
       const result = await createOrg(formData)
-      if (!result.ok) setError(result.error)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      // First Negócio (post-signup): enter the app. The (app) layout resolves
+      // the new org context; the guided first-unit empty state takes over.
+      router.replace('/')
     })
   }
 

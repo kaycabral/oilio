@@ -199,7 +199,7 @@ function UnitRow({
 
   // Read-only members see a static row; managers get an edit link + (owner)
   // the Excluir/Arquivar overflow action — the unit CRUD lives right here on
-  // /negocios (PRD Identidade v2 — simplification), not a separate page.
+  // /orgs (PRD Identidade v2 — simplification), not a separate page.
   if (!canManage) {
     return (
       <li className="flex items-center gap-3 py-3">

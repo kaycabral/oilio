@@ -44,7 +44,8 @@ async function assertNoCrash(authedPage: Page, path: string) {
 }
 
 // PRD Identidade v2 / F5: the old "Empresa" page retired → `/company` now
-// redirects to `/negocios` (the Negócios & Unidades surface). Sweep the v2 route.
+// redirects to `/orgs` (the Negócios & Unidades surface; route is the English
+// domain term, "Negócios" is the label only). Sweep the v2 route.
 const SURFACES = [
   '/agenda',
   '/orders',
@@ -55,7 +56,7 @@ const SURFACES = [
   '/team',
   '/plans',
   '/subscriptions',
-  '/negocios',
+  '/orgs',
   '/units',
 ]
 

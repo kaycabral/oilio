@@ -9,11 +9,11 @@
 //   - replay reconstructs the Org from events alone;
 //   - a forced failure at the membership step compensates — no partial state.
 //
-// `getSessionUser` (auth) and `next/navigation` redirect are mocked: the action
-// targets the emulator for every write, but session minting + the success
-// `redirect()` are environment concerns, not the saga under test. `emitEvent`
-// is partially spied so the failure case can force the membership step to fail
-// without touching the real org/unit emissions.
+// `getSessionUser` (auth) is mocked: the action targets the emulator for every
+// write, but session minting is an environment concern, not the saga under test.
+// `createOrg` no longer redirects — it returns the new id and the caller decides
+// the navigation. `emitEvent` is partially spied so the failure case can force
+// the membership step to fail without touching the real org/unit emissions.
 
 import { Effect } from 'effect'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,16 +26,6 @@ vi.mock('next/headers', () => ({
 let currentSession: { uid: string; email: string | null; emailVerified: boolean } | null = null
 vi.mock('@/shared/firebase/admin', () => ({
   getSessionUser: () => Promise.resolve(currentSession),
-}))
-
-// `redirect('/')` throws Next's internal NEXT_REDIRECT marker in real Next. In
-// the test env we throw a sentinel so the happy path can `await` createOrg and
-// then assert the persisted state.
-const REDIRECT = new Error('NEXT_REDIRECT')
-vi.mock('next/navigation', () => ({
-  redirect: () => {
-    throw REDIRECT
-  },
 }))
 
 // Partial spy over the effect-bridge: real emissions by default, but when
@@ -136,10 +126,13 @@ describe('createOrg — account-first signup (F2 / brief 0046)', () => {
     await seedOwner(uid, '5511988887777', 'owner@example.com')
     currentSession = { uid, email: 'owner@example.com', emailVerified: true }
 
-    // createOrg ends in redirect('/') → our sentinel.
-    await expect(createOrg(orgForm('Barbearia do João'))).rejects.toBe(REDIRECT)
+    // createOrg now returns the new id (no internal redirect — the caller
+    // decides: soft context switch vs. enter the app).
+    const result = await createOrg(orgForm('Barbearia do João'))
+    expect(result.ok).toBe(true)
 
     const orgId = await findOnlyOrgId(uid)
+    if (result.ok) expect(result.orgId).toBe(orgId)
 
     // Org projection exists with the name.
     const orgDoc = await db.collection('orgs').doc(orgId).get()
@@ -168,7 +161,8 @@ describe('createOrg — account-first signup (F2 / brief 0046)', () => {
     await seedOwner(uid, '5511977776666', 'replay@example.com')
     currentSession = { uid, email: 'replay@example.com', emailVerified: true }
 
-    await expect(createOrg(orgForm('Estúdio Replay'))).rejects.toBe(REDIRECT)
+    const created = await createOrg(orgForm('Estúdio Replay'))
+    expect(created.ok).toBe(true)
     const orgId = await findOnlyOrgId(uid)
 
     const replayOrg = await Effect.runPromise(

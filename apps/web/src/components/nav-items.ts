@@ -90,8 +90,9 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         // Negócios & Unidades — the single management surface (PRD Identidade
         // v2 — simplification): one folder hub that hosts BOTH Negócio settings
         // AND the Unidade create/edit/list. The separate "Unidades" nav entry
-        // (`/units`) was retired; `/units` now redirects here.
-        href: '/negocios',
+        // (`/units`) was retired; `/units` now redirects here. Route is the
+        // English domain term `/orgs`; "Negócios" stays only as the label.
+        href: '/orgs',
         label: 'Negócios & Unidades',
         icon: Building,
         match: 'prefix',

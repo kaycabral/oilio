@@ -3,6 +3,7 @@
 import { VERTICALS, type Vertical } from '@/domain'
 import { createOrg } from '@/features/onboarding/adapters/onboarding.actions'
 import { useFormValidity } from '@/hooks/use-form-validity'
+import { useOrg } from '@/shared/org/org-context'
 import {
   Button,
   Dialog,
@@ -30,9 +31,12 @@ const VERTICAL_LABELS: Record<Vertical, string> = {
 
 // "+ Novo negócio" — creates another Negócio (folder) for the same user. Reuses
 // the canonical `createOrg` saga (name + segment → folder WITHOUT a unit, the
-// intentional empty state). On success the action sets the new org as current
-// and redirects into the app (the guided first-unit empty state takes over).
+// intentional empty state). On success this is a SMOOTH in-place context switch
+// (no full reload): `setActiveOrg(orgId)` writes `currentOrgId` + `router.refresh()`
+// (the exact mechanism `UnitOrgSwitcher` uses), then the dialog closes. We stay
+// on the orgs page; it re-renders in the new Negócio's context.
 export function NewOrgDialog() {
+  const { setActiveOrg } = useOrg()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -42,8 +46,14 @@ export function NewOrgDialog() {
     setError(null)
     startTransition(async () => {
       const res = await createOrg(formData)
-      // `createOrg` redirects on success; only a failure returns here.
-      if (!res.ok) setError(res.error)
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      // Soft context switch — set the new Negócio active (+ RSC refresh, handled
+      // by the OrgProvider's setActiveOrg) and close the dialog. No navigation.
+      await setActiveOrg(res.orgId)
+      setOpen(false)
     })
   }
 

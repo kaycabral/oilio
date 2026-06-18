@@ -13,7 +13,6 @@ import { parseOrgForm } from '@/features/onboarding/core/org-form'
 import { getAdminFirestore } from '@/shared/db'
 import { emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
-import { redirect } from 'next/navigation'
 
 const SLUG_MAX_ATTEMPTS = 20
 
@@ -116,10 +115,12 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
     return { ok: false, error: 'Não foi possível concluir a criação da conta. Tente de novo.' }
   }
 
-  // No onboarding wizard (#1028) — the app is operable from signup (#986). The
-  // (app) layout takes the owner to the operational app; the guided-first-unit
-  // empty-state (PRD Identidade v2) creates the first establishment just-in-time.
-  redirect('/')
+  // Return the new id WITHOUT navigating — the caller decides. Additional-Negócio
+  // creation (`NewOrgDialog`) does a SOFT context switch in place (setActiveOrg +
+  // router.refresh, mirroring `UnitOrgSwitcher`); first-Negócio onboarding
+  // (`OnboardingForm`) enters the app client-side. No `redirect` here avoids the
+  // hard navigation / full dashboard reload.
+  return { ok: true, orgId }
 }
 
 async function generateUniqueSlug(

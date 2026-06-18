@@ -16,7 +16,7 @@ import { UnitsPage } from '../pages'
 
 // PRD Identidade v2 / F5: the fiscal identity moved Org→Unit. The Formalizar
 // flow + fiscal section now live on the UNIDADE detail (`/units/[id]`), not the
-// old "Empresa" page (retired → `/company` redirects to `/negocios`). Reach the
+// old "Empresa" page (retired → `/company` redirects to `/orgs`). Reach the
 // active unit's detail via the units list (⋯ → Editar). `seedOrg` writes
 // `Unidade 1`.
 async function gotoActiveUnitDetail(authedPage: Parameters<typeof rowAction>[0]) {
