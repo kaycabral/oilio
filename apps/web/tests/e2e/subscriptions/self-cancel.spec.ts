@@ -31,7 +31,7 @@ const EventTagListSchema = Schema.Struct({
 const decodeEventTagList = Schema.decodeUnknownSync(EventTagListSchema)
 
 function listEventTags(orgId: string, subscriptionId: string): string[] {
-  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/organizations/${orgId}/subscriptions/${subscriptionId}/events`
+  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/subscriptions/${subscriptionId}/events`
   const out = execFileSync('curl', ['-fsS', url, '-H', 'Authorization: Bearer owner'], {
     encoding: 'utf8',
   })

@@ -25,7 +25,7 @@ import { AgendaPage } from '../pages'
 // Cancela a assinatura direto no emulator (PATCH só do campo status) — usado pra
 // forçar um erro de backend no fechamento de forma determinística.
 function cancelSubscription(orgId: string, subId: string): void {
-  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/organizations/${orgId}/subscriptions/${subId}?updateMask.fieldPaths=status`
+  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/subscriptions/${subId}?updateMask.fieldPaths=status`
   execFileSync('curl', [
     '-fsS',
     '-X',

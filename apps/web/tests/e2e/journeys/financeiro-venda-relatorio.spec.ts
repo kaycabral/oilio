@@ -68,12 +68,7 @@ const salesRow = (page: Page, label: string | RegExp) =>
 function listDocs(orgId: string, collection: string): readonly FsDocument[] {
   const out = execFileSync(
     'curl',
-    [
-      '-fsS',
-      '-H',
-      'Authorization: Bearer owner',
-      `${FS_BASE}/organizations/${orgId}/${collection}`,
-    ],
+    ['-fsS', '-H', 'Authorization: Bearer owner', `${FS_BASE}/orgs/${orgId}/${collection}`],
     { encoding: 'utf8' },
   )
   const parsed = parseJson(out, decodeFsListResponse)

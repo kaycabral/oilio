@@ -24,7 +24,7 @@ function archiveUnit(orgId: string, unitId: string): void {
       '-fsS',
       '-X',
       'PATCH',
-      `${FS_BASE}/organizations/${orgId}/units/${unitId}?updateMask.fieldPaths=archivedAt`,
+      `${FS_BASE}/orgs/${orgId}/units/${unitId}?updateMask.fieldPaths=archivedAt`,
       '-H',
       'Authorization: Bearer owner',
       '-H',

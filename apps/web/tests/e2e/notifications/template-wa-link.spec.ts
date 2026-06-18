@@ -25,7 +25,7 @@ function seedBirthdayNotification(orgId: string, unitId: string, customerId: str
       '-fsS',
       '-X',
       'PATCH',
-      `${fsBaseUrl()}/organizations/${orgId}/notifications/${notifId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -66,7 +66,7 @@ function getNotification(orgId: string, notifId: string): Record<string, FsValue
       '-fsS',
       '-H',
       'Authorization: Bearer owner',
-      `${fsBaseUrl()}/organizations/${orgId}/notifications/${notifId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`,
     ],
     { encoding: 'utf8' },
   )

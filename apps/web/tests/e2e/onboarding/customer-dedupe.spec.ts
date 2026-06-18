@@ -81,7 +81,7 @@ function seedStubCustomer(
     [
       '-X',
       'PATCH',
-      `${fsBaseUrl()}/organizations/${orgId}/customers/${customerId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/customers/${customerId}`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -114,11 +114,7 @@ const decodeReadCustomer = Schema.decodeUnknownSync(
 function readCustomer(orgId: string, customerId: string): Record<string, unknown> | null {
   try {
     const json = curlJson(
-      [
-        `${fsBaseUrl()}/organizations/${orgId}/customers/${customerId}`,
-        '-H',
-        'Authorization: Bearer owner',
-      ],
+      [`${fsBaseUrl()}/orgs/${orgId}/customers/${customerId}`, '-H', 'Authorization: Bearer owner'],
       decodeReadCustomer,
     )
     return json.fields ?? null

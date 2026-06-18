@@ -55,7 +55,7 @@ const SubscriptionConsumedSchema = Schema.Struct({
 const decodeSubscriptionConsumed = Schema.decodeUnknownSync(SubscriptionConsumedSchema)
 
 function readConsumed(orgId: string, subId: string): number {
-  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/organizations/${orgId}/subscriptions/${subId}`
+  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/subscriptions/${subId}`
   const out = execFileSync('curl', ['-fsS', url, '-H', 'Authorization: Bearer owner'], {
     encoding: 'utf8',
   })

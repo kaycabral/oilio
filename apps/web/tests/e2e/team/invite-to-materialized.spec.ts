@@ -51,7 +51,7 @@ function listProfessionals(orgId: string): StoredPro[] {
     'curl',
     [
       '-fsS',
-      `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/organizations/${orgId}/professionals`,
+      `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/professionals`,
       '-H',
       'Authorization: Bearer owner',
     ],

@@ -30,7 +30,7 @@ import {
 import { AgendaPage } from '../pages'
 
 const docUrl = (orgId: string, path: string) =>
-  `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/organizations/${orgId}/${path}`
+  `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/${path}`
 
 function readConsumed(orgId: string, subId: string): number {
   const out = execFileSync('curl', [

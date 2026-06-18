@@ -81,7 +81,7 @@ function readUnderRules(
       'curl',
       [
         '-fsS',
-        `${fsDocsBase()}/organizations/${orgId}/categories/${id}`,
+        `${fsDocsBase()}/orgs/${orgId}/categories/${id}`,
         '-H',
         `Authorization: Bearer ${idToken}`,
       ],
@@ -128,7 +128,7 @@ function queryReferenceCount({
       '-fsS',
       '-X',
       'POST',
-      `${fsDocsBase()}/organizations/${orgId}:runQuery`,
+      `${fsDocsBase()}/orgs/${orgId}:runQuery`,
       '-H',
       `Authorization: Bearer ${idToken}`,
       '-H',

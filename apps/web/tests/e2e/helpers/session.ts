@@ -522,7 +522,7 @@ export function setSubscriptionStatus(
   subscriptionId: string,
   status: 'pending' | 'active' | 'past_due' | 'suspended' | 'cancelled',
 ): void {
-  const url = `${fsBaseUrl()}/organizations/${orgId}/subscriptions/${subscriptionId}?updateMask.fieldPaths=status`
+  const url = `${fsBaseUrl()}/orgs/${orgId}/subscriptions/${subscriptionId}?updateMask.fieldPaths=status`
   execFileSync(
     'curl',
     [
@@ -763,7 +763,7 @@ function readCustomerUserId(orgId: string, customerId: string): string {
     'curl',
     [
       '-fsS',
-      `${fsBaseUrl()}/organizations/${orgId}/customers/${customerId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/customers/${customerId}`,
       '-H',
       'Authorization: Bearer owner',
     ],
@@ -788,7 +788,7 @@ function readProfessionalUserId(orgId: string, professionalId: string): string |
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/organizations/${orgId}/professionals/${professionalId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/professionals/${professionalId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -826,7 +826,7 @@ export function readProfessionalByUserId(
         '-fsS',
         '-X',
         'POST',
-        `${fsBaseUrl()}/organizations/${orgId}:runQuery`,
+        `${fsBaseUrl()}/orgs/${orgId}:runQuery`,
         '-H',
         'Authorization: Bearer owner',
         '-H',
@@ -963,7 +963,7 @@ export function blockedSubjectMarkerExists(orgId: string, userId: string): boole
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/organizations/${orgId}/blocked_subjects/${userId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/blocked_subjects/${userId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -1272,7 +1272,7 @@ export function linkProfessionalToServices(
 ): void {
   // Manual curl call so we can pass the updateMask query param (curlPut does
   // not surface it). Same auth + JSON shape as the other Firestore writes.
-  const url = `${fsBaseUrl()}/organizations/${orgId}/professionals/${professionalId}?updateMask.fieldPaths=serviceIds`
+  const url = `${fsBaseUrl()}/orgs/${orgId}/professionals/${professionalId}?updateMask.fieldPaths=serviceIds`
   execFileSync(
     'curl',
     [
@@ -1531,7 +1531,7 @@ export function readCatalogItem(
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/organizations/${orgId}/catalog_items/${catalogItemId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/catalog_items/${catalogItemId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -1563,7 +1563,7 @@ export function patchAppointmentSnapshot(
 ): void {
   const mask =
     'updateMask.fieldPaths=servicePriceCentsSnapshot&updateMask.fieldPaths=commissionSnapshot'
-  const url = `${fsBaseUrl()}/organizations/${orgId}/appointments/${appointmentId}?${mask}`
+  const url = `${fsBaseUrl()}/orgs/${orgId}/appointments/${appointmentId}?${mask}`
   execFileSync(
     'curl',
     [
@@ -1600,7 +1600,7 @@ export function readAppointment(
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/organizations/${orgId}/appointments/${appointmentId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/appointments/${appointmentId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -1619,12 +1619,7 @@ export function listAppointmentIds(orgId: string): string[] {
   try {
     const out = execFileSync(
       'curl',
-      [
-        '-fsS',
-        `${fsBaseUrl()}/organizations/${orgId}/appointments`,
-        '-H',
-        'Authorization: Bearer owner',
-      ],
+      ['-fsS', `${fsBaseUrl()}/orgs/${orgId}/appointments`, '-H', 'Authorization: Bearer owner'],
       { encoding: 'utf8' },
     )
     const json = parseJson(
@@ -1649,7 +1644,7 @@ export function blockExists(orgId: string, blockId: string): boolean {
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/organizations/${orgId}/agenda_blocks/${blockId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/agenda_blocks/${blockId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -1834,7 +1829,7 @@ export function readCommission(
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/organizations/${orgId}/commissions/${commissionId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/commissions/${commissionId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -2013,7 +2008,7 @@ export function readInviteStatus(orgId: string, inviteId: string): string | null
     'curl',
     [
       '-fsS',
-      `${fsBaseUrl()}/organizations/${orgId}/invites/${inviteId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/invites/${inviteId}`,
       '-H',
       'Authorization: Bearer owner',
     ],
@@ -2038,7 +2033,7 @@ export function readInvite(
     'curl',
     [
       '-fsS',
-      `${fsBaseUrl()}/organizations/${orgId}/invites/${inviteId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/invites/${inviteId}`,
       '-H',
       'Authorization: Bearer owner',
     ],

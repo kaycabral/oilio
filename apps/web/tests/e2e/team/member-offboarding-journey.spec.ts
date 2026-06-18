@@ -116,7 +116,7 @@ function professionalPiiExists(orgId: string, professionalId: string): boolean {
       'curl',
       [
         '-fsS',
-        `${FS_BASE}/organizations/${orgId}/professionals_pii/${professionalId}`,
+        `${FS_BASE}/orgs/${orgId}/professionals_pii/${professionalId}`,
         '-H',
         'Authorization: Bearer owner',
       ],

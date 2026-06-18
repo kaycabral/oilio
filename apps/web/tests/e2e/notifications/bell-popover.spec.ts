@@ -17,7 +17,7 @@ function seedNotification(orgId: string, unitId: string, type: string, eventKey:
   const notifId = `e2e-notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const now = new Date().toISOString()
 
-  const url = `${fsBaseUrl()}/organizations/${orgId}/notifications/${notifId}`
+  const url = `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`
   execFileSync(
     'curl',
     [

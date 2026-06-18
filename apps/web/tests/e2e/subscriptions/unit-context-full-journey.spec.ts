@@ -32,7 +32,7 @@ import {
 } from '../helpers/session'
 
 function docUrl(orgId: string, collection: string, docId: string): string {
-  return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/organizations/${orgId}/${collection}/${docId}`
+  return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/${collection}/${docId}`
 }
 
 function getJson<T>(url: string, decode: (u: unknown) => T): T {

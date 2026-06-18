@@ -37,7 +37,7 @@ const decodeRequiredFieldsDoc = Schema.decodeUnknownSync(
 )
 
 function fsDocUrl(orgId: string, id: string): string {
-  return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/organizations/${orgId}/catalog_items/${id}`
+  return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/catalog_items/${id}`
 }
 
 // Mints an idToken for the seeded owner so we can hit Firestore REST *under the

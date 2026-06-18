@@ -47,7 +47,7 @@ const decodeCustomersList = Schema.decodeUnknownSync(
 function listCustomers(orgId: string): Array<{ userId?: string }> {
   try {
     const json = curlJson(
-      [`${fsBaseUrl()}/organizations/${orgId}/customers`, '-H', 'Authorization: Bearer owner'],
+      [`${fsBaseUrl()}/orgs/${orgId}/customers`, '-H', 'Authorization: Bearer owner'],
       decodeCustomersList,
     )
     return (json.documents ?? []).map((d) => ({
