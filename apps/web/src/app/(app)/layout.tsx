@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/app-shell'
+import { operatesCrossUnit } from '@/domain'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { needsUnitSelection, resolveActiveUnit } from '@/shared/org/active-unit'
@@ -37,6 +38,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // single-unit member is pinned to membership.unitId). Operational pages read
   // this via useOrg()/the cookie; the switcher (#1051) writes the cookie.
   const { units, activeUnitId } = await resolveActiveUnit(ctx.membership)
+
+  // Guided first-unit empty-state (PRD Identidade v2 / brief 0046): signup
+  // creates the Negócio (a folder) WITHOUT a unit, so the owner lands here with
+  // zero units. Rather than render the operational shell over no data, send an
+  // owner (cross-unit manager) to the guided first-unit flow. A unit-bound
+  // member with no units is a degenerate state we don't force into creation —
+  // they fall through to the app's per-surface empty states.
+  if (units.length === 0 && operatesCrossUnit(ctx.membership)) {
+    redirect('/onboarding/first-unit')
+  }
 
   // Orgs the user can switch between (brief 0029, AC-09) — switcher shows the
   // org picker only when 2+. Single-unit members are locked (AC-05): the

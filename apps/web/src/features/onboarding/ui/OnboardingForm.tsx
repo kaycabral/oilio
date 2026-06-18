@@ -12,6 +12,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Typography,
 } from '@cbrl/design'
 import { useState, useTransition } from 'react'
 
@@ -44,27 +45,24 @@ export function OnboardingForm() {
       className="flex w-full flex-col gap-4"
     >
       <header className="mb-2 space-y-1">
-        <h1 className="text-2xl font-semibold">Criar empresa</h1>
-        <p className="text-muted-foreground text-sm">
-          Defina o nome e o vertical da sua operação. URL pública pode ser ajustada depois em
-          Empresa.
-        </p>
+        <Typography variant="pageTitle">Dê um nome ao seu negócio</Typography>
+        <p className="text-muted-foreground text-sm">Você pode mudar depois.</p>
       </header>
 
       <div className="flex flex-col gap-1">
         <Label htmlFor="onboarding-name" className="text-sm font-medium">
-          Nome da empresa
+          Nome do negócio
         </Label>
         <Input id="onboarding-name" name="name" required minLength={2} placeholder="Barbearia do Bairro" />
       </div>
 
       <div className="flex flex-col gap-1">
         <Label htmlFor="onboarding-vertical" className="text-sm font-medium">
-          Vertical
+          Segmento
         </Label>
         <Select name="vertical" required>
           <SelectTrigger id="onboarding-vertical">
-            <SelectValue placeholder="Escolha o vertical" />
+            <SelectValue placeholder="Escolha o segmento" />
           </SelectTrigger>
           <SelectContent>
             {VERTICALS.map((v) => (
@@ -79,7 +77,7 @@ export function OnboardingForm() {
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
       <Button type="submit" disabled={pending || !isValid}>
-        {pending ? 'Criando…' : 'Criar empresa'}
+        {pending ? 'Criando…' : 'Criar negócio'}
       </Button>
     </form>
   )

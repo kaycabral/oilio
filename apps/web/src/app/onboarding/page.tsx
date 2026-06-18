@@ -20,9 +20,6 @@ export default async function OnboardingPage() {
     redirect('/dashboard')
   }
 
-  return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center p-8">
-      <OnboardingForm />
-    </main>
-  )
+  // Centering comes from the shared onboarding layout (CenteredScreen).
+  return <OnboardingForm />
 }

@@ -6,11 +6,11 @@ import { Suspense } from 'react'
 export default function LoginPage() {
   if (!isFirebaseConfigured()) redirect('/')
 
+  // Centering is provided by the shared login layout (CenteredScreen) — the
+  // page renders only the form.
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center p-8">
-      <Suspense fallback={null}>
-        <LoginForm />
-      </Suspense>
-    </main>
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   )
 }

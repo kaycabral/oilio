@@ -2,7 +2,13 @@
 
 import { AddressFields } from '@/components/address-fields'
 import { PhoneInput } from '@/components/PhoneInput'
-import { isValidUnitSlug, slugifyUnitName, type Unit, unitBusinessHours } from '@/domain'
+import {
+  type BusinessHours,
+  isValidUnitSlug,
+  slugifyUnitName,
+  type Unit,
+  unitBusinessHours,
+} from '@/domain'
 import {
   checkUnitSlugAvailability,
   createUnit,
@@ -34,11 +40,21 @@ type SlugState =
   | { kind: 'invalid' }
   | { kind: 'error'; message: string }
 
-export function UnitForm({ unit }: { unit?: Unit }) {
+// Reusable across the unit CRUD (`/units/new`, `/units/[id]`) AND the guided
+// first-unit empty-state (PRD Identidade v2 / brief 0046). `unit` puts it in
+// edit mode; `defaults` prefills a fresh create (name = Negócio name,
+// businessHours = sensible default week) so the owner effectively only
+// confirms address + WhatsApp. `defaults` is ignored when `unit` is set.
+type UnitFormDefaults = {
+  name?: string
+  businessHours?: BusinessHours
+}
+
+export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormDefaults }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const { formRef, isValid, refresh } = useFormValidity()
-  const [name, setName] = useState(unit?.name ?? '')
+  const [name, setName] = useState(unit?.name ?? defaults?.name ?? '')
   const [slug, setSlug] = useState(unit?.slug ?? '')
   const [slugTouched, setSlugTouched] = useState(false)
   const [slugState, setSlugState] = useState<SlugState>({ kind: 'idle' })
@@ -172,7 +188,7 @@ export function UnitForm({ unit }: { unit?: Unit }) {
         <AddressFields defaults={unit?.address ?? null} simplified numberRequired />
         <FieldSeparator />
         <BusinessHoursFields
-          defaults={unit ? unitBusinessHours(unit.agenda) : null}
+          defaults={unit ? unitBusinessHours(unit.agenda) : (defaults?.businessHours ?? null)}
           defaultMode={unit?.agenda.mode ?? 'fixed'}
         />
         {error ? <FieldError>{error}</FieldError> : null}

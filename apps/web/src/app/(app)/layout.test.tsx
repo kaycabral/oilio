@@ -44,6 +44,12 @@ vi.mock('@/components/app-shell', () => ({
 // shaped sentinel so each redirect destination is assertable by message.
 const REDIRECT_SENTINEL = Symbol('NEXT_REDIRECT')
 type RedirectError = Error & { [REDIRECT_SENTINEL]: true }
+// resolveActiveUnit reads the device-local active-unit cookie when the org has
+// units; outside a request scope `cookies()` throws, so stub an empty store.
+vi.mock('next/headers', () => ({
+  cookies: () => Promise.resolve({ get: () => undefined }),
+}))
+
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
     const err: RedirectError = Object.assign(new Error(`__REDIRECT__:${path}`), {
@@ -102,7 +108,25 @@ describe('AppLayout — auth and org gating', () => {
     await expect(captureRedirect()).resolves.toBe('/onboarding')
   })
 
-  it('renders the app for an incomplete org (no global onboarding gate, #986)', async () => {
+  function mockUnitsSnap(docs: { id: string; data: () => unknown }[]) {
+    mocks.getAdminFirestore.mockReturnValue({
+      collection: () => ({
+        doc: () => ({
+          collection: () => ({
+            orderBy: () => {
+              const ref = {
+                withConverter: () => ref,
+                get: () => Promise.resolve({ docs }),
+              }
+              return ref
+            },
+          }),
+        }),
+      }),
+    })
+  }
+
+  it('sends an owner with no units to the guided first-unit flow (brief 0046)', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u1',
       email: 'a@b.com',
@@ -125,23 +149,42 @@ describe('AppLayout — auth and org gating', () => {
       name: 'Test',
       selfBookingPublished: false,
     })
-    mocks.getAdminFirestore.mockReturnValue({
-      collection: () => ({
-        doc: () => ({
-          collection: () => ({
-            orderBy: () => {
-              const ref = {
-                withConverter: () => ref,
-                get: () => Promise.resolve({ docs: [] }),
-              }
-              return ref
-            },
-          }),
-        }),
-      }),
+    mockUnitsSnap([])
+    // Signup creates the Negócio without a unit; the owner is guided to create
+    // the first unit rather than rendering the operational shell over no data.
+    await expect(captureRedirect()).resolves.toBe('/onboarding/first-unit')
+  })
+
+  it('renders the app shell once the org has at least one unit (#986)', async () => {
+    mocks.getSessionUser.mockResolvedValue({
+      uid: 'u1',
+      email: 'a@b.com',
+      displayName: null,
+      picture: null,
+      emailVerified: true,
     })
-    // An incomplete org no longer bounces to the wizard — the layout
-    // resolves to the app shell so the app is operable from signup.
+    mocks.getActiveOrgContext.mockResolvedValue({
+      user: {
+        uid: 'u1',
+        displayName: 'A',
+        email: 'a@b.com',
+        avatarUrl: null,
+        completionCompleted: true,
+      },
+      membership: { orgId: 't1', userId: 'u1', role: 'owner' },
+    })
+    mocks.getOrg.mockResolvedValue({
+      id: 't1',
+      name: 'Test',
+      selfBookingPublished: false,
+    })
+    mockUnitsSnap([
+      {
+        id: 'unit-1',
+        data: () => ({ id: 'unit-1', name: 'Matriz', archivedAt: null }),
+      },
+    ])
+    // App is operable from signup once a unit exists — no global wizard gate.
     await expect(callLayout()).resolves.toBeTruthy()
   })
 

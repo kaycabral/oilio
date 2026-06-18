@@ -5,6 +5,7 @@ import { fsConverter } from '@/shared/db/converter'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { toRoute } from '@/shared/routes'
+import { Typography } from '@cbrl/design'
 import type { Route } from 'next'
 import { redirect } from 'next/navigation'
 
@@ -38,19 +39,20 @@ export default async function CompleteProfilePage({
   }
 
   const { next } = await searchParams
+  // Centering comes from the shared onboarding layout (CenteredScreen).
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center p-8">
-      <div className="w-full">
-        <h1 className="mb-2 text-xl font-semibold">Vamos completar seu cadastro</h1>
-        <p className="text-muted-foreground mb-6 text-sm">
-          Precisamos do seu WhatsApp e data de nascimento para finalizar a conta.
-        </p>
-        <CompleteProfileForm
-          defaultName={user?.displayName ?? session.displayName ?? ''}
-          next={safeNext(next)}
-        />
-      </div>
-    </main>
+    <div className="w-full">
+      <Typography variant="pageTitle" className="mb-2">
+        Vamos completar seu cadastro
+      </Typography>
+      <p className="text-muted-foreground mb-6 text-sm">
+        Precisamos do seu WhatsApp e data de nascimento para finalizar a conta.
+      </p>
+      <CompleteProfileForm
+        defaultName={user?.displayName ?? session.displayName ?? ''}
+        next={safeNext(next)}
+      />
+    </div>
   )
 }
 
