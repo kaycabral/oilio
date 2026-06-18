@@ -85,9 +85,26 @@ describe('validateHoursRange', () => {
 })
 
 describe('isBusinessHoursConfigured', () => {
-  it('is false when null and true when a map is present', () => {
+  it('is false when null', () => {
     expect(isBusinessHoursConfigured(null)).toBe(false)
+  })
+  it('is true when at least one weekday has a range', () => {
     expect(isBusinessHoursConfigured(FULL_WEEK)).toBe(true)
+  })
+  // v2: the agenda always carries a businessHours object — an all-closed week
+  // (the EMPTY_BUSINESS_HOURS zero-value) means "not configured", NOT a present
+  // map. Guards the off-hours banner + publish readiness for a fresh unit.
+  it('is false for an all-closed week (every day null)', () => {
+    const allClosed: BusinessHours = {
+      monday: null,
+      tuesday: null,
+      wednesday: null,
+      thursday: null,
+      friday: null,
+      saturday: null,
+      sunday: null,
+    }
+    expect(isBusinessHoursConfigured(allClosed)).toBe(false)
   })
 })
 

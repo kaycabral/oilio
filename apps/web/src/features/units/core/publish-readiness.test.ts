@@ -2,6 +2,7 @@ import type { BusinessHours } from '@/domain'
 import { describe, expect, it } from 'vitest'
 import {
   computeUnitPublishReadiness,
+  isUnitPubliclyLive,
   UNIT_REQUIREMENTS,
   unitHasAddressAndHours,
 } from './publish-readiness'
@@ -38,11 +39,11 @@ describe('unitHasAddressAndHours', () => {
     expect(unitHasAddressAndHours({ mode: 'fixed', businessHours: HOURS })).toBe(true)
   })
 
-  it('is true for a fixed unit that carries a businessHours object (even all-closed)', () => {
-    // `unitBusinessHours` returns the object for fixed/appointment (only null for
-    // always_open), so a fixed unit always "has hours" by this gate — matching
-    // the original adapter behavior. Day-level emptiness is a separate concern.
-    expect(unitHasAddressAndHours({ mode: 'fixed', businessHours: EMPTY })).toBe(true)
+  it('is false for a fixed unit whose week is all-closed (zero-value hours)', () => {
+    // v2: the agenda always carries a businessHours object — the EMPTY all-closed
+    // week is the zero-value a fresh/under-configured unit holds and must NOT
+    // count as "has hours" (defers to isBusinessHoursConfigured).
+    expect(unitHasAddressAndHours({ mode: 'fixed', businessHours: EMPTY })).toBe(false)
   })
 
   it('reads the appointment variant hours', () => {
@@ -56,6 +57,44 @@ describe('unitHasAddressAndHours', () => {
         selfBookingPublished: false,
       }),
     ).toBe(true)
+  })
+})
+
+// SPIKE (inferred availability): a unit is publicly live with no stored publish
+// flag — appointment mode + configured hours. Service/pro are feedback only.
+describe('isUnitPubliclyLive', () => {
+  it('is true for an appointment unit with at least one open day', () => {
+    expect(
+      isUnitPubliclyLive({
+        agenda: {
+          mode: 'appointment',
+          businessHours: HOURS,
+          slotMinutes: 15,
+          cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
+          confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
+          selfBookingPublished: false,
+        },
+      }),
+    ).toBe(true)
+  })
+
+  it('is false for an appointment unit with an all-closed week (no hours)', () => {
+    expect(
+      isUnitPubliclyLive({
+        agenda: {
+          mode: 'appointment',
+          businessHours: EMPTY,
+          slotMinutes: 15,
+          cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
+          confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
+          selfBookingPublished: false,
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('is false for a non-appointment (fixed) unit even with hours', () => {
+    expect(isUnitPubliclyLive({ agenda: { mode: 'fixed', businessHours: HOURS } })).toBe(false)
   })
 })
 

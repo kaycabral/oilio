@@ -4,8 +4,8 @@
 // requirement list. Keeping it pure makes the gate unit-testable without the
 // emulator.
 
-import type { UnitAgendaConfig } from '@/domain'
-import { unitBusinessHours } from '@/domain'
+import type { Unit, UnitAgendaConfig } from '@/domain'
+import { isBusinessHoursConfigured, isUnitBookable, unitBusinessHours } from '@/domain'
 
 export type UnitPublishReadiness = { ready: boolean; missing: string[] }
 
@@ -18,9 +18,22 @@ export const UNIT_REQUIREMENTS = {
 } as const
 
 // A unit has usable hours when it's `always_open` (open by definition) or its
-// agenda carries per-day ranges. Address is required on every unit by schema.
+// agenda carries at least one open weekday. v2: the agenda always holds a
+// `businessHours` object (never null), so the zero-value all-closed week
+// (`EMPTY_BUSINESS_HOURS`) must NOT count as configured — defer to
+// `isBusinessHoursConfigured`. Address is required on every unit by schema.
 export function unitHasAddressAndHours(agenda: UnitAgendaConfig): boolean {
-  return agenda.mode === 'always_open' || unitBusinessHours(agenda) != null
+  return agenda.mode === 'always_open' || isBusinessHoursConfigured(unitBusinessHours(agenda))
+}
+
+// Whether a unit's public booking page is live. SPIKE (inferred availability):
+// there is no stored publish flag / publish button — a unit goes public the
+// moment it uses the online agenda (appointment mode) AND declares operating
+// hours. Service/professional readiness is owner-facing FEEDBACK only and does
+// NOT hard-gate the public page (an appointment unit with hours but no pro
+// simply renders no bookable slots). PRD Identidade v2.
+export function isUnitPubliclyLive(unit: Pick<Unit, 'agenda'>): boolean {
+  return isUnitBookable(unit) && unitHasAddressAndHours(unit.agenda)
 }
 
 // Compute the publish readiness from the three facts the adapter resolves.

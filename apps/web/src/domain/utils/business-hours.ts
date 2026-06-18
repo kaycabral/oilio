@@ -81,8 +81,15 @@ export function getBusinessHoursForDay(
   return dayHoursToRanges(businessHours[weekday])
 }
 
+// Whether a unit has any operating hours configured. v2 (PRD Identidade): the
+// `Unit.agenda` union always carries a `businessHours` object for fixed/
+// appointment modes (never null), so "not configured" is no longer `null` —
+// it's an all-closed week (every weekday empty), the `EMPTY_BUSINESS_HOURS`
+// zero-value a just-seeded/under-configured unit holds. A unit counts as having
+// hours only when at least one weekday declares a range.
 export function isBusinessHoursConfigured(bh: BusinessHours | null): bh is BusinessHours {
-  return bh !== null
+  if (bh === null) return false
+  return WEEKDAYS.some((day) => dayHoursToRanges(bh[day]).length > 0)
 }
 
 // Validates a HoursRange has open < close and both are HH:mm. Returns null when
