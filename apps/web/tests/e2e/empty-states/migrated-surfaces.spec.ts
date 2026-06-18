@@ -12,13 +12,10 @@ import { expect, test } from '../fixtures'
 import { seedCatalogItem } from '../helpers/session'
 
 test.describe('Migrated surfaces — filtered-empty keeps the filters (#1073)', () => {
-  test('catalog: a service exists but the product filter is empty', async ({
-    tenant,
-    authedPage,
-  }) => {
+  test('catalog: a service exists but the product filter is empty', async ({ org, authedPage }) => {
     // Data present (one service) → not a blank catalog. Filtering to products
     // yields 0, but the catalog is NOT empty.
-    seedCatalogItem(tenant.tenantId, { kind: 'service', name: `Serviço ${Date.now()}` })
+    seedCatalogItem(org.orgId, { kind: 'service', name: `Serviço ${Date.now()}` })
 
     await authedPage.goto('/catalog?kind=product')
 

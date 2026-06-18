@@ -5,7 +5,7 @@ import { nextWeekday } from '../helpers/date'
 import { AUTH_HOST, FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
 import { parseJson } from '../helpers/firestore-rest'
 import { linkProfessionalToServices, seedService, signInAndAttachSession } from '../helpers/session'
-import { MeAppointmentsPage, PublicBookingPage, tenantSlug } from '../pages'
+import { MeAppointmentsPage, PublicBookingPage, orgSlug } from '../pages'
 
 // Customer journey end-to-end — golden path do cliente final.
 //
@@ -77,7 +77,7 @@ function createCustomerUser() {
       displayName: { stringValue: 'Joana Golden' },
       avatarUrl: { nullValue: null },
       emailVerified: { booleanValue: true },
-      currentTenantId: { nullValue: null },
+      currentOrgId: { nullValue: null },
       whatsapp: { stringValue: `5511${Math.floor(900000000 + Math.random() * 99999999)}` },
       // A COMPLETED account (`completionCompleted: true`) REQUIRES a string
       // birthDate — the `UserComplete` branch rejects null. A null here made the
@@ -102,7 +102,7 @@ function createCustomerUser() {
 
 test.describe('Jornada do cliente — caminho feliz', { tag: ['@journey', '@critical'] }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       cancellationPolicy: { enabled: true, minNoticeMinutes: 60 },
@@ -110,23 +110,23 @@ test.describe('Jornada do cliente — caminho feliz', { tag: ['@journey', '@crit
   })
 
   test('cliente loga, faz auto-agendamento via wizard e depois auto-cancela', async ({
-    tenant,
+    org,
     context,
     page,
     baseURL,
   }) => {
-    const slug = tenantSlug(tenant.tenantId)
-    const unitId = tenant.unitIds[0]!
-    const serviceId = seedService(tenant.tenantId, {
+    const slug = orgSlug(org.orgId)
+    const unitId = org.unitIds[0]!
+    const serviceId = seedService(org.orgId, {
       name: 'Golden Path Corte',
       durationMinutes: 30,
       priceCents: 6500,
       publicVisible: true,
       unitIds: [unitId],
     })
-    linkProfessionalToServices(tenant.tenantId, tenant.professionalIds[0]!, [serviceId])
+    linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
 
-    // 1. Customer authentication (separate identity from the tenant owner).
+    // 1. Customer authentication (separate identity from the org owner).
     const customer = await createCustomerUser()
     await signInAndAttachSession(context, customer.email, customer.password, baseURL ?? undefined)
 

@@ -30,9 +30,9 @@ function adminApp(): App {
   return cachedAdminApp
 }
 
-export type SeedTenantInput = {
+export type SeedOrgInput = {
   // Mirrors the `SlotMinutes` read-model literal (5|10|15|30) — the value lands
-  // on `StoredTenant.slotMinutes`, so the union must match the schema.
+  // on `StoredOrg.slotMinutes`, so the union must match the schema.
   slotMinutes?: 5 | 10 | 15 | 30
   hasBusinessHours?: boolean
   unitCount?: number
@@ -40,17 +40,17 @@ export type SeedTenantInput = {
   professionalOperationalStatus?: 'incomplete' | 'operational'
   // Self-booking publication gate (#988) — controls public page visibility.
   // Default true matches the 99% case where specs target an already-published
-  // tenant; pass `false` to seed an unpublished one (public page 404s).
+  // org; pass `false` to seed an unpublished one (public page 404s).
   selfBookingPublished?: boolean
   vertical?: 'barbershop' | 'auto_wash' | 'auto_detailing' | 'other'
   cancellationPolicy?: { enabled: boolean; minNoticeMinutes: number }
 }
 
-export type SeededTenant = {
+export type SeededOrg = {
   uid: string
   email: string
   password: string
-  tenantId: string
+  orgId: string
   unitIds: string[]
   professionalIds: string[]
 }
@@ -152,20 +152,20 @@ import {
   type Order,
   type OrderCoverage,
   type OrderItem,
+  type OrgLink,
   type Product,
   type ProfessionalPii,
   type Role,
   type Service,
   type StoredCustomer,
   type StoredInvite,
+  type StoredOrg,
   type StoredProfessional,
-  type StoredTenant,
   type StoredUnit,
   type Subscription,
   type SubscriptionPeriod,
   type SubscriptionPlan,
   type SubscriptionPlanSnapshot,
-  type TenantLink,
   type UnitPii,
 } from '@/domain'
 import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
@@ -235,17 +235,12 @@ function uniqueSuffix() {
 // the Copiloto surface reads the projection (`goals/{id}`), so the read-side
 // E2E doesn't need the full event append. Doc id is deterministic per
 // (type, unit, period), mirroring `defineGoal`.
-export function seedGoal(
-  tenantId: string,
-  unitId: string,
-  period: string,
-  targetCents: number,
-): void {
+export function seedGoal(orgId: string, unitId: string, period: string, targetCents: number): void {
   const id = goalDocId('profit', unitId, period)
   const now = new Date().toISOString()
   const doc: Goal = {
     id,
-    tenantId,
+    orgId,
     unitId,
     period,
     type: 'profit',
@@ -253,18 +248,18 @@ export function seedGoal(
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}/goals/${id}`, doc)
+  setDoc(`orgs/${orgId}/goals/${id}`, doc)
 }
 
 // User + Customer docs use the shared Test Data Builders `buildUser` /
 // `buildStoredCustomer` (`@/shared/fixtures/domain-builders`), so the seed and the
 // E2E helpers construct identical, strongly-typed domain docs (zero drift).
 
-// Creates a fresh user, tenant, units, and (optional) professionals seeded
+// Creates a fresh user, org, units, and (optional) professionals seeded
 // directly through the Firestore REST emulator. Returns the IDs + login
 // material; pair with `signInAndAttachSession` to authenticate the browser
 // context.
-export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTenant> {
+export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
   const {
     slotMinutes = 15,
     hasBusinessHours = true,
@@ -290,10 +285,10 @@ export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTen
   const uid = signUp.localId
   await getAdminAuth(adminApp()).updateUser(uid, { emailVerified: true })
 
-  // 2) Seed tenant + membership + user doc + units + professionals via
+  // 2) Seed org + membership + user doc + units + professionals via
   //    Firestore REST (PATCH = upsert). Field values must be encoded in the
   //    Firestore typed-value format.
-  const tenantId = `e2e-tenant-${uniqueSuffix()}`
+  const orgId = `e2e-org-${uniqueSuffix()}`
   const now = new Date().toISOString()
 
   // A seeded unit with business hours also gets a real address — the two
@@ -322,20 +317,20 @@ export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTen
       }
     : null
 
-  // Tenant doc. Decoded as `StoredTenant` (omits `taxIdentity`, which lives in
+  // Org doc. Decoded as `StoredOrg` (omits `taxIdentity`, which lives in
   // the deletable PII doc) — so the fixture object must NOT carry it.
-  const tenantDoc: StoredTenant = {
-    id: tenantId,
-    name: `E2E ${tenantId}`,
-    slug: `e2e-${tenantId}`.toLowerCase(),
+  const orgDoc: StoredOrg = {
+    id: orgId,
+    name: `E2E ${orgId}`,
+    slug: `e2e-${orgId}`.toLowerCase(),
     vertical,
     ownerUserId: uid,
     selfBookingPublished,
     selfBookingPublishedAt: selfBookingPublished ? now : null,
     timezone: 'America/Sao_Paulo',
     slotMinutes,
-    // Mirror what createTenant writes (DEFAULT_* fills) so the doc is
-    // schema-complete — the read boundary now decodes StoredTenant, so a partial
+    // Mirror what createOrg writes (DEFAULT_* fills) so the doc is
+    // schema-complete — the read boundary now decodes StoredOrg, so a partial
     // fixture (the old shape) fails validation.
     branding: { logoUrl: null, bannerUrl: null, description: null },
     whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
@@ -346,13 +341,13 @@ export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTen
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}`, tenantDoc)
+  setDoc(`orgs/${orgId}`, orgDoc)
 
   // Membership (top-level)
-  const membershipId = `${tenantId}_${uid}`
+  const membershipId = `${orgId}_${uid}`
   const ownerMembership: Membership = {
     id: membershipId,
-    tenantId,
+    orgId,
     userId: uid,
     role: 'owner',
     status: 'active',
@@ -365,7 +360,7 @@ export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTen
   }
   setDoc(`memberships/${membershipId}`, ownerMembership)
 
-  // User doc (currentTenantId pointer). #838: pre-fill the completion step
+  // User doc (currentOrgId pointer). #838: pre-fill the completion step
   // since seeded owners conceptually skipped OAuth + the live capture form.
   setDoc(
     `users/${uid}`,
@@ -373,7 +368,7 @@ export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTen
       email,
       displayName: 'E2E Owner',
       emailVerified: true,
-      currentTenantId: tenantId,
+      currentOrgId: orgId,
       whatsapp: '5511900000000',
       birthDate: '1990-01-01',
       completionCompleted: true,
@@ -388,7 +383,7 @@ export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTen
     unitIds.push(unitId)
     const unitDoc: StoredUnit = {
       id: unitId,
-      tenantId,
+      orgId,
       name: `Unidade ${i + 1}`,
       slug: `unidade-${i + 1}`,
       address,
@@ -402,12 +397,12 @@ export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTen
       createdAt: now,
       updatedAt: now,
     }
-    setDoc(`tenants/${tenantId}/units/${unitId}`, unitDoc)
+    setDoc(`orgs/${orgId}/units/${unitId}`, unitDoc)
     // PII lives out of the unit projection (#1036 / ADR 0010): whatsapp/email
     // are stored in `units_pii/{id}` and merged at read time. Mirror the
     // product write path so listings/details surface the contact channels.
     const unitPii: UnitPii = { whatsapp: '5511900000000', email: null }
-    setDoc(`tenants/${tenantId}/units_pii/${unitId}`, unitPii)
+    setDoc(`orgs/${orgId}/units_pii/${unitId}`, unitPii)
   }
 
   // Professionals — each linked to all units
@@ -424,7 +419,7 @@ export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTen
         email: `prof-${i + 1}-${pid}@e2e.local`,
         displayName: `Profissional ${i + 1}`,
         emailVerified: true,
-        currentTenantId: tenantId,
+        currentOrgId: orgId,
         whatsapp: '5511900000000',
         completionCompleted: true,
         claimedAt: now,
@@ -434,7 +429,7 @@ export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTen
     // name/whatsapp/email/taxIdentity, merged from `users/` + `professionals_pii`).
     const proDoc: StoredProfessional = {
       id: pid,
-      tenantId,
+      orgId,
       // Non-null userId (#1045 / brief 0028 AC-01) — seeded fixtures honor
       // the same invariant as the product code: no Professional without a
       // linked User. Synthetic uid per professional, unique per seed run.
@@ -446,16 +441,16 @@ export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTen
       createdAt: now,
       updatedAt: now,
     }
-    setDoc(`tenants/${tenantId}/professionals/${pid}`, proDoc)
+    setDoc(`orgs/${orgId}/professionals/${pid}`, proDoc)
     // Membership(role=professional) for the seeded professional (brief 0037
     // #1085): the Professional projection is the operational view of a member,
     // so the fixture honors the invariant projeção ⟺ membro role=professional.
     // This makes the pro show up in `/team` and its member detail navigable at
     // `/team/{proUid}`. Permissions = the professional default.
-    const proMembershipId = `${tenantId}_${proUid}`
+    const proMembershipId = `${orgId}_${proUid}`
     const proMembership: Membership = {
       id: proMembershipId,
-      tenantId,
+      orgId,
       userId: proUid,
       role: 'professional',
       status: 'active',
@@ -467,13 +462,13 @@ export async function seedTenant(input: SeedTenantInput = {}): Promise<SeededTen
       permissions: defaultPermissionsForRole('professional'),
     }
     setDoc(`memberships/${proMembershipId}`, proMembership)
-    // Per-tenant PII (#1036, ADR 0010) — after #1046 only `taxIdentity`.
+    // Per-org PII (#1036, ADR 0010) — after #1046 only `taxIdentity`.
     // Identity (name/whatsapp/email) lives on the global User (read live).
     const proPii: ProfessionalPii = { taxIdentity: null }
-    setDoc(`tenants/${tenantId}/professionals_pii/${pid}`, proPii)
+    setDoc(`orgs/${orgId}/professionals_pii/${pid}`, proPii)
   }
 
-  return { uid, email, password, tenantId, unitIds, professionalIds }
+  return { uid, email, password, orgId, unitIds, professionalIds }
 }
 
 // Pins an existing membership to a single unit (brief 0029, AC-05). Mirrors
@@ -508,11 +503,11 @@ export function setMembershipRole(membershipId: string, role: string): void {
 // AFTER an item was marked as plan-consumption — so `closeOrder` re-queries the
 // active subscription, finds none, and rejects inline (the AC-03 contract).
 export function setSubscriptionStatus(
-  tenantId: string,
+  orgId: string,
   subscriptionId: string,
   status: 'pending' | 'active' | 'past_due' | 'suspended' | 'cancelled',
 ): void {
-  const url = `${fsBaseUrl()}/tenants/${tenantId}/subscriptions/${subscriptionId}?updateMask.fieldPaths=status`
+  const url = `${fsBaseUrl()}/orgs/${orgId}/subscriptions/${subscriptionId}?updateMask.fieldPaths=status`
   execFileSync(
     'curl',
     [
@@ -551,14 +546,14 @@ export function setMembershipUnitId(membershipId: string, unitId: string | null)
   )
 }
 
-// Seeds an EXTRA active member into an existing tenant (brief 0030, AC-04/05):
+// Seeds an EXTRA active member into an existing org (brief 0030, AC-04/05):
 // a User doc (live identity) + an active Membership with the given role. By
 // design it does NOT create a Professional projection — so a `receptionist`
 // seeded here has no approved Professional, which is exactly the case AC-05
 // must unblock (a non-professional member can be attributed to a product/
 // standalone item and the sale closes). Returns the member's global `userId`.
 export function seedMember(
-  tenantId: string,
+  orgId: string,
   opts: {
     role: 'manager' | 'professional' | 'receptionist'
     displayName: string
@@ -573,13 +568,13 @@ export function seedMember(
       email: `${userId}@e2e.local`,
       displayName: opts.displayName,
       emailVerified: true,
-      currentTenantId: tenantId,
+      currentOrgId: orgId,
       whatsapp: '5511900000000',
       completionCompleted: true,
       claimedAt: now,
     }),
   )
-  const membershipId = `${tenantId}_${userId}`
+  const membershipId = `${orgId}_${userId}`
   // Custom permission set (not the role default): a non-professional member that
   // can manage customers + appointments — the AC-05 case (brief 0030).
   const permissions: MembershipPermissions = {
@@ -596,7 +591,7 @@ export function seedMember(
   }
   const membership: Membership = {
     id: membershipId,
-    tenantId,
+    orgId,
     userId,
     role: opts.role,
     status: 'active',
@@ -618,15 +613,15 @@ export function seedMember(
 // permissions default to `defaultPermissionsForRole(role)`; pass `unitId` to
 // scope the membership to a single unit. Returns the membership doc id.
 export function seedMembershipFor(
-  tenantId: string,
+  orgId: string,
   userId: string,
   opts: { role: Role; unitId?: string | null },
 ): string {
   const now = new Date().toISOString()
-  const membershipId = membershipDocId(tenantId, userId)
+  const membershipId = membershipDocId(orgId, userId)
   const membership: Membership = {
     id: membershipId,
-    tenantId,
+    orgId,
     userId,
     role: opts.role,
     status: 'active',
@@ -641,24 +636,24 @@ export function seedMembershipFor(
   return membershipId
 }
 
-// Seeds a second tenant + units + an owner membership for an EXISTING user
-// (brief 0029, AC-09). Use after `seedTenant` to give the seeded owner a
-// membership in two tenants so the tenant switcher shows. Does NOT touch the
-// user's `currentTenantId` (the spec switches via the UI). Returns the new
-// tenant + unit ids.
-export function seedAdditionalTenant(
+// Seeds a second org + units + an owner membership for an EXISTING user
+// (brief 0029, AC-09). Use after `seedOrg` to give the seeded owner a
+// membership in two orgs so the org switcher shows. Does NOT touch the
+// user's `currentOrgId` (the spec switches via the UI). Returns the new
+// org + unit ids.
+export function seedAdditionalOrg(
   uid: string,
   opts: { name?: string; unitCount?: number } = {},
-): { tenantId: string; unitIds: string[] } {
+): { orgId: string; unitIds: string[] } {
   const unitCount = opts.unitCount ?? 1
-  const tenantId = `e2e-tenant-${uniqueSuffix()}`
+  const orgId = `e2e-org-${uniqueSuffix()}`
   const now = new Date().toISOString()
-  const name = opts.name ?? `E2E ${tenantId}`
+  const name = opts.name ?? `E2E ${orgId}`
 
-  const tenantDoc: StoredTenant = {
-    id: tenantId,
+  const orgDoc: StoredOrg = {
+    id: orgId,
     name,
-    slug: `e2e-${tenantId}`.toLowerCase(),
+    slug: `e2e-${orgId}`.toLowerCase(),
     vertical: 'barbershop',
     ownerUserId: uid,
     selfBookingPublished: false,
@@ -671,12 +666,12 @@ export function seedAdditionalTenant(
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}`, tenantDoc)
+  setDoc(`orgs/${orgId}`, orgDoc)
 
-  const membershipId = `${tenantId}_${uid}`
+  const membershipId = `${orgId}_${uid}`
   const membership: Membership = {
     id: membershipId,
-    tenantId,
+    orgId,
     userId: uid,
     role: 'owner',
     status: 'active',
@@ -695,7 +690,7 @@ export function seedAdditionalTenant(
     unitIds.push(unitId)
     const unitDoc: StoredUnit = {
       id: unitId,
-      tenantId,
+      orgId,
       name: `${name} Unidade ${i + 1}`,
       slug: `unidade-${i + 1}`,
       address: null,
@@ -705,22 +700,22 @@ export function seedAdditionalTenant(
       createdAt: now,
       updatedAt: now,
     }
-    setDoc(`tenants/${tenantId}/units/${unitId}`, unitDoc)
+    setDoc(`orgs/${orgId}/units/${unitId}`, unitDoc)
     // PII out of the unit projection (#1036 / ADR 0010) — mirror the product
     // write path so reads merge whatsapp/email from `units_pii/{id}`.
     const unitPii: UnitPii = { whatsapp: '5511900000000', email: null }
-    setDoc(`tenants/${tenantId}/units_pii/${unitId}`, unitPii)
+    setDoc(`orgs/${orgId}/units_pii/${unitId}`, unitPii)
   }
 
-  return { tenantId, unitIds }
+  return { orgId, unitIds }
 }
 
 // ----------------------------------------------------------------------------
-// Per-entity seeds — call after `seedTenant` for fixtures the spec needs.
+// Per-entity seeds — call after `seedOrg` for fixtures the spec needs.
 // ----------------------------------------------------------------------------
 
 export type SeedAppointmentInput = {
-  tenantId: string
+  orgId: string
   unitId: string
   professionalId: string
   customerId: string
@@ -737,17 +732,17 @@ export type SeedAppointmentInput = {
   commissionSnapshot?: { kind: 'percentage' | 'fixed'; value: number } | null
   // Snapshot da cancellation policy congelada no commit (#1038). Mirrors what
   // the real booking flow writes: customer self-cancel eligibility reads this,
-  // not the live tenant policy. `undefined`/`null` → seeds a legacy (pre-
+  // not the live org policy. `undefined`/`null` → seeds a legacy (pre-
   // migration) appointment with no snapshot, exercising the live-policy fallback.
   cancellationPolicySnapshot?: { enabled: boolean; minNoticeMinutes: number } | null
 }
 
-function readCustomerUserId(tenantId: string, customerId: string): string {
+function readCustomerUserId(orgId: string, customerId: string): string {
   const out = execFileSync(
     'curl',
     [
       '-fsS',
-      `${fsBaseUrl()}/tenants/${tenantId}/customers/${customerId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/customers/${customerId}`,
       '-H',
       'Authorization: Bearer owner',
     ],
@@ -766,13 +761,13 @@ function readCustomerUserId(tenantId: string, customerId: string): string {
   return uid
 }
 
-function readProfessionalUserId(tenantId: string, professionalId: string): string | null {
+function readProfessionalUserId(orgId: string, professionalId: string): string | null {
   try {
     const out = execFileSync(
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/tenants/${tenantId}/professionals/${professionalId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/professionals/${professionalId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -792,7 +787,7 @@ function readProfessionalUserId(tenantId: string, professionalId: string): strin
   }
 }
 
-// Reads the Professional projection linked to `userId` (≤1 per tenant) via a
+// Reads the Professional projection linked to `userId` (≤1 per org) via a
 // structured query against the emulator. Returns the projection id +
 // `operationalStatus`, or null when no projection exists. Used by the role-edit
 // lifecycle spec (#1086) to assert materialization (projection appears) and
@@ -800,7 +795,7 @@ function readProfessionalUserId(tenantId: string, professionalId: string): strin
 export type ReadProfessionalResult = { id: string; operationalStatus: string }
 
 export function readProfessionalByUserId(
-  tenantId: string,
+  orgId: string,
   userId: string,
 ): ReadProfessionalResult | null {
   try {
@@ -810,7 +805,7 @@ export function readProfessionalByUserId(
         '-fsS',
         '-X',
         'POST',
-        `${fsBaseUrl()}/tenants/${tenantId}:runQuery`,
+        `${fsBaseUrl()}/orgs/${orgId}:runQuery`,
         '-H',
         'Authorization: Bearer owner',
         '-H',
@@ -847,11 +842,11 @@ export function seedAppointment(input: SeedAppointmentInput): string {
   const now = new Date().toISOString()
   // Resolve the denormalized userId FKs at seed time so the doc matches
   // the new Appointment shape (#852 PR 4).
-  const customerUserId = readCustomerUserId(input.tenantId, input.customerId)
-  const professionalUserId = readProfessionalUserId(input.tenantId, input.professionalId)
+  const customerUserId = readCustomerUserId(input.orgId, input.customerId)
+  const professionalUserId = readProfessionalUserId(input.orgId, input.professionalId)
   const doc: Appointment = {
     id,
-    tenantId: input.tenantId,
+    orgId: input.orgId,
     unitId: input.unitId,
     professionalId: input.professionalId,
     customerId: input.customerId,
@@ -868,15 +863,15 @@ export function seedAppointment(input: SeedAppointmentInput): string {
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${input.tenantId}/appointments/${id}`, doc)
+  setDoc(`orgs/${input.orgId}/appointments/${id}`, doc)
   return id
 }
 
 // Seeds the Customer + User stub pair the new schema requires (#852 PR 3).
-// PII lives on the global User; the per-tenant Customer is operational only
+// PII lives on the global User; the per-org Customer is operational only
 // and references the User by FK.
 export function seedCustomer(
-  tenantId: string,
+  orgId: string,
   opts: {
     name?: string
     whatsapp?: string | null
@@ -885,13 +880,13 @@ export function seedCustomer(
     document?: string | null
     /**
      * Override do uid do User canonical. Default cria User novo (`e2e-user-*`).
-     * Passe `tenant.uid` quando precisar de Customer ligado ao usuário logado
+     * Passe `org.uid` quando precisar de Customer ligado ao usuário logado
      * (ex.: testes de `/me/subscriptions` que dependem de `customerUserId` ===
      * session.uid; #651).
      */
     userId?: string
     /** Override do avatar do User canonical (default null). Usado por specs de
-     * neutralização de avatar no bloqueio per-tenant (#1100, AC-13). */
+     * neutralização de avatar no bloqueio per-org (#1100, AC-13). */
     avatarUrl?: string | null
   } = {},
 ): string {
@@ -911,43 +906,43 @@ export function seedCustomer(
     }),
   )
 
-  // Per-tenant Customer shadow. Decoded as `StoredCustomer` (omits the PII
+  // Per-org Customer shadow. Decoded as `StoredCustomer` (omits the PII
   // name/whatsapp/email/birthDate/avatarUrl, merged from `users/`). `document`
   // is a non-schema fixture field kept only when an opt is passed.
-  const customerDoc: StoredCustomer = buildStoredCustomer(customerId, tenantId, userId, now)
-  setDoc(`tenants/${tenantId}/customers/${customerId}`, {
+  const customerDoc: StoredCustomer = buildStoredCustomer(customerId, orgId, userId, now)
+  setDoc(`orgs/${orgId}/customers/${customerId}`, {
     ...customerDoc,
     ...(opts.document ? { document: opts.document } : {}),
   })
   return customerId
 }
 
-// Seeds ONLY the per-tenant Customer shadow for an ALREADY-EXISTING user
+// Seeds ONLY the per-org Customer shadow for an ALREADY-EXISTING user
 // (`userId`), without touching the global `users/{userId}` doc. Use this when
 // the subject is also an owner/member with a complete user doc that
 // `seedCustomer` would otherwise clobber (resetting `completionCompleted`).
 // Returns the customer id.
-export function seedCustomerShadowForUser(tenantId: string, userId: string): string {
+export function seedCustomerShadowForUser(orgId: string, userId: string): string {
   const customerId = `e2e-cust-${uniqueSuffix()}`
   const now = new Date().toISOString()
   setDoc(
-    `tenants/${tenantId}/customers/${customerId}`,
-    buildStoredCustomer(customerId, tenantId, userId, now),
+    `orgs/${orgId}/customers/${customerId}`,
+    buildStoredCustomer(customerId, orgId, userId, now),
   )
   return customerId
 }
 
-// True when a `blocked_subjects/{userId}` marker exists in `tenantId` — the
-// fact-of-record a per-tenant CUSTOMER block writes (brief 0032 / #1100). Used
-// to assert a self-service per-establishment erasure blocked the right tenant
+// True when a `blocked_subjects/{userId}` marker exists in `orgId` — the
+// fact-of-record a per-org CUSTOMER block writes (brief 0032 / #1100). Used
+// to assert a self-service per-establishment erasure blocked the right org
 // (and only it).
-export function blockedSubjectMarkerExists(tenantId: string, userId: string): boolean {
+export function blockedSubjectMarkerExists(orgId: string, userId: string): boolean {
   try {
     execFileSync(
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/tenants/${tenantId}/blocked_subjects/${userId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/blocked_subjects/${userId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -959,26 +954,26 @@ export function blockedSubjectMarkerExists(tenantId: string, userId: string): bo
   }
 }
 
-// Seeds a reverse-index link `users/{uid}/tenant_links/{tenantId}` — what the
+// Seeds a reverse-index link `users/{uid}/org_links/{orgId}` — what the
 // customer-creation saga (brief 0032 / #1097, AC-10) writes server-side. The
 // privacy surface reads the subject's OWN links to discover where they are a
-// customer. References only (zero PII): tenantId + linkedAt.
-export function seedTenantLink(userId: string, tenantId: string): void {
+// customer. References only (zero PII): orgId + linkedAt.
+export function seedOrgLink(userId: string, orgId: string): void {
   const now = new Date().toISOString()
-  const doc: TenantLink = { tenantId, linkedAt: now }
-  setDoc(`users/${userId}/tenant_links/${tenantId}`, doc)
+  const doc: OrgLink = { orgId, linkedAt: now }
+  setDoc(`users/${userId}/org_links/${orgId}`, doc)
 }
 
 // Reads a reverse-index link doc directly (admin escape hatch). Returns the
 // Firestore typed fields or null when the link is absent. Used to assert the
 // index holds zero PII / scoping.
-export function readTenantLink(userId: string, tenantId: string): Record<string, unknown> | null {
+export function readOrgLink(userId: string, orgId: string): Record<string, unknown> | null {
   try {
     const out = execFileSync(
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/users/${userId}/tenant_links/${tenantId}`,
+        `${fsBaseUrl()}/users/${userId}/org_links/${orgId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -1025,7 +1020,7 @@ function buildBookingLimits(limits: {
 }
 
 export function seedSubscription(
-  tenantId: string,
+  orgId: string,
   customerId: string,
   opts: {
     planName?: string
@@ -1075,9 +1070,9 @@ export function seedSubscription(
   const status = opts.status ?? 'active'
 
   // Hidrata customerUserId a partir do Customer (#651 — pattern espelha
-  // seedAppointment). Customer → User é FK denormalizada pra cross-tenant
+  // seedAppointment). Customer → User é FK denormalizada pra cross-org
   // CG query no /me/subscriptions.
-  const customerUserId = readCustomerUserId(tenantId, customerId)
+  const customerUserId = readCustomerUserId(orgId, customerId)
 
   const plan: SubscriptionPlanSnapshot = {
     planId: opts.planId ?? 'e2e-plan',
@@ -1102,7 +1097,7 @@ export function seedSubscription(
   }
   const doc: Subscription = {
     id: subId,
-    tenantId,
+    orgId,
     unitId: opts.unitId ?? 'e2e-unit',
     customerId,
     customerUserId: customerUserId || null,
@@ -1118,7 +1113,7 @@ export function seedSubscription(
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}/subscriptions/${subId}`, doc)
+  setDoc(`orgs/${orgId}/subscriptions/${subId}`, doc)
   return subId
 }
 
@@ -1126,7 +1121,7 @@ export function seedSubscription(
 // cobrança de assinatura JÁ liquidada (`status: paid`, `paidAt` na janela) pra
 // uma unidade. O realizado do Copiloto soma essas cobranças; o MRR fica à parte.
 export function seedPaidCharge(
-  tenantId: string,
+  orgId: string,
   opts: {
     unitId: string
     amountCents: number
@@ -1139,7 +1134,7 @@ export function seedPaidCharge(
   const now = new Date().toISOString()
   const doc: Charge = {
     id: chargeId,
-    tenantId,
+    orgId,
     unitId: opts.unitId,
     subscriptionId: opts.subscriptionId ?? 'e2e-sub',
     customerId: opts.customerId ?? 'e2e-customer',
@@ -1156,12 +1151,12 @@ export function seedPaidCharge(
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}/charges/${chargeId}`, doc)
+  setDoc(`orgs/${orgId}/charges/${chargeId}`, doc)
   return chargeId
 }
 
 export function seedService(
-  tenantId: string,
+  orgId: string,
   opts: {
     name?: string
     category?: string | null
@@ -1197,7 +1192,7 @@ export function seedService(
   // the legacy type still fails the build.
   const serviceDoc: Service = {
     id,
-    tenantId,
+    orgId,
     name: opts.name ?? 'Corte',
     category: opts.category ?? null,
     durationMinutes: opts.durationMinutes ?? 30,
@@ -1212,7 +1207,7 @@ export function seedService(
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}/services/${id}`, serviceDoc)
+  setDoc(`orgs/${orgId}/services/${id}`, serviceDoc)
   // Consumer migration (brief 0023, #1004): agenda/booking/order/public surfaces
   // now read `catalog_items` (decoded as `CatalogItem`). Mirror the service into a
   // kind-service catalog item with the SAME id so every existing spec that
@@ -1220,7 +1215,7 @@ export function seedService(
   // `category` (free-text label) maps onto `categoryId` here.
   const catalogDoc: CatalogServiceItem = {
     id,
-    tenantId,
+    orgId,
     kind: 'service',
     name: serviceDoc.name,
     categoryId: opts.category ?? null,
@@ -1237,7 +1232,7 @@ export function seedService(
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}/catalog_items/${id}`, catalogDoc)
+  setDoc(`orgs/${orgId}/catalog_items/${id}`, catalogDoc)
   return id
 }
 
@@ -1250,13 +1245,13 @@ export function seedService(
 // document with the request body — wiping `unitIds`, `operationalStatus`, etc.,
 // leaving the professional invisible to the booking flow.
 export function linkProfessionalToServices(
-  tenantId: string,
+  orgId: string,
   professionalId: string,
   serviceIds: string[],
 ): void {
   // Manual curl call so we can pass the updateMask query param (curlPut does
   // not surface it). Same auth + JSON shape as the other Firestore writes.
-  const url = `${fsBaseUrl()}/tenants/${tenantId}/professionals/${professionalId}?updateMask.fieldPaths=serviceIds`
+  const url = `${fsBaseUrl()}/orgs/${orgId}/professionals/${professionalId}?updateMask.fieldPaths=serviceIds`
   execFileSync(
     'curl',
     [
@@ -1276,7 +1271,7 @@ export function linkProfessionalToServices(
 }
 
 export function seedProduct(
-  tenantId: string,
+  orgId: string,
   opts: { name?: string; priceCents?: number; stock?: number; sku?: string } = {},
 ): string {
   const id = `e2e-prod-${uniqueSuffix()}`
@@ -1287,7 +1282,7 @@ export function seedProduct(
   const sku = opts.sku ?? null
   const productDoc: Product = {
     id,
-    tenantId,
+    orgId,
     name,
     sku,
     priceCents,
@@ -1296,7 +1291,7 @@ export function seedProduct(
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}/products/${id}`, productDoc)
+  setDoc(`orgs/${orgId}/products/${id}`, productDoc)
   // Consumer migration (brief 0023, #1004): order close resolves products from
   // `catalog_items` (decoded as `CatalogItem`). Mirror with the same id (kind
   // product). `unitIds` is empty for the legacy product shape; the rule requires
@@ -1305,7 +1300,7 @@ export function seedProduct(
   // override, so an empty unit scope still resolves the order item correctly.
   const catalogDoc: CatalogProductItem = {
     id,
-    tenantId,
+    orgId,
     kind: 'product',
     name,
     categoryId: null,
@@ -1322,7 +1317,7 @@ export function seedProduct(
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}/catalog_items/${id}`, catalogDoc)
+  setDoc(`orgs/${orgId}/catalog_items/${id}`, catalogDoc)
   return id
 }
 
@@ -1330,7 +1325,7 @@ export function seedProduct(
 // Discriminated by `kind`; service-only / product-only fields are written
 // conditionally. Used by the catalog baseline E2E (no CRUD UI yet — #1005).
 export function seedCatalogItem(
-  tenantId: string,
+  orgId: string,
   opts: {
     kind?: 'service' | 'product'
     name?: string
@@ -1354,7 +1349,7 @@ export function seedCatalogItem(
   const commission = opts.commission ?? null
   const baseFields = {
     id,
-    tenantId,
+    orgId,
     name: opts.name ?? (kind === 'service' ? 'Corte Catálogo' : 'Pomada Catálogo'),
     categoryId: opts.categoryId ?? null,
     priceCents: opts.priceCents ?? (kind === 'service' ? 5000 : 3000),
@@ -1383,7 +1378,7 @@ export function seedCatalogItem(
           sku: opts.sku ?? null,
           stock: opts.stock ?? 100,
         }
-  setDoc(`tenants/${tenantId}/catalog_items/${id}`, doc)
+  setDoc(`orgs/${orgId}/catalog_items/${id}`, doc)
   return id
 }
 
@@ -1391,7 +1386,7 @@ export function seedCatalogItem(
 // bypass). `CatalogItem.categoryId` / `SubscriptionPlan.includedCategoryIds`
 // are FKs into this id. Returns the generated id.
 export function seedCategory(
-  tenantId: string,
+  orgId: string,
   opts: {
     name?: string
     icon?: string | null
@@ -1406,7 +1401,7 @@ export function seedCategory(
   const now = new Date().toISOString()
   const doc: Category = {
     id,
-    tenantId,
+    orgId,
     name: opts.name ?? 'Cabelo',
     icon: opts.icon ?? null,
     color: opts.color ?? null,
@@ -1416,17 +1411,17 @@ export function seedCategory(
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}/categories/${id}`, doc)
+  setDoc(`orgs/${orgId}/categories/${id}`, doc)
   return id
 }
 
-// Seeds an extra Unit into an existing tenant (brief 0033, bug 3). Unlike the
-// units created inside `seedTenant`, this lets a spec add a SECOND unit and,
+// Seeds an extra Unit into an existing org (brief 0033, bug 3). Unlike the
+// units created inside `seedOrg`, this lets a spec add a SECOND unit and,
 // crucially, mark it `archivedAt` to assert that a soft-deleted unit drops out
 // of the switcher and active-unit resolution. Mirrors the unit shape +
-// `units_pii` write of `seedTenant`.
+// `units_pii` write of `seedOrg`.
 export function seedUnit(
-  tenantId: string,
+  orgId: string,
   opts: { name?: string; slug?: string; archivedAt?: string | null } = {},
 ): string {
   const id = `e2e-unit-${uniqueSuffix()}`
@@ -1434,7 +1429,7 @@ export function seedUnit(
   const slug = opts.slug ?? `unidade-${id}`.toLowerCase()
   const unitDoc: StoredUnit = {
     id,
-    tenantId,
+    orgId,
     name: opts.name ?? 'Unidade Extra',
     slug,
     address: null,
@@ -1444,9 +1439,9 @@ export function seedUnit(
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}/units/${id}`, unitDoc)
+  setDoc(`orgs/${orgId}/units/${id}`, unitDoc)
   const unitPii: UnitPii = { whatsapp: '5511900000000', email: null }
-  setDoc(`tenants/${tenantId}/units_pii/${id}`, unitPii)
+  setDoc(`orgs/${orgId}/units_pii/${id}`, unitPii)
   return id
 }
 
@@ -1454,7 +1449,7 @@ export function seedUnit(
 // #1003 baseline to exercise the AC-05 in-use guard (a plan referencing the
 // category must block its deletion).
 export function seedSubscriptionPlan(
-  tenantId: string,
+  orgId: string,
   opts: {
     name?: string
     // Preço do plano em centavos. Default 9000; passe um valor quando o teste
@@ -1471,7 +1466,7 @@ export function seedSubscriptionPlan(
   const now = new Date().toISOString()
   const doc: SubscriptionPlan = {
     id,
-    tenantId,
+    orgId,
     name: opts.name ?? 'Plano Baseline',
     description: null,
     priceCents: opts.priceCents ?? 9000,
@@ -1487,7 +1482,7 @@ export function seedSubscriptionPlan(
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${tenantId}/subscription_plans/${id}`, doc)
+  setDoc(`orgs/${orgId}/subscription_plans/${id}`, doc)
   return id
 }
 
@@ -1495,7 +1490,7 @@ export function seedSubscriptionPlan(
 // Returns the raw `fields` map (null when absent) so specs can assert the
 // rules-gated read path projects the doc.
 export function readCatalogItem(
-  tenantId: string,
+  orgId: string,
   catalogItemId: string,
 ): Record<string, FsValue> | null {
   try {
@@ -1503,7 +1498,7 @@ export function readCatalogItem(
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/tenants/${tenantId}/catalog_items/${catalogItemId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/catalog_items/${catalogItemId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -1526,7 +1521,7 @@ export function readCatalogItem(
 // CRITICAL: PATCH must include `updateMask.fieldPaths` for each field so the
 // emulator patches only those — without the mask it replaces the whole document.
 export function patchAppointmentSnapshot(
-  tenantId: string,
+  orgId: string,
   appointmentId: string,
   snapshot: {
     servicePriceCentsSnapshot: number
@@ -1535,7 +1530,7 @@ export function patchAppointmentSnapshot(
 ): void {
   const mask =
     'updateMask.fieldPaths=servicePriceCentsSnapshot&updateMask.fieldPaths=commissionSnapshot'
-  const url = `${fsBaseUrl()}/tenants/${tenantId}/appointments/${appointmentId}?${mask}`
+  const url = `${fsBaseUrl()}/orgs/${orgId}/appointments/${appointmentId}?${mask}`
   execFileSync(
     'curl',
     [
@@ -1564,7 +1559,7 @@ export function patchAppointmentSnapshot(
 // references the catalog service id and froze the price/duration/commission
 // snapshots. Returns null when absent.
 export function readAppointment(
-  tenantId: string,
+  orgId: string,
   appointmentId: string,
 ): Record<string, FsValue> | null {
   try {
@@ -1572,7 +1567,7 @@ export function readAppointment(
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/tenants/${tenantId}/appointments/${appointmentId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/appointments/${appointmentId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -1585,18 +1580,13 @@ export function readAppointment(
   }
 }
 
-// Lists appointment ids for a tenant — lets a spec find the doc a UI flow just
+// Lists appointment ids for a org — lets a spec find the doc a UI flow just
 // created without knowing the generated id.
-export function listAppointmentIds(tenantId: string): string[] {
+export function listAppointmentIds(orgId: string): string[] {
   try {
     const out = execFileSync(
       'curl',
-      [
-        '-fsS',
-        `${fsBaseUrl()}/tenants/${tenantId}/appointments`,
-        '-H',
-        'Authorization: Bearer owner',
-      ],
+      ['-fsS', `${fsBaseUrl()}/orgs/${orgId}/appointments`, '-H', 'Authorization: Bearer owner'],
       { encoding: 'utf8' },
     )
     const json = parseJson(
@@ -1615,13 +1605,13 @@ export function listAppointmentIds(tenantId: string): string[] {
 
 // True when the agenda-block doc still exists (offboarding cleanup assertion,
 // brief 0041 AC-07). A successful GET (doc present) returns true; a 404 throws.
-export function blockExists(tenantId: string, blockId: string): boolean {
+export function blockExists(orgId: string, blockId: string): boolean {
   try {
     execFileSync(
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/tenants/${tenantId}/agenda_blocks/${blockId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/agenda_blocks/${blockId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -1638,7 +1628,7 @@ export function blockExists(tenantId: string, blockId: string): boolean {
 // the offboarding veto spec (brief 0041 AC-05): an open comanda attributed to a
 // member refuses their removal until it's settled.
 export function seedOpenOrder(input: {
-  tenantId: string
+  orgId: string
   unitId: string
   customerId: string | null
   attributedUserId: string
@@ -1665,7 +1655,7 @@ export function seedOpenOrder(input: {
   }
   const doc: Order = {
     id,
-    tenantId: input.tenantId,
+    orgId: input.orgId,
     unitId: input.unitId,
     customerId: input.customerId,
     appointmentId: null,
@@ -1679,7 +1669,7 @@ export function seedOpenOrder(input: {
     createdAt,
     updatedAt: createdAt,
   }
-  setDoc(`tenants/${input.tenantId}/orders/${id}`, doc)
+  setDoc(`orgs/${input.orgId}/orders/${id}`, doc)
   return id
 }
 
@@ -1689,7 +1679,7 @@ export function seedOpenOrder(input: {
 // commission against it (see `seedCommission({ orderId })`). Mirrors the open
 // order seed but in its settled terminal state.
 export function seedClosedOrder(input: {
-  tenantId: string
+  orgId: string
   unitId: string
   customerId: string | null
   attributedUserId: string
@@ -1727,7 +1717,7 @@ export function seedClosedOrder(input: {
   }
   const doc: Order = {
     id,
-    tenantId: input.tenantId,
+    orgId: input.orgId,
     unitId: input.unitId,
     customerId: input.customerId,
     appointmentId: null,
@@ -1741,7 +1731,7 @@ export function seedClosedOrder(input: {
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${input.tenantId}/orders/${id}`, doc)
+  setDoc(`orgs/${input.orgId}/orders/${id}`, doc)
   return id
 }
 
@@ -1749,7 +1739,7 @@ export function seedClosedOrder(input: {
 // drive the pending-commission veto in the offboarding E2E. `liquidationStatus`
 // defaults to `pendente` (the state that blocks removal).
 export function seedCommission(input: {
-  tenantId: string
+  orgId: string
   attributedUserId: string
   amountCents: number
   liquidationStatus?: 'pendente' | 'pago'
@@ -1771,7 +1761,7 @@ export function seedCommission(input: {
   const status = input.liquidationStatus ?? 'pendente'
   const doc: Commission = {
     id,
-    tenantId: input.tenantId,
+    orgId: input.orgId,
     orderId: input.orderId ?? 'e2e-order-ref',
     orderItemId: 'item-1',
     attributedUserId: input.attributedUserId,
@@ -1789,7 +1779,7 @@ export function seedCommission(input: {
     paymentProof: null,
     createdAt: now,
   }
-  setDoc(`tenants/${input.tenantId}/commissions/${id}`, doc)
+  setDoc(`orgs/${input.orgId}/commissions/${id}`, doc)
   return id
 }
 
@@ -1797,7 +1787,7 @@ export function seedCommission(input: {
 // offboarding E2E to prove the removed member's commissions are LEFT untouched
 // (identifiable, still pending) — the offboarding no longer reads/gates on them.
 export function readCommission(
-  tenantId: string,
+  orgId: string,
   commissionId: string,
 ): { attributedUserId: string | null; liquidationStatus: string | null } | null {
   let out = ''
@@ -1806,7 +1796,7 @@ export function readCommission(
       'curl',
       [
         '-fsS',
-        `${fsBaseUrl()}/tenants/${tenantId}/commissions/${commissionId}`,
+        `${fsBaseUrl()}/orgs/${orgId}/commissions/${commissionId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -1838,7 +1828,7 @@ export function readCommission(
 export type SeedBlockInput =
   | {
       kind: 'recurring'
-      tenantId: string
+      orgId: string
       unitId: string
       professionalId?: string | null
       weekday: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
@@ -1848,7 +1838,7 @@ export type SeedBlockInput =
     }
   | {
       kind: 'one_off'
-      tenantId: string
+      orgId: string
       unitId: string
       professionalId?: string | null
       // ISO UTC.
@@ -1862,7 +1852,7 @@ export function seedBlock(input: SeedBlockInput): string {
   const now = new Date().toISOString()
   const base = {
     id,
-    tenantId: input.tenantId,
+    orgId: input.orgId,
     unitId: input.unitId,
     professionalId: input.professionalId ?? null,
     reason: input.reason,
@@ -1889,11 +1879,11 @@ export function seedBlock(input: SeedBlockInput): string {
           startAt: input.startAt,
           endAt: input.endAt,
         }
-  setDoc(`tenants/${input.tenantId}/agenda_blocks/${id}`, doc)
+  setDoc(`orgs/${input.orgId}/agenda_blocks/${id}`, doc)
   return id
 }
 
-// Creates an additional auth user (no tenant) and returns its credentials.
+// Creates an additional auth user (no org) and returns its credentials.
 // Useful for invite-flow specs that need a second authenticated identity to
 // accept an invite created by the seed owner.
 export async function seedAuthUser(
@@ -1932,7 +1922,7 @@ export async function seedAuthUser(
 }
 
 export type SeedInviteInput = {
-  tenantId: string
+  orgId: string
   email: string
   role: 'manager' | 'professional' | 'receptionist'
   invitedBy: string
@@ -1957,7 +1947,7 @@ export function seedInvite(input: SeedInviteInput): { inviteId: string; rawToken
   const accepted = status === 'accepted'
   const inviteDoc: StoredInvite = {
     id: inviteId,
-    tenantId: input.tenantId,
+    orgId: input.orgId,
     role: input.role,
     tokenHash,
     expiresAt,
@@ -1968,24 +1958,24 @@ export function seedInvite(input: SeedInviteInput): { inviteId: string; rawToken
     createdAt: now,
     updatedAt: now,
   }
-  setDoc(`tenants/${input.tenantId}/invites/${inviteId}`, inviteDoc)
+  setDoc(`orgs/${input.orgId}/invites/${inviteId}`, inviteDoc)
   // The invitee email is PII (#1036, ADR 0010): it lives in the deletable
   // `invites_pii/{id}` doc, NOT on the invite projection. The product read
   // path (`getInviteById`) merges it from here — without it, `invite.email`
   // reads as '' and the accept-flow email match always fails. Mirrors
   // `writeInvitePii`.
   const invitePii: InvitePii = { email: input.email }
-  setDoc(`tenants/${input.tenantId}/invites_pii/${inviteId}`, invitePii)
+  setDoc(`orgs/${input.orgId}/invites_pii/${inviteId}`, invitePii)
   return { inviteId, rawToken }
 }
 
 // Reads an invite back from the Firestore emulator (typed-value shape).
-export function readInviteStatus(tenantId: string, inviteId: string): string | null {
+export function readInviteStatus(orgId: string, inviteId: string): string | null {
   const out = execFileSync(
     'curl',
     [
       '-fsS',
-      `${fsBaseUrl()}/tenants/${tenantId}/invites/${inviteId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/invites/${inviteId}`,
       '-H',
       'Authorization: Bearer owner',
     ],
@@ -2003,14 +1993,14 @@ export function readInviteStatus(tenantId: string, inviteId: string): string | n
 }
 
 export function readInvite(
-  tenantId: string,
+  orgId: string,
   inviteId: string,
 ): { status: string; acceptedByUid: string | null; acceptedAt: string | null } | null {
   const out = execFileSync(
     'curl',
     [
       '-fsS',
-      `${fsBaseUrl()}/tenants/${tenantId}/invites/${inviteId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/invites/${inviteId}`,
       '-H',
       'Authorization: Bearer owner',
     ],
@@ -2039,7 +2029,7 @@ export function readInvite(
 }
 
 export type ReadMembershipResult = {
-  tenantId: string
+  orgId: string
   role: string
   status: string
   unitId: string | null
@@ -2074,7 +2064,7 @@ export function readMembership(membershipId: string): ReadMembershipResult | nul
         Schema.Struct({
           fields: Schema.optional(
             Schema.Struct({
-              tenantId: Schema.optional(StringValue),
+              orgId: Schema.optional(StringValue),
               role: Schema.optional(StringValue),
               status: Schema.optional(StringValue),
               unitId: Schema.optional(NullableStringValue),
@@ -2098,7 +2088,7 @@ export function readMembership(membershipId: string): ReadMembershipResult | nul
     else if (commissionRaw?.integerValue !== undefined)
       commissionRate = Number(commissionRaw.integerValue)
     return {
-      tenantId: json.fields.tenantId?.stringValue ?? '',
+      orgId: json.fields.orgId?.stringValue ?? '',
       role: json.fields.role?.stringValue ?? '',
       status: json.fields.status?.stringValue ?? '',
       unitId: json.fields.unitId?.stringValue ?? null,
@@ -2153,7 +2143,7 @@ export async function signInAndAttachSession(
   ])
 }
 
-// Active-unit cookie (brief 0029). A tenant with 2+ units and no chosen unit is
+// Active-unit cookie (brief 0029). A org with 2+ units and no chosen unit is
 // sent to the `/select-unit` interstitial — pin the active unit by writing the
 // cookie the picker would set, so operational/CRUD routes resolve directly.
 export const ACTIVE_UNIT_COOKIE = 'activeUnitId'
@@ -2177,14 +2167,14 @@ export async function setActiveUnitCookie(
 }
 
 // After creating a unit via the `/units/new` form, the action redirects to
-// `/units` — but if the create crossed the tenant into 2+ units with no chosen
+// `/units` — but if the create crossed the org into 2+ units with no chosen
 // unit, the layout bounces to the `/select-unit` interstitial first (brief 0029
 // AC-04). Wait for the post-create navigation to settle, pick a unit if the
 // interstitial showed, and leave the browser on the `/units` listing so the
 // caller can assert the created unit is there.
 export async function enterUnitsAfterCreate(page: Page): Promise<void> {
   // The create action redirects to `/units`, but the `(app)` layout then bounces
-  // a now-multi-unit tenant with no chosen unit to `/select-unit`. That transient
+  // a now-multi-unit org with no chosen unit to `/select-unit`. That transient
   // `/units` hop means we can't trust the immediate post-create URL — first let
   // the post-create navigation settle, then navigate to `/units` ourselves and,
   // if the interstitial shows, pin the first offered unit via the cookie (more

@@ -25,38 +25,38 @@ import {
   seedService,
   seedSubscription,
 } from '../helpers/session'
-import { PublicBookingPage, tenantSlug } from '../pages'
+import { PublicBookingPage, orgSlug } from '../pages'
 
 test.describe(
   'brief 0019 — Feature-level DoD § Scenario 2 (allowedTimeScope)',
   { tag: '@critical' },
   () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
     test('plano com horário restrito filtra slots no calendar e bloqueia commit', async ({
-      tenant,
+      org,
       authedPage,
       browser,
     }) => {
-      const slug = tenantSlug(tenant.tenantId)
-      const unitId = tenant.unitIds[0]!
-      const serviceId = seedService(tenant.tenantId, {
+      const slug = orgSlug(org.orgId)
+      const unitId = org.unitIds[0]!
+      const serviceId = seedService(org.orgId, {
         name: 'Corte Tempo',
         durationMinutes: 30,
         publicVisible: true,
         unitIds: [unitId],
       })
-      linkProfessionalToServices(tenant.tenantId, tenant.professionalIds[0]!, [serviceId])
+      linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
 
       // Plano restrito a seg-sex 09:00-10:00 (envelope ultra-estreito pra
-      // tornar o filtro observável dentro de business hours do tenant
+      // tornar o filtro observável dentro de business hours do org
       // 09:00-18:00). Avulso vê todo o grid 09:00-18:00; assinante só vê
       // <10:00.
-      const customerId = seedCustomer(tenant.tenantId, {
+      const customerId = seedCustomer(org.orgId, {
         name: 'Cliente Tempo',
-        userId: tenant.uid,
+        userId: org.uid,
       })
-      seedSubscription(tenant.tenantId, customerId, {
+      seedSubscription(org.orgId, customerId, {
         planName: 'Plano Janela Curta',
         allowedTimeScope: {
           daysOfWeek: [1, 2, 3, 4, 5],
@@ -91,10 +91,10 @@ test.describe(
       // (c) Defense-in-depth: assinante tenta confirmar via URL direta um
       // start fora do scope (14:00 local). Backend rejeita com
       // `out-of-scope` e UI mostra "Falar no WhatsApp" CTA.
-      const outOfScopeStart = buildLocalIso(targetDate, '14:00', tenant.tenantId)
+      const outOfScopeStart = buildLocalIso(targetDate, '14:00', org.orgId)
       const params = new URLSearchParams({
         service: serviceId,
-        professional: tenant.professionalIds[0]!,
+        professional: org.professionalIds[0]!,
         start: outOfScopeStart,
       })
       await authedPage.goto(`/${slug}/unidade-1/book?${params.toString()}`)
@@ -112,11 +112,11 @@ test.describe(
   },
 )
 
-// Converte (YYYY-MM-DD, HH:mm) em America/Sao_Paulo (tz default do seedTenant)
+// Converte (YYYY-MM-DD, HH:mm) em America/Sao_Paulo (tz default do seedOrg)
 // pra ISO UTC. Sem dep de DST runtime — São Paulo está em UTC-3 desde 2019
 // (DST abolido), suficiente pra E2E determinístico.
-function buildLocalIso(dateYmd: string, hhmm: string, _tenantId: string): string {
-  // tenantId param reservado pra futuras evoluções (tz por tenant); seedTenant
+function buildLocalIso(dateYmd: string, hhmm: string, _orgId: string): string {
+  // orgId param reservado pra futuras evoluções (tz por org); seedOrg
   // hoje fixa America/Sao_Paulo, então UTC = local + 3h.
   const [hh, mm] = hhmm.split(':')
   if (hh === undefined || mm === undefined) {

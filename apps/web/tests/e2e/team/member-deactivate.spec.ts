@@ -20,7 +20,7 @@ import { execFileSync } from 'node:child_process'
 import { expect, test } from '../fixtures'
 import { FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
 import { parseJson } from '../helpers/firestore-rest'
-import { readMembership, seedAuthUser, type SeededTenant } from '../helpers/session'
+import { readMembership, seedAuthUser, type SeededOrg } from '../helpers/session'
 import { ProfessionalsPage } from '../pages'
 
 const FS_BASE = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents`
@@ -74,9 +74,9 @@ const decodeMembershipStatusEvents = Schema.decodeUnknownSync(MembershipStatusEv
 // Seeds an active receptionist membership (admin bypass) for an existing auth
 // user, so the member is navigable at `/team/{userId}`. Mirrors the owner
 // membership shape.
-function seedReceptionistMembership(tenant: SeededTenant, userId: string): void {
+function seedReceptionistMembership(org: SeededOrg, userId: string): void {
   const now = new Date().toISOString()
-  const id = membershipDocId(tenant.tenantId, userId)
+  const id = membershipDocId(org.orgId, userId)
   const perms = defaultPermissionsForRole('receptionist')
   const boolValue = (b: boolean) => ({ booleanValue: b })
   execFileSync(
@@ -94,11 +94,11 @@ function seedReceptionistMembership(tenant: SeededTenant, userId: string): void 
       JSON.stringify({
         fields: {
           id: { stringValue: id },
-          tenantId: { stringValue: tenant.tenantId },
+          orgId: { stringValue: org.orgId },
           userId: { stringValue: userId },
           role: { stringValue: 'receptionist' },
           status: { stringValue: 'active' },
-          invitedBy: { stringValue: tenant.uid },
+          invitedBy: { stringValue: org.uid },
           joinedAt: { stringValue: now },
           updatedAt: { stringValue: now },
           unitId: { nullValue: null },
@@ -142,15 +142,15 @@ function listMembershipStatusEvents(membershipId: string): string[] {
 }
 
 test.describe('Equipe — desativar/reativar membro (#1053)', { tag: '@critical' }, () => {
-  test.use({ tenantInput: { unitCount: 1, professionalCount: 0 } })
+  test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
 
   test('detalhe mostra o toggle; desativar suspende; reativar volta; event-sourced', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const member = await seedAuthUser()
-    seedReceptionistMembership(tenant, member.uid)
-    const membershipId = membershipDocId(tenant.tenantId, member.uid)
+    seedReceptionistMembership(org, member.uid)
+    const membershipId = membershipDocId(org.orgId, member.uid)
 
     // Baseline: active membership, no status-change event yet.
     expect(readMembership(membershipId)?.status).toBe('active')
@@ -188,12 +188,9 @@ test.describe('Equipe — desativar/reativar membro (#1053)', { tag: '@critical'
     expect(listMembershipStatusEvents(membershipId)).toEqual(['suspended', 'active'])
   })
 
-  test('owner não tem toggle de desativação (identidade imutável)', async ({
-    tenant,
-    authedPage,
-  }) => {
+  test('owner não tem toggle de desativação (identidade imutável)', async ({ org, authedPage }) => {
     const pros = new ProfessionalsPage(authedPage)
-    await pros.gotoByUserId(tenant.uid)
+    await pros.gotoByUserId(org.uid)
     // The owner detail is read-only and has no deactivate affordance.
     await expect(authedPage.getByRole('form', { name: 'Desativar membro' })).toHaveCount(0)
   })

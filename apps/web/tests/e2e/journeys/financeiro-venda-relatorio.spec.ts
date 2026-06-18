@@ -29,7 +29,7 @@
 // Runs against the running emulator (no mocks). Seeds via the session helpers +
 // Firestore REST admin bypass and reads cash-movement state straight from
 // Firestore to assert the stitched invariants. The active unit is pinned with
-// `setActiveUnitCookie` for multi-unit tenants to skip the interstitial where
+// `setActiveUnitCookie` for multi-unit orgs to skip the interstitial where
 // the journey is about the scoped surface (not the picker itself).
 
 import type { Page } from '@playwright/test'
@@ -44,7 +44,7 @@ import {
   seedClosedOrder,
   seedCustomer,
   seedService,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
@@ -65,10 +65,10 @@ const salesRow = (page: Page, label: string | RegExp) =>
 // sale (`sale` with `orderId`) and its append-only reversal (`sale_reversal`)
 // exist WITHOUT any cash-drawer surface. Mirrors the venda-multi-vertical
 // journey's inline `listDocs` shape.
-function listDocs(tenantId: string, collection: string): readonly FsDocument[] {
+function listDocs(orgId: string, collection: string): readonly FsDocument[] {
   const out = execFileSync(
     'curl',
-    ['-fsS', '-H', 'Authorization: Bearer owner', `${FS_BASE}/tenants/${tenantId}/${collection}`],
+    ['-fsS', '-H', 'Authorization: Bearer owner', `${FS_BASE}/orgs/${orgId}/${collection}`],
     { encoding: 'utf8' },
   )
   const parsed = parseJson(out, decodeFsListResponse)
@@ -82,8 +82,8 @@ type ReadMovement = {
   orderId: string | null
 }
 
-function readCashMovements(tenantId: string): ReadMovement[] {
-  return listDocs(tenantId, 'cash_movements').map((doc) => {
+function readCashMovements(orgId: string): ReadMovement[] {
+  return listDocs(orgId, 'cash_movements').map((doc) => {
     const f = doc.fields ?? {}
     return {
       kind: f.kind?.stringValue ?? '',
@@ -102,12 +102,12 @@ function readCashMovements(tenantId: string): ReadMovement[] {
 // the central typed helper instead of driving the fragile subscription-close
 // dialog. The single item is `coverage: 'subscription'` (gross R$ 50,00) while
 // the order settles to R$ 0,00.
-function seedSubscriptionCoveredOrder(tenant: SeededTenant): void {
+function seedSubscriptionCoveredOrder(org: SeededOrg): void {
   seedClosedOrder({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
     customerId: null,
-    attributedUserId: tenant.uid,
+    attributedUserId: org.uid,
     totalCents: 0,
     subtotalCents: 5000,
     paymentMethod: null,
@@ -115,21 +115,21 @@ function seedSubscriptionCoveredOrder(tenant: SeededTenant): void {
   })
 }
 
-function seedOrderFixture(tenant: SeededTenant): void {
-  const serviceId = seedService(tenant.tenantId, {
+function seedOrderFixture(org: SeededOrg): void {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  const customerId = seedCustomer(tenant.tenantId, {
+  const customerId = seedCustomer(org.orgId, {
     name: 'Cliente Financeiro',
     whatsapp: '11955554444',
   })
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -162,7 +162,7 @@ async function closeWithCash(authedPage: Page): Promise<void> {
 
 test.describe('Financeiro venda + relatório — DoD (#1059 · 0031)', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -178,10 +178,10 @@ test.describe('Financeiro venda + relatório — DoD (#1059 · 0031)', { tag: '@
   // venda nunca some). Os invariantes são lidos direto do Firestore.
   test.describe('Cenário 1 — venda em dinheiro continua registrada', () => {
     test('fechar com dinheiro grava `sale` (com orderId), undo grava `sale_reversal`; sem gaveta; aparece no relatório de vendas', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      seedOrderFixture(tenant)
+      seedOrderFixture(org)
 
       // Fecha com dinheiro pelo caminho da agenda → grava a venda sem depender de
       // gaveta (nenhuma tela de caixa no fluxo).
@@ -189,7 +189,7 @@ test.describe('Financeiro venda + relatório — DoD (#1059 · 0031)', { tag: '@
       await closeWithCash(authedPage)
 
       // Invariante (Firestore): existe UM `sale` de R$ 50,00, entrada, com orderId.
-      const afterClose = readCashMovements(tenant.tenantId)
+      const afterClose = readCashMovements(org.orgId)
       const sales = afterClose.filter((m) => m.kind === 'sale')
       expect(sales).toHaveLength(1)
       expect(sales[0]!.direction).toBe('in')
@@ -217,7 +217,7 @@ test.describe('Financeiro venda + relatório — DoD (#1059 · 0031)', { tag: '@
       await expect(authedPage.getByText(/Aberta em/)).toBeVisible({ timeout: 5000 })
 
       // Invariante (Firestore): `sale` permanece + um `sale_reversal` de saída.
-      const afterUndo = readCashMovements(tenant.tenantId)
+      const afterUndo = readCashMovements(org.orgId)
       expect(afterUndo.filter((m) => m.kind === 'sale')).toHaveLength(1)
       const reversals = afterUndo.filter((m) => m.kind === 'sale_reversal')
       expect(reversals).toHaveLength(1)
@@ -309,7 +309,7 @@ test.describe('Financeiro venda + relatório — DoD (#1059 · 0031)', { tag: '@
   // receita do período (não gera `sale`, então o "Total de vendas" não cresce).
   test.describe('Baseline — empty state e dado degenerado', () => {
     test('hub sem dados → empty claro; período sem venda vazio; venda coberta por assinatura não compõe receita', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       // Render + empty: hub abre sem dados, com empty claro e sem ação fantasma.
@@ -322,9 +322,9 @@ test.describe('Financeiro venda + relatório — DoD (#1059 · 0031)', { tag: '@
 
       // Degenerado: uma venda fechada SÓ com cobertura de assinatura (R$ 0 em
       // dinheiro) → não gera `sale`, logo não compõe a receita do período.
-      seedSubscriptionCoveredOrder(tenant)
+      seedSubscriptionCoveredOrder(org)
       // Invariante (Firestore): nenhum `sale` foi gravado pela venda coberta.
-      expect(readCashMovements(tenant.tenantId).filter((m) => m.kind === 'sale')).toHaveLength(0)
+      expect(readCashMovements(org.orgId).filter((m) => m.kind === 'sale')).toHaveLength(0)
 
       // O relatório do mês (cobre a data atual seedada) segue sem receita: o
       // "Total de vendas" é R$ 0,00 e o empty da seção Vendas permanece.

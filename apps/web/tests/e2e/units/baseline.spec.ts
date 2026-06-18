@@ -12,7 +12,7 @@ import { fillStable } from '../helpers/hydration'
 import { listItem, rowAction } from '../helpers/list'
 import { enterUnitsAfterCreate, seedUnit } from '../helpers/session'
 
-// Seeding/creating a 2nd unit crosses the tenant into multi-unit: with no
+// Seeding/creating a 2nd unit crosses the org into multi-unit: with no
 // chosen unit the next `(app)` navigation hits the `/select-unit` interstitial
 // (brief 0029 AC-04). Dismiss it by picking a unit, then land on `/units`.
 async function dismissUnitInterstitialIfPresent(page: Page): Promise<void> {
@@ -20,11 +20,11 @@ async function dismissUnitInterstitialIfPresent(page: Page): Promise<void> {
 }
 
 test.describe('Units — baseline (#17)', () => {
-  // The default tenant seeds 1 unit, so force an empty tenant for the
+  // The default org seeds 1 unit, so force an empty org for the
   // protagonist case (brief 0034 / #1073): no units → the EmptyState takes over
   // with its single CTA and the header is hidden.
-  test.describe('empty tenant', () => {
-    test.use({ tenantInput: { unitCount: 0 } })
+  test.describe('empty org', () => {
+    test.use({ orgInput: { unitCount: 0 } })
 
     test('render + empty state', async ({ authedPage }) => {
       await authedPage.goto('/units')
@@ -93,15 +93,15 @@ test.describe('Units — baseline (#17)', () => {
   })
 
   test('unidade mínima (sem endereço/horário configurados) renderiza e exclui', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     // An under-configured but schema-valid 2nd unit (address/businessHours null,
     // as a just-created unit looks). Reads strictly via StoredUnit — a unit
     // without id/slug can't exist (createUnit always sets them).
-    seedUnit(tenant.tenantId, { name: 'Unidade Legada' })
+    seedUnit(org.orgId, { name: 'Unidade Legada' })
 
-    // The seed makes this a 2-unit tenant → first `(app)` nav hits the
+    // The seed makes this a 2-unit org → first `(app)` nav hits the
     // `/select-unit` interstitial (0029 AC-04). Dismiss it, then list units.
     await authedPage.goto('/units')
     await dismissUnitInterstitialIfPresent(authedPage)

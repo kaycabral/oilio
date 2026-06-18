@@ -14,7 +14,7 @@ import {
   readMembership,
   seedAuthUser,
   seedInvite,
-  seedTenant,
+  seedOrg,
   signInAndAttachSession,
 } from '../helpers/session'
 
@@ -43,15 +43,15 @@ const ProfessionalsListSchema = Schema.Struct({
 })
 const decodeProfessionalsList = Schema.decodeUnknownSync(ProfessionalsListSchema)
 
-// List the tenant's professionals via the Firestore REST API and project the
+// List the org's professionals via the Firestore REST API and project the
 // fields the saga must set. `userId` surfaces as `null` when the field is
 // missing or explicitly null — exactly the regression AC-01 forbids.
-function listProfessionals(tenantId: string): StoredPro[] {
+function listProfessionals(orgId: string): StoredPro[] {
   const out = execFileSync(
     'curl',
     [
       '-fsS',
-      `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenantId}/professionals`,
+      `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/professionals`,
       '-H',
       'Authorization: Bearer owner',
     ],
@@ -70,32 +70,32 @@ test.describe('Professional materializa pelo aceite (#1045)', { tag: '@critical'
     page,
     baseURL,
   }) => {
-    // Owner tenant with no pre-seeded professionals so the assertion below is
+    // Owner org with no pre-seeded professionals so the assertion below is
     // unambiguous: the only professional after accept is the materialized one.
-    const owner = await seedTenant({ unitCount: 1, professionalCount: 0 })
-    expect(listProfessionals(owner.tenantId)).toHaveLength(0)
+    const owner = await seedOrg({ unitCount: 1, professionalCount: 0 })
+    expect(listProfessionals(owner.orgId)).toHaveLength(0)
 
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = seedInvite({
-      tenantId: owner.tenantId,
+      orgId: owner.orgId,
       email: invitee.email,
       role: 'professional',
       invitedBy: owner.uid,
     })
 
     await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
-    await page.goto(`/invites/${owner.tenantId}/${inviteId}?token=${rawToken}`)
+    await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await page.getByRole('button', { name: /aceitar convite/i }).click()
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
 
     // Membership exists with role professional (the saga's first step).
-    const m = readMembership(membershipDocId(owner.tenantId, invitee.uid))
+    const m = readMembership(membershipDocId(owner.orgId, invitee.uid))
     expect(m).not.toBeNull()
     expect(m!.role).toBe('professional')
 
     // Exactly ONE Professional projection materialized, carrying the
     // invitee uid as a non-null userId.
-    const pros = listProfessionals(owner.tenantId)
+    const pros = listProfessionals(owner.orgId)
     expect(pros).toHaveLength(1)
     expect(pros[0]!.userId).toBe(invitee.uid)
     expect(pros[0]!.userId).not.toBeNull()
@@ -106,22 +106,22 @@ test.describe('Professional materializa pelo aceite (#1045)', { tag: '@critical'
     page,
     baseURL,
   }) => {
-    const owner = await seedTenant({ unitCount: 1, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 1, professionalCount: 0 })
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = seedInvite({
-      tenantId: owner.tenantId,
+      orgId: owner.orgId,
       email: invitee.email,
       role: 'manager',
       invitedBy: owner.uid,
     })
 
     await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
-    await page.goto(`/invites/${owner.tenantId}/${inviteId}?token=${rawToken}`)
+    await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await page.getByRole('button', { name: /aceitar convite/i }).click()
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
 
-    const m = readMembership(membershipDocId(owner.tenantId, invitee.uid))
+    const m = readMembership(membershipDocId(owner.orgId, invitee.uid))
     expect(m!.role).toBe('manager')
-    expect(listProfessionals(owner.tenantId)).toHaveLength(0)
+    expect(listProfessionals(owner.orgId)).toHaveLength(0)
   })
 })

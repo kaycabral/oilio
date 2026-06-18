@@ -14,25 +14,25 @@ import {
   seedService,
   seedSubscription,
   setSubscriptionStatus,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-function seedOrderFixture(tenant: SeededTenant): { customerId: string; serviceId: string } {
-  const serviceId = seedService(tenant.tenantId, {
+function seedOrderFixture(org: SeededOrg): { customerId: string; serviceId: string } {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  const customerId = seedCustomer(tenant.tenantId, {
+  const customerId = seedCustomer(org.orgId, {
     name: 'Cliente Dialog',
     whatsapp: '11955554444',
   })
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -47,7 +47,7 @@ function seedOrderFixture(tenant: SeededTenant): { customerId: string; serviceId
 
 test.describe('Order — dialog de confirmação pré-fechamento', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -65,16 +65,16 @@ test.describe('Order — dialog de confirmação pré-fechamento', { tag: '@crit
     await expect(authedPage.getByRole('heading', { name: 'Cliente Dialog' })).toBeVisible()
   }
 
-  async function openOrder(authedPage: Page, tenant: SeededTenant) {
-    seedOrderFixture(tenant)
+  async function openOrder(authedPage: Page, org: SeededOrg) {
+    seedOrderFixture(org)
     await openSeededOrder(authedPage)
   }
 
   test('AC-01: "Fechar venda" abre dialog com resumo antes do submit', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    await openOrder(authedPage, tenant)
+    await openOrder(authedPage, org)
 
     await choosePaymentMethod(authedPage, 'pix')
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
@@ -92,10 +92,10 @@ test.describe('Order — dialog de confirmação pré-fechamento', { tag: '@crit
   })
 
   test('AC-02: cancelar o dialog não fecha a order (sem side effect)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    await openOrder(authedPage, tenant)
+    await openOrder(authedPage, org)
 
     await choosePaymentMethod(authedPage, 'pix')
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
@@ -118,7 +118,7 @@ test.describe('Order — dialog de confirmação pré-fechamento', { tag: '@crit
   })
 
   test('AC-03: erro do backend aparece inline no dialog, sem navegar', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     // Trigger determinístico de rejeição do `closeOrder` alcançável por UI
@@ -131,8 +131,8 @@ test.describe('Order — dialog de confirmação pré-fechamento', { tag: '@crit
     // aberto, com `alert`, sem navegar). O método anterior ("subscription" no
     // select de pagamento) ficou inalcançável: não existe forma de pagamento
     // `subscription`, e a cobertura por item é guardada na UI.
-    const { customerId, serviceId } = seedOrderFixture(tenant)
-    const subscriptionId = seedSubscription(tenant.tenantId, customerId, {
+    const { customerId, serviceId } = seedOrderFixture(org)
+    const subscriptionId = seedSubscription(org.orgId, customerId, {
       status: 'active',
       // Cobre o item da comanda explicitamente — a marcação de cobertura passa.
       includedItemIds: [serviceId],
@@ -144,7 +144,7 @@ test.describe('Order — dialog de confirmação pré-fechamento', { tag: '@crit
     await expect(authedPage.getByText('Consumo do plano').first()).toBeVisible()
 
     // Assinatura cancelada com a comanda aberta → o fechamento vai falhar.
-    setSubscriptionStatus(tenant.tenantId, subscriptionId, 'cancelled')
+    setSubscriptionStatus(org.orgId, subscriptionId, 'cancelled')
 
     // Sem item de venda, a venda fecha "100% coberta" — botão habilitado.
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()

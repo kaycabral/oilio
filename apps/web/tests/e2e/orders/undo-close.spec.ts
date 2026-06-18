@@ -14,24 +14,24 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { choosePaymentMethod } from '../helpers/select'
-import { seedAppointment, seedCustomer, seedService, type SeededTenant } from '../helpers/session'
+import { seedAppointment, seedCustomer, seedService, type SeededOrg } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-function seedOrderFixture(tenant: SeededTenant): void {
-  const serviceId = seedService(tenant.tenantId, {
+function seedOrderFixture(org: SeededOrg): void {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  const customerId = seedCustomer(tenant.tenantId, {
+  const customerId = seedCustomer(org.orgId, {
     name: 'Cliente Undo',
     whatsapp: '11933332222',
   })
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -65,7 +65,7 @@ async function closeOrderWith(
 
 test.describe('Order — undo pós-fechamento', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -74,8 +74,8 @@ test.describe('Order — undo pós-fechamento', { tag: '@critical' }, () => {
     },
   })
 
-  test('AC-06: desfazer reabre a order e estorna as comissões', async ({ tenant, authedPage }) => {
-    seedOrderFixture(tenant)
+  test('AC-06: desfazer reabre a order e estorna as comissões', async ({ org, authedPage }) => {
+    seedOrderFixture(org)
     await startOrder(authedPage)
 
     await closeOrderWith(authedPage, 'pix')
@@ -95,8 +95,8 @@ test.describe('Order — undo pós-fechamento', { tag: '@critical' }, () => {
     await expect(authedPage.getByText('Comissões geradas')).toBeHidden()
   })
 
-  test('AC-08: desfazer grava estorno no caixa (sale_reversal)', async ({ tenant, authedPage }) => {
-    seedOrderFixture(tenant)
+  test('AC-08: desfazer grava estorno no caixa (sale_reversal)', async ({ org, authedPage }) => {
+    seedOrderFixture(org)
 
     // Caixa sem sessão (brief 0015): o fechamento com dinheiro grava a venda
     // SEMPRE, sem precisar abrir caixa.

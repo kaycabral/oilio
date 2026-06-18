@@ -23,7 +23,7 @@ import { chooseOption } from '../helpers/select'
 import {
   seedClosedOrder as seedClosedOrderHelper,
   seedCommission as seedCommissionDoc,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 
 function docUrl(path: string): string {
@@ -38,19 +38,19 @@ type SeedCommission = {
   createdAt: string
   itemKind?: 'service' | 'product'
   // Unit the source order belongs to (brief 0039 AC-04 scoping). Defaults to
-  // the tenant's first unit.
+  // the org's first unit.
   unitId?: string
 }
 
-function seedCommission(tenant: SeededTenant, c: SeedCommission): void {
+function seedCommission(org: SeededOrg, c: SeedCommission): void {
   // The report scopes commissions by unit through their source order (brief
   // 0039 AC-04 — Commission has no `unitId`, the closed order carries it). Seed
   // the matching closed order so the commission stays in scope (in production a
   // commission always has its closing order in the same window). `unitId`
-  // defaults to the tenant's first unit unless the case overrides it.
+  // defaults to the org's first unit unless the case overrides it.
   const orderId = seedClosedOrderHelper({
-    tenantId: tenant.tenantId,
-    unitId: c.unitId ?? tenant.unitIds[0] ?? 'unit',
+    orgId: org.orgId,
+    unitId: c.unitId ?? org.unitIds[0] ?? 'unit',
     customerId: null,
     attributedUserId: c.attributedUserId,
     totalCents: c.amountCents * 2,
@@ -61,7 +61,7 @@ function seedCommission(tenant: SeededTenant, c: SeedCommission): void {
   // Seed those as `pendente` (the migrated value the report would surface).
   const liquidationStatus = c.liquidationStatus === 'pago' ? 'pago' : 'pendente'
   seedCommissionDoc({
-    tenantId: tenant.tenantId,
+    orgId: org.orgId,
     attributedUserId: c.attributedUserId,
     amountCents: c.amountCents,
     liquidationStatus,
@@ -81,7 +81,7 @@ type SeedCoveredLine = {
 
 // Seed direto de uma comanda fechada com itens — o relatório de cobertos (AC-07)
 // lê closed orders no período. Mais rápido que fechar order por order.
-function seedClosedOrder(tenant: SeededTenant, lines: SeedCoveredLine[], closedAt: string): void {
+function seedClosedOrder(org: SeededOrg, lines: SeedCoveredLine[], closedAt: string): void {
   const id = `e2e-order-${Math.random().toString(36).slice(2)}`
   const items = lines.map((l, i) => ({
     mapValue: {
@@ -100,8 +100,8 @@ function seedClosedOrder(tenant: SeededTenant, lines: SeedCoveredLine[], closedA
   }))
   const fields: Record<string, unknown> = {
     id: { stringValue: id },
-    tenantId: { stringValue: tenant.tenantId },
-    unitId: { stringValue: tenant.unitIds[0] ?? 'unit' },
+    orgId: { stringValue: org.orgId },
+    unitId: { stringValue: org.unitIds[0] ?? 'unit' },
     customerId: { stringValue: `cust-${id}` },
     appointmentId: { nullValue: null },
     status: { stringValue: 'closed' },
@@ -121,7 +121,7 @@ function seedClosedOrder(tenant: SeededTenant, lines: SeedCoveredLine[], closedA
       '-fsS',
       '-X',
       'PATCH',
-      docUrl(`tenants/${tenant.tenantId}/orders/${id}`),
+      docUrl(`orgs/${org.orgId}/orders/${id}`),
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -134,23 +134,23 @@ function seedClosedOrder(tenant: SeededTenant, lines: SeedCoveredLine[], closedA
 }
 
 test.describe('Relatório de comissões (#998)', () => {
-  test.use({ tenantInput: { professionalCount: 1, professionalOperationalStatus: 'operational' } })
+  test.use({ orgInput: { professionalCount: 1, professionalOperationalStatus: 'operational' } })
 
   test('AC-05: lista comissões do período com valores, status e totais', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUser = `e2e-prof-user-${proId}`
     const now = new Date().toISOString()
-    seedCommission(tenant, {
+    seedCommission(org, {
       attributedUserId: proUser,
       itemName: 'Corte Pendente',
       amountCents: 2500,
       liquidationStatus: 'pendente',
       createdAt: now,
     })
-    seedCommission(tenant, {
+    seedCommission(org, {
       attributedUserId: proUser,
       itemName: 'Barba Paga',
       amountCents: 1000,
@@ -158,7 +158,7 @@ test.describe('Relatório de comissões (#998)', () => {
       createdAt: now,
     })
     // Migração (#998): estado legado de split é lido como `pendente`.
-    seedCommission(tenant, {
+    seedCommission(org, {
       attributedUserId: proUser,
       itemName: 'Comissao Legada',
       amountCents: 500,
@@ -185,17 +185,17 @@ test.describe('Relatório de comissões (#998)', () => {
     await expect(authedPage.getByText('Split automático')).toBeHidden()
   })
 
-  test('filtro por período retorna só registros no range', async ({ tenant, authedPage }) => {
-    const proId = tenant.professionalIds[0]!
+  test('filtro por período retorna só registros no range', async ({ org, authedPage }) => {
+    const proId = org.professionalIds[0]!
     const proUser = `e2e-prof-user-${proId}`
-    seedCommission(tenant, {
+    seedCommission(org, {
       attributedUserId: proUser,
       itemName: 'Comissao Recente',
       amountCents: 3000,
       liquidationStatus: 'pendente',
       createdAt: new Date().toISOString(),
     })
-    seedCommission(tenant, {
+    seedCommission(org, {
       attributedUserId: proUser,
       itemName: 'Comissao Antiga',
       amountCents: 4000,
@@ -228,20 +228,20 @@ test.describe('Relatório de comissões (#998)', () => {
   })
 
   test('AC-05: filtro por status recorta a lista; resumo mostra pendente e pago', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUser = `e2e-prof-user-${proId}`
     const now = new Date().toISOString()
-    seedCommission(tenant, {
+    seedCommission(org, {
       attributedUserId: proUser,
       itemName: 'Servico Pendente',
       amountCents: 2500,
       liquidationStatus: 'pendente',
       createdAt: now,
     })
-    seedCommission(tenant, {
+    seedCommission(org, {
       attributedUserId: proUser,
       itemName: 'Servico Pago',
       amountCents: 1000,
@@ -266,14 +266,14 @@ test.describe('Relatório de comissões (#998)', () => {
   })
 
   test('AC-07: atendimentos cobertos contam serviço de assinatura, não a venda', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUser = `e2e-prof-user-${proId}`
     const now = new Date().toISOString()
     seedClosedOrder(
-      tenant,
+      org,
       [
         {
           attributedUserId: proUser,

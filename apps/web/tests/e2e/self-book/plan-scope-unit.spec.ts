@@ -7,55 +7,55 @@
 // Sub-issues granulares (#961 plan-edit UI + filter, #964 banner) já
 // passaram em validação por unitário/integration. Este spec exercita
 // journey end-to-end: assinante com plano restrito vs avulso, no mesmo
-// tenant multi-unit, vendo telas diferentes.
+// org multi-unit, vendo telas diferentes.
 //
 // Scenario canonicamente declarado em [brief § DoD Scenario 1]
 // (https://github.com/cbrl-dev/cbrl/wiki/08-Features-0019-regras-do-plano#scenario-1-plano-com-unitallowlist-filtra-self-book-do-assinante-critical):
 //   Dado owner marca apenas 1 unidade em "Unidades cobertas",
 //   Quando cliente com Subscription ativa daquele plano abre o self-book,
 //   Então apenas a unidade marcada aparece pra escolha; outras unidades
-//   públicas do tenant não aparecem; cliente avulso continua vendo todas.
+//   públicas do org não aparecem; cliente avulso continua vendo todas.
 
 import { expect, test } from '../fixtures'
 import { seedCustomer, seedService, seedSubscription } from '../helpers/session'
-import { PublicBookingPage, tenantSlug } from '../pages'
+import { PublicBookingPage, orgSlug } from '../pages'
 
 test.describe(
   'brief 0019 — Feature-level DoD § Scenario 1 (unitAllowlist)',
   { tag: '@critical' },
   () => {
-    test.use({ tenantInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
 
     test('plano com unitAllowlist filtra self-book do assinante; avulso vê todas', async ({
-      tenant,
+      org,
       authedPage,
       browser,
     }) => {
-      const slug = tenantSlug(tenant.tenantId)
-      const allowedUnitId = tenant.unitIds[0]!
-      const blockedUnitId = tenant.unitIds[1]!
+      const slug = orgSlug(org.orgId)
+      const allowedUnitId = org.unitIds[0]!
+      const blockedUnitId = org.unitIds[1]!
 
       // Service público em cada unidade — confirma que avulso vê as duas.
-      seedService(tenant.tenantId, {
+      seedService(org.orgId, {
         name: 'Corte Alvorada',
         publicVisible: true,
         unitIds: [allowedUnitId],
       })
-      seedService(tenant.tenantId, {
+      seedService(org.orgId, {
         name: 'Corte Djalma',
         publicVisible: true,
         unitIds: [blockedUnitId],
       })
 
-      // Assinante = mesmo uid da sessão logada (tenant.uid). seedCustomer
+      // Assinante = mesmo uid da sessão logada (org.uid). seedCustomer
       // sobrescreve o User stub mas isso é ok aqui — o teste não depende
       // dos campos do owner doc; só precisa que customerUserId === session.uid
       // pro resolveCustomerSubscriptionScope achar a subscription.
-      const customerId = seedCustomer(tenant.tenantId, {
+      const customerId = seedCustomer(org.orgId, {
         name: 'Cliente Scoped',
-        userId: tenant.uid,
+        userId: org.uid,
       })
-      seedSubscription(tenant.tenantId, customerId, {
+      seedSubscription(org.orgId, customerId, {
         planName: 'Plano Alvorada Only',
         unitAllowlist: [allowedUnitId],
       })

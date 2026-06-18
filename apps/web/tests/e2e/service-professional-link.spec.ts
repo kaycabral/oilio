@@ -8,26 +8,26 @@ import { ProfessionalsPage, ServicesPage } from './pages'
 
 test.describe('Vínculo Serviço ↔ Profissional', { tag: '@critical' }, () => {
   test.describe('do lado do Profissional', () => {
-    test.use({ tenantInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
 
     test('detalhe do membro mostra apenas serviços da unidade do pro', async ({
       context,
-      tenant,
+      org,
       authedPage,
       baseURL,
     }) => {
       // s1 offered in unit 1 only, s2 offered in unit 2 only.
-      seedService(tenant.tenantId, { name: 'Corte', unitIds: [tenant.unitIds[0]!] })
-      seedService(tenant.tenantId, { name: 'Manicure', unitIds: [tenant.unitIds[1]!] })
+      seedService(org.orgId, { name: 'Corte', unitIds: [org.unitIds[0]!] })
+      seedService(org.orgId, { name: 'Manicure', unitIds: [org.unitIds[1]!] })
 
-      // 2-unit tenant with no chosen unit is sent to `/select-unit` (0029
+      // 2-unit org with no chosen unit is sent to `/select-unit` (0029
       // AC-04). Pin the active unit so the member detail resolves directly.
-      await setActiveUnitCookie(context, tenant.unitIds[0]!, baseURL ?? undefined)
+      await setActiveUnitCookie(context, org.unitIds[0]!, baseURL ?? undefined)
 
       // Pro is seeded linked to ALL units. The operational edit in the member
       // detail (#1085) should show BOTH services as eligible.
       const professionals = new ProfessionalsPage(authedPage)
-      await professionals.gotoById(tenant.professionalIds[0]!)
+      await professionals.gotoById(org.professionalIds[0]!)
       await expect(authedPage.getByText('Serviços que executa')).toBeVisible()
       await expect(authedPage.getByRole('checkbox', { name: 'Corte' })).toBeVisible()
       await expect(authedPage.getByRole('checkbox', { name: 'Manicure' })).toBeVisible()
@@ -35,15 +35,12 @@ test.describe('Vínculo Serviço ↔ Profissional', { tag: '@critical' }, () => 
   })
 
   test.describe('do lado do Serviço', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 2 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 2 } })
 
-    test('/services/[id] cross-edita quais profissionais executam', async ({
-      tenant,
-      authedPage,
-    }) => {
-      const serviceId = seedService(tenant.tenantId, {
+    test('/services/[id] cross-edita quais profissionais executam', async ({ org, authedPage }) => {
+      const serviceId = seedService(org.orgId, {
         name: 'Corte',
-        unitIds: tenant.unitIds,
+        unitIds: org.unitIds,
       })
       const services = new ServicesPage(authedPage)
       await services.gotoById(serviceId)

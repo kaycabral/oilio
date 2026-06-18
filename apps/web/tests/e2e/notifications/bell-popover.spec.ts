@@ -13,16 +13,11 @@ function fsBaseUrl(): string {
   return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 }
 
-function seedNotification(
-  tenantId: string,
-  unitId: string,
-  type: string,
-  eventKey: string,
-): string {
+function seedNotification(orgId: string, unitId: string, type: string, eventKey: string): string {
   const notifId = `e2e-notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const now = new Date().toISOString()
 
-  const url = `${fsBaseUrl()}/tenants/${tenantId}/notifications/${notifId}`
+  const url = `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`
   execFileSync(
     'curl',
     [
@@ -38,7 +33,7 @@ function seedNotification(
       JSON.stringify({
         fields: {
           id: { stringValue: notifId },
-          tenantId: { stringValue: tenantId },
+          orgId: { stringValue: orgId },
           unitId: { stringValue: unitId },
           type: { stringValue: type },
           source: { stringValue: 'cron' },
@@ -63,10 +58,10 @@ function seedNotification(
 }
 
 test.describe.serial('Notification bell + popover', () => {
-  test('AC-01/AC-03: bell shows badge + popover renders items', async ({ tenant, authedPage }) => {
-    const unitId = tenant.unitIds[0]!
-    seedNotification(tenant.tenantId, unitId, 'birthday', `e2e-birthday-${Date.now()}`)
-    seedNotification(tenant.tenantId, unitId, 'new_customer', `e2e-newcust-${Date.now()}`)
+  test('AC-01/AC-03: bell shows badge + popover renders items', async ({ org, authedPage }) => {
+    const unitId = org.unitIds[0]!
+    seedNotification(org.orgId, unitId, 'birthday', `e2e-birthday-${Date.now()}`)
+    seedNotification(org.orgId, unitId, 'new_customer', `e2e-newcust-${Date.now()}`)
 
     await authedPage.goto('/agenda')
 

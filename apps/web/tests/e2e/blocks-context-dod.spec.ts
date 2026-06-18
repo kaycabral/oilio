@@ -17,7 +17,7 @@ import { AgendaPage, ProfessionalsPage } from './pages'
 
 test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -27,7 +27,7 @@ test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () =
   })
 
   test('Cenário 1 — fechar a unidade num dia (horário) → a agenda reflete → reabrir', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     // 2026-08-10 is a Monday; the seeded unit is OPEN Mon–Fri 09:00–18:00.
@@ -35,7 +35,7 @@ test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () =
     const agenda = new AgendaPage(authedPage)
 
     // The unit page renders the hours editor — no more "Bloqueios da unidade".
-    await authedPage.goto(`/units/${tenant.unitIds[0]}`)
+    await authedPage.goto(`/units/${org.unitIds[0]}`)
     await expect(
       authedPage.getByRole('group', { name: 'Horário de funcionamento', exact: true }),
     ).toBeVisible()
@@ -46,7 +46,7 @@ test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () =
     await expect(authedPage.getByText('Fechado', { exact: true })).toHaveCount(0)
 
     // Close Monday in the hours editor and save.
-    await authedPage.goto(`/units/${tenant.unitIds[0]}`)
+    await authedPage.goto(`/units/${org.unitIds[0]}`)
     const toggle = authedPage.getByRole('switch', { name: 'Segunda' })
     await expect(toggle).toBeChecked()
     await toggle.click()
@@ -63,7 +63,7 @@ test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () =
     })
 
     // Revert: re-open Monday → the overlay is gone.
-    await authedPage.goto(`/units/${tenant.unitIds[0]}`)
+    await authedPage.goto(`/units/${org.unitIds[0]}`)
     const toggleAgain = authedPage.getByRole('switch', { name: 'Segunda' })
     await expect(toggleAgain).not.toBeChecked()
     await toggleAgain.click()
@@ -76,7 +76,7 @@ test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () =
   })
 
   test('Cenário 2 — bloqueio do profissional no detalhe do membro → reflete na agenda', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
@@ -84,7 +84,7 @@ test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () =
     const section = authedPage.getByRole('region', { name: 'Bloqueios do profissional' })
     const pros = new ProfessionalsPage(authedPage)
 
-    await pros.gotoById(tenant.professionalIds[0]!)
+    await pros.gotoById(org.professionalIds[0]!)
     await expect(
       authedPage.getByRole('heading', { name: 'Bloqueios do profissional' }),
     ).toBeVisible()

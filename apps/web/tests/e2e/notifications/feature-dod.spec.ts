@@ -13,15 +13,15 @@ import { FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
 import { decodeFsFieldsDoc, parseJson, strField, type FsValue } from '../helpers/firestore-rest'
 import { seedCustomer, setActiveUnitCookie } from '../helpers/session'
 
-// Tenant com 2 unidades pra validar isolamento por unidade (Cenário 1).
-test.use({ tenantInput: { unitCount: 2 } })
+// Org com 2 unidades pra validar isolamento por unidade (Cenário 1).
+test.use({ orgInput: { unitCount: 2 } })
 
 function fsBaseUrl(): string {
   return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 }
 
 function seedNotification(
-  tenantId: string,
+  orgId: string,
   unitId: string,
   type: string,
   customerId: string | null = null,
@@ -34,7 +34,7 @@ function seedNotification(
       '-fsS',
       '-X',
       'PATCH',
-      `${fsBaseUrl()}/tenants/${tenantId}/notifications/${notifId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -43,7 +43,7 @@ function seedNotification(
       JSON.stringify({
         fields: {
           id: { stringValue: notifId },
-          tenantId: { stringValue: tenantId },
+          orgId: { stringValue: orgId },
           unitId: { stringValue: unitId },
           type: { stringValue: type },
           customerId: customerId ? { stringValue: customerId } : { nullValue: null },
@@ -68,14 +68,14 @@ function seedNotification(
   return notifId
 }
 
-function getNotification(tenantId: string, notifId: string): Record<string, FsValue> {
+function getNotification(orgId: string, notifId: string): Record<string, FsValue> {
   const out = execFileSync(
     'curl',
     [
       '-fsS',
       '-H',
       'Authorization: Bearer owner',
-      `${fsBaseUrl()}/tenants/${tenantId}/notifications/${notifId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`,
     ],
     { encoding: 'utf8' },
   )
@@ -85,17 +85,17 @@ function getNotification(tenantId: string, notifId: string): Record<string, FsVa
 test.describe.serial('Brief 0018 — Definition of Done (Feature-level)', () => {
   // Cenário 1: Sininho com badge + popover + ação rápida (isolamento por unidade)
   test('Cenário 1: sininho + popover + wa.me marca dispatchedAt; outra unidade não aparece', async ({
-    tenant,
+    org,
     authedPage,
     context,
     baseURL,
   }) => {
-    const unitA = tenant.unitIds[0]!
-    const unitB = tenant.unitIds[1]!
-    const customerId = seedCustomer(tenant.tenantId, { name: 'Maria', whatsapp: '11999998888' })
+    const unitA = org.unitIds[0]!
+    const unitB = org.unitIds[1]!
+    const customerId = seedCustomer(org.orgId, { name: 'Maria', whatsapp: '11999998888' })
 
-    const birthdayNotif = seedNotification(tenant.tenantId, unitA, 'birthday', customerId)
-    seedNotification(tenant.tenantId, unitB, 'new_customer', customerId)
+    const birthdayNotif = seedNotification(org.orgId, unitA, 'birthday', customerId)
+    seedNotification(org.orgId, unitB, 'new_customer', customerId)
 
     // 2-unit member: pin the active unit (A) so the `/select-unit` interstitial
     // (brief 0029) doesn't gate the shell; the bell + page follow the active
@@ -135,20 +135,20 @@ test.describe.serial('Brief 0018 — Definition of Done (Feature-level)', () => 
         .link,
     ).toContain('https://wa.me/5511999998888')
 
-    const notif = getNotification(tenant.tenantId, birthdayNotif)
+    const notif = getNotification(org.orgId, birthdayNotif)
     expect(strField(notif, 'dispatchedAt')).toBeTruthy()
   })
 
   // Cenário 2: Rota /notifications com filtros por tipo + unidade + empty state + URL
   test('Cenário 2: /notifications filtra por tipo + URL compartilhável + empty state', async ({
-    tenant,
+    org,
     authedPage,
     context,
     baseURL,
   }) => {
-    const unitA = tenant.unitIds[0]!
-    seedNotification(tenant.tenantId, unitA, 'birthday')
-    seedNotification(tenant.tenantId, unitA, 'subscription_expired')
+    const unitA = org.unitIds[0]!
+    seedNotification(org.orgId, unitA, 'birthday')
+    seedNotification(org.orgId, unitA, 'subscription_expired')
 
     // 2-unit member: pin the active unit (A) so `/notifications` doesn't bounce
     // to the `/select-unit` interstitial (0029); the page follows the active unit.

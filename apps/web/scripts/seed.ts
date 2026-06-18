@@ -1,4 +1,4 @@
-// Dev seed for the local emulator: a ready-to-use "Barbearia do Zé" tenant so
+// Dev seed for the local emulator: a ready-to-use "Barbearia do Zé" org so
 // manual testing survives an emulator restart (data is wiped on stop). See
 // README § Scripts. Idempotent; additive — never touches other accounts.
 
@@ -20,6 +20,8 @@ import type {
   Membership,
   Order,
   OrderItem,
+  Org,
+  OrgLink,
   PaymentMethod,
   Product,
   Service,
@@ -27,8 +29,6 @@ import type {
   Subscription,
   SubscriptionPlan,
   SubscriptionPlanSnapshot,
-  Tenant,
-  TenantLink,
   Unit,
   UnitHoursMode,
   User,
@@ -37,12 +37,12 @@ import {
   accrueCommissionForItem,
   computeOrderTotals,
   defaultPermissionsForRole,
-  fromTenantTime,
-  getTodayInTenantTz,
+  fromOrgTime,
+  getTodayInOrgTz,
   membershipDocId,
+  orgLinkDocPath,
   resolveServiceForUnit,
-  shiftDateInTenantTz,
-  tenantLinkDocPath,
+  shiftDateInOrgTz,
 } from '@/domain'
 import {
   CashMovementConfig,
@@ -55,8 +55,8 @@ import {
 import { getAdminAuth, getAdminFirestore } from '@/shared/db'
 import { emitEvent } from '@/shared/effect-bridge'
 import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
-import type { ProfessionalPii, StoredProfessional } from '@/shared/tenant/professional-read'
-import type { UnitPii } from '@/shared/tenant/unit-read'
+import type { ProfessionalPii, StoredProfessional } from '@/shared/org/professional-read'
+import type { UnitPii } from '@/shared/org/unit-read'
 
 // @/shared/db resolves the project id (fail-fast if missing) and auto-routes
 // to the emulator from FIRESTORE_EMULATOR_HOST. `pnpm db:seed` provides both
@@ -75,9 +75,9 @@ const OWNER = {
   whatsapp: '5511999990000',
 }
 
-const TENANT_ID = 'seed-tenant'
-const TENANT_SLUG = 'barbearia-do-ze'
-const TENANT_TZ = 'America/Sao_Paulo'
+const ORG_ID = 'seed-org'
+const ORG_SLUG = 'barbearia-do-ze'
+const ORG_TZ = 'America/Sao_Paulo'
 const NOW = new Date().toISOString()
 
 const WEEKDAY_HOURS = [{ open: '09:00', close: '19:00' }]
@@ -130,7 +130,7 @@ const UNITS = [
   },
   {
     // Walk-in unit (no agenda) — exercises the `always_open` hours mode and the
-    // multi-vertical nav signal (a tenant whose units aren't all appointment).
+    // multi-vertical nav signal (a org whose units aren't all appointment).
     id: 'seed-unit-expresso',
     name: 'Atendimento Expresso',
     slug: 'expresso',
@@ -189,7 +189,7 @@ const SERVICES = [
 const SERVICE_IDS = SERVICES.map((s) => s.id)
 const SERVICE_DOCS: Service[] = SERVICES.map((s) => ({
   id: s.id,
-  tenantId: TENANT_ID,
+  orgId: ORG_ID,
   name: s.name,
   category: s.category,
   durationMinutes: s.durationMinutes,
@@ -209,10 +209,10 @@ const SERVICE_DOCS: Service[] = SERVICES.map((s) => ({
 // public catalog) read from `catalog_items` discriminated by `kind`. Services
 // mirror SERVICE_DOCS 1:1 (same ids, so historical appointments/orders that
 // reference `serviceId` resolve); products mirror PRODUCTS. `categoryId` is the
-// real FK into the seeded category (all under "Cabelo" for the demo tenant).
+// real FK into the seeded category (all under "Cabelo" for the demo org).
 const CATALOG_SERVICE_DOCS: CatalogServiceItem[] = SERVICE_DOCS.map((s) => ({
   id: s.id,
-  tenantId: TENANT_ID,
+  orgId: ORG_ID,
   kind: 'service',
   name: s.name,
   categoryId: CATEGORY_ID,
@@ -292,7 +292,7 @@ const RECEPTIONIST = {
 
 // birthDate uses this month so the "aniversariantes" surfaces have data; the
 // first customer's birthday is TODAY so the birthday marker is visible.
-const today = getTodayInTenantTz(TENANT_TZ)
+const today = getTodayInOrgTz(ORG_TZ)
 const thisMonth = today.slice(5, 7)
 const thisDay = today.slice(8, 10)
 
@@ -444,7 +444,7 @@ const PRODUCTS = [
 
 const CATALOG_PRODUCT_DOCS: CatalogProductItem[] = PRODUCTS.map((p) => ({
   id: p.id,
-  tenantId: TENANT_ID,
+  orgId: ORG_ID,
   kind: 'product',
   name: p.name,
   categoryId: CATEGORY_ID,
@@ -475,7 +475,7 @@ const PLAN_ID = 'seed-plan-mensal'
 const PLAN_VARIANTS: SubscriptionPlan[] = [
   {
     id: 'seed-plan-trimestral',
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     name: 'Plano Trimestral — Corte & Barba',
     description: 'Corte e barba inclusos, cobrança a cada 3 meses.',
     priceCents: 24000,
@@ -491,7 +491,7 @@ const PLAN_VARIANTS: SubscriptionPlan[] = [
   },
   {
     id: 'seed-plan-anual-estetica',
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     name: 'Plano Anual — Estética',
     description: 'Categoria Estética liberada, horários de semana pela manhã.',
     priceCents: 80000,
@@ -511,7 +511,7 @@ const PLAN_VARIANTS: SubscriptionPlan[] = [
   },
   {
     id: 'seed-plan-semestral-limites',
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     name: 'Plano Semestral — com limites',
     description: 'Um agendamento por dia, máximo 2 simultâneos.',
     priceCents: 42000,
@@ -527,7 +527,7 @@ const PLAN_VARIANTS: SubscriptionPlan[] = [
   },
   {
     id: 'seed-plan-arquivado',
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     name: 'Plano Antigo (arquivado)',
     description: 'Plano descontinuado — não aparece no picker de novos.',
     priceCents: 7000,
@@ -594,21 +594,21 @@ async function seed(): Promise<void> {
   await ensureOwnerAuth()
 
   const batch = db.batch()
-  const tenantRef = db.collection('tenants').doc(TENANT_ID)
-  const ref = (path: string) => db.doc(`tenants/${TENANT_ID}/${path}`)
+  const orgRef = db.collection('orgs').doc(ORG_ID)
+  const ref = (path: string) => db.doc(`orgs/${ORG_ID}/${path}`)
 
-  const today = getTodayInTenantTz(TENANT_TZ)
-  const yesterday = shiftDateInTenantTz(today, -1, TENANT_TZ)
-  const tomorrow = shiftDateInTenantTz(today, 1, TENANT_TZ)
+  const today = getTodayInOrgTz(ORG_TZ)
+  const yesterday = shiftDateInOrgTz(today, -1, ORG_TZ)
+  const tomorrow = shiftDateInOrgTz(today, 1, ORG_TZ)
 
-  batch.set(tenantRef, {
-    id: TENANT_ID,
+  batch.set(orgRef, {
+    id: ORG_ID,
     name: 'Barbearia do Zé',
-    slug: TENANT_SLUG,
+    slug: ORG_SLUG,
     vertical: 'barbershop',
     taxIdentity: null,
     ownerUserId: OWNER.uid,
-    timezone: TENANT_TZ,
+    timezone: ORG_TZ,
     slotMinutes: 30,
     branding: { logoUrl: null, bannerUrl: null, description: 'Cortes clássicos e barba na régua.' },
     cancellationPolicy: { enabled: true, minNoticeMinutes: 120 },
@@ -617,20 +617,20 @@ async function seed(): Promise<void> {
     selfBookingPublishedAt: NOW,
     createdAt: NOW,
     updatedAt: NOW,
-  } satisfies Tenant)
+  } satisfies Org)
 
-  // Tenant tax PII lives in a deletable sibling doc (#1036, ADR 0010), read by
-  // `getTenantTaxIdentity`. Mirrors `writeTenantTaxIdentity` —
-  // `tenants/{id}/private/taxIdentity`. Seeded as null (read also tolerates the
+  // Org tax PII lives in a deletable sibling doc (#1036, ADR 0010), read by
+  // `getOrgTaxIdentity`. Mirrors `writeOrgTaxIdentity` —
+  // `orgs/{id}/private/taxIdentity`. Seeded as null (read also tolerates the
   // doc being absent), kept here so the shape is documented.
-  batch.set(tenantRef.collection('private').doc('taxIdentity'), {
+  batch.set(orgRef.collection('private').doc('taxIdentity'), {
     taxIdentity: null,
   })
 
-  const membershipId = membershipDocId(TENANT_ID, OWNER.uid)
+  const membershipId = membershipDocId(ORG_ID, OWNER.uid)
   batch.set(db.collection('memberships').doc(membershipId), {
     id: membershipId,
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     userId: OWNER.uid,
     role: 'owner',
     status: 'active',
@@ -647,7 +647,7 @@ async function seed(): Promise<void> {
     displayName: OWNER.displayName,
     avatarUrl: null,
     emailVerified: true,
-    currentTenantId: TENANT_ID,
+    currentOrgId: ORG_ID,
     whatsapp: OWNER.whatsapp,
     birthDate: '1988-05-20',
     taxIdentity: null,
@@ -667,7 +667,7 @@ async function seed(): Promise<void> {
   for (const u of UNITS) {
     batch.set(ref(`units/${u.id}`), {
       id: u.id,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       name: u.name,
       slug: u.slug,
       whatsapp: u.whatsapp,
@@ -680,7 +680,7 @@ async function seed(): Promise<void> {
       updatedAt: NOW,
     } satisfies Unit)
     // PII sibling doc the read path enriches from (#1036, ADR 0010). Mirrors
-    // `writeUnitPii` — `tenants/{t}/units_pii/{id}` = { whatsapp, email }.
+    // `writeUnitPii` — `orgs/{t}/units_pii/{id}` = { whatsapp, email }.
     batch.set(ref(`units_pii/${u.id}`), {
       whatsapp: u.whatsapp,
       email: null,
@@ -689,7 +689,7 @@ async function seed(): Promise<void> {
 
   batch.set(ref(`categories/${CATEGORY_ID}`), {
     id: CATEGORY_ID,
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     name: 'Cabelo',
     icon: null,
     color: null,
@@ -726,7 +726,7 @@ async function seed(): Promise<void> {
         email: p.email,
         displayName: p.name,
         emailVerified: true,
-        currentTenantId: TENANT_ID,
+        currentOrgId: ORG_ID,
         whatsapp: completed ? p.whatsapp : null,
         birthDate: completed ? p.birthDate : null,
         completionCompleted: completed,
@@ -738,7 +738,7 @@ async function seed(): Promise<void> {
       }),
     )
 
-    // Per-tenant PII sibling doc the read path enriches from (#1036, ADR
+    // Per-org PII sibling doc the read path enriches from (#1036, ADR
     // 0010). After #1046 it holds only `taxIdentity` — name/whatsapp/email
     // live on the global User (read live). The Professional projection itself
     // is NOT written here: it materializes from `professional.created` after
@@ -757,7 +757,7 @@ async function seed(): Promise<void> {
     displayName: RECEPTIONIST.name,
     avatarUrl: null,
     emailVerified: true,
-    currentTenantId: TENANT_ID,
+    currentOrgId: ORG_ID,
     whatsapp: RECEPTIONIST.whatsapp,
     birthDate: RECEPTIONIST.birthDate,
     taxIdentity: null,
@@ -773,10 +773,10 @@ async function seed(): Promise<void> {
     createdAt: NOW,
     updatedAt: NOW,
   } satisfies User)
-  const recepMembershipId = membershipDocId(TENANT_ID, RECEPTIONIST.userId)
+  const recepMembershipId = membershipDocId(ORG_ID, RECEPTIONIST.userId)
   batch.set(db.collection('memberships').doc(recepMembershipId), {
     id: recepMembershipId,
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     userId: RECEPTIONIST.userId,
     role: 'receptionist',
     status: 'active',
@@ -788,7 +788,7 @@ async function seed(): Promise<void> {
     commissionRate: null,
   } satisfies Membership)
 
-  // PII on the global User, operational shadow per-tenant.
+  // PII on the global User, operational shadow per-org.
   for (const c of CUSTOMERS) {
     batch.set(
       db.collection('users').doc(c.userId),
@@ -801,22 +801,22 @@ async function seed(): Promise<void> {
       }),
     )
 
-    batch.set(ref(`customers/${c.id}`), buildStoredCustomer(c.id, TENANT_ID, c.userId, NOW))
+    batch.set(ref(`customers/${c.id}`), buildStoredCustomer(c.id, ORG_ID, c.userId, NOW))
 
     // Reverse-index backfill (brief 0032 / #1097, AC-10): the identity-layer
-    // link `users/{uid}/tenant_links/{tenantId}` that the customer-creation saga
+    // link `users/{uid}/org_links/{orgId}` that the customer-creation saga
     // writes in the live app — seeded here so existing customers are
     // discoverable in settings/privacy. References only, zero PII.
-    batch.set(db.doc(tenantLinkDocPath(c.userId, TENANT_ID)), {
-      tenantId: TENANT_ID,
+    batch.set(db.doc(orgLinkDocPath(c.userId, ORG_ID)), {
+      orgId: ORG_ID,
       linkedAt: NOW,
-    } satisfies TenantLink)
+    } satisfies OrgLink)
   }
 
   for (const pr of PRODUCTS) {
     batch.set(ref(`products/${pr.id}`), {
       id: pr.id,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       name: pr.name,
       sku: null,
       priceCents: pr.priceCents,
@@ -829,7 +829,7 @@ async function seed(): Promise<void> {
 
   batch.set(ref(`subscription_plans/${PLAN_ID}`), {
     id: PLAN_ID,
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     name: 'Plano Mensal Corte',
     description: 'Cortes ilimitados todo mês.',
     priceCents: 9000,
@@ -844,13 +844,13 @@ async function seed(): Promise<void> {
   } satisfies SubscriptionPlan)
 
   const sub = CUSTOMERS[0]!
-  const periodEnd = fromTenantTime(
-    { date: shiftDateInTenantTz(today, 30, TENANT_TZ), hour: 12, minute: 0 },
-    TENANT_TZ,
+  const periodEnd = fromOrgTime(
+    { date: shiftDateInOrgTz(today, 30, ORG_TZ), hour: 12, minute: 0 },
+    ORG_TZ,
   )
   batch.set(ref(`subscriptions/seed-sub-1`), {
     id: 'seed-sub-1',
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     unitId: 'seed-unit-centro',
     customerId: sub.id,
     customerUserId: sub.userId,
@@ -942,13 +942,13 @@ async function seed(): Promise<void> {
   ]
   for (const a of appts) {
     const resolved = resolveServiceForUnit(a.service, a.unitId)
-    const startAt = fromTenantTime({ date: a.date, hour: a.hour, minute: 0 }, TENANT_TZ)
+    const startAt = fromOrgTime({ date: a.date, hour: a.hour, minute: 0 }, ORG_TZ)
     const endAt = new Date(
       new Date(startAt).getTime() + resolved.durationMinutes * 60_000,
     ).toISOString()
     batch.set(ref(`appointments/${a.id}`), {
       id: a.id,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       unitId: a.unitId,
       professionalId: a.professionalId,
       customerId: a.customer.id,
@@ -959,7 +959,7 @@ async function seed(): Promise<void> {
       servicePriceCentsSnapshot: resolved.priceCents,
       serviceDurationMinutesSnapshot: resolved.durationMinutes,
       commissionSnapshot: resolved.commission,
-      // Snapshot da cancellation policy do tenant no commit (#1038). Espelha o
+      // Snapshot da cancellation policy do org no commit (#1038). Espelha o
       // valor seedado em `cancellationPolicy` acima.
       cancellationPolicySnapshot: { enabled: true, minNoticeMinutes: 120 },
       customerUserId: a.customer.userId,
@@ -998,13 +998,13 @@ async function seed(): Promise<void> {
 // one-off block for a single professional, so the agenda renders both kinds.
 async function seedAgendaBlocks(today: string): Promise<void> {
   const batch = db.batch()
-  const docRef = (path: string) => db.doc(`tenants/${TENANT_ID}/${path}`)
+  const docRef = (path: string) => db.doc(`orgs/${ORG_ID}/${path}`)
 
   for (const weekday of ['monday', 'wednesday', 'friday'] as const) {
     const id = `seed-block-almoco-${weekday}`
     batch.set(docRef(`agenda_blocks/${id}`), {
       id,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       unitId: 'seed-unit-centro',
       professionalId: null,
       reason: 'Almoço',
@@ -1019,10 +1019,10 @@ async function seedAgendaBlocks(today: string): Promise<void> {
     } satisfies AgendaBlock)
   }
 
-  const tomorrow = shiftDateInTenantTz(today, 1, TENANT_TZ)
+  const tomorrow = shiftDateInOrgTz(today, 1, ORG_TZ)
   batch.set(docRef(`agenda_blocks/seed-block-medico`), {
     id: 'seed-block-medico',
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     unitId: 'seed-unit-centro',
     professionalId: 'seed-prof-ze',
     reason: 'Consulta médica',
@@ -1030,8 +1030,8 @@ async function seedAgendaBlocks(today: string): Promise<void> {
     weekday: null,
     open: null,
     close: null,
-    startAt: fromTenantTime({ date: tomorrow, hour: 14, minute: 0 }, TENANT_TZ),
-    endAt: fromTenantTime({ date: tomorrow, hour: 16, minute: 0 }, TENANT_TZ),
+    startAt: fromOrgTime({ date: tomorrow, hour: 14, minute: 0 }, ORG_TZ),
+    endAt: fromOrgTime({ date: tomorrow, hour: 16, minute: 0 }, ORG_TZ),
     createdAt: NOW,
     updatedAt: NOW,
   } satisfies AgendaBlock)
@@ -1043,7 +1043,7 @@ async function seedAgendaBlocks(today: string): Promise<void> {
 // a sangria (cash out) and a suprimento (cash in) — exercises the full caixa.
 async function seedExpenses(): Promise<void> {
   const batch = db.batch()
-  const docRef = (path: string) => db.doc(`tenants/${TENANT_ID}/${path}`)
+  const docRef = (path: string) => db.doc(`orgs/${ORG_ID}/${path}`)
 
   const EXPENSE_CATS = [
     { id: 'seed-exp-cat-aluguel', name: 'Aluguel' },
@@ -1053,7 +1053,7 @@ async function seedExpenses(): Promise<void> {
   for (const c of EXPENSE_CATS) {
     batch.set(docRef(`expense_categories/${c.id}`), {
       id: c.id,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       name: c.name,
       archived: false,
       createdAt: NOW,
@@ -1062,7 +1062,7 @@ async function seedExpenses(): Promise<void> {
   }
   await batch.commit()
 
-  const eventPath = (path: string) => `tenants/${TENANT_ID}/${path}`
+  const eventPath = (path: string) => `orgs/${ORG_ID}/${path}`
   const MOVES: Array<{
     id: string
     kind: 'despesa' | 'sangria' | 'suprimento'
@@ -1107,7 +1107,7 @@ async function seedExpenses(): Promise<void> {
   for (const m of MOVES) {
     const common = {
       id: m.id,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       unitId: 'seed-unit-centro',
       amountCents: m.amountCents,
       description: m.description,
@@ -1162,7 +1162,7 @@ async function seedExpenses(): Promise<void> {
 async function seedExtraPlans(): Promise<void> {
   const batch = db.batch()
   for (const plan of PLAN_VARIANTS) {
-    batch.set(db.doc(`tenants/${TENANT_ID}/subscription_plans/${plan.id}`), plan)
+    batch.set(db.doc(`orgs/${ORG_ID}/subscription_plans/${plan.id}`), plan)
   }
   await batch.commit()
 }
@@ -1170,7 +1170,7 @@ async function seedExtraPlans(): Promise<void> {
 // One category is inactive, to exercise the catalog's "Inativo" branch.
 async function seedExtraCategories(): Promise<void> {
   const batch = db.batch()
-  const docRef = (path: string) => db.doc(`tenants/${TENANT_ID}/${path}`)
+  const docRef = (path: string) => db.doc(`orgs/${ORG_ID}/${path}`)
 
   const CATS = [
     { id: 'seed-cat-barba', name: 'Barba', active: true },
@@ -1181,7 +1181,7 @@ async function seedExtraCategories(): Promise<void> {
   for (const c of CATS) {
     batch.set(docRef(`categories/${c.id}`), {
       id: c.id,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       name: c.name,
       icon: null,
       color: null,
@@ -1198,7 +1198,7 @@ async function seedExtraCategories(): Promise<void> {
 // Catalog items spread across the categories, with varied active/public flags.
 async function seedExtraCatalogItems(): Promise<void> {
   const batch = db.batch()
-  const docRef = (path: string) => db.doc(`tenants/${TENANT_ID}/${path}`)
+  const docRef = (path: string) => db.doc(`orgs/${ORG_ID}/${path}`)
 
   type ServiceItemSpec = {
     id: string
@@ -1220,7 +1220,7 @@ async function seedExtraCatalogItems(): Promise<void> {
   }
   const svcItem = (s: ServiceItemSpec): CatalogServiceItem => ({
     id: s.id,
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     kind: 'service',
     name: s.name,
     categoryId: s.categoryId,
@@ -1239,7 +1239,7 @@ async function seedExtraCatalogItems(): Promise<void> {
   })
   const prodItem = (p: ProductItemSpec): CatalogProductItem => ({
     id: p.id,
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     kind: 'product',
     name: p.name,
     categoryId: p.categoryId,
@@ -1329,11 +1329,11 @@ async function seedExtraCatalogItems(): Promise<void> {
 // (cycle / usage limit / scope) with varied `consumed`.
 async function seedSubscriptionVariants(today: string): Promise<void> {
   const batch = db.batch()
-  const docRef = (path: string) => db.doc(`tenants/${TENANT_ID}/${path}`)
+  const docRef = (path: string) => db.doc(`orgs/${ORG_ID}/${path}`)
 
-  const periodEnd = fromTenantTime(
-    { date: shiftDateInTenantTz(today, 30, TENANT_TZ), hour: 12, minute: 0 },
-    TENANT_TZ,
+  const periodEnd = fromOrgTime(
+    { date: shiftDateInOrgTz(today, 30, ORG_TZ), hour: 12, minute: 0 },
+    ORG_TZ,
   )
   const [trimestral, anual, semestral] = PLAN_VARIANTS
   const SUBS: Array<{
@@ -1395,7 +1395,7 @@ async function seedSubscriptionVariants(today: string): Promise<void> {
   for (const s of SUBS) {
     batch.set(docRef(`subscriptions/${s.id}`), {
       id: s.id,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       unitId: 'seed-unit-centro',
       customerId: s.customer.id,
       customerUserId: s.customer.userId,
@@ -1420,11 +1420,11 @@ async function seedSubscriptionVariants(today: string): Promise<void> {
 // plus its deletable PII sidecar (`invites_pii`).
 async function seedPendingInvites(today: string): Promise<void> {
   const batch = db.batch()
-  const docRef = (path: string) => db.doc(`tenants/${TENANT_ID}/${path}`)
+  const docRef = (path: string) => db.doc(`orgs/${ORG_ID}/${path}`)
 
-  const invitesExpireAt = fromTenantTime(
-    { date: shiftDateInTenantTz(today, 7, TENANT_TZ), hour: 12, minute: 0 },
-    TENANT_TZ,
+  const invitesExpireAt = fromOrgTime(
+    { date: shiftDateInOrgTz(today, 7, ORG_TZ), hour: 12, minute: 0 },
+    ORG_TZ,
   )
   const INVITES: Array<{
     id: string
@@ -1438,7 +1438,7 @@ async function seedPendingInvites(today: string): Promise<void> {
   for (const inv of INVITES) {
     batch.set(docRef(`invites/${inv.id}`), {
       id: inv.id,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       role: inv.role,
       tokenHash: `seed-hash-${inv.id}`,
       expiresAt: invitesExpireAt,
@@ -1458,7 +1458,7 @@ async function seedPendingInvites(today: string): Promise<void> {
 // "Comandas abertas" — created through the event-first path, never closed (so
 // they show as open in Vendas and feed the dashboard pendências).
 async function seedOpenOrders(): Promise<void> {
-  const eventPath = (path: string) => `tenants/${TENANT_ID}/${path}`
+  const eventPath = (path: string) => `orgs/${ORG_ID}/${path}`
   const OPEN_ORDERS: Array<{
     id: string
     unitId: string
@@ -1534,7 +1534,7 @@ async function seedOpenOrders(): Promise<void> {
     const totals = computeOrderTotals(items, 0)
     const openOrder: Order = {
       id: o.id,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       unitId: o.unitId,
       customerId: o.customer.id,
       appointmentId: null,
@@ -1603,7 +1603,7 @@ const JOAO = 'seed-user-prof-joao'
 const RECEP = 'seed-user-recep'
 
 // Identity-snapshot backfill (brief 0041 AC-11): maps attributed member userId →
-// display name, mirroring what `listTenantMembers` resolves live at close time.
+// display name, mirroring what `listOrgMembers` resolves live at close time.
 // Empty string for an unknown member (never throws) — same fallback as the app.
 const SEED_MEMBER_NAME_BY_USER_ID: Record<string, string> = {
   ...Object.fromEntries(PROFESSIONALS.map((p) => [p.userId, p.name])),
@@ -1712,7 +1712,7 @@ function buildDemoAppts(
       professionalId: proIds[i % proIds.length] ?? 'seed-prof-ze',
       customer: CUSTOMERS[i % CUSTOMERS.length] ?? CUSTOMERS[0]!,
       service: SERVICE_DOCS[i % SERVICE_DOCS.length] ?? SERVICE_DOCS[0]!,
-      date: shiftDateInTenantTz(today, dayOffset, TENANT_TZ),
+      date: shiftDateInOrgTz(today, dayOffset, ORG_TZ),
       hour: 9 + (i % 9),
       status,
     }
@@ -1944,14 +1944,14 @@ async function seedSaleCommissions(
   at: string,
   paid: boolean,
 ): Promise<void> {
-  const ref = (path: string) => `tenants/${TENANT_ID}/${path}`
+  const ref = (path: string) => `orgs/${ORG_ID}/${path}`
   for (const item of items) {
     const accrual = accrueCommissionForItem(item, resolveSeedMemberName)
     if (!accrual) continue
     const commissionId = `${saleId}-comm-${accrual.orderItemId}`
     const commission: Commission = {
       id: commissionId,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       orderId: saleId,
       orderItemId: accrual.orderItemId,
       attributedUserId: accrual.attributedUserId,
@@ -1985,13 +1985,13 @@ async function seedSaleClosure(
   totals: ReturnType<typeof computeOrderTotals>,
   at: string,
 ): Promise<void> {
-  const ref = (path: string) => `tenants/${TENANT_ID}/${path}`
+  const ref = (path: string) => `orgs/${ORG_ID}/${path}`
 
   if (totals.totalCents > 0) {
     const movementId = `${sale.id}-sale`
     const movement: CashMovement = {
       id: movementId,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       unitId: sale.unitId,
       kind: 'sale',
       direction: 'in',
@@ -2027,7 +2027,7 @@ async function seedSaleClosure(
     const reversalId = `${sale.id}-reversal`
     const reversal: CashMovement = {
       id: reversalId,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       unitId: sale.unitId,
       kind: 'sale_reversal',
       direction: 'out',
@@ -2049,11 +2049,11 @@ async function seedSaleClosure(
 }
 
 async function seedClosedSales(today: string): Promise<void> {
-  const ref = (path: string) => `tenants/${TENANT_ID}/${path}`
+  const ref = (path: string) => `orgs/${ORG_ID}/${path}`
 
   for (const sale of SALES) {
-    const date = shiftDateInTenantTz(today, -sale.daysAgo, TENANT_TZ)
-    const at = fromTenantTime({ date, hour: sale.hour, minute: 0 }, TENANT_TZ)
+    const date = shiftDateInOrgTz(today, -sale.daysAgo, ORG_TZ)
+    const at = fromOrgTime({ date, hour: sale.hour, minute: 0 }, ORG_TZ)
 
     const items: OrderItem[] = sale.lines.map((l, i) => ({
       id: `${sale.id}-item-${i}`,
@@ -2072,7 +2072,7 @@ async function seedClosedSales(today: string): Promise<void> {
     // 1) order.created — full open snapshot (the projection writes the doc).
     const openOrder: Order = {
       id: sale.id,
-      tenantId: TENANT_ID,
+      orgId: ORG_ID,
       unitId: sale.unitId,
       customerId: sale.customerId,
       appointmentId: sale.appointmentId,
@@ -2109,10 +2109,10 @@ async function seedClosedSales(today: string): Promise<void> {
 // created snapshot carries the derived status, so a pro who accepted but is
 // still missing whatsapp lands on `incomplete` instead of `operational`.
 async function seedProfessional(p: (typeof PROFESSIONALS)[number]): Promise<void> {
-  const membershipId = membershipDocId(TENANT_ID, p.userId)
+  const membershipId = membershipDocId(ORG_ID, p.userId)
   const membershipData: Membership = {
     id: membershipId,
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     userId: p.userId,
     role: 'professional',
     status: 'active',
@@ -2147,7 +2147,7 @@ async function seedProfessional(p: (typeof PROFESSIONALS)[number]): Promise<void
   // live), `taxIdentity` on the deletable PII doc.
   const stored: StoredProfessional = {
     id: p.id,
-    tenantId: TENANT_ID,
+    orgId: ORG_ID,
     userId: p.userId,
     operationalStatus: derived,
     defaultCommission: null,
@@ -2156,22 +2156,22 @@ async function seedProfessional(p: (typeof PROFESSIONALS)[number]): Promise<void
     createdAt: NOW,
     updatedAt: NOW,
   }
-  const proCreated = await emitEvent(
-    ProfessionalConfig,
-    `tenants/${TENANT_ID}/professionals/${p.id}`,
-    { _tag: 'professional.created', actorId: OWNER.uid, payload: { data: stored } },
-  )
+  const proCreated = await emitEvent(ProfessionalConfig, `orgs/${ORG_ID}/professionals/${p.id}`, {
+    _tag: 'professional.created',
+    actorId: OWNER.uid,
+    payload: { data: stored },
+  })
   if (!proCreated.ok) {
     throw new Error(`professional.created failed for ${p.id}: ${proCreated.error}`)
   }
 
   // Emit the activation transition only when the derived status is operational.
   if (derived === 'operational') {
-    const activated = await emitEvent(
-      ProfessionalConfig,
-      `tenants/${TENANT_ID}/professionals/${p.id}`,
-      { _tag: 'professional.activated', actorId: OWNER.uid, payload: {} },
-    )
+    const activated = await emitEvent(ProfessionalConfig, `orgs/${ORG_ID}/professionals/${p.id}`, {
+      _tag: 'professional.activated',
+      actorId: OWNER.uid,
+      payload: {},
+    })
     if (!activated.ok) {
       throw new Error(`professional.activated failed for ${p.id}: ${activated.error}`)
     }
@@ -2187,7 +2187,7 @@ seed()
     console.log(`  Entrar:       http://127.0.0.1:3005/login`)
     console.log(`                → "Continuar com Google" → escolha "${OWNER.displayName}"`)
     console.log(`                  (${OWNER.email})`)
-    console.log(`  Landing:      http://127.0.0.1:3005/${TENANT_SLUG}`)
+    console.log(`  Landing:      http://127.0.0.1:3005/${ORG_SLUG}`)
     console.log(line)
     console.log(
       `  3 unidades (2 agendáveis + 1 walk-in always_open) · 4 profissionais (aprovado/pendente) · 1 recepcionista · 3 convites pendentes · ${CUSTOMERS.length} clientes (aniversariantes variados)`,

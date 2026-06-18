@@ -8,7 +8,7 @@ import { AgendaPage } from '../pages'
 test.describe('Agenda — múltiplas colunas', () => {
   test.describe('3 profissionais aprovados', () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         unitCount: 1,
         professionalCount: 3,
         professionalOperationalStatus: 'operational',
@@ -29,7 +29,7 @@ test.describe('Agenda — múltiplas colunas', () => {
 
   test.describe('sem profissionais', () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         unitCount: 1,
         professionalCount: 0,
         hasBusinessHours: true,

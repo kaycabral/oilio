@@ -19,9 +19,9 @@ import { seedCustomerShadowForUser } from '../helpers/session'
 // `userId` aponta pra um User que NÃO existe (avulso sem user resolvível) —
 // reproduz a forma que quebrava render + delete antes do fix em customer-read.ts
 // (a identidade não materializa → "(usuário não encontrado)").
-function seedDegenerateCustomer(tenantId: string): string {
+function seedDegenerateCustomer(orgId: string): string {
   const missingUserId = `e2e-missing-user-${Math.random().toString(36).slice(2)}`
-  return seedCustomerShadowForUser(tenantId, missingUserId)
+  return seedCustomerShadowForUser(orgId, missingUserId)
 }
 
 test.describe('Customers — baseline (#17)', () => {
@@ -35,7 +35,7 @@ test.describe('Customers — baseline (#17)', () => {
   })
 
   test('criar pelo fluxo real → listar → editar → excluir', async ({ authedPage }) => {
-    // WhatsApp único: User é dedupado por whatsapp GLOBALMENTE (cross-tenant);
+    // WhatsApp único: User é dedupado por whatsapp GLOBALMENTE (cross-org);
     // valor fixo colide com runs anteriores no emulator persistido e reusa um
     // User com nome antigo. Ver memória "PII única por test".
     const whatsapp = `119${Date.now().toString().slice(-8)}`
@@ -68,10 +68,10 @@ test.describe('Customers — baseline (#17)', () => {
   })
 
   test('dado degenerado (cliente avulso sem user/tags/id) renderiza e exclui', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedDegenerateCustomer(tenant.tenantId)
+    seedDegenerateCustomer(org.orgId)
 
     // Lista renderiza sem 500 (graceful "(usuário não encontrado)").
     await authedPage.goto('/customers')

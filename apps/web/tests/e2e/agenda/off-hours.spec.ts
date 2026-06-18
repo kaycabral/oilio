@@ -11,7 +11,7 @@ import { AgendaPage } from '../pages'
 
 test.describe('Agenda — overlay de fora do expediente + editor', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -28,8 +28,8 @@ test.describe('Agenda — overlay de fora do expediente + editor', () => {
     await expect(agenda.offHoursBanner()).toHaveCount(0)
   })
 
-  test('detalhe da unidade renderiza o editor de horários', async ({ tenant, authedPage }) => {
-    await authedPage.goto(`/units/${tenant.unitIds[0]!}`)
+  test('detalhe da unidade renderiza o editor de horários', async ({ org, authedPage }) => {
+    await authedPage.goto(`/units/${org.unitIds[0]!}`)
     // <legend> rendered as the fieldset's accessible name.
     await expect(
       authedPage.getByRole('group', { name: 'Horário de funcionamento', exact: true }),

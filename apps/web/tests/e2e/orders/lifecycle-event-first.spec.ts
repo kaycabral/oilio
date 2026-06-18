@@ -6,7 +6,7 @@ import {
   seedCustomer,
   seedProduct,
   seedService,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
@@ -16,22 +16,22 @@ import { AgendaPage } from '../pages'
 // (sem o fechamento — fatia #1026) com asserção de outcome a cada passo.
 // Brief 0030 (AC-04): a atribuição de item é por membro (`attributedUserId`).
 
-function seedFixture(tenant: SeededTenant): void {
-  const serviceId = seedService(tenant.tenantId, {
+function seedFixture(org: SeededOrg): void {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  seedProduct(tenant.tenantId, { name: 'Pomada', priceCents: 3000 })
-  const customerId = seedCustomer(tenant.tenantId, {
+  seedProduct(org.orgId, { name: 'Pomada', priceCents: 3000 })
+  const customerId = seedCustomer(org.orgId, {
     name: 'Cliente Ciclo',
     whatsapp: '11955554444',
   })
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -45,7 +45,7 @@ function seedFixture(tenant: SeededTenant): void {
 
 test.describe('Order — ciclo de vida event-first (#1018)', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 2,
       professionalOperationalStatus: 'operational',
@@ -55,10 +55,10 @@ test.describe('Order — ciclo de vida event-first (#1018)', { tag: '@critical' 
   })
 
   test('add item → troca executor → desconto → remove item → cancela', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedFixture(tenant)
+    seedFixture(org)
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-09-08')
     await authedPage.getByRole('button', { name: /Cliente Ciclo/ }).click()

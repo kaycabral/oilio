@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures'
-import { seedAppointment, seedCustomer, seedService, type SeededTenant } from '../helpers/session'
+import { seedAppointment, seedCustomer, seedService, type SeededOrg } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
 // Retrofit pro PR #726 (issue #638) — link "Enviar confirmação por
@@ -8,22 +8,22 @@ import { AgendaPage } from '../pages'
 // começar com https://wa.me/ + dígitos.
 
 function seedAppointmentForCustomer(
-  tenant: SeededTenant,
+  org: SeededOrg,
   opts: { whatsapp?: string; status?: 'scheduled' | 'cancelled' },
 ): void {
-  const serviceId = seedService(tenant.tenantId, {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
   })
-  const customerId = seedCustomer(tenant.tenantId, {
+  const customerId = seedCustomer(org.orgId, {
     name: 'Maria WhatsApp',
     whatsapp: opts.whatsapp,
   })
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-08-12T17:00:00.000Z',
@@ -34,7 +34,7 @@ function seedAppointmentForCustomer(
 
 test.describe('Agenda — link WhatsApp de confirmação', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -43,8 +43,8 @@ test.describe('Agenda — link WhatsApp de confirmação', () => {
     },
   })
 
-  test('link aparece pra agendamento agendado com WhatsApp', async ({ tenant, authedPage }) => {
-    seedAppointmentForCustomer(tenant, { whatsapp: '11988887777' })
+  test('link aparece pra agendamento agendado com WhatsApp', async ({ org, authedPage }) => {
+    seedAppointmentForCustomer(org, { whatsapp: '11988887777' })
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-08-12')
     await authedPage.getByRole('button', { name: /Maria WhatsApp/ }).click()
@@ -55,8 +55,8 @@ test.describe('Agenda — link WhatsApp de confirmação', () => {
     expect(href).toMatch(/^https:\/\/wa\.me\/\d+\?text=/)
   })
 
-  test('link some pra agendamento cancelado', async ({ tenant, authedPage }) => {
-    seedAppointmentForCustomer(tenant, { whatsapp: '11988887777', status: 'cancelled' })
+  test('link some pra agendamento cancelado', async ({ org, authedPage }) => {
+    seedAppointmentForCustomer(org, { whatsapp: '11988887777', status: 'cancelled' })
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-08-12')
     await authedPage.getByRole('button', { name: /Maria WhatsApp/ }).click()

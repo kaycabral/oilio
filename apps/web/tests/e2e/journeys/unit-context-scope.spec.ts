@@ -17,7 +17,7 @@ import {
   seedCatalogItem,
   seedCustomer,
   setActiveUnitCookie,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 
 // Seeds an open Order projection via the central typed helper (complete,
@@ -25,45 +25,45 @@ import {
 // projection; `createdAt` is backdated past the >24h staleness threshold
 // (`selectOpenOrderPendencies`) so it also surfaces as a stale-comanda pendency.
 function seedOpenOrder(
-  tenant: SeededTenant,
+  org: SeededOrg,
   unitId: string,
   customerId: string,
   totalCents: number,
 ): string {
   return centralSeedOpenOrder({
-    tenantId: tenant.tenantId,
+    orgId: org.orgId,
     unitId,
     customerId,
-    attributedUserId: tenant.uid,
+    attributedUserId: org.uid,
     totalCents,
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
   })
 }
 
 test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () => {
-  test.describe('multi-unit tenant scopes operational surfaces', () => {
-    test.use({ tenantInput: { unitCount: 2 } })
+  test.describe('multi-unit org scopes operational surfaces', () => {
+    test.use({ orgInput: { unitCount: 2 } })
 
     test('Comandas + Bloqueios + Dashboard scope to the active unit and switch with the cookie', async ({
       context,
-      tenant,
+      org,
       authedPage,
       baseURL,
     }) => {
-      const [unitA, unitB] = tenant.unitIds
+      const [unitA, unitB] = org.unitIds
       expect(unitA).toBeTruthy()
       expect(unitB).toBeTruthy()
 
       // One distinct customer + open order per unit.
-      const custA = seedCustomer(tenant.tenantId, { name: 'Cliente Unidade A' })
-      const custB = seedCustomer(tenant.tenantId, { name: 'Cliente Unidade B' })
-      seedOpenOrder(tenant, unitA!, custA, 11100)
-      seedOpenOrder(tenant, unitB!, custB, 22200)
+      const custA = seedCustomer(org.orgId, { name: 'Cliente Unidade A' })
+      const custB = seedCustomer(org.orgId, { name: 'Cliente Unidade B' })
+      seedOpenOrder(org, unitA!, custA, 11100)
+      seedOpenOrder(org, unitB!, custB, 22200)
 
       // One distinct recurring block per unit.
       seedBlock({
         kind: 'recurring',
-        tenantId: tenant.tenantId,
+        orgId: org.orgId,
         unitId: unitA!,
         weekday: 'monday',
         open: '12:00',
@@ -72,7 +72,7 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
       })
       seedBlock({
         kind: 'recurring',
-        tenantId: tenant.tenantId,
+        orgId: org.orgId,
         unitId: unitB!,
         weekday: 'monday',
         open: '12:00',
@@ -80,7 +80,7 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
         reason: 'Almoco Unidade B',
       })
 
-      // Pin the active unit to A. A 2-unit tenant with no active-unit cookie
+      // Pin the active unit to A. A 2-unit org with no active-unit cookie
       // is sent to the `/select-unit` interstitial (brief 0029 AC-04), so the
       // operational scope only resolves once a unit is chosen — mirror that by
       // setting the cookie before navigating.
@@ -113,16 +113,16 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
 
     test('Catálogo stays cross-unit regardless of the active unit (AC-06)', async ({
       context,
-      tenant,
+      org,
       authedPage,
       baseURL,
     }) => {
-      const [unitA, unitB] = tenant.unitIds
+      const [unitA, unitB] = org.unitIds
       // Two catalog services, each linked to a single distinct unit.
-      seedCatalogItem(tenant.tenantId, { name: 'Servico So Unidade A', unitIds: [unitA!] })
-      seedCatalogItem(tenant.tenantId, { name: 'Servico So Unidade B', unitIds: [unitB!] })
+      seedCatalogItem(org.orgId, { name: 'Servico So Unidade A', unitIds: [unitA!] })
+      seedCatalogItem(org.orgId, { name: 'Servico So Unidade B', unitIds: [unitB!] })
 
-      // Active unit A (cookie set — else the 2-unit tenant lands on the
+      // Active unit A (cookie set — else the 2-unit org lands on the
       // `/select-unit` interstitial, 0029 AC-04): catalog still shows BOTH
       // (definition is cross-unit).
       await setActiveUnitCookie(context, unitA!, baseURL ?? undefined)
@@ -139,11 +139,11 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
     })
   })
 
-  test.describe('baseline — single-unit tenant', () => {
+  test.describe('baseline — single-unit org', () => {
     test('enters directly, no per-feature unit picker on the agenda', async ({ authedPage }) => {
-      // Default tenantInput → 1 unit. Per-feature unit controls were removed
+      // Default orgInput → 1 unit. Per-feature unit controls were removed
       // (brief 0039, AC-01); the top switcher is the only unit context and a
-      // single-unit tenant renders it as a non-interactive breadcrumb.
+      // single-unit org renders it as a non-interactive breadcrumb.
       await authedPage.goto('/agenda')
       await expect(authedPage.getByRole('heading', { name: 'Agenda' })).toBeVisible()
       await expect(authedPage.getByRole('combobox', { name: 'Unidade ativa' })).toHaveCount(0)
@@ -154,8 +154,8 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
     })
   })
 
-  test.describe('baseline — zero-unit tenant', () => {
-    test.use({ tenantInput: { unitCount: 0, professionalCount: 0 } })
+  test.describe('baseline — zero-unit org', () => {
+    test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
 
     test('stays navigable with empty states', async ({ authedPage }) => {
       // No active unit → /orders keeps its "no active unit" precondition state
@@ -163,7 +163,7 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
       await authedPage.goto('/orders')
       await expect(authedPage.getByRole('heading', { name: 'Vendas' })).toBeVisible()
 
-      // App multi-vertical: a tenant with no appointment-mode unit (zero units)
+      // App multi-vertical: a org with no appointment-mode unit (zero units)
       // hides/redirects the Agenda → /agenda bounces to /orders.
       await authedPage.goto('/agenda')
       await expect(authedPage).toHaveURL(/\/orders(\/|\?|$)/)

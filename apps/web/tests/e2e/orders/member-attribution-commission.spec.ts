@@ -29,7 +29,7 @@ import { AgendaPage } from '../pages'
 
 test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -39,21 +39,21 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
   })
 
   test('AC-07: produto da recepção fecha → comissão agrupada por membro no relatório', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     // Produto comissionável (50% de R$ 30 = R$ 15) atribuível a qualquer membro.
-    seedCatalogItem(tenant.tenantId, {
+    seedCatalogItem(org.orgId, {
       kind: 'product',
       name: 'Argamassa Comissionada',
       priceCents: 3000,
       commission: { kind: 'percentage', value: 50 },
-      unitIds: [tenant.unitIds[0]!],
+      unitIds: [org.unitIds[0]!],
     })
     // Produto SEM regra (degenerado): atribuído mas não comissiona (AC-06).
-    seedProduct(tenant.tenantId, { name: 'Prego Sem Comissao', priceCents: 1000 })
+    seedProduct(org.orgId, { name: 'Prego Sem Comissao', priceCents: 1000 })
     // Recepção sem Professional — é quem a re-chave por membro precisa creditar.
-    seedMember(tenant.tenantId, { role: 'receptionist', displayName: 'Recepção Caixa' })
+    seedMember(org.orgId, { role: 'receptionist', displayName: 'Recepção Caixa' })
 
     await authedPage.goto('/orders')
     await authedPage.getByRole('button', { name: 'Nova venda' }).click()
@@ -117,23 +117,23 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
   })
 
   test('AC-07: comissão de serviço segue sob o profissional (mesma identidade userId)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const serviceId = seedService(tenant.tenantId, {
+    const serviceId = seedService(org.orgId, {
       name: 'Corte Comissionado',
       durationMinutes: 30,
       priceCents: 5000,
       commission: { kind: 'percentage', value: 40 },
     })
-    const customerId = seedCustomer(tenant.tenantId, {
+    const customerId = seedCustomer(org.orgId, {
       name: 'Cliente Servico',
       whatsapp: '11955551111',
     })
     seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
-      professionalId: tenant.professionalIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
+      professionalId: org.professionalIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',

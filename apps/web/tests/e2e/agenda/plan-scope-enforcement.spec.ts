@@ -5,7 +5,7 @@ import {
   seedCustomer,
   seedService,
   seedSubscription,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
@@ -14,25 +14,25 @@ import { AgendaPage } from '../pages'
 // cancelado. Esse spec garante que o /agenda interno bloqueia uma criação
 // que viola bookingLimits, em vez de criar silenciosamente + logar bypass.
 
-function seedScopeFixture(tenant: SeededTenant): { customerName: string } {
-  const serviceId = seedService(tenant.tenantId, {
+function seedScopeFixture(org: SeededOrg): { customerName: string } {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
-    unitIds: tenant.unitIds,
+    unitIds: org.unitIds,
   })
   const customerName = `Plano Limitado ${Date.now()}`
-  const customerId = seedCustomer(tenant.tenantId, {
+  const customerId = seedCustomer(org.orgId, {
     name: customerName,
     whatsapp: '11955554444',
   })
   // Plano com maxPerDay = 1 — qualquer 2ª criação no mesmo dia deve cair.
-  seedSubscription(tenant.tenantId, customerId, { bookingLimits: { maxPerDay: 1 } })
+  seedSubscription(org.orgId, customerId, { bookingLimits: { maxPerDay: 1 } })
   // Já existe 1 agendamento hoje em 14:00 BR (17:00 UTC).
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-08-12T17:00:00.000Z',
@@ -47,7 +47,7 @@ test.describe(
   { tag: '@critical' },
   () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         unitCount: 1,
         professionalCount: 1,
         professionalOperationalStatus: 'operational',
@@ -57,10 +57,10 @@ test.describe(
     })
 
     test('criar 2º agendamento no mesmo dia para cliente com maxPerDay=1 é bloqueado', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const { customerName } = seedScopeFixture(tenant)
+      const { customerName } = seedScopeFixture(org)
       const agenda = new AgendaPage(authedPage)
       await agenda.goto('2026-08-12')
 

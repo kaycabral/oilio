@@ -13,7 +13,7 @@ function fsBaseUrl(): string {
   return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 }
 
-function seedNotification(tenantId: string, unitId: string, type: string): string {
+function seedNotification(orgId: string, unitId: string, type: string): string {
   const notifId = `e2e-notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const now = new Date().toISOString()
   execFileSync(
@@ -22,7 +22,7 @@ function seedNotification(tenantId: string, unitId: string, type: string): strin
       '-fsS',
       '-X',
       'PATCH',
-      `${fsBaseUrl()}/tenants/${tenantId}/notifications/${notifId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -31,7 +31,7 @@ function seedNotification(tenantId: string, unitId: string, type: string): strin
       JSON.stringify({
         fields: {
           id: { stringValue: notifId },
-          tenantId: { stringValue: tenantId },
+          orgId: { stringValue: orgId },
           unitId: { stringValue: unitId },
           type: { stringValue: type },
           customerId: { nullValue: null },
@@ -70,8 +70,8 @@ async function openBellWithItem(authedPage: Page) {
 }
 
 test.describe.serial('Notification read + snooze', () => {
-  test('AC-16: marcar como lida remove do popover', async ({ tenant, authedPage }) => {
-    seedNotification(tenant.tenantId, tenant.unitIds[0]!, 'order_stale')
+  test('AC-16: marcar como lida remove do popover', async ({ org, authedPage }) => {
+    seedNotification(org.orgId, org.unitIds[0]!, 'order_stale')
 
     const popover = await openBellWithItem(authedPage)
     await expect(popover.getByText('Venda pendente')).toBeVisible()
@@ -85,8 +85,8 @@ test.describe.serial('Notification read + snooze', () => {
     await expect(popover.getByText('Venda pendente')).toBeHidden()
   })
 
-  test('AC-17: adiar oculta do popover', async ({ tenant, authedPage }) => {
-    seedNotification(tenant.tenantId, tenant.unitIds[0]!, 'order_stale')
+  test('AC-17: adiar oculta do popover', async ({ org, authedPage }) => {
+    seedNotification(org.orgId, org.unitIds[0]!, 'order_stale')
 
     const popover = await openBellWithItem(authedPage)
     await expect(popover.getByText('Venda pendente')).toBeVisible()

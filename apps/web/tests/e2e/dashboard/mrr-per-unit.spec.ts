@@ -5,15 +5,15 @@
 
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
-import type { SeededTenant } from '../helpers/session'
+import type { SeededOrg } from '../helpers/session'
 import { seedCustomer, seedSubscription, setActiveUnitCookie } from '../helpers/session'
 
 // Seeds an ACTIVE monthly subscription scoped to `unitId` with `priceCents`.
 // A fresh customer backs each subscription (the helper hydrates customerUserId
 // from it). The dashboard KPIs read status, unitId and the plan price/cycle.
-function seedActiveSubscription(tenant: SeededTenant, unitId: string, priceCents: number): string {
-  const customerId = seedCustomer(tenant.tenantId)
-  return seedSubscription(tenant.tenantId, customerId, {
+function seedActiveSubscription(org: SeededOrg, unitId: string, priceCents: number): string {
+  const customerId = seedCustomer(org.orgId)
+  return seedSubscription(org.orgId, customerId, {
     status: 'active',
     unitId,
     priceCents,
@@ -26,13 +26,13 @@ function mrrValue(page: Page) {
 }
 
 test.describe('Dashboard — MRR por unidade (#1118)', () => {
-  test.use({ tenantInput: { unitCount: 2, hasBusinessHours: true } })
+  test.use({ orgInput: { unitCount: 2, hasBusinessHours: true } })
 
-  test('MRR reflete só a unidade ativa', async ({ tenant, authedPage }) => {
-    const unitA = tenant.unitIds[0]!
-    const unitB = tenant.unitIds[1]!
-    seedActiveSubscription(tenant, unitA, 10000)
-    seedActiveSubscription(tenant, unitB, 30000)
+  test('MRR reflete só a unidade ativa', async ({ org, authedPage }) => {
+    const unitA = org.unitIds[0]!
+    const unitB = org.unitIds[1]!
+    seedActiveSubscription(org, unitA, 10000)
+    seedActiveSubscription(org, unitB, 30000)
 
     // Unidade A ativa → MRR conta só A.
     await setActiveUnitCookie(authedPage.context(), unitA)

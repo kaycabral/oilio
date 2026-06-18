@@ -31,8 +31,8 @@ import {
   setActiveUnitCookie,
 } from '../helpers/session'
 
-function docUrl(tenantId: string, collection: string, docId: string): string {
-  return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenantId}/${collection}/${docId}`
+function docUrl(orgId: string, collection: string, docId: string): string {
+  return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/${collection}/${docId}`
 }
 
 function getJson<T>(url: string, decode: (u: unknown) => T): T {
@@ -50,19 +50,19 @@ function str(fields: Fields, key: string): string | undefined {
   return strField(fields, key)
 }
 
-function getDoc(tenantId: string, collection: string, docId: string): Fields {
-  return fieldsOf(getJson(docUrl(tenantId, collection, docId), decodeFsDocument))
+function getDoc(orgId: string, collection: string, docId: string): Fields {
+  return fieldsOf(getJson(docUrl(orgId, collection, docId), decodeFsDocument))
 }
-function listDocs(tenantId: string, collection: string): Fields[] {
-  const base = docUrl(tenantId, collection, '').replace(/\/$/, '')
+function listDocs(orgId: string, collection: string): Fields[] {
+  const base = docUrl(orgId, collection, '').replace(/\/$/, '')
   const docs = getJson(base, decodeFsListResponse).documents ?? []
   return docs.map(fieldsOf)
 }
 
 // The `subscription.created` event in the aggregate stream. Its payload is the
 // only source of `unitId` — the projection is rebuilt from it (event-first).
-function createdEventUnitId(tenantId: string, subId: string): string | undefined {
-  const base = docUrl(tenantId, 'subscriptions', subId).replace(/\/$/, '') + '/events'
+function createdEventUnitId(orgId: string, subId: string): string | undefined {
+  const base = docUrl(orgId, 'subscriptions', subId).replace(/\/$/, '') + '/events'
   const docs = getJson(base, decodeFsListResponse).documents ?? []
   for (const f of docs.map(fieldsOf)) {
     if (str(f, '_tag') !== 'subscription.created') continue
@@ -80,16 +80,16 @@ test.describe(
   'brief 0043 — Feature-level DoD (assinatura por unidade)',
   { tag: ['@critical', '@journey'] },
   () => {
-    test.use({ tenantInput: { unitCount: 2, hasBusinessHours: true } })
+    test.use({ orgInput: { unitCount: 2, hasBusinessHours: true } })
 
     test('Cenário 1: assinatura nasce na unidade ativa (sub + charge)', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const unitA = tenant.unitIds[0]!
+      const unitA = org.unitIds[0]!
       const planLabel = `Plano DoD ${Date.now()}`
-      seedSubscriptionPlan(tenant.tenantId, { name: planLabel })
-      seedCustomer(tenant.tenantId)
+      seedSubscriptionPlan(org.orgId, { name: planLabel })
+      seedCustomer(org.orgId)
 
       await setActiveUnitCookie(authedPage.context(), unitA)
       await authedPage.goto('/subscriptions/new')
@@ -101,27 +101,27 @@ test.describe(
       const subId = authedPage.url().split('/subscriptions/')[1]!.split(/[/?#]/)[0]!
 
       // Assinatura criada pelo fluxo real carrega a unidade ativa (AC-01).
-      expect(str(getDoc(tenant.tenantId, 'subscriptions', subId), 'unitId')).toBe(unitA)
+      expect(str(getDoc(org.orgId, 'subscriptions', subId), 'unitId')).toBe(unitA)
 
       // O Charge do ciclo snapshota o MESMO unitId (AC-02).
-      const charges = listDocs(tenant.tenantId, 'charges').filter(
+      const charges = listDocs(org.orgId, 'charges').filter(
         (c) => str(c, 'subscriptionId') === subId,
       )
       expect(charges).toHaveLength(1)
       expect(str(charges[0]!, 'unitId')).toBe(unitA)
     })
 
-    test('Cenário 2: MRR reflete só a unidade ativa', async ({ tenant, authedPage }) => {
-      const unitA = tenant.unitIds[0]!
-      const unitB = tenant.unitIds[1]!
-      const custA = seedCustomer(tenant.tenantId)
-      const custB = seedCustomer(tenant.tenantId)
-      seedSubscription(tenant.tenantId, custA, {
+    test('Cenário 2: MRR reflete só a unidade ativa', async ({ org, authedPage }) => {
+      const unitA = org.unitIds[0]!
+      const unitB = org.unitIds[1]!
+      const custA = seedCustomer(org.orgId)
+      const custB = seedCustomer(org.orgId)
+      seedSubscription(org.orgId, custA, {
         unitId: unitA,
         priceCents: 10000,
         status: 'active',
       })
-      seedSubscription(tenant.tenantId, custB, {
+      seedSubscription(org.orgId, custB, {
         unitId: unitB,
         priceCents: 30000,
         status: 'active',
@@ -137,13 +137,13 @@ test.describe(
     })
 
     test('Cenário 3: a projeção do unitId deriva do evento (event-first)', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const unitA = tenant.unitIds[0]!
+      const unitA = org.unitIds[0]!
       const planLabel = `Plano DoD ES ${Date.now()}`
-      seedSubscriptionPlan(tenant.tenantId, { name: planLabel })
-      seedCustomer(tenant.tenantId)
+      seedSubscriptionPlan(org.orgId, { name: planLabel })
+      seedCustomer(org.orgId)
 
       await setActiveUnitCookie(authedPage.context(), unitA)
       await authedPage.goto('/subscriptions/new')
@@ -158,8 +158,8 @@ test.describe(
       // (doc operacional) é idêntica a ele — provando que o estado reconstrói a
       // partir do stream. (A igualdade campo-a-campo do replayAggregate é o teste
       // de domínio `subscription/reducer` + `charge-replay`.)
-      const eventUnitId = createdEventUnitId(tenant.tenantId, subId)
-      const projectedUnitId = str(getDoc(tenant.tenantId, 'subscriptions', subId), 'unitId')
+      const eventUnitId = createdEventUnitId(org.orgId, subId)
+      const projectedUnitId = str(getDoc(org.orgId, 'subscriptions', subId), 'unitId')
       expect(eventUnitId).toBe(unitA)
       expect(projectedUnitId).toBe(eventUnitId)
     })

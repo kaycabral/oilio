@@ -28,19 +28,16 @@ import {
 
 test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@critical' }, () => {
   // ── AC-03 / AC-05 — 1 verbo + AlertDialog ────────────────────────────────
-  test('plans/catalog/units só expõem "Excluir" (sem "Arquivar")', async ({
-    tenant,
-    authedPage,
-  }) => {
+  test('plans/catalog/units só expõem "Excluir" (sem "Arquivar")', async ({ org, authedPage }) => {
     const ts = Date.now()
     const planName = `Plano AC03 ${ts}`
     const itemName = `Item AC03 ${ts}`
-    seedSubscriptionPlan(tenant.tenantId, { name: planName })
-    seedCatalogItem(tenant.tenantId, {
+    seedSubscriptionPlan(org.orgId, { name: planName })
+    seedCatalogItem(org.orgId, {
       kind: 'product',
       name: itemName,
       commission: null,
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
 
     // Target the ⋯ menu of a KNOWN row per surface — not `.first()`, which can
@@ -62,11 +59,11 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
 
   // ── Cenário 1 — master data SEM ref → "Excluir" hard-deletes ─────────────
   test('cenário 1: master data sem referência → "Excluir" remove de vez', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
-    seedSubscriptionPlan(tenant.tenantId, { name: `Plano Livre ${ts}` })
+    seedSubscriptionPlan(org.orgId, { name: `Plano Livre ${ts}` })
 
     await authedPage.goto('/plans')
     await rowAction(authedPage, new RegExp(`Plano Livre ${ts}`), 'Excluir')
@@ -84,13 +81,13 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
 
   // ── Cenário 2 — master data COM ref ativa → "Excluir" soft-deletes ───────
   test('cenário 2: plano com assinante → "Excluir" soft-delete + cópia de fim de ciclo', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
-    const planId = seedSubscriptionPlan(tenant.tenantId, { name: `Plano Vínculo ${ts}` })
-    const customerId = seedCustomer(tenant.tenantId, { name: `Assinante ${ts}` })
-    seedSubscription(tenant.tenantId, customerId, { planId })
+    const planId = seedSubscriptionPlan(org.orgId, { name: `Plano Vínculo ${ts}` })
+    const customerId = seedCustomer(org.orgId, { name: `Assinante ${ts}` })
+    seedSubscription(org.orgId, customerId, { planId })
 
     await authedPage.goto('/plans')
     const row = listItem(authedPage, new RegExp(`Plano Vínculo ${ts}`))
@@ -116,13 +113,13 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
 
   // ── Bug 1 — plano descontinuado não lastreia nova adesão ─────────────────
   test('bug 1: plano arquivado não aparece no seletor de nova assinatura', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
-    seedCustomer(tenant.tenantId, { name: `Cliente NA ${ts}` })
-    seedSubscriptionPlan(tenant.tenantId, { name: `Plano Vivo ${ts}` })
-    seedSubscriptionPlan(tenant.tenantId, {
+    seedCustomer(org.orgId, { name: `Cliente NA ${ts}` })
+    seedSubscriptionPlan(org.orgId, { name: `Plano Vivo ${ts}` })
+    seedSubscriptionPlan(org.orgId, {
       name: `Plano Morto ${ts}`,
       archivedAt: new Date().toISOString(),
     })
@@ -143,20 +140,20 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
 
   // ── AC-11 — categoria arquivada/deletada NUNCA mostra id cru nem "(arquivada)"
   test('cenário 3: categoria arquivada → item mostra "Sem categoria" (sem id, sem "arquivada")', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
-    const archivedCatId = seedCategory(tenant.tenantId, {
+    const archivedCatId = seedCategory(org.orgId, {
       name: `Cabelo ${ts}`,
       archivedAt: new Date().toISOString(),
     })
-    seedCatalogItem(tenant.tenantId, {
+    seedCatalogItem(org.orgId, {
       kind: 'service',
       name: `Corte Cat ${ts}`,
       categoryId: archivedCatId,
       commission: null,
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
 
     await authedPage.goto('/catalog')
@@ -169,17 +166,17 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
   })
 
   test('cenário 3b: categoria deletada (FK órfã) → "Sem categoria", nunca id cru', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
     const orphanCatId = `e2e-cat-deleted-${ts}`
-    seedCatalogItem(tenant.tenantId, {
+    seedCatalogItem(org.orgId, {
       kind: 'service',
       name: `Corte Órfão ${ts}`,
       categoryId: orphanCatId,
       commission: null,
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
 
     await authedPage.goto('/catalog')
@@ -190,18 +187,18 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
   })
 
   test('cenário 3c: excluir categoria com itens → avisa a contagem; itens viram "Sem categoria"', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
-    const catId = seedCategory(tenant.tenantId, { name: `Cabelo ${ts}` })
+    const catId = seedCategory(org.orgId, { name: `Cabelo ${ts}` })
     for (const n of [1, 2]) {
-      seedCatalogItem(tenant.tenantId, {
+      seedCatalogItem(org.orgId, {
         kind: 'service',
         name: `Item Cat${n} ${ts}`,
         categoryId: catId,
         commission: null,
-        unitIds: tenant.unitIds,
+        unitIds: org.unitIds,
       })
     }
 
@@ -223,16 +220,16 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
 
   // ── Cenário 4 — unidade arquivada some do seletor + não-operável ─────────
   test.describe('unidade arquivada', () => {
-    test.use({ tenantInput: { unitCount: 2 } })
+    test.use({ orgInput: { unitCount: 2 } })
 
     test('cenário 4: unidade arquivada some do seletor e não é selecionável', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       const ts = Date.now().toString()
       // Seed an archived unit (side effect only — asserted by its visible name,
       // no longer by id since the picker is queried by accessible name).
-      seedUnit(tenant.tenantId, {
+      seedUnit(org.orgId, {
         name: `Unidade Morta ${ts}`,
         archivedAt: new Date().toISOString(),
       })
@@ -255,14 +252,14 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
 
   // ── Cenário 5 — customer com assinatura ativa → cascade + nome preservado ─
   test('cenário 5: cliente com assinatura → dialog lista o cancelamento, digita p/ confirmar, cascade + nome preservado', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
     const name = `Cliente Cascade ${ts}`
-    const customerId = seedCustomer(tenant.tenantId, { name })
-    const planId = seedSubscriptionPlan(tenant.tenantId, { name: `Plano Cli ${ts}` })
-    seedSubscription(tenant.tenantId, customerId, {
+    const customerId = seedCustomer(org.orgId, { name })
+    const planId = seedSubscriptionPlan(org.orgId, { name: `Plano Cli ${ts}` })
+    seedSubscription(org.orgId, customerId, {
       planId,
       planName: `Plano Cli ${ts}`,
       status: 'active',
@@ -311,17 +308,17 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
 
   // ── Cenário 5b — customer com comanda aberta → "Excluir" bloqueado no dialog
   test('cenário 5b: cliente com comanda aberta → dialog bloqueia até fechar', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
     const name = `Cliente Comanda ${ts}`
-    const customerId = seedCustomer(tenant.tenantId, { name })
+    const customerId = seedCustomer(org.orgId, { name })
     seedOpenOrder({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       customerId,
-      attributedUserId: tenant.uid,
+      attributedUserId: org.uid,
     })
 
     await authedPage.goto('/customers')
@@ -336,12 +333,12 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
 
   // ── Cenário 6 — customer SEM pegada → "Excluir" hard-deletes (digita p/ confirmar)
   test('cenário 6: cliente sem pegada → "Excluir" (digita nome) remove de vez', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
     const name = `Cliente Livre ${ts}`
-    seedCustomer(tenant.tenantId, { name })
+    seedCustomer(org.orgId, { name })
 
     await authedPage.goto('/customers')
     await rowAction(authedPage, new RegExp(name), 'Excluir')

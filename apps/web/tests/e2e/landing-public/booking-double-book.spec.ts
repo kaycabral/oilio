@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { chooseOptionByIndex } from '../helpers/select'
 import { seedService } from '../helpers/session'
-import { tenantSlug } from '../pages'
+import { orgSlug } from '../pages'
 
 // Issue #843 — Anti-double-book server-side.
 //
@@ -26,7 +26,7 @@ async function fillBookingForm(ctx: BrowserContext, slug: string, startAtLocal: 
 }
 
 test.describe('Landing pública — anti-duplo-agendamento', { tag: '@critical' }, () => {
-  test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
   // Contexts created by the concurrent-booking test, torn down after each test
   // (replaces an in-test try/finally, which the lint bans as conditional-in-test).
@@ -37,16 +37,16 @@ test.describe('Landing pública — anti-duplo-agendamento', { tag: '@critical' 
   })
 
   test('dois landings simultâneos no mesmo slot — exatamente um ganha', async ({
-    tenant,
+    org,
     browser,
   }) => {
-    const slug = tenantSlug(tenant.tenantId)
-    seedService(tenant.tenantId, {
+    const slug = orgSlug(org.orgId)
+    seedService(org.orgId, {
       name: 'Corte',
       durationMinutes: 30,
       priceCents: 5000,
       publicVisible: true,
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
 
     // Slot 4 days ahead at 14:00 local — clear of `Date.now()` and any other

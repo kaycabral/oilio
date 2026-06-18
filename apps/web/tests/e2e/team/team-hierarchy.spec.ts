@@ -15,22 +15,22 @@ import { chooseOption } from '../helpers/select'
 import { seedInvite } from '../helpers/session'
 
 test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () => {
-  test.describe('tenant com membros + convites', () => {
+  test.describe('org com membros + convites', () => {
     // Several professionals → a non-trivial members list, so the "doesn't sink"
     // assertion is meaningful.
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 3 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 3 } })
 
     test('Convidar é ação no topo + filtro Status (Todos/Pendentes)', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       // A pre-seeded pending invite so the Pendentes filter has content.
       const pendingEmail = `pending-${Date.now()}@e2e.local`
       seedInvite({
-        tenantId: tenant.tenantId,
+        orgId: org.orgId,
         email: pendingEmail,
         role: 'receptionist',
-        invitedBy: tenant.uid,
+        invitedBy: org.uid,
       })
 
       await authedPage.goto('/team')
@@ -123,7 +123,7 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
   })
 
   test.describe('baseline — só o owner (#17)', () => {
-    test.use({ tenantInput: { unitCount: 0, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
 
     test('render + empty: abre com Convidar no topo, filtro Status, sem convites', async ({
       authedPage,

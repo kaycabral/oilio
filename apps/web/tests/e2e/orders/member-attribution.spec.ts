@@ -31,7 +31,7 @@ import { AgendaPage } from '../pages'
 
 test.describe('Atribuição de item por membro (brief 0030, #1056)', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -41,10 +41,10 @@ test.describe('Atribuição de item por membro (brief 0030, #1056)', { tag: '@cr
   })
 
   test('AC-04: produto avulso default-atribui ao operador (membro que abriu)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedProduct(tenant.tenantId, { name: 'Cimento CP-II', priceCents: 3000 })
+    seedProduct(org.orgId, { name: 'Cimento CP-II', priceCents: 3000 })
 
     await authedPage.goto('/orders')
     await authedPage.getByRole('button', { name: 'Nova venda' }).click()
@@ -59,9 +59,9 @@ test.describe('Atribuição de item por membro (brief 0030, #1056)', { tag: '@cr
     await expect(sellerSelect).toHaveText('E2E Owner')
   })
 
-  test('AC-04: edita a atribuição do item pra outro membro', async ({ tenant, authedPage }) => {
-    seedProduct(tenant.tenantId, { name: 'Tinta Branca', priceCents: 5000 })
-    seedMember(tenant.tenantId, { role: 'manager', displayName: 'Gerente Loja' })
+  test('AC-04: edita a atribuição do item pra outro membro', async ({ org, authedPage }) => {
+    seedProduct(org.orgId, { name: 'Tinta Branca', priceCents: 5000 })
+    seedMember(org.orgId, { role: 'manager', displayName: 'Gerente Loja' })
 
     await authedPage.goto('/orders')
     await authedPage.getByRole('button', { name: 'Nova venda' }).click()
@@ -80,20 +80,20 @@ test.describe('Atribuição de item por membro (brief 0030, #1056)', { tag: '@cr
   })
 
   test('AC-05: venda de produto pela recepção (sem Professional) atribui e fecha', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     // Produto comissionável (50% de R$ 30 = R$ 15) — comissiona o membro atribuído.
     // `seedCatalogItem` aceita `commission` (o `seedProduct` legado força null).
-    seedCatalogItem(tenant.tenantId, {
+    seedCatalogItem(org.orgId, {
       kind: 'product',
       name: 'Argamassa',
       priceCents: 3000,
       commission: { kind: 'percentage', value: 50 },
-      unitIds: [tenant.unitIds[0]!],
+      unitIds: [org.unitIds[0]!],
     })
     // Recepção SEM Professional projection — é o caso que a generalização destrava.
-    seedMember(tenant.tenantId, { role: 'receptionist', displayName: 'Recepção Balcão' })
+    seedMember(org.orgId, { role: 'receptionist', displayName: 'Recepção Balcão' })
 
     await authedPage.goto('/orders')
     await authedPage.getByRole('button', { name: 'Nova venda' }).click()
@@ -131,24 +131,24 @@ test.describe('Atribuição de item por membro (brief 0030, #1056)', { tag: '@cr
   })
 
   test('AC-04: produto numa venda de agendamento default-atribui ao operador', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const serviceId = seedService(tenant.tenantId, {
+    const serviceId = seedService(org.orgId, {
       name: 'Corte',
       durationMinutes: 30,
       priceCents: 5000,
       commission: { kind: 'percentage', value: 50 },
     })
-    seedProduct(tenant.tenantId, { name: 'Pomada', priceCents: 2000 })
-    const customerId = seedCustomer(tenant.tenantId, {
+    seedProduct(org.orgId, { name: 'Pomada', priceCents: 2000 })
+    const customerId = seedCustomer(org.orgId, {
       name: 'Cliente Agendado',
       whatsapp: '11955554444',
     })
     seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
-      professionalId: tenant.professionalIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
+      professionalId: org.professionalIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',

@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures'
-import { seedAppointment, seedCustomer, seedService, type SeededTenant } from '../helpers/session'
+import { seedAppointment, seedCustomer, seedService, type SeededOrg } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
 // Retrofit pros PRs #725/#724 (issue #639) — cancel + reschedule via
@@ -7,21 +7,21 @@ import { AgendaPage } from '../pages'
 // num appointment existente, fluxo de confirmação do cancel, presença
 // dos campos editáveis de date/time pro reschedule.
 
-function seedAppointmentForTenant(tenant: SeededTenant): void {
-  const serviceId = seedService(tenant.tenantId, {
+function seedAppointmentForOrg(org: SeededOrg): void {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
   })
-  const customerId = seedCustomer(tenant.tenantId, {
+  const customerId = seedCustomer(org.orgId, {
     name: 'Maria Cliente',
     whatsapp: '11988887777',
   })
   // BR is UTC-3. 14:00–14:30 BR == 17:00–17:30 UTC on 2026-08-12.
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-08-12T17:00:00.000Z',
@@ -32,7 +32,7 @@ function seedAppointmentForTenant(tenant: SeededTenant): void {
 
 test.describe('Agenda — cancelar + reagendar', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -41,8 +41,8 @@ test.describe('Agenda — cancelar + reagendar', { tag: '@critical' }, () => {
     },
   })
 
-  test('clicar num agendamento abre o diálogo de edição', async ({ tenant, authedPage }) => {
-    seedAppointmentForTenant(tenant)
+  test('clicar num agendamento abre o diálogo de edição', async ({ org, authedPage }) => {
+    seedAppointmentForOrg(org)
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-08-12')
     await authedPage.getByRole('button', { name: /Maria Cliente/ }).click()
@@ -50,10 +50,10 @@ test.describe('Agenda — cancelar + reagendar', { tag: '@critical' }, () => {
   })
 
   test('fluxo de cancelamento mostra confirmação e permite voltar atrás', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedAppointmentForTenant(tenant)
+    seedAppointmentForOrg(org)
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-08-12')
     await authedPage.getByRole('button', { name: /Maria Cliente/ }).click()
@@ -72,18 +72,18 @@ test.describe('Agenda — cancelar + reagendar', { tag: '@critical' }, () => {
   })
 
   test('diálogo de edição expõe campos de data + hora pro reagendamento', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedAppointmentForTenant(tenant)
+    seedAppointmentForOrg(org)
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-08-12')
     await authedPage.getByRole('button', { name: /Maria Cliente/ }).click()
     const dialog = authedPage.getByRole('dialog', { name: 'Editar agendamento' })
 
-    // Date input pre-populated with the appointment's tenant-tz date.
+    // Date input pre-populated with the appointment's org-tz date.
     await expect(dialog.locator('input[name="date"]')).toHaveValue('2026-08-12')
-    // Start time pre-populated with the appointment's tenant-tz time (14:00 BR).
+    // Start time pre-populated with the appointment's org-tz time (14:00 BR).
     await expect(dialog.locator('input[name="startTime"]')).toHaveValue('14:00')
   })
 })

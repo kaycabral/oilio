@@ -17,27 +17,27 @@ import {
   seedCustomer,
   seedProduct,
   seedService,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-function seedFixture(tenant: SeededTenant): void {
-  const serviceId = seedService(tenant.tenantId, {
+function seedFixture(org: SeededOrg): void {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte Comissionado',
     durationMinutes: 30,
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
   // Produto sem comissão — não deve gerar Commission (dado degenerado).
-  seedProduct(tenant.tenantId, { name: 'Pomada Sem Comissao', priceCents: 3000 })
-  const customerId = seedCustomer(tenant.tenantId, {
+  seedProduct(org.orgId, { name: 'Pomada Sem Comissao', priceCents: 3000 })
+  const customerId = seedCustomer(org.orgId, {
     name: 'Cliente Accrual',
     whatsapp: '11955551111',
   })
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -70,7 +70,7 @@ async function closeOrderWith(
 
 test.describe('Comissão — accrual no fechamento (#999)', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -80,10 +80,10 @@ test.describe('Comissão — accrual no fechamento (#999)', { tag: '@critical' }
   })
 
   test('AC-02: serviço comissionável gera pendente, produto sem comissão não', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedFixture(tenant)
+    seedFixture(org)
     await startOrder(authedPage)
 
     // Adiciona o produto sem comissão (venda) ao lado do serviço comissionável.
@@ -113,8 +113,8 @@ test.describe('Comissão — accrual no fechamento (#999)', { tag: '@critical' }
     await expect(authedPage.getByText('Pomada Sem Comissao')).toBeHidden()
   })
 
-  test('AC-04: reabrir a comanda estorna a comissão pendente', async ({ tenant, authedPage }) => {
-    seedFixture(tenant)
+  test('AC-04: reabrir a comanda estorna a comissão pendente', async ({ org, authedPage }) => {
+    seedFixture(org)
     await startOrder(authedPage)
     await closeOrderWith(authedPage, 'pix')
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible({ timeout: 5000 })

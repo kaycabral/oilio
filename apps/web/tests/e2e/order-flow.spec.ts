@@ -6,7 +6,7 @@ import {
   seedCustomer,
   seedProduct,
   seedService,
-  type SeededTenant,
+  type SeededOrg,
 } from './helpers/session'
 import { AgendaPage } from './pages'
 
@@ -15,23 +15,23 @@ import { AgendaPage } from './pages'
 // serviço + executor → adiciona produto → fecha com PIX → vê comissão gerada
 // E o agendamento original transiciona pra `completed`.
 
-function seedAttendanceFixture(tenant: SeededTenant): void {
+function seedAttendanceFixture(org: SeededOrg): void {
   // Serviço com comissão de 50% — 5000 centavos × 50% = 2500.
-  const serviceId = seedService(tenant.tenantId, {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  seedProduct(tenant.tenantId, { name: 'Pomada', priceCents: 3000 })
-  const customerId = seedCustomer(tenant.tenantId, {
+  seedProduct(org.orgId, { name: 'Pomada', priceCents: 3000 })
+  const customerId = seedCustomer(org.orgId, {
     name: 'Cliente Order',
     whatsapp: '11988887777',
   })
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -47,7 +47,7 @@ function seedAttendanceFixture(tenant: SeededTenant): void {
 
 test.describe('Order — caminho feliz', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -57,10 +57,10 @@ test.describe('Order — caminho feliz', { tag: '@critical' }, () => {
   })
 
   test('início do agendamento → adiciona produto → fecha → comissão gerada', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedAttendanceFixture(tenant)
+    seedAttendanceFixture(org)
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-09-08')
     await authedPage.getByRole('button', { name: /Cliente Order/ }).click()
@@ -99,10 +99,10 @@ test.describe('Order — caminho feliz', { tag: '@critical' }, () => {
   })
 
   test('iniciar atendimento é idempotente: segundo clique reabre a mesma order', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedAttendanceFixture(tenant)
+    seedAttendanceFixture(org)
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-09-08')
     await authedPage.getByRole('button', { name: /Cliente Order/ }).click()

@@ -6,20 +6,20 @@ import {
   readAppointment,
   seedAppointment,
   seedCustomer,
+  seedOrg,
   seedSubscription,
-  seedTenant,
   signInAndAttachSession,
 } from '../helpers/session'
 
 // Feature-level E2E — CUSTOMER erasure CASCADE (brief 0032 / #1101, AC-12 +
 // AC-14, Cenário 7).
 //
-// When a CUSTOMER is erased (per-tenant block), the cascade cancels their active
+// When a CUSTOMER is erased (per-org block), the cascade cancels their active
 // subscription immediately (+ stops its pending charges) and cancels their
 // FUTURE appointments; PAST appointments are retained. This spec drives the
 // cascade's OUTPUT through the emulator (the status transitions
-// `eraseCustomerCascadeInTenant` writes server-side) the same way the sibling
-// `per-tenant-erasure.spec.ts` simulates the block's marker/archive — then
+// `eraseCustomerCascadeInOrg` writes server-side) the same way the sibling
+// `per-org-erasure.spec.ts` simulates the block's marker/archive — then
 // asserts the read surfaces an owner sees reflect it:
 //   - the subscriptions list shows the subscription as `Cancelada`;
 //   - the agenda no longer surfaces the customer's future appointment;
@@ -78,8 +78,8 @@ function cancelSubscription(path: string, now: string): void {
   )
 }
 
-// Anchored at NOON UTC so the calendar date is stable across the tenant timezone
-// (the agenda queries the tenant-local day): a midnight-relative `Date.now()+2d`
+// Anchored at NOON UTC so the calendar date is stable across the org timezone
+// (the agenda queries the org-local day): a midnight-relative `Date.now()+2d`
 // could land on a different local day than its UTC `slice(0,10)`, which made the
 // agenda assertion flaky by time-of-day. Noon ± any real tz offset stays the same
 // date.
@@ -95,18 +95,18 @@ test.describe('CUSTOMER erasure cascade', { tag: '@critical' }, () => {
   test('erasing a customer with an active subscription cancels it + future appointments; past appointment retained', async ({
     context,
   }) => {
-    const owner = await seedTenant({ professionalCount: 1 })
+    const owner = await seedOrg({ professionalCount: 1 })
     const unitId = owner.unitIds[0]!
     const professionalId = owner.professionalIds[0]!
 
     const customerName = `Cliente Cascata ${Date.now()}`
-    const customerId = seedCustomer(owner.tenantId, { name: customerName })
+    const customerId = seedCustomer(owner.orgId, { name: customerName })
 
     // Active subscription + a future and a past appointment for this customer.
-    const subId = seedSubscription(owner.tenantId, customerId, { status: 'active' })
+    const subId = seedSubscription(owner.orgId, customerId, { status: 'active' })
     const futureStart = future()
     const futureAppt = seedAppointment({
-      tenantId: owner.tenantId,
+      orgId: owner.orgId,
       unitId,
       professionalId,
       customerId,
@@ -117,7 +117,7 @@ test.describe('CUSTOMER erasure cascade', { tag: '@critical' }, () => {
     })
     const pastStart = past()
     const pastAppt = seedAppointment({
-      tenantId: owner.tenantId,
+      orgId: owner.orgId,
       unitId,
       professionalId,
       customerId,
@@ -130,8 +130,8 @@ test.describe('CUSTOMER erasure cascade', { tag: '@critical' }, () => {
     // Erasure cascade OUTPUT — the status transitions the saga projects:
     // active subscription → cancelled; future scheduled appointment → cancelled;
     // the past (completed) appointment is LEFT untouched.
-    cancelSubscription(`tenants/${owner.tenantId}/subscriptions/${subId}`, new Date().toISOString())
-    setStatus(`tenants/${owner.tenantId}/appointments/${futureAppt}`, 'cancelled')
+    cancelSubscription(`orgs/${owner.orgId}/subscriptions/${subId}`, new Date().toISOString())
+    setStatus(`orgs/${owner.orgId}/appointments/${futureAppt}`, 'cancelled')
 
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()
@@ -154,7 +154,7 @@ test.describe('CUSTOMER erasure cascade', { tag: '@critical' }, () => {
 
     // The PAST appointment doc is retained (de-identified, not deleted) — AC-04
     // retention: erasure stops the future, never destroys the fiscal past.
-    const retained = readAppointment(owner.tenantId, pastAppt)
+    const retained = readAppointment(owner.orgId, pastAppt)
     expect(retained).not.toBeNull()
     expect(strField(retained ?? undefined, 'status')).toBe('completed')
   })

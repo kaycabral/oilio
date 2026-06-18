@@ -7,7 +7,7 @@ import {
   readUser,
   seedAuthUser,
   seedInvite,
-  seedTenant,
+  seedOrg,
   signInAndAttachSession,
 } from '../helpers/session'
 
@@ -22,15 +22,15 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    // Owner seeds a tenant; we don't sign in as them — we only need their
-    // tenant ID and uid to create the invite.
-    const owner = await seedTenant({ unitCount: 0, professionalCount: 0 })
+    // Owner seeds a org; we don't sign in as them — we only need their
+    // org ID and uid to create the invite.
+    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
 
     // Invitee is a second auth user with verified email.
     const invitee = await seedAuthUser()
 
     const { inviteId, rawToken } = seedInvite({
-      tenantId: owner.tenantId,
+      orgId: owner.orgId,
       email: invitee.email,
       role: 'manager',
       invitedBy: owner.uid,
@@ -38,7 +38,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
 
     await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
 
-    await page.goto(`/invites/${owner.tenantId}/${inviteId}?token=${rawToken}`)
+    await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
 
     await expect(page.getByRole('heading', { name: /convite para/i })).toBeVisible()
     await expect(page.getByText(new RegExp(`papel proposto`, 'i'))).toBeVisible()
@@ -50,13 +50,13 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
 
     // Invite is marked accepted; membership exists with the proposed role.
     // #827: acceptedByUid + acceptedAt are populated atomically with status.
-    const acceptedInvite = readInvite(owner.tenantId, inviteId)
+    const acceptedInvite = readInvite(owner.orgId, inviteId)
     expect(acceptedInvite?.status).toBe('accepted')
     expect(acceptedInvite?.acceptedByUid).toBe(invitee.uid)
     expect(acceptedInvite?.acceptedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
-    const m = readMembership(membershipDocId(owner.tenantId, invitee.uid))
+    const m = readMembership(membershipDocId(owner.orgId, invitee.uid))
     expect(m).not.toBeNull()
-    expect(m!.tenantId).toBe(owner.tenantId)
+    expect(m!.orgId).toBe(owner.orgId)
     expect(m!.role).toBe('manager')
     expect(m!.status).toBe('active')
 
@@ -86,20 +86,20 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    const owner = await seedTenant({ unitCount: 0, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
     const invitee = await seedAuthUser()
     const { inviteId } = seedInvite({
-      tenantId: owner.tenantId,
+      orgId: owner.orgId,
       email: invitee.email,
       role: 'manager',
       invitedBy: owner.uid,
     })
     await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
 
-    await page.goto(`/invites/${owner.tenantId}/${inviteId}?token=tampered-token-xyz`)
+    await page.goto(`/invites/${owner.orgId}/${inviteId}?token=tampered-token-xyz`)
     await expect(page.getByRole('heading', { name: /token inválido/i })).toBeVisible()
     // Invite stays pending — never gets consumed by a wrong token.
-    expect(readInviteStatus(owner.tenantId, inviteId)).toBe('pending')
+    expect(readInviteStatus(owner.orgId, inviteId)).toBe('pending')
   })
 
   test('rejeita convite quando email da sessão não bate com o do convite', async ({
@@ -107,19 +107,19 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    const owner = await seedTenant({ unitCount: 0, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
     const wrongUser = await seedAuthUser()
     const { inviteId, rawToken } = seedInvite({
-      tenantId: owner.tenantId,
+      orgId: owner.orgId,
       email: 'someone-else@example.com',
       role: 'manager',
       invitedBy: owner.uid,
     })
     await signInAndAttachSession(context, wrongUser.email, wrongUser.password, baseURL ?? undefined)
 
-    await page.goto(`/invites/${owner.tenantId}/${inviteId}?token=${rawToken}`)
+    await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await expect(page.getByRole('heading', { name: /e-?mail diferente/i })).toBeVisible()
-    expect(readInviteStatus(owner.tenantId, inviteId)).toBe('pending')
+    expect(readInviteStatus(owner.orgId, inviteId)).toBe('pending')
     // The retry affordance is rendered — user can drop the wrong session.
     await expect(page.getByRole('button', { name: /sair e relogar/i })).toBeVisible()
   })
@@ -129,32 +129,32 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    const owner = await seedTenant({ unitCount: 0, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
     const invitee = await seedAuthUser()
     // Seed the invite with an upper-cased / padded version of the OAuth email.
     // `inviteEmailsMatch` should normalize both sides and still match.
     const { inviteId, rawToken } = seedInvite({
-      tenantId: owner.tenantId,
+      orgId: owner.orgId,
       email: `  ${invitee.email.toUpperCase()}  `,
       role: 'professional',
       invitedBy: owner.uid,
     })
     await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
 
-    await page.goto(`/invites/${owner.tenantId}/${inviteId}?token=${rawToken}`)
+    await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await page.getByRole('button', { name: /aceitar convite/i }).click()
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
 
-    const accepted = readInvite(owner.tenantId, inviteId)
+    const accepted = readInvite(owner.orgId, inviteId)
     expect(accepted?.status).toBe('accepted')
     expect(accepted?.acceptedByUid).toBe(invitee.uid)
   })
 
   test('rejeita convite já consumido (#827 uso único)', async ({ context, page, baseURL }) => {
-    const owner = await seedTenant({ unitCount: 0, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = seedInvite({
-      tenantId: owner.tenantId,
+      orgId: owner.orgId,
       email: invitee.email,
       role: 'manager',
       invitedBy: owner.uid,
@@ -162,7 +162,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     })
     await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
 
-    await page.goto(`/invites/${owner.tenantId}/${inviteId}?token=${rawToken}`)
+    await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await expect(page.getByRole('heading', { name: /convite já utilizado/i })).toBeVisible()
   })
 
@@ -171,10 +171,10 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    const owner = await seedTenant({ unitCount: 0, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = seedInvite({
-      tenantId: owner.tenantId,
+      orgId: owner.orgId,
       email: invitee.email,
       role: 'manager',
       invitedBy: owner.uid,
@@ -182,9 +182,9 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     })
     await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
 
-    await page.goto(`/invites/${owner.tenantId}/${inviteId}?token=${rawToken}`)
+    await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await expect(page.getByRole('heading', { name: /convite expirado/i })).toBeVisible()
     // Stays pending in the doc — the page render path doesn't mutate.
-    expect(readInviteStatus(owner.tenantId, inviteId)).toBe('pending')
+    expect(readInviteStatus(owner.orgId, inviteId)).toBe('pending')
   })
 })

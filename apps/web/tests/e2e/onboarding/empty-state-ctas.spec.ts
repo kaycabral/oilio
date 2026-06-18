@@ -2,7 +2,7 @@ import { expect, test } from '../fixtures'
 
 // E2E for #987 (brief 0008, Grupo B) — each core CRUD area, when empty, renders
 // the shared actionable EmptyState whose primary CTA opens the real creation
-// flow (just-in-time onboarding). One empty tenant, every area swept.
+// flow (just-in-time onboarding). One empty org, every area swept.
 //
 // AC-03 [critical] [smoke] — empty area → value-oriented empty state + CTA to
 //   the real create flow.
@@ -47,7 +47,7 @@ test.describe('Empty-state CTAs — core areas (#987)', () => {
   // unitCount/professionalCount=0 keeps every area genuinely empty so each
   // empty-state + CTA renders.
   test.use({
-    tenantInput: { unitCount: 0, professionalCount: 0 },
+    orgInput: { unitCount: 0, professionalCount: 0 },
   })
 
   for (const area of AREAS) {

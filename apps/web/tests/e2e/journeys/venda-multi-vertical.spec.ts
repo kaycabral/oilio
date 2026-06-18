@@ -56,13 +56,13 @@ const FS_BASE = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(d
 // The journeys read state straight from Firestore to assert invariants the UI
 // only hints at (nullable customerId/appointmentId, per-item attributedUserId,
 // commission key + liquidation status). These mirror the reference journeys'
-// inline `seedMembership`/`readMembership` shape — list a tenant subcollection
+// inline `seedMembership`/`readMembership` shape — list a org subcollection
 // and decode the typed values we care about.
 
-function listDocs(tenantId: string, collection: string): readonly FsDocument[] {
+function listDocs(orgId: string, collection: string): readonly FsDocument[] {
   const out = execFileSync(
     'curl',
-    ['-fsS', '-H', 'Authorization: Bearer owner', `${FS_BASE}/tenants/${tenantId}/${collection}`],
+    ['-fsS', '-H', 'Authorization: Bearer owner', `${FS_BASE}/orgs/${orgId}/${collection}`],
     { encoding: 'utf8' },
   )
   const parsed = parseJson(out, decodeFsListResponse)
@@ -77,8 +77,8 @@ type ReadOrder = {
   itemAttributions: (string | null)[]
 }
 
-function readOrders(tenantId: string): ReadOrder[] {
-  return listDocs(tenantId, 'orders').map((doc) => {
+function readOrders(orgId: string): ReadOrder[] {
+  return listDocs(orgId, 'orders').map((doc) => {
     const f = doc.fields ?? {}
     const items = f.items?.arrayValue?.values ?? []
     return {
@@ -99,8 +99,8 @@ type ReadCommission = {
   itemName: string | null
 }
 
-function readCommissions(tenantId: string): ReadCommission[] {
-  return listDocs(tenantId, 'commissions').map((doc) => {
+function readCommissions(orgId: string): ReadCommission[] {
+  return listDocs(orgId, 'commissions').map((doc) => {
     const f = doc.fields ?? {}
     return {
       attributedUserId: f.attributedUserId?.stringValue ?? null,
@@ -127,7 +127,7 @@ async function closeWithCash(
 
 test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -143,16 +143,16 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
   // commission for the member who sold — no customer, no appointment, no pro.
   test.describe('Cenário 1 — venda avulsa de produto (varejo)', () => {
     test('/orders render+empty → cria avulsa, atribui ao operador, fecha com pagamento → fechada + comissão pendente; sem cliente/agendamento', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       // Produto comissionável (50% de R$ 30 = R$ 15) — comissiona o membro.
-      seedCatalogItem(tenant.tenantId, {
+      seedCatalogItem(org.orgId, {
         kind: 'product',
         name: 'Cimento CP-II',
         priceCents: 3000,
         commission: { kind: 'percentage', value: 50 },
-        unitIds: [tenant.unitIds[0]!],
+        unitIds: [org.unitIds[0]!],
       })
 
       // Baseline render + empty: sem vendas na unidade → protagonist empty-state
@@ -184,16 +184,16 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
 
       // Invariantes lidos do Firestore: a venda fechou SEM cliente, SEM
       // agendamento, com o item atribuído ao operador.
-      const order = readOrders(tenant.tenantId).find((o) => o.status === 'closed')
+      const order = readOrders(org.orgId).find((o) => o.status === 'closed')
       expect(order).toBeDefined()
       expect(order!.customerId).toBeNull()
       expect(order!.appointmentId).toBeNull()
-      expect(order!.itemAttributions).toEqual([tenant.uid])
+      expect(order!.itemAttributions).toEqual([org.uid])
 
       // Comissão PENDENTE gerada pro membro que vendeu (o operador).
-      const commissions = readCommissions(tenant.tenantId)
+      const commissions = readCommissions(org.orgId)
       expect(commissions).toHaveLength(1)
-      expect(commissions[0]!.attributedUserId).toBe(tenant.uid)
+      expect(commissions[0]!.attributedUserId).toBe(org.uid)
       expect(commissions[0]!.liquidationStatus).toBe('pendente')
     })
   })
@@ -203,23 +203,23 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
   // profissional, e o fechamento cascateia a comissão do serviço como antes.
   test.describe('Cenário 2 — comanda de serviço segue intacta', () => {
     test('agenda → iniciar atendimento → venda ligada ao appointment, serviço atribuído ao pro, fecha + cascata de comissão', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const serviceId = seedService(tenant.tenantId, {
+      const serviceId = seedService(org.orgId, {
         name: 'Corte Jornada',
         durationMinutes: 30,
         priceCents: 5000,
         commission: { kind: 'percentage', value: 40 },
       })
-      const customerId = seedCustomer(tenant.tenantId, {
+      const customerId = seedCustomer(org.orgId, {
         name: 'Cliente Agendado',
         whatsapp: '11955554444',
       })
       seedAppointment({
-        tenantId: tenant.tenantId,
-        unitId: tenant.unitIds[0]!,
-        professionalId: tenant.professionalIds[0]!,
+        orgId: org.orgId,
+        unitId: org.unitIds[0]!,
+        professionalId: org.professionalIds[0]!,
         customerId,
         serviceId,
         startAt: '2026-09-08T17:00:00.000Z',
@@ -244,18 +244,18 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       const serviceRow = authedPage.getByRole('listitem').filter({ hasText: 'Corte Jornada' })
       await expect(serviceRow.getByRole('combobox', { name: 'Executor' })).toBeVisible()
 
-      const proUid = `e2e-prof-user-${tenant.professionalIds[0]!}`
+      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
       await closeWithCash(authedPage)
 
       // Invariantes: venda ligada ao appointment, com cliente, serviço atribuído
       // ao profissional; cascata gera a comissão dele.
-      const order = readOrders(tenant.tenantId).find((o) => o.status === 'closed')
+      const order = readOrders(org.orgId).find((o) => o.status === 'closed')
       expect(order).toBeDefined()
       expect(order!.customerId).toBe(customerId)
       expect(order!.appointmentId).not.toBeNull()
       expect(order!.itemAttributions).toEqual([proUid])
 
-      const commissions = readCommissions(tenant.tenantId)
+      const commissions = readCommissions(org.orgId)
       expect(commissions).toHaveLength(1)
       expect(commissions[0]!.attributedUserId).toBe(proUid)
       expect(commissions[0]!.liquidationStatus).toBe('pendente')
@@ -268,25 +268,25 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
   // always carries an owner.
   test.describe('Cenário 3 — atribuição obrigatória com default', () => {
     test('serviço-agendamento → pro; produto → operador (editável p/ outro membro); todo item tem dono', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const serviceId = seedService(tenant.tenantId, {
+      const serviceId = seedService(org.orgId, {
         name: 'Corte',
         durationMinutes: 30,
         priceCents: 5000,
         commission: { kind: 'percentage', value: 50 },
       })
-      seedProduct(tenant.tenantId, { name: 'Pomada', priceCents: 2000 })
-      const gerente = seedMember(tenant.tenantId, { role: 'manager', displayName: 'Gerente Loja' })
-      const customerId = seedCustomer(tenant.tenantId, {
+      seedProduct(org.orgId, { name: 'Pomada', priceCents: 2000 })
+      const gerente = seedMember(org.orgId, { role: 'manager', displayName: 'Gerente Loja' })
+      const customerId = seedCustomer(org.orgId, {
         name: 'Cliente Default',
         whatsapp: '11955552222',
       })
       seedAppointment({
-        tenantId: tenant.tenantId,
-        unitId: tenant.unitIds[0]!,
-        professionalId: tenant.professionalIds[0]!,
+        orgId: org.orgId,
+        unitId: org.unitIds[0]!,
+        professionalId: org.professionalIds[0]!,
         customerId,
         serviceId,
         startAt: '2026-09-08T17:00:00.000Z',
@@ -322,8 +322,8 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       await expect(productSeller()).toHaveText('Gerente Loja')
 
       // Invariante: NENHUM item fica sem dono — serviço pro pro, produto pro gerente.
-      const proUid = `e2e-prof-user-${tenant.professionalIds[0]!}`
-      const order = readOrders(tenant.tenantId).find((o) => o.appointmentId != null)
+      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
+      const order = readOrders(org.orgId).find((o) => o.appointmentId != null)
       expect(order).toBeDefined()
       expect(order!.itemAttributions).not.toContain(null)
       expect(order!.itemAttributions).toContain(proUid)
@@ -339,21 +339,21 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
   // baseline (cancelling an open sale re-renders the list).
   test.describe('Cenário 4 — comissão pro vendedor não-profissional', () => {
     test('produto comissionável da recepção fecha → comissão por membro pendente em /reports/commissions; produto sem regra não comissiona; cancelar re-renderiza', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       // Produto comissionável (50% de R$ 30 = R$ 15) — comissiona qualquer membro.
-      seedCatalogItem(tenant.tenantId, {
+      seedCatalogItem(org.orgId, {
         kind: 'product',
         name: 'Argamassa',
         priceCents: 3000,
         commission: { kind: 'percentage', value: 50 },
-        unitIds: [tenant.unitIds[0]!],
+        unitIds: [org.unitIds[0]!],
       })
       // Produto SEM regra (degenerado): atribuído mas não comissiona.
-      seedProduct(tenant.tenantId, { name: 'Prego Sem Comissao', priceCents: 1000 })
+      seedProduct(org.orgId, { name: 'Prego Sem Comissao', priceCents: 1000 })
       // Recepção SEM Professional projection — o caso que a generalização destrava.
-      const recepcao = seedMember(tenant.tenantId, {
+      const recepcao = seedMember(org.orgId, {
         role: 'receptionist',
         displayName: 'Recepção Balcão',
       })
@@ -408,11 +408,11 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
 
       // Invariantes lidos do Firestore: ambos os produtos atribuídos à recepção;
       // SÓ uma comissão (do comissionável), chaveada pelo userId dela, pendente.
-      const closed = readOrders(tenant.tenantId).find((o) => o.status === 'closed')
+      const closed = readOrders(org.orgId).find((o) => o.status === 'closed')
       expect(closed).toBeDefined()
       expect(closed!.itemAttributions).toEqual([recepcao.userId, recepcao.userId])
 
-      const commissions = readCommissions(tenant.tenantId)
+      const commissions = readCommissions(org.orgId)
       expect(commissions).toHaveLength(1)
       expect(commissions[0]!.attributedUserId).toBe(recepcao.userId)
       expect(commissions[0]!.itemName).toBe('Argamassa')

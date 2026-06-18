@@ -1,30 +1,30 @@
 import { expect, test } from '../fixtures'
 import { linkProfessionalToServices, seedService } from '../helpers/session'
-import { PublicBookingPage, tenantSlug } from '../pages'
+import { PublicBookingPage, orgSlug } from '../pages'
 
 // Issue #841 — Catálogo público de serviços da unit (capability D / V0.1).
 //
 // Covers:
-//   - Single-unit tenant: `/{tenantSlug}` short-circuits to the unit catalog.
-//   - Multi-unit tenant: `/{tenantSlug}` renders the picker;
-//     `/{tenantSlug}/{unitSlug}` renders the unit-scoped catalog.
+//   - Single-unit org: `/{orgSlug}` short-circuits to the unit catalog.
+//   - Multi-unit org: `/{orgSlug}` renders the picker;
+//     `/{orgSlug}/{unitSlug}` renders the unit-scoped catalog.
 //   - `priceVisibility='on_request'` renders "Sob consulta".
 //   - `?professional={id}` filters the catalog to services the pro executes.
 
 test.describe('Landing pública — catálogo por unidade', () => {
   test.describe('empresa com 1 unidade', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
-    test('`/{tenantSlug}` renderiza o catálogo da unidade inline', async ({ tenant, page }) => {
-      seedService(tenant.tenantId, {
+    test('`/{orgSlug}` renderiza o catálogo da unidade inline', async ({ org, page }) => {
+      seedService(org.orgId, {
         name: 'Corte Single',
         durationMinutes: 30,
         priceCents: 6500,
         publicVisible: true,
-        unitIds: [tenant.unitIds[0]!],
+        unitIds: [org.unitIds[0]!],
       })
 
-      const booking = new PublicBookingPage(page, tenantSlug(tenant.tenantId))
+      const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoCatalog()
       // No picker — the catalog renders inline.
       await expect(page.getByRole('heading', { name: /escolha uma unidade/i })).toHaveCount(0)
@@ -34,29 +34,29 @@ test.describe('Landing pública — catálogo por unidade', () => {
   })
 
   test.describe('empresa multi-unidade', () => {
-    test.use({ tenantInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
 
-    test('picker → catálogo da unidade → trocar unidade', async ({ tenant, page }) => {
+    test('picker → catálogo da unidade → trocar unidade', async ({ org, page }) => {
       // Different services per unit so the unit-scoped catalog is observable.
-      const unitA = tenant.unitIds[0]!
-      const unitB = tenant.unitIds[1]!
-      seedService(tenant.tenantId, {
+      const unitA = org.unitIds[0]!
+      const unitB = org.unitIds[1]!
+      seedService(org.orgId, {
         name: 'Corte Centro',
         priceCents: 5000,
         publicVisible: true,
         unitIds: [unitA],
       })
-      seedService(tenant.tenantId, {
+      seedService(org.orgId, {
         name: 'Corte Filial',
         priceCents: 7500,
         publicVisible: true,
         unitIds: [unitB],
       })
 
-      const slug = tenantSlug(tenant.tenantId)
+      const slug = orgSlug(org.orgId)
       const booking = new PublicBookingPage(page, slug)
 
-      // `/{tenantSlug}` shows the picker — both unit names visible.
+      // `/{orgSlug}` shows the picker — both unit names visible.
       await booking.gotoCatalog()
       await expect(page.getByRole('heading', { name: /escolha uma unidade/i })).toBeVisible()
       await expect(page.getByText('Unidade 1')).toBeVisible()
@@ -76,18 +76,18 @@ test.describe('Landing pública — catálogo por unidade', () => {
   })
 
   test.describe("price visibility 'on_request'", () => {
-    test.use({ tenantInput: { unitCount: 1 } })
+    test.use({ orgInput: { unitCount: 1 } })
 
-    test("renderiza 'Sob consulta' e nunca expõe o preço", async ({ tenant, page }) => {
-      seedService(tenant.tenantId, {
+    test("renderiza 'Sob consulta' e nunca expõe o preço", async ({ org, page }) => {
+      seedService(org.orgId, {
         name: 'Premium Negociado',
         priceCents: 99999,
         publicVisible: true,
         priceVisibility: 'on_request',
-        unitIds: [tenant.unitIds[0]!],
+        unitIds: [org.unitIds[0]!],
       })
 
-      const booking = new PublicBookingPage(page, tenantSlug(tenant.tenantId))
+      const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoCatalog()
       await expect(booking.serviceCard('Premium Negociado')).toBeVisible()
       await expect(page.getByText(/sob consulta/i)).toBeVisible()
@@ -97,22 +97,22 @@ test.describe('Landing pública — catálogo por unidade', () => {
   })
 
   test.describe('filtro por profissional', () => {
-    test.use({ tenantInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
 
     test('?professional={id} filtra catálogo aos serviços que o pro executa', async ({
-      tenant,
+      org,
       page,
     }) => {
-      const unitA = tenant.unitIds[0]!
-      const slug = tenantSlug(tenant.tenantId)
+      const unitA = org.unitIds[0]!
+      const slug = orgSlug(org.orgId)
 
-      const svcA = seedService(tenant.tenantId, {
+      const svcA = seedService(org.orgId, {
         name: 'Corte Pro-A',
         priceCents: 5000,
         publicVisible: true,
         unitIds: [unitA],
       })
-      seedService(tenant.tenantId, {
+      seedService(org.orgId, {
         name: 'Corte Pro-Outro',
         priceCents: 6000,
         publicVisible: true,
@@ -120,9 +120,9 @@ test.describe('Landing pública — catálogo por unidade', () => {
       })
 
       // The pro executes only svcA at unit A.
-      linkProfessionalToServices(tenant.tenantId, tenant.professionalIds[0]!, [svcA])
+      linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [svcA])
 
-      await page.goto(`/${slug}/unidade-1?professional=${tenant.professionalIds[0]}`)
+      await page.goto(`/${slug}/unidade-1?professional=${org.professionalIds[0]}`)
       await expect(page.getByText(/filtrado por profissional/i)).toBeVisible()
       await expect(page.getByText('Corte Pro-A')).toBeVisible()
       await expect(page.getByText('Corte Pro-Outro')).toHaveCount(0)

@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures'
 import { seedAppointment, seedCustomer, seedService } from '../helpers/session'
-import { AgendaPage, PublicBookingPage, tenantSlug } from '../pages'
+import { AgendaPage, PublicBookingPage, orgSlug } from '../pages'
 
 // Issue #871 — opt-in cancellation policy + no-show flow.
 // Wiki: 04-Roadmap-Politica-Cancelamento.
@@ -14,21 +14,21 @@ import { AgendaPage, PublicBookingPage, tenantSlug } from '../pages'
 test.describe('Política de cancelamento — aviso na página pública', () => {
   test.describe('política habilitada', () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         unitCount: 1,
         professionalCount: 1,
         cancellationPolicy: { enabled: true, minNoticeMinutes: 60 },
       },
     })
 
-    test('aviso aparece com a antecedência configurada', async ({ tenant, page }) => {
-      seedService(tenant.tenantId, {
+    test('aviso aparece com a antecedência configurada', async ({ org, page }) => {
+      seedService(org.orgId, {
         name: 'Corte',
         durationMinutes: 30,
         priceCents: 5000,
         publicVisible: true,
       })
-      const booking = new PublicBookingPage(page, tenantSlug(tenant.tenantId))
+      const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoBookLegacy()
       const notice = page.getByText(/Você pode cancelar a qualquer momento pelo app/i)
       await expect(notice).toBeVisible()
@@ -37,16 +37,16 @@ test.describe('Política de cancelamento — aviso na página pública', () => {
   })
 
   test.describe('política desabilitada', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
-    test('aviso fica ausente', async ({ tenant, page }) => {
-      seedService(tenant.tenantId, {
+    test('aviso fica ausente', async ({ org, page }) => {
+      seedService(org.orgId, {
         name: 'Corte',
         durationMinutes: 30,
         priceCents: 5000,
         publicVisible: true,
       })
-      const booking = new PublicBookingPage(page, tenantSlug(tenant.tenantId))
+      const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoBookLegacy()
       await expect(page.getByText(/Você pode cancelar a qualquer momento pelo app/i)).toHaveCount(0)
     })
@@ -55,7 +55,7 @@ test.describe('Política de cancelamento — aviso na página pública', () => {
 
 test.describe('Não-comparecimento — marcar e desmarcar', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -64,13 +64,13 @@ test.describe('Não-comparecimento — marcar e desmarcar', () => {
     },
   })
 
-  test('round-trip mark + unmark via diálogo de edição', async ({ tenant, authedPage }) => {
-    const serviceId = seedService(tenant.tenantId, {
+  test('round-trip mark + unmark via diálogo de edição', async ({ org, authedPage }) => {
+    const serviceId = seedService(org.orgId, {
       name: 'Corte',
       durationMinutes: 30,
       priceCents: 5000,
     })
-    const customerId = seedCustomer(tenant.tenantId, {
+    const customerId = seedCustomer(org.orgId, {
       name: 'Cliente NoShow',
       whatsapp: '11988887777',
     })
@@ -78,11 +78,11 @@ test.describe('Não-comparecimento — marcar e desmarcar', () => {
     // = 13:00 UTC). The "Marcar não compareceu" gate only requires
     // `now >= scheduledStartAt`, so any deterministic past timestamp works
     // and avoids the wall-clock flake we used to hit when the test ran
-    // outside BR business hours (or close to midnight in the tenant tz).
+    // outside BR business hours (or close to midnight in the org tz).
     seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
-      professionalId: tenant.professionalIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
+      professionalId: org.professionalIds[0]!,
       customerId,
       serviceId,
       startAt: '2024-01-16T13:00:00.000Z',

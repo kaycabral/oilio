@@ -10,7 +10,7 @@ import {
 // Brief 0042 (#1115) — acompanhamento, projeção e receita recorrente. O Copiloto
 // opera na unidade ativa (brief 0045): sem rollup multi-unidade.
 test.describe('Copiloto — acompanhamento & projeção', () => {
-  test.use({ tenantInput: { unitCount: 1 } })
+  test.use({ orgInput: { unitCount: 1 } })
 
   // Cenário 1 (parte acompanhamento) + AC-05/AC-06 no caso degenerado: meta
   // definida, mês sem vendas → realizado R$ 0,00, projeção n/d (sem ÷0), e o
@@ -37,21 +37,18 @@ test.describe('Copiloto — acompanhamento & projeção', () => {
   // Cenário 4 (AC-08): receita recorrente reconhecida (cobrança de assinatura
   // liquidada no período) entra no realizado; o MRR aparece à parte como
   // observação — nunca dentro do realizado.
-  test('receita recorrente entra no realizado; MRR fica à parte', async ({
-    authedPage,
-    tenant,
-  }) => {
-    const unitId = tenant.unitIds[0]
-    assertDefined(unitId, 'expected a 1-unit tenant')
-    const customerId = seedCustomer(tenant.tenantId, {})
+  test('receita recorrente entra no realizado; MRR fica à parte', async ({ authedPage, org }) => {
+    const unitId = org.unitIds[0]
+    assertDefined(unitId, 'expected a 1-unit org')
+    const customerId = seedCustomer(org.orgId, {})
     // Assinatura ativa R$ 90/mês → MRR observado. NÃO entra no realizado.
-    seedSubscription(tenant.tenantId, customerId, {
+    seedSubscription(org.orgId, customerId, {
       unitId,
       priceCents: 9000,
       status: 'active',
     })
     // Cobrança de assinatura JÁ liquidada neste mês → R$ 300 recorrente reconhecido.
-    seedPaidCharge(tenant.tenantId, {
+    seedPaidCharge(org.orgId, {
       unitId,
       amountCents: 30000,
       paidAt: new Date().toISOString(),
@@ -82,21 +79,21 @@ test.describe('Copiloto — acompanhamento & projeção', () => {
 // (`charge.unitId == unidade ativa`); cobranças de outra unidade não vazam.
 // Guardrail contra rollup acidental no read-model do Copiloto.
 test.describe('Copiloto — isolamento por unidade (Cenário 2)', () => {
-  test.use({ tenantInput: { unitCount: 2 } })
+  test.use({ orgInput: { unitCount: 2 } })
 
   test('recorrente de outra unidade NÃO entra no realizado da unidade ativa', async ({
     authedPage,
-    tenant,
+    org,
   }) => {
-    const activeUnitId = tenant.unitIds[0]
-    const otherUnitId = tenant.unitIds[1]
-    assertDefined(activeUnitId, 'expected a 2-unit tenant')
-    assertDefined(otherUnitId, 'expected a 2-unit tenant')
-    const customerId = seedCustomer(tenant.tenantId, {})
+    const activeUnitId = org.unitIds[0]
+    const otherUnitId = org.unitIds[1]
+    assertDefined(activeUnitId, 'expected a 2-unit org')
+    assertDefined(otherUnitId, 'expected a 2-unit org')
+    const customerId = seedCustomer(org.orgId, {})
     const paidAt = new Date().toISOString()
 
     // Cobrança liquidada na unidade ATIVA (A) → R$ 300 reconhecidos.
-    seedPaidCharge(tenant.tenantId, {
+    seedPaidCharge(org.orgId, {
       unitId: activeUnitId,
       amountCents: 30000,
       paidAt,
@@ -104,7 +101,7 @@ test.describe('Copiloto — isolamento por unidade (Cenário 2)', () => {
     })
     // Cobrança liquidada na OUTRA unidade (B) → R$ 500. NÃO pode entrar no
     // realizado de A (sem rollup).
-    seedPaidCharge(tenant.tenantId, {
+    seedPaidCharge(org.orgId, {
       unitId: otherUnitId,
       amountCents: 50000,
       paidAt,
@@ -112,7 +109,7 @@ test.describe('Copiloto — isolamento por unidade (Cenário 2)', () => {
     })
 
     // Unidade A ativa (mesma do mrr-per-unit, #1118): fixa o contexto sem
-    // passar pelo interstitial de seleção do tenant multi-unidade.
+    // passar pelo interstitial de seleção do org multi-unidade.
     await setActiveUnitCookie(authedPage.context(), activeUnitId)
     await authedPage.goto('/copilot')
     await authedPage.getByLabel('Meta de lucro do mês (R$)').fill('5000')

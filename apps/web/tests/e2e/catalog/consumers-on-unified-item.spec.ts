@@ -25,7 +25,7 @@ import {
   seedService,
   seedSubscription,
 } from '../helpers/session'
-import { AgendaPage, PublicBookingPage, tenantSlug } from '../pages'
+import { AgendaPage, PublicBookingPage, orgSlug } from '../pages'
 
 const fieldStr = (fields: Record<string, FsValue> | null, key: string): string | null =>
   strField(fields ?? undefined, key) ?? null
@@ -34,7 +34,7 @@ const fieldInt = (fields: Record<string, FsValue> | null, key: string): string |
 
 test.describe('Consumidores no item unificado (#1004)', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -46,21 +46,21 @@ test.describe('Consumidores no item unificado (#1004)', () => {
   // AC-06: booking via agenda referencia um CatalogItem kind service e congela
   // os snapshots (preço/duração/comissão) no commit.
   test('AC-06 — agenda books a catalog service and freezes the snapshot', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const serviceId = seedService(tenant.tenantId, {
+    const serviceId = seedService(org.orgId, {
       name: 'Corte Unificado',
       durationMinutes: 30,
       priceCents: 5000,
       commission: { kind: 'percentage', value: 40 },
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
     // The returned id resolves as a kind-service catalog item.
-    expect(fieldStr(readCatalogItem(tenant.tenantId, serviceId), 'kind')).toBe('service')
+    expect(fieldStr(readCatalogItem(org.orgId, serviceId), 'kind')).toBe('service')
 
     const customerName = `Cliente Unificado ${Date.now()}`
-    seedCustomer(tenant.tenantId, { name: customerName, whatsapp: '11955551111' })
+    seedCustomer(org.orgId, { name: customerName, whatsapp: '11955551111' })
 
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-08-12')
@@ -78,9 +78,9 @@ test.describe('Consumidores no item unificado (#1004)', () => {
     await expect(dialog).toBeHidden()
 
     // Assert the appointment references the catalog service id + froze snapshots.
-    const apptId = listAppointmentIds(tenant.tenantId)[0]
+    const apptId = listAppointmentIds(org.orgId)[0]
     expect(apptId).toBeTruthy()
-    const appt = readAppointment(tenant.tenantId, apptId!)
+    const appt = readAppointment(org.orgId, apptId!)
     expect(fieldStr(appt, 'serviceId')).toBe(serviceId)
     expect(fieldInt(appt, 'servicePriceCentsSnapshot')).toBe('5000')
     expect(fieldInt(appt, 'serviceDurationMinutesSnapshot')).toBe('30')
@@ -91,25 +91,25 @@ test.describe('Consumidores no item unificado (#1004)', () => {
   // AC-06 (semantic that slice 2 left open): plano com includedCategoryIds
   // restrito bloqueia booking de serviço fora da categoria coberta.
   test('AC-06 — category-restricted plan blocks a service outside its coverage', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const coveredCat = seedCategory(tenant.tenantId, { name: 'Cabelo' })
+    const coveredCat = seedCategory(org.orgId, { name: 'Cabelo' })
     // Service whose category is NOT in the plan's includedCategoryIds.
-    seedService(tenant.tenantId, {
+    seedService(org.orgId, {
       name: 'Estetica Fora',
       durationMinutes: 30,
       priceCents: 5000,
       category: 'cat-estetica-uncovered',
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
 
     const customerName = `Plano Categoria ${Date.now()}`
-    const customerId = seedCustomer(tenant.tenantId, {
+    const customerId = seedCustomer(org.orgId, {
       name: customerName,
       whatsapp: '11955552222',
     })
-    seedSubscription(tenant.tenantId, customerId, { includedCategoryIds: [coveredCat] })
+    seedSubscription(org.orgId, customerId, { includedCategoryIds: [coveredCat] })
 
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-08-13')
@@ -128,26 +128,26 @@ test.describe('Consumidores no item unificado (#1004)', () => {
   // AC-07 + AC-06: comanda mista (serviço + produto) fecha resolvendo ambos
   // contra catalog_items e gera comissão do serviço.
   test('AC-07 — closing a comanda with service + product resolves both kinds', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const serviceId = seedService(tenant.tenantId, {
+    const serviceId = seedService(org.orgId, {
       name: 'Corte Comanda',
       durationMinutes: 30,
       priceCents: 5000,
       commission: { kind: 'percentage', value: 50 },
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
-    seedProduct(tenant.tenantId, { name: 'Pomada Comanda', priceCents: 3000 })
-    const customerId = seedCustomer(tenant.tenantId, {
+    seedProduct(org.orgId, { name: 'Pomada Comanda', priceCents: 3000 })
+    const customerId = seedCustomer(org.orgId, {
       name: 'Cliente Comanda',
       whatsapp: '11955553333',
     })
     // Seed a scheduled appointment so "Iniciar atendimento" opens the order.
     seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
-      professionalId: tenant.professionalIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
+      professionalId: org.professionalIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',
@@ -188,24 +188,24 @@ test.describe('Consumidores no item unificado (#1004)', () => {
   // AC-08: catálogo público lê catalog_items kind service e renderiza serviços
   // públicos na landing.
   test('AC-08 — public landing renders public catalog services from catalog_items', async ({
-    tenant,
+    org,
     page,
   }) => {
-    seedService(tenant.tenantId, {
+    seedService(org.orgId, {
       name: 'Corte Publico',
       priceCents: 6500,
       publicVisible: true,
-      unitIds: [tenant.unitIds[0]!],
+      unitIds: [org.unitIds[0]!],
     })
     // Internal-only service must NOT leak to the public catalog.
-    seedService(tenant.tenantId, {
+    seedService(org.orgId, {
       name: 'Corte Interno',
       priceCents: 4000,
       publicVisible: false,
-      unitIds: [tenant.unitIds[0]!],
+      unitIds: [org.unitIds[0]!],
     })
 
-    const booking = new PublicBookingPage(page, tenantSlug(tenant.tenantId))
+    const booking = new PublicBookingPage(page, orgSlug(org.orgId))
     await booking.gotoCatalog()
     await expect(booking.serviceCard('Corte Publico')).toBeVisible()
     await expect(page.getByText(/R\$\s*65,00/)).toBeVisible()

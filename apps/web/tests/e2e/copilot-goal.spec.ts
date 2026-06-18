@@ -5,7 +5,7 @@ import { expect, test } from './fixtures'
 // editar → reflete. Exercita o fluxo de verdade (form real, server action,
 // emitEvent → projeção), não um seed idealizado.
 test.describe('Copiloto — meta de lucro (CRUD)', () => {
-  test.use({ tenantInput: { unitCount: 1 } })
+  test.use({ orgInput: { unitCount: 1 } })
 
   test('empty-state → define → edita pelo fluxo real', async ({ authedPage }) => {
     await authedPage.goto('/copilot')

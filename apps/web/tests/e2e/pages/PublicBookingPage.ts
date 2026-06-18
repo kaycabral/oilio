@@ -5,7 +5,7 @@ import { chooseOptionByIndex } from '../helpers/select'
 // `landing-public-*` and `self-book-*` specs.
 //
 // The flow has 4 surfaces:
-//   1. `/[slug]`                            — tenant catalog (legacy aggregate)
+//   1. `/[slug]`                            — org catalog (legacy aggregate)
 //   2. `/[slug]/[unitSlug]`                 — per-unit catalog (Step 1 of #844)
 //   3. `/[slug]/[unitSlug]/availability`    — slot picker (Step 2)
 //   4. `/[slug]/[unitSlug]/book`            — confirmation form (Step 3)
@@ -44,7 +44,7 @@ export class PublicBookingPage {
 
   // ── Catalog assertions ──────────────────────────────────────────────────
 
-  tenantHeading(): Locator {
+  orgHeading(): Locator {
     return this.page.getByRole('heading', { level: 1 })
   }
 
@@ -106,8 +106,8 @@ export class PublicBookingPage {
   }
 }
 
-// Convenience: most specs derive the slug from `seedTenant()` output —
-// `e2e-${tenantId}` lowercase. Keep the formula in one place.
-export function tenantSlug(tenantId: string): string {
-  return `e2e-${tenantId}`.toLowerCase()
+// Convenience: most specs derive the slug from `seedOrg()` output —
+// `e2e-${orgId}` lowercase. Keep the formula in one place.
+export function orgSlug(orgId: string): string {
+  return `e2e-${orgId}`.toLowerCase()
 }

@@ -7,19 +7,19 @@
 // opens the real creation flow.
 
 import { expect, test } from '../fixtures'
-import { seedTenant, signInAndAttachSession } from '../helpers/session'
+import { seedOrg, signInAndAttachSession } from '../helpers/session'
 
 test.describe(
   'Owner — onboarding just-in-time → operável (#1076 · 0035)',
   { tag: '@critical' },
   () => {
-    test('tenant recém-criado é operável; o empty-state CTA abre o create real (AC-05)', async ({
+    test('org recém-criado é operável; o empty-state CTA abre o create real (AC-05)', async ({
       context,
       page,
       baseURL,
     }) => {
-      // Owner completo, tenant sem nenhuma unidade — o estado logo após o signup.
-      const seed = await seedTenant({ unitCount: 0, professionalCount: 0 })
+      // Owner completo, org sem nenhuma unidade — o estado logo após o signup.
+      const seed = await seedOrg({ unitCount: 0, professionalCount: 0 })
       await signInAndAttachSession(context, seed.email, seed.password, baseURL ?? undefined)
 
       // Operável desde já: nenhum gate global trava o app sem setup (brief 0008).

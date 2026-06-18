@@ -1,12 +1,12 @@
 import { expect, test } from '../fixtures'
 
 // Baseline E2E for #986 (brief 0008, Grupo A) — the app is operable from
-// signup with NO global onboarding gate. A brand-new tenant with no units,
+// signup with NO global onboarding gate. A brand-new org with no units,
 // professionals or services must reach every internal route (nothing bounces
 // it away — the onboarding wizard is gone since #1028).
 //
 // AC-01 [critical] [smoke] — every authenticated internal route is reachable
-//   for an empty tenant; nothing blocks the app.
+//   for an empty org; nothing blocks the app.
 // AC-02 [critical] — route access is independent of setup completeness (no
 //   global gate).
 //
@@ -18,7 +18,7 @@ import { expect, test } from '../fixtures'
 // `/team`, which is the people surface this sweep already covers via the nav.
 // `/agenda` is intentionally NOT here: the app is multi-vertical, and the
 // Agenda is hidden/redirected when no unit uses the appointment hours mode.
-// An empty tenant (no units) has no appointment-mode unit, so visiting
+// An empty org (no units) has no appointment-mode unit, so visiting
 // `/agenda` redirects to `/orders` and the nav hides the Agenda item. The
 // agenda-hidden invariant is asserted separately below.
 const INTERNAL_ROUTES = [
@@ -32,10 +32,10 @@ const INTERNAL_ROUTES = [
 
 test.describe('Onboarding — app usable without setup (#986)', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: { unitCount: 0, professionalCount: 0 },
+    orgInput: { unitCount: 0, professionalCount: 0 },
   })
 
-  test('AC-01/AC-02: empty tenant reaches every internal route without an onboarding gate', async ({
+  test('AC-01/AC-02: empty org reaches every internal route without an onboarding gate', async ({
     authedPage,
   }) => {
     for (const route of INTERNAL_ROUTES) {
@@ -48,7 +48,7 @@ test.describe('Onboarding — app usable without setup (#986)', { tag: '@critica
       // AC-01: the requested route actually rendered…
       await expect(authedPage).toHaveURL(new RegExp(`${route}(/|\\?|$)`))
       // …with the authenticated app shell present (sidebar nav rendered).
-      // Agenda is hidden for this no-appointment-unit tenant, so we anchor the
+      // Agenda is hidden for this no-appointment-unit org, so we anchor the
       // shell on a vertical-agnostic nav item that's always present.
       await expect(authedPage.getByRole('link', { name: 'Vendas' }).first()).toBeVisible()
 
@@ -58,7 +58,7 @@ test.describe('Onboarding — app usable without setup (#986)', { tag: '@critica
     }
   })
 
-  // The Agenda is hidden/redirected for a tenant with no appointment-mode unit:
+  // The Agenda is hidden/redirected for a org with no appointment-mode unit:
   // visiting `/agenda` directly bounces to `/orders` (it is not an onboarding
   // gate — every other route still resolves, asserted above).
   test('sem unidade de agendamento: /agenda redireciona pra /orders e some do nav', async ({
@@ -70,7 +70,7 @@ test.describe('Onboarding — app usable without setup (#986)', { tag: '@critica
   })
 
   // Regressão: usuário autenticado abrindo `/` não pode ficar na landing
-  // pública (Hero). Era o bug pós-onboarding — `createTenant` faz
+  // pública (Hero). Era o bug pós-onboarding — `createOrg` faz
   // `redirect('/')` e o `/` não roteava o usuário logado pro app, deixando-o
   // "preso na tela de entrar". O `/` agora manda o autenticado pro app.
   test('usuário autenticado em `/` cai no app, não na landing pública', async ({ authedPage }) => {

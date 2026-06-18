@@ -37,17 +37,17 @@ async function setActiveUnitCookie(
 }
 
 test.describe('Definição default na unidade ativa (#1092)', () => {
-  test.describe('tenant multi-unidade', () => {
+  test.describe('org multi-unidade', () => {
     // Two units: "Unidade 1" (unitIds[0]) and "Unidade 2" (unitIds[1]).
-    test.use({ tenantInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
 
     test('novo item de catálogo pré-marca a unidade ativa, multi-select preservado', async ({
       context,
-      tenant,
+      org,
       authedPage,
       baseURL,
     }) => {
-      const [unitOne, unitTwo] = tenant.unitIds
+      const [unitOne, unitTwo] = org.unitIds
       expect(unitOne).toBeTruthy()
       expect(unitTwo).toBeTruthy()
 
@@ -80,13 +80,13 @@ test.describe('Definição default na unidade ativa (#1092)', () => {
 
     test('editar unidades de um profissional preserva a seleção atual (não reseta pra ativa)', async ({
       context,
-      tenant,
+      org,
       authedPage,
       baseURL,
     }) => {
-      const [unitOne, unitTwo] = tenant.unitIds
+      const [unitOne, unitTwo] = org.unitIds
       // The seeded professional is linked to ALL units (both).
-      const proUid = `e2e-prof-user-${tenant.professionalIds[0]!}`
+      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
 
       // Active unit = "Unidade 2"; the pro already has BOTH units stored.
       await setActiveUnitCookie(context, baseURL, unitTwo!)

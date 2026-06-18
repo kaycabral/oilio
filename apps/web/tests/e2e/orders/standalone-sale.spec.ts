@@ -19,7 +19,7 @@ import { AgendaPage } from '../pages'
 
 test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -39,11 +39,11 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
   })
 
   test('AC-01/AC-02: cria venda avulsa sem cliente → adiciona produto → fecha → lista fechadas', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     // Produto comissionável (50% de R$ 30 = R$ 15) atribuível ao profissional.
-    seedProduct(tenant.tenantId, { name: 'Cimento CP-II', priceCents: 3000 })
+    seedProduct(org.orgId, { name: 'Cimento CP-II', priceCents: 3000 })
 
     await authedPage.goto('/orders')
     await authedPage.getByRole('button', { name: 'Nova venda' }).click()
@@ -73,21 +73,21 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
     await expect(authedPage.getByText('Fechada', { exact: true }).first()).toBeVisible()
   })
 
-  test('Regressão: venda de agendamento mantém o cliente', async ({ tenant, authedPage }) => {
-    const serviceId = seedService(tenant.tenantId, {
+  test('Regressão: venda de agendamento mantém o cliente', async ({ org, authedPage }) => {
+    const serviceId = seedService(org.orgId, {
       name: 'Corte',
       durationMinutes: 30,
       priceCents: 5000,
       commission: { kind: 'percentage', value: 50 },
     })
-    const customerId = seedCustomer(tenant.tenantId, {
+    const customerId = seedCustomer(org.orgId, {
       name: 'Cliente Agendado',
       whatsapp: '11955554444',
     })
     seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
-      professionalId: tenant.professionalIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
+      professionalId: org.professionalIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',

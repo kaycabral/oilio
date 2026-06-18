@@ -15,7 +15,7 @@ import { execFileSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { expect, test } from '../fixtures'
 import { FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
-import { seedCustomer, seedOpenOrder, type SeededTenant } from '../helpers/session'
+import { seedCustomer, seedOpenOrder, type SeededOrg } from '../helpers/session'
 
 function uniqueSuffix(): string {
   return `${Date.now()}-${randomBytes(4).toString('hex')}`
@@ -30,22 +30,22 @@ function fsBaseUrl(): string {
 // central typed helper (complete, schema-valid Order); `createdAt` is backdated
 // past the >24h staleness threshold (`selectOpenOrderPendencies`).
 function seedStaleOpenOrder(
-  tenant: SeededTenant,
+  org: SeededOrg,
   unitId: string,
   customerId: string,
   totalCents: number,
 ): string {
   return seedOpenOrder({
-    tenantId: tenant.tenantId,
+    orgId: org.orgId,
     unitId,
     customerId,
-    attributedUserId: tenant.uid,
+    attributedUserId: org.uid,
     totalCents,
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
   })
 }
 
-function seedNotification(tenantId: string, unitId: string, type: string): string {
+function seedNotification(orgId: string, unitId: string, type: string): string {
   const notifId = `e2e-notif-${uniqueSuffix()}`
   const now = new Date().toISOString()
   execFileSync(
@@ -54,7 +54,7 @@ function seedNotification(tenantId: string, unitId: string, type: string): strin
       '-fsS',
       '-X',
       'PATCH',
-      `${fsBaseUrl()}/tenants/${tenantId}/notifications/${notifId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -63,7 +63,7 @@ function seedNotification(tenantId: string, unitId: string, type: string): strin
       JSON.stringify({
         fields: {
           id: { stringValue: notifId },
-          tenantId: { stringValue: tenantId },
+          orgId: { stringValue: orgId },
           unitId: { stringValue: unitId },
           type: { stringValue: type },
           customerId: { nullValue: null },
@@ -92,26 +92,26 @@ test.describe(
   'Operational screens follow the active unit (#1090 · 0039 AC-01)',
   { tag: '@critical' },
   () => {
-    test.use({ tenantInput: { unitCount: 2 } })
+    test.use({ orgInput: { unitCount: 2 } })
 
     test('Dashboard + Notificações follow the top switcher; no per-feature unit control', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const [unitA, unitB] = tenant.unitIds
+      const [unitA, unitB] = org.unitIds
       expect(unitA).toBeTruthy()
       expect(unitB).toBeTruthy()
 
       // One distinct stale open order per unit → dashboard pendency by amount.
-      const custA = seedCustomer(tenant.tenantId, { name: 'Cliente Unidade A' })
-      const custB = seedCustomer(tenant.tenantId, { name: 'Cliente Unidade B' })
-      seedStaleOpenOrder(tenant, unitA!, custA, 11100)
-      seedStaleOpenOrder(tenant, unitB!, custB, 22200)
+      const custA = seedCustomer(org.orgId, { name: 'Cliente Unidade A' })
+      const custB = seedCustomer(org.orgId, { name: 'Cliente Unidade B' })
+      seedStaleOpenOrder(org, unitA!, custA, 11100)
+      seedStaleOpenOrder(org, unitB!, custB, 22200)
 
       // One distinct notification type per unit (birthday on A, new_customer
       // on B) so each unit's notifications are identifiable by label.
-      seedNotification(tenant.tenantId, unitA!, 'birthday')
-      seedNotification(tenant.tenantId, unitB!, 'new_customer')
+      seedNotification(org.orgId, unitA!, 'birthday')
+      seedNotification(org.orgId, unitB!, 'new_customer')
 
       const switcher = authedPage.getByLabel('Contexto da unidade')
 

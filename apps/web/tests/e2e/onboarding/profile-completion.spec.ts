@@ -4,7 +4,7 @@ import {
   readUser,
   seedAuthUser,
   seedInvite,
-  seedTenant,
+  seedOrg,
   signInAndAttachSession,
 } from '../helpers/session'
 
@@ -21,7 +21,7 @@ test.describe('Onboarding — conclusão de perfil', () => {
     const owner = await seedAuthUser({ completionCompleted: false })
     await signInAndAttachSession(context, owner.email, owner.password, baseURL ?? undefined)
 
-    // /onboarding is the post-login default for users without a tenant; the
+    // /onboarding is the post-login default for users without a org; the
     // page itself enforces the completion gate.
     await page.goto('/onboarding')
     await expect(page).toHaveURL(/\/onboarding\/profile/)
@@ -32,7 +32,7 @@ test.describe('Onboarding — conclusão de perfil', () => {
     await fillBirthDate(page, '15/04/1990')
     await page.getByRole('button', { name: /continuar/i }).click()
 
-    // Default `next` is /dashboard, but the user has no tenant — `/onboarding`
+    // Default `next` is /dashboard, but the user has no org — `/onboarding`
     // is where the membership-check would send them. We just need to leave
     // /onboarding/profile and not be sent back.
     await expect(page).not.toHaveURL(/\/onboarding\/profile/)
@@ -46,8 +46,8 @@ test.describe('Onboarding — conclusão de perfil', () => {
     page,
     baseURL,
   }) => {
-    // seedTenant pre-fills completionCompleted=true on the owner user doc.
-    const seed = await seedTenant({ unitCount: 1, professionalCount: 1 })
+    // seedOrg pre-fills completionCompleted=true on the owner user doc.
+    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
     await signInAndAttachSession(context, seed.email, seed.password, baseURL ?? undefined)
 
     // /dashboard renders directly — no bounce through /onboarding/profile.
@@ -95,18 +95,18 @@ test.describe('Onboarding — conclusão de perfil', () => {
     'convidado precisa completar perfil antes de aceitar o convite (#827 + #838)',
     { tag: '@critical' },
     async ({ context, page, baseURL }) => {
-      const owner = await seedTenant({ unitCount: 0, professionalCount: 0 })
+      const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
       // Explicitly seed the invitee without completion so the gate trips.
       const invitee = await seedAuthUser({ completionCompleted: false })
       const { inviteId, rawToken } = seedInvite({
-        tenantId: owner.tenantId,
+        orgId: owner.orgId,
         email: invitee.email,
         role: 'manager',
         invitedBy: owner.uid,
       })
       await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
 
-      await page.goto(`/invites/${owner.tenantId}/${inviteId}?token=${rawToken}`)
+      await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
       // Gate fires — landed on profile with `next` pointing back at the invite.
       await expect(page).toHaveURL(/\/onboarding\/profile/)
       await expect(page).toHaveURL(/next=/)
@@ -117,7 +117,7 @@ test.describe('Onboarding — conclusão de perfil', () => {
       await page.getByRole('button', { name: /continuar/i }).click()
 
       // After completion the user is back on the invite page and can accept.
-      await expect(page).toHaveURL(new RegExp(`/invites/${owner.tenantId}/${inviteId}`))
+      await expect(page).toHaveURL(new RegExp(`/invites/${owner.orgId}/${inviteId}`))
       await page.getByRole('button', { name: /aceitar convite/i }).click()
       await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
     },

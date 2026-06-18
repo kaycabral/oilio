@@ -18,7 +18,7 @@ test.describe('List-surface pattern — three states (#1072)', () => {
   test('no data → EmptyState protagonist, header CTA + filter tabs hidden', async ({
     authedPage,
   }) => {
-    // Fresh tenant: zero subscriptions ⇒ protagonist state.
+    // Fresh org: zero subscriptions ⇒ protagonist state.
     await authedPage.goto('/subscriptions')
 
     // AC-01: protagonist empty-state with a single create CTA.
@@ -32,13 +32,13 @@ test.describe('List-surface pattern — three states (#1072)', () => {
   })
 
   test('with data → normal chrome; filtered-empty → filters stay + no-results', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
     const planLabel = `Plano LS ${ts}`
-    seedSubscriptionPlan(tenant.tenantId, { name: planLabel })
-    seedCustomer(tenant.tenantId)
+    seedSubscriptionPlan(org.orgId, { name: planLabel })
+    seedCustomer(org.orgId)
 
     // Create one subscription through the real flow (lands as `pending` → open).
     await authedPage.goto('/subscriptions/new')

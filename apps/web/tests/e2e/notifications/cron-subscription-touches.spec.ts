@@ -79,8 +79,8 @@ function fsQuery(
   return results.map((r) => r.document).filter((doc): doc is FsDocument => doc !== undefined)
 }
 
-function patchSubscriptionPeriod(tenantId: string, subId: string, endAt: string): void {
-  const url = `${fsBaseUrl()}/tenants/${tenantId}/subscriptions/${subId}?updateMask.fieldPaths=currentPeriod.endAt`
+function patchSubscriptionPeriod(orgId: string, subId: string, endAt: string): void {
+  const url = `${fsBaseUrl()}/orgs/${orgId}/subscriptions/${subId}?updateMask.fieldPaths=currentPeriod.endAt`
   execFileSync(
     'curl',
     [
@@ -129,14 +129,14 @@ function shiftDate(dateISO: string, days: number): string {
 }
 
 test.describe.serial('Notification cron — subscription touches', () => {
-  test('AC-07: D-1 creates subscription_expiring_tomorrow', async ({ tenant, baseURL }) => {
-    const customerId = seedCustomer(tenant.tenantId)
-    const subId = seedSubscription(tenant.tenantId, customerId, { status: 'active' })
+  test('AC-07: D-1 creates subscription_expiring_tomorrow', async ({ org, baseURL }) => {
+    const customerId = seedCustomer(org.orgId)
+    const subId = seedSubscription(org.orgId, customerId, { status: 'active' })
 
     const today = nextWeekday()
     const tomorrow = shiftDate(today, 1)
     const endAtUTC = `${tomorrow}T12:00:00.000Z`
-    patchSubscriptionPeriod(tenant.tenantId, subId, endAtUTC)
+    patchSubscriptionPeriod(org.orgId, subId, endAtUTC)
 
     const now = cronNowForDate(today)
     const res = await fetch(
@@ -153,7 +153,7 @@ test.describe.serial('Notification cron — subscription touches', () => {
     )
     expect(body.created).toBeGreaterThanOrEqual(1)
 
-    const docs = fsQuery(`tenants/${tenant.tenantId}/notifications`, [
+    const docs = fsQuery(`orgs/${org.orgId}/notifications`, [
       { field: 'type', op: 'EQUAL', value: 'subscription_expiring_tomorrow' },
       { field: 'subscriptionId', op: 'EQUAL', value: subId },
     ])
@@ -161,14 +161,14 @@ test.describe.serial('Notification cron — subscription touches', () => {
     expect(docs.length).toBeGreaterThanOrEqual(1)
   })
 
-  test('AC-10: idempotent — second cron call does not duplicate', async ({ tenant, baseURL }) => {
-    const customerId = seedCustomer(tenant.tenantId)
-    const subId = seedSubscription(tenant.tenantId, customerId, { status: 'active' })
+  test('AC-10: idempotent — second cron call does not duplicate', async ({ org, baseURL }) => {
+    const customerId = seedCustomer(org.orgId)
+    const subId = seedSubscription(org.orgId, customerId, { status: 'active' })
 
     const today = nextWeekday()
     const tomorrow = shiftDate(today, 1)
     const endAtUTC = `${tomorrow}T12:00:00.000Z`
-    patchSubscriptionPeriod(tenant.tenantId, subId, endAtUTC)
+    patchSubscriptionPeriod(org.orgId, subId, endAtUTC)
 
     const now = cronNowForDate(today)
     const first = await fetch(
@@ -195,12 +195,12 @@ test.describe.serial('Notification cron — subscription touches', () => {
         .created,
     ).toBe(0)
 
-    const docs = fsQuery(`tenants/${tenant.tenantId}/notifications`, [
+    const docs = fsQuery(`orgs/${org.orgId}/notifications`, [
       { field: 'type', op: 'EQUAL', value: 'subscription_expiring_tomorrow' },
       { field: 'subscriptionId', op: 'EQUAL', value: subId },
     ])
 
-    const unitCount = tenant.unitIds.length
+    const unitCount = org.unitIds.length
     expect(docs).toHaveLength(unitCount)
   })
 })

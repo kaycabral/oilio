@@ -25,7 +25,7 @@ import {
   seedProduct,
   seedService,
   seedSubscription,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
@@ -54,8 +54,8 @@ const SubscriptionConsumedSchema = Schema.Struct({
 })
 const decodeSubscriptionConsumed = Schema.decodeUnknownSync(SubscriptionConsumedSchema)
 
-function readConsumed(tenantId: string, subId: string): number {
-  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenantId}/subscriptions/${subId}`
+function readConsumed(orgId: string, subId: string): number {
+  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/subscriptions/${subId}`
   const out = execFileSync('curl', ['-fsS', url, '-H', 'Authorization: Bearer owner'], {
     encoding: 'utf8',
   })
@@ -67,30 +67,30 @@ function readConsumed(tenantId: string, subId: string): number {
 // `withSubscription`, cria assinatura ativa por contagem (saldo 4) — chave dos
 // cenários de consumo.
 function seedServiceFor(
-  tenant: SeededTenant,
+  org: SeededOrg,
   customerName: string,
   whatsapp: string,
   withSubscription: boolean,
 ): { customerId: string; subId: string | null } {
-  const serviceId = seedService(tenant.tenantId, {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  // Cada cenário roda em tenant próprio (fixture) com whatsapp distinto — o
-  // Customer é tenant-scoped, sem colisão entre cenários.
-  const customerId = seedCustomer(tenant.tenantId, { name: customerName, whatsapp })
+  // Cada cenário roda em org próprio (fixture) com whatsapp distinto — o
+  // Customer é org-scoped, sem colisão entre cenários.
+  const customerId = seedCustomer(org.orgId, { name: customerName, whatsapp })
   const subId = withSubscription
-    ? seedSubscription(tenant.tenantId, customerId, {
+    ? seedSubscription(org.orgId, customerId, {
         planName: 'Mensal Corte',
         usageLimit: { kind: 'count', quantity: 4 },
       })
     : null
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -124,7 +124,7 @@ test.describe(
   { tag: '@critical' },
   () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         unitCount: 1,
         professionalCount: 1,
         professionalOperationalStatus: 'operational',
@@ -133,12 +133,9 @@ test.describe(
       },
     })
 
-    test('Cenário 1: venda real fecha com forma de pagamento real', async ({
-      tenant,
-      authedPage,
-    }) => {
+    test('Cenário 1: venda real fecha com forma de pagamento real', async ({ org, authedPage }) => {
       // Cliente SEM assinatura → o item é venda; o fechamento exige forma real.
-      seedServiceFor(tenant, 'Cliente Venda', '11944440001', false)
+      seedServiceFor(org, 'Cliente Venda', '11944440001', false)
       await startOrderFor(authedPage, 'Cliente Venda')
 
       // Total a pagar = o serviço vendido (R$ 50,00) — base da receita/NF futura.
@@ -153,10 +150,10 @@ test.describe(
     })
 
     test('Cenário 2: comanda 100% coberta fecha como consumo (sem tender, sem NF)', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const { subId } = seedServiceFor(tenant, 'Cliente Plano', '11944440002', true)
+      const { subId } = seedServiceFor(org, 'Cliente Plano', '11944440002', true)
       await startOrderFor(authedPage, 'Cliente Plano')
 
       // Marca o Corte como consumo do plano → comanda fica 100% coberta.
@@ -171,15 +168,15 @@ test.describe(
       await confirmClose(authedPage)
 
       // Saldo do plano decrementado; nenhuma receita/forma de pagamento gerada.
-      expect(readConsumed(tenant.tenantId, subId!)).toBe(1)
+      expect(readConsumed(org.orgId, subId!)).toBe(1)
     })
 
     test('Cenário 3: comanda mista (coberto + vendido) → paga só o produto', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const { subId } = seedServiceFor(tenant, 'Cliente Misto', '11944440003', true)
-      seedProduct(tenant.tenantId, { name: 'Pomada', priceCents: 3000 })
+      const { subId } = seedServiceFor(org, 'Cliente Misto', '11944440003', true)
+      seedProduct(org.orgId, { name: 'Pomada', priceCents: 3000 })
       await startOrderFor(authedPage, 'Cliente Misto')
 
       // Serviço coberto (consumo) → some do total a pagar.
@@ -201,7 +198,7 @@ test.describe(
 
       // Produto fechou com PIX; o serviço debitou 1 do plano.
       await expect(authedPage.getByText(/PIX/).first()).toBeVisible()
-      expect(readConsumed(tenant.tenantId, subId!)).toBe(1)
+      expect(readConsumed(org.orgId, subId!)).toBe(1)
     })
   },
 )

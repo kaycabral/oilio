@@ -18,28 +18,28 @@ import {
   seedCustomer,
   seedProduct,
   seedService,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
 // Serviço comissionável (50% de R$50 = R$25) + produto sem comissão (dado
 // degenerado: `commission: null` não gera Commission) + appointment agendado.
-function seedFixture(tenant: SeededTenant): void {
-  const serviceId = seedService(tenant.tenantId, {
+function seedFixture(org: SeededOrg): void {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte Comissionado',
     durationMinutes: 30,
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  seedProduct(tenant.tenantId, { name: 'Pomada Sem Comissao', priceCents: 3000 })
-  const customerId = seedCustomer(tenant.tenantId, {
+  seedProduct(org.orgId, { name: 'Pomada Sem Comissao', priceCents: 3000 })
+  const customerId = seedCustomer(org.orgId, {
     name: 'Cliente Comissao',
     whatsapp: '11955552222',
   })
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -69,7 +69,7 @@ async function closeOrder(authedPage: Page): Promise<void> {
 
 test.describe('Comissão 0022 — Definition of Done', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -79,10 +79,10 @@ test.describe('Comissão 0022 — Definition of Done', () => {
   })
 
   test('Cenário 1: comanda fechada gera comissão pendente; produto sem comissão não', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedFixture(tenant)
+    seedFixture(org)
     await startOrder(authedPage)
     // Produto sem comissão na mesma comanda (venda) — dado degenerado.
     await addCatalogItemToOrder(authedPage, 'Pomada Sem Comissao')
@@ -103,18 +103,15 @@ test.describe('Comissão 0022 — Definition of Done', () => {
     await expect(row.getByText('Pendente')).toBeVisible()
   })
 
-  test('Cenário 2: owner marca comissão como paga e fica imutável', async ({
-    tenant,
-    authedPage,
-  }) => {
-    seedFixture(tenant)
+  test('Cenário 2: owner marca comissão como paga e fica imutável', async ({ org, authedPage }) => {
+    seedFixture(org)
     await startOrder(authedPage)
     await closeOrder(authedPage)
 
     // Lote por membro (gesto que move dinheiro) — só aparece filtrado. A chave
     // da comissão é o `userId` do membro atribuído (brief 0030/0039), então o
     // filtro usa `?member=<userId>` — não o id do doc Professional.
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUser = `e2e-prof-user-${proId}`
     await authedPage.goto(`/reports/commissions?member=${proUser}`)
     const row = authedPage.getByRole('listitem').filter({ hasText: 'Corte Comissionado' })
@@ -131,10 +128,10 @@ test.describe('Comissão 0022 — Definition of Done', () => {
   })
 
   test('Cenário 3: visão por profissional e período com totais e comanda-origem', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedFixture(tenant)
+    seedFixture(org)
     await startOrder(authedPage)
     await closeOrder(authedPage)
 

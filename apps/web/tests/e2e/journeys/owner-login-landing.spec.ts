@@ -5,15 +5,15 @@
 // asserts ALL THREE branches end IN the app, never on the Hero — the bug becomes
 // a covered regression.
 //
-//   sem tenant            → /onboarding
+//   sem org            → /onboarding
 //   completion pendente   → /onboarding/profile
-//   com tenant (completo) → /dashboard
+//   com org (completo) → /dashboard
 
 import { expect, test } from '../fixtures'
-import { seedAuthUser, seedTenant, signInAndAttachSession } from '../helpers/session'
+import { seedAuthUser, seedOrg, signInAndAttachSession } from '../helpers/session'
 
 test.describe('Owner — login → landing por estado (#1076 · 0035)', { tag: '@critical' }, () => {
-  test('sem tenant (perfil completo) → /onboarding (nunca preso no Hero)', async ({
+  test('sem org (perfil completo) → /onboarding (nunca preso no Hero)', async ({
     context,
     page,
     baseURL,
@@ -36,8 +36,8 @@ test.describe('Owner — login → landing por estado (#1076 · 0035)', { tag: '
     await expect(page.getByRole('heading', { name: /completar seu cadastro/i })).toBeVisible()
   })
 
-  test('com tenant (completo) → /dashboard', async ({ context, page, baseURL }) => {
-    const seed = await seedTenant({ unitCount: 1, professionalCount: 1 })
+  test('com org (completo) → /dashboard', async ({ context, page, baseURL }) => {
+    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
     await signInAndAttachSession(context, seed.email, seed.password, baseURL ?? undefined)
 
     await page.goto('/')

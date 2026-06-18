@@ -8,9 +8,9 @@ import { expect, test } from '../fixtures'
 import { seedCustomer } from '../helpers/session'
 
 test.describe('Listagem de clientes (@cbrl/design List)', () => {
-  test('renders rows and exposes Editar/Excluir in the ⋯ menu', async ({ tenant, authedPage }) => {
-    seedCustomer(tenant.tenantId, { name: 'Maria Silva', whatsapp: '+5511900000000' })
-    seedCustomer(tenant.tenantId, {
+  test('renders rows and exposes Editar/Excluir in the ⋯ menu', async ({ org, authedPage }) => {
+    seedCustomer(org.orgId, { name: 'Maria Silva', whatsapp: '+5511900000000' })
+    seedCustomer(org.orgId, {
       name: 'João Souza',
       whatsapp: '+5511988888888',
       avatarUrl: 'https://example.com/joao.png',

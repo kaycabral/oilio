@@ -39,14 +39,14 @@ function patchUser(uid: string, fieldsWithMask: string, body: unknown): void {
 }
 
 test.describe('Professionals — identidade derivada (#1046)', { tag: '@critical' }, () => {
-  test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
   test('o form de edição mostra nome/WhatsApp/email read-only (sem inputs)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const pros = new ProfessionalsPage(authedPage)
-    await pros.gotoById(tenant.professionalIds[0]!)
+    await pros.gotoById(org.professionalIds[0]!)
 
     // Identity renders as read-only text sourced from `users/{userId}`.
     await expect(pros.identityName()).toHaveText('Profissional 1')
@@ -62,10 +62,10 @@ test.describe('Professionals — identidade derivada (#1046)', { tag: '@critical
   })
 
   test('alterar User.whatsapp reflete no profissional sem reescrever a projeção', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const uid = professionalUserId(proId)
     const pros = new ProfessionalsPage(authedPage)
 

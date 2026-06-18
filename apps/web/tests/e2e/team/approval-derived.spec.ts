@@ -16,7 +16,7 @@ import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
 import { FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
 import { seedService } from '../helpers/session'
-import { ProfessionalsPage, PublicBookingPage, tenantSlug } from '../pages'
+import { ProfessionalsPage, PublicBookingPage, orgSlug } from '../pages'
 
 function professionalUserId(professionalId: string): string {
   return `e2e-prof-user-${professionalId}`
@@ -55,7 +55,7 @@ test.describe(
   { tag: '@critical' },
   () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         unitCount: 1,
         professionalCount: 1,
         professionalOperationalStatus: 'incomplete',
@@ -63,11 +63,11 @@ test.describe(
     })
 
     test('não há input de status — o status é texto read-only derivado', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       const pros = new ProfessionalsPage(authedPage)
-      await pros.gotoById(tenant.professionalIds[0]!)
+      await pros.gotoById(org.professionalIds[0]!)
 
       // Status renders read-only (derived). The pro starts `incomplete` (seeded,
       // no service yet).
@@ -80,12 +80,12 @@ test.describe(
     })
 
     test('sem WhatsApp/serviço fica incompleto e não aparece na agenda pública', async ({
-      tenant,
+      org,
       authedPage,
       page,
     }) => {
-      const proId = tenant.professionalIds[0]!
-      const unitId = tenant.unitIds[0]!
+      const proId = org.professionalIds[0]!
+      const unitId = org.unitIds[0]!
 
       // Strip the linked User's WhatsApp — profile is now incomplete on two
       // axes (no whatsapp, no service).
@@ -93,7 +93,7 @@ test.describe(
 
       // A public service exists in the unit, but the pro executes none of it
       // (serviceIds empty) — so they're off the public agenda regardless.
-      const serviceId = seedService(tenant.tenantId, {
+      const serviceId = seedService(org.orgId, {
         name: 'Corte',
         durationMinutes: 30,
         priceCents: 5000,
@@ -107,24 +107,24 @@ test.describe(
 
       // Public availability for that service has no professional available
       // (the pro executes no service → off the agenda).
-      const booking = new PublicBookingPage(page, tenantSlug(tenant.tenantId))
+      const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
       await expect(booking.slotByProfessional('Profissional 1')).toHaveCount(0)
     })
 
     test('completar o perfil (unidade + serviço + WhatsApp) vira operacional sozinho', async ({
-      tenant,
+      org,
       authedPage,
       page,
     }) => {
-      const proId = tenant.professionalIds[0]!
-      const unitId = tenant.unitIds[0]!
+      const proId = org.professionalIds[0]!
+      const unitId = org.unitIds[0]!
 
       // WhatsApp present on the linked User (seeded), unit already linked.
       // Seed a service in the pro's unit and attach it through the operational
       // form — that mutation re-derives the status and emits
       // `professional.activated` (no manual status write anywhere).
-      const serviceId = seedService(tenant.tenantId, {
+      const serviceId = seedService(org.orgId, {
         name: 'Corte',
         durationMinutes: 30,
         priceCents: 5000,
@@ -148,7 +148,7 @@ test.describe(
       await expect(pros.operationalStatus()).toHaveText('Operacional')
 
       // And the pro now surfaces on the public agenda for that service.
-      const booking = new PublicBookingPage(page, tenantSlug(tenant.tenantId))
+      const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
       await expect(booking.slotByProfessional('Profissional 1').first()).toBeVisible()
     })

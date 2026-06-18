@@ -11,7 +11,7 @@ import { AgendaPage, ProfessionalsPage } from '../pages'
 
 test.describe('Equipe — bloqueios do profissional (#1082)', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -21,11 +21,11 @@ test.describe('Equipe — bloqueios do profissional (#1082)', { tag: '@critical'
   })
 
   test('render + empty state na seção de bloqueios do profissional', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const pros = new ProfessionalsPage(authedPage)
-    await pros.gotoById(tenant.professionalIds[0]!)
+    await pros.gotoById(org.professionalIds[0]!)
     await expect(
       authedPage.getByRole('heading', { name: 'Bloqueios do profissional' }),
     ).toBeVisible()
@@ -37,7 +37,7 @@ test.describe('Equipe — bloqueios do profissional (#1082)', { tag: '@critical'
   })
 
   test('criar pelo fluxo real → reflete na agenda (coluna do pro) → editar → excluir', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     authedPage.on('dialog', (d) => d.accept())
@@ -47,7 +47,7 @@ test.describe('Equipe — bloqueios do profissional (#1082)', { tag: '@critical'
     const section = authedPage.getByRole('region', { name: 'Bloqueios do profissional' })
     const pros = new ProfessionalsPage(authedPage)
 
-    await pros.gotoById(tenant.professionalIds[0]!)
+    await pros.gotoById(org.professionalIds[0]!)
 
     // Criar — recorrente (default segunda 12:00–13:00).
     await section.getByRole('button', { name: 'Novo bloqueio' }).click()
@@ -61,7 +61,7 @@ test.describe('Equipe — bloqueios do profissional (#1082)', { tag: '@critical'
     await expect(authedPage.getByText(reason).first()).toBeVisible({ timeout: 5000 })
 
     // Editar in-place.
-    await pros.gotoById(tenant.professionalIds[0]!)
+    await pros.gotoById(org.professionalIds[0]!)
     await section.locator('li', { hasText: reason }).getByRole('button', { name: 'Editar' }).click()
     await section.locator('input[name="reason"]').fill(edited)
     await section.getByRole('button', { name: 'Salvar' }).click()

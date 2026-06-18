@@ -3,7 +3,7 @@ import { expect, test } from './fixtures'
 import { setMembershipRole } from './helpers/session'
 
 // Brief 0029 (#1052) — AC-08: the sidebar nav is filtered by role via
-// `canManageTenant`. A receptionist must not see the Configuração section
+// `canManageOrg`. A receptionist must not see the Configuração section
 // (Unidades/Equipe/Empresa) nor the financeiro-admin items
 // (Relatórios); owner/manager see everything. Brief 0031 (#1062)
 // folded the cash report + commissions into the `/reports` hub, so the nav
@@ -15,7 +15,7 @@ import { setMembershipRole } from './helpers/session'
 const sidebar = (page: Page) => page.locator('[data-sidebar="content"]')
 
 test.describe('Navegação filtrada por papel (AC-08)', () => {
-  test.use({ tenantInput: { unitCount: 1 } })
+  test.use({ orgInput: { unitCount: 1 } })
 
   test('owner vê todas as seções e itens financeiro-admin', async ({ authedPage }) => {
     await authedPage.goto('/agenda')
@@ -38,9 +38,9 @@ test.describe('Navegação filtrada por papel (AC-08)', () => {
     await expect(nav.getByRole('link', { name: 'Empresa' })).toBeVisible()
   })
 
-  test('recepção não vê Configuração nem Comissões', async ({ authedPage, tenant }) => {
-    // Demote the seeded owner to receptionist (AC-08 base: canManageTenant).
-    setMembershipRole(`${tenant.tenantId}_${tenant.uid}`, 'receptionist')
+  test('recepção não vê Configuração nem Comissões', async ({ authedPage, org }) => {
+    // Demote the seeded owner to receptionist (AC-08 base: canManageOrg).
+    setMembershipRole(`${org.orgId}_${org.uid}`, 'receptionist')
 
     await authedPage.goto('/agenda')
     await expect(authedPage).toHaveURL(/\/agenda$/)

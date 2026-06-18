@@ -22,7 +22,7 @@ test.describe(
   },
   () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         unitCount: 1,
         professionalCount: 1,
         professionalOperationalStatus: 'operational',
@@ -32,10 +32,10 @@ test.describe(
     })
 
     test('render — editor de horário aparece (sem seção de bloqueios)', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      await authedPage.goto(`/units/${tenant.unitIds[0]}`)
+      await authedPage.goto(`/units/${org.unitIds[0]}`)
       await expect(
         authedPage.getByRole('group', { name: 'Horário de funcionamento', exact: true }),
       ).toBeVisible()
@@ -46,7 +46,7 @@ test.describe(
     })
 
     test('fechar a segunda → agenda mostra "Fechado" → reabrir → some', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       const agenda = new AgendaPage(authedPage)
@@ -56,7 +56,7 @@ test.describe(
       await expect(authedPage.getByText('Fechado', { exact: true })).toHaveCount(0)
 
       // Close Monday in the hours editor: toggle the day's switch off, then save.
-      await authedPage.goto(`/units/${tenant.unitIds[0]}`)
+      await authedPage.goto(`/units/${org.unitIds[0]}`)
       const monday = authedPage.getByRole('switch', { name: 'Segunda' })
       await expect(monday).toBeChecked()
       await monday.click()
@@ -75,7 +75,7 @@ test.describe(
       })
 
       // Revert: re-open Monday → the agenda overlay is gone.
-      await authedPage.goto(`/units/${tenant.unitIds[0]}`)
+      await authedPage.goto(`/units/${org.unitIds[0]}`)
       const mondayAgain = authedPage.getByRole('switch', { name: 'Segunda' })
       await expect(mondayAgain).not.toBeChecked()
       await mondayAgain.click()
@@ -90,13 +90,13 @@ test.describe(
     })
 
     test('intervalo partido (almoço) → agenda reflete a janela editada', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       // Narrow Monday's open window to a morning-only shift (09:00–12:00). The
       // afternoon (12:00–18:00) becomes an off-hours band on the agenda — the
       // multi-interval equivalent of the old "lunch block".
-      await authedPage.goto(`/units/${tenant.unitIds[0]}`)
+      await authedPage.goto(`/units/${org.unitIds[0]}`)
 
       const closeInput = authedPage.locator('input[name="bh_monday_0_close"]')
       await expect(closeInput).toHaveValue('18:00')
@@ -118,7 +118,7 @@ test.describe(
       // (the agenda renders the complement as an off-hours band, which has no
       // text label — the persisted close time is the load-bearing assertion that
       // the narrower open window is what the agenda computes its bands from).
-      await authedPage.goto(`/units/${tenant.unitIds[0]}`)
+      await authedPage.goto(`/units/${org.unitIds[0]}`)
       await expect(authedPage.locator('input[name="bh_monday_0_close"]')).toHaveValue('12:00')
     })
   },

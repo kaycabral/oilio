@@ -3,18 +3,18 @@ import { rowAction } from '../helpers/list'
 import { enterUnitsAfterCreate, setActiveUnitCookie } from '../helpers/session'
 import { UnitsPage } from '../pages'
 
-// Coverage for #873 — Unit gained `slug` (canonical, unique within tenant)
+// Coverage for #873 — Unit gained `slug` (canonical, unique within org)
 // + Settings UI editable field. Wizard derives slug silently; Settings
-// surfaces it and validates async against the active tenant's siblings.
+// surfaces it and validates async against the active org's siblings.
 
 test.describe('Unidades — slug público', () => {
   test.describe('CRUD com 1 unidade', () => {
-    test.use({ tenantInput: { unitCount: 1 } })
+    test.use({ orgInput: { unitCount: 1 } })
 
     test('slug da unidade cadastrada é editável na página de detalhe', async ({ authedPage }) => {
       // The migrated `UnitsList` (`@cbrl/design` List) shows name/address/hours
       // only — no Slug column. The slug lives on the unit's detail/edit page;
-      // reach it via the row's ⋯ → Editar. seedTenant writes `unidade-1`.
+      // reach it via the row's ⋯ → Editar. seedOrg writes `unidade-1`.
       const units = new UnitsPage(authedPage)
       await units.gotoList()
       await rowAction(authedPage, /Unidade 1/, 'Editar')
@@ -55,17 +55,17 @@ test.describe('Unidades — slug público', () => {
   })
 
   test.describe('CRUD com 2 unidades (colisão)', () => {
-    test.use({ tenantInput: { unitCount: 2 } })
+    test.use({ orgInput: { unitCount: 2 } })
 
     test('/units/[id] mostra erro de colisão quando slug é de outra unidade', async ({
       context,
-      tenant,
+      org,
       authedPage,
       baseURL,
     }) => {
       // Edit the first unit — try to steal the second unit's slug.
-      const firstUnitId = tenant.unitIds[0]!
-      // 2-unit tenant with no chosen unit is sent to `/select-unit` (0029
+      const firstUnitId = org.unitIds[0]!
+      // 2-unit org with no chosen unit is sent to `/select-unit` (0029
       // AC-04). Pin the active unit so the edit route resolves directly.
       await setActiveUnitCookie(context, firstUnitId, baseURL ?? undefined)
       const units = new UnitsPage(authedPage)

@@ -27,7 +27,7 @@ test.describe('Catálogo unificado — UI (#1005)', () => {
   })
 
   test('criar serviço + produto pela UI → listar → filtrar por kind/categoria → editar → excluir', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
@@ -37,7 +37,7 @@ test.describe('Catálogo unificado — UI (#1005)', () => {
 
     // Uma categoria pra exercitar o picker (FK do #1003) + o filtro por categoria.
     const categoryName = `Cabelo ${ts}`
-    const categoryId = seedCategory(tenant.tenantId, { name: categoryName })
+    const categoryId = seedCategory(org.orgId, { name: categoryName })
 
     // ── criar SERVIÇO pelo fluxo único "Novo item" (AC-09) ────────────────
     // Tela única "Novo item": o tipo é escolhido inline (Serviço | Produto),
@@ -132,14 +132,14 @@ test.describe('Catálogo unificado — UI (#1005)', () => {
     }
   })
 
-  test('dado degenerado (item com categoryId null) renderiza', async ({ tenant, authedPage }) => {
+  test('dado degenerado (item com categoryId null) renderiza', async ({ org, authedPage }) => {
     const name = `Item Sem Categoria ${Date.now()}`
-    seedCatalogItem(tenant.tenantId, {
+    seedCatalogItem(org.orgId, {
       kind: 'product',
       name,
       categoryId: null,
       commission: null,
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
 
     await authedPage.goto('/catalog')

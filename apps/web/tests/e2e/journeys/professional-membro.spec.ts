@@ -41,7 +41,7 @@ import {
   seedService,
   signInAndAttachSession,
 } from '../helpers/session'
-import { ProfessionalsPage, PublicBookingPage, tenantSlug } from '../pages'
+import { ProfessionalsPage, PublicBookingPage, orgSlug } from '../pages'
 
 const FS_BASE = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 
@@ -78,8 +78,8 @@ function requireUserStr(user: Record<string, FsValue>, uid: string, key: string)
 
 type StoredPro = { id: string; userId: string | null; operationalStatus: string | null }
 
-function listProfessionals(tenantId: string): StoredPro[] {
-  const json = fsGet(`tenants/${tenantId}/professionals`, decodeFsListResponse)
+function listProfessionals(orgId: string): StoredPro[] {
+  const json = fsGet(`orgs/${orgId}/professionals`, decodeFsListResponse)
   return (json.documents ?? []).map((d) => ({
     id: d.name?.split('/').pop() ?? '',
     userId: strField(d.fields, 'userId') ?? null,
@@ -121,7 +121,7 @@ function patchUserWhatsapp(uid: string, whatsapp: string | null): void {
 // invitee's session in, accept via the UI. Returns the materialized
 // professional id (or null when the role isn't professional).
 async function inviteAccept(opts: {
-  tenant: { tenantId: string; uid: string }
+  org: { orgId: string; uid: string }
   context: BrowserContext
   page: Page
   baseURL: string | undefined
@@ -129,10 +129,10 @@ async function inviteAccept(opts: {
   invitee: { uid: string; email: string; password: string }
 }): Promise<void> {
   const { inviteId, rawToken } = seedInvite({
-    tenantId: opts.tenant.tenantId,
+    orgId: opts.org.orgId,
     email: opts.invitee.email,
     role: opts.role,
-    invitedBy: opts.tenant.uid,
+    invitedBy: opts.org.uid,
   })
   await signInAndAttachSession(
     opts.context,
@@ -140,7 +140,7 @@ async function inviteAccept(opts: {
     opts.invitee.password,
     opts.baseURL ?? undefined,
   )
-  await opts.page.goto(`/invites/${opts.tenant.tenantId}/${inviteId}?token=${rawToken}`)
+  await opts.page.goto(`/invites/${opts.org.orgId}/${inviteId}?token=${rawToken}`)
   await opts.page.getByRole('button', { name: /aceitar convite/i }).click()
   await expect(opts.page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
 }
@@ -153,18 +153,18 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
   // com userId = uid do convidado, identidade == users/{uid}, operationalStatus
   // derivado `operational`, visível na agenda pública — sem duplicado nem userId nulo.
   test.describe('Cenário 1 — convite → aceite → perfil → operável', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
 
     test('owner convida Profissional, convidado aceita e completa perfil → operável (1 pro, userId não-nulo, identidade derivada, operational, na agenda)', async ({
-      tenant,
+      org,
       context,
       page,
       authedPage,
       baseURL,
     }) => {
       // Pré-condições do cenário: ≥1 unidade (seedada), ≥1 serviço público na unidade.
-      const unitId = tenant.unitIds[0]!
-      const serviceId = seedService(tenant.tenantId, {
+      const unitId = org.unitIds[0]!
+      const serviceId = seedService(org.orgId, {
         name: 'Corte Jornada',
         durationMinutes: 30,
         priceCents: 5000,
@@ -173,26 +173,26 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       })
 
       // Nenhum profissional antes do aceite — a asserção de "um só" é inequívoca.
-      expect(listProfessionals(tenant.tenantId)).toHaveLength(0)
+      expect(listProfessionals(org.orgId)).toHaveLength(0)
 
       // Maria aceita o convite por OAuth (email verificado). seedAuthUser fixa
       // displayName 'E2E Invitee' + whatsapp 5511900000000 (o WA que o completion
       // step #838 coletaria na 1ª sessão).
       const maria = await seedAuthUser()
-      await inviteAccept({ tenant, context, page, baseURL, role: 'professional', invitee: maria })
+      await inviteAccept({ org, context, page, baseURL, role: 'professional', invitee: maria })
 
       // O aceite reescreveu o cookie `__session` do context com a sessão da Maria
       // (professional). O resto do cenário é a perspectiva do MANAGER (owner) —
       // re-anexa a sessão do owner pro `authedPage` antes de abrir o cadastro.
-      await signInAndAttachSession(context, tenant.email, tenant.password, baseURL ?? undefined)
+      await signInAndAttachSession(context, org.email, org.password, baseURL ?? undefined)
 
       // Membership nasceu com role professional (1º passo da saga).
-      const m = readMembership(membershipDocId(tenant.tenantId, maria.uid))
+      const m = readMembership(membershipDocId(org.orgId, maria.uid))
       expect(m).not.toBeNull()
       expect(m!.role).toBe('professional')
 
       // Exatamente UM Professional materializado, userId = uid da Maria (não-nulo).
-      let pros = listProfessionals(tenant.tenantId)
+      let pros = listProfessionals(org.orgId)
       expect(pros).toHaveLength(1)
       expect(pros[0]!.userId).toBe(maria.uid)
 
@@ -234,13 +234,13 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       // operationalStatus virou `operational` sozinho (derivado).
       await prosPage.gotoByUserId(maria.uid)
       await expect(prosPage.operationalStatus()).toHaveText('Operacional')
-      pros = listProfessionals(tenant.tenantId)
+      pros = listProfessionals(org.orgId)
       expect(pros).toHaveLength(1)
       expect(pros[0]!.userId).toBe(maria.uid)
       expect(pros[0]!.operationalStatus).toBe('operational')
 
       // Maria aparece na agenda/catálogo público pro serviço que executa.
-      const booking = new PublicBookingPage(page, tenantSlug(tenant.tenantId))
+      const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
       await expect(booking.slotByProfessional('E2E Invitee').first()).toBeVisible()
     })
@@ -252,7 +252,7 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
   // operationalStatus, e ele NÃO aparece na agenda pública até o perfil completar.
   test.describe('Cenário 2 — status não destravável à mão', () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         unitCount: 1,
         professionalCount: 1,
         professionalOperationalStatus: 'incomplete',
@@ -260,16 +260,16 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
     })
 
     test('sem WhatsApp/serviço fica incompleto, sem input de status e fora da agenda pública', async ({
-      tenant,
+      org,
       authedPage,
       page,
     }) => {
-      const proId = tenant.professionalIds[0]!
-      const unitId = tenant.unitIds[0]!
+      const proId = org.professionalIds[0]!
+      const unitId = org.unitIds[0]!
       // Tira o WhatsApp do User vinculado — perfil incompleto em dois eixos.
       patchUserWhatsapp(`e2e-prof-user-${proId}`, null)
 
-      const serviceId = seedService(tenant.tenantId, {
+      const serviceId = seedService(org.orgId, {
         name: 'Corte',
         durationMinutes: 30,
         priceCents: 5000,
@@ -287,7 +287,7 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       await expect(authedPage.locator('[name="operationalStatus"]')).toHaveCount(0)
 
       // Off da agenda pública (executa serviço nenhum → indisponível).
-      const booking = new PublicBookingPage(page, tenantSlug(tenant.tenantId))
+      const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
       await expect(booking.slotByProfessional('Profissional 1')).toHaveCount(0)
     })
@@ -298,13 +298,13 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
   // users/{userId}); só unidade(s)/serviço(s)/comissão/identidade fiscal são
   // editáveis. Alterar o WhatsApp do User reflete sem reescrita manual.
   test.describe('Cenário 3 — identidade derivada, sem divergência', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
     test('identidade read-only espelha users/{userId}; alterar User.whatsapp reflete sem reescrever a projeção', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const proId = tenant.professionalIds[0]!
+      const proId = org.professionalIds[0]!
       const uid = `e2e-prof-user-${proId}`
       const prosPage = new ProfessionalsPage(authedPage)
 
@@ -334,24 +334,24 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
   // sem identidade pessoal, approval derivado por evento (replayable), nunca
   // userId: null + approved hardcoded.
   test.describe('Cenário 4 — seed/modelo novo: materialização event-sourced sem userId nulo nem status hardcoded', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
 
     test('o profissional nasce só da saga (membership → professional.created com userId, sem PII no evento, approval derivado)', async ({
-      tenant,
+      org,
       context,
       page,
       baseURL,
     }) => {
       const invitee = await seedAuthUser()
-      await inviteAccept({ tenant, context, page, baseURL, role: 'professional', invitee })
+      await inviteAccept({ org, context, page, baseURL, role: 'professional', invitee })
 
       // Membership role=professional + Professional materializado com userId não-nulo.
-      const m = readMembership(membershipDocId(tenant.tenantId, invitee.uid))
+      const m = readMembership(membershipDocId(org.orgId, invitee.uid))
       expect(m!.role).toBe('professional')
-      const proIds = fsListIds(`tenants/${tenant.tenantId}/professionals`)
+      const proIds = fsListIds(`orgs/${org.orgId}/professionals`)
       expect(proIds).toHaveLength(1)
       const proId = proIds[0]!
-      const pros = listProfessionals(tenant.tenantId)
+      const pros = listProfessionals(org.orgId)
       expect(pros[0]!.userId).toBe(invitee.uid)
       expect(pros[0]!.userId).not.toBeNull()
 
@@ -360,7 +360,7 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       // vive só em users/{userId} (lida ao vivo). operationalStatus NÃO é hardcoded:
       // o created nasce `incomplete` e a transição é por evento derivado.
       const eventDoc = fsGet(
-        `tenants/${tenant.tenantId}/professionals/${proId}/events/v000001`,
+        `orgs/${org.orgId}/professionals/${proId}/events/v000001`,
         decodeFsDocument,
       )
       expect(strField(eventDoc.fields, '_tag')).toBe('professional.created')

@@ -18,14 +18,14 @@ import {
   seedCustomer,
   seedService,
   seedSubscription,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
 // Cancela a assinatura direto no emulator (PATCH só do campo status) — usado pra
 // forçar um erro de backend no fechamento de forma determinística.
-function cancelSubscription(tenantId: string, subId: string): void {
-  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenantId}/subscriptions/${subId}?updateMask.fieldPaths=status`
+function cancelSubscription(orgId: string, subId: string): void {
+  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/subscriptions/${subId}?updateMask.fieldPaths=status`
   execFileSync('curl', [
     '-fsS',
     '-X',
@@ -41,29 +41,29 @@ function cancelSubscription(tenantId: string, subId: string): void {
 }
 
 function seedOrderFixture(
-  tenant: SeededTenant,
+  org: SeededOrg,
   opts: { withSubscription?: boolean } = {},
 ): { customerId: string; subId: string | null } {
-  const serviceId = seedService(tenant.tenantId, {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  const customerId = seedCustomer(tenant.tenantId, {
+  const customerId = seedCustomer(org.orgId, {
     name: 'Cliente DoD',
     whatsapp: '11922221111',
   })
   const subId = opts.withSubscription
-    ? seedSubscription(tenant.tenantId, customerId, {
+    ? seedSubscription(org.orgId, customerId, {
         planName: 'Mensal Corte',
         usageLimit: { kind: 'count', quantity: 4 },
       })
     : null
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -78,10 +78,10 @@ function seedOrderFixture(
 
 async function openOrder(
   authedPage: Page,
-  tenant: SeededTenant,
+  org: SeededOrg,
   opts: { withSubscription?: boolean } = {},
 ): Promise<{ subId: string | null }> {
-  const { subId } = seedOrderFixture(tenant, opts)
+  const { subId } = seedOrderFixture(org, opts)
   const agenda = new AgendaPage(authedPage)
   await agenda.goto('2026-09-08')
   await authedPage.getByRole('button', { name: /Cliente DoD/ }).click()
@@ -93,7 +93,7 @@ async function openOrder(
 
 test.describe('Feature 0002 — Definition of Done', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -103,10 +103,10 @@ test.describe('Feature 0002 — Definition of Done', () => {
   })
 
   test('Cenário 1: fechamento com confirmação preventiva (happy path)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    await openOrder(authedPage, tenant)
+    await openOrder(authedPage, org)
 
     // Cancelar/ESC no dialog não dispara nenhum side effect.
     await choosePaymentMethod(authedPage, 'pix')
@@ -128,11 +128,11 @@ test.describe('Feature 0002 — Definition of Done', () => {
     await expect(authedPage.getByText('R$ 25,00').first()).toBeVisible()
   })
 
-  test('Cenário 2: erro de backend tratado inline no dialog', async ({ tenant, authedPage }) => {
+  test('Cenário 2: erro de backend tratado inline no dialog', async ({ org, authedPage }) => {
     // Cliente com assinatura ativa: marca o serviço como consumo do plano, mas a
     // assinatura é cancelada antes do fechamento → closeOrder rejeita o consumo
     // (erro de backend determinístico), e o dialog mostra o erro inline.
-    const { subId } = await openOrder(authedPage, tenant, { withSubscription: true })
+    const { subId } = await openOrder(authedPage, org, { withSubscription: true })
 
     await chooseOption(
       authedPage.getByRole('listitem').filter({ hasText: 'Corte' }),
@@ -141,7 +141,7 @@ test.describe('Feature 0002 — Definition of Done', () => {
     )
     await expect(authedPage.getByText('Consumo do plano').first()).toBeVisible()
 
-    cancelSubscription(tenant.tenantId, subId!)
+    cancelSubscription(org.orgId, subId!)
 
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
     const dialog = authedPage.getByRole('dialog', { name: 'Confirmar fechamento' })

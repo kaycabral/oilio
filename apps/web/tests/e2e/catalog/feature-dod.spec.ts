@@ -31,10 +31,10 @@ import {
   seedService,
   seedSubscriptionPlan,
 } from '../helpers/session'
-import { AgendaPage, PublicBookingPage, tenantSlug } from '../pages'
+import { AgendaPage, PublicBookingPage, orgSlug } from '../pages'
 
-function readDoc(tenantId: string, path: string): Record<string, FsValue> | null {
-  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenantId}/${path}`
+function readDoc(orgId: string, path: string): Record<string, FsValue> | null {
+  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/${path}`
   const out = execFileSync('curl', ['-fsS', url, '-H', 'Authorization: Bearer owner'], {
     encoding: 'utf8',
   })
@@ -43,7 +43,7 @@ function readDoc(tenantId: string, path: string): Record<string, FsValue> | null
 
 test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -97,12 +97,12 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
   })
 
   test('Cenário 2: categoria como entidade + escopo de plano por FK', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
     const categoryName = `Cabelo ${ts}`
-    const categoryId = seedCategory(tenant.tenantId, { name: categoryName })
+    const categoryId = seedCategory(org.orgId, { name: categoryName })
     const itemName = `Corte Cat ${ts}`
 
     // Item criado pela UI associa a categoria pelo PICKER (FK do #1003), não string.
@@ -128,7 +128,7 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
         'curl',
         [
           '-fsS',
-          `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenant.tenantId}/catalog_items`,
+          `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${org.orgId}/catalog_items`,
           '-H',
           'Authorization: Bearer owner',
         ],
@@ -140,43 +140,41 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
     expect(strField(created?.fields, 'categoryId')).toBe(categoryId)
 
     // O escopo do plano referencia o MESMO categoryId, íntegro (FK array).
-    const planId = seedSubscriptionPlan(tenant.tenantId, {
+    const planId = seedSubscriptionPlan(org.orgId, {
       name: `Plano Cabelo ${ts}`,
       includedCategoryIds: [categoryId],
     })
-    const plan = readDoc(tenant.tenantId, `subscription_plans/${planId}`)
+    const plan = readDoc(org.orgId, `subscription_plans/${planId}`)
     const included = plan?.includedCategoryIds?.arrayValue?.values?.map((v) => v.stringValue)
     expect(included).toContain(categoryId)
   })
 
   test('Cenário 3: consumidores operam sobre o item unificado (comanda + público)', async ({
-    tenant,
+    org,
     authedPage,
     page,
   }) => {
     // Serviço + produto mirroram pra catalog_items (helpers de migração #1004).
-    const serviceId = seedService(tenant.tenantId, {
+    const serviceId = seedService(org.orgId, {
       name: 'Corte Cons',
       durationMinutes: 30,
       priceCents: 5000,
       publicVisible: true,
       commission: { kind: 'percentage', value: 50 },
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
-    seedProduct(tenant.tenantId, { name: 'Pomada Cons', priceCents: 3000 })
-    expect(strField(readCatalogItem(tenant.tenantId, serviceId) ?? undefined, 'kind')).toBe(
-      'service',
-    )
+    seedProduct(org.orgId, { name: 'Pomada Cons', priceCents: 3000 })
+    expect(strField(readCatalogItem(org.orgId, serviceId) ?? undefined, 'kind')).toBe('service')
 
     const customerName = `Cliente Cons ${Date.now()}`
-    const customerId = seedCustomer(tenant.tenantId, {
+    const customerId = seedCustomer(org.orgId, {
       name: customerName,
       whatsapp: '11955552222',
     })
     seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
-      professionalId: tenant.professionalIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
+      professionalId: org.professionalIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',
@@ -205,7 +203,7 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible({ timeout: 5000 })
 
     // Catálogo público projeta o serviço unificado (kind service, publicVisible).
-    const booking = new PublicBookingPage(page, tenantSlug(tenant.tenantId))
+    const booking = new PublicBookingPage(page, orgSlug(org.orgId))
     await booking.gotoCatalog()
     await expect(booking.serviceCard('Corte Cons')).toBeVisible()
   })

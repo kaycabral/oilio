@@ -36,8 +36,8 @@ const decodeRequiredFieldsDoc = Schema.decodeUnknownSync(
   Schema.Struct({ fields: Schema.Record({ key: Schema.String, value: FsValueSchema }) }),
 )
 
-function fsDocUrl(tenantId: string, id: string): string {
-  return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenantId}/catalog_items/${id}`
+function fsDocUrl(orgId: string, id: string): string {
+  return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/catalog_items/${id}`
 }
 
 // Mints an idToken for the seeded owner so we can hit Firestore REST *under the
@@ -63,14 +63,14 @@ function ownerIdToken(email: string, password = 'E2E12345!'): string {
 }
 
 function readUnderRules(
-  tenantId: string,
+  orgId: string,
   id: string,
   idToken: string,
 ): { ok: true; fields: Record<string, FsValue> } | { ok: false; status: number } {
   try {
     const out = execFileSync(
       'curl',
-      ['-fsS', fsDocUrl(tenantId, id), '-H', `Authorization: Bearer ${idToken}`],
+      ['-fsS', fsDocUrl(orgId, id), '-H', `Authorization: Bearer ${idToken}`],
       { encoding: 'utf8' },
     )
     return { ok: true, fields: parseJson(out, decodeRequiredFieldsDoc).fields }
@@ -80,51 +80,51 @@ function readUnderRules(
 }
 
 test.describe('CatalogItem — baseline (#1002)', () => {
-  test('coleção vazia: leitura sob rules não falha', ({ tenant }) => {
-    const token = ownerIdToken(tenant.email)
-    const res = readUnderRules(tenant.tenantId, 'inexistente', token)
+  test('coleção vazia: leitura sob rules não falha', ({ org }) => {
+    const token = ownerIdToken(org.email)
+    const res = readUnderRules(org.orgId, 'inexistente', token)
     // Doc ausente → 404 (curl -f). O ponto é que a rule não bloqueia o membro.
     expect(res.ok).toBe(false)
   })
 
-  test('cria (seed) → lê sob rules → ambos os kinds projetam', ({ tenant }) => {
-    const token = ownerIdToken(tenant.email)
+  test('cria (seed) → lê sob rules → ambos os kinds projetam', ({ org }) => {
+    const token = ownerIdToken(org.email)
 
-    const serviceId = seedCatalogItem(tenant.tenantId, {
+    const serviceId = seedCatalogItem(org.orgId, {
       kind: 'service',
       name: 'Corte Baseline',
       categoryId: 'cat-corte',
       priceCents: 5000,
       durationMinutes: 30,
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
       commission: { kind: 'percentage', value: 50 },
     })
-    const productId = seedCatalogItem(tenant.tenantId, {
+    const productId = seedCatalogItem(org.orgId, {
       kind: 'product',
       name: 'Pomada Baseline',
       categoryId: 'cat-pomada',
       priceCents: 3000,
       sku: 'POM-1',
       stock: 10,
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
 
-    const svc = readUnderRules(tenant.tenantId, serviceId, token)
+    const svc = readUnderRules(org.orgId, serviceId, token)
     assertOk(svc)
     expect(strField(svc.fields, 'kind')).toBe('service')
     expect(strField(svc.fields, 'name')).toBe('Corte Baseline')
     expect(intStrField(svc.fields, 'durationMinutes')).toBe('30')
 
-    const prod = readUnderRules(tenant.tenantId, productId, token)
+    const prod = readUnderRules(org.orgId, productId, token)
     assertOk(prod)
     expect(strField(prod.fields, 'kind')).toBe('product')
     expect(strField(prod.fields, 'sku')).toBe('POM-1')
     expect(intStrField(prod.fields, 'stock')).toBe('10')
   })
 
-  test('dado degenerado (produto sem categoria e sem comissão) projeta', ({ tenant }) => {
-    const token = ownerIdToken(tenant.email)
-    const id = seedCatalogItem(tenant.tenantId, {
+  test('dado degenerado (produto sem categoria e sem comissão) projeta', ({ org }) => {
+    const token = ownerIdToken(org.email)
+    const id = seedCatalogItem(org.orgId, {
       kind: 'product',
       name: 'Item Degenerado',
       categoryId: null,
@@ -132,10 +132,10 @@ test.describe('CatalogItem — baseline (#1002)', () => {
       priceCents: 0,
       stock: 0,
       sku: null,
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
       active: false,
     })
-    const res = readUnderRules(tenant.tenantId, id, token)
+    const res = readUnderRules(org.orgId, id, token)
     assertOk(res)
     expect(isNullField(res.fields, 'categoryId')).toBe(true)
     expect(isNullField(res.fields, 'commission')).toBe(true)

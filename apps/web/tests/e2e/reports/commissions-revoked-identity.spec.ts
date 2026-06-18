@@ -3,7 +3,7 @@
 //
 // O bug: revogar um membro (offboarding #1103 → membership `status: 'revoked'`)
 // fazia o relatório de comissões mostrar "--" pra ele, porque o nome era
-// resolvido por JOIN AO VIVO em `listTenantMembers` (`status==active`) — o
+// resolvido por JOIN AO VIVO em `listOrgMembers` (`status==active`) — o
 // revogado some do join → nome vazio. Viola AC-03 (comissão tem que ficar
 // identificável). O fix snapshota o `attributedMemberName` no próprio registro
 // na apuração, então o relatório lê o snapshot e o nome real sobrevive à
@@ -16,7 +16,7 @@ import { anonymizedLabel } from '@/domain'
 import { execFileSync } from 'node:child_process'
 import { expect, test } from '../fixtures'
 import { FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
-import { seedClosedOrder, seedCommission, type SeededTenant } from '../helpers/session'
+import { seedClosedOrder, seedCommission, type SeededOrg } from '../helpers/session'
 
 function docUrl(path: string): string {
   return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/${path}`
@@ -52,7 +52,7 @@ function patchDocFields(path: string, fields: Record<string, unknown>): void {
 // order (in window) keeps the commission in the report scope (the report maps
 // commission→unit via `orderId`).
 function seedCommissionWithSnapshot(
-  tenant: SeededTenant,
+  org: SeededOrg,
   c: {
     attributedUserId: string
     attributedMemberName: string
@@ -61,15 +61,15 @@ function seedCommissionWithSnapshot(
   },
 ): void {
   const orderId = seedClosedOrder({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0] ?? 'unit',
+    orgId: org.orgId,
+    unitId: org.unitIds[0] ?? 'unit',
     customerId: null,
     attributedUserId: c.attributedUserId,
     totalCents: 5000,
     closedAt: c.createdAt,
   })
   seedCommission({
-    tenantId: tenant.tenantId,
+    orgId: org.orgId,
     attributedUserId: c.attributedUserId,
     amountCents: 2500,
     liquidationStatus: 'pendente',
@@ -84,20 +84,20 @@ test.describe(
   { tag: '@critical' },
   () => {
     test.use({
-      tenantInput: { professionalCount: 1, professionalOperationalStatus: 'operational' },
+      orgInput: { professionalCount: 1, professionalOperationalStatus: 'operational' },
     })
 
     test('AC-11/AC-03: revogar a membership não some o nome — snapshot mostra o nome real', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const proId = tenant.professionalIds[0]!
+      const proId = org.professionalIds[0]!
       const proUser = `e2e-prof-user-${proId}`
       // O fixture seed o User com displayName "Profissional 1" (helpers/session.ts).
       const realName = 'Profissional 1'
       const now = new Date().toISOString()
 
-      seedCommissionWithSnapshot(tenant, {
+      seedCommissionWithSnapshot(org, {
         attributedUserId: proUser,
         attributedMemberName: realName,
         itemName: 'Corte do Revogado',
@@ -105,9 +105,9 @@ test.describe(
       })
 
       // Revoga a membership (o que o offboarding #1103 faz): some do join ao vivo
-      // `listTenantMembers` (`status==active`). Com o join, o nome viria vazio →
+      // `listOrgMembers` (`status==active`). Com o join, o nome viria vazio →
       // "--". Com o snapshot, o nome real sobrevive.
-      patchDocFields(`memberships/${tenant.tenantId}_${proUser}`, {
+      patchDocFields(`memberships/${org.orgId}_${proUser}`, {
         status: { stringValue: 'revoked' },
       })
 
@@ -135,24 +135,24 @@ test.describe(
     })
 
     test('AC-11 (b): anonimizar a conta GLOBAL do profissional não some o nome — snapshot vence o join ao vivo', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       // O "buraco global-anon" que o snapshot fecha: a MESMA pessoa também é
       // cliente e anonimiza a conta global (`users/{uid}` scrubbado +
       // `anonymizedAt` setado, igual ao account-anonymization #1093). A
-      // membership segue ATIVA (não é offboarding) — então `listTenantMembers`
+      // membership segue ATIVA (não é offboarding) — então `listOrgMembers`
       // ACHA o membro no join ao vivo, mas `resolveSubjectName` neutraliza pra
       // `‹Profissional› ‹CÓDIGO›` por causa do `anonymizedAt`. Sem o snapshot, o
       // relatório resolveria o nome por esse join → rótulo neutro (errado). Com
       // o snapshot no registro (AC-11), o nome real sobrevive. Este teste prova
       // que o relatório lê o SNAPSHOT, não o join ao vivo.
-      const proId = tenant.professionalIds[0]!
+      const proId = org.professionalIds[0]!
       const proUser = `e2e-prof-user-${proId}`
       const realName = 'Profissional 1'
       const now = new Date().toISOString()
 
-      seedCommissionWithSnapshot(tenant, {
+      seedCommissionWithSnapshot(org, {
         attributedUserId: proUser,
         attributedMemberName: realName,
         itemName: 'Corte do Anonimizado',
@@ -191,7 +191,7 @@ test.describe(
       await expect(anonRow.getByText(neutralLabel)).toHaveCount(0)
 
       // Contraste — a PROVA de que o relatório lê o snapshot, não o join ao vivo:
-      // o join ao vivo (`listTenantMembers`) NEUTRALIZA por causa do
+      // o join ao vivo (`listOrgMembers`) NEUTRALIZA por causa do
       // `anonymizedAt`, então o dropdown de filtro "Membro" (alimentado pelo
       // join) mostra o rótulo neutro `‹Profissional› ‹CÓDIGO›`. Se a linha da
       // comissão lesse a mesma fonte, mostraria o mesmo rótulo — o bug do #1106.

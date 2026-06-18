@@ -6,7 +6,7 @@
 import { expect, test } from './fixtures'
 
 test.describe('`/blocks` removida (#1083 AC-01/AC-05)', () => {
-  test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
   const GONE_ROUTES = ['/blocks', '/blocks/new'] as const
 

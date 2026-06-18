@@ -1,7 +1,7 @@
 import { expect, test } from '../fixtures'
 import { checkStable, fillStable } from '../helpers/hydration'
 import { linkProfessionalToServices, seedService } from '../helpers/session'
-import { PublicBookingPage, tenantSlug } from '../pages'
+import { PublicBookingPage, orgSlug } from '../pages'
 
 // #988 (brief 0008, Grupo C) — rewritten for the inferred-availability model
 // (spike): there is NO "publish" button. A unit goes live automatically once
@@ -18,7 +18,7 @@ test.describe('Publish self-booking — happy path (#988)', { tag: '@critical' }
   // Unit missing ONLY its hours/address (appointment mode, approved pro, public
   // service added below) → not bookable yet. The owner fills the hours to go live.
   test.use({
-    tenantInput: {
+    orgInput: {
       hasBusinessHours: false,
       unitCount: 1,
       professionalCount: 1,
@@ -27,22 +27,22 @@ test.describe('Publish self-booking — happy path (#988)', { tag: '@critical' }
   })
 
   test('AC-07/AC-08: filling the unit hours makes it bookable → public page live', async ({
-    tenant,
+    org,
     authedPage,
     page,
   }) => {
-    const slug = tenantSlug(tenant.tenantId)
-    const unitId = tenant.unitIds[0]!
+    const slug = orgSlug(org.orgId)
+    const unitId = org.unitIds[0]!
 
     // A public service linked to the unit + an approved professional execute
     // it — so once the unit is bookable, the catalog has a card to show.
-    const serviceId = seedService(tenant.tenantId, {
+    const serviceId = seedService(org.orgId, {
       name: 'Corte Publicado',
       priceCents: 5000,
       publicVisible: true,
       unitIds: [unitId],
     })
-    linkProfessionalToServices(tenant.tenantId, tenant.professionalIds[0]!, [serviceId])
+    linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
 
     // Before: the unit is not bookable (no hours) → public surface is 404.
     const before = await page.goto(`/${slug}/unidade-1`)

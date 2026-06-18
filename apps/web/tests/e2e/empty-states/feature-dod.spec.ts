@@ -59,13 +59,13 @@ test.describe('Empty-state protagonista — Feature DoD (brief 0034 · #1071)', 
   })
 
   test('Cenários 2 + 3 + Baseline — fluxo real: vazio → criar → chrome normal → filtrado-vazio', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
     const planLabel = `Plano DoD ${ts}`
-    seedSubscriptionPlan(tenant.tenantId, { name: planLabel })
-    seedCustomer(tenant.tenantId)
+    seedSubscriptionPlan(org.orgId, { name: planLabel })
+    seedCustomer(org.orgId)
 
     // Baseline (render+empty): começa protagonista.
     await authedPage.goto('/subscriptions')

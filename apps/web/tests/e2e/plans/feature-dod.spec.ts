@@ -28,13 +28,13 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-const docUrl = (tenantId: string, path: string) =>
-  `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenantId}/${path}`
+const docUrl = (orgId: string, path: string) =>
+  `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/${path}`
 
-function readConsumed(tenantId: string, subId: string): number {
+function readConsumed(orgId: string, subId: string): number {
   const out = execFileSync('curl', [
     '-fsS',
-    docUrl(tenantId, `subscriptions/${subId}`),
+    docUrl(orgId, `subscriptions/${subId}`),
     '-H',
     'Authorization: Bearer owner',
   ])
@@ -67,14 +67,14 @@ function readConsumed(tenantId: string, subId: string): number {
   return Number(data.fields?.currentPeriod?.mapValue?.fields?.consumed?.integerValue ?? '0')
 }
 
-function readStock(tenantId: string, itemId: string): number {
-  return Number(intStrField(readCatalogItem(tenantId, itemId) ?? undefined, 'stock') ?? '0')
+function readStock(orgId: string, itemId: string): number {
+  return Number(intStrField(readCatalogItem(orgId, itemId) ?? undefined, 'stock') ?? '0')
 }
 
-function countOrderCommissions(tenantId: string, orderId: string): number {
+function countOrderCommissions(orgId: string, orderId: string): number {
   const out = execFileSync('curl', [
     '-fsS',
-    docUrl(tenantId, 'commissions'),
+    docUrl(orgId, 'commissions'),
     '-H',
     'Authorization: Bearer owner',
   ])
@@ -111,7 +111,7 @@ async function confirmClose(authedPage: Page): Promise<void> {
 
 test.describe('Feature 0024 — Definition of Done (cobertura por itens granulares)', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -121,14 +121,14 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
   })
 
   test('Cenário 1: plano cobre itens granulares (serviço e produto)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
     const serviceName = `Barba ${ts}`
     const productName = `Pomada ${ts}`
-    seedCatalogItem(tenant.tenantId, { kind: 'service', name: serviceName })
-    seedCatalogItem(tenant.tenantId, { kind: 'product', name: productName })
+    seedCatalogItem(org.orgId, { kind: 'service', name: serviceName })
+    seedCatalogItem(org.orgId, { kind: 'product', name: productName })
     const name = `Plano DoD ${ts}`
     // Coverage checkboxes are labeled by the item name + kind suffix.
     const serviceItem = authedPage.getByRole('checkbox', { name: new RegExp(serviceName) })
@@ -151,11 +151,11 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
     await expect(productItem).toBeChecked()
   })
 
-  test('Cenário 2: consumo resolve em granular, por kind', async ({ tenant, authedPage }) => {
+  test('Cenário 2: consumo resolve em granular, por kind', async ({ org, authedPage }) => {
     const ts = Date.now().toString()
-    const unitId = tenant.unitIds[0]!
-    const productCategoryId = seedCategory(tenant.tenantId, { name: `Produtos ${ts}` })
-    const serviceId = seedCatalogItem(tenant.tenantId, {
+    const unitId = org.unitIds[0]!
+    const productCategoryId = seedCategory(org.orgId, { name: `Produtos ${ts}` })
+    const serviceId = seedCatalogItem(org.orgId, {
       kind: 'service',
       name: `Barba ${ts}`,
       priceCents: 4000,
@@ -163,7 +163,7 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
       unitIds: [unitId],
       commission: { kind: 'percentage', value: 50 },
     })
-    const productId = seedCatalogItem(tenant.tenantId, {
+    const productId = seedCatalogItem(org.orgId, {
       kind: 'product',
       name: `Pomada ${ts}`,
       priceCents: 1500,
@@ -171,21 +171,21 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
       unitIds: [unitId],
       stock: 10,
     })
-    const customerId = seedCustomer(tenant.tenantId, {
+    const customerId = seedCustomer(org.orgId, {
       name: `Cliente DoD ${ts}`,
       whatsapp: `1199${ts.slice(-7)}`,
     })
     // Snapshot congelado: serviço coberto por item, produto por categoria.
-    const subId = seedSubscription(tenant.tenantId, customerId, {
+    const subId = seedSubscription(org.orgId, customerId, {
       planName: 'Granular DoD',
       usageLimit: { kind: 'count', quantity: 4 },
       includedItemIds: [serviceId],
       includedCategoryIds: [productCategoryId],
     })
     seedAppointment({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       unitId,
-      professionalId: tenant.professionalIds[0]!,
+      professionalId: org.professionalIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',
@@ -222,9 +222,9 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
 
     // Resolução granular por kind: cota debita 2 (serviço+produto); serviço
     // coberto não gera comissão; produto coberto baixa estoque (10−1).
-    expect(readConsumed(tenant.tenantId, subId)).toBe(2)
-    expect(countOrderCommissions(tenant.tenantId, orderId)).toBe(0)
-    expect(readStock(tenant.tenantId, productId)).toBe(9)
+    expect(readConsumed(org.orgId, subId)).toBe(2)
+    expect(countOrderCommissions(org.orgId, orderId)).toBe(0)
+    expect(readStock(org.orgId, productId)).toBe(9)
   })
 
   test('Cenário 3: catálogo sem combo opaco (invariante)', async ({ authedPage }) => {

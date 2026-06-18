@@ -27,30 +27,30 @@ import {
   seedService,
   seedSubscription,
 } from '../helpers/session'
-import { PublicBookingPage, tenantSlug } from '../pages'
+import { PublicBookingPage, orgSlug } from '../pages'
 
 test.describe(
   'brief 0019 — Feature-level DoD § Scenario 3 (bookingLimits.maxPerDay)',
   { tag: '@critical' },
   () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
     test('cliente com agendamento no dia + maxPerDay=1 → modal de reagendamento', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const slug = tenantSlug(tenant.tenantId)
-      const unitId = tenant.unitIds[0]!
-      const professionalId = tenant.professionalIds[0]!
-      const serviceId = seedService(tenant.tenantId, {
+      const slug = orgSlug(org.orgId)
+      const unitId = org.unitIds[0]!
+      const professionalId = org.professionalIds[0]!
+      const serviceId = seedService(org.orgId, {
         name: 'Corte Limite',
         durationMinutes: 30,
         publicVisible: true,
         unitIds: [unitId],
       })
-      linkProfessionalToServices(tenant.tenantId, professionalId, [serviceId])
+      linkProfessionalToServices(org.orgId, professionalId, [serviceId])
 
-      // Assinante = mesma session do tenant.uid pra customerUserId match.
+      // Assinante = mesma session do org.uid pra customerUserId match.
       // Sememente o whatsapp pra que o upsertCustomerWithUser durante o
       // 2º booking encontre o mesmo User → mesmo customerId → existing
       // appointment é contado pelo checkBookingLimits.
@@ -59,7 +59,7 @@ test.describe(
       // `users.where('whatsapp', '==', ...).limit(1)` e retorna o primeiro
       // match. Emulator persiste docs entre runs do spec → whatsapp
       // hardcoded gera colisão com Users de runs anteriores, fazendo o
-      // upsert resolver pra User errado (sem Customer no tenant atual) e
+      // upsert resolver pra User errado (sem Customer no org atual) e
       // criar um Customer novo. Resultado: appointment seedado fica
       // órfão pro `checkBookingLimits`, limit returns `ok`, 2º booking
       // é criado e o modal nunca aparece (bug #960 retroativo).
@@ -72,12 +72,12 @@ test.describe(
       // appointment went uncounted (modal never appeared).
       const subscriberWhatsappLocal = `11988${String(Date.now()).slice(-6)}`
       const subscriberWhatsapp = `55${subscriberWhatsappLocal}`
-      const customerId = seedCustomer(tenant.tenantId, {
+      const customerId = seedCustomer(org.orgId, {
         name: 'Cliente Limite',
-        userId: tenant.uid,
+        userId: org.uid,
         whatsapp: subscriberWhatsapp,
       })
-      seedSubscription(tenant.tenantId, customerId, {
+      seedSubscription(org.orgId, customerId, {
         planName: 'Plano Anti-Vaga',
         bookingLimits: { maxPerDay: 1 },
       })
@@ -89,7 +89,7 @@ test.describe(
       const existingStart = `${targetDate}T12:00:00.000Z`
       const existingEnd = `${targetDate}T12:30:00.000Z`
       seedAppointment({
-        tenantId: tenant.tenantId,
+        orgId: org.orgId,
         unitId,
         professionalId,
         customerId,

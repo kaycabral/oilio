@@ -17,7 +17,7 @@ const sidebar = (page: Page) => page.locator('[data-sidebar="content"]')
 
 test.describe('Venda — terminologia neutra + POS (brief 0030, #1058)', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -46,11 +46,11 @@ test.describe('Venda — terminologia neutra + POS (brief 0030, #1058)', () => {
   })
 
   test('AC-10: busca rápida por nome OU código filtra o seletor do catálogo', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedProduct(tenant.tenantId, { name: 'Cimento CP-II', priceCents: 3000, sku: 'CIM-01' })
-    seedProduct(tenant.tenantId, { name: 'Areia média', priceCents: 1500, sku: 'ARE-02' })
+    seedProduct(org.orgId, { name: 'Cimento CP-II', priceCents: 3000, sku: 'CIM-01' })
+    seedProduct(org.orgId, { name: 'Areia média', priceCents: 1500, sku: 'ARE-02' })
 
     await authedPage.goto('/orders')
     await authedPage.getByRole('button', { name: 'Nova venda' }).click()
@@ -85,12 +85,9 @@ test.describe('Venda — terminologia neutra + POS (brief 0030, #1058)', () => {
     expect(await optionCount('Areia média')).toBe(0)
   })
 
-  test('AC-10: steppers ajustam a quantidade da linha adicionada', async ({
-    tenant,
-    authedPage,
-  }) => {
+  test('AC-10: steppers ajustam a quantidade da linha adicionada', async ({ org, authedPage }) => {
     // Produto a R$ 10,00 — quantidade 3 ⇒ linha R$ 30,00.
-    seedProduct(tenant.tenantId, { name: 'Parafuso', priceCents: 1000, sku: 'PAR-01' })
+    seedProduct(org.orgId, { name: 'Parafuso', priceCents: 1000, sku: 'PAR-01' })
 
     await authedPage.goto('/orders')
     await authedPage.getByRole('button', { name: 'Nova venda' }).click()
@@ -114,12 +111,12 @@ test.describe('Venda — terminologia neutra + POS (brief 0030, #1058)', () => {
   })
 
   test('AC-10: serviço trava qty em 1 (steppers + input desabilitados)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     // Regressão: o ajuste de quantidade não pode afrouxar a regra de serviço
     // (linha de serviço é sempre qty 1 — duração/comissão são por execução).
-    seedService(tenant.tenantId, { name: 'Corte', durationMinutes: 30, priceCents: 5000 })
+    seedService(org.orgId, { name: 'Corte', durationMinutes: 30, priceCents: 5000 })
 
     await authedPage.goto('/orders')
     await authedPage.getByRole('button', { name: 'Nova venda' }).click()

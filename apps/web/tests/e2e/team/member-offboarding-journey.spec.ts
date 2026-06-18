@@ -16,7 +16,7 @@
 //     off-system settlement).
 //
 //   - Cenário 3 — identidade preservada + separada do cliente: the SAME person is
-//     a PROFESSIONAL in tenant A and a CUSTOMER in tenant B. Removed from A's
+//     a PROFESSIONAL in org A and a CUSTOMER in org B. Removed from A's
 //     team, A's commission stays identifiable (real name via snapshot) — and even
 //     after the person's GLOBAL account is anonymized as a customer, A's
 //     professional commission STILL shows the real name. The customer-erasure
@@ -52,10 +52,10 @@ import {
   seedCustomerShadowForUser,
   seedInvite,
   seedOpenOrder,
-  seedTenantLink,
-  type SeededTenant,
+  seedOrgLink,
+  type SeededOrg,
 } from '../helpers/session'
-import { ProfessionalsPage, PublicBookingPage, tenantSlug } from '../pages'
+import { ProfessionalsPage, PublicBookingPage, orgSlug } from '../pages'
 
 const FS_BASE = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 
@@ -110,13 +110,13 @@ function setDocFull(path: string, fields: Record<string, unknown>): void {
 }
 
 // True when the `professionals_pii/{id}` doc still exists (RETENTION, art. 16).
-function professionalPiiExists(tenantId: string, professionalId: string): boolean {
+function professionalPiiExists(orgId: string, professionalId: string): boolean {
   try {
     execFileSync(
       'curl',
       [
         '-fsS',
-        `${FS_BASE}/tenants/${tenantId}/professionals_pii/${professionalId}`,
+        `${FS_BASE}/orgs/${orgId}/professionals_pii/${professionalId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -130,9 +130,9 @@ function professionalPiiExists(tenantId: string, professionalId: string): boolea
 
 // True when the invite doc still exists (the AC-09 cleanup DELETES it, so
 // `readInvite` 404s — wrap it to read absence as a boolean).
-function inviteStillExists(tenantId: string, inviteId: string): boolean {
+function inviteStillExists(orgId: string, inviteId: string): boolean {
   try {
-    return readInvite(tenantId, inviteId) !== null
+    return readInvite(orgId, inviteId) !== null
   } catch {
     return false
   }
@@ -144,7 +144,7 @@ function inviteStillExists(tenantId: string, inviteId: string): boolean {
 // matching closed order (in window) keeps the commission in the report scope —
 // the report maps commission→unit via `orderId`.
 function seedCommissionWithSnapshot(
-  tenant: SeededTenant,
+  org: SeededOrg,
   c: {
     attributedUserId: string
     attributedMemberName: string
@@ -153,15 +153,15 @@ function seedCommissionWithSnapshot(
   },
 ): string {
   const orderId = seedClosedOrder({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0] ?? 'unit',
+    orgId: org.orgId,
+    unitId: org.unitIds[0] ?? 'unit',
     customerId: null,
     attributedUserId: c.attributedUserId,
     totalCents: 5000,
     closedAt: c.createdAt,
   })
   return seedCommission({
-    tenantId: tenant.tenantId,
+    orgId: org.orgId,
     attributedUserId: c.attributedUserId,
     amountCents: 2500,
     liquidationStatus: 'pendente',
@@ -172,27 +172,27 @@ function seedCommissionWithSnapshot(
 }
 
 test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: '@critical' }, () => {
-  test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
   test('Cenário 1: desligamento limpo — cascade completo + registros identificáveis', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
-    const membershipId = membershipDocId(tenant.tenantId, proUserId)
+    const membershipId = membershipDocId(org.orgId, proUserId)
     // O fixture seed o User do profissional com displayName "Profissional 1".
     const realName = 'Profissional 1'
     const proEmail = `prof-1-${proId}@e2e.local`
-    const customerId = seedCustomer(tenant.tenantId, { name: 'Cliente Jornada' })
+    const customerId = seedCustomer(org.orgId, { name: 'Cliente Jornada' })
 
     const future = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString()
     const past = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString()
 
     // Future appointment (must be cancelled) + past appointment (must be left).
     const futureAppt = seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: proId,
       customerId,
       serviceId: 'svc-1',
@@ -200,28 +200,28 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
       endAt: new Date(new Date(future).getTime() + 30 * 60_000).toISOString(),
     })
     const pastAppt = seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: proId,
       customerId,
       serviceId: 'svc-1',
       startAt: past,
       endAt: new Date(new Date(past).getTime() + 30 * 60_000).toISOString(),
     })
-    // The member's agenda-block (must be cleaned) + a tenant-wide block (kept).
+    // The member's agenda-block (must be cleaned) + a org-wide block (kept).
     const proBlock = seedBlock({
       kind: 'one_off',
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: proId,
       startAt: future,
       endAt: new Date(new Date(future).getTime() + 60 * 60_000).toISOString(),
       reason: 'folga do profissional',
     })
-    const tenantBlock = seedBlock({
+    const orgBlock = seedBlock({
       kind: 'one_off',
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: null,
       startAt: future,
       endAt: new Date(new Date(future).getTime() + 60 * 60_000).toISOString(),
@@ -229,17 +229,17 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     })
     // The member's pending invite (must be cleaned by email).
     const { inviteId } = seedInvite({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       email: proEmail,
       role: 'professional',
-      invitedBy: tenant.uid,
+      invitedBy: org.uid,
       status: 'pending',
     })
     // A commission carrying the identity snapshot — the retention record whose
     // REAL name must remain identifiable after removal. Dated `now` so it lands
     // in the report's default period (the report scopes by window via the source
     // order's `closedAt`); the retention/identifiability is what this asserts.
-    seedCommissionWithSnapshot(tenant, {
+    seedCommissionWithSnapshot(org, {
       attributedUserId: proUserId,
       attributedMemberName: realName,
       itemName: 'Corte da Jornada',
@@ -248,7 +248,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
 
     // Baseline: active, approved, PII present, on the team, on public booking.
     expect(readMembership(membershipId)?.status).toBe('active')
-    expect(professionalPiiExists(tenant.tenantId, proId)).toBe(true)
+    expect(professionalPiiExists(org.orgId, proId)).toBe(true)
 
     const pros = new ProfessionalsPage(authedPage)
     await pros.gotoList()
@@ -265,32 +265,30 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     // is a saga — the professional-deactivation step lands after the membership
     // revoke, so poll for it rather than reading right after the revoke poll.
     await expect
-      .poll(() => readProfessionalByUserId(tenant.tenantId, proUserId)?.operationalStatus)
+      .poll(() => readProfessionalByUserId(org.orgId, proUserId)?.operationalStatus)
       .toBe('incomplete')
-    expect(readProfessionalByUserId(tenant.tenantId, proUserId)).not.toBeNull()
-    expect(professionalPiiExists(tenant.tenantId, proId)).toBe(true)
+    expect(readProfessionalByUserId(org.orgId, proUserId)).not.toBeNull()
+    expect(professionalPiiExists(org.orgId, proId)).toBe(true)
 
     // Future appointment CANCELLED but RETAINED; past one LEFT.
     await expect
-      .poll(() => strField(readAppointment(tenant.tenantId, futureAppt) ?? undefined, 'status'))
+      .poll(() => strField(readAppointment(org.orgId, futureAppt) ?? undefined, 'status'))
       .toBe('cancelled')
-    expect(readAppointment(tenant.tenantId, futureAppt)).not.toBeNull()
-    expect(strField(readAppointment(tenant.tenantId, pastAppt) ?? undefined, 'status')).toBe(
-      'scheduled',
-    )
+    expect(readAppointment(org.orgId, futureAppt)).not.toBeNull()
+    expect(strField(readAppointment(org.orgId, pastAppt) ?? undefined, 'status')).toBe('scheduled')
 
-    // Agenda-block cleaned; tenant-wide block kept (the block-cleanup is a later
+    // Agenda-block cleaned; org-wide block kept (the block-cleanup is a later
     // saga step, so poll for the member's block to disappear).
-    await expect.poll(() => blockExists(tenant.tenantId, proBlock)).toBe(false)
-    expect(blockExists(tenant.tenantId, tenantBlock)).toBe(true)
+    await expect.poll(() => blockExists(org.orgId, proBlock)).toBe(false)
+    expect(blockExists(org.orgId, orgBlock)).toBe(true)
 
     // Pending invite cleaned (the cleanup DELETES the doc → readInvite 404s).
-    await expect.poll(() => inviteStillExists(tenant.tenantId, inviteId)).toBe(false)
+    await expect.poll(() => inviteStillExists(org.orgId, inviteId)).toBe(false)
 
     // Gone from the active team list + absent from public booking.
     await pros.gotoList()
     await expect(authedPage.getByText(realName)).toHaveCount(0)
-    const publicBooking = new PublicBookingPage(authedPage, tenantSlug(tenant.tenantId))
+    const publicBooking = new PublicBookingPage(authedPage, orgSlug(org.orgId))
     await publicBooking.gotoUnit('unidade-1')
     await expect(authedPage.getByText(realName)).toHaveCount(0)
 
@@ -304,18 +302,18 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
   })
 
   test('Cenário 2: comanda aberta recusa a remoção (comissão pendente NÃO bloqueia)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
-    const membershipId = membershipDocId(tenant.tenantId, proUserId)
-    const customerId = seedCustomer(tenant.tenantId, { name: 'Cliente Comanda' })
+    const membershipId = membershipDocId(org.orgId, proUserId)
+    const customerId = seedCustomer(org.orgId, { name: 'Cliente Comanda' })
 
     const future = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString()
     const apptId = seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: proId,
       customerId,
       serviceId: 'svc-1',
@@ -324,15 +322,15 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     })
     // A PENDING commission (must NOT block — off-system settlement, AC-06).
     const pendingCommission = seedCommission({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       attributedUserId: proUserId,
       amountCents: 3500,
       liquidationStatus: 'pendente',
     })
     // An OPEN comanda attributed to the member (THE veto — AC-05).
     seedOpenOrder({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       customerId,
       attributedUserId: proUserId,
     })
@@ -344,33 +342,31 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     // Refused with a clear message — and NOTHING was mutated (saga never started).
     await expect(authedPage.getByText(/comanda aberta/i)).toBeVisible()
     expect(readMembership(membershipId)?.status).toBe('active')
-    expect(strField(readAppointment(tenant.tenantId, apptId) ?? undefined, 'status')).toBe(
-      'scheduled',
-    )
+    expect(strField(readAppointment(org.orgId, apptId) ?? undefined, 'status')).toBe('scheduled')
     // The veto is the OPEN comanda, not the pending commission: the commission
     // is left pending + identifiable (proves the AC-06 reescopo boundary).
-    expect(readCommission(tenant.tenantId, pendingCommission)?.liquidationStatus).toBe('pendente')
+    expect(readCommission(org.orgId, pendingCommission)?.liquidationStatus).toBe('pendente')
   })
 
   test('Cenário 3: identidade preservada e separada do cliente — as relações nunca cruzam', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    // Tenant A: the seeded tenant where the subject is a PROFESSIONAL.
-    const proId = tenant.professionalIds[0]!
+    // Org A: the seeded org where the subject is a PROFESSIONAL.
+    const proId = org.professionalIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
-    const membershipId = membershipDocId(tenant.tenantId, proUserId)
+    const membershipId = membershipDocId(org.orgId, proUserId)
     const realName = 'Profissional 1'
     const now = new Date().toISOString()
 
-    // The SAME person is also a CUSTOMER (per-tenant shadow) — modelling the
+    // The SAME person is also a CUSTOMER (per-org shadow) — modelling the
     // cliente-vs-profissional boundary on the SAME global account. The reverse
-    // index `tenant_links/{tenantId}` is what a customer-creation saga writes.
-    const customerShadowId = seedCustomerShadowForUser(tenant.tenantId, proUserId)
-    seedTenantLink(proUserId, tenant.tenantId)
+    // index `org_links/{orgId}` is what a customer-creation saga writes.
+    const customerShadowId = seedCustomerShadowForUser(org.orgId, proUserId)
+    seedOrgLink(proUserId, org.orgId)
 
     // A retention commission with the identity snapshot (the professional record).
-    seedCommissionWithSnapshot(tenant, {
+    seedCommissionWithSnapshot(org, {
       attributedUserId: proUserId,
       attributedMemberName: realName,
       itemName: 'Corte Identidade',
@@ -390,7 +386,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     await expect(revokedRow.getByText(realName)).toBeVisible()
 
     // Now the person exercises CUSTOMER erasure (0032) on their GLOBAL account:
-    // scrub the User identity + set `anonymizedAt`, AND write the per-tenant
+    // scrub the User identity + set `anonymizedAt`, AND write the per-org
     // customer block marker (`blocked_subjects/{userId}`) — exactly what the
     // customer-side erasure does. The PROFESSIONAL records must NOT be touched.
     patchDocFields(`users/${proUserId}`, {
@@ -398,13 +394,13 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
       anonymizedAt: { stringValue: now },
       updatedAt: { stringValue: now },
     })
-    setDocFull(`tenants/${tenant.tenantId}/blocked_subjects/${proUserId}`, {
+    setDocFull(`orgs/${org.orgId}/blocked_subjects/${proUserId}`, {
       userId: { stringValue: proUserId },
       blockedAt: { stringValue: now },
     })
 
     // The customer-side artifacts exist (erasure happened on the cliente relation).
-    expect(blockedSubjectMarkerExists(tenant.tenantId, proUserId)).toBe(true)
+    expect(blockedSubjectMarkerExists(org.orgId, proUserId)).toBe(true)
     expect(customerShadowId).toBeTruthy()
 
     // CROSS-RELATIONSHIP SEPARATION — the relations never cross:
@@ -423,6 +419,6 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     //  (b) the professional retention record itself is untouched by the
     //      customer erasure: PII retained, commission still attributed to the
     //      real userId with the real-name snapshot intact.
-    expect(professionalPiiExists(tenant.tenantId, proId)).toBe(true)
+    expect(professionalPiiExists(org.orgId, proId)).toBe(true)
   })
 })

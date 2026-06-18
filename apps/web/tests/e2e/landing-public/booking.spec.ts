@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { expect, test } from '../fixtures'
 import { FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
 import { seedService } from '../helpers/session'
-import { PublicBookingPage, tenantSlug } from '../pages'
+import { PublicBookingPage, orgSlug } from '../pages'
 
 // Épico #672 — Landing pública por estabelecimento.
 // - #673 slug público resolve para uma página servida sem auth.
@@ -12,8 +12,8 @@ import { PublicBookingPage, tenantSlug } from '../pages'
 
 // Branding patch isn't covered by `helpers/session.ts` (one-off shape).
 // Keep this here until a second spec needs it.
-function patchTenantBranding(
-  tenantId: string,
+function patchOrgBranding(
+  orgId: string,
   branding: { logoUrl?: string; bannerUrl?: string; description?: string },
 ) {
   const fields: Record<string, { stringValue: string }> = {}
@@ -27,7 +27,7 @@ function patchTenantBranding(
       '-fsS',
       '-X',
       'PATCH',
-      `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenantId}?updateMask.fieldPaths=branding`,
+      `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}?updateMask.fieldPaths=branding`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -41,42 +41,42 @@ function patchTenantBranding(
 
 test.describe('Landing pública — branding + catálogo + agendamento', () => {
   test.describe('empresa com unidade + profissional', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
     test(
       'renderiza branding + catálogo público e completa booking',
       { tag: '@critical' },
-      async ({ tenant, page }) => {
-        const slug = tenantSlug(tenant.tenantId)
+      async ({ org, page }) => {
+        const slug = orgSlug(org.orgId)
 
-        patchTenantBranding(tenant.tenantId, {
+        patchOrgBranding(org.orgId, {
           logoUrl: 'https://example.com/logo.png',
           bannerUrl: 'https://example.com/banner.png',
           description: 'Test studio descrição pública.',
         })
 
         // Serviço visível no catálogo público.
-        seedService(tenant.tenantId, {
+        seedService(org.orgId, {
           name: 'Corte Premium',
           durationMinutes: 30,
           priceCents: 6500,
           publicVisible: true,
-          unitIds: tenant.unitIds,
+          unitIds: org.unitIds,
         })
         // Serviço NÃO público — não deve aparecer no catálogo.
-        seedService(tenant.tenantId, {
+        seedService(org.orgId, {
           name: 'Serviço Interno',
           durationMinutes: 30,
           priceCents: 4500,
           publicVisible: false,
-          unitIds: tenant.unitIds,
+          unitIds: org.unitIds,
         })
 
         const booking = new PublicBookingPage(page, slug)
 
         // Página pública (sem auth).
         await booking.gotoCatalog()
-        await expect(booking.tenantHeading()).toBeVisible()
+        await expect(booking.orgHeading()).toBeVisible()
         await expect(page.getByText('Test studio descrição pública.')).toBeVisible()
         await expect(booking.serviceCard('Corte Premium')).toBeVisible()
         await expect(page.getByText(/R\$\s*65,00/)).toBeVisible()
@@ -106,7 +106,7 @@ test.describe('Landing pública — branding + catálogo + agendamento', () => {
   })
 
   test('slug inexistente retorna 404', async ({ page }) => {
-    const res = await page.goto('/nao-existe-este-tenant-xyz-123')
+    const res = await page.goto('/nao-existe-este-org-xyz-123')
     expect(res?.status()).toBe(404)
   })
 })

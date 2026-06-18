@@ -2,7 +2,7 @@ import { anonymizedSubjectCode } from '@/domain'
 import { execFileSync } from 'node:child_process'
 import { expect, test } from '../fixtures'
 import { FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
-import { seedCustomer, seedMember, seedTenant, signInAndAttachSession } from '../helpers/session'
+import { seedCustomer, seedMember, seedOrg, signInAndAttachSession } from '../helpers/session'
 
 // Feature-level E2E — neutral label for anonymized accounts (brief 0032 / #1095).
 //
@@ -53,14 +53,14 @@ test.describe('neutral label for anonymized accounts', () => {
   test('customer list: anonymized accounts show `Cliente ‹CODE›`, two stay distinct, a live account keeps its name', async ({
     context,
   }) => {
-    const owner = await seedTenant({ professionalCount: 0 })
+    const owner = await seedOrg({ professionalCount: 0 })
 
     const anonUserA = `e2e-cust-anon-a-${Date.now()}`
     const anonUserB = `e2e-cust-anon-b-${Date.now()}`
     const liveUser = `e2e-cust-live-${Date.now()}`
-    seedCustomer(owner.tenantId, { name: 'Ana Anonimizada', userId: anonUserA })
-    seedCustomer(owner.tenantId, { name: 'Bruno Anonimizado', userId: anonUserB })
-    seedCustomer(owner.tenantId, { name: 'Carla Ativa', userId: liveUser })
+    seedCustomer(owner.orgId, { name: 'Ana Anonimizada', userId: anonUserA })
+    seedCustomer(owner.orgId, { name: 'Bruno Anonimizado', userId: anonUserB })
+    seedCustomer(owner.orgId, { name: 'Carla Ativa', userId: liveUser })
 
     anonymizeUser(anonUserA)
     anonymizeUser(anonUserB)
@@ -88,8 +88,8 @@ test.describe('neutral label for anonymized accounts', () => {
   test('team list + member detail: anonymized member shows `Profissional ‹CODE›`', async ({
     context,
   }) => {
-    const owner = await seedTenant({ professionalCount: 0 })
-    const { userId } = seedMember(owner.tenantId, {
+    const owner = await seedOrg({ professionalCount: 0 })
+    const { userId } = seedMember(owner.orgId, {
       role: 'professional',
       displayName: 'Daniel Profissional',
     })
@@ -100,7 +100,7 @@ test.describe('neutral label for anonymized accounts', () => {
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()
 
-    // Team list (member-name join via `listTenantMembers` / `/team`).
+    // Team list (member-name join via `listOrgMembers` / `/team`).
     await page.goto('/team')
     await expect(page.getByText(label, { exact: true }).first()).toBeVisible()
     await expect(page.getByText('Daniel Profissional')).toHaveCount(0)

@@ -12,11 +12,8 @@ import { listItem, rowAction } from '../helpers/list'
 import { seedCatalogItem, seedCategory } from '../helpers/session'
 
 test.describe('Plans — coverage by granular items (#1008)', { tag: '@critical' }, () => {
-  test('render + empty: plan form opens with no coverage selected', async ({
-    tenant,
-    authedPage,
-  }) => {
-    seedCatalogItem(tenant.tenantId, { kind: 'service', name: `Corte ${Date.now()}` })
+  test('render + empty: plan form opens with no coverage selected', async ({ org, authedPage }) => {
+    seedCatalogItem(org.orgId, { kind: 'service', name: `Corte ${Date.now()}` })
 
     await authedPage.goto('/plans/new')
     await expect(authedPage.getByRole('heading', { name: 'Novo plano' })).toBeVisible()
@@ -29,15 +26,15 @@ test.describe('Plans — coverage by granular items (#1008)', { tag: '@critical'
   })
 
   test('create selecting items (service + product) → listing + persists; edit; delete', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     authedPage.on('dialog', (d) => d.accept())
     const ts = Date.now().toString()
     const serviceName = `Barba ${ts}`
     const productName = `Pomada ${ts}`
-    seedCatalogItem(tenant.tenantId, { kind: 'service', name: serviceName })
-    seedCatalogItem(tenant.tenantId, { kind: 'product', name: productName })
+    seedCatalogItem(org.orgId, { kind: 'service', name: serviceName })
+    seedCatalogItem(org.orgId, { kind: 'product', name: productName })
     const name = `Plano Itens ${ts}`
     // Coverage checkboxes are labeled by the item name + kind suffix
     // ("<name> (Serviço)" / "<name> (Produto)"); anchor on the unique name.
@@ -83,14 +80,14 @@ test.describe('Plans — coverage by granular items (#1008)', { tag: '@critical'
   })
 
   test('degenerate: category-convenience coverage with no item yet in that category', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     authedPage.on('dialog', (d) => d.accept())
     const ts = Date.now().toString()
     // An empty category — no catalog item carries it yet.
     const categoryName = `Vazia ${ts}`
-    seedCategory(tenant.tenantId, { name: categoryName })
+    seedCategory(org.orgId, { name: categoryName })
     const name = `Plano Conveniência ${ts}`
     const categoryItem = authedPage.getByRole('checkbox', { name: categoryName })
 

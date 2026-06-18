@@ -9,7 +9,7 @@ import { AgendaPage } from '../pages'
 
 test.describe('Agenda — diálogo de novo agendamento', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -24,9 +24,9 @@ test.describe('Agenda — diálogo de novo agendamento', () => {
     await expect(agenda.newAppointmentButton()).toBeDisabled()
   })
 
-  test('"+ Novo" abre o diálogo com os campos esperados', async ({ tenant, authedPage }) => {
-    seedService(tenant.tenantId, { name: 'Corte', durationMinutes: 30, priceCents: 5000 })
-    seedCustomer(tenant.tenantId, { name: 'João Teste', whatsapp: '11999990000' })
+  test('"+ Novo" abre o diálogo com os campos esperados', async ({ org, authedPage }) => {
+    seedService(org.orgId, { name: 'Corte', durationMinutes: 30, priceCents: 5000 })
+    seedCustomer(org.orgId, { name: 'João Teste', whatsapp: '11999990000' })
 
     const agenda = new AgendaPage(authedPage)
     await agenda.goto()

@@ -20,7 +20,7 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 30_000,
     // All integration files share ONE Firestore emulator (default) db; some wipe
-    // it globally between tests (`user-merge`, `block-subject-in-tenant`). Running
+    // it globally between tests (`user-merge`, `block-subject-in-org`). Running
     // files in parallel lets one suite's full-db DELETE clobber another's fixtures
     // mid-run. Force sequential file execution so each owns the db for its turn.
     // (Rules-bound files use @firebase/rules-unit-testing with their own project,

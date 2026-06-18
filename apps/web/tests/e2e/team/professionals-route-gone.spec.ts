@@ -6,7 +6,7 @@
 import { expect, test } from '../fixtures'
 
 test.describe('`/professionals` removida (#1085 AC-01)', () => {
-  test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
   const GONE_ROUTES = ['/professionals', '/professionals/new'] as const
 
@@ -19,8 +19,8 @@ test.describe('`/professionals` removida (#1085 AC-01)', () => {
     })
   }
 
-  test('a rota de edição por id também sumiu (404)', async ({ tenant, authedPage }) => {
-    const res = await authedPage.goto(`/professionals/${tenant.professionalIds[0]!}`)
+  test('a rota de edição por id também sumiu (404)', async ({ org, authedPage }) => {
+    const res = await authedPage.goto(`/professionals/${org.professionalIds[0]!}`)
     expect(res?.status()).toBe(404)
   })
 

@@ -29,13 +29,13 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-const docUrl = (tenantId: string, path: string) =>
-  `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenantId}/${path}`
+const docUrl = (orgId: string, path: string) =>
+  `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/${path}`
 
-function readConsumed(tenantId: string, subId: string): number {
+function readConsumed(orgId: string, subId: string): number {
   const out = execFileSync('curl', [
     '-fsS',
-    docUrl(tenantId, `subscriptions/${subId}`),
+    docUrl(orgId, `subscriptions/${subId}`),
     '-H',
     'Authorization: Bearer owner',
   ])
@@ -68,15 +68,15 @@ function readConsumed(tenantId: string, subId: string): number {
   return Number(data.fields?.currentPeriod?.mapValue?.fields?.consumed?.integerValue ?? '0')
 }
 
-function readStock(tenantId: string, itemId: string): number {
-  const fields = readCatalogItem(tenantId, itemId)
+function readStock(orgId: string, itemId: string): number {
+  const fields = readCatalogItem(orgId, itemId)
   return Number(intStrField(fields ?? undefined, 'stock') ?? '0')
 }
 
-function countCommissions(tenantId: string, orderId: string): number {
+function countCommissions(orgId: string, orderId: string): number {
   const out = execFileSync('curl', [
     '-fsS',
-    docUrl(tenantId, 'commissions'),
+    docUrl(orgId, 'commissions'),
     '-H',
     'Authorization: Bearer owner',
   ])
@@ -113,7 +113,7 @@ async function confirmClose(authedPage: Page): Promise<void> {
 
 test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -123,15 +123,15 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
   })
 
   test('covered service (item) + covered product (category) → granular lines, no commission, stock decrements', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
-    const unitId = tenant.unitIds[0]!
+    const unitId = org.unitIds[0]!
 
     // Catalog: a covered service (by item id) + a product in a covered category.
-    const productCategoryId = seedCategory(tenant.tenantId, { name: `Produtos ${ts}` })
-    const serviceId = seedCatalogItem(tenant.tenantId, {
+    const productCategoryId = seedCategory(org.orgId, { name: `Produtos ${ts}` })
+    const serviceId = seedCatalogItem(org.orgId, {
       kind: 'service',
       name: `Barba ${ts}`,
       priceCents: 4000,
@@ -141,7 +141,7 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
       // line produces none.
       commission: { kind: 'percentage', value: 50 },
     })
-    const productId = seedCatalogItem(tenant.tenantId, {
+    const productId = seedCatalogItem(org.orgId, {
       kind: 'product',
       name: `Pomada ${ts}`,
       priceCents: 1500,
@@ -150,12 +150,12 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
       stock: 10,
     })
 
-    const customerId = seedCustomer(tenant.tenantId, {
+    const customerId = seedCustomer(org.orgId, {
       name: `Cliente Granular ${ts}`,
       whatsapp: `1199${ts.slice(-7)}`,
     })
     // Frozen snapshot: service covered by item id, product covered by category.
-    const subId = seedSubscription(tenant.tenantId, customerId, {
+    const subId = seedSubscription(org.orgId, customerId, {
       planName: 'Granular',
       usageLimit: { kind: 'count', quantity: 4 },
       includedItemIds: [serviceId],
@@ -164,9 +164,9 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
 
     // Appointment for the covered service → start the comanda from the agenda.
     seedAppointment({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       unitId,
-      professionalId: tenant.professionalIds[0]!,
+      professionalId: org.professionalIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',
@@ -205,29 +205,29 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
     await confirmClose(authedPage)
 
     // Quota debited by covered item count: 1 service + 1 product = 2.
-    expect(readConsumed(tenant.tenantId, subId)).toBe(2)
+    expect(readConsumed(org.orgId, subId)).toBe(2)
     // Covered service → NO commission generated.
-    expect(countCommissions(tenant.tenantId, orderId)).toBe(0)
+    expect(countCommissions(org.orgId, orderId)).toBe(0)
     // Covered product → stock decremented (10 − 1).
-    expect(readStock(tenant.tenantId, productId)).toBe(9)
+    expect(readStock(org.orgId, productId)).toBe(9)
   })
 
-  test('limit respected: closing beyond plan quota is rejected', async ({ tenant, authedPage }) => {
+  test('limit respected: closing beyond plan quota is rejected', async ({ org, authedPage }) => {
     const ts = Date.now().toString()
-    const unitId = tenant.unitIds[0]!
-    const serviceId = seedCatalogItem(tenant.tenantId, {
+    const unitId = org.unitIds[0]!
+    const serviceId = seedCatalogItem(org.orgId, {
       kind: 'service',
       name: `Corte ${ts}`,
       priceCents: 5000,
       durationMinutes: 30,
       unitIds: [unitId],
     })
-    const customerId = seedCustomer(tenant.tenantId, {
+    const customerId = seedCustomer(org.orgId, {
       name: `Cliente Limite ${ts}`,
       whatsapp: `1198${ts.slice(-7)}`,
     })
     // Plan quota 1, already fully consumed → no balance left this cycle.
-    const subId = seedSubscription(tenant.tenantId, customerId, {
+    const subId = seedSubscription(org.orgId, customerId, {
       planName: 'Limite',
       usageLimit: { kind: 'count', quantity: 1 },
       consumed: 1,
@@ -235,9 +235,9 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
     })
 
     seedAppointment({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       unitId,
-      professionalId: tenant.professionalIds[0]!,
+      professionalId: org.professionalIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T18:00:00.000Z',
@@ -264,6 +264,6 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
       .getByRole('combobox', { name: 'Cobertura do item' })
       .click()
     await expect(authedPage.getByRole('option', { name: 'Consumo do plano' })).toBeDisabled()
-    expect(readConsumed(tenant.tenantId, subId)).toBe(1)
+    expect(readConsumed(org.orgId, subId)).toBe(1)
   })
 })

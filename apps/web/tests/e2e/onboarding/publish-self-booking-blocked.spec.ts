@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures'
-import { tenantSlug } from '../pages'
+import { orgSlug } from '../pages'
 
 // #988 (brief 0008, Grupo C) — rewritten for the inferred-availability model
 // (spike): there is NO global "publish" button anymore. A unit in "Por
@@ -21,17 +21,17 @@ test.describe(
     // Degenerate unit: appointment mode (seed default) but no hours/address, no
     // public service, no approved professional → the unit is NOT bookable.
     test.use({
-      tenantInput: {
+      orgInput: {
         hasBusinessHours: false,
         professionalCount: 0,
       },
     })
 
     test('AC-06: the per-unit readiness card lists the missing items', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      await authedPage.goto(`/units/${tenant.unitIds[0]!}`)
+      await authedPage.goto(`/units/${org.unitIds[0]!}`)
 
       // The per-unit publish card renders (the unit is in appointment mode).
       await expect(authedPage.getByText('Agendamento público desta unidade')).toBeVisible()
@@ -50,12 +50,12 @@ test.describe(
     })
 
     test('AC-08 (negative): the public page does not resolve while the unit is not bookable', async ({
-      tenant,
+      org,
       page,
     }) => {
-      const slug = tenantSlug(tenant.tenantId)
+      const slug = orgSlug(org.orgId)
 
-      // Landing: no bookable unit → getPublicTenantSummary returns null → 404.
+      // Landing: no bookable unit → getPublicOrgSummary returns null → 404.
       const landing = await page.goto(`/${slug}`)
       expect(landing?.status()).toBe(404)
 

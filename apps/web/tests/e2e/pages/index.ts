@@ -3,6 +3,6 @@
 export { AgendaPage } from './AgendaPage'
 export { MeAppointmentsPage } from './MeAppointmentsPage'
 export { ProfessionalsPage } from './ProfessionalsPage'
-export { PublicBookingPage, tenantSlug } from './PublicBookingPage'
+export { PublicBookingPage, orgSlug } from './PublicBookingPage'
 export { ServicesPage } from './ServicesPage'
 export { UnitsPage } from './UnitsPage'

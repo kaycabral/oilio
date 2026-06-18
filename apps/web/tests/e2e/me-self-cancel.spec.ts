@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { expect, test } from './fixtures'
 import { AUTH_HOST, FIRESTORE_HOST, PROJECT_ID } from './helpers/emulator'
 import { decodeFsDocument, parseJson, strField } from './helpers/firestore-rest'
-import { seedAppointment, seedService, seedTenant, signInAndAttachSession } from './helpers/session'
+import { seedAppointment, seedOrg, seedService, signInAndAttachSession } from './helpers/session'
 import { MeAppointmentsPage } from './pages'
 
 // Issue #845 — Cliente self-cancel a partir de /me/appointments.
@@ -75,7 +75,7 @@ function createCustomerUser() {
       displayName: { stringValue: 'Cliente E2E' },
       avatarUrl: { nullValue: null },
       emailVerified: { booleanValue: true },
-      currentTenantId: { nullValue: null },
+      currentOrgId: { nullValue: null },
       whatsapp: { stringValue: `5511${Math.floor(900000000 + Math.random() * 99999999)}` },
       birthDate: { nullValue: null },
       taxIdentity: { nullValue: null },
@@ -94,13 +94,13 @@ function createCustomerUser() {
   return Promise.resolve({ uid, email, password })
 }
 
-function seedCustomerForUser(tenantId: string, uid: string): string {
+function seedCustomerForUser(orgId: string, uid: string): string {
   const customerId = `e2e-cust-${Math.random().toString(36).slice(2, 10)}`
   const now = new Date().toISOString()
-  fsPatch(`tenants/${tenantId}/customers/${customerId}`, {
+  fsPatch(`orgs/${orgId}/customers/${customerId}`, {
     fields: {
       id: { stringValue: customerId },
-      tenantId: { stringValue: tenantId },
+      orgId: { stringValue: orgId },
       userId: { stringValue: uid },
       tags: { arrayValue: { values: [{ stringValue: 'wizard' }] } },
       notes: { nullValue: null },
@@ -113,33 +113,33 @@ function seedCustomerForUser(tenantId: string, uid: string): string {
 
 test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () => {
   test('cliente cancela seu agendamento dentro da janela', async ({ context, page, baseURL }) => {
-    // Tenant with policy enabled @ 60 min notice. The appointment is 3h
+    // Org with policy enabled @ 60 min notice. The appointment is 3h
     // ahead → safely within the window. Customer signs in as a separate
-    // identity (not the tenant owner), so we bypass `authedPage` and use
+    // identity (not the org owner), so we bypass `authedPage` and use
     // the imperative `signInAndAttachSession` with the customer creds.
-    const seed = await seedTenant({
+    const seed = await seedOrg({
       unitCount: 1,
       professionalCount: 1,
       cancellationPolicy: { enabled: true, minNoticeMinutes: 60 },
     })
-    const serviceId = seedService(seed.tenantId, {
+    const serviceId = seedService(seed.orgId, {
       name: 'Corte',
       publicVisible: true,
       unitIds: seed.unitIds,
     })
     const customer = await createCustomerUser()
-    const customerId = seedCustomerForUser(seed.tenantId, customer.uid)
+    const customerId = seedCustomerForUser(seed.orgId, customer.uid)
     const startAt = new Date(Date.now() + 3 * 60 * 60_000).toISOString()
     const endAt = new Date(Date.now() + 3.5 * 60 * 60_000).toISOString()
     const apptId = seedAppointment({
-      tenantId: seed.tenantId,
+      orgId: seed.orgId,
       unitId: seed.unitIds[0]!,
       professionalId: seed.professionalIds[0]!,
       customerId,
       serviceId,
       startAt,
       endAt,
-      // Snapshot mirrors the tenant policy at commit time (#1038).
+      // Snapshot mirrors the org policy at commit time (#1038).
       cancellationPolicySnapshot: { enabled: true, minNoticeMinutes: 60 },
     })
 
@@ -156,7 +156,7 @@ test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () =>
     await expect(page.getByText(/cancelado/i).first()).toBeVisible()
 
     // Confirm Firestore reflects the cancel + audit landed.
-    const apptDoc = fsGet(`tenants/${seed.tenantId}/appointments/${apptId}`, decodeFsDocument)
+    const apptDoc = fsGet(`orgs/${seed.orgId}/appointments/${apptId}`, decodeFsDocument)
     expect(strField(apptDoc.fields, 'status')).toBe('cancelled')
     expect(strField(apptDoc.fields, 'cancelledBy')).toBe('customer')
   })
@@ -167,29 +167,29 @@ test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () =>
     baseURL,
   }) => {
     // 2h policy; appointment 30 min ahead → outside the window.
-    const seed = await seedTenant({
+    const seed = await seedOrg({
       unitCount: 1,
       professionalCount: 1,
       cancellationPolicy: { enabled: true, minNoticeMinutes: 120 },
     })
-    const serviceId = seedService(seed.tenantId, {
+    const serviceId = seedService(seed.orgId, {
       name: 'Corte Tight',
       publicVisible: true,
       unitIds: seed.unitIds,
     })
     const customer = await createCustomerUser()
-    const customerId = seedCustomerForUser(seed.tenantId, customer.uid)
+    const customerId = seedCustomerForUser(seed.orgId, customer.uid)
     const startAt = new Date(Date.now() + 30 * 60_000).toISOString()
     const endAt = new Date(Date.now() + 60 * 60_000).toISOString()
     seedAppointment({
-      tenantId: seed.tenantId,
+      orgId: seed.orgId,
       unitId: seed.unitIds[0]!,
       professionalId: seed.professionalIds[0]!,
       customerId,
       serviceId,
       startAt,
       endAt,
-      // Snapshot mirrors the tenant policy at commit time (#1038).
+      // Snapshot mirrors the org policy at commit time (#1038).
       cancellationPolicySnapshot: { enabled: true, minNoticeMinutes: 120 },
     })
 
@@ -200,32 +200,32 @@ test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () =>
     await expect(page.getByText(/2\s*horas\s*de\s*antecedência/i)).toBeVisible()
   })
 
-  test('elegibilidade usa o snapshot da policy, não a policy viva do tenant (#1038)', async ({
+  test('elegibilidade usa o snapshot da policy, não a policy viva do org (#1038)', async ({
     context,
     page,
     baseURL,
   }) => {
     // Booking committed under a strict policy (enabled @ 120 min). The
     // appointment is 30 min ahead → inside the window → blocked by the
-    // snapshot. The owner then relaxes the LIVE tenant policy to disabled.
+    // snapshot. The owner then relaxes the LIVE org policy to disabled.
     // Snapshot-on-use means the customer's right to cancel must still be
     // evaluated against policy X (the snapshot), so the button stays disabled.
-    const seed = await seedTenant({
+    const seed = await seedOrg({
       unitCount: 1,
       professionalCount: 1,
       cancellationPolicy: { enabled: true, minNoticeMinutes: 120 },
     })
-    const serviceId = seedService(seed.tenantId, {
+    const serviceId = seedService(seed.orgId, {
       name: 'Corte Snapshot',
       publicVisible: true,
       unitIds: seed.unitIds,
     })
     const customer = await createCustomerUser()
-    const customerId = seedCustomerForUser(seed.tenantId, customer.uid)
+    const customerId = seedCustomerForUser(seed.orgId, customer.uid)
     const startAt = new Date(Date.now() + 30 * 60_000).toISOString()
     const endAt = new Date(Date.now() + 60 * 60_000).toISOString()
     seedAppointment({
-      tenantId: seed.tenantId,
+      orgId: seed.orgId,
       unitId: seed.unitIds[0]!,
       professionalId: seed.professionalIds[0]!,
       customerId,
@@ -236,9 +236,9 @@ test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () =>
       cancellationPolicySnapshot: { enabled: true, minNoticeMinutes: 120 },
     })
 
-    // Owner relaxes the LIVE tenant policy AFTER the booking. If the read-site
+    // Owner relaxes the LIVE org policy AFTER the booking. If the read-site
     // wrongly used the live policy, the button would become enabled.
-    fsPatch(`tenants/${seed.tenantId}?updateMask.fieldPaths=cancellationPolicy`, {
+    fsPatch(`orgs/${seed.orgId}?updateMask.fieldPaths=cancellationPolicy`, {
       fields: {
         cancellationPolicy: {
           mapValue: {

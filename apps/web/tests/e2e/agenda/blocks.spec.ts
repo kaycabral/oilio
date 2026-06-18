@@ -9,7 +9,7 @@ import { AgendaPage } from '../pages'
 
 test.describe('Agenda — bloqueios', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -18,11 +18,11 @@ test.describe('Agenda — bloqueios', () => {
     },
   })
 
-  test('bloco recorrente aparece no dia da semana', async ({ tenant, authedPage }) => {
+  test('bloco recorrente aparece no dia da semana', async ({ org, authedPage }) => {
     seedBlock({
       kind: 'recurring',
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: null,
       weekday: 'wednesday',
       open: '12:00',
@@ -34,12 +34,12 @@ test.describe('Agenda — bloqueios', () => {
     await expect(authedPage.getByText('Almoço').first()).toBeVisible()
   })
 
-  test('bloco pontual aparece na data específica', async ({ tenant, authedPage }) => {
+  test('bloco pontual aparece na data específica', async ({ org, authedPage }) => {
     // BR is UTC-3. 14:00-16:00 BR == 17:00-19:00 UTC.
     seedBlock({
       kind: 'one_off',
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: null,
       startAt: '2026-08-12T17:00:00.000Z',
       endAt: '2026-08-12T19:00:00.000Z',
@@ -50,11 +50,11 @@ test.describe('Agenda — bloqueios', () => {
     await expect(authedPage.getByText('Médico').first()).toBeVisible()
   })
 
-  test('bloco pontual NÃO aparece em outra data', async ({ tenant, authedPage }) => {
+  test('bloco pontual NÃO aparece em outra data', async ({ org, authedPage }) => {
     seedBlock({
       kind: 'one_off',
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: null,
       startAt: '2026-08-12T17:00:00.000Z',
       endAt: '2026-08-12T19:00:00.000Z',

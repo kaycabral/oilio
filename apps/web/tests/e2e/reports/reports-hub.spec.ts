@@ -28,7 +28,7 @@ function fsBaseUrl(): string {
 
 // Seeds a `sale` cash movement in a unit within the default (day) window, so it
 // shows up in the Vendas section's movements table + sales-by-method totals.
-function seedSaleMovement(tenantId: string, unitId: string, amountCents: number): void {
+function seedSaleMovement(orgId: string, unitId: string, amountCents: number): void {
   const id = `e2e-mov-${uniqueSuffix()}`
   const now = new Date().toISOString()
   execFileSync(
@@ -37,7 +37,7 @@ function seedSaleMovement(tenantId: string, unitId: string, amountCents: number)
       '-fsS',
       '-X',
       'PATCH',
-      `${fsBaseUrl()}/tenants/${tenantId}/cash_movements/${id}`,
+      `${fsBaseUrl()}/orgs/${orgId}/cash_movements/${id}`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -46,7 +46,7 @@ function seedSaleMovement(tenantId: string, unitId: string, amountCents: number)
       JSON.stringify({
         fields: {
           id: { stringValue: id },
-          tenantId: { stringValue: tenantId },
+          orgId: { stringValue: orgId },
           unitId: { stringValue: unitId },
           kind: { stringValue: 'sale' },
           direction: { stringValue: 'in' },
@@ -66,10 +66,10 @@ function seedSaleMovement(tenantId: string, unitId: string, amountCents: number)
 
 test.describe('Hub /reports (#1062 · 0031 AC-05/06)', () => {
   test.describe('single-unit owner', () => {
-    test.use({ tenantInput: { unitCount: 1 } })
+    test.use({ orgInput: { unitCount: 1 } })
 
-    test('hub renderiza seções Vendas + Comissões', async ({ tenant, authedPage }) => {
-      seedSaleMovement(tenant.tenantId, tenant.unitIds[0]!, 5000)
+    test('hub renderiza seções Vendas + Comissões', async ({ org, authedPage }) => {
+      seedSaleMovement(org.orgId, org.unitIds[0]!, 5000)
 
       await authedPage.goto('/reports')
       await expect(authedPage.getByRole('heading', { name: 'Relatórios' })).toBeVisible()
@@ -124,11 +124,8 @@ test.describe('Hub /reports (#1062 · 0031 AC-05/06)', () => {
       await expect(nav.getByRole('link', { name: 'Comissões' })).toHaveCount(0)
     })
 
-    test('nav: recepção não vê "Relatórios" (requires manageTenant)', async ({
-      tenant,
-      authedPage,
-    }) => {
-      setMembershipRole(`${tenant.tenantId}_${tenant.uid}`, 'receptionist')
+    test('nav: recepção não vê "Relatórios" (requires manageOrg)', async ({ org, authedPage }) => {
+      setMembershipRole(`${org.orgId}_${org.uid}`, 'receptionist')
       await authedPage.goto('/agenda')
       const nav = sidebar(authedPage)
       await expect(nav.getByRole('link', { name: 'Relatórios' })).toHaveCount(0)
@@ -141,18 +138,18 @@ test.describe('Hub /reports (#1062 · 0031 AC-05/06)', () => {
   // Brief 0044 (#1120): sem agregado cross-unit. O hub lê só a unidade ativa —
   // nenhum toggle "Todas as unidades" e `?units=all` é param morto (não agrega).
   test.describe('unidade ativa (sem agregado — 0044)', () => {
-    test.use({ tenantInput: { unitCount: 2 } })
+    test.use({ orgInput: { unitCount: 2 } })
 
     test('owner 2-unidades: sem toggle; ?units=all não agrega (param morto)', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const [unitA, unitB] = tenant.unitIds
+      const [unitA, unitB] = org.unitIds
       // Vendas distintas por unidade: A = R$ 50,00, B = R$ 99,00.
-      seedSaleMovement(tenant.tenantId, unitA!, 5000)
-      seedSaleMovement(tenant.tenantId, unitB!, 9900)
+      seedSaleMovement(org.orgId, unitA!, 5000)
+      seedSaleMovement(org.orgId, unitB!, 9900)
 
-      // Tenant 2-unidades sem unidade ativa → interstitial; escolhe A.
+      // Org 2-unidades sem unidade ativa → interstitial; escolhe A.
       await authedPage.goto('/reports')
       await expect(authedPage).toHaveURL(/\/select-unit$/)
       await authedPage.getByRole('button', { name: 'Unidade 1' }).click()

@@ -11,7 +11,7 @@ import { expect, test } from '../fixtures'
 import {
   seedClosedOrder,
   seedCommission as seedCommissionDoc,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 
 type SeedCommission = {
@@ -22,20 +22,20 @@ type SeedCommission = {
 }
 
 // Seeds a commission attributed to a member, linked to a fresh closed order in
-// the tenant's active unit. The report scopes commissions by unit through their
+// the org's active unit. The report scopes commissions by unit through their
 // source order (brief 0039 AC-04 — Commission has no `unitId`, the closed order
 // carries it), so the order must exist in the active unit or the commission is
 // filtered out.
-function seedCommission(tenant: SeededTenant, c: SeedCommission): void {
+function seedCommission(org: SeededOrg, c: SeedCommission): void {
   const orderId = seedClosedOrder({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0] ?? 'unit',
+    orgId: org.orgId,
+    unitId: org.unitIds[0] ?? 'unit',
     customerId: null,
     attributedUserId: c.attributedUserId,
     totalCents: c.amountCents * 2,
   })
   seedCommissionDoc({
-    tenantId: tenant.tenantId,
+    orgId: org.orgId,
     attributedUserId: c.attributedUserId,
     amountCents: c.amountCents,
     liquidationStatus: c.liquidationStatus,
@@ -45,21 +45,21 @@ function seedCommission(tenant: SeededTenant, c: SeedCommission): void {
 }
 
 test.describe('Comissão — marcar pago (#999)', { tag: '@critical' }, () => {
-  test.use({ tenantInput: { professionalCount: 1, professionalOperationalStatus: 'operational' } })
+  test.use({ orgInput: { professionalCount: 1, professionalOperationalStatus: 'operational' } })
 
   test('AC-03: lote por membro/período move pendente→pago e fica imutável', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUser = `e2e-prof-user-${proId}`
-    seedCommission(tenant, {
+    seedCommission(org, {
       attributedUserId: proUser,
       itemName: 'Corte Para Pagar',
       amountCents: 2500,
       liquidationStatus: 'pendente',
     })
-    seedCommission(tenant, {
+    seedCommission(org, {
       attributedUserId: proUser,
       itemName: 'Barba Para Pagar',
       amountCents: 1500,
@@ -93,13 +93,13 @@ test.describe('Comissão — marcar pago (#999)', { tag: '@critical' }, () => {
   })
 
   test('AC-03: comanda já paga não reabre — guarda de imutabilidade no reopen', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     // Comissão já paga: o lote do período não tem pendentes para marcar.
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUser = `e2e-prof-user-${proId}`
-    seedCommission(tenant, {
+    seedCommission(org, {
       attributedUserId: proUser,
       itemName: 'Comissao Ja Paga',
       amountCents: 2000,

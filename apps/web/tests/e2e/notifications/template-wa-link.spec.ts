@@ -16,7 +16,7 @@ function fsBaseUrl(): string {
   return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 }
 
-function seedBirthdayNotification(tenantId: string, unitId: string, customerId: string): string {
+function seedBirthdayNotification(orgId: string, unitId: string, customerId: string): string {
   const notifId = `e2e-notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const now = new Date().toISOString()
   execFileSync(
@@ -25,7 +25,7 @@ function seedBirthdayNotification(tenantId: string, unitId: string, customerId: 
       '-fsS',
       '-X',
       'PATCH',
-      `${fsBaseUrl()}/tenants/${tenantId}/notifications/${notifId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -34,7 +34,7 @@ function seedBirthdayNotification(tenantId: string, unitId: string, customerId: 
       JSON.stringify({
         fields: {
           id: { stringValue: notifId },
-          tenantId: { stringValue: tenantId },
+          orgId: { stringValue: orgId },
           unitId: { stringValue: unitId },
           type: { stringValue: 'birthday' },
           customerId: { stringValue: customerId },
@@ -59,14 +59,14 @@ function seedBirthdayNotification(tenantId: string, unitId: string, customerId: 
   return notifId
 }
 
-function getNotification(tenantId: string, notifId: string): Record<string, FsValue> {
+function getNotification(orgId: string, notifId: string): Record<string, FsValue> {
   const out = execFileSync(
     'curl',
     [
       '-fsS',
       '-H',
       'Authorization: Bearer owner',
-      `${fsBaseUrl()}/tenants/${tenantId}/notifications/${notifId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`,
     ],
     { encoding: 'utf8' },
   )
@@ -99,11 +99,11 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
   })
 
   test('AC-14: clique wa.me gera link + marca dispatchedAt + snapshot', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const customerId = seedCustomer(tenant.tenantId, { name: 'Maria', whatsapp: '11999998888' })
-    const notifId = seedBirthdayNotification(tenant.tenantId, tenant.unitIds[0]!, customerId)
+    const customerId = seedCustomer(org.orgId, { name: 'Maria', whatsapp: '11999998888' })
+    const notifId = seedBirthdayNotification(org.orgId, org.unitIds[0]!, customerId)
 
     await authedPage.goto('/agenda')
 
@@ -134,7 +134,7 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
     expect(body.link).toContain('Maria')
 
     // Firestore: dispatchedAt + snapshot
-    const notif = getNotification(tenant.tenantId, notifId)
+    const notif = getNotification(org.orgId, notifId)
     expect(notif).toHaveProperty('dispatchedChannel')
     const channel = strField(notif, 'dispatchedChannel')
     expect(channel).toBe('wa_link')

@@ -3,12 +3,12 @@ import { AgendaPage } from '../pages'
 
 // Retrofit pro PR #721 (issue #633) — slot granularity é config da agenda
 // (movida do /company no #746). Owner/manager troca o select "Slots" no
-// header e a tenant.slotMinutes persiste; non-manager não vê o select.
+// header e a org.slotMinutes persiste; non-manager não vê o select.
 
 test.describe('Agenda — granularidade de slots', () => {
   test.describe('valor cadastrado reflete na UI', () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         unitCount: 1,
         professionalCount: 1,
         professionalOperationalStatus: 'operational',
@@ -29,7 +29,7 @@ test.describe('Agenda — granularidade de slots', () => {
 
   test.describe('opções canônicas', () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         unitCount: 1,
         professionalCount: 1,
         professionalOperationalStatus: 'operational',

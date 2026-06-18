@@ -19,7 +19,7 @@ export class ProfessionalsPage {
   }
 
   // Convenience: navigate to a seeded pro's member detail from its projection
-  // id (the fixture's `tenant.professionalIds[i]`), deriving the userId.
+  // id (the fixture's `org.professionalIds[i]`), deriving the userId.
   async gotoById(professionalId: string): Promise<void> {
     await this.gotoByUserId(`e2e-prof-user-${professionalId}`)
   }

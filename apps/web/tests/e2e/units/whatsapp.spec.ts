@@ -10,7 +10,7 @@ import { UnitsPage } from '../pages'
 
 test.describe('Unidades — WhatsApp', () => {
   test.describe('CRUD com 1 unidade', () => {
-    test.use({ tenantInput: { unitCount: 1 } })
+    test.use({ orgInput: { unitCount: 1 } })
 
     test('WhatsApp cadastrado é editável na página de detalhe', async ({ authedPage }) => {
       // The migrated `UnitsList` (`@cbrl/design` List) shows name/address/hours

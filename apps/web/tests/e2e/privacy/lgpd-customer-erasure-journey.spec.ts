@@ -8,14 +8,14 @@ import { parseJson } from '../helpers/firestore-rest'
 import {
   blockedSubjectMarkerExists,
   readAppointment,
-  readTenantLink,
+  readOrgLink,
   readUser,
   seedAppointment,
   seedCustomer,
   seedCustomerShadowForUser,
+  seedOrg,
+  seedOrgLink,
   seedSubscription,
-  seedTenant,
-  seedTenantLink,
   signInAndAttachSession,
 } from '../helpers/session'
 
@@ -52,14 +52,14 @@ const decodePiiEvents = Schema.decodeUnknownSync(PiiEventsSchema)
 //
 // This is the parent-final cohesive suite (principle #15): one `test()` per
 // DoD scenario, validating that the per-feature slices (#1093 global anon,
-// #1095 resolver, #1066 rectification+pii events, #1096/#1100 per-tenant block,
+// #1095 resolver, #1066 rectification+pii events, #1096/#1100 per-org block,
 // #1097 self-service discovery, #1101 cascade) COMPOSE into the brief 0032
 // CUSTOMER scope as a whole — plus the cross-cutting separation invariant of
 // the 04/06 reescopo: cliente and profissional are DIFFERENT relationships and
 // never cross.
 //
 // The per-slice specs (account-anonymization, anonymized-label,
-// per-tenant-erasure, erasure-cascade, self-service-discovery,
+// per-org-erasure, erasure-cascade, self-service-discovery,
 // rectification-and-events) own the exhaustive mechanism coverage. This suite
 // drives the end-to-end journey through the same shared helpers, asserting the
 // load-bearing OUTPUT of each scenario; where a mechanism is owned by a sibling
@@ -124,8 +124,8 @@ function setStatus(path: string, status: string): void {
 }
 
 const strFrom = (v: FsValue | undefined): string | undefined => v?.stringValue
-// Noon-UTC anchor so the calendar date is stable across the tenant timezone
-// (same flake class as erasure-cascade.spec): the agenda queries the tenant-local
+// Noon-UTC anchor so the calendar date is stable across the org timezone
+// (same flake class as erasure-cascade.spec): the agenda queries the org-local
 // day, and a midnight-relative future date could fall on a different local day
 // than its UTC slice. Noon ± any real tz offset stays the same date.
 function atNoonUtc(offsetDays: number): string {
@@ -144,11 +144,11 @@ test.describe(
     test('Cenário 1: self-service account erasure anonymizes the global account irreversibly; records keep the userId pointer', async ({
       context,
     }) => {
-      const subject = await seedTenant({ professionalCount: 0 })
+      const subject = await seedOrg({ professionalCount: 0 })
       // A record that references the subject by userId — must survive (AC-04).
       // Use the shadow-only seed: `seedCustomer` would clobber the owner's global
       // user doc (resetting completionCompleted), breaking the authed surfaces.
-      const customerId = seedCustomerShadowForUser(subject.tenantId, subject.uid)
+      const customerId = seedCustomerShadowForUser(subject.orgId, subject.uid)
 
       const before = readUser(subject.uid)
       expect(strFrom(before?.displayName)).toBeTruthy()
@@ -181,7 +181,7 @@ test.describe(
         'curl',
         [
           '-fsS',
-          `${FS_BASE}/tenants/${subject.tenantId}/customers/${customerId}`,
+          `${FS_BASE}/orgs/${subject.orgId}/customers/${customerId}`,
           '-H',
           'Authorization: Bearer owner',
         ],
@@ -195,11 +195,11 @@ test.describe(
     test('Cenário 2: anonymized customer renders the neutral `Cliente ‹CÓDIGO›` label, values intact, no "removido"', async ({
       context,
     }) => {
-      const owner = await seedTenant({ professionalCount: 0 })
+      const owner = await seedOrg({ professionalCount: 0 })
       const anonUser = `e2e-cust-c2-${Date.now()}`
       const liveUser = `e2e-cust-c2-live-${Date.now()}`
-      seedCustomer(owner.tenantId, { name: 'Mariana Histórico', userId: anonUser })
-      seedCustomer(owner.tenantId, { name: 'Cliente Ativo', userId: liveUser })
+      seedCustomer(owner.orgId, { name: 'Mariana Histórico', userId: anonUser })
+      seedCustomer(owner.orgId, { name: 'Cliente Ativo', userId: liveUser })
       anonymizeUser(anonUser)
 
       const label = `Cliente ${anonymizedSubjectCode(anonUser)}`
@@ -224,7 +224,7 @@ test.describe(
     test('Cenário 3: self-service rectification reflects live across screens (single source of truth)', async ({
       context,
     }) => {
-      const owner = await seedTenant({ professionalCount: 0 })
+      const owner = await seedOrg({ professionalCount: 0 })
       await signInAndAttachSession(context, owner.email, owner.password)
       const page = await context.newPage()
 
@@ -254,7 +254,7 @@ test.describe(
     test('Cenário 4: privacy events carry zero PII (only opaque refs + field names)', async ({
       context,
     }) => {
-      const subject = await seedTenant({ professionalCount: 0 })
+      const subject = await seedOrg({ professionalCount: 0 })
       const originalEmail = subject.email
       await signInAndAttachSession(context, subject.email, subject.password)
       const page = await context.newPage()
@@ -289,24 +289,24 @@ test.describe(
       expect(serialized).toContain(subject.uid)
     })
 
-    // Cenário 5 — bloqueio per-tenant do cliente (A neutral/archived + gone from
-    // pickers; B + global intact). Mechanism owned by per-tenant-erasure.spec.ts.
-    test('Cenário 5: per-tenant block neutralizes tenant A only; tenant B + global keep the real name', async ({
+    // Cenário 5 — bloqueio per-org do cliente (A neutral/archived + gone from
+    // pickers; B + global intact). Mechanism owned by per-org-erasure.spec.ts.
+    test('Cenário 5: per-org block neutralizes org A only; org B + global keep the real name', async ({
       context,
     }) => {
-      const ownerA = await seedTenant({ professionalCount: 0 })
-      const ownerB = await seedTenant({ professionalCount: 0 })
+      const ownerA = await seedOrg({ professionalCount: 0 })
+      const ownerB = await seedOrg({ professionalCount: 0 })
 
       const subjectUserId = `e2e-subject-c5-${Date.now()}`
       const realName = `Marina Bloqueio ${Date.now()}`
-      const custA = seedCustomer(ownerA.tenantId, {
+      const custA = seedCustomer(ownerA.orgId, {
         name: realName,
         userId: subjectUserId,
         avatarUrl: 'https://example.com/marina.png',
       })
-      seedCustomer(ownerB.tenantId, { name: realName, userId: subjectUserId })
+      seedCustomer(ownerB.orgId, { name: realName, userId: subjectUserId })
 
-      // Block in tenant A only — marker (fact of record) + archived shadow.
+      // Block in org A only — marker (fact of record) + archived shadow.
       const now = new Date().toISOString()
       execFileSync(
         'curl',
@@ -314,7 +314,7 @@ test.describe(
           '-fsS',
           '-X',
           'PATCH',
-          `${FS_BASE}/tenants/${ownerA.tenantId}/blocked_subjects/${subjectUserId}`,
+          `${FS_BASE}/orgs/${ownerA.orgId}/blocked_subjects/${subjectUserId}`,
           '-H',
           'Authorization: Bearer owner',
           '-H',
@@ -330,7 +330,7 @@ test.describe(
           '-fsS',
           '-X',
           'PATCH',
-          `${FS_BASE}/tenants/${ownerA.tenantId}/customers/${custA}?updateMask.fieldPaths=archivedAt`,
+          `${FS_BASE}/orgs/${ownerA.orgId}/customers/${custA}?updateMask.fieldPaths=archivedAt`,
           '-H',
           'Authorization: Bearer owner',
           '-H',
@@ -343,7 +343,7 @@ test.describe(
 
       const label = `Cliente ${anonymizedSubjectCode(subjectUserId)}`
 
-      // Tenant A: gone from the active list + the appointment picker.
+      // Org A: gone from the active list + the appointment picker.
       await signInAndAttachSession(context, ownerA.email, ownerA.password)
       const pageA = await context.newPage()
       await pageA.goto('/customers')
@@ -352,7 +352,7 @@ test.describe(
       await expect(pageA.getByText(realName)).toHaveCount(0)
       await pageA.close()
 
-      // Tenant B (separate context): the same subject keeps the real name.
+      // Org B (separate context): the same subject keeps the real name.
       const contextB = await context.browser()!.newContext()
       await signInAndAttachSession(contextB, ownerB.email, ownerB.password)
       const pageB = await contextB.newPage()
@@ -362,38 +362,36 @@ test.describe(
       await contextB.close()
 
       // Marker scoped to A only; global account untouched (live name intact).
-      expect(blockedSubjectMarkerExists(ownerA.tenantId, subjectUserId)).toBe(true)
-      expect(blockedSubjectMarkerExists(ownerB.tenantId, subjectUserId)).toBe(false)
+      expect(blockedSubjectMarkerExists(ownerA.orgId, subjectUserId)).toBe(true)
+      expect(blockedSubjectMarkerExists(ownerB.orgId, subjectUserId)).toBe(false)
       expect(strFrom(readUser(subjectUserId)?.displayName)).toEqual(realName)
     })
 
     // Cenário 6 — descoberta self-service (reverse index lists establishments;
-    // per-tenant vs global actions). Mechanism owned by self-service-discovery.
+    // per-org vs global actions). Mechanism owned by self-service-discovery.
     test('Cenário 6: self-service discovery lists the subject’s establishments via the reverse index (zero PII)', async ({
       context,
     }) => {
-      const subject = await seedTenant({ professionalCount: 0 })
-      const ownerB = await seedTenant({ professionalCount: 0 })
-      seedCustomerShadowForUser(subject.tenantId, subject.uid)
-      seedCustomerShadowForUser(ownerB.tenantId, subject.uid)
-      seedTenantLink(subject.uid, subject.tenantId)
-      seedTenantLink(subject.uid, ownerB.tenantId)
+      const subject = await seedOrg({ professionalCount: 0 })
+      const ownerB = await seedOrg({ professionalCount: 0 })
+      seedCustomerShadowForUser(subject.orgId, subject.uid)
+      seedCustomerShadowForUser(ownerB.orgId, subject.uid)
+      seedOrgLink(subject.uid, subject.orgId)
+      seedOrgLink(subject.uid, ownerB.orgId)
 
       await signInAndAttachSession(context, subject.email, subject.password)
       const page = await context.newPage()
       await page.goto('/settings/privacy')
 
       // BOTH establishments listed (resolved from the per-user reverse index).
-      // `seedTenant` names each tenant `E2E ${tenantId}`.
+      // `seedOrg` names each org `E2E ${orgId}`.
       const establishments = page.getByRole('list', { name: 'Estabelecimentos' })
-      const itemA = establishments
-        .getByRole('listitem')
-        .filter({ hasText: `E2E ${subject.tenantId}` })
+      const itemA = establishments.getByRole('listitem').filter({ hasText: `E2E ${subject.orgId}` })
       await expect(itemA).toBeVisible()
       await expect(
-        establishments.getByRole('listitem').filter({ hasText: `E2E ${ownerB.tenantId}` }),
+        establishments.getByRole('listitem').filter({ hasText: `E2E ${ownerB.orgId}` }),
       ).toBeVisible()
-      // Per-tenant erase action AND global erase action are both offered.
+      // Per-org erase action AND global erase action are both offered.
       await expect(
         itemA.getByRole('button', { name: 'Excluir meus dados deste estabelecimento' }),
       ).toBeVisible()
@@ -401,29 +399,29 @@ test.describe(
         page.getByRole('button', { name: 'Excluir meus dados', exact: true }),
       ).toBeVisible()
 
-      // The reverse index holds ZERO PII — only tenantId + linkedAt.
-      const link = readTenantLink(subject.uid, subject.tenantId)
-      expect(Object.keys(link ?? {}).sort()).toEqual(['linkedAt', 'tenantId'])
+      // The reverse index holds ZERO PII — only orgId + linkedAt.
+      const link = readOrgLink(subject.uid, subject.orgId)
+      expect(Object.keys(link ?? {}).sort()).toEqual(['linkedAt', 'orgId'])
       await page.close()
     })
 
     // Cenário 7 — cliente com assinatura ativa: aviso de consentimento +
     // cancelamento imediato + agenda futura cancelada. Cascade mechanism owned
     // by erasure-cascade.spec.ts; here we prove the informed-consent warning + the
-    // read-side cancellation through the self-service per-tenant flow.
+    // read-side cancellation through the self-service per-org flow.
     test('Cenário 7: active subscription warns before confirm, then cancels immediately + cancels future agenda; past retained', async ({
       context,
     }) => {
-      const subject = await seedTenant({ professionalCount: 1 })
+      const subject = await seedOrg({ professionalCount: 1 })
       const unitId = subject.unitIds[0]!
       const professionalId = subject.professionalIds[0]!
-      const custId = seedCustomerShadowForUser(subject.tenantId, subject.uid)
-      seedTenantLink(subject.uid, subject.tenantId)
+      const custId = seedCustomerShadowForUser(subject.orgId, subject.uid)
+      seedOrgLink(subject.uid, subject.orgId)
 
-      const subId = seedSubscription(subject.tenantId, custId, { status: 'active' })
+      const subId = seedSubscription(subject.orgId, custId, { status: 'active' })
       const futureStart = future()
       const futureAppt = seedAppointment({
-        tenantId: subject.tenantId,
+        orgId: subject.orgId,
         unitId,
         professionalId,
         customerId: custId,
@@ -434,7 +432,7 @@ test.describe(
       })
       const pastStart = past()
       const pastAppt = seedAppointment({
-        tenantId: subject.tenantId,
+        orgId: subject.orgId,
         unitId,
         professionalId,
         customerId: custId,
@@ -452,13 +450,13 @@ test.describe(
       const item = page
         .getByRole('list', { name: 'Estabelecimentos' })
         .getByRole('listitem')
-        .filter({ hasText: `E2E ${subject.tenantId}` })
+        .filter({ hasText: `E2E ${subject.orgId}` })
       await item.getByRole('button', { name: 'Excluir meus dados deste estabelecimento' }).click()
       await expect(
         page.getByText('Você tem uma assinatura ativa neste estabelecimento.'),
       ).toBeVisible()
 
-      // Confirm — runs the real per-tenant erase saga.
+      // Confirm — runs the real per-org erase saga.
       await page.getByRole('button', { name: 'Confirmar exclusão' }).click()
       await expect(page.getByText(/foram excluídos/)).toBeVisible()
       await page.close()
@@ -466,12 +464,12 @@ test.describe(
       // The block marker exists; the subscription + future appointment are
       // cancelled by the cascade (mirror the cascade OUTPUT for the read-side
       // assertions, the same way erasure-cascade.spec.ts does).
-      expect(blockedSubjectMarkerExists(subject.tenantId, subject.uid)).toBe(true)
-      setStatus(`tenants/${subject.tenantId}/subscriptions/${subId}`, 'cancelled')
-      setStatus(`tenants/${subject.tenantId}/appointments/${futureAppt}`, 'cancelled')
+      expect(blockedSubjectMarkerExists(subject.orgId, subject.uid)).toBe(true)
+      setStatus(`orgs/${subject.orgId}/subscriptions/${subId}`, 'cancelled')
+      setStatus(`orgs/${subject.orgId}/appointments/${futureAppt}`, 'cancelled')
 
       // Past appointment retained (de-identified, not deleted) — AC-04.
-      const retained = readAppointment(subject.tenantId, pastAppt)
+      const retained = readAppointment(subject.orgId, pastAppt)
       expect(retained).not.toBeNull()
       expect(strFrom(retained?.status)).toBe('completed')
     })
@@ -479,15 +477,15 @@ test.describe(
     // Cross-cutting invariant of the 04/06 reescopo: cliente and profissional are
     // DIFFERENT relationships and never cross. A person who is a CUSTOMER
     // (blocked) AND a PROFESSIONAL stays IDENTIFIABLE on the professional surface.
-    test('Separação de relações: a CUSTOMER blocked in a tenant stays IDENTIFIABLE as a PROFESSIONAL (team)', async ({
+    test('Separação de relações: a CUSTOMER blocked in a org stays IDENTIFIABLE as a PROFESSIONAL (team)', async ({
       context,
     }) => {
-      const owner = await seedTenant({ professionalCount: 1 })
+      const owner = await seedOrg({ professionalCount: 1 })
       const proUserId = `e2e-prof-user-${owner.professionalIds[0]}`
       const proName = 'Profissional 1'
 
-      // The SAME person is also a customer in this tenant — then blocked as one.
-      const custId = seedCustomer(owner.tenantId, {
+      // The SAME person is also a customer in this org — then blocked as one.
+      const custId = seedCustomer(owner.orgId, {
         name: proName,
         userId: proUserId,
         avatarUrl: 'https://example.com/pro.png',
@@ -499,7 +497,7 @@ test.describe(
           '-fsS',
           '-X',
           'PATCH',
-          `${FS_BASE}/tenants/${owner.tenantId}/blocked_subjects/${proUserId}`,
+          `${FS_BASE}/orgs/${owner.orgId}/blocked_subjects/${proUserId}`,
           '-H',
           'Authorization: Bearer owner',
           '-H',
@@ -515,7 +513,7 @@ test.describe(
           '-fsS',
           '-X',
           'PATCH',
-          `${FS_BASE}/tenants/${owner.tenantId}/customers/${custId}?updateMask.fieldPaths=archivedAt`,
+          `${FS_BASE}/orgs/${owner.orgId}/customers/${custId}?updateMask.fieldPaths=archivedAt`,
           '-H',
           'Authorization: Bearer owner',
           '-H',

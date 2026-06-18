@@ -30,8 +30,8 @@ const EventTagListSchema = Schema.Struct({
 })
 const decodeEventTagList = Schema.decodeUnknownSync(EventTagListSchema)
 
-function listEventTags(tenantId: string, subscriptionId: string): string[] {
-  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenantId}/subscriptions/${subscriptionId}/events`
+function listEventTags(orgId: string, subscriptionId: string): string[] {
+  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/subscriptions/${subscriptionId}/events`
   const out = execFileSync('curl', ['-fsS', url, '-H', 'Authorization: Bearer owner'], {
     encoding: 'utf8',
   })
@@ -41,19 +41,19 @@ function listEventTags(tenantId: string, subscriptionId: string): string[] {
 
 test.describe('/me/subscriptions — customer self-cancel (#651)', { tag: '@critical' }, () => {
   test('AC-11/12: customer cancela mid-cycle → cancelAtPeriodEnd + evento', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    // O `authedPage` está autenticado com tenant.uid — vamos seedar um Customer
-    // ligado a esse uid pra simular a relação User canonical → Customer per-tenant.
-    // Customer ligado ao User logado (authedPage usa tenant.uid).
+    // O `authedPage` está autenticado com org.uid — vamos seedar um Customer
+    // ligado a esse uid pra simular a relação User canonical → Customer per-org.
+    // Customer ligado ao User logado (authedPage usa org.uid).
     // Sem isso, customerUserId !== session.uid e /me/subscriptions vem vazio.
-    const customerId = seedCustomer(tenant.tenantId, {
+    const customerId = seedCustomer(org.orgId, {
       name: 'Cliente Self',
-      email: tenant.email,
-      userId: tenant.uid,
+      email: org.email,
+      userId: org.uid,
     })
-    const subscriptionId = seedSubscription(tenant.tenantId, customerId, {
+    const subscriptionId = seedSubscription(org.orgId, customerId, {
       planName: 'Mensal Self',
       priceCents: 7000,
     })
@@ -75,7 +75,7 @@ test.describe('/me/subscriptions — customer self-cancel (#651)', { tag: '@crit
     // Auditoria = stream: o cancelamento é registrado pelo evento
     // `subscription.cancel_scheduled` no event store (não mais audit_logs).
     // A projeção `cancelAtPeriodEnd` (que o UI mostra acima) deriva dele.
-    const tags = listEventTags(tenant.tenantId, subscriptionId)
+    const tags = listEventTags(org.orgId, subscriptionId)
     expect(tags, 'evento subscription.cancel_scheduled deve existir').toContain(
       'subscription.cancel_scheduled',
     )

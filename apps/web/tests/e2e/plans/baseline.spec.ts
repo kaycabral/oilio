@@ -49,10 +49,10 @@ test.describe('Plans — baseline (#17)', { tag: '@critical' }, () => {
   })
 
   test('dado degenerado (plano legado sem id/usageLimit) renderiza e exclui', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedSubscriptionPlan(tenant.tenantId, { name: 'Plano Legado', priceCents: 0 })
+    seedSubscriptionPlan(org.orgId, { name: 'Plano Legado', priceCents: 0 })
 
     await authedPage.goto('/plans')
     await expect(authedPage.getByRole('heading', { name: 'Planos de assinatura' })).toBeVisible()
@@ -71,14 +71,14 @@ test.describe('Plans — baseline (#17)', { tag: '@critical' }, () => {
   // active list while the subscriber keeps the frozen snapshot. The dialog warns
   // up front ("os assinantes atuais continuam").
   test('em uso: 1 verbo "Excluir" vira soft-delete (some da ativa, vínculo segue)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const planId = seedSubscriptionPlan(tenant.tenantId, { name: 'Plano Em Uso' })
-    const customerId = seedCustomer(tenant.tenantId, { name: 'Cliente Assinante' })
+    const planId = seedSubscriptionPlan(org.orgId, { name: 'Plano Em Uso' })
+    const customerId = seedCustomer(org.orgId, { name: 'Cliente Assinante' })
     // The subscription freezes `plan.planId == planId` — exactly what the guard
     // queries.
-    seedSubscription(tenant.tenantId, customerId, { planId })
+    seedSubscription(org.orgId, customerId, { planId })
 
     await authedPage.goto('/plans')
     await expect(listItem(authedPage, /Plano Em Uso/)).toBeVisible()
@@ -104,10 +104,10 @@ test.describe('Plans — baseline (#17)', { tag: '@critical' }, () => {
   // Counterpart: a free plan (no active subscription) hard-deletes cleanly via
   // the same single "Excluir" verb.
   test('livre: "Excluir" hard-delete remove de vez (sem assinaturas)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    seedSubscriptionPlan(tenant.tenantId, { name: 'Plano Livre' })
+    seedSubscriptionPlan(org.orgId, { name: 'Plano Livre' })
 
     await authedPage.goto('/plans')
     await expect(listItem(authedPage, /Plano Livre/)).toBeVisible()

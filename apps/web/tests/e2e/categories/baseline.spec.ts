@@ -72,7 +72,7 @@ function ownerIdToken(email: string, password = 'E2E12345!'): string {
 }
 
 function readUnderRules(
-  tenantId: string,
+  orgId: string,
   id: string,
   idToken: string,
 ): { ok: true; fields: Record<string, FsValue> } | { ok: false; status: number } {
@@ -81,7 +81,7 @@ function readUnderRules(
       'curl',
       [
         '-fsS',
-        `${fsDocsBase()}/tenants/${tenantId}/categories/${id}`,
+        `${fsDocsBase()}/orgs/${orgId}/categories/${id}`,
         '-H',
         `Authorization: Bearer ${idToken}`,
       ],
@@ -97,14 +97,14 @@ function readUnderRules(
 // `deleteCategory` (categoryId == / includedCategoryIds array-contains). Returns
 // the number of matching docs.
 function queryReferenceCount({
-  tenantId,
+  orgId,
   collectionId,
   fieldPath,
   op,
   value,
   idToken,
 }: {
-  tenantId: string
+  orgId: string
   collectionId: string
   fieldPath: string
   op: 'EQUAL' | 'ARRAY_CONTAINS'
@@ -128,7 +128,7 @@ function queryReferenceCount({
       '-fsS',
       '-X',
       'POST',
-      `${fsDocsBase()}/tenants/${tenantId}:runQuery`,
+      `${fsDocsBase()}/orgs/${orgId}:runQuery`,
       '-H',
       `Authorization: Bearer ${idToken}`,
       '-H',
@@ -143,22 +143,22 @@ function queryReferenceCount({
 }
 
 test.describe('Category — baseline (#1003)', () => {
-  test('coleção vazia: leitura sob rules não falha', ({ tenant }) => {
-    const token = ownerIdToken(tenant.email)
-    const res = readUnderRules(tenant.tenantId, 'inexistente', token)
+  test('coleção vazia: leitura sob rules não falha', ({ org }) => {
+    const token = ownerIdToken(org.email)
+    const res = readUnderRules(org.orgId, 'inexistente', token)
     // Doc ausente → 404 (curl -f). O ponto é que a rule não bloqueia o membro.
     expect(res.ok).toBe(false)
   })
 
-  test('cria (seed) → lê sob rules → projeta campo a campo', ({ tenant }) => {
-    const token = ownerIdToken(tenant.email)
-    const id = seedCategory(tenant.tenantId, {
+  test('cria (seed) → lê sob rules → projeta campo a campo', ({ org }) => {
+    const token = ownerIdToken(org.email)
+    const id = seedCategory(org.orgId, {
       name: 'Cabelo',
       icon: 'scissors',
       color: '#3366ff',
       active: true,
     })
-    const res = readUnderRules(tenant.tenantId, id, token)
+    const res = readUnderRules(org.orgId, id, token)
     assertOk(res)
     expect(strField(res.fields, 'name')).toBe('Cabelo')
     expect(strField(res.fields, 'icon')).toBe('scissors')
@@ -166,39 +166,39 @@ test.describe('Category — baseline (#1003)', () => {
     expect(boolField(res.fields, 'active')).toBe(true)
   })
 
-  test('dado degenerado (categoria sem icon/color) projeta nulls', ({ tenant }) => {
-    const token = ownerIdToken(tenant.email)
-    const id = seedCategory(tenant.tenantId, {
+  test('dado degenerado (categoria sem icon/color) projeta nulls', ({ org }) => {
+    const token = ownerIdToken(org.email)
+    const id = seedCategory(org.orgId, {
       name: 'Estética',
       icon: null,
       color: null,
       active: false,
     })
-    const res = readUnderRules(tenant.tenantId, id, token)
+    const res = readUnderRules(org.orgId, id, token)
     assertOk(res)
     expect(isNullField(res.fields, 'icon')).toBe(true)
     expect(isNullField(res.fields, 'color')).toBe(true)
     expect(boolField(res.fields, 'active')).toBe(false)
   })
 
-  test('AC-05 — categoria em uso é detectada (guard de delete bloquearia)', ({ tenant }) => {
-    const token = ownerIdToken(tenant.email)
-    const categoryId = seedCategory(tenant.tenantId, { name: 'Em Uso' })
+  test('AC-05 — categoria em uso é detectada (guard de delete bloquearia)', ({ org }) => {
+    const token = ownerIdToken(org.email)
+    const categoryId = seedCategory(org.orgId, { name: 'Em Uso' })
 
     // Item do catálogo apontando pra categoria via FK.
-    seedCatalogItem(tenant.tenantId, {
+    seedCatalogItem(org.orgId, {
       kind: 'service',
       name: 'Corte Referenciando',
       categoryId,
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
     // Plano incluindo a categoria via FK array.
-    seedSubscriptionPlan(tenant.tenantId, { includedCategoryIds: [categoryId] })
+    seedSubscriptionPlan(org.orgId, { includedCategoryIds: [categoryId] })
 
     // A MESMA query do guard de `deleteCategory` — ambas as referências
     // precisam ser encontradas, provando que o delete seria bloqueado.
     const itemRefs = queryReferenceCount({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       collectionId: 'catalog_items',
       fieldPath: 'categoryId',
       op: 'EQUAL',
@@ -206,7 +206,7 @@ test.describe('Category — baseline (#1003)', () => {
       idToken: token,
     })
     const planRefs = queryReferenceCount({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       collectionId: 'subscription_plans',
       fieldPath: 'includedCategoryIds',
       op: 'ARRAY_CONTAINS',
@@ -217,9 +217,9 @@ test.describe('Category — baseline (#1003)', () => {
     expect(planRefs).toBeGreaterThan(0)
 
     // Categoria não referenciada → guard libera (0 refs).
-    const freeCategoryId = seedCategory(tenant.tenantId, { name: 'Livre' })
+    const freeCategoryId = seedCategory(org.orgId, { name: 'Livre' })
     const freeItemRefs = queryReferenceCount({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       collectionId: 'catalog_items',
       fieldPath: 'categoryId',
       op: 'EQUAL',
@@ -227,7 +227,7 @@ test.describe('Category — baseline (#1003)', () => {
       idToken: token,
     })
     const freePlanRefs = queryReferenceCount({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       collectionId: 'subscription_plans',
       fieldPath: 'includedCategoryIds',
       op: 'ARRAY_CONTAINS',

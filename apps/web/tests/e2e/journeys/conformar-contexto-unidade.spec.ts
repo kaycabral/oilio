@@ -28,18 +28,18 @@
 //     0044): there is no aggregate toggle and forcing `?units=all` does not
 //     aggregate — switching unit is the only way to see another unit's data;
 //   - `/units` (manage the set) is GATED to who operates cross-unit
-//     (`canManageTenant && unitId == null`): owner + tenant-wide manager manage
+//     (`canManageOrg && unitId == null`): owner + org-wide manager manage
 //     it (and creating a 2nd unit still works); a unit-bound manager / receptionist
 //     / professional is redirected to `/agenda`;
 //   - baseline: operational screens render + empty with the active unit and no
 //     orphan unit controls; switching the unit reflects across screens; creating
 //     a 2nd unit as owner still works; degenerate (unit-bound member has no
-//     aggregate/`/units` option; 1-unit tenant has no selector).
+//     aggregate/`/units` option; 1-unit org has no selector).
 //
 // Runs against the running emulator (no mocks). Seeds via the session helpers +
 // Firestore REST admin bypass and reads order/notification state straight from
 // Firestore to assert the stitched invariants. The active unit is pinned with
-// `setActiveUnitCookie` for multi-unit tenants to skip the interstitial where the
+// `setActiveUnitCookie` for multi-unit orgs to skip the interstitial where the
 // journey is about the scoped surface (not the picker itself).
 
 import { membershipDocId } from '@/domain'
@@ -54,7 +54,7 @@ import {
   setActiveUnitCookie,
   setMembershipRole,
   setMembershipUnitId,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 import { ProfessionalsPage } from '../pages'
 
@@ -74,12 +74,12 @@ function revenueCard(page: Page): Locator {
 // it counts toward that unit's revenue KPI. Routes through the central typed
 // helper (complete, schema-valid Order). Attribution is the seeded owner; only
 // the unit-scoped revenue total is asserted.
-function seedClosedOrder(tenant: SeededTenant, unitId: string, totalCents: number): void {
+function seedClosedOrder(org: SeededOrg, unitId: string, totalCents: number): void {
   centralSeedClosedOrder({
-    tenantId: tenant.tenantId,
+    orgId: org.orgId,
     unitId,
     customerId: null,
-    attributedUserId: tenant.uid,
+    attributedUserId: org.uid,
     totalCents,
   })
 }
@@ -89,16 +89,16 @@ function seedClosedOrder(tenant: SeededTenant, unitId: string, totalCents: numbe
 // through the central typed helper, backdating `createdAt` so the >24h staleness
 // threshold (`selectOpenOrderPendencies`) is met.
 function seedStaleOpenOrder(
-  tenant: SeededTenant,
+  org: SeededOrg,
   unitId: string,
   customerId: string,
   totalCents: number,
 ): void {
   centralSeedOpenOrder({
-    tenantId: tenant.tenantId,
+    orgId: org.orgId,
     unitId,
     customerId,
-    attributedUserId: tenant.uid,
+    attributedUserId: org.uid,
     totalCents,
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
   })
@@ -110,19 +110,19 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
   // data and have NO per-feature unit control; switching via the top switcher
   // moves them together. Folds in the render+empty + switch-reflects baseline.
   test.describe('Cenário 1 — operação segue a unidade ativa, sem switcher por-feature', () => {
-    test.use({ tenantInput: { unitCount: 2 } })
+    test.use({ orgInput: { unitCount: 2 } })
 
     test('Dashboard/Notificações mostram a unidade ativa, sem filtro próprio; trocar no topo reflete em todas', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const [unitA, unitB] = twoUnits(tenant.unitIds)
+      const [unitA, unitB] = twoUnits(org.unitIds)
 
       // One distinct stale open order per unit → dashboard pendency by amount.
-      const custA = seedCustomer(tenant.tenantId, { name: 'Cliente Unidade A' })
-      const custB = seedCustomer(tenant.tenantId, { name: 'Cliente Unidade B' })
-      seedStaleOpenOrder(tenant, unitA, custA, 11100)
-      seedStaleOpenOrder(tenant, unitB, custB, 22200)
+      const custA = seedCustomer(org.orgId, { name: 'Cliente Unidade A' })
+      const custB = seedCustomer(org.orgId, { name: 'Cliente Unidade B' })
+      seedStaleOpenOrder(org, unitA, custA, 11100)
+      seedStaleOpenOrder(org, unitB, custB, 22200)
 
       // First access: a 2-unit member picks a unit before any surface — the
       // render+empty baseline (interstitial on first access).
@@ -169,15 +169,15 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
   // owner can still check other units; editing a professional's units keeps the
   // existing multi-unit selection (the default never collapses it).
   test.describe('Cenário 2 — definição default na ativa, multi-select preservado', () => {
-    test.use({ tenantInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
 
     test('novo item pré-marca a unidade ativa (multi-select preservado); editar profissional mantém a seleção atual', async ({
       context,
-      tenant,
+      org,
       authedPage,
       baseURL,
     }) => {
-      const [unitOne, unitTwo] = twoUnits(tenant.unitIds)
+      const [unitOne, unitTwo] = twoUnits(org.unitIds)
 
       // Make "Unidade 2" the active unit (not the default first-by-name).
       await setActiveUnitCookie(context, unitTwo, baseURL ?? undefined)
@@ -205,7 +205,7 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
       // --- Editing a professional's units keeps the existing selection ---
       // The seeded professional is linked to BOTH units. The active-unit default
       // must NOT collapse that down to just the active unit.
-      const proUid = `e2e-prof-user-${tenant.professionalIds[0]!}`
+      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
       const pros = new ProfessionalsPage(authedPage)
       await pros.gotoByUserId(proUid)
       const unitsGroup = authedPage.getByRole('group', { name: 'Unidades', exact: true })
@@ -219,17 +219,17 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
   // forçar `?units=all` NÃO agrega (param morto). Só trocar de unidade pelo
   // switcher revela os dados de outra unidade.
   test.describe('Cenário 3 — tudo na unidade ativa, sem agregado', () => {
-    test.use({ tenantInput: { unitCount: 2 } })
+    test.use({ orgInput: { unitCount: 2 } })
 
     test('dashboard escopa só na unidade ativa; sem toggle e ?units=all não agrega', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const [unitA, unitB] = twoUnits(tenant.unitIds)
+      const [unitA, unitB] = twoUnits(org.unitIds)
       // Distinct revenue per unit: A=R$ 100,00, B=R$ 250,00. O agregado (R$
       // 350,00) NÃO deve aparecer em nenhuma superfície.
-      seedClosedOrder(tenant, unitA, 10000)
-      seedClosedOrder(tenant, unitB, 25000)
+      seedClosedOrder(org, unitA, 10000)
+      seedClosedOrder(org, unitB, 25000)
 
       // Owner 2-unidades → interstitial; escolhe A.
       await authedPage.goto('/agenda')
@@ -264,13 +264,13 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
 
   // Cenário 4 — `/units` gated a quem opera cross-unit.
   // Owner (cross-unit) manages the set at `/units` and creating a 2nd unit still
-  // works; a unit-bound manager (canManageTenant but unitId != null) is
+  // works; a unit-bound manager (canManageOrg but unitId != null) is
   // redirected to `/agenda`. Folds in the create-2nd-unit baseline.
   test.describe('Cenário 4 — `/units` gated a quem opera cross-unit', () => {
-    test.use({ tenantInput: { unitCount: 1 } })
+    test.use({ orgInput: { unitCount: 1 } })
 
     test('dono gere /units e cria 2ª unidade; gerente vinculado a uma unidade é redirecionado pra /agenda', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       // --- Owner (cross-unit): manages the set, creates a 2nd unit ---
@@ -302,8 +302,8 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
       await expect(listItem(authedPage, /Filial Centro Velho/)).toBeVisible()
 
       // --- Degenerate: a unit-bound manager loses access (redirect /agenda) ---
-      const membershipId = membershipDocId(tenant.tenantId, tenant.uid)
-      const [unit1] = oneUnit(tenant.unitIds)
+      const membershipId = membershipDocId(org.orgId, org.uid)
+      const [unit1] = oneUnit(org.unitIds)
       setMembershipRole(membershipId, 'manager')
       setMembershipUnitId(membershipId, unit1)
 
@@ -315,23 +315,23 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
     })
   })
 
-  // Baseline degenerate — 1-unit tenant: no selector, no aggregate, and a
+  // Baseline degenerate — 1-unit org: no selector, no aggregate, and a
   // unit-bound member there has neither aggregate nor `/units` access. The
   // single-unit lock is asserted via the top switcher being non-interactive,
   // and the aggregate/`/units` gating via a demoted receptionist.
-  test.describe('Baseline — tenant 1 unidade sem seletor; membro unit-bound sem agregado/units', () => {
-    test.use({ tenantInput: { unitCount: 1 } })
+  test.describe('Baseline — org 1 unidade sem seletor; membro unit-bound sem agregado/units', () => {
+    test.use({ orgInput: { unitCount: 1 } })
 
     test('1 unidade: switcher não interativo, sem agregado; recepção não acessa /units (redirect)', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       // Demote the seeded owner to a receptionist (unit-scoped member).
-      const membershipId = membershipDocId(tenant.tenantId, tenant.uid)
+      const membershipId = membershipDocId(org.orgId, org.uid)
       setMembershipRole(membershipId, 'receptionist')
 
-      // Single-unit tenant → enters directly, no interstitial, no actionable
-      // selector (single tenant + single unit).
+      // Single-unit org → enters directly, no interstitial, no actionable
+      // selector (single org + single unit).
       await authedPage.goto('/agenda')
       await expect(authedPage).toHaveURL(/\/agenda$/)
       await expect(switcher(authedPage)).toContainText('Unidade 1')

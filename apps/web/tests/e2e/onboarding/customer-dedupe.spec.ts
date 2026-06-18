@@ -4,7 +4,7 @@ import { expect, test } from '../fixtures'
 import { FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
 import { FsValueSchema, decodeFsDocument, parseJson } from '../helpers/firestore-rest'
 import { fillBirthDate } from '../helpers/forms'
-import { readUser, seedAuthUser, seedTenant, signInAndAttachSession } from '../helpers/session'
+import { readUser, seedAuthUser, seedOrg, signInAndAttachSession } from '../helpers/session'
 
 // #839 — Customer dedupe by WhatsApp via OAuth completion. When a stub
 // User exists (created by the recepcionista path with `claimedAt: null`)
@@ -14,7 +14,7 @@ import { readUser, seedAuthUser, seedTenant, signInAndAttachSession } from '../h
 //
 // Golden path covered here: receptionist seeds a Customer with WhatsApp X
 // → fresh OAuth user signs in → completes profile with the same WhatsApp
-// → assert 1 Customer in the tenant, pointing to the OAuth uid; stub User
+// → assert 1 Customer in the org, pointing to the OAuth uid; stub User
 // doc is gone; OAuth user is `completionCompleted=true` and `claimedAt`
 // is set.
 
@@ -32,7 +32,7 @@ function curlJson<T>(args: string[], decode: (u: unknown) => T): T {
 // behind a random suffix, which is precisely what this spec needs to
 // observe before & after the merge.
 function seedStubCustomer(
-  tenantId: string,
+  orgId: string,
   opts: { whatsapp: string; name?: string },
 ): { customerId: string; stubUid: string } {
   const stubUid = `stub-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`
@@ -57,7 +57,7 @@ function seedStubCustomer(
           displayName: { stringValue: name },
           avatarUrl: { nullValue: null },
           emailVerified: { booleanValue: false },
-          currentTenantId: { nullValue: null },
+          currentOrgId: { nullValue: null },
           whatsapp: { stringValue: opts.whatsapp },
           birthDate: { nullValue: null },
           taxIdentity: { nullValue: null },
@@ -81,7 +81,7 @@ function seedStubCustomer(
     [
       '-X',
       'PATCH',
-      `${fsBaseUrl()}/tenants/${tenantId}/customers/${customerId}`,
+      `${fsBaseUrl()}/orgs/${orgId}/customers/${customerId}`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -90,7 +90,7 @@ function seedStubCustomer(
       JSON.stringify({
         fields: {
           id: { stringValue: customerId },
-          tenantId: { stringValue: tenantId },
+          orgId: { stringValue: orgId },
           userId: { stringValue: stubUid },
           tags: { arrayValue: { values: [] } },
           notes: { nullValue: null },
@@ -111,14 +111,10 @@ const decodeReadCustomer = Schema.decodeUnknownSync(
   }),
 )
 
-function readCustomer(tenantId: string, customerId: string): Record<string, unknown> | null {
+function readCustomer(orgId: string, customerId: string): Record<string, unknown> | null {
   try {
     const json = curlJson(
-      [
-        `${fsBaseUrl()}/tenants/${tenantId}/customers/${customerId}`,
-        '-H',
-        'Authorization: Bearer owner',
-      ],
+      [`${fsBaseUrl()}/orgs/${orgId}/customers/${customerId}`, '-H', 'Authorization: Bearer owner'],
       decodeReadCustomer,
     )
     return json.fields ?? null
@@ -134,10 +130,10 @@ test.describe('Deduplicação de Cliente via conclusão OAuth (#839)', { tag: '@
     baseURL,
   }) => {
     // 1. Receptionist has already added "Maria" to her Customer book — stub
-    //    User (random uid, claimedAt: null) + Customer doc in the tenant.
-    const tenant = await seedTenant({ unitCount: 1, professionalCount: 1 })
+    //    User (random uid, claimedAt: null) + Customer doc in the org.
+    const org = await seedOrg({ unitCount: 1, professionalCount: 1 })
     const sharedWhatsapp = '5511988887777'
-    const { customerId, stubUid } = seedStubCustomer(tenant.tenantId, {
+    const { customerId, stubUid } = seedStubCustomer(org.orgId, {
       whatsapp: sharedWhatsapp,
       name: 'Maria (digitada pela recepção)',
     })
@@ -160,8 +156,8 @@ test.describe('Deduplicação de Cliente via conclusão OAuth (#839)', { tag: '@
     // Bounce off the completion page once the action returns.
     await expect(page).not.toHaveURL(/\/onboarding\/profile/, { timeout: 10_000 })
 
-    // 4. Customer doc is intact in the tenant but now points to the OAuth uid.
-    const customer = readCustomer(tenant.tenantId, customerId) as {
+    // 4. Customer doc is intact in the org but now points to the OAuth uid.
+    const customer = readCustomer(org.orgId, customerId) as {
       userId?: { stringValue?: string }
     } | null
     expect(customer).not.toBeNull()
@@ -186,9 +182,9 @@ test.describe('Deduplicação de Cliente via conclusão OAuth (#839)', { tag: '@
     page,
     baseURL,
   }) => {
-    // Tenant + owner exist (the layout pulls a tenant context for the post-
+    // Org + owner exist (the layout pulls a org context for the post-
     // completion redirect), but no stub Customer is seeded — fresh WhatsApp.
-    await seedTenant({ unitCount: 1, professionalCount: 1 })
+    await seedOrg({ unitCount: 1, professionalCount: 1 })
 
     const claimer = await seedAuthUser({ completionCompleted: false })
     await signInAndAttachSession(context, claimer.email, claimer.password, baseURL ?? undefined)

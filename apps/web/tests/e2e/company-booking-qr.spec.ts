@@ -1,6 +1,6 @@
 import { expect, test } from './fixtures'
 import { setActiveUnitCookie } from './helpers/session'
-import { tenantSlug } from './pages'
+import { orgSlug } from './pages'
 
 // Issue #864 — QR pra agenda + materialização atomic no booking commit.
 //
@@ -15,21 +15,21 @@ import { tenantSlug } from './pages'
 // default monta unidades bookable, então o card aparece em cada unidade.
 
 test.describe('Empresa — QR por unidade', () => {
-  test.use({ tenantInput: { unitCount: 2, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
 
   test('QR por unidade aponta pra /{slug}/{unitSlug} na página da unidade', async ({
     context,
-    tenant,
+    org,
     authedPage,
     baseURL,
   }) => {
-    const slug = tenantSlug(tenant.tenantId)
+    const slug = orgSlug(org.orgId)
 
-    // 2-unit tenant: pin an active unit so the /select-unit interstitial
+    // 2-unit org: pin an active unit so the /select-unit interstitial
     // (brief 0029) doesn't gate the unit pages. The QR card renders per unit.
-    await setActiveUnitCookie(context, tenant.unitIds[0]!, baseURL ?? undefined)
+    await setActiveUnitCookie(context, org.unitIds[0]!, baseURL ?? undefined)
 
-    for (const [i, unitId] of tenant.unitIds.entries()) {
+    for (const [i, unitId] of org.unitIds.entries()) {
       const unitSlug = `unidade-${i + 1}`
       await authedPage.goto(`/units/${unitId}`)
 

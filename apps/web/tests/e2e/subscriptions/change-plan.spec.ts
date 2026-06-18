@@ -7,7 +7,7 @@
 //    outro plano (captura snapshot fresco do destino).
 //
 // Seeding via REST (espelha baseline.spec.ts): dois planos ATIVOS + um cliente,
-// no mesmo tenant, antes do fluxo de UI.
+// no mesmo org, antes do fluxo de UI.
 
 import { expect, test } from '../fixtures'
 import { chooseOption, chooseOptionByIndex } from '../helpers/select'
@@ -15,15 +15,15 @@ import { seedCustomer, seedSubscriptionPlan } from '../helpers/session'
 
 test.describe('Subscriptions — troca de plano (AC-07)', { tag: '@critical' }, () => {
   test('editar plano não retroage no assinante + nota de UX; trocar plano move', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     const ts = Date.now().toString()
     const planA = `Plano A ${ts}`
     const planB = `Plano B ${ts}`
-    const planAId = seedSubscriptionPlan(tenant.tenantId, { name: planA, priceCents: 10000 })
-    seedSubscriptionPlan(tenant.tenantId, { name: planB, priceCents: 25000 })
-    seedCustomer(tenant.tenantId)
+    const planAId = seedSubscriptionPlan(org.orgId, { name: planA, priceCents: 10000 })
+    seedSubscriptionPlan(org.orgId, { name: planB, priceCents: 25000 })
+    seedCustomer(org.orgId)
 
     // Cria assinatura no Plano A (congela o snapshot do plano no create).
     await authedPage.goto('/subscriptions/new')

@@ -17,21 +17,17 @@ import { execFileSync } from 'node:child_process'
 import { expect, test } from '../fixtures'
 import { FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
 import { listItem, rowAction } from '../helpers/list'
-import { seedAuthUser, seedService, type SeededTenant } from '../helpers/session'
+import { seedAuthUser, seedService, type SeededOrg } from '../helpers/session'
 import { ProfessionalsPage } from '../pages'
 
 const FS_BASE = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 
 // Seeds a non-professional membership (admin bypass) for an existing auth user,
 // so the member shows up in `/team` and its detail is navigable. Mirrors the
-// shape `seedTenant` writes for the owner membership.
-function seedMembership(
-  tenant: SeededTenant,
-  userId: string,
-  role: 'manager' | 'receptionist',
-): void {
+// shape `seedOrg` writes for the owner membership.
+function seedMembership(org: SeededOrg, userId: string, role: 'manager' | 'receptionist'): void {
   const now = new Date().toISOString()
-  const id = membershipDocId(tenant.tenantId, userId)
+  const id = membershipDocId(org.orgId, userId)
   const boolValue = (b: boolean) => ({ booleanValue: b })
   execFileSync(
     'curl',
@@ -48,11 +44,11 @@ function seedMembership(
       JSON.stringify({
         fields: {
           id: { stringValue: id },
-          tenantId: { stringValue: tenant.tenantId },
+          orgId: { stringValue: org.orgId },
           userId: { stringValue: userId },
           role: { stringValue: role },
           status: { stringValue: 'active' },
-          invitedBy: { stringValue: tenant.uid },
+          invitedBy: { stringValue: org.uid },
           joinedAt: { stringValue: now },
           updatedAt: { stringValue: now },
           unitId: { nullValue: null },
@@ -82,13 +78,13 @@ function seedMembership(
 
 test.describe('Equipe — detalhe do membro (#1085)', { tag: '@critical' }, () => {
   test.describe('membro profissional', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
     test('lista leva ao detalhe; profissional mostra campos operacionais direto (sem Editar); identidade read-only no topo', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const proUid = `e2e-prof-user-${tenant.professionalIds[0]!}`
+      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
 
       // From `/team`, the member row's ⋯ menu → Editar navigates to the detail.
       await authedPage.goto('/team')
@@ -126,15 +122,15 @@ test.describe('Equipe — detalhe do membro (#1085)', { tag: '@critical' }, () =
     })
 
     test('editar campos operacionais (comissão + serviço) com um Salvar reflete', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const proUid = `e2e-prof-user-${tenant.professionalIds[0]!}`
+      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
       // A public service in the pro's unit so it's eligible in the form.
-      seedService(tenant.tenantId, {
+      seedService(org.orgId, {
         name: 'Corte Detalhe',
         publicVisible: true,
-        unitIds: [tenant.unitIds[0]!],
+        unitIds: [org.unitIds[0]!],
       })
 
       const pros = new ProfessionalsPage(authedPage)
@@ -157,11 +153,11 @@ test.describe('Equipe — detalhe do membro (#1085)', { tag: '@critical' }, () =
 
   test.describe('membro não-profissional (AC-03)', () => {
     test('detalhe mostra role select + Salvar, sem campos operacionais nem Editar', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       const member = await seedAuthUser()
-      seedMembership(tenant, member.uid, 'receptionist')
+      seedMembership(org, member.uid, 'receptionist')
 
       const pros = new ProfessionalsPage(authedPage)
       await pros.gotoByUserId(member.uid)
@@ -184,9 +180,9 @@ test.describe('Equipe — detalhe do membro (#1085)', { tag: '@critical' }, () =
   })
 
   test.describe('owner não-editável (refino A)', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
-    test('owner não é link na lista e seu detalhe é read-only', async ({ tenant, authedPage }) => {
+    test('owner não é link na lista e seu detalhe é read-only', async ({ org, authedPage }) => {
       await authedPage.goto('/team')
       await expect(authedPage.getByRole('heading', { name: 'Equipe' })).toBeVisible()
 
@@ -198,7 +194,7 @@ test.describe('Equipe — detalhe do membro (#1085)', { tag: '@critical' }, () =
       // The owner detail is read-only: static "Papel" label, no role select, no
       // Salvar.
       const pros = new ProfessionalsPage(authedPage)
-      await pros.gotoByUserId(tenant.uid)
+      await pros.gotoByUserId(org.uid)
       await expect(authedPage.getByRole('group', { name: 'Papel', exact: true })).toHaveText('Dono')
       await expect(pros.roleSelect()).toHaveCount(0)
       await expect(pros.saveButton()).toHaveCount(0)
@@ -206,10 +202,10 @@ test.describe('Equipe — detalhe do membro (#1085)', { tag: '@critical' }, () =
   })
 
   test.describe('baseline — só o owner (#17)', () => {
-    test.use({ tenantInput: { unitCount: 0, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
 
     test('render + detalhe do owner abre read-only, sem campos operacionais', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       await authedPage.goto('/team')
@@ -217,7 +213,7 @@ test.describe('Equipe — detalhe do membro (#1085)', { tag: '@critical' }, () =
 
       // The owner detail opens read-only (refino A): static role, no edit form.
       const pros = new ProfessionalsPage(authedPage)
-      await pros.gotoByUserId(tenant.uid)
+      await pros.gotoByUserId(org.uid)
       await expect(authedPage.getByRole('group', { name: 'Papel', exact: true })).toHaveText('Dono')
       await expect(pros.roleSelect()).toHaveCount(0)
       await expect(pros.saveButton()).toHaveCount(0)

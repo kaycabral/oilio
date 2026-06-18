@@ -6,37 +6,34 @@ import {
   seedCustomer,
   seedService,
 } from '../helpers/session'
-import { PublicBookingPage, tenantSlug } from '../pages'
+import { PublicBookingPage, orgSlug } from '../pages'
 
 // Issue #842 — Calendário público de slots disponíveis.
 
 test.describe('Landing pública — calendário de disponibilidade', () => {
   test.describe('com serviço selecionado', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
-    test('anônimo lê /[slug]/[unitSlug]/availability com grid + filtros', async ({
-      tenant,
-      page,
-    }) => {
-      const unitId = tenant.unitIds[0]!
-      const serviceId = seedService(tenant.tenantId, {
+    test('anônimo lê /[slug]/[unitSlug]/availability com grid + filtros', async ({ org, page }) => {
+      const unitId = org.unitIds[0]!
+      const serviceId = seedService(org.orgId, {
         name: 'Corte',
         durationMinutes: 30,
         priceCents: 5000,
         publicVisible: true,
         unitIds: [unitId],
       })
-      linkProfessionalToServices(tenant.tenantId, tenant.professionalIds[0]!, [serviceId])
+      linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
 
       const targetDate = nextWeekday('Wed')
 
       // Pre-block 09:00 BR (12:00 UTC) with an existing appointment so that slot
       // is dropped — we can assert both presence (other slots) and absence (09:00).
-      const cust = seedCustomer(tenant.tenantId, { name: 'Bloqueado', whatsapp: '11900000000' })
+      const cust = seedCustomer(org.orgId, { name: 'Bloqueado', whatsapp: '11900000000' })
       seedAppointment({
-        tenantId: tenant.tenantId,
+        orgId: org.orgId,
         unitId,
-        professionalId: tenant.professionalIds[0]!,
+        professionalId: org.professionalIds[0]!,
         customerId: cust,
         serviceId,
         startAt: `${targetDate}T12:00:00.000Z`,
@@ -44,7 +41,7 @@ test.describe('Landing pública — calendário de disponibilidade', () => {
         status: 'scheduled',
       })
 
-      const booking = new PublicBookingPage(page, tenantSlug(tenant.tenantId))
+      const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: targetDate })
       await expect(page.getByRole('heading', { name: /disponibilidade/i })).toBeVisible()
 
@@ -56,10 +53,10 @@ test.describe('Landing pública — calendário de disponibilidade', () => {
   })
 
   test.describe('sem serviço', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
-    test('página de disponibilidade sem ?service= mostra orientação', async ({ tenant, page }) => {
-      await page.goto(`/${tenantSlug(tenant.tenantId)}/unidade-1/availability`)
+    test('página de disponibilidade sem ?service= mostra orientação', async ({ org, page }) => {
+      await page.goto(`/${orgSlug(org.orgId)}/unidade-1/availability`)
       await expect(page.getByText(/selecione um serviço no catálogo/i)).toBeVisible()
     })
   })

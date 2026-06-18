@@ -3,7 +3,7 @@ import { expect, test } from '../fixtures'
 import { FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
 import type { FsValue } from '../helpers/firestore-rest'
 import { decodeFsQueryRows, parseJson, strField } from '../helpers/firestore-rest'
-import { readUser, seedTenant, signInAndAttachSession } from '../helpers/session'
+import { readUser, seedOrg, signInAndAttachSession } from '../helpers/session'
 
 // Feature-level E2E — self-service rectification + PII-free pii_* events
 // (brief 0032 / #1066).
@@ -89,7 +89,7 @@ test.describe('self-service rectification + pii_* events', () => {
   test('editing own profile reflects live across screens and emits a PII-free pii_rectified', async ({
     context,
   }) => {
-    const owner = await seedTenant({ professionalCount: 0 })
+    const owner = await seedOrg({ professionalCount: 0 })
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()
 
@@ -127,7 +127,7 @@ test.describe('self-service rectification + pii_* events', () => {
   })
 
   test('erasure emits PII-free pii_erasure_requested + pii_anonymized', async ({ context }) => {
-    const owner = await seedTenant({ professionalCount: 0 })
+    const owner = await seedOrg({ professionalCount: 0 })
     const originalEmail = owner.email
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()

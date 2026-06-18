@@ -3,12 +3,12 @@ import { expect, test } from '../fixtures'
 import { strField } from '../helpers/firestore-rest'
 import {
   blockedSubjectMarkerExists,
-  readTenantLink,
+  readOrgLink,
   readUser,
   seedCustomerShadowForUser,
+  seedOrg,
+  seedOrgLink,
   seedSubscription,
-  seedTenant,
-  seedTenantLink,
   signInAndAttachSession,
 } from '../helpers/session'
 
@@ -17,20 +17,20 @@ import {
 //
 // The signed-in subject opens `settings/privacy`, discovers the establishments
 // where they are a CUSTOMER (resolved by the identity-layer reverse index
-// `users/{uid}/tenant_links` — a per-user read, NOT a cross-tenant query), and
+// `users/{uid}/org_links` — a per-user read, NOT a cross-org query), and
 // per establishment either:
-//   - blocks their data there (per-tenant block, #1100), warned first about an
+//   - blocks their data there (per-org block, #1100), warned first about an
 //     active subscription that will be cancelled (#1101, informed consent); or
 //   - erases their whole account (global anonymization, #1093).
-// The reverse-index doc holds ZERO PII (just tenantId + linkedAt) and is read
+// The reverse-index doc holds ZERO PII (just orgId + linkedAt) and is read
 // only for the OWN uid.
 
 test.describe('CUSTOMER self-service discovery + erasure', () => {
   test('baseline: privacy surface renders; subject with no links sees the empty state', async ({
     context,
   }) => {
-    // Owner of their own tenant but a customer of NONE — no tenant_links seeded.
-    const owner = await seedTenant({ professionalCount: 0 })
+    // Owner of their own org but a customer of NONE — no org_links seeded.
+    const owner = await seedOrg({ professionalCount: 0 })
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()
 
@@ -45,62 +45,60 @@ test.describe('CUSTOMER self-service discovery + erasure', () => {
     await page.close()
   })
 
-  test('subject in 2 tenants sees both; erasing one blocks only that tenant; index holds zero PII', async ({
+  test('subject in 2 orgs sees both; erasing one blocks only that org; index holds zero PII', async ({
     context,
   }) => {
-    // Tenant A owned by the subject (gives them the tenant context the (app)
-    // layout requires) + tenant B owned by someone else. The SAME subject uid is
+    // Org A owned by the subject (gives them the org context the (app)
+    // layout requires) + org B owned by someone else. The SAME subject uid is
     // a CUSTOMER of both, recorded in their reverse index.
-    const subject = await seedTenant({ professionalCount: 0 })
-    const ownerB = await seedTenant({ professionalCount: 0 })
+    const subject = await seedOrg({ professionalCount: 0 })
+    const ownerB = await seedOrg({ professionalCount: 0 })
 
-    const custA = seedCustomerShadowForUser(subject.tenantId, subject.uid)
-    seedCustomerShadowForUser(ownerB.tenantId, subject.uid)
-    seedTenantLink(subject.uid, subject.tenantId)
-    seedTenantLink(subject.uid, ownerB.tenantId)
+    const custA = seedCustomerShadowForUser(subject.orgId, subject.uid)
+    seedCustomerShadowForUser(ownerB.orgId, subject.uid)
+    seedOrgLink(subject.uid, subject.orgId)
+    seedOrgLink(subject.uid, ownerB.orgId)
 
-    // An active subscription in tenant A — the block must warn before confirming.
-    seedSubscription(subject.tenantId, custA, { status: 'active' })
+    // An active subscription in org A — the block must warn before confirming.
+    seedSubscription(subject.orgId, custA, { status: 'active' })
 
     await signInAndAttachSession(context, subject.email, subject.password)
     const page = await context.newPage()
     await page.goto('/settings/privacy')
 
     // Discovery: BOTH establishments are listed (resolved from the reverse index,
-    // no cross-tenant query). The list items carry the establishment name —
-    // `seedTenant` names each tenant `E2E ${tenantId}`.
+    // no cross-org query). The list items carry the establishment name —
+    // `seedOrg` names each org `E2E ${orgId}`.
     const establishments = page.getByRole('list', { name: 'Estabelecimentos' })
-    const itemA = establishments
-      .getByRole('listitem')
-      .filter({ hasText: `E2E ${subject.tenantId}` })
-    const itemB = establishments.getByRole('listitem').filter({ hasText: `E2E ${ownerB.tenantId}` })
+    const itemA = establishments.getByRole('listitem').filter({ hasText: `E2E ${subject.orgId}` })
+    const itemB = establishments.getByRole('listitem').filter({ hasText: `E2E ${ownerB.orgId}` })
     await expect(itemA).toBeVisible()
     await expect(itemB).toBeVisible()
 
-    // The reverse index holds ZERO PII — only tenantId + linkedAt.
-    const link = readTenantLink(subject.uid, subject.tenantId)
+    // The reverse index holds ZERO PII — only orgId + linkedAt.
+    const link = readOrgLink(subject.uid, subject.orgId)
     expect(link).not.toBeNull()
-    expect(Object.keys(link ?? {}).sort()).toEqual(['linkedAt', 'tenantId'])
+    expect(Object.keys(link ?? {}).sort()).toEqual(['linkedAt', 'orgId'])
 
     // The subject can only read their OWN links — ownerB's index never holds the
     // subject (the link lives under the SUBJECT's own user doc, scoped per-uid).
-    expect(readTenantLink(ownerB.uid, ownerB.tenantId)).toBeNull()
+    expect(readOrgLink(ownerB.uid, ownerB.orgId)).toBeNull()
 
-    // Erase data in tenant A: open the per-establishment dialog. The active-
+    // Erase data in org A: open the per-establishment dialog. The active-
     // subscription warning shows (informed consent, #1101).
     await itemA.getByRole('button', { name: 'Excluir meus dados deste estabelecimento' }).click()
     await expect(
       page.getByText('Você tem uma assinatura ativa neste estabelecimento.'),
     ).toBeVisible()
 
-    // Confirm — runs the real per-tenant block server action.
+    // Confirm — runs the real per-org block server action.
     await page.getByRole('button', { name: 'Confirmar exclusão' }).click()
     await expect(page.getByText(/foram excluídos/)).toBeVisible()
 
-    // Only tenant A is blocked: the `blocked_subjects` marker exists for A and
+    // Only org A is blocked: the `blocked_subjects` marker exists for A and
     // never leaks to B (the subject keeps their account in B intact).
-    expect(blockedSubjectMarkerExists(subject.tenantId, subject.uid)).toBe(true)
-    expect(blockedSubjectMarkerExists(ownerB.tenantId, subject.uid)).toBe(false)
+    expect(blockedSubjectMarkerExists(subject.orgId, subject.uid)).toBe(true)
+    expect(blockedSubjectMarkerExists(ownerB.orgId, subject.uid)).toBe(false)
 
     await page.close()
   })
@@ -108,10 +106,10 @@ test.describe('CUSTOMER self-service discovery + erasure', () => {
   test('erasing the whole account anonymizes the global doc + cancels the active subscription, with the warning shown', async ({
     context,
   }) => {
-    const subject = await seedTenant({ professionalCount: 0 })
-    const custId = seedCustomerShadowForUser(subject.tenantId, subject.uid)
-    seedTenantLink(subject.uid, subject.tenantId)
-    seedSubscription(subject.tenantId, custId, { status: 'active' })
+    const subject = await seedOrg({ professionalCount: 0 })
+    const custId = seedCustomerShadowForUser(subject.orgId, subject.uid)
+    seedOrgLink(subject.uid, subject.orgId)
+    seedSubscription(subject.orgId, custId, { status: 'active' })
 
     await signInAndAttachSession(context, subject.email, subject.password)
     const page = await context.newPage()

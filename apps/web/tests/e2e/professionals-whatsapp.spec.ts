@@ -8,14 +8,14 @@ import { ProfessionalsPage } from './pages'
 
 test.describe('Profissionais — WhatsApp', () => {
   test.describe('detalhe do membro com pro cadastrado', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
     test('detalhe do membro mostra o WhatsApp do profissional (read-only)', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       const professionals = new ProfessionalsPage(authedPage)
-      await professionals.gotoById(tenant.professionalIds[0]!)
+      await professionals.gotoById(org.professionalIds[0]!)
       await expect(professionals.identityWhatsapp()).toHaveText('(11) 90000-0000')
     })
   })

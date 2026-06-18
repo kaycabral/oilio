@@ -40,9 +40,9 @@ describe('Audit de jornada E2E — Feature DoD (brief 0035 · #1074)', () => {
     ).toBe(true)
     expect(doc).toContain('owner-login-landing.spec.ts')
     // os três estados de landing nomeados na régua
-    expect(doc).toMatch(/sem tenant.*\/onboarding/)
+    expect(doc).toMatch(/sem org.*\/onboarding/)
     expect(doc).toMatch(/\/onboarding\/profile/)
-    expect(doc).toMatch(/com tenant.*\/dashboard/)
+    expect(doc).toMatch(/com org.*\/dashboard/)
   })
 
   it('Cenário 3 — nenhuma jornada crítica fica como gap (toda linha coberta)', () => {

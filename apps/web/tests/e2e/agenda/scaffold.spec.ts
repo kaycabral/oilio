@@ -3,12 +3,12 @@ import { AgendaPage } from '../pages'
 
 // Scaffold spec for the E2E retrofit (#743). Exercises the seed+session
 // fixture end-to-end and asserts the agenda renders for a freshly seeded
-// tenant. Read-only — does not depend on React onChange firing inside
+// org. Read-only — does not depend on React onChange firing inside
 // form-action forms (see #763).
 
 test.describe('Agenda — com profissional aprovado e horários configurados', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -31,7 +31,7 @@ test.describe('Agenda — com profissional aprovado e horários configurados', (
 
 test.describe('Agenda — com profissional de cadastro incompleto', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'incomplete',
@@ -50,7 +50,7 @@ test.describe('Agenda — com profissional de cadastro incompleto', () => {
 
 test.describe('Agenda — sem horários configurados', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',

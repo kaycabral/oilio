@@ -32,19 +32,19 @@ function curlPatch(url: string, body: unknown): void {
   )
 }
 
-function setCurrentTenant(uid: string, tenantId: string): void {
-  curlPatch(`${fsBaseUrl()}/users/${uid}?updateMask.fieldPaths=currentTenantId`, {
-    fields: { currentTenantId: { stringValue: tenantId } },
+function setCurrentOrg(uid: string, orgId: string): void {
+  curlPatch(`${fsBaseUrl()}/users/${uid}?updateMask.fieldPaths=currentOrgId`, {
+    fields: { currentOrgId: { stringValue: orgId } },
   })
 }
 
-function seedNotification(tenantId: string, unitId: string, type: string): void {
+function seedNotification(orgId: string, unitId: string, type: string): void {
   const notifId = `e2e-notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const now = new Date().toISOString()
-  curlPatch(`${fsBaseUrl()}/tenants/${tenantId}/notifications/${notifId}`, {
+  curlPatch(`${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`, {
     fields: {
       id: { stringValue: notifId },
-      tenantId: { stringValue: tenantId },
+      orgId: { stringValue: orgId },
       unitId: { stringValue: unitId },
       type: { stringValue: type },
       customerId: { nullValue: null },
@@ -67,19 +67,19 @@ function seedNotification(tenantId: string, unitId: string, type: string): void 
 
 test.describe.serial('Notification role permissions (receptionist)', () => {
   test('AC-18: receptionist não vê tipos financeiros no sininho', async ({
-    tenant,
+    org,
     context,
     page,
     baseURL,
   }) => {
     const recep = await seedAuthUser()
-    seedMembershipFor(tenant.tenantId, recep.uid, { role: 'receptionist' })
-    setCurrentTenant(recep.uid, tenant.tenantId)
+    seedMembershipFor(org.orgId, recep.uid, { role: 'receptionist' })
+    setCurrentOrg(recep.uid, org.orgId)
 
-    const unitId = tenant.unitIds[0]!
-    seedNotification(tenant.tenantId, unitId, 'birthday')
-    seedNotification(tenant.tenantId, unitId, 'cash_register_open')
-    seedNotification(tenant.tenantId, unitId, 'payment_failure')
+    const unitId = org.unitIds[0]!
+    seedNotification(org.orgId, unitId, 'birthday')
+    seedNotification(org.orgId, unitId, 'cash_register_open')
+    seedNotification(org.orgId, unitId, 'payment_failure')
 
     await signInAndAttachSession(context, recep.email, recep.password, baseURL ?? undefined)
 
@@ -99,14 +99,14 @@ test.describe.serial('Notification role permissions (receptionist)', () => {
   })
 
   test('AC-20: /settings/notifications é read-only pra receptionist', async ({
-    tenant,
+    org,
     context,
     page,
     baseURL,
   }) => {
     const recep = await seedAuthUser()
-    seedMembershipFor(tenant.tenantId, recep.uid, { role: 'receptionist' })
-    setCurrentTenant(recep.uid, tenant.tenantId)
+    seedMembershipFor(org.orgId, recep.uid, { role: 'receptionist' })
+    setCurrentOrg(recep.uid, org.orgId)
 
     await signInAndAttachSession(context, recep.email, recep.password, baseURL ?? undefined)
 

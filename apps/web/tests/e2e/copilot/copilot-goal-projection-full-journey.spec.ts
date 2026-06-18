@@ -34,36 +34,36 @@ test.describe(
   'brief 0042 — Feature-level DoD (Copiloto — meta de lucro + projeção)',
   { tag: '@journey' },
   () => {
-    test.use({ tenantInput: { unitCount: 1 } })
+    test.use({ orgInput: { unitCount: 1 } })
 
     // Cenário 1: o dono define a meta pelo fluxo real e vê o painel completo —
     // meta · realizado (avulso + recorrente reconhecida − comissão) · ritmo% ·
     // projeção run-rate. Exercita a fórmula inteira junta, com as três fontes.
     test('Cenário 1: definir meta e acompanhar (realizado avulso + recorrente − comissão)', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const unitId = tenant.unitIds[0]
-      assertDefined(unitId, 'expected a 1-unit tenant')
-      const customerId = seedCustomer(tenant.tenantId, {})
+      const unitId = org.unitIds[0]
+      assertDefined(unitId, 'expected a 1-unit org')
+      const customerId = seedCustomer(org.orgId, {})
 
       // Avulso: comanda fechada no mês → R$ 200 reconhecidos.
       const orderId = seedClosedOrder({
-        tenantId: tenant.tenantId,
+        orgId: org.orgId,
         unitId,
         customerId,
-        attributedUserId: tenant.uid,
+        attributedUserId: org.uid,
         totalCents: 20000,
       })
       // Comissão ligada à comanda → R$ 50 subtraídos do realizado.
       seedCommission({
-        tenantId: tenant.tenantId,
-        attributedUserId: tenant.uid,
+        orgId: org.orgId,
+        attributedUserId: org.uid,
         amountCents: 5000,
         orderId,
       })
       // Recorrente reconhecida: cobrança de assinatura liquidada no mês → R$ 300.
-      seedPaidCharge(tenant.tenantId, {
+      seedPaidCharge(org.orgId, {
         unitId,
         amountCents: 30000,
         paidAt: new Date().toISOString(),
@@ -96,24 +96,24 @@ test.describe(
     // resultado-após-comissão, ROTULADO como parcial — a UI não finge que é o
     // lucro fechado. Com comissão > 0, o rótulo honesto é "após comissão".
     test('Cenário 3: honestidade da medição parcial (rótulo após comissão, sem fingir lucro)', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const unitId = tenant.unitIds[0]
-      assertDefined(unitId, 'expected a 1-unit tenant')
-      const customerId = seedCustomer(tenant.tenantId, {})
+      const unitId = org.unitIds[0]
+      assertDefined(unitId, 'expected a 1-unit org')
+      const customerId = seedCustomer(org.orgId, {})
 
       // Avulso R$ 100 com comissão R$ 30 → realizado parcial = R$ 70.
       const orderId = seedClosedOrder({
-        tenantId: tenant.tenantId,
+        orgId: org.orgId,
         unitId,
         customerId,
-        attributedUserId: tenant.uid,
+        attributedUserId: org.uid,
         totalCents: 10000,
       })
       seedCommission({
-        tenantId: tenant.tenantId,
-        attributedUserId: tenant.uid,
+        orgId: org.orgId,
+        attributedUserId: org.uid,
         amountCents: 3000,
         orderId,
       })
@@ -136,21 +136,21 @@ test.describe(
     // entra no realizado; o MRR aparece à parte como observação, NUNCA dentro do
     // realizado. Sem comissão (SaaS / produto-puro) → rótulo "só receita".
     test('Cenário 4: recorrente entra no realizado; MRR fica à parte', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const unitId = tenant.unitIds[0]
-      assertDefined(unitId, 'expected a 1-unit tenant')
-      const customerId = seedCustomer(tenant.tenantId, {})
+      const unitId = org.unitIds[0]
+      assertDefined(unitId, 'expected a 1-unit org')
+      const customerId = seedCustomer(org.orgId, {})
 
       // Assinatura ativa R$ 90/mês → MRR observado, fora do realizado.
-      seedSubscription(tenant.tenantId, customerId, {
+      seedSubscription(org.orgId, customerId, {
         unitId,
         priceCents: 9000,
         status: 'active',
       })
       // Cobrança de assinatura liquidada neste mês → R$ 300 recorrente reconhecido.
-      seedPaidCharge(tenant.tenantId, {
+      seedPaidCharge(org.orgId, {
         unitId,
         amountCents: 30000,
         paidAt: new Date().toISOString(),

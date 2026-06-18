@@ -2,21 +2,21 @@ import { expect, test } from './fixtures'
 import { stringValueOf } from './helpers/firestore-rest'
 import {
   readUser,
-  seedAdditionalTenant,
+  seedAdditionalOrg,
   setMembershipUnitId,
   signInAndAttachSession,
 } from './helpers/session'
 
 // Brief 0029 (#1051) — top context switcher + first-access interstitial +
-// single-unit lock + tenant switch. Covers AC-03/AC-04/AC-05/AC-09.
+// single-unit lock + org switch. Covers AC-03/AC-04/AC-05/AC-09.
 //
 // The switcher renders in the app-shell header on every operational surface,
-// so its breadcrumb (`tenant > unidade`) is the cross-surface anchor for
+// so its breadcrumb (`org > unidade`) is the cross-surface anchor for
 // asserting the active context.
 
-test.describe('Seletor de contexto (unidade + tenant)', () => {
+test.describe('Seletor de contexto (unidade + org)', () => {
   test.describe('gerente multi-unidade — interstitial no 1º acesso', () => {
-    test.use({ tenantInput: { unitCount: 3 } })
+    test.use({ orgInput: { unitCount: 3 } })
 
     test('1º acesso mostra interstitial, escolhe unidade, opera e troca pelo switcher', async ({
       authedPage,
@@ -54,8 +54,8 @@ test.describe('Seletor de contexto (unidade + tenant)', () => {
     })
   })
 
-  test.describe('tenant de 1 unidade — entra direto, sem seletor', () => {
-    test.use({ tenantInput: { unitCount: 1 } })
+  test.describe('org de 1 unidade — entra direto, sem seletor', () => {
+    test.use({ orgInput: { unitCount: 1 } })
 
     test('sem interstitial; switcher mostra o breadcrumb sem picker de unidade', async ({
       authedPage,
@@ -64,20 +64,17 @@ test.describe('Seletor de contexto (unidade + tenant)', () => {
       await expect(authedPage).toHaveURL(/\/agenda$/)
       const switcher = authedPage.getByLabel('Contexto da unidade')
       await expect(switcher).toContainText('Unidade 1')
-      // Single tenant + single unit → no interactive picker at all.
+      // Single org + single unit → no interactive picker at all.
       await expect(switcher).toHaveAttribute('data-interactive', 'false')
     })
   })
 
   test.describe('membro travado em 1 unidade (membership.unitId)', () => {
-    test.use({ tenantInput: { unitCount: 2 } })
+    test.use({ orgInput: { unitCount: 2 } })
 
-    test('sem interstitial, sem picker; preso na unidade definida', async ({
-      authedPage,
-      tenant,
-    }) => {
+    test('sem interstitial, sem picker; preso na unidade definida', async ({ authedPage, org }) => {
       // Pin the member to the first unit (AC-05).
-      setMembershipUnitId(`${tenant.tenantId}_${tenant.uid}`, tenant.unitIds[0]!)
+      setMembershipUnitId(`${org.orgId}_${org.uid}`, org.unitIds[0]!)
 
       await authedPage.goto('/agenda')
       // Locked members never see the interstitial — they enter directly.
@@ -85,7 +82,7 @@ test.describe('Seletor de contexto (unidade + tenant)', () => {
 
       const switcher = authedPage.getByLabel('Contexto da unidade')
       await expect(switcher).toContainText('Unidade 1')
-      // No unit picker is offered (and with one tenant, no tenant picker
+      // No unit picker is offered (and with one org, no org picker
       // either) → static breadcrumb.
       await expect(switcher).toHaveAttribute('data-interactive', 'false')
 
@@ -95,36 +92,36 @@ test.describe('Seletor de contexto (unidade + tenant)', () => {
     })
   })
 
-  test.describe('User com 2+ tenants — troca de tenant reseta a unidade', () => {
-    test.use({ tenantInput: { unitCount: 1 } })
+  test.describe('User com 2+ orgs — troca de org reseta a unidade', () => {
+    test.use({ orgInput: { unitCount: 1 } })
 
-    test('switcher de tenant aparece; trocar não vaza a unidade do tenant anterior', async ({
+    test('switcher de org aparece; trocar não vaza a unidade do org anterior', async ({
       authedPage,
-      tenant,
+      org,
       context,
       baseURL,
     }) => {
-      // Give the seeded owner a second tenant with 2 units (AC-09).
-      const second = seedAdditionalTenant(tenant.uid, { name: 'Segundo Negócio', unitCount: 2 })
+      // Give the seeded owner a second org with 2 units (AC-09).
+      const second = seedAdditionalOrg(org.uid, { name: 'Segundo Negócio', unitCount: 2 })
 
       // Re-attach the session so the layout re-reads memberships.
-      await signInAndAttachSession(context, tenant.email, tenant.password, baseURL ?? undefined)
+      await signInAndAttachSession(context, org.email, org.password, baseURL ?? undefined)
 
       await authedPage.goto('/agenda')
       await expect(authedPage).toHaveURL(/\/agenda$/)
 
       const switcher = authedPage.getByLabel('Contexto da unidade')
-      // Two memberships → the switcher is interactive (tenant picker).
+      // Two memberships → the switcher is interactive (org picker).
       await expect(switcher).toHaveAttribute('data-interactive', 'true')
       await expect(switcher).toContainText('Unidade 1')
 
-      // Switch to the second tenant.
+      // Switch to the second org.
       await switcher.click()
       await authedPage.getByRole('menuitem', { name: 'Segundo Negócio' }).click()
 
-      // currentTenantId moved to the new tenant, and its 2 units mean the
+      // currentOrgId moved to the new org, and its 2 units mean the
       // active-unit context reset → first-access interstitial fires (no leak
-      // of the previous tenant's unit — AC-09).
+      // of the previous org's unit — AC-09).
       await expect(authedPage).toHaveURL(/\/select-unit$/)
       await expect(authedPage.getByText('Escolha a unidade')).toBeVisible()
       await expect(
@@ -132,10 +129,10 @@ test.describe('Seletor de contexto (unidade + tenant)', () => {
       ).toBeVisible()
 
       // Persisted pointer reflects the switch.
-      const user = readUser(tenant.uid)
-      expect(stringValueOf(user?.currentTenantId)).toBe(second.tenantId)
+      const user = readUser(org.uid)
+      expect(stringValueOf(user?.currentOrgId)).toBe(second.orgId)
 
-      // Pick a unit in the new tenant → enters scoped to it.
+      // Pick a unit in the new org → enters scoped to it.
       await authedPage.getByRole('button', { name: 'Segundo Negócio Unidade 2' }).click()
       await expect(authedPage).toHaveURL(/\/agenda$/)
       await expect(authedPage.getByLabel('Contexto da unidade')).toContainText('Segundo Negócio')

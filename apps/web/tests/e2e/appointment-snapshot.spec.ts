@@ -15,7 +15,7 @@ import { AgendaPage, ServicesPage } from './pages'
 
 test.describe('Snapshot do agendamento', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -25,25 +25,25 @@ test.describe('Snapshot do agendamento', () => {
   })
 
   test('order iniciada de Agendamento usa preço do snapshot, não do Serviço vivo', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     // Serviço criado com preço R$ 50,00 — vai virar o SNAPSHOT do appointment.
-    const serviceId = seedService(tenant.tenantId, {
+    const serviceId = seedService(org.orgId, {
       name: 'Corte',
       durationMinutes: 30,
       priceCents: 5000,
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
-    const customerId = seedCustomer(tenant.tenantId, {
+    const customerId = seedCustomer(org.orgId, {
       name: 'Cliente Snapshot',
       whatsapp: '11988887777',
     })
     // Appointment seeded with snapshot = 5000 cents (booking-time price).
     seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
-      professionalId: tenant.professionalIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
+      professionalId: org.professionalIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',
@@ -92,25 +92,25 @@ test.describe('Snapshot do agendamento', () => {
   // This proves it on the money path: the order total + the generated commission
   // stay on the LOCKED snapshot (P1/C1), not the drifted appointment (P2/C2).
   test('editar o agendamento depois da order não muda total nem comissão da order', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     // P1 = R$ 50,00, C1 = 50% → comissão travada = R$ 25,00.
-    const serviceId = seedService(tenant.tenantId, {
+    const serviceId = seedService(org.orgId, {
       name: 'Corte Sem Drift',
       durationMinutes: 30,
       priceCents: 5000,
       commission: { kind: 'percentage', value: 50 },
-      unitIds: tenant.unitIds,
+      unitIds: org.unitIds,
     })
-    const customerId = seedCustomer(tenant.tenantId, {
+    const customerId = seedCustomer(org.orgId, {
       name: 'Cliente Drift',
       whatsapp: '11955552222',
     })
     const appointmentId = seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
-      professionalId: tenant.professionalIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
+      professionalId: org.professionalIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',
@@ -133,7 +133,7 @@ test.describe('Snapshot do agendamento', () => {
     // O agendamento DERIVA: snapshot vira P2 = R$ 999,00 / C2 = 10% — espelha o
     // que `updateAppointment` grava ao trocar serviço/unidade depois do booking.
     // A order já tem sua própria cópia: não deve seguir o drift.
-    patchAppointmentSnapshot(tenant.tenantId, appointmentId, {
+    patchAppointmentSnapshot(org.orgId, appointmentId, {
       servicePriceCentsSnapshot: 99900,
       commissionSnapshot: { kind: 'percentage', value: 10 },
     })

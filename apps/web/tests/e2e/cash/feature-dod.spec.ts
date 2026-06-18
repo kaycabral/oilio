@@ -7,24 +7,24 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { choosePaymentMethod } from '../helpers/select'
-import { seedAppointment, seedCustomer, seedService, type SeededTenant } from '../helpers/session'
+import { seedAppointment, seedCustomer, seedService, type SeededOrg } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-function seedOrderFixture(tenant: SeededTenant): void {
-  const serviceId = seedService(tenant.tenantId, {
+function seedOrderFixture(org: SeededOrg): void {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  const customerId = seedCustomer(tenant.tenantId, {
+  const customerId = seedCustomer(org.orgId, {
     name: 'Cliente Caixa',
     whatsapp: '11900001111',
   })
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -51,7 +51,7 @@ async function startAndCloseWithCash(authedPage: Page): Promise<void> {
 
 test.describe('Caixa 0015 — Definition of Done', () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -60,11 +60,8 @@ test.describe('Caixa 0015 — Definition of Done', () => {
     },
   })
 
-  test('Cenário 1: venda em dinheiro grava movimento sem sessão', async ({
-    tenant,
-    authedPage,
-  }) => {
-    seedOrderFixture(tenant)
+  test('Cenário 1: venda em dinheiro grava movimento sem sessão', async ({ org, authedPage }) => {
+    seedOrderFixture(org)
     // Fecha a comanda com dinheiro SEM abrir caixa nenhum.
     await startAndCloseWithCash(authedPage)
 

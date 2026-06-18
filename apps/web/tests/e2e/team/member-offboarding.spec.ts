@@ -3,7 +3,7 @@
 // member from the member detail at `/team/{userId}`:
 //
 //   - AC-10: the membership goes to the TERMINAL `revoked` status (event-first,
-//     `membership.updated { status }`); the member loses tenant access (every
+//     `membership.updated { status }`); the member loses org access (every
 //     gate keys on `status == 'active'`) and DROPS from the active team list.
 //   - the professional projection is DEACTIVATED (`professional.suspended`),
 //     NOT deleted — off the public agenda, history preserved.
@@ -116,13 +116,13 @@ function listMembershipStatusEvents(membershipId: string): string[] {
 
 // True when the `professionals_pii/{id}` doc still exists (RETENTION assertion,
 // AC — art. 16). A successful curl GET (doc present) returns true; a 404 throws.
-function professionalPiiExists(tenantId: string, professionalId: string): boolean {
+function professionalPiiExists(orgId: string, professionalId: string): boolean {
   try {
     execFileSync(
       'curl',
       [
         '-fsS',
-        `${FS_BASE}/tenants/${tenantId}/professionals_pii/${professionalId}`,
+        `${FS_BASE}/orgs/${orgId}/professionals_pii/${professionalId}`,
         '-H',
         'Authorization: Bearer owner',
       ],
@@ -135,23 +135,21 @@ function professionalPiiExists(tenantId: string, professionalId: string): boolea
 }
 
 test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, () => {
-  test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
   test('owner remove membro → revoked + sai da equipe + PII retida + idempotente', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
-    const membershipId = membershipDocId(tenant.tenantId, proUserId)
+    const membershipId = membershipDocId(org.orgId, proUserId)
 
     // Baseline: active membership, an approved projection, PII present, no
     // status-change event yet.
     expect(readMembership(membershipId)?.status).toBe('active')
-    expect(readProfessionalByUserId(tenant.tenantId, proUserId)?.operationalStatus).toBe(
-      'operational',
-    )
-    expect(professionalPiiExists(tenant.tenantId, proId)).toBe(true)
+    expect(readProfessionalByUserId(org.orgId, proUserId)?.operationalStatus).toBe('operational')
+    expect(professionalPiiExists(org.orgId, proId)).toBe(true)
     expect(listMembershipStatusEvents(membershipId)).toEqual([])
 
     // The member shows on the active team list before removal.
@@ -174,12 +172,12 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
     // saga — poll for the deactivation step rather than reading right after the
     // membership-revoke poll.
     await expect
-      .poll(() => readProfessionalByUserId(tenant.tenantId, proUserId)?.operationalStatus)
+      .poll(() => readProfessionalByUserId(org.orgId, proUserId)?.operationalStatus)
       .toBe('incomplete')
-    expect(readProfessionalByUserId(tenant.tenantId, proUserId)).not.toBeNull()
+    expect(readProfessionalByUserId(org.orgId, proUserId)).not.toBeNull()
 
     // RETENTION (art. 16): the vínculo PII is RETAINED — not scrubbed.
-    expect(professionalPiiExists(tenant.tenantId, proId)).toBe(true)
+    expect(professionalPiiExists(org.orgId, proId)).toBe(true)
 
     // Gone from the active team list.
     await pros.gotoList()
@@ -194,17 +192,17 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
     expect(beforeCount).toBe(1)
   })
 
-  test('não é possível remover o owner (identidade imutável)', async ({ tenant, authedPage }) => {
+  test('não é possível remover o owner (identidade imutável)', async ({ org, authedPage }) => {
     const pros = new ProfessionalsPage(authedPage)
     // The owner detail is read-only and offers no remove affordance.
-    await pros.gotoByUserId(tenant.uid)
+    await pros.gotoByUserId(org.uid)
     await expect(authedPage.getByRole('form', { name: 'Remover do time' })).toHaveCount(0)
   })
 })
 
 // Feature E2E for #1104 (brief 0041 AC-02/AC-05/AC-07): the offboarding cascade
 // over agenda/comanda/blocks. Same UI entry point (owner removes from the member
-// detail), driving the cascade steps of `offboardMemberInTenant`:
+// detail), driving the cascade steps of `offboardMemberInOrg`:
 //
 //   - AC-05 (settlement-first): an OPEN comanda attributed to the member VETOES
 //     the removal — surfaced as a clear error; the saga never starts (membership
@@ -212,24 +210,24 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
 //   - AC-02: the member's FUTURE appointments are CANCELLED. The cancelled
 //     appointment is RETAINED struck-through in the grid — the doc still exists
 //     (assert status flip + retention, NOT grid absence). Past ones are LEFT.
-//   - AC-07: the member's agenda-blocks are removed; tenant-wide blocks stay.
+//   - AC-07: the member's agenda-blocks are removed; org-wide blocks stay.
 test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' }, () => {
-  test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
   test('AC-05: comanda aberta recusa a remoção com mensagem (saga não inicia)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
-    const membershipId = membershipDocId(tenant.tenantId, proUserId)
-    const customerId = seedCustomer(tenant.tenantId, { name: 'Cliente Comanda' })
+    const membershipId = membershipDocId(org.orgId, proUserId)
+    const customerId = seedCustomer(org.orgId, { name: 'Cliente Comanda' })
 
     // Future appointment + open comanda attributed to the member.
     const future = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString()
     const apptId = seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: proId,
       customerId,
       serviceId: 'svc-1',
@@ -237,8 +235,8 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
       endAt: new Date(new Date(future).getTime() + 30 * 60_000).toISOString(),
     })
     seedOpenOrder({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       customerId,
       attributedUserId: proUserId,
     })
@@ -250,25 +248,23 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
     // Veto surfaces a clear error AND nothing was mutated.
     await expect(authedPage.getByText(/comanda aberta/i)).toBeVisible()
     expect(readMembership(membershipId)?.status).toBe('active')
-    expect(strField(readAppointment(tenant.tenantId, apptId) ?? undefined, 'status')).toBe(
-      'scheduled',
-    )
+    expect(strField(readAppointment(org.orgId, apptId) ?? undefined, 'status')).toBe('scheduled')
   })
 
   test('AC-02 + AC-07: remove → agenda futura cancelada (retida) + blocks limpos', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
-    const membershipId = membershipDocId(tenant.tenantId, proUserId)
-    const customerId = seedCustomer(tenant.tenantId, { name: 'Cliente Agenda' })
+    const membershipId = membershipDocId(org.orgId, proUserId)
+    const customerId = seedCustomer(org.orgId, { name: 'Cliente Agenda' })
 
     const future = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString()
     const past = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString()
     const futureAppt = seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: proId,
       customerId,
       serviceId: 'svc-1',
@@ -276,8 +272,8 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
       endAt: new Date(new Date(future).getTime() + 30 * 60_000).toISOString(),
     })
     const pastAppt = seedAppointment({
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: proId,
       customerId,
       serviceId: 'svc-1',
@@ -286,17 +282,17 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
     })
     const proBlock = seedBlock({
       kind: 'one_off',
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: proId,
       startAt: future,
       endAt: new Date(new Date(future).getTime() + 60 * 60_000).toISOString(),
       reason: 'folga do profissional',
     })
-    const tenantBlock = seedBlock({
+    const orgBlock = seedBlock({
       kind: 'one_off',
-      tenantId: tenant.tenantId,
-      unitId: tenant.unitIds[0]!,
+      orgId: org.orgId,
+      unitId: org.unitIds[0]!,
       professionalId: null,
       startAt: future,
       endAt: new Date(new Date(future).getTime() + 60 * 60_000).toISOString(),
@@ -311,29 +307,27 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
     // AC-02: future appointment CANCELLED but RETAINED (doc still exists,
     // grid renders it struck-through — not removed).
     await expect
-      .poll(() => strField(readAppointment(tenant.tenantId, futureAppt) ?? undefined, 'status'))
+      .poll(() => strField(readAppointment(org.orgId, futureAppt) ?? undefined, 'status'))
       .toBe('cancelled')
-    expect(readAppointment(tenant.tenantId, futureAppt)).not.toBeNull()
+    expect(readAppointment(org.orgId, futureAppt)).not.toBeNull()
     // Past appointment LEFT untouched.
-    expect(strField(readAppointment(tenant.tenantId, pastAppt) ?? undefined, 'status')).toBe(
-      'scheduled',
-    )
+    expect(strField(readAppointment(org.orgId, pastAppt) ?? undefined, 'status')).toBe('scheduled')
 
-    // AC-07: the member's block is gone; the tenant-wide block stays. NOTE
+    // AC-07: the member's block is gone; the org-wide block stays. NOTE
     // (hours-model spike): the spike only removed the unit-level *recurring*
     // closures (now expressed via business hours); standalone one-off
-    // `agenda_blocks` — member-scoped and tenant-wide — still exist and
+    // `agenda_blocks` — member-scoped and org-wide — still exist and
     // offboarding still cleans the member's, so this assertion stands.
     // Block-cleanup is a later saga step — poll for the member's block to go.
-    await expect.poll(() => blockExists(tenant.tenantId, proBlock)).toBe(false)
-    expect(blockExists(tenant.tenantId, tenantBlock)).toBe(true)
+    await expect.poll(() => blockExists(org.orgId, proBlock)).toBe(false)
+    expect(blockExists(org.orgId, orgBlock)).toBe(true)
   })
 })
 
 // True when the invite doc still exists (a 404 throws under curl -fsS).
-function inviteStillExists(tenantId: string, inviteId: string): boolean {
+function inviteStillExists(orgId: string, inviteId: string): boolean {
   try {
-    return readInvite(tenantId, inviteId) !== null
+    return readInvite(orgId, inviteId) !== null
   } catch {
     return false
   }
@@ -352,18 +346,18 @@ function inviteStillExists(tenantId: string, inviteId: string): boolean {
 //     member is still removed.
 //   - AC-09: the member's PENDING invite (matched by email) is cleaned.
 test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' }, () => {
-  test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
   test('AC-06: comissão pendente NÃO bloqueia a remoção — comissão fica pendente e identificável', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
-    const membershipId = membershipDocId(tenant.tenantId, proUserId)
+    const membershipId = membershipDocId(org.orgId, proUserId)
 
     const pendingCommission = seedCommission({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       attributedUserId: proUserId,
       amountCents: 3500,
       liquidationStatus: 'pendente',
@@ -379,18 +373,18 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
 
     // The pending commission is LEFT untouched: still pending, still attributed
     // to the removed member's real userId (resolves to the real name in reports).
-    const commission = readCommission(tenant.tenantId, pendingCommission)
+    const commission = readCommission(org.orgId, pendingCommission)
     expect(commission?.liquidationStatus).toBe('pendente')
     expect(commission?.attributedUserId).toBe(proUserId)
   })
 
   test('AC-08: remover o único profissional da unidade avisa (sem bloquear)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
-    const membershipId = membershipDocId(tenant.tenantId, proUserId)
+    const membershipId = membershipDocId(org.orgId, proUserId)
 
     const pros = new ProfessionalsPage(authedPage)
     await pros.gotoByUserId(proUserId)
@@ -409,27 +403,27 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
   })
 
   test('AC-09: invite pendente do membro (por email) é limpo na remoção', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const proId = tenant.professionalIds[0]!
+    const proId = org.professionalIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
-    const membershipId = membershipDocId(tenant.tenantId, proUserId)
+    const membershipId = membershipDocId(org.orgId, proUserId)
     // The fixture seeds the professional's User email as `prof-{n}-{pid}@e2e.local`.
     const proEmail = `prof-1-${proId}@e2e.local`
 
     const { inviteId } = seedInvite({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       email: proEmail,
       role: 'professional',
-      invitedBy: tenant.uid,
+      invitedBy: org.uid,
       status: 'pending',
     })
     const { inviteId: otherInviteId } = seedInvite({
-      tenantId: tenant.tenantId,
+      orgId: org.orgId,
       email: `someone-else-${proId}@e2e.local`,
       role: 'receptionist',
-      invitedBy: tenant.uid,
+      invitedBy: org.uid,
       status: 'pending',
     })
 
@@ -439,7 +433,7 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     await expect.poll(() => readMembership(membershipId)?.status).toBe('revoked')
 
     // The member's pending invite is gone; another member's invite is left.
-    await expect.poll(() => inviteStillExists(tenant.tenantId, inviteId)).toBe(false)
-    expect(inviteStillExists(tenant.tenantId, otherInviteId)).toBe(true)
+    await expect.poll(() => inviteStillExists(org.orgId, inviteId)).toBe(false)
+    expect(inviteStillExists(org.orgId, otherInviteId)).toBe(true)
   })
 })

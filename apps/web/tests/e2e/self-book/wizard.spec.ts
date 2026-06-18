@@ -1,39 +1,39 @@
 import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
 import { linkProfessionalToServices, seedService } from '../helpers/session'
-import { PublicBookingPage, tenantSlug } from '../pages'
+import { PublicBookingPage, orgSlug } from '../pages'
 
 // Issue #844 — Self-book wizard (Serviço → Slot → Confirmação).
 //
 // Walks the full flow:
-//   1. `/{tenantSlug}/{unitSlug}` — pick service (#841 deliverable, reused).
-//   2. `/{tenantSlug}/{unitSlug}/availability?service=…` — pick slot
+//   1. `/{orgSlug}/{unitSlug}` — pick service (#841 deliverable, reused).
+//   2. `/{orgSlug}/{unitSlug}/availability?service=…` — pick slot
 //      (#842 deliverable, reused).
-//   3. `/{tenantSlug}/{unitSlug}/book?service=&start=&professional=` —
+//   3. `/{orgSlug}/{unitSlug}/book?service=&start=&professional=` —
 //      confirm contact details, submit.
-//   4. `/{tenantSlug}/{unitSlug}/book/success?appt=…` — confirmation page.
+//   4. `/{orgSlug}/{unitSlug}/book/success?appt=…` — confirmation page.
 //
 // Anonymous flow (no OAuth gate yet — tracked as follow-up to #844 since
 // the dedupe-by-WA path that #832/865 will leverage is still the wizard's
 // contract for now).
 
 test.describe('Wizard de auto-agendamento (#844)', () => {
-  test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
   test(
     'caminho feliz: catálogo → disponibilidade → confirmação → sucesso',
     { tag: '@critical' },
-    async ({ tenant, page }) => {
-      const slug = tenantSlug(tenant.tenantId)
-      const unitId = tenant.unitIds[0]!
-      const serviceId = seedService(tenant.tenantId, {
+    async ({ org, page }) => {
+      const slug = orgSlug(org.orgId)
+      const unitId = org.unitIds[0]!
+      const serviceId = seedService(org.orgId, {
         name: 'Corte Premium',
         durationMinutes: 30,
         priceCents: 6500,
         publicVisible: true,
         unitIds: [unitId],
       })
-      linkProfessionalToServices(tenant.tenantId, tenant.professionalIds[0]!, [serviceId])
+      linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
 
       const booking = new PublicBookingPage(page, slug)
 
@@ -72,14 +72,14 @@ test.describe('Wizard de auto-agendamento (#844)', () => {
   )
 
   test('/book sem serviço redireciona pra catálogo (fallback do passo 1)', async ({
-    tenant,
+    org,
     page,
   }) => {
-    const slug = tenantSlug(tenant.tenantId)
-    seedService(tenant.tenantId, {
+    const slug = orgSlug(org.orgId)
+    seedService(org.orgId, {
       name: 'Corte',
       publicVisible: true,
-      unitIds: [tenant.unitIds[0]!],
+      unitIds: [org.unitIds[0]!],
     })
     // The wizard URL with no `service` param redirects to the catalog.
     await page.goto(`/${slug}/unidade-1/book`)
@@ -87,16 +87,16 @@ test.describe('Wizard de auto-agendamento (#844)', () => {
   })
 
   test('/book com serviço mas sem start redireciona pra disponibilidade (fallback do passo 2)', async ({
-    tenant,
+    org,
     page,
   }) => {
-    const slug = tenantSlug(tenant.tenantId)
-    const serviceId = seedService(tenant.tenantId, {
+    const slug = orgSlug(org.orgId)
+    const serviceId = seedService(org.orgId, {
       name: 'Corte',
       publicVisible: true,
-      unitIds: [tenant.unitIds[0]!],
+      unitIds: [org.unitIds[0]!],
     })
-    linkProfessionalToServices(tenant.tenantId, tenant.professionalIds[0]!, [serviceId])
+    linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
 
     await page.goto(`/${slug}/unidade-1/book?service=${serviceId}`)
     await expect(page).toHaveURL(new RegExp(`/${slug}/unidade-1/availability\\?service=`))

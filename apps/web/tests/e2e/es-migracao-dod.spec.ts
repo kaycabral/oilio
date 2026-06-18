@@ -19,8 +19,8 @@ import {
   seedAuthUser,
   seedCustomer,
   seedInvite,
+  seedOrg,
   seedService,
-  seedTenant,
   signInAndAttachSession,
 } from './helpers/session'
 import { AgendaPage, MeAppointmentsPage } from './pages'
@@ -94,10 +94,10 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
   // apagável. O `professional.created` (evento imutável, append-only) NÃO pode
   // carregar name/whatsapp/email — eles vivem em `professionals_pii/{id}`.
   test.describe('Cenário 1 — PII fora de evento imutável', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
 
     test('professional.created não carrega PII; professionals_pii carrega', async ({
-      tenant,
+      org,
       context,
       page,
       baseURL,
@@ -108,26 +108,26 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       // displayName 'E2E Invitee' + whatsapp 5511900000000; o email é o gerado.
       const invitee = await seedAuthUser()
       const { inviteId, rawToken } = seedInvite({
-        tenantId: tenant.tenantId,
+        orgId: org.orgId,
         email: invitee.email,
         role: 'professional',
-        invitedBy: tenant.uid,
+        invitedBy: org.uid,
       })
       await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
-      await page.goto(`/invites/${tenant.tenantId}/${inviteId}?token=${rawToken}`)
+      await page.goto(`/invites/${org.orgId}/${inviteId}?token=${rawToken}`)
       await page.getByRole('button', { name: /aceitar convite/i }).click()
       await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
 
-      // Descobre o id do profissional materializado (único do tenant).
-      const proIds = fsListIds(`tenants/${tenant.tenantId}/professionals`)
+      // Descobre o id do profissional materializado (único do org).
+      const proIds = fsListIds(`orgs/${org.orgId}/professionals`)
       expect(proIds).toHaveLength(1)
       const proId = proIds[0]!
 
       // O evento `professional.created` (v000001) — payload.data é o snapshot
       // operacional. PII não pode aparecer em nenhum lugar do envelope.
-      const eventIds = fsListIds(`tenants/${tenant.tenantId}/professionals/${proId}/events`)
+      const eventIds = fsListIds(`orgs/${org.orgId}/professionals/${proId}/events`)
       expect(eventIds.length).toBeGreaterThanOrEqual(1)
-      const eventDoc = fsGet(`tenants/${tenant.tenantId}/professionals/${proId}/events/v000001`)
+      const eventDoc = fsGet(`orgs/${org.orgId}/professionals/${proId}/events/v000001`)
       expect(strField(eventDoc.fields, '_tag')).toBe('professional.created')
 
       // Serializa o envelope inteiro e garante ausência da PII literal. Cobre
@@ -139,15 +139,15 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
 
       // Identidade pessoal (name/whatsapp/email) é referência viva ao User
       // global (#1046 / brief 0028 AC-04/AC-05) — não é mais copiada pro
-      // doc per-tenant. Vive — e só vive — em `users/{userId}`.
+      // doc per-org. Vive — e só vive — em `users/{userId}`.
       const userDoc = fsGet(`users/${invitee.uid}`)
       expect(strField(userDoc.fields, 'displayName')).toBe('E2E Invitee')
       expect(strField(userDoc.fields, 'whatsapp')).toBe('5511900000000')
       expect(strField(userDoc.fields, 'email')).toBe(invitee.email)
 
-      // O doc per-tenant apagável `professionals_pii/{id}` guarda só PII
+      // O doc per-org apagável `professionals_pii/{id}` guarda só PII
       // profissional-específica (taxIdentity), nunca a identidade pessoal.
-      const piiDoc = fsGet(`tenants/${tenant.tenantId}/professionals_pii/${proId}`)
+      const piiDoc = fsGet(`orgs/${org.orgId}/professionals_pii/${proId}`)
       expect(piiDoc.fields?.name).toBeUndefined()
       expect(piiDoc.fields?.whatsapp).toBeUndefined()
       expect(piiDoc.fields?.email).toBeUndefined()
@@ -162,29 +162,29 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
   // appointment-snapshot.spec.ts; aqui fechamos a order e conferimos a comissão.
   test.describe('Cenário 2 — editar agendamento não driva a order', () => {
     test.use({
-      tenantInput: { unitCount: 1, professionalCount: 1, slotMinutes: 30, hasBusinessHours: true },
+      orgInput: { unitCount: 1, professionalCount: 1, slotMinutes: 30, hasBusinessHours: true },
     })
 
     test('order fechada usa snapshot travado, não o appointment driftado', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       // P1 = R$ 50,00 / C1 = 50% → comissão travada = R$ 25,00.
-      const serviceId = seedService(tenant.tenantId, {
+      const serviceId = seedService(org.orgId, {
         name: 'Corte DoD',
         durationMinutes: 30,
         priceCents: 5000,
         commission: { kind: 'percentage', value: 50 },
-        unitIds: tenant.unitIds,
+        unitIds: org.unitIds,
       })
-      const customerId = seedCustomer(tenant.tenantId, {
+      const customerId = seedCustomer(org.orgId, {
         name: 'Cliente DoD',
         whatsapp: '11955551111',
       })
       const appointmentId = seedAppointment({
-        tenantId: tenant.tenantId,
-        unitId: tenant.unitIds[0]!,
-        professionalId: tenant.professionalIds[0]!,
+        orgId: org.orgId,
+        unitId: org.unitIds[0]!,
+        professionalId: org.professionalIds[0]!,
         customerId,
         serviceId,
         startAt: '2026-09-08T17:00:00.000Z',
@@ -204,12 +204,12 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       await expect(authedPage.getByText('1 × R$ 50,00')).toBeVisible()
 
       // O appointment DERIVA depois da order: snapshot vira P2 = R$ 999,00 / C2 = 10%.
-      patchAppointmentSnapshot(tenant.tenantId, appointmentId, {
+      patchAppointmentSnapshot(org.orgId, appointmentId, {
         servicePriceCentsSnapshot: 99900,
         commissionSnapshot: { kind: 'percentage', value: 10 },
       })
       // O appointment realmente driftou (sanity) — mas a order não deve seguir.
-      const drifted = readAppointment(tenant.tenantId, appointmentId)
+      const drifted = readAppointment(org.orgId, appointmentId)
       expect(intStrField(drifted ?? undefined, 'servicePriceCentsSnapshot')).toBe('99900')
 
       // Fecha a order (pix → gera comissão).
@@ -232,7 +232,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
   // ── Cenário 3 — mudar a política de cancelamento não retroage [critical] ────
   // Contrato 0027 (frente C, #1038): snapshot-on-use. A elegibilidade de
   // cancelamento do cliente lê o `cancellationPolicySnapshot` congelado no
-  // commit, não a `cancellationPolicy` viva do tenant. Relaxar a policy viva
+  // commit, não a `cancellationPolicy` viva do org. Relaxar a policy viva
   // depois NÃO destrava o cancelamento.
   test('Cenário 3 — elegibilidade segue o snapshot, não a policy viva', async ({
     context,
@@ -241,22 +241,22 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
   }) => {
     // Booking sob policy estrita (enabled @ 120 min); appointment 30 min à frente
     // → dentro da janela → bloqueado pelo snapshot.
-    const seed = await seedTenant({
+    const seed = await seedOrg({
       unitCount: 1,
       professionalCount: 1,
       cancellationPolicy: { enabled: true, minNoticeMinutes: 120 },
     })
-    const serviceId = seedService(seed.tenantId, {
+    const serviceId = seedService(seed.orgId, {
       name: 'Corte DoD Snapshot',
       publicVisible: true,
       unitIds: seed.unitIds,
     })
     const customer = await createCustomerUser()
-    const customerId = customer.customerId(seed.tenantId)
+    const customerId = customer.customerId(seed.orgId)
     const startAt = new Date(Date.now() + 30 * 60_000).toISOString()
     const endAt = new Date(Date.now() + 60 * 60_000).toISOString()
     seedAppointment({
-      tenantId: seed.tenantId,
+      orgId: seed.orgId,
       unitId: seed.unitIds[0]!,
       professionalId: seed.professionalIds[0]!,
       customerId,
@@ -266,9 +266,9 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       cancellationPolicySnapshot: { enabled: true, minNoticeMinutes: 120 },
     })
 
-    // O owner RELAXA a policy viva do tenant DEPOIS do booking (disabled). Se o
+    // O owner RELAXA a policy viva do org DEPOIS do booking (disabled). Se o
     // read-site lesse a policy viva, o botão destravaria.
-    fsPatch(`tenants/${seed.tenantId}?updateMask.fieldPaths=cancellationPolicy`, {
+    fsPatch(`orgs/${seed.orgId}?updateMask.fieldPaths=cancellationPolicy`, {
       fields: {
         cancellationPolicy: {
           mapValue: {
@@ -296,7 +296,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
   // baixo — some da lista ativa, histórico preservado. Master data LIVRE exclui
   // de vez. Versão leve da prova exaustiva em units/baseline.spec.ts.
   test.describe('Cenário 4 — 1 verbo "Excluir": em uso soft-delete, livre hard-delete', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
     test('unidade em uso por profissional → "Excluir" vira soft-delete (some da ativa)', async ({
       authedPage,
@@ -322,7 +322,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
 })
 
 // ── helpers locais do cenário 3 ───────────────────────────────────────────────
-// Cria um User cliente (identidade separada do owner) + Customer per-tenant,
+// Cria um User cliente (identidade separada do owner) + Customer per-org,
 // espelhando o que me-self-cancel.spec.ts faz inline. Necessário porque o
 // self-cancel exige uma sessão de cliente, não o `authedPage` (owner).
 const API_KEY = 'fake-api-key'
@@ -331,7 +331,7 @@ function createCustomerUser(): Promise<{
   uid: string
   email: string
   password: string
-  customerId: (tenantId: string) => string
+  customerId: (orgId: string) => string
 }> {
   const email = `e2e-customer-${Math.random().toString(36).slice(2, 10)}@example.com`
   const password = 'E2E12345!'
@@ -361,7 +361,7 @@ function createCustomerUser(): Promise<{
       email: { stringValue: email },
       displayName: { stringValue: 'Cliente E2E DoD' },
       emailVerified: { booleanValue: true },
-      currentTenantId: { nullValue: null },
+      currentOrgId: { nullValue: null },
       whatsapp: { stringValue: `5511${Math.floor(900000000 + Math.random() * 99999999)}` },
       completionCompleted: { booleanValue: true },
       claimedAt: { stringValue: now },
@@ -373,12 +373,12 @@ function createCustomerUser(): Promise<{
     uid,
     email,
     password,
-    customerId: (tenantId: string) => {
+    customerId: (orgId: string) => {
       const customerId = `e2e-cust-${Math.random().toString(36).slice(2, 10)}`
-      fsPatch(`tenants/${tenantId}/customers/${customerId}`, {
+      fsPatch(`orgs/${orgId}/customers/${customerId}`, {
         fields: {
           id: { stringValue: customerId },
-          tenantId: { stringValue: tenantId },
+          orgId: { stringValue: orgId },
           userId: { stringValue: uid },
           tags: { arrayValue: { values: [{ stringValue: 'wizard' }] } },
           createdAt: { stringValue: now },

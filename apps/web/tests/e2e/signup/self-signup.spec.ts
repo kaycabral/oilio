@@ -4,11 +4,11 @@ import { expect, test } from '../fixtures'
 import { FIRESTORE_HOST, PROJECT_ID } from '../helpers/emulator'
 import { parseJson } from '../helpers/firestore-rest'
 import { fillBirthDate } from '../helpers/forms'
-import { readUser, seedAuthUser, seedTenant, signInAndAttachSession } from '../helpers/session'
+import { readUser, seedAuthUser, seedOrg, signInAndAttachSession } from '../helpers/session'
 
 // #840 + refator pós-revisão. Signup virou plataforma-canônico em
 // `/signup?from={slug}`: o cadastro é evento do Oilio (User global);
-// o tenant é atribuição de intenção via query, não boundary de cadastro.
+// o org é atribuição de intenção via query, não boundary de cadastro.
 //
 // O OAuth popup é impraticável de exercitar no Playwright, então o
 // shortcut padrão dos outros specs auth-bound é usado: `seedAuthUser` +
@@ -44,10 +44,10 @@ const decodeCustomersList = Schema.decodeUnknownSync(
   }),
 )
 
-function listCustomers(tenantId: string): Array<{ userId?: string }> {
+function listCustomers(orgId: string): Array<{ userId?: string }> {
   try {
     const json = curlJson(
-      [`${fsBaseUrl()}/tenants/${tenantId}/customers`, '-H', 'Authorization: Bearer owner'],
+      [`${fsBaseUrl()}/orgs/${orgId}/customers`, '-H', 'Authorization: Bearer owner'],
       decodeCustomersList,
     )
     return (json.documents ?? []).map((d) => ({
@@ -60,22 +60,22 @@ function listCustomers(tenantId: string): Array<{ userId?: string }> {
 
 test.describe('Auto-cadastro (#840)', () => {
   test('CTA pública em /{slug} rotea para /signup?from={slug}', async ({ page }) => {
-    const seed = await seedTenant({ unitCount: 1, professionalCount: 1 })
-    const slug = `e2e-${seed.tenantId}`.toLowerCase()
+    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
+    const slug = `e2e-${seed.orgId}`.toLowerCase()
 
     await page.goto(`/${slug}`)
     await page.getByRole('link', { name: /cadastrar-se/i }).click()
     await expect(page).toHaveURL(new RegExp(`/signup\\?from=${slug}$`))
     await expect(page.getByRole('heading', { name: /cadastrar-se no oilio/i })).toBeVisible()
-    await expect(page.getByText(new RegExp(`encaminhado por.*${seed.tenantId}`, 'i'))).toBeVisible()
+    await expect(page.getByText(new RegExp(`encaminhado por.*${seed.orgId}`, 'i'))).toBeVisible()
   })
 
   test(
     'cadastro completo com origem válida materializa Cliente na empresa',
     { tag: '@critical' },
     async ({ context, page, baseURL }) => {
-      const seed = await seedTenant({ unitCount: 1, professionalCount: 1 })
-      const slug = `e2e-${seed.tenantId}`.toLowerCase()
+      const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
+      const slug = `e2e-${seed.orgId}`.toLowerCase()
 
       const customer = await seedAuthUser({ completionCompleted: false })
       await signInAndAttachSession(context, customer.email, customer.password, baseURL ?? undefined)
@@ -92,9 +92,9 @@ test.describe('Auto-cadastro (#840)', () => {
 
       await expect(page).toHaveURL(new RegExp(`/signup/done\\?from=${slug}$`), { timeout: 10_000 })
       await expect(page.getByRole('heading', { name: /pronto/i })).toBeVisible()
-      await expect(page.getByText(new RegExp(`cadastrado em.*${seed.tenantId}`, 'i'))).toBeVisible()
+      await expect(page.getByText(new RegExp(`cadastrado em.*${seed.orgId}`, 'i'))).toBeVisible()
 
-      const customers = listCustomers(seed.tenantId)
+      const customers = listCustomers(seed.orgId)
       expect(customers).toHaveLength(1)
       expect(customers[0]!.userId).toBe(customer.uid)
 
@@ -110,14 +110,14 @@ test.describe('Auto-cadastro (#840)', () => {
     page,
     baseURL,
   }) => {
-    // Tenant existe pra cenário ser realista, mas o signup não atribui a ele.
-    const seed = await seedTenant({ unitCount: 1, professionalCount: 1 })
+    // Org existe pra cenário ser realista, mas o signup não atribui a ele.
+    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
 
     const customer = await seedAuthUser({ completionCompleted: false })
     await signInAndAttachSession(context, customer.email, customer.password, baseURL ?? undefined)
 
     await page.goto(`/onboarding/profile?next=${encodeURIComponent('/signup/done')}`)
-    await page.getByRole('textbox', { name: /nome/i }).fill('Sem Tenant')
+    await page.getByRole('textbox', { name: /nome/i }).fill('Sem Org')
     await page.getByRole('textbox', { name: /whatsapp/i }).fill('11955554444')
     await fillBirthDate(page, '20/02/1985')
     await page.getByRole('button', { name: /continuar/i }).click()
@@ -125,8 +125,8 @@ test.describe('Auto-cadastro (#840)', () => {
     await expect(page).toHaveURL(/\/signup\/done$/, { timeout: 10_000 })
     await expect(page.getByText(/sua conta no oilio foi criada/i)).toBeVisible()
 
-    // Nenhum Customer materializado no tenant — usuário só existe como User global.
-    const customers = listCustomers(seed.tenantId)
+    // Nenhum Customer materializado no org — usuário só existe como User global.
+    const customers = listCustomers(seed.orgId)
     expect(customers).toHaveLength(0)
   })
 
@@ -147,8 +147,8 @@ test.describe('Auto-cadastro (#840)', () => {
   })
 
   test('done sem sessão redireciona pra /signup preservando a origem', async ({ page }) => {
-    const seed = await seedTenant({ unitCount: 1, professionalCount: 1 })
-    const slug = `e2e-${seed.tenantId}`.toLowerCase()
+    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
+    const slug = `e2e-${seed.orgId}`.toLowerCase()
 
     await page.goto(`/signup/done?from=${slug}`)
     await expect(page).toHaveURL(new RegExp(`/signup\\?from=${slug}$`))
@@ -159,8 +159,8 @@ test.describe('Auto-cadastro (#840)', () => {
     page,
     baseURL,
   }) => {
-    const seed = await seedTenant({ unitCount: 1, professionalCount: 1 })
-    const slug = `e2e-${seed.tenantId}`.toLowerCase()
+    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
+    const slug = `e2e-${seed.orgId}`.toLowerCase()
 
     const customer = await seedAuthUser({ completionCompleted: true })
     await signInAndAttachSession(context, customer.email, customer.password, baseURL ?? undefined)
@@ -170,7 +170,7 @@ test.describe('Auto-cadastro (#840)', () => {
     await page.goto(`/signup/done?from=${slug}`)
     await expect(page).toHaveURL(new RegExp(`/signup/done\\?from=${slug}$`))
 
-    const customers = listCustomers(seed.tenantId)
+    const customers = listCustomers(seed.orgId)
     expect(customers.filter((c) => c.userId === customer.uid)).toHaveLength(1)
   })
 })

@@ -12,7 +12,7 @@ import {
   seedProduct,
   seedService,
   seedSubscription,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
@@ -46,8 +46,8 @@ const SubscriptionConsumedSchema = Schema.Struct({
 })
 const decodeSubscriptionConsumed = Schema.decodeUnknownSync(SubscriptionConsumedSchema)
 
-function readConsumed(tenantId: string, subId: string): number {
-  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/tenants/${tenantId}/subscriptions/${subId}`
+function readConsumed(orgId: string, subId: string): number {
+  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/subscriptions/${subId}`
   const out = execFileSync('curl', ['-fsS', url, '-H', 'Authorization: Bearer owner'], {
     encoding: 'utf8',
   })
@@ -56,29 +56,29 @@ function readConsumed(tenantId: string, subId: string): number {
 }
 
 function seedFixture(
-  tenant: SeededTenant,
+  org: SeededOrg,
   subOpts: Parameters<typeof seedSubscription>[2] = {},
 ): { customerId: string; subId: string } {
-  const serviceId = seedService(tenant.tenantId, {
+  const serviceId = seedService(org.orgId, {
     name: 'Corte',
     durationMinutes: 30,
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  seedProduct(tenant.tenantId, { name: 'Pomada', priceCents: 3000 })
-  const customerId = seedCustomer(tenant.tenantId, {
+  seedProduct(org.orgId, { name: 'Pomada', priceCents: 3000 })
+  const customerId = seedCustomer(org.orgId, {
     name: 'Cliente Plano',
     whatsapp: '11944443333',
   })
-  const subId = seedSubscription(tenant.tenantId, customerId, {
+  const subId = seedSubscription(org.orgId, customerId, {
     planName: 'Mensal Corte',
     usageLimit: { kind: 'count', quantity: 4 },
     ...subOpts,
   })
   seedAppointment({
-    tenantId: tenant.tenantId,
-    unitId: tenant.unitIds[0]!,
-    professionalId: tenant.professionalIds[0]!,
+    orgId: org.orgId,
+    unitId: org.unitIds[0]!,
+    professionalId: org.professionalIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -93,7 +93,7 @@ function seedFixture(
 
 test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@critical' }, () => {
   test.use({
-    tenantInput: {
+    orgInput: {
       unitCount: 1,
       professionalCount: 1,
       professionalOperationalStatus: 'operational',
@@ -111,10 +111,10 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
   }
 
   test('comanda mista: serviço coberto + produto vendido → paga só o produto, consome 1', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
-    const { subId } = seedFixture(tenant)
+    const { subId } = seedFixture(org)
     await startOrder(authedPage)
 
     // Marca o Corte como consumo do plano → some do total a pagar (AC-03/05).
@@ -139,14 +139,11 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible()
     await expect(authedPage.getByText(/PIX/).first()).toBeVisible()
     // Plano consumiu 1 serviço (o Corte coberto).
-    expect(readConsumed(tenant.tenantId, subId)).toBe(1)
+    expect(readConsumed(org.orgId, subId)).toBe(1)
   })
 
-  test('comanda 100% coberta fecha sem forma de pagamento (AC-06)', async ({
-    tenant,
-    authedPage,
-  }) => {
-    const { subId } = seedFixture(tenant)
+  test('comanda 100% coberta fecha sem forma de pagamento (AC-06)', async ({ org, authedPage }) => {
+    const { subId } = seedFixture(org)
     await startOrder(authedPage)
 
     await chooseOption(
@@ -163,15 +160,15 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
     await dialog.getByRole('button', { name: /Confirmar fechamento/ }).click()
 
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible()
-    expect(readConsumed(tenant.tenantId, subId)).toBe(1)
+    expect(readConsumed(org.orgId, subId)).toBe(1)
   })
 
   test('assinatura sem saldo: opção de consumo fica desabilitada (degenerado)', async ({
-    tenant,
+    org,
     authedPage,
   }) => {
     // Plano por contagem com saldo esgotado (quantity 1, já consumido 1).
-    seedFixture(tenant, { usageLimit: { kind: 'count', quantity: 1 }, consumed: 1 })
+    seedFixture(org, { usageLimit: { kind: 'count', quantity: 1 }, consumed: 1 })
     await startOrder(authedPage)
 
     const coverage = authedPage

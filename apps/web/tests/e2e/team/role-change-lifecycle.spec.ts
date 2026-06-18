@@ -25,7 +25,7 @@ import {
   readProfessionalByUserId,
   seedAuthUser,
   seedService,
-  type SeededTenant,
+  type SeededOrg,
 } from '../helpers/session'
 import { ProfessionalsPage } from '../pages'
 
@@ -35,9 +35,9 @@ const FS_BASE = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(d
 // the member is navigable at `/team/{userId}`. Mirrors the owner membership
 // shape. (Local copy — member-detail.spec has the same helper; the E2E suite
 // keeps per-spec seeding self-contained.)
-function seedReceptionistMembership(tenant: SeededTenant, userId: string): void {
+function seedReceptionistMembership(org: SeededOrg, userId: string): void {
   const now = new Date().toISOString()
-  const id = membershipDocId(tenant.tenantId, userId)
+  const id = membershipDocId(org.orgId, userId)
   const perms = defaultPermissionsForRole('receptionist')
   const boolValue = (b: boolean) => ({ booleanValue: b })
   execFileSync(
@@ -55,11 +55,11 @@ function seedReceptionistMembership(tenant: SeededTenant, userId: string): void 
       JSON.stringify({
         fields: {
           id: { stringValue: id },
-          tenantId: { stringValue: tenant.tenantId },
+          orgId: { stringValue: org.orgId },
           userId: { stringValue: userId },
           role: { stringValue: 'receptionist' },
           status: { stringValue: 'active' },
-          invitedBy: { stringValue: tenant.uid },
+          invitedBy: { stringValue: org.uid },
           joinedAt: { stringValue: now },
           updatedAt: { stringValue: now },
           unitId: { nullValue: null },
@@ -78,17 +78,17 @@ function seedReceptionistMembership(tenant: SeededTenant, userId: string): void 
 
 test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }, () => {
   test.describe('receptionist → professional materializa a projeção', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
 
     test('troca de papel materializa a projeção (não-operável até o perfil completar)', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
       const member = await seedAuthUser()
-      seedReceptionistMembership(tenant, member.uid)
+      seedReceptionistMembership(org, member.uid)
 
       // No projection before the role change.
-      expect(readProfessionalByUserId(tenant.tenantId, member.uid)).toBeNull()
+      expect(readProfessionalByUserId(org.orgId, member.uid)).toBeNull()
 
       const pros = new ProfessionalsPage(authedPage)
       await pros.gotoByUserId(member.uid)
@@ -105,7 +105,7 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       // the server commit (the in-page select value is optimistic / racy with
       // `router.refresh()`, so it's not the anchor).
       await expect
-        .poll(() => readProfessionalByUserId(tenant.tenantId, member.uid)?.operationalStatus)
+        .poll(() => readProfessionalByUserId(org.orgId, member.uid)?.operationalStatus)
         .toBe('incomplete')
 
       // A fresh navigation (clean server render, no optimistic state) reflects
@@ -114,16 +114,16 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       await expect(authedPage.getByRole('combobox', { name: 'Papel' })).toHaveText('Profissional')
 
       // AC-06: permissions re-derived to the professional default.
-      const membership = readMembership(membershipDocId(tenant.tenantId, member.uid))
+      const membership = readMembership(membershipDocId(org.orgId, member.uid))
       expect(membership?.role).toBe('professional')
       expect(membership?.permissions).toEqual(defaultPermissionsForRole('professional'))
 
       // Completing the operational profile (unit + service) makes it operable —
       // derived approval flips to `approved` (becomes bookable on the agenda).
-      const svc = seedService(tenant.tenantId, {
+      const svc = seedService(org.orgId, {
         name: 'Corte Operável',
         publicVisible: true,
-        unitIds: [tenant.unitIds[0]!],
+        unitIds: [org.unitIds[0]!],
       })
       await pros.gotoByUserId(member.uid)
       // Operational fields show directly (no Editar gate). Unit checkboxes are
@@ -135,7 +135,7 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       await pros.saveButton().click()
       await expect(authedPage.getByText('Alterações salvas.')).toBeVisible()
 
-      const afterProfile = readProfessionalByUserId(tenant.tenantId, member.uid)
+      const afterProfile = readProfessionalByUserId(org.orgId, member.uid)
       expect(afterProfile?.operationalStatus).toBe('operational')
       expect(svc).toBeTruthy()
     })
@@ -143,7 +143,7 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
 
   test.describe('professional → receptionist desativa a projeção', () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         unitCount: 1,
         professionalCount: 1,
         professionalOperationalStatus: 'operational',
@@ -151,13 +151,13 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
     })
 
     test('demoção desativa a projeção (sai da agenda) sem deletar; permissões re-derivam', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const proUid = `e2e-prof-user-${tenant.professionalIds[0]!}`
+      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
 
       // Operable professional before the change.
-      const before = readProfessionalByUserId(tenant.tenantId, proUid)
+      const before = readProfessionalByUserId(org.orgId, proUid)
       expect(before?.operationalStatus).toBe('operational')
 
       const pros = new ProfessionalsPage(authedPage)
@@ -174,13 +174,13 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       // projection is DEACTIVATED (off the agenda), NOT deleted — no orphan
       // operable projection remains.
       await expect
-        .poll(() => readProfessionalByUserId(tenant.tenantId, proUid)?.operationalStatus)
+        .poll(() => readProfessionalByUserId(org.orgId, proUid)?.operationalStatus)
         .toBe('incomplete')
-      const after = readProfessionalByUserId(tenant.tenantId, proUid)
+      const after = readProfessionalByUserId(org.orgId, proUid)
       expect(after).not.toBeNull()
 
       // AC-06: permissions re-derived to the receptionist default.
-      const membership = readMembership(membershipDocId(tenant.tenantId, proUid))
+      const membership = readMembership(membershipDocId(org.orgId, proUid))
       expect(membership?.role).toBe('receptionist')
       expect(membership?.permissions).toEqual(defaultPermissionsForRole('receptionist'))
     })

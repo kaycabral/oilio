@@ -1,11 +1,11 @@
-// Regression — a tenant with ZERO active units must stay navigable (no crash).
+// Regression — a org with ZERO active units must stay navigable (no crash).
 //
 // Reported by the owner: after deleting every unit, opening any operational
 // surface (agenda / orders / …) crashed. resolveActiveUnit already returns
-// activeUnitId=null for an empty tenant; the crash is downstream in a page/
+// activeUnitId=null for an empty org; the crash is downstream in a page/
 // component that assumed a unit exists. Two shapes are covered:
-//   (1) a fresh tenant that never had a unit;
-//   (2) a tenant that HAD a unit with data (appointment + open order), then
+//   (1) a fresh org that never had a unit;
+//   (2) a org that HAD a unit with data (appointment + open order), then
 //       archived it (the real-world flow that triggered the report) — a page
 //       must not crash resolving the now-archived unit referenced by that data.
 
@@ -17,14 +17,14 @@ import { seedAppointment, seedCustomer, seedOpenOrder } from '../helpers/session
 
 const FS_BASE = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 
-function archiveUnit(tenantId: string, unitId: string): void {
+function archiveUnit(orgId: string, unitId: string): void {
   execFileSync(
     'curl',
     [
       '-fsS',
       '-X',
       'PATCH',
-      `${FS_BASE}/tenants/${tenantId}/units/${unitId}?updateMask.fieldPaths=archivedAt`,
+      `${FS_BASE}/orgs/${orgId}/units/${unitId}?updateMask.fieldPaths=archivedAt`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -57,9 +57,9 @@ const SURFACES = [
   '/units',
 ]
 
-test.describe('Tenant sem unidades — app navegável (regressão)', { tag: '@critical' }, () => {
+test.describe('Org sem unidades — app navegável (regressão)', { tag: '@critical' }, () => {
   test.describe('nunca teve unidade', () => {
-    test.use({ tenantInput: { unitCount: 0 } })
+    test.use({ orgInput: { unitCount: 0 } })
     for (const path of SURFACES) {
       test(`${path} renderiza sem crash`, async ({ authedPage }) => {
         await assertNoCrash(authedPage, path)
@@ -83,29 +83,29 @@ test.describe('Tenant sem unidades — app navegável (regressão)', { tag: '@cr
   })
 
   test.describe('tinha unidade com dados, depois arquivada', () => {
-    test.use({ tenantInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
 
     test('agenda/orders/dashboard não crasham após arquivar a única unidade', async ({
-      tenant,
+      org,
       authedPage,
     }) => {
-      const unitId = tenant.unitIds[0]!
-      const customerId = seedCustomer(tenant.tenantId, { name: `Cliente NU ${Date.now()}` })
+      const unitId = org.unitIds[0]!
+      const customerId = seedCustomer(org.orgId, { name: `Cliente NU ${Date.now()}` })
       const start = new Date(Date.now() + 86_400_000).toISOString()
       seedAppointment({
-        tenantId: tenant.tenantId,
+        orgId: org.orgId,
         unitId,
-        professionalId: tenant.professionalIds[0]!,
+        professionalId: org.professionalIds[0]!,
         customerId,
         serviceId: 'e2e-svc',
         startAt: start,
         endAt: new Date(new Date(start).getTime() + 30 * 60_000).toISOString(),
         status: 'scheduled',
       })
-      seedOpenOrder({ tenantId: tenant.tenantId, unitId, customerId, attributedUserId: tenant.uid })
+      seedOpenOrder({ orgId: org.orgId, unitId, customerId, attributedUserId: org.uid })
 
       // The data now references a unit that gets archived (the reported flow).
-      archiveUnit(tenant.tenantId, unitId)
+      archiveUnit(org.orgId, unitId)
 
       for (const path of SURFACES) {
         await assertNoCrash(authedPage, path)

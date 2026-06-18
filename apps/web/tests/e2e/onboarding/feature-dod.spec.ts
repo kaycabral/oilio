@@ -9,7 +9,7 @@
 // - Cenário 4: Publicação ao completar o mínimo [critical]
 //
 // Cada cenário exige um regime de seed distinto (vazio / degenerado / mínimo
-// completo); como `test.use({ tenantInput })` é por-describe, agrupamos os
+// completo); como `test.use({ orgInput })` é por-describe, agrupamos os
 // cenários em describes aninhados por regime.
 //
 // Roda contra emulator + build de produção (modo canônico do playwright.config).
@@ -18,14 +18,14 @@ import { expect, test } from '../fixtures'
 import { checkStable, fillStable } from '../helpers/hydration'
 import { listItem } from '../helpers/list'
 import { linkProfessionalToServices, seedService } from '../helpers/session'
-import { PublicBookingPage, tenantSlug } from '../pages'
+import { PublicBookingPage, orgSlug } from '../pages'
 
-// Toda rota interna autenticada — o tenant vazio tem que alcançar todas sem
+// Toda rota interna autenticada — o org vazio tem que alcançar todas sem
 // nenhum gate de onboarding bouncear (o wizard foi deletado no #1028).
 // `/professionals` removida (brief 0037 #1085) — gestão de gente vive em `/team`.
 // `/agenda` está fora: o app é multi-vertical e a Agenda é escondida/
 // redirecionada quando nenhuma unidade usa o modo de horários por agendamento.
-// O tenant vazio (sem unidade) não tem unidade de agendamento, então `/agenda`
+// O org vazio (sem unidade) não tem unidade de agendamento, então `/agenda`
 // redireciona pra `/orders` e o nav esconde o item — asserido à parte no Cenário 1.
 const INTERNAL_ROUTES = [
   '/dashboard',
@@ -37,9 +37,9 @@ const INTERNAL_ROUTES = [
 ] as const
 
 test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', () => {
-  // Regime vazio: tenant recém-criado, zero cadastros → Cenários 1 e 2.
-  test.describe('tenant vazio (recém-signup)', () => {
-    test.use({ tenantInput: { unitCount: 0, professionalCount: 0 } })
+  // Regime vazio: org recém-criado, zero cadastros → Cenários 1 e 2.
+  test.describe('org vazio (recém-signup)', () => {
+    test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
 
     test('Cenário 1: app operável desde o signup, sem gate global', async ({ authedPage }) => {
       for (const route of INTERNAL_ROUTES) {
@@ -51,7 +51,7 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
 
         // A rota pedida renderizou de fato, com o shell autenticado presente.
         await expect(authedPage).toHaveURL(new RegExp(`${route}(/|\\?|$)`))
-        // Agenda some pra tenant sem unidade de agendamento → ancora o shell
+        // Agenda some pra org sem unidade de agendamento → ancora o shell
         // num item de nav agnóstico de vertical, sempre presente.
         await expect(authedPage.getByRole('link', { name: 'Vendas' }).first()).toBeVisible()
         await expect(authedPage.getByRole('link', { name: 'Agenda' })).toHaveCount(0)
@@ -104,7 +104,7 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
 
       // Ao criar, o registro aparece na listagem e o empty-state some. Escopa
       // pro item da lista (`@cbrl/design` List → role listitem): o nome também
-      // aparece no unit/tenant switcher do header (a unidade recém-criada vira a
+      // aparece no unit/org switcher do header (a unidade recém-criada vira a
       // ativa), então `getByText` solto casaria 2 elementos.
       await expect(authedPage).toHaveURL(/\/units$/)
       await expect(listItem(authedPage, name)).toBeVisible({
@@ -120,17 +120,17 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
   // Modelo novo (spike, inferred availability): não há botão "Publicar". Uma
   // unidade fica pública sozinha ao virar bookable (modo agendamento + horário).
   // O card por-unidade (UnitPublishCard) é só FEEDBACK do que falta.
-  test.describe('tenant incompleto (não publicável)', () => {
+  test.describe('org incompleto (não publicável)', () => {
     test.use({
-      tenantInput: { hasBusinessHours: false, professionalCount: 0 },
+      orgInput: { hasBusinessHours: false, professionalCount: 0 },
     })
 
     test('Cenário 3: unidade fica fora do público até atender o mínimo (sem horário → 404)', async ({
-      tenant,
+      org,
       authedPage,
       page,
     }) => {
-      await authedPage.goto(`/units/${tenant.unitIds[0]!}`)
+      await authedPage.goto(`/units/${org.unitIds[0]!}`)
 
       // O card por-unidade renderiza e lista o que falta (agenda ainda não no ar).
       await expect(authedPage.getByText('Agendamento público desta unidade')).toBeVisible()
@@ -145,16 +145,16 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
       // sua vez, não resolve enquanto a unidade não for bookable.
       await authedPage.goto('/catalog')
       await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
-      const res = await page.goto(`/${tenantSlug(tenant.tenantId)}`)
+      const res = await page.goto(`/${orgSlug(org.orgId)}`)
       expect(res?.status()).toBe(404)
     })
   })
 
   // Regime a um passo do público: unidade sem horário, com profissional aprovado
   // e serviço público → completar o horário a torna bookable → Cenário 4.
-  test.describe('tenant pronto pra publicar', () => {
+  test.describe('org pronto pra publicar', () => {
     test.use({
-      tenantInput: {
+      orgInput: {
         hasBusinessHours: false,
         unitCount: 1,
         professionalCount: 1,
@@ -163,21 +163,21 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
     })
 
     test('Cenário 4: completar o mínimo da unidade → página pública no ar', async ({
-      tenant,
+      org,
       authedPage,
       page,
     }) => {
-      const slug = tenantSlug(tenant.tenantId)
-      const unitId = tenant.unitIds[0]!
+      const slug = orgSlug(org.orgId)
+      const unitId = org.unitIds[0]!
 
       // Serviço público + profissional aprovado: ao virar bookable, há catálogo.
-      const serviceId = seedService(tenant.tenantId, {
+      const serviceId = seedService(org.orgId, {
         name: 'Corte DoD',
         priceCents: 5000,
         publicVisible: true,
         unitIds: [unitId],
       })
-      linkProfessionalToServices(tenant.tenantId, tenant.professionalIds[0]!, [serviceId])
+      linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
 
       // Antes: unidade sem horário não é bookable → página pública não resolve.
       const before = await page.goto(`/${slug}/unidade-1`)
