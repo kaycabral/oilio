@@ -4,12 +4,11 @@ import { expect, test } from '../fixtures'
 // signup with NO global onboarding wizard gate. Setup completeness (services,
 // professionals, public page) is never required to reach an internal route.
 //
-// PRD Identidade v2 / brief 0046 reshapes the empty case: a 0-unit owner is
-// guided to `/onboarding/first-unit` (the intentional empty-state) — the Negócio
-// (folder) exists, the unit does not yet. So "operable without setup" here means
-// an org that already has its first unit (the floor the guided flow produces)
-// but NO services/professionals reaches every internal route without a gate. The
-// 0-unit → guided redirect is asserted as its own invariant below.
+// PRD Identidade v2 / brief 0046 reshapes the empty case: there is NO first-unit
+// gate — a 0-unit owner lands in the app normally (empty-states where data is
+// unit-scoped), never a forced onboarding screen. "Operable without setup" means
+// an org with NO services/professionals reaches every internal route without a
+// gate; the unit-scoped surfaces simply render their empty-state.
 //
 // AC-01 [critical] [smoke] — every authenticated internal route is reachable
 //   for a minimally-set-up org; nothing blocks the app.
@@ -24,7 +23,7 @@ import { expect, test } from '../fixtures'
 // `/team`, which is the people surface this sweep already covers via the nav.
 const INTERNAL_ROUTES = [
   '/dashboard',
-  '/units',
+  '/organizations',
   '/catalog',
   '/team',
   '/customers',
@@ -72,19 +71,16 @@ test.describe('Onboarding — app usable without setup (#986)', { tag: '@critica
     await expect(authedPage.getByRole('link', { name: 'Vendas' }).first()).toBeVisible()
   })
 
-  // PRD Identidade v2 / brief 0046 — um dono com ZERO unidade é guiado ao
-  // empty-state da 1ª unidade. Mesmo pedindo uma rota interna, o layout (app)
-  // bounceia pro fluxo guiado (não é um gate de onboarding wizard — é o
-  // empty-state intencional do Negócio recém-criado).
+  // PRD Identidade v2 / brief 0046 — um dono com ZERO unidade NÃO é gateado: cai
+  // no app normalmente e as superfícies unit-scoped renderizam seu empty-state.
   test.describe('org sem unidade (recém-signup)', () => {
     test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
 
-    test('dono com 0 unidades é guiado a /onboarding/first-unit', async ({ authedPage }) => {
+    test('dono com 0 unidades cai no app sem gate de onboarding', async ({ authedPage }) => {
       await authedPage.goto('/dashboard')
-      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
-      await expect(
-        authedPage.getByRole('heading', { name: 'Crie sua primeira unidade' }),
-      ).toBeVisible()
+      await expect(authedPage).toHaveURL(/\/dashboard(\/|\?|$)/)
+      await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
+      await expect(authedPage.getByRole('link', { name: 'Vendas' }).first()).toBeVisible()
     })
   })
 })

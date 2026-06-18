@@ -15,16 +15,9 @@
 // Roda contra emulator + build de produção (modo canônico do playwright.config).
 
 import { expect, test } from '../fixtures'
-import { fillBirthDate } from '../helpers/forms'
 import { checkStable, fillStable } from '../helpers/hydration'
 import { listItem } from '../helpers/list'
-import { chooseOption } from '../helpers/select'
-import {
-  linkProfessionalToServices,
-  seedAuthUser,
-  seedService,
-  signInAndAttachSession,
-} from '../helpers/session'
+import { linkProfessionalToServices, seedService } from '../helpers/session'
 import { PublicBookingPage, orgSlug } from '../pages'
 
 // Toda rota interna autenticada — o org vazio tem que alcançar todas sem
@@ -44,10 +37,9 @@ const INTERNAL_ROUTES = [
 ] as const
 
 test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', () => {
-  // Regime mínimo: org com a 1ª unidade já criada (o piso que o fluxo guiado da
-  // v2 exige) mas SEM serviço/profissional → ainda sem gate de setup → Cenários 1
-  // e 2. Um dono com ZERO unidade não fica aqui: o layout (app) o leva ao
-  // empty-state guiado `/onboarding/first-unit` (asserido em Feature 0046).
+  // Regime mínimo: org com a 1ª unidade já criada mas SEM serviço/profissional →
+  // ainda sem gate de setup → Cenários 1 e 2. O caso de ZERO unidade (sem gate,
+  // empty-state em /organizations) é coberto por units/no-units-navigable.spec.ts.
   test.describe('org mínimo (1ª unidade criada, sem mais cadastros)', () => {
     test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
 
@@ -205,88 +197,3 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
     })
   })
 })
-
-// F2 / brief 0046 (PRD Identidade v2) — Onboarding ultra-light, SEM auto-matriz.
-// Diferente do 0008 acima (que parte de um org já semeado), este cenário dirige
-// o fluxo REAL de signup (`createOrg`) ponta a ponta e prova o invariante novo:
-// o signup cria o Negócio (a pasta) SEM unidade. Um dono com 0 unidades é então
-// levado AUTOMATICAMENTE pro empty-state guiado `/onboarding/first-unit` (heading
-// "Crie sua primeira unidade"), onde confirma o mínimo (nome já prefilled =
-// nome do Negócio, endereço + WhatsApp; horário Seg–Sáb 09–18 prefilled) e o app
-// passa a operar. A auto-matriz da v1 foi removida.
-test.describe(
-  'Feature 0046 — onboarding ultra-light (sem auto-matriz)',
-  { tag: '@critical' },
-  () => {
-    test('signup cria o Negócio sem unidade; dono é guiado à 1ª unidade (AC-02/AC-03)', async ({
-      context,
-      page,
-      baseURL,
-    }) => {
-      // Owner novo, perfil ainda incompleto (sem org, sem unidade) — o estado de
-      // quem acabou de autenticar via OAuth.
-      const owner = await seedAuthUser({ completionCompleted: false })
-      await signInAndAttachSession(context, owner.email, owner.password, baseURL ?? undefined)
-
-      // Stub do CEP lookup (brasilapi externo) → determinístico, sem rede; o fluxo
-      // do form da 1ª unidade continua real (popula endereço + revela o número).
-      await page.route('**/api/postal-code/**', (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            postalCode: '01310100',
-            state: 'SP',
-            city: 'São Paulo',
-            neighborhood: 'Bela Vista',
-            street: 'Avenida Paulista',
-          }),
-        }),
-      )
-
-      // O gate de completude (#838) leva ao /onboarding/profile antes do org;
-      // espelhamos o `next` que o /onboarding usaria.
-      await page.goto('/onboarding/profile?next=/onboarding')
-      await page.getByRole('textbox', { name: /nome/i }).fill('Dona Negócio')
-      await page.getByRole('textbox', { name: /whatsapp/i }).fill('11944443333')
-      await fillBirthDate(page, '15/03/1992')
-      await page.getByRole('button', { name: /continuar/i }).click()
-
-      // Cai no form de criação do Negócio (ultra-light: só nome + segmento, sem CNPJ).
-      await expect(page).toHaveURL(/\/onboarding$/, { timeout: 10_000 })
-      const orgName = `Barbearia Negócio ${Date.now()}`
-      // Segmento primeiro (Select Radix, via helper canônico), depois o nome: o
-      // `onInput` do nome — evento confiável — dispara o refresh do `useFormValidity`
-      // lendo o valor do Select já setado, habilitando o submit sem depender da
-      // propagação do change do portal Radix sob hydration.
-      await chooseOption(page, 'Segmento', 'Barbearia')
-      await fillStable(page.locator('input[name="name"]'), orgName)
-      await expect(page.getByRole('button', { name: 'Criar negócio' })).toBeEnabled()
-      await page.getByRole('button', { name: 'Criar negócio' }).click()
-
-      // createOrg cria SÓ o Negócio (sem unidade) e redireciona pra '/'. O layout
-      // (app) detecta 0 unidades + dono cross-unit e leva ao empty-state guiado
-      // da 1ª unidade — NÃO pode haver auto-matriz nem parar na criação do Negócio.
-      await page.waitForURL(/\/onboarding\/first-unit$/, { timeout: 10_000 })
-      await expect(page.getByRole('heading', { name: 'Crie sua primeira unidade' })).toBeVisible()
-
-      // O form da 1ª unidade vem com o nome PREFILLED = nome do Negócio; o dono só
-      // confirma endereço + WhatsApp (horário Seg–Sáb 09–18 já prefilled).
-      await expect(page.locator('input[name="name"]')).toHaveValue(orgName)
-      await page.locator('input[name="whatsapp"]').fill('11944443333')
-      await page.locator('input[name="postalCode"]').fill('01310100')
-      await page.locator('input[name="number"]').fill('123')
-      await page.getByRole('button', { name: 'Criar' }).click()
-
-      // Com a 1ª unidade criada, o app passa a operar: o layout não bounceia mais
-      // pro first-unit; a unidade aparece na listagem com o nome do Negócio.
-      await page.waitForURL(/\/(dashboard|orders|units|agenda|select-unit)(\/|\?|$)/, {
-        timeout: 10_000,
-      })
-      await expect(page).not.toHaveURL(/\/onboarding(\/|$)/)
-      await page.goto('/units')
-      await expect(page).toHaveURL(/\/units$/)
-      await expect(listItem(page, orgName)).toBeVisible({ timeout: 5000 })
-    })
-  },
-)

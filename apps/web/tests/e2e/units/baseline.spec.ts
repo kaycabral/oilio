@@ -21,21 +21,19 @@ async function dismissUnitInterstitialIfPresent(page: Page): Promise<void> {
 }
 
 test.describe('Units — baseline (#17)', () => {
-  // PRD Identidade v2 / brief 0046: a 0-unit owner no longer sees the `/units`
-  // list empty state — the layout (app) guides them to the dedicated first-unit
-  // empty-state at `/onboarding/first-unit` (the protagonist of brief 0034 for
-  // the units case). Asserting the guided redirect IS the v2 empty-state for
-  // units.
+  // PRD Identidade v2 / brief 0046 + F5: there is no first-unit gate and the
+  // standalone `/units` list was folded into `/organizations` (Negócios &
+  // Unidades). A 0-unit owner hitting `/units` is forwarded to `/organizations`,
+  // which renders the unit empty-state inline.
   test.describe('empty org', () => {
     test.use({ orgInput: { unitCount: 0 } })
 
-    test('render + empty state (guided first-unit)', async ({ authedPage }) => {
+    test('render + empty state (/units → /organizations)', async ({ authedPage }) => {
       await authedPage.goto('/units')
-      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
+      await expect(authedPage).toHaveURL(/\/organizations(\/|\?|$)/)
       await expect(
-        authedPage.getByRole('heading', { name: 'Crie sua primeira unidade' }),
+        authedPage.getByText('Nenhuma unidade ainda. Crie a primeira para começar a atender.'),
       ).toBeVisible()
-      await expect(authedPage.getByRole('button', { name: 'Criar' })).toBeVisible()
     })
   })
 

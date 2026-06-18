@@ -284,23 +284,24 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
   })
 
   // Baseline — render + empty (degenerate data): PRD Identidade v2 / brief 0046
-  // reshapes the zero-unit case. An owner (cross-unit) with NO unit is no longer
-  // dropped on the operational shell — the layout (app) guides them to the
-  // first-unit empty-state (no interstitial — that's a multi-unit affordance).
-  test.describe('Baseline — org sem unidade → guided first-unit', () => {
+  // reshapes the zero-unit case. There is NO first-unit gate — an owner
+  // (cross-unit) with NO unit lands on the operational shell normally; the
+  // unit-scoped surfaces render their empty-state, with no interstitial (that's
+  // a multi-unit affordance) and no onboarding redirect.
+  test.describe('Baseline — org sem unidade → surfaces sem gate', () => {
     test.use({ orgInput: { unitCount: 0 } })
 
-    test('sem unidade: dono cross-unit é guiado a /onboarding/first-unit (sem interstitial)', async ({
+    test('sem unidade: dono cross-unit acessa as surfaces (sem interstitial, sem gate)', async ({
       authedPage,
     }) => {
       await authedPage.goto('/agenda')
-      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
-      await expect(
-        authedPage.getByRole('heading', { name: 'Crie sua primeira unidade' }),
-      ).toBeVisible()
+      await expect(authedPage).toHaveURL(/\/agenda(\/|\?|$)/)
+      await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
+      await expect(authedPage).not.toHaveURL(/\/select-unit(\/|$)/)
 
       await authedPage.goto('/orders')
-      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
+      await expect(authedPage).toHaveURL(/\/orders(\/|\?|$)/)
+      await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
     })
   })
 })

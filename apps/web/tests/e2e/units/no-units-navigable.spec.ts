@@ -65,26 +65,26 @@ test.describe('Org sem unidades — app navegável (regressão)', { tag: '@criti
     test.use({ orgInput: { unitCount: 0 } })
     for (const path of SURFACES) {
       test(`${path} renderiza sem crash`, async ({ authedPage }) => {
-        // PRD Identidade v2 / brief 0046: a 0-unit owner is guided to the
-        // first-unit empty-state — a normal redirect, never a crash. The
-        // no-crash guarantee (status < 500, no error overlay) is what matters.
+        // PRD Identidade v2 / brief 0046: a 0-unit owner is NOT gated — every
+        // surface renders normally (empty-states where data is unit-scoped),
+        // never a crash. The no-crash guarantee (status < 500, no error overlay)
+        // is what matters.
         await assertNoCrash(authedPage, path)
       })
     }
 
     // The reported crash: with no unit, opening an operational surface must not
-    // throw an unhandled error. In v2 the layout guides a 0-unit owner to the
-    // first-unit empty-state (no "Nova venda" reachable, no crash) — the guided
-    // redirect IS the non-crash guarantee.
-    test('sem unidade não crasha; guia à criação da 1ª unidade', async ({ authedPage }) => {
+    // throw an unhandled error. In v2 there is NO first-unit gate (PRD Identidade
+    // v2 — simplification): a 0-unit owner lands on the surface normally, which
+    // renders an empty-state ("Nenhuma unidade ativa") instead of crashing.
+    test('sem unidade não crasha; renderiza empty-state sem unidade ativa', async ({
+      authedPage,
+    }) => {
       await authedPage.goto('/orders')
-      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
-      await expect(authedPage.getByRole('button', { name: 'Nova venda' })).toHaveCount(0)
+      await expect(authedPage).toHaveURL(/\/orders$/)
+      await expect(authedPage.getByText('Nenhuma unidade ativa')).toBeVisible()
       await expect(authedPage.getByText('Application error')).toHaveCount(0)
       await expect(authedPage.getByText(/Unhandled Runtime Error/)).toHaveCount(0)
-      await expect(
-        authedPage.getByRole('heading', { name: 'Crie sua primeira unidade' }),
-      ).toBeVisible()
     })
   })
 

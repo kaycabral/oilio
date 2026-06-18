@@ -157,17 +157,18 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
   test.describe('baseline — zero-unit org', () => {
     test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
 
-    test('owner com 0 unidades é guiado ao first-unit', async ({ authedPage }) => {
-      // PRD Identidade v2 / brief 0046: um dono cross-unit com 0 unidades é
-      // levado AUTOMATICAMENTE ao empty-state guiado da 1ª unidade — antes de
-      // qualquer surface operacional (o layout (app) bounceia).
+    test('owner com 0 unidades acessa as surfaces sem gate (empty-state)', async ({
+      authedPage,
+    }) => {
+      // PRD Identidade v2 / brief 0046: NÃO há gate de first-unit. Um dono
+      // cross-unit com 0 unidades acessa as surfaces operacionais normalmente;
+      // as que dependem de unidade ativa renderizam seu empty-state, sem redirect.
       await authedPage.goto('/orders')
-      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
+      await expect(authedPage).toHaveURL(/\/orders(\/|\?|$)/)
+      await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
       await authedPage.goto('/agenda')
-      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
-      await expect(
-        authedPage.getByRole('heading', { name: 'Crie sua primeira unidade' }),
-      ).toBeVisible()
+      await expect(authedPage).toHaveURL(/\/agenda(\/|\?|$)/)
+      await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
     })
   })
 })

@@ -16,12 +16,10 @@ import { expect, test } from '../fixtures'
 // `/team`, which is invite-based (not a CRUD create flow), so it's not part of
 // this just-in-time-create sweep.
 //
-// `/units` is NOT in this sweep: PRD Identidade v2 / brief 0046 makes the unit
-// empty-state the GUIDED `/onboarding/first-unit` flow (a 0-unit owner can't
-// reach the `/units` list empty state — the layout bounces to the guided flow).
-// The just-in-time chain for the first unit is owned by the onboarding journeys
-// (owner-onboarding-to-operable + feature-dod). The areas below stay genuinely
-// empty under a minimal 1-unit org.
+// `/units` is NOT in this sweep: PRD Identidade v2 / brief 0046 + F5 folded the
+// unit list into `/organizations` (Negócios & Unidades), where a 0-unit org sees
+// the unit empty-state inline — covered by units/baseline.spec.ts. The areas
+// below stay genuinely empty under a minimal 1-unit org.
 const AREAS = [
   {
     // Brief 0023 (#1005) unified the catalog: the old `/services` route was
