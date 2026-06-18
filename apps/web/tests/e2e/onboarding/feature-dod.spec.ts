@@ -18,6 +18,7 @@ import { expect, test } from '../fixtures'
 import { fillBirthDate } from '../helpers/forms'
 import { checkStable, fillStable } from '../helpers/hydration'
 import { listItem } from '../helpers/list'
+import { chooseOption } from '../helpers/select'
 import {
   linkProfessionalToServices,
   seedAuthUser,
@@ -254,10 +255,13 @@ test.describe('Feature 0046 — conta-first + matriz auto-criada', { tag: '@crit
     // Cai no form de criação da empresa (conta-first: só nome + vertical, sem CNPJ).
     await expect(page).toHaveURL(/\/onboarding$/, { timeout: 10_000 })
     const orgName = `Barbearia Matriz ${Date.now()}`
+    // Vertical primeiro (Select Radix, via helper canônico), depois o nome: o
+    // `onInput` do nome — evento confiável — dispara o refresh do `useFormValidity`
+    // lendo o valor do Select já setado, habilitando o submit sem depender da
+    // propagação do change do portal Radix sob hydration.
+    await chooseOption(page, 'Vertical', 'Barbearia')
     await fillStable(page.locator('input[name="name"]'), orgName)
-    // Select do @cbrl/design: abrir pelo trigger e escolher a opção visível.
-    await page.getByRole('combobox').click()
-    await page.getByRole('option', { name: 'Barbearia' }).click()
+    await expect(page.getByRole('button', { name: 'Criar empresa' })).toBeEnabled()
     await page.getByRole('button', { name: 'Criar empresa' }).click()
 
     // createOrg redireciona pra '/' (app operável). NÃO pode parar num
