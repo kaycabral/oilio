@@ -43,6 +43,8 @@ async function assertNoCrash(authedPage: Page, path: string) {
   await expect(authedPage.getByText(/Unhandled Runtime Error/)).toHaveCount(0)
 }
 
+// PRD Identidade v2 / F5: the old "Empresa" page retired → `/company` now
+// redirects to `/negocios` (the Negócios & Unidades surface). Sweep the v2 route.
 const SURFACES = [
   '/agenda',
   '/orders',
@@ -53,7 +55,7 @@ const SURFACES = [
   '/team',
   '/plans',
   '/subscriptions',
-  '/company',
+  '/negocios',
   '/units',
 ]
 
@@ -62,23 +64,26 @@ test.describe('Org sem unidades — app navegável (regressão)', { tag: '@criti
     test.use({ orgInput: { unitCount: 0 } })
     for (const path of SURFACES) {
       test(`${path} renderiza sem crash`, async ({ authedPage }) => {
+        // PRD Identidade v2 / brief 0046: a 0-unit owner is guided to the
+        // first-unit empty-state — a normal redirect, never a crash. The
+        // no-crash guarantee (status < 500, no error overlay) is what matters.
         await assertNoCrash(authedPage, path)
       })
     }
 
-    // The reported crash: clicking a create action ("Nova venda") with no active
-    // unit must not throw an unhandled error — the page must guide the user to
-    // create a unit instead.
-    test('ação de criar venda sem unidade não crasha', async ({ authedPage }) => {
+    // The reported crash: with no unit, opening an operational surface must not
+    // throw an unhandled error. In v2 the layout guides a 0-unit owner to the
+    // first-unit empty-state (no "Nova venda" reachable, no crash) — the guided
+    // redirect IS the non-crash guarantee.
+    test('sem unidade não crasha; guia à criação da 1ª unidade', async ({ authedPage }) => {
       await authedPage.goto('/orders')
-      // With no active unit /orders renders the "Nenhuma unidade ativa" empty
-      // state: the "Nova venda" action is gated out and the surface guides the
-      // owner to create a unit. Assert that deterministically (no branching on a
-      // maybe-present button) — the empty state IS the non-crash guarantee.
+      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
       await expect(authedPage.getByRole('button', { name: 'Nova venda' })).toHaveCount(0)
       await expect(authedPage.getByText('Application error')).toHaveCount(0)
       await expect(authedPage.getByText(/Unhandled Runtime Error/)).toHaveCount(0)
-      await expect(authedPage.getByRole('link', { name: /unidade/i }).first()).toBeVisible()
+      await expect(
+        authedPage.getByRole('heading', { name: 'Crie sua primeira unidade' }),
+      ).toBeVisible()
     })
   })
 

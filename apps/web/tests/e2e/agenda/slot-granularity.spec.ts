@@ -1,9 +1,10 @@
 import { expect, test } from '../fixtures'
 import { AgendaPage } from '../pages'
 
-// Retrofit pro PR #721 (issue #633) — slot granularity é config da agenda
-// (movida do /company no #746). Owner/manager troca o select "Slots" no
-// header e a org.slotMinutes persiste; non-manager não vê o select.
+// Retrofit pro PR #721 (issue #633) — slot granularity é config da agenda.
+// PRD Identidade v2 (model-v2): a config de agenda mudou Org→Unidade, então o
+// `slotMinutes` vive na agenda da unidade ativa. Owner/manager troca o select
+// "Slots" no header e o valor da unidade persiste; non-manager não vê o select.
 
 test.describe('Agenda — granularidade de slots', () => {
   test.describe('valor cadastrado reflete na UI', () => {
@@ -17,7 +18,7 @@ test.describe('Agenda — granularidade de slots', () => {
       },
     })
 
-    test('owner vê o select com valor da empresa', async ({ authedPage }) => {
+    test('owner vê o select com valor da unidade', async ({ authedPage }) => {
       const agenda = new AgendaPage(authedPage)
       await agenda.goto()
       const slotSelect = authedPage.getByRole('combobox', { name: 'Slots' })

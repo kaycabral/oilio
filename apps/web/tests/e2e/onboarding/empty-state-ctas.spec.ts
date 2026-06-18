@@ -15,8 +15,14 @@ import { expect, test } from '../fixtures'
 // `/professionals` was removed (brief 0037 #1085): people management moved to
 // `/team`, which is invite-based (not a CRUD create flow), so it's not part of
 // this just-in-time-create sweep.
+//
+// `/units` is NOT in this sweep: PRD Identidade v2 / brief 0046 makes the unit
+// empty-state the GUIDED `/onboarding/first-unit` flow (a 0-unit owner can't
+// reach the `/units` list empty state — the layout bounces to the guided flow).
+// The just-in-time chain for the first unit is owned by the onboarding journeys
+// (owner-onboarding-to-operable + feature-dod). The areas below stay genuinely
+// empty under a minimal 1-unit org.
 const AREAS = [
-  { path: '/units', cta: 'Cadastrar unidade', newPath: '/units/new', title: /nenhuma unidade/i },
   {
     // Brief 0023 (#1005) unified the catalog: the old `/services` route was
     // removed (no redirect shim) and the service empty state + CTA now live on
@@ -44,10 +50,11 @@ const AREAS = [
 ] as const
 
 test.describe('Empty-state CTAs — core areas (#987)', () => {
-  // unitCount/professionalCount=0 keeps every area genuinely empty so each
-  // empty-state + CTA renders.
+  // 1ª unidade criada (o piso pós-fluxo-guiado da v2) + professionalCount=0 mantém
+  // catálogo/clientes/planos genuinamente vazios, sem disparar o redirect guiado
+  // de 0 unidades — cada empty-state + CTA renderiza.
   test.use({
-    orgInput: { unitCount: 0, professionalCount: 0 },
+    orgInput: { unitCount: 1, professionalCount: 0 },
   })
 
   for (const area of AREAS) {

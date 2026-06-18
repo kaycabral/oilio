@@ -123,7 +123,10 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
   })
 
   test.describe('baseline — só o owner (#17)', () => {
-    test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
+    // 1 unidade (o piso pós-fluxo-guiado da v2 — um dono com 0 unidades é levado
+    // ao first-unit antes de qualquer surface) + 0 profissionais isola o caso
+    // "equipe só com o owner".
+    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
 
     test('render + empty: abre com Convidar no topo, filtro Status, sem convites', async ({
       authedPage,

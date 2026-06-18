@@ -157,17 +157,17 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
   test.describe('baseline — zero-unit org', () => {
     test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
 
-    test('stays navigable with empty states', async ({ authedPage }) => {
-      // No active unit → /orders keeps its "no active unit" precondition state
-      // (which still renders the "Vendas" heading).
+    test('owner com 0 unidades é guiado ao first-unit', async ({ authedPage }) => {
+      // PRD Identidade v2 / brief 0046: um dono cross-unit com 0 unidades é
+      // levado AUTOMATICAMENTE ao empty-state guiado da 1ª unidade — antes de
+      // qualquer surface operacional (o layout (app) bounceia).
       await authedPage.goto('/orders')
-      await expect(authedPage.getByRole('heading', { name: 'Vendas' })).toBeVisible()
-
-      // App multi-vertical: a org with no appointment-mode unit (zero units)
-      // hides/redirects the Agenda → /agenda bounces to /orders.
+      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
       await authedPage.goto('/agenda')
-      await expect(authedPage).toHaveURL(/\/orders(\/|\?|$)/)
-      await expect(authedPage.getByRole('heading', { name: 'Vendas' })).toBeVisible()
+      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
+      await expect(
+        authedPage.getByRole('heading', { name: 'Crie sua primeira unidade' }),
+      ).toBeVisible()
     })
   })
 })

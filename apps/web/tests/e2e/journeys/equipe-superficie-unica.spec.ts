@@ -301,7 +301,9 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
 
   // Baseline obrigatório (UI/CRUD): render + empty state; owner non-editable.
   test.describe('Baseline — render + empty + owner não-editável', () => {
-    test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
+    // 1 unidade (o piso pós-fluxo-guiado da v2) + 0 profissionais isola o caso
+    // "equipe só com o owner" sem disparar o redirect guiado de 0 unidades.
+    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
 
     test('/team abre só com owner; owner não é link e seu detalhe é read-only', async ({
       org,

@@ -202,7 +202,9 @@ test.describe('Equipe — detalhe do membro (#1085)', { tag: '@critical' }, () =
   })
 
   test.describe('baseline — só o owner (#17)', () => {
-    test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
+    // 1 unidade (o piso pós-fluxo-guiado da v2) + 0 profissionais isola o caso
+    // "equipe só com o owner" sem disparar o redirect guiado de 0 unidades.
+    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
 
     test('render + detalhe do owner abre read-only, sem campos operacionais', async ({
       org,

@@ -283,24 +283,24 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
     })
   })
 
-  // Baseline — render + empty (degenerate data): a org with NO units stays
-  // navigable. The app is multi-vertical, so a org with no appointment-mode
-  // unit hides/redirects the Agenda → /agenda bounces to /orders (no
-  // interstitial), and the operational surfaces still render their empty state.
-  test.describe('Baseline — org sem unidade segue navegável', () => {
+  // Baseline — render + empty (degenerate data): PRD Identidade v2 / brief 0046
+  // reshapes the zero-unit case. An owner (cross-unit) with NO unit is no longer
+  // dropped on the operational shell — the layout (app) guides them to the
+  // first-unit empty-state (no interstitial — that's a multi-unit affordance).
+  test.describe('Baseline — org sem unidade → guided first-unit', () => {
     test.use({ orgInput: { unitCount: 0 } })
 
-    test('sem unidade: sem interstitial; /agenda redireciona pra /orders; switcher mostra "Sem unidade"', async ({
+    test('sem unidade: dono cross-unit é guiado a /onboarding/first-unit (sem interstitial)', async ({
       authedPage,
     }) => {
-      // No appointment-mode unit → Agenda is hidden/redirected, no interstitial.
       await authedPage.goto('/agenda')
-      await expect(authedPage).toHaveURL(/\/orders(\/|\?|$)/)
-      await expect(switcher(authedPage)).toContainText('Sem unidade')
-      await expect(switcher(authedPage)).toHaveAttribute('data-interactive', 'false')
+      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
+      await expect(
+        authedPage.getByRole('heading', { name: 'Crie sua primeira unidade' }),
+      ).toBeVisible()
 
       await authedPage.goto('/orders')
-      await expect(authedPage.getByRole('heading', { name: 'Vendas' })).toBeVisible()
+      await expect(authedPage).toHaveURL(/\/onboarding\/first-unit$/)
     })
   })
 })

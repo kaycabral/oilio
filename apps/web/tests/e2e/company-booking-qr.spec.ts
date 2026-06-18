@@ -14,7 +14,7 @@ import { orgSlug } from './pages'
 // `isUnitBookable` (hoursMode='appointment' E businessHours != null). O seed
 // default monta unidades bookable, então o card aparece em cada unidade.
 
-test.describe('Empresa — QR por unidade', () => {
+test.describe('Unidade — QR por unidade', () => {
   test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
 
   test('QR por unidade aponta pra /{slug}/{unitSlug} na página da unidade', async ({
