@@ -16,6 +16,7 @@
 import { membershipDocId } from '@/domain'
 import { expect, test } from '../fixtures'
 import { oneUnit } from '../helpers/firestore-rest'
+import { enableUnitBusinessHours } from '../helpers/forms'
 import { listItem } from '../helpers/list'
 import { setMembershipRole, setMembershipUnitId } from '../helpers/session'
 
@@ -66,6 +67,8 @@ test.describe(
       await authedPage.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
       await expect(authedPage.getByText(/São Paulo\/SP/)).toBeVisible()
       await authedPage.getByRole('textbox', { name: 'Número' }).fill('200')
+      // v2: horário de funcionamento é obrigatório — habilita um dia.
+      await enableUnitBusinessHours(authedPage)
       await authedPage.getByRole('button', { name: 'Criar' }).click()
 
       // A 2ª unidade foi criada (definição cross-unit preservada). Com o org

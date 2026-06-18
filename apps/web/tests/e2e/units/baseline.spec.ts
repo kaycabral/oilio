@@ -8,6 +8,7 @@
 
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
+import { enableUnitBusinessHours } from '../helpers/forms'
 import { fillStable } from '../helpers/hydration'
 import { listItem, rowAction } from '../helpers/list'
 import { enterUnitsAfterCreate, seedUnit } from '../helpers/session'
@@ -69,6 +70,9 @@ test.describe('Units — baseline (#17)', () => {
     await authedPage.locator('input[name="postalCode"]').fill('01310100')
     // Lookup popula o endereço e revela o campo número (required).
     await authedPage.locator('input[name="number"]').fill('123')
+    // v2: horário de funcionamento é obrigatório — habilita um dia (form vem
+    // com todos os dias OFF) pra liberar o submit.
+    await enableUnitBusinessHours(authedPage)
     await authedPage.getByRole('button', { name: 'Criar' }).click()
     // Creating this 2nd unit (the seed already has one) crosses into multi-unit:
     // the post-create redirect hits the `/select-unit` interstitial — pick a
@@ -168,6 +172,8 @@ test.describe('Units — baseline (#17)', () => {
     await authedPage.locator('input[name="whatsapp"]').fill(`11${ts.slice(-9)}`)
     await authedPage.locator('input[name="postalCode"]').fill('01310100')
     await authedPage.locator('input[name="number"]').fill('123')
+    // v2: habilita um dia de horário (obrigatório) pra liberar o submit.
+    await enableUnitBusinessHours(authedPage)
     await authedPage.getByRole('button', { name: 'Criar' }).click()
     // 2nd unit → post-create `/select-unit` interstitial; dismiss + relist.
     await dismissUnitInterstitialIfPresent(authedPage)

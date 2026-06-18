@@ -1,4 +1,5 @@
 import { type Page } from '@playwright/test'
+import { checkStable } from './hydration'
 
 // Helpers for shared `@cbrl/design` form fields whose affordance differs from a
 // native input — driven the way a user does: by visible label/role, never by
@@ -26,4 +27,15 @@ export async function fillBirthDate(
 export function isoToBrDate(iso: string): string {
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
+}
+
+// Enable at least one operating day in `BusinessHoursFields` so the `UnitForm`
+// passes validation. v2 (PRD Identidade § Contrato de tipagem): a Unit MUST
+// declare operating hours; `parseUnitForm` rejects an all-closed week, so the
+// "Criar"/"Salvar" submit stays blocked until a day is on. The fresh
+// `/units/new` form seeds every day OFF (no defaults), so create flows must
+// toggle a weekday on (Monday by default). The guided first-unit form prefills
+// hours, so this is only needed when driving the bare `/units/new` form.
+export async function enableUnitBusinessHours(page: Page, day = 'monday'): Promise<void> {
+  await checkStable(page.locator(`#bh_${day}`))
 }

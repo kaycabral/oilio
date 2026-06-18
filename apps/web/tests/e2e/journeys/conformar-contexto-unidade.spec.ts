@@ -46,6 +46,7 @@ import { membershipDocId } from '@/domain'
 import type { Locator, Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { oneUnit, twoUnits } from '../helpers/firestore-rest'
+import { enableUnitBusinessHours } from '../helpers/forms'
 import { listItem } from '../helpers/list'
 import {
   seedClosedOrder as centralSeedClosedOrder,
@@ -289,6 +290,8 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
       await authedPage.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
       await expect(authedPage.getByText(/São Paulo\/SP/)).toBeVisible()
       await authedPage.getByRole('textbox', { name: 'Número' }).fill('200')
+      // v2: horário de funcionamento é obrigatório — habilita um dia.
+      await enableUnitBusinessHours(authedPage)
       await authedPage.getByRole('button', { name: 'Criar' }).click()
 
       // Now multi-unit with no chosen unit → the interstitial proves the create.

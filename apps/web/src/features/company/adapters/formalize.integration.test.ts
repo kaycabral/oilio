@@ -109,16 +109,21 @@ async function seedInformalOrg(): Promise<void> {
       number: '1000',
       complement: null,
     },
-    businessHours: {
-      monday: { open: '09:00', close: '18:00' },
-      tuesday: { open: '09:00', close: '18:00' },
-      wednesday: { open: '09:00', close: '18:00' },
-      thursday: { open: '09:00', close: '18:00' },
-      friday: { open: '09:00', close: '18:00' },
-      saturday: null,
-      sunday: null,
+    timezone: 'America/Sao_Paulo',
+    // v2 unit shape (PRD Identidade § Contrato de tipagem): the flat
+    // `hoursMode` + `businessHours` were replaced by the `agenda` union.
+    agenda: {
+      mode: 'fixed',
+      businessHours: {
+        monday: { open: '09:00', close: '18:00' },
+        tuesday: { open: '09:00', close: '18:00' },
+        wednesday: { open: '09:00', close: '18:00' },
+        thursday: { open: '09:00', close: '18:00' },
+        friday: { open: '09:00', close: '18:00' },
+        saturday: null,
+        sunday: null,
+      },
     },
-    hoursMode: 'fixed',
     archivedAt: null,
     fiscal: { kind: 'informal' },
     createdAt: now,

@@ -1,4 +1,5 @@
 import { expect, test } from '../fixtures'
+import { enableUnitBusinessHours } from '../helpers/forms'
 import { rowAction } from '../helpers/list'
 import { enterUnitsAfterCreate } from '../helpers/session'
 import { UnitsPage } from '../pages'
@@ -39,6 +40,8 @@ test.describe('Unidades — WhatsApp', () => {
       // hint paragraph to appear so the auto-filled fields are present.
       await expect(authedPage.getByText(/São Paulo\/SP/)).toBeVisible()
       await authedPage.getByRole('textbox', { name: 'Número' }).fill('200')
+      // v2: horário de funcionamento é obrigatório — habilita um dia.
+      await enableUnitBusinessHours(authedPage)
       await authedPage.getByRole('button', { name: 'Criar' }).click()
 
       // Creating this 2nd unit crosses into multi-unit: the post-create redirect
