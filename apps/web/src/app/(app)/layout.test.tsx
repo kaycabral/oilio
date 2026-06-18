@@ -155,6 +155,35 @@ describe('AppLayout — auth and org gating', () => {
     await expect(captureRedirect()).resolves.toBe('/onboarding/first-unit')
   })
 
+  it('does NOT force a non-owner (manager) with no units into first-unit', async () => {
+    mocks.getSessionUser.mockResolvedValue({
+      uid: 'u2',
+      email: 'm@b.com',
+      displayName: null,
+      picture: null,
+      emailVerified: true,
+    })
+    mocks.getActiveOrgContext.mockResolvedValue({
+      user: {
+        uid: 'u2',
+        displayName: 'M',
+        email: 'm@b.com',
+        avatarUrl: null,
+        completionCompleted: true,
+      },
+      membership: { orgId: 't1', userId: 'u2', role: 'manager' },
+    })
+    mocks.getOrg.mockResolvedValue({
+      id: 't1',
+      name: 'Test',
+      selfBookingPublished: false,
+    })
+    mockUnitsSnap([])
+    // An invited manager joining a not-yet-set-up org must not be bootstrapped
+    // into unit creation (it's the owner's job) — the shell renders, no redirect.
+    await expect(callLayout()).resolves.toBeTruthy()
+  })
+
   it('renders the app shell once the org has at least one unit (#986)', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u1',

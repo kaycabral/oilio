@@ -1,5 +1,4 @@
 import { AppShell } from '@/components/app-shell'
-import { operatesCrossUnit } from '@/domain'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { needsUnitSelection, resolveActiveUnit } from '@/shared/org/active-unit'
@@ -40,12 +39,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { units, activeUnitId } = await resolveActiveUnit(ctx.membership)
 
   // Guided first-unit empty-state (PRD Identidade v2 / brief 0046): signup
-  // creates the Negócio (a folder) WITHOUT a unit, so the owner lands here with
-  // zero units. Rather than render the operational shell over no data, send an
-  // owner (cross-unit manager) to the guided first-unit flow. A unit-bound
-  // member with no units is a degenerate state we don't force into creation —
+  // creates the Negócio (a folder) WITHOUT a unit, so the OWNER lands here with
+  // zero units — guide them to create the first unit. Scoped to the owner on
+  // purpose: an invited manager (or any non-owner) joining a not-yet-set-up org
+  // must NOT be forced into unit creation (it's not their org to bootstrap) —
   // they fall through to the app's per-surface empty states.
-  if (units.length === 0 && operatesCrossUnit(ctx.membership)) {
+  if (units.length === 0 && ctx.membership.role === 'owner') {
     redirect('/onboarding/first-unit')
   }
 
