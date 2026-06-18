@@ -1168,8 +1168,18 @@ function seedFormalizeMatriz(
     slug: 'matriz',
     whatsapp: FORMALIZE_OWNER.whatsapp,
     email: null,
-    address: null,
-    businessHours: null,
+    // Real address/hours: a Unidade is an operating establishment (PRD
+    // Identidade v2 — address/businessHours/hoursMode are required).
+    address: {
+      postalCode: '01310-100',
+      state: 'SP',
+      city: 'São Paulo',
+      neighborhood: 'Bela Vista',
+      street: 'Avenida Paulista',
+      number: '1000',
+      complement: null,
+    },
+    businessHours: BUSINESS_HOURS,
     hoursMode: 'appointment',
     archivedAt: null,
     createdAt: NOW,

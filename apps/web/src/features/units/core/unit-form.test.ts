@@ -134,4 +134,13 @@ describe('parseUnitForm', () => {
       ),
     ).toBe('string')
   })
+
+  it('rejects a unit with no operating day declared (hours REQUIRED in v2)', () => {
+    // No `bh_*_enabled` => parseBusinessHours returns null. A unit is an
+    // operating establishment, so the empty hours config is rejected at the
+    // boundary rather than producing a unit without businessHours (PRD
+    // Identidade v2 § Contrato de tipagem).
+    const noDays = { ...VALID_ADDRESS, name: 'Matriz', whatsapp: '11999998888' }
+    expect(typeof parseUnitForm(fd(noDays))).toBe('string')
+  })
 })

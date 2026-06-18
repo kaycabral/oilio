@@ -228,53 +228,56 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
   })
 })
 
-// F2 / brief 0046 — Onboarding conta-first + auto-criação da matriz.
+// F2 / brief 0046 (PRD Identidade v2) — Onboarding ultra-light, SEM auto-matriz.
 // Diferente do 0008 acima (que parte de um org já semeado), este cenário dirige
 // o fluxo REAL de signup (`createOrg`) ponta a ponta e prova o invariante novo:
-// o signup nunca deixa "empresa sem unidade" — a matriz nasce na mesma saga, e o
-// dono cai operável sem o estado vazio de "selecione uma unidade".
-test.describe('Feature 0046 — conta-first + matriz auto-criada', { tag: '@critical' }, () => {
-  test('signup cria a matriz na mesma saga; app operável sem unidade vazia (AC-02/AC-03)', async ({
-    context,
-    page,
-    baseURL,
-  }) => {
-    // Owner novo, perfil ainda incompleto (sem org, sem unidade) — o estado de
-    // quem acabou de autenticar via OAuth.
-    const owner = await seedAuthUser({ completionCompleted: false })
-    await signInAndAttachSession(context, owner.email, owner.password, baseURL ?? undefined)
+// o signup cria o Negócio (a pasta) SEM unidade — "Negócio sem unidade" logo
+// após o signup é o estado vazio INTENCIONAL que guia a criação da 1ª unidade
+// (a auto-matriz da v1 foi removida).
+test.describe(
+  'Feature 0046 — onboarding ultra-light (sem auto-matriz)',
+  { tag: '@critical' },
+  () => {
+    test('signup cria o Negócio sem unidade; app operável no empty-state (AC-02)', async ({
+      context,
+      page,
+      baseURL,
+    }) => {
+      // Owner novo, perfil ainda incompleto (sem org, sem unidade) — o estado de
+      // quem acabou de autenticar via OAuth.
+      const owner = await seedAuthUser({ completionCompleted: false })
+      await signInAndAttachSession(context, owner.email, owner.password, baseURL ?? undefined)
 
-    // O gate de completude (#838) leva ao /onboarding/profile antes do org;
-    // espelhamos o `next` que o /onboarding usaria.
-    await page.goto('/onboarding/profile?next=/onboarding')
-    await page.getByRole('textbox', { name: /nome/i }).fill('Dona Matriz')
-    await page.getByRole('textbox', { name: /whatsapp/i }).fill('11944443333')
-    await fillBirthDate(page, '15/03/1992')
-    await page.getByRole('button', { name: /continuar/i }).click()
+      // O gate de completude (#838) leva ao /onboarding/profile antes do org;
+      // espelhamos o `next` que o /onboarding usaria.
+      await page.goto('/onboarding/profile?next=/onboarding')
+      await page.getByRole('textbox', { name: /nome/i }).fill('Dona Negócio')
+      await page.getByRole('textbox', { name: /whatsapp/i }).fill('11944443333')
+      await fillBirthDate(page, '15/03/1992')
+      await page.getByRole('button', { name: /continuar/i }).click()
 
-    // Cai no form de criação da empresa (conta-first: só nome + vertical, sem CNPJ).
-    await expect(page).toHaveURL(/\/onboarding$/, { timeout: 10_000 })
-    const orgName = `Barbearia Matriz ${Date.now()}`
-    // Vertical primeiro (Select Radix, via helper canônico), depois o nome: o
-    // `onInput` do nome — evento confiável — dispara o refresh do `useFormValidity`
-    // lendo o valor do Select já setado, habilitando o submit sem depender da
-    // propagação do change do portal Radix sob hydration.
-    await chooseOption(page, 'Vertical', 'Barbearia')
-    await fillStable(page.locator('input[name="name"]'), orgName)
-    await expect(page.getByRole('button', { name: 'Criar empresa' })).toBeEnabled()
-    await page.getByRole('button', { name: 'Criar empresa' }).click()
+      // Cai no form de criação da empresa (ultra-light: só nome + vertical, sem CNPJ).
+      await expect(page).toHaveURL(/\/onboarding$/, { timeout: 10_000 })
+      const orgName = `Barbearia Negócio ${Date.now()}`
+      // Vertical primeiro (Select Radix, via helper canônico), depois o nome: o
+      // `onInput` do nome — evento confiável — dispara o refresh do `useFormValidity`
+      // lendo o valor do Select já setado, habilitando o submit sem depender da
+      // propagação do change do portal Radix sob hydration.
+      await chooseOption(page, 'Vertical', 'Barbearia')
+      await fillStable(page.locator('input[name="name"]'), orgName)
+      await expect(page.getByRole('button', { name: 'Criar empresa' })).toBeEnabled()
+      await page.getByRole('button', { name: 'Criar empresa' }).click()
 
-    // createOrg redireciona pra '/' (app operável). NÃO pode parar num
-    // /select-unit sem opção nem em /onboarding.
-    await page.waitForURL(/\/(dashboard|orders|units|agenda)?$/, { timeout: 10_000 })
-    await expect(page).not.toHaveURL(/\/onboarding(\/|$)/)
-    await expect(page).not.toHaveURL(/\/select-unit(\/|$)/)
+      // createOrg redireciona pra '/' (app operável). NÃO pode parar em /onboarding.
+      await page.waitForURL(/\/(dashboard|orders|units|agenda)?$/, { timeout: 10_000 })
+      await expect(page).not.toHaveURL(/\/onboarding(\/|$)/)
 
-    // A matriz existe: a listagem de unidades mostra exatamente a unidade
-    // (nome = nome da empresa) e o empty-state "nenhuma unidade" NÃO aparece.
-    await page.goto('/units')
-    await expect(page).toHaveURL(/\/units$/)
-    await expect(listItem(page, orgName)).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText(/nenhuma unidade/i)).toBeHidden()
-  })
-})
+      // SEM auto-matriz: a listagem de unidades está vazia — o empty-state guiado
+      // ("nenhuma unidade") aparece, convidando à criação da 1ª unidade.
+      await page.goto('/units')
+      await expect(page).toHaveURL(/\/units$/)
+      await expect(page.getByText(/nenhuma unidade/i)).toBeVisible({ timeout: 5000 })
+      await expect(listItem(page, orgName)).toBeHidden()
+    })
+  },
+)

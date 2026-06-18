@@ -1,4 +1,5 @@
 import type { CatalogItemUnitOverride, Unit } from '@/domain'
+import { EMPTY_ADDRESS, EMPTY_BUSINESS_HOURS } from '@/domain'
 import { describe, expect, it } from 'vitest'
 import {
   commissionKindFor,
@@ -16,8 +17,9 @@ function unit(over: Partial<Unit> = {}): Unit {
     slug: 'centro',
     whatsapp: '5511999990000',
     email: null,
-    address: null,
-    businessHours: null,
+    address: EMPTY_ADDRESS,
+    businessHours: EMPTY_BUSINESS_HOURS,
+    hoursMode: 'fixed',
     archivedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',

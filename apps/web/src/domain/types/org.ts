@@ -126,6 +126,9 @@ export const Org = Schema.mutable(
     name: Schema.String,
     slug: Schema.String,
     vertical: Vertical,
+    // The brand's site/domain (optional). Future: domain verification + Google
+    // Shopping (PRD Identidade § Contrato de tipagem — Org ganha `website`).
+    website: Schema.optional(Schema.NullOr(Schema.String)),
     taxIdentity: Schema.NullOr(TaxIdentity),
     // The Org's fiscal lifecycle stage (brief 0048). The SINGLE source of truth
     // for informal vs. formalized: the `company` variant carries the matriz

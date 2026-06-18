@@ -23,7 +23,10 @@ export type ParsedUnit = {
   whatsapp: string
   email: string | null
   address: Address
-  businessHours: BusinessHours | null
+  // REQUIRED (PRD Identidade v2 § Contrato de tipagem): every unit declares its
+  // operating hours — `parseUnitForm` rejects an empty hours config rather than
+  // ever producing a unit without `businessHours`.
+  businessHours: BusinessHours
   hoursMode: UnitHoursMode
 }
 
@@ -129,5 +132,9 @@ export function parseUnitForm(formData: FormData): ParsedUnit | string {
   const hoursMode = parseHoursMode(formData)
   const businessHours = parseBusinessHours(formData, hoursMode)
   if (typeof businessHours === 'string') return businessHours
+  // A unit is an operating establishment — it must declare hours (PRD
+  // Identidade v2). An empty hours config is rejected at the boundary so
+  // `businessHours` is never null on the constructed unit.
+  if (businessHours === null) return 'Informe ao menos um dia de funcionamento'
   return { name, slug: slugRaw, whatsapp, email, address, businessHours, hoursMode }
 }

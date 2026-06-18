@@ -1,4 +1,5 @@
 import type { Unit } from '@/domain'
+import { EMPTY_ADDRESS, EMPTY_BUSINESS_HOURS } from '@/domain'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { UnitForm } from './UnitForm'
@@ -20,8 +21,9 @@ function buildUnit(overrides: Partial<Unit> = {}): Unit {
     slug: 'matriz',
     whatsapp: '5511900000000',
     email: null,
-    address: null,
-    businessHours: null,
+    address: EMPTY_ADDRESS,
+    businessHours: EMPTY_BUSINESS_HOURS,
+    hoursMode: 'fixed',
     archivedAt: null,
     createdAt: '2026-05-18T00:00:00.000Z',
     updatedAt: '2026-05-18T00:00:00.000Z',

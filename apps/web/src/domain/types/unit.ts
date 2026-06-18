@@ -7,7 +7,7 @@ export const UnitHoursMode = Schema.Literal(...UNIT_HOURS_MODES)
 export type UnitHoursMode = typeof UnitHoursMode.Type
 
 // Whether a unit's hours config means it offers the online agenda.
-export function unitUsesAgenda(unit: { hoursMode?: UnitHoursMode }): boolean {
+export function unitUsesAgenda(unit: { hoursMode: UnitHoursMode }): boolean {
   return unit.hoursMode === 'appointment'
 }
 
@@ -17,10 +17,10 @@ export function unitUsesAgenda(unit: { hoursMode?: UnitHoursMode }): boolean {
 // the owner as feedback but doesn't hard-gate the public page (an appointment
 // unit with hours but no pro simply has no slots).
 export function isUnitBookable(unit: {
-  hoursMode?: UnitHoursMode
-  businessHours: BusinessHours | null
+  hoursMode: UnitHoursMode
+  businessHours: BusinessHours
 }): boolean {
-  return unitUsesAgenda(unit) && unit.businessHours !== null
+  return unitUsesAgenda(unit)
 }
 
 export const HoursRange = Schema.mutable(
@@ -51,6 +51,19 @@ export const BusinessHours = Schema.mutable(
 )
 export type BusinessHours = typeof BusinessHours.Type
 
+// All-week-closed BusinessHours. Used only as the zero-value of the unit
+// aggregate's INITIAL state (before any `unit.created` event applies) — never
+// a persisted unit, since `parseUnitForm` rejects an empty hours config.
+export const EMPTY_BUSINESS_HOURS: BusinessHours = {
+  monday: null,
+  tuesday: null,
+  wednesday: null,
+  thursday: null,
+  friday: null,
+  saturday: null,
+  sunday: null,
+}
+
 // Normalize a stored day value to a flat list of ranges (empty = closed).
 export function dayHoursToRanges(value: DayHours): HoursRange[] {
   if (value === null || value === undefined) return []
@@ -72,6 +85,19 @@ export const Address = Schema.mutable(
 )
 export type Address = typeof Address.Type
 
+// All-empty Address. Used only as the zero-value of the unit aggregate's
+// INITIAL state (before any `unit.created` event applies) — never a persisted
+// unit, since `parseUnitForm` requires a real address.
+export const EMPTY_ADDRESS: Address = {
+  postalCode: '',
+  state: '',
+  city: '',
+  neighborhood: '',
+  street: '',
+  number: null,
+  complement: null,
+}
+
 export const Unit = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
@@ -86,16 +112,27 @@ export const Unit = Schema.mutable(
     // in #822: per-unit WA, no Org-level WA.
     whatsapp: Schema.String,
     // Optional second channel (docs, corporate contact). null when absent.
+    // Genuinely a second channel — `whatsapp` is the required primary contact;
+    // an email is nice-to-have, not an obligation of being an establishment.
     email: Schema.NullOr(Schema.String),
-    address: Schema.NullOr(Address),
-    // SPIKE (hours mode): how this unit's hours work, WhatsApp-Business style.
+    // REQUIRED (PRD Identidade § Contrato de tipagem, v2): a Unidade is a real,
+    // localizable, contactable establishment — every unit has a physical/
+    // operational address. Was `NullOr<Address>` under v1's auto-matriz (which
+    // birthed an address-less unit at signup); the v2 guided-first-unit flow
+    // collects the address up front, so the schema now forbids the null state.
+    address: Address,
+    // REQUIRED (PRD Identidade § Contrato de tipagem, v2): how this unit's hours
+    // work, WhatsApp-Business style. A unit with no hours mode can't operate an
+    // agenda or booking, so the establishment must declare one.
     //  - 'fixed'       → open during the per-day ranges (walk-in / retail).
     //  - 'always_open' → 24h on the enabled days (stored as 00:00–23:59).
     //  - 'appointment' → per-day ranges that double as the booking window; this
     //                    is the marker that the unit USES the online agenda.
-    // `undefined` = legacy unit (treated as 'fixed').
-    hoursMode: Schema.optional(UnitHoursMode),
-    businessHours: Schema.NullOr(BusinessHours),
+    hoursMode: UnitHoursMode,
+    // REQUIRED (PRD Identidade § Contrato de tipagem, v2): every establishment
+    // declares its operating hours — a unit with no hours can't operate the
+    // agenda nor a booking window. Was `NullOr<BusinessHours>` under v1.
+    businessHours: BusinessHours,
     // Uniform delete policy (brief 0027, AC-06). A referenced unit can't be
     // hard-deleted — it's archived instead (`archivedAt` set to an ISO
     // timestamp). Archived units drop out of active lists/pickers but stay

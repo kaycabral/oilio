@@ -73,4 +73,27 @@ describe('summarizeHours', () => {
       }),
     ).toEqual({ days: 'Sáb', time: '8h30–12h' })
   })
+
+  it('reads an all-day fixed range as "24h" (00:00–24:00, not always_open mode)', () => {
+    expect(
+      summarizeHours({
+        hoursMode: 'fixed',
+        businessHours: hours({ tuesday: { open: '00:00', close: '24:00' } }),
+      }),
+    ).toEqual({ days: 'Ter', time: '24h' })
+  })
+
+  it('omits the time when an open day has a multi-interval (split-shift) range', () => {
+    expect(
+      summarizeHours({
+        hoursMode: 'fixed',
+        businessHours: hours({
+          monday: [
+            { open: '09:00', close: '12:00' },
+            { open: '13:00', close: '18:00' },
+          ],
+        }),
+      }),
+    ).toEqual({ days: 'Seg', time: null })
+  })
 })

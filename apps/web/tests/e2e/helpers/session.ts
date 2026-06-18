@@ -133,6 +133,8 @@ function curlPut(url: string, body: unknown): FsDocument {
 
 import {
   defaultPermissionsForRole,
+  EMPTY_ADDRESS,
+  EMPTY_BUSINESS_HOURS,
   goalDocId,
   membershipDocId,
   type AgendaBlock,
@@ -291,8 +293,10 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
   const orgId = `e2e-org-${uniqueSuffix()}`
   const now = new Date().toISOString()
 
-  // A seeded unit with business hours also gets a real address — the two
-  // together are the "ready for public" shape the publish gate (#988) requires.
+  // Address/hours are required on every Unit (PRD Identidade v2). The
+  // `hasBusinessHours` flag now selects between OPEN hours + a real address
+  // (the "ready for public" publish-gate shape, #988) and the EMPTY (all-closed,
+  // blank-address) zero-value — still a valid Unit, just not publish-ready.
   const address: StoredUnit['address'] = hasBusinessHours
     ? {
         postalCode: '01310100',
@@ -303,7 +307,7 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
         number: '1000',
         complement: null,
       }
-    : null
+    : EMPTY_ADDRESS
 
   const businessHours: StoredUnit['businessHours'] = hasBusinessHours
     ? {
@@ -315,7 +319,7 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
         saturday: null,
         sunday: null,
       }
-    : null
+    : EMPTY_BUSINESS_HOURS
 
   // Org doc. Decoded as `StoredOrg` (omits `taxIdentity`, which lives in
   // the deletable PII doc) — so the fixture object must NOT carry it.
@@ -695,8 +699,10 @@ export function seedAdditionalOrg(
       orgId,
       name: `${name} Unidade ${i + 1}`,
       slug: `unidade-${i + 1}`,
-      address: null,
-      businessHours: null,
+      // Address/hours required on every Unit (PRD Identidade v2): extra seeded
+      // units use the EMPTY zero-value (valid Unit, not publish-ready).
+      address: EMPTY_ADDRESS,
+      businessHours: EMPTY_BUSINESS_HOURS,
       hoursMode: 'appointment',
       archivedAt: null,
       createdAt: now,
@@ -1434,8 +1440,10 @@ export function seedUnit(
     orgId,
     name: opts.name ?? 'Unidade Extra',
     slug,
-    address: null,
-    businessHours: null,
+    // Address/hours required on every Unit (PRD Identidade v2): the extra
+    // seeded unit uses the EMPTY zero-value (valid Unit, not publish-ready).
+    address: EMPTY_ADDRESS,
+    businessHours: EMPTY_BUSINESS_HOURS,
     hoursMode: 'appointment',
     archivedAt: opts.archivedAt ?? null,
     createdAt: now,

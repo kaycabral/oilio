@@ -1,4 +1,5 @@
 import type { HoursRange, Unit } from '@/domain'
+import { EMPTY_ADDRESS, EMPTY_BUSINESS_HOURS } from '@/domain'
 import type { updateAgendaSlotMinutes as updateAgendaSlotMinutesAction } from '@/features/agenda/adapters/agenda.actions'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -47,8 +48,9 @@ function buildUnit(id: string, name = `Unit ${id}`): Unit {
     slug: `unit-${id}`,
     whatsapp: '5511900000000',
     email: null,
-    address: null,
-    businessHours: null,
+    address: EMPTY_ADDRESS,
+    businessHours: EMPTY_BUSINESS_HOURS,
+    hoursMode: 'fixed',
     archivedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',

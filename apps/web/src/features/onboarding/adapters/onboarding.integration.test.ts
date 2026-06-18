@@ -3,11 +3,10 @@
 // emulator with `pnpm --filter @oilio/web db:start`, or run via
 // `pnpm test:integration` (boots it under `firebase emulators:exec`).
 //
-// What's asserted:
-//   - account-first signup atomically produces Org + matriz Unit + owner
-//     Membership; the unit lives at `orgs/{orgId}/units/{unitId}`;
-//   - `units_pii/{unitId}` carries the owner's WhatsApp (PII out of the event);
-//   - replay reconstructs both the Org and the matriz from events alone;
+// What's asserted (PRD Identidade v2 / brief 0046 — NO auto-matriz):
+//   - account-first signup atomically produces Org + owner Membership and NO
+//     unit (the "Negócio sem unidade" empty-state is intentional);
+//   - replay reconstructs the Org from events alone;
 //   - a forced failure at the membership step compensates — no partial state.
 //
 // `getSessionUser` (auth) and `next/navigation` redirect are mocked: the action
@@ -55,9 +54,8 @@ vi.mock('@/shared/effect-bridge', async (importOriginal) => {
   return { ...actual, emitEvent }
 })
 
-import type { StoredUnit } from '@/domain'
 import { membershipDocId } from '@/domain'
-import { OrgConfig, UnitConfig } from '@/domain/aggregates'
+import { OrgConfig } from '@/domain/aggregates'
 import { replayAggregate } from '@/domain/effect'
 import { getAdminFirestore } from '@/shared/db'
 import { FirestoreLayerLive } from '@/shared/db/effect'
@@ -133,7 +131,7 @@ afterEach(async () => {
 })
 
 describe('createOrg — account-first signup (F2 / brief 0046)', () => {
-  it('atomically creates the Org, the matriz Unit and the owner Membership', async () => {
+  it('atomically creates the Org and the owner Membership, with NO unit', async () => {
     const uid = 'owner-happy'
     await seedOwner(uid, '5511988887777', 'owner@example.com')
     currentSession = { uid, email: 'owner@example.com', emailVerified: true }
@@ -148,28 +146,11 @@ describe('createOrg — account-first signup (F2 / brief 0046)', () => {
     expect(orgDoc.exists).toBe(true)
     expect(orgDoc.data()?.['name']).toBe('Barbearia do João')
 
-    // Exactly one matriz unit exists under the org.
+    // NO auto-matriz: the Org is born with no unit — the intentional empty-state
+    // (PRD Identidade v2 / brief 0046 AC-02). The guided-first-unit flow creates
+    // the establishment later.
     const unitsSnap = await db.collection('orgs').doc(orgId).collection('units').get()
-    expect(unitsSnap.docs).toHaveLength(1)
-    const unitDoc = unitsSnap.docs[0]!
-    const unit = unitDoc.data()
-    expect(unit['name']).toBe('Barbearia do João')
-    expect(unit['orgId']).toBe(orgId)
-    expect(unit['address']).toBeNull()
-    expect(unit['businessHours']).toBeNull()
-    // PII (whatsapp) must NOT be on the unit projection.
-    expect(unit['whatsapp']).toBeUndefined()
-
-    // PII sidecar carries the owner's WhatsApp.
-    const piiDoc = await db
-      .collection('orgs')
-      .doc(orgId)
-      .collection('units_pii')
-      .doc(unitDoc.id)
-      .get()
-    expect(piiDoc.exists).toBe(true)
-    expect(piiDoc.data()?.['whatsapp']).toBe('5511988887777')
-    expect(piiDoc.data()?.['email']).toBe('owner@example.com')
+    expect(unitsSnap.docs).toHaveLength(0)
 
     // Owner Membership is org-scoped (unitId: null) and active.
     const membership = await db.collection('memberships').doc(membershipDocId(orgId, uid)).get()
@@ -182,30 +163,19 @@ describe('createOrg — account-first signup (F2 / brief 0046)', () => {
     expect(userDoc.data()?.['currentOrgId']).toBe(orgId)
   })
 
-  it('replay reconstructs both the Org and the matriz Unit from events', async () => {
+  it('replay reconstructs the Org from events', async () => {
     const uid = 'owner-replay'
     await seedOwner(uid, '5511977776666', 'replay@example.com')
     currentSession = { uid, email: 'replay@example.com', emailVerified: true }
 
     await expect(createOrg(orgForm('Estúdio Replay'))).rejects.toBe(REDIRECT)
     const orgId = await findOnlyOrgId(uid)
-    const unitsSnap = await db.collection('orgs').doc(orgId).collection('units').get()
-    const unitId = unitsSnap.docs[0]!.id
 
     const replayOrg = await Effect.runPromise(
       replayAggregate(OrgConfig, `orgs/${orgId}`).pipe(Effect.provide(FirestoreLayerLive)),
     )
     expect(replayOrg).not.toBeNull()
     expect(replayOrg?.['name']).toBe('Estúdio Replay')
-
-    const replayUnit = await Effect.runPromise(
-      replayAggregate(UnitConfig, `orgs/${orgId}/units/${unitId}`).pipe(
-        Effect.provide(FirestoreLayerLive),
-      ),
-    )
-    expect(replayUnit).not.toBeNull()
-    expect(replayUnit?.['name']).toBe('Estúdio Replay')
-    expect(replayUnit?.['orgId']).toBe(orgId)
   })
 
   it('compensates with no partial state when the membership step fails', async () => {
@@ -229,61 +199,5 @@ describe('createOrg — account-first signup (F2 / brief 0046)', () => {
 
     const userDoc = await db.collection('users').doc(uid).get()
     expect(userDoc.data()?.['currentOrgId']).toBeNull()
-  })
-
-  it('refuses when the owner profile has no WhatsApp (never writes empty PII)', async () => {
-    const uid = 'owner-no-wa'
-    // Incomplete owner: whatsapp null. The route gate normally prevents this,
-    // but the action defends itself rather than persisting an empty whatsapp.
-    const now = new Date().toISOString()
-    await db.collection('users').doc(uid).set({
-      uid,
-      email: 'nowa@example.com',
-      displayName: 'No WA',
-      avatarUrl: null,
-      emailVerified: true,
-      currentOrgId: null,
-      whatsapp: null,
-      birthDate: null,
-      taxIdentity: null,
-      bio: null,
-      specialties: null,
-      completionCompleted: false,
-      claimedAt: now,
-      anonymizedAt: null,
-      termsAcceptedAt: null,
-      termsVersion: null,
-      privacyAcceptedAt: null,
-      privacyVersion: null,
-      createdAt: now,
-      updatedAt: now,
-    })
-    currentSession = { uid, email: 'nowa@example.com', emailVerified: true }
-
-    const result = await createOrg(orgForm('Sem WhatsApp'))
-    expect(result).toEqual({
-      ok: false,
-      error: 'Complete seu perfil (WhatsApp) antes de criar a empresa.',
-    })
-
-    // Nothing persisted — org.created never fired (the guard runs before it).
-    const orgs = await db.collection('orgs').where('ownerUserId', '==', uid).get()
-    expect(orgs.empty).toBe(true)
-  })
-
-  // Type-only: documents that the matriz payload is a StoredUnit (PII omitted).
-  it('builds the matriz as a StoredUnit (no PII fields in the projection type)', () => {
-    const sample: StoredUnit = {
-      id: 'u',
-      orgId: 'o',
-      name: 'Matriz',
-      slug: 'matriz',
-      address: null,
-      businessHours: null,
-      archivedAt: null,
-      createdAt: 'now',
-      updatedAt: 'now',
-    }
-    expect(Object.keys(sample)).not.toContain('whatsapp')
   })
 })

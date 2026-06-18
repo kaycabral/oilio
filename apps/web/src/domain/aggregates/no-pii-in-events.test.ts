@@ -162,7 +162,15 @@ const ALLOWED_NAME_PATHS = new Set<string>([
 // templates de mensagem do org (config, não número de pessoa).
 const ALLOWED_NON_TITULAR_PII = new Set<string>([
   // Endereço público da unidade (estabelecimento), não residência de titular.
+  // Model v2 (PRD Identidade): a Unidade é estabelecimento real, localizável —
+  // o endereço é EXIBIDO na página pública de agendamento/localização da unidade
+  // (dado de NEGÓCIO público, não PII de pessoa física). `address` virou REQUIRED
+  // em `StoredUnit` e portanto no evento `unit.created`; o walk recursivo agora
+  // desce nos campos do objeto, então cada sub-campo precisa ser allowlistado
+  // explicitamente como dado de estabelecimento (não titular).
   'unit.address::address',
+  'unit.address.postalCode::postalcode',
+  'unit.address.street::street',
   // Templates de mensagem WhatsApp do org (config) — o NÚMERO vive em units_pii.
   'org.whatsappTemplates::whatsapp',
 ])

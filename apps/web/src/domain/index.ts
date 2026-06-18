@@ -118,6 +118,8 @@ export {
   Address,
   BusinessHours,
   DayHours,
+  EMPTY_ADDRESS,
+  EMPTY_BUSINESS_HOURS,
   HoursRange,
   RESERVED_UNIT_SLUGS,
   StoredUnit,
