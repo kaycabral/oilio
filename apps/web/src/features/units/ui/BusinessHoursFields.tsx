@@ -91,12 +91,16 @@ function initialState(bh: BusinessHours | null): Record<Weekday, DayState> {
 
 export function BusinessHoursFields({
   defaults,
-  defaultMode = 'fixed',
+  mode,
+  onModeChange,
 }: {
   defaults: BusinessHours | null
-  defaultMode?: UnitHoursMode
+  // Controlled by the parent UnitForm so it can reveal the appointment-only
+  // agenda configs below the hours when `appointment` is chosen (progressive
+  // disclosure, PRD Identidade v2 / C3).
+  mode: UnitHoursMode
+  onModeChange: (mode: UnitHoursMode) => void
 }) {
-  const [mode, setMode] = useState<UnitHoursMode>(defaultMode)
   const [state, setState] = useState<Record<Weekday, DayState>>(() => initialState(defaults))
 
   const activeHint = MODE_OPTIONS.find((m) => m.value === mode)?.hint ?? ''
@@ -211,7 +215,7 @@ export function BusinessHoursFields({
           name="hoursMode"
           value={mode}
           onValueChange={(v) => {
-            if (isUnitHoursMode(v)) setMode(v)
+            if (isUnitHoursMode(v)) onModeChange(v)
           }}
         >
           <SelectTrigger id="hoursMode" className="w-full">

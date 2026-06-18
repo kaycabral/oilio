@@ -56,3 +56,51 @@ describe('UnitForm — WhatsApp + email (#825)', () => {
     expect(screen.getByLabelText(/email/i)).toHaveValue('')
   })
 })
+
+describe('UnitForm — agenda config disclosure (appointment mode, PRD Identidade v2 / C3)', () => {
+  it('does NOT render the agenda configs in fixed mode', () => {
+    render(
+      <UnitForm
+        unit={buildUnit({ agenda: { mode: 'fixed', businessHours: EMPTY_BUSINESS_HOURS } })}
+      />,
+    )
+    expect(screen.queryByText(/configurações de agenda/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/granularidade dos horários/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/cancelamento pelo cliente/i)).not.toBeInTheDocument()
+  })
+
+  it('does NOT render the agenda configs in always_open mode', () => {
+    render(<UnitForm unit={buildUnit({ agenda: { mode: 'always_open' } })} />)
+    expect(screen.queryByText(/configurações de agenda/i)).not.toBeInTheDocument()
+  })
+
+  it('reveals the agenda configs (slot, cancellation, messages) in appointment mode', () => {
+    render(
+      <UnitForm
+        unit={buildUnit({
+          agenda: {
+            mode: 'appointment',
+            businessHours: EMPTY_BUSINESS_HOURS,
+            slotMinutes: 30,
+            cancellationPolicy: { enabled: true, minNoticeMinutes: 90 },
+            confirmationTemplates: {
+              confirmation: 'Confirmado!',
+              reminder: 'Lembrete!',
+              cancellation: 'Cancelado!',
+            },
+            selfBookingPublished: false,
+          },
+        })}
+      />,
+    )
+    expect(screen.getByText(/configurações de agenda/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/granularidade dos horários/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/cancelamento pelo cliente/i)).toBeInTheDocument()
+    // Cancellation is enabled, so the min-notice field is shown, prefilled.
+    expect(screen.getByLabelText(/antecedência mínima/i)).toHaveValue(90)
+    // The message templates are prefilled from the unit's confirmationTemplates.
+    expect(screen.getByLabelText(/confirmação/i)).toHaveValue('Confirmado!')
+    expect(screen.getByLabelText(/lembrete/i)).toHaveValue('Lembrete!')
+    expect(screen.getByLabelText(/^cancelamento$/i)).toHaveValue('Cancelado!')
+  })
+})

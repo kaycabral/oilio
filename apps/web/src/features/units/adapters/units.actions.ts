@@ -16,7 +16,11 @@ import {
   unitHasAddressAndHours,
   type UnitPublishReadiness,
 } from '@/features/units/core/publish-readiness'
-import { assembleAgenda, parseUnitForm } from '@/features/units/core/unit-form'
+import {
+  assembleAgenda,
+  parseAppointmentConfig,
+  parseUnitForm,
+} from '@/features/units/core/unit-form'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
@@ -106,7 +110,12 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     // Timezone is the establishment's (PRD Identidade v2 — moved Org→Unit):
     // inferred from the address state (BR UFs); the unit form has no tz picker.
     timezone: inferTimezoneFromAddress(parsed.address.state, parsed.address.city),
-    agenda: assembleAgenda(parsed.hoursMode, parsed.businessHours, null),
+    agenda: assembleAgenda(
+      parsed.hoursMode,
+      parsed.businessHours,
+      null,
+      parsed.hoursMode === 'appointment' ? parseAppointmentConfig(formData) : null,
+    ),
     archivedAt: null,
     // A new unit is born informal — no CNPJ until the owner formalizes it via
     // the Formalizar flow (`unit.formalized`, brief 0048).
@@ -124,12 +133,12 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     payload: { data: stored },
   })
   if (!created.ok) return { ok: false, error: created.error }
-  revalidatePath('/units')
+  revalidatePath('/negocios')
   // SPIKE (hours mode): the sidebar's "Agenda" visibility derives from unit
   // hoursMode (loaded in the shared (app) layout). Revalidate the layout too so
   // the nav reflects a mode change without a manual reload.
   revalidatePath('/', 'layout')
-  redirect('/units')
+  redirect('/negocios')
 }
 
 export async function updateUnit(unitId: string, formData: FormData): Promise<UnitMutationResult> {
@@ -175,17 +184,22 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
         slug,
         address: parsed.address,
         timezone: inferTimezoneFromAddress(parsed.address.state, parsed.address.city),
-        agenda: assembleAgenda(parsed.hoursMode, parsed.businessHours, existing.agenda),
+        agenda: assembleAgenda(
+          parsed.hoursMode,
+          parsed.businessHours,
+          existing.agenda,
+          parsed.hoursMode === 'appointment' ? parseAppointmentConfig(formData) : null,
+        ),
       },
     },
   })
   if (!updated.ok) return { ok: false, error: updated.error }
-  revalidatePath('/units')
+  revalidatePath('/negocios')
   // SPIKE (hours mode): the sidebar's "Agenda" visibility derives from unit
   // hoursMode (loaded in the shared (app) layout). Revalidate the layout too so
   // the nav reflects a mode change without a manual reload.
   revalidatePath('/', 'layout')
-  redirect('/units')
+  redirect('/negocios')
 }
 
 // Async availability probe for the Settings UI — returns OK if `slug` is
@@ -245,7 +259,7 @@ export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
   await getAdminFirestore().collection('orgs').doc(orgId).collection('units').doc(unitId).delete()
   // LGPD erasure — drop the PII doc alongside the projection.
   await deleteUnitPii(orgId, unitId)
-  revalidatePath('/units')
+  revalidatePath('/negocios')
   return { ok: true }
 }
 
@@ -263,7 +277,7 @@ export async function archiveUnit(unitId: string, archived = true): Promise<Unit
     payload: { archivedAt },
   })
   if (!res.ok) return { ok: false, error: res.error }
-  revalidatePath('/units')
+  revalidatePath('/negocios')
   return { ok: true }
 }
 
@@ -344,7 +358,7 @@ export async function publishUnitSelfBooking(unitId: string): Promise<UnitPublis
   })
   if (!published.ok) return { ok: false, error: published.error }
 
-  revalidatePath('/units')
+  revalidatePath('/negocios')
   return { ok: true }
 }
 
@@ -360,6 +374,6 @@ export async function unpublishUnitSelfBooking(unitId: string): Promise<UnitPubl
   })
   if (!unpublished.ok) return { ok: false, error: unpublished.error }
 
-  revalidatePath('/units')
+  revalidatePath('/negocios')
   return { ok: true }
 }

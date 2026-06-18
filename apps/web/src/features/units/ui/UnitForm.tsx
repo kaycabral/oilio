@@ -3,11 +3,13 @@
 import { AddressFields } from '@/components/address-fields'
 import { PhoneInput } from '@/components/PhoneInput'
 import {
+  appointmentAgenda,
   type BusinessHours,
   isValidUnitSlug,
   slugifyUnitName,
   type Unit,
   unitBusinessHours,
+  type UnitHoursMode,
 } from '@/domain'
 import {
   checkUnitSlugAvailability,
@@ -31,6 +33,7 @@ import {
 import { Check, Loader2, X } from 'lucide-react'
 import { useEffect, useState, useTransition } from 'react'
 import { BusinessHoursFields } from './BusinessHoursFields'
+import { UnitAgendaConfigFields } from './UnitAgendaConfigFields'
 
 type SlugState =
   | { kind: 'idle' }
@@ -58,6 +61,12 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
   const [slug, setSlug] = useState(unit?.slug ?? '')
   const [slugTouched, setSlugTouched] = useState(false)
   const [slugState, setSlugState] = useState<SlugState>({ kind: 'idle' })
+  // Mode is lifted here so the agenda configs (C3) can be revealed inline below
+  // the hours when `appointment` is chosen — progressive disclosure.
+  const [mode, setMode] = useState<UnitHoursMode>(unit?.agenda.mode ?? 'fixed')
+  // Existing appointment configs (edit mode) prefill the revealed fields; absent
+  // for a fresh create, where the fields fall back to sensible defaults.
+  const priorAppointment = unit ? appointmentAgenda(unit.agenda) : null
 
   // Auto-derive slug from name until the owner edits the slug field
   // themselves. Once touched, name changes stop overriding the slug —
@@ -189,8 +198,22 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
         <FieldSeparator />
         <BusinessHoursFields
           defaults={unit ? unitBusinessHours(unit.agenda) : (defaults?.businessHours ?? null)}
-          defaultMode={unit?.agenda.mode ?? 'fixed'}
+          mode={mode}
+          onModeChange={setMode}
         />
+        {/* Agenda configs (cancellation policy + messages + slot granularity)
+            appear ONLY in appointment mode — they exist solely in that agenda
+            variant per the schema (PRD Identidade v2 / C3). */}
+        {mode === 'appointment' ? (
+          <>
+            <FieldSeparator />
+            <UnitAgendaConfigFields
+              slotMinutes={priorAppointment?.slotMinutes}
+              cancellationPolicy={priorAppointment?.cancellationPolicy}
+              confirmationTemplates={priorAppointment?.confirmationTemplates}
+            />
+          </>
+        ) : null}
         {error ? <FieldError>{error}</FieldError> : null}
         <Field orientation="horizontal" className="justify-end">
           <Button type="submit" disabled={pending || !isValid || submitBlocked}>

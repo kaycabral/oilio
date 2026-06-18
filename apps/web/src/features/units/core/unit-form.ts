@@ -5,15 +5,19 @@
 import {
   type Address,
   type BusinessHours,
+  type CancellationPolicy,
+  type ConfirmationTemplates,
   type DayHours,
   DEFAULT_CANCELLATION_POLICY,
   DEFAULT_SLOT_MINUTES,
   type HoursRange,
+  isValidCancellationNoticeMinutes,
+  isValidSlotMinutes,
   isValidUnitSlug,
   normalizeBrazilPhone,
   resolveWhatsappTemplates,
+  type SlotMinutes,
   UNIT_HOURS_MODES,
-  type UnitAgendaAppointment,
   type UnitAgendaConfig,
   type UnitHoursMode,
   validateHoursRange,
@@ -22,18 +26,29 @@ import {
 } from '@/domain'
 import { formString } from '@/shared/form-data'
 
+// The appointment-only agenda configs the unit form now collects inline when
+// `mode = appointment` (PRD Identidade v2 / C3): cancellation policy, message
+// templates and slot granularity. Only present in the appointment variant — for
+// fixed/always_open the form never renders these fields, so they're absent.
+export type AppointmentConfigInput = {
+  slotMinutes: SlotMinutes
+  cancellationPolicy: CancellationPolicy
+  confirmationTemplates: ConfirmationTemplates
+}
+
 // Assemble the `Unit.agenda` discriminated union from the parsed form mode +
 // hours (PRD Identidade v2, context 3). The appointment-only configs
-// (slotMinutes, cancellationPolicy, confirmationTemplates, self-booking publish
-// state) exist ONLY in the appointment variant. On edit we PRESERVE the existing
-// appointment configs (the unit form doesn't expose them — they're edited via
-// the agenda settings), falling back to defaults when switching INTO appointment
-// mode for the first time. Pure (functional core); the adapter passes the prior
-// agenda loaded from storage.
+// (slotMinutes, cancellationPolicy, confirmationTemplates) are now collected
+// INLINE by the unit form when `mode = appointment` (progressive disclosure) and
+// passed here as `appointment`. The self-booking publish state is NOT a form
+// field — it's preserved from the prior appointment agenda (or false on first
+// entry). Pure (functional core); the adapter passes the prior agenda loaded
+// from storage.
 export function assembleAgenda(
   mode: UnitHoursMode,
   businessHours: BusinessHours,
   existing: UnitAgendaConfig | null,
+  appointment: AppointmentConfigInput | null,
 ): UnitAgendaConfig {
   switch (mode) {
     case 'always_open':
@@ -41,13 +56,21 @@ export function assembleAgenda(
     case 'fixed':
       return { mode: 'fixed', businessHours }
     case 'appointment': {
-      const prior: UnitAgendaAppointment | null = existing?.mode === 'appointment' ? existing : null
+      const prior = existing?.mode === 'appointment' ? existing : null
+      // The form supplies the agenda configs inline; fall back to prior/defaults
+      // only if a caller assembles without them (defensive).
+      const slotMinutes = appointment?.slotMinutes ?? prior?.slotMinutes ?? DEFAULT_SLOT_MINUTES
+      const cancellationPolicy = appointment?.cancellationPolicy ??
+        prior?.cancellationPolicy ?? { ...DEFAULT_CANCELLATION_POLICY }
+      const confirmationTemplates = resolveWhatsappTemplates(
+        appointment?.confirmationTemplates ?? prior?.confirmationTemplates,
+      )
       return {
         mode: 'appointment',
         businessHours,
-        slotMinutes: prior?.slotMinutes ?? DEFAULT_SLOT_MINUTES,
-        cancellationPolicy: prior?.cancellationPolicy ?? { ...DEFAULT_CANCELLATION_POLICY },
-        confirmationTemplates: resolveWhatsappTemplates(prior?.confirmationTemplates),
+        slotMinutes,
+        cancellationPolicy,
+        confirmationTemplates,
         selfBookingPublished: prior?.selfBookingPublished ?? false,
         ...(prior?.selfBookingPublishedAt != null
           ? { selfBookingPublishedAt: prior.selfBookingPublishedAt }
@@ -55,6 +78,31 @@ export function assembleAgenda(
       }
     }
   }
+}
+
+// Parse the appointment-only agenda configs from the form (PRD Identidade v2 /
+// C3). Only meaningful when `mode = appointment` — the caller skips it for the
+// other modes (the fields aren't rendered there). Invalid/absent values fall
+// back to defaults so the agenda is always well-formed.
+export function parseAppointmentConfig(formData: FormData): AppointmentConfigInput {
+  const slotRaw = Number.parseInt(formString(formData, 'slotMinutes'), 10)
+  const slotMinutes: SlotMinutes = isValidSlotMinutes(slotRaw) ? slotRaw : DEFAULT_SLOT_MINUTES
+
+  const cancellationEnabled = formData.get('cancellationEnabled') !== null
+  const noticeRaw = Number.parseInt(formString(formData, 'cancellationMinNotice'), 10)
+  const minNoticeMinutes = isValidCancellationNoticeMinutes(noticeRaw)
+    ? noticeRaw
+    : DEFAULT_CANCELLATION_POLICY.minNoticeMinutes
+  const cancellationPolicy: CancellationPolicy = { enabled: cancellationEnabled, minNoticeMinutes }
+
+  // Empty templates fall back to the canonical defaults via resolveWhatsappTemplates.
+  const confirmationTemplates = resolveWhatsappTemplates({
+    confirmation: formString(formData, 'templateConfirmation'),
+    reminder: formString(formData, 'templateReminder'),
+    cancellation: formString(formData, 'templateCancellation'),
+  })
+
+  return { slotMinutes, cancellationPolicy, confirmationTemplates }
 }
 
 export type ParsedUnit = {
