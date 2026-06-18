@@ -1,5 +1,7 @@
 import {
   CatalogItem,
+  DEFAULT_CANCELLATION_POLICY,
+  appointmentAgenda,
   catalogServiceToService,
   isCatalogService,
   isOperational,
@@ -136,7 +138,7 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
   const scope = await resolveScopeForSession(bundle.org.id)
 
   const fmt = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: bundle.org.timezone,
+    timeZone: bundle.unit.timezone,
     weekday: 'long',
     day: '2-digit',
     month: 'long',
@@ -199,7 +201,9 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
         serviceLabel={serviceLabel}
         professionalLabel={professional.name}
         startAtLabel={startAtLabel}
-        cancellationPolicy={bundle.org.cancellationPolicy}
+        cancellationPolicy={
+          appointmentAgenda(bundle.unit.agenda)?.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY
+        }
         changeSlotHref={changeSlotHref}
         prefill={prefill}
         unitWhatsapp={bundle.unit.whatsapp}

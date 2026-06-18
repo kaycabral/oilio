@@ -9,7 +9,7 @@
 // 3MB worldwide shapefile; BrasilAPI returns no TZ field. A 27-entry table
 // is smaller than any of those and never grows (Brazil has 26 states + DF).
 
-import { DEFAULT_ORG_TIMEZONE } from '../types/org'
+import { DEFAULT_UNIT_TIMEZONE } from '../types/unit'
 
 export const UF_TO_TZ: Readonly<Record<string, string>> = {
   AC: 'America/Rio_Branco',
@@ -79,7 +79,7 @@ export function inferTimezoneFromAddress(state: string, city: string): string {
   if (uf === 'AM' && WESTERN_AMAZONAS_CITIES.has(normalizedCity)) {
     return 'America/Eirunepe'
   }
-  return UF_TO_TZ[uf] ?? DEFAULT_ORG_TIMEZONE
+  return UF_TO_TZ[uf] ?? DEFAULT_UNIT_TIMEZONE
 }
 
 // Decides whether the org's timezone should be silently updated from a
@@ -91,7 +91,7 @@ export function resolveOrgTimezoneFromAddress(
   state: string,
   city: string,
 ): string | null {
-  if (currentTimezone !== DEFAULT_ORG_TIMEZONE) return null
+  if (currentTimezone !== DEFAULT_UNIT_TIMEZONE) return null
   const inferred = inferTimezoneFromAddress(state, city)
   if (inferred === currentTimezone) return null
   return inferred

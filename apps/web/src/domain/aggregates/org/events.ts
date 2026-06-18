@@ -15,29 +15,15 @@ export const OrgDeletedSchema = Schema.Struct({
   _tag: Schema.Literal('org.deleted'),
 })
 
-export const OrgSelfBookingPublishedSchema = Schema.Struct({
-  _tag: Schema.Literal('org.self_booking_published'),
-})
-
-export const OrgSelfBookingUnpublishedSchema = Schema.Struct({
-  _tag: Schema.Literal('org.self_booking_unpublished'),
-})
-
 // Formalization moved to the UNIT aggregate (PRD Identidade v2 / brief 0048):
 // the fiscal identity belongs to the establishment, not the Org folder. See
-// `unit.formalized` in the unit aggregate.
+// `unit.formalized` in the unit aggregate. Self-booking publish moved to the
+// UNIT aggregate too (PRD Identidade v2): the agenda/self-booking config is an
+// establishment concern — see `unit.self_booking_published`/`unpublished`.
 
-export const OrgEventSchema = Schema.Union(
-  OrgCreatedSchema,
-  OrgUpdatedSchema,
-  OrgDeletedSchema,
-  OrgSelfBookingPublishedSchema,
-  OrgSelfBookingUnpublishedSchema,
-)
+export const OrgEventSchema = Schema.Union(OrgCreatedSchema, OrgUpdatedSchema, OrgDeletedSchema)
 
 export type OrgCreated = typeof OrgCreatedSchema.Type
 export type OrgUpdated = typeof OrgUpdatedSchema.Type
 export type OrgDeleted = typeof OrgDeletedSchema.Type
-export type OrgSelfBookingPublished = typeof OrgSelfBookingPublishedSchema.Type
-export type OrgSelfBookingUnpublished = typeof OrgSelfBookingUnpublishedSchema.Type
 export type OrgEvent = typeof OrgEventSchema.Type

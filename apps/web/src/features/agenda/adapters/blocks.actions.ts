@@ -14,7 +14,7 @@ import { getAdminFirestore } from '@/shared/db'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
 import { requireManagerCtx } from '@/shared/org/membership'
-import { getOrg } from '@/shared/org/org'
+import { getUnitById } from '@/shared/org/unit-read'
 import { revalidatePath } from 'next/cache'
 
 // Agenda-block mutations, shared by the contexts that own the time being
@@ -94,9 +94,13 @@ function parseBlockForm(formData: FormData, orgTimezone: string): ParsedBlock | 
 export async function createBlock(formData: FormData): Promise<BlockMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  const org = await getOrg(r.ctx.membership.orgId)
-  if (!org) return { ok: false, error: 'Org não encontrado' }
-  const parsed = parseBlockForm(formData, org.timezone)
+  // The block's clock times are interpreted in the establishment's timezone
+  // (PRD Identidade v2 — tz moved Org→Unit). The block targets a `unitId` from
+  // the form; resolve it before parsing.
+  const unitId = formString(formData, 'unitId').trim()
+  const unit = unitId ? await getUnitById(r.ctx.membership.orgId, unitId) : null
+  if (!unit) return { ok: false, error: 'Unidade é obrigatória' }
+  const parsed = parseBlockForm(formData, unit.timezone)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const db = getAdminFirestore()
@@ -127,9 +131,10 @@ export async function updateBlock(
 ): Promise<BlockMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  const org = await getOrg(r.ctx.membership.orgId)
-  if (!org) return { ok: false, error: 'Org não encontrado' }
-  const parsed = parseBlockForm(formData, org.timezone)
+  const unitId = formString(formData, 'unitId').trim()
+  const unit = unitId ? await getUnitById(r.ctx.membership.orgId, unitId) : null
+  if (!unit) return { ok: false, error: 'Unidade é obrigatória' }
+  const parsed = parseBlockForm(formData, unit.timezone)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   // Event-first: a projeção da edição vem do `agenda_block.updated` (sem

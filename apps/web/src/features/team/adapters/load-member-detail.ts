@@ -13,7 +13,6 @@ import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { getActiveOrgContext, getUserDoc } from '@/shared/org/membership'
-import { getOrg } from '@/shared/org/org'
 import { getProfessionalByUserId } from '@/shared/org/professional-read'
 import { notFound, redirect } from 'next/navigation'
 import 'server-only'
@@ -58,7 +57,7 @@ async function loadProfessionalEditContext(
 ): Promise<ProfessionalEditData> {
   const db = getAdminFirestore()
   const orgRef = db.collection('orgs').doc(orgId)
-  const [professional, unitSnap, servicesSnap, org] = await Promise.all([
+  const [professional, unitSnap, servicesSnap] = await Promise.all([
     getProfessionalByUserId(orgId, userId),
     orgRef.collection('units').orderBy('name').withConverter(fsConverter(StoredUnit)).get(),
     orgRef
@@ -66,12 +65,13 @@ async function loadProfessionalEditContext(
       .orderBy('name')
       .withConverter(fsConverter(CatalogItem))
       .get(),
-    getOrg(orgId),
   ])
-  const orgTimezone = org?.timezone ?? EMPTY_PROFESSIONAL_EDIT.orgTimezone
-  if (!professional) return { ...EMPTY_PROFESSIONAL_EDIT, orgTimezone }
-
   const units = unitSnap.docs.map((d) => d.data())
+  // Timezone is the establishment's (PRD Identidade v2 — moved Org→Unit): the
+  // member-detail agenda uses the first unit's tz (org-scoped view; per-unit
+  // blocks render in that unit's tz).
+  const orgTimezone = units[0]?.timezone ?? EMPTY_PROFESSIONAL_EDIT.orgTimezone
+  if (!professional) return { ...EMPTY_PROFESSIONAL_EDIT, orgTimezone }
   // Unified catalog (brief 0023, #1004): kind service only, adapted to Service.
   const services = servicesSnap.docs
     .map((d) => d.data())

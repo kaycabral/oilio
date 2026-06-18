@@ -62,7 +62,7 @@ export async function loadUnitsPage(
     unitHasActiveReference(ctx.membership.orgId, id),
   )
   const byMode =
-    modeFilter === 'all' ? allUnits : allUnits.filter((u) => u.hoursMode === modeFilter)
+    modeFilter === 'all' ? allUnits : allUnits.filter((u) => u.agenda.mode === modeFilter)
   const units = filterBySearch(byMode, searchQuery, (u) => [u.name])
 
   const state = resolveListSurfaceState({

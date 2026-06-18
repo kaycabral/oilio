@@ -1,4 +1,10 @@
-import { type BusinessHours, type UnitHoursMode, type Weekday, dayHoursToRanges } from '@/domain'
+import {
+  type BusinessHours,
+  type UnitAgendaConfig,
+  type Weekday,
+  dayHoursToRanges,
+  unitBusinessHours,
+} from '@/domain'
 
 // Compact, human business-hours summary for the units list — covers every hours
 // mode: `always_open` → "24h"; fixed/appointment → the open days (+ a uniform
@@ -49,14 +55,10 @@ function isAllDay(r: { open: string; close: string }): boolean {
   return r.open === '00:00' && (r.close === '23:59' || r.close === '24:00' || r.close === '00:00')
 }
 
-function formatTime(
-  unit: { hoursMode?: UnitHoursMode; businessHours: BusinessHours },
-  open: Weekday[],
-): string | null {
-  if (unit.hoursMode === 'always_open') return '24h'
+function formatTime(businessHours: BusinessHours, open: Weekday[]): string | null {
   // Only show a time when every open day shares one identical range; otherwise
   // the days summary stands on its own (no misleading single range).
-  const ranges = open.map((d) => dayHoursToRanges(unit.businessHours[d]))
+  const ranges = open.map((d) => dayHoursToRanges(businessHours[d]))
   if (ranges.some((r) => r.length !== 1)) return null
   const first = ranges[0]?.[0]
   if (!first) return null
@@ -66,14 +68,16 @@ function formatTime(
 }
 
 // Returns the summary in two parts (days + optional time) so the UI can stack
-// them on separate lines; null when there are no usable hours.
+// them on separate lines; null when there are no usable hours. Takes the unit's
+// agenda union (PRD Identidade v2 — hours moved into `Unit.agenda`):
+// `always_open` → "24h"; fixed/appointment → the open days (+ uniform time).
 export function summarizeHours(unit: {
-  hoursMode?: UnitHoursMode
-  businessHours: BusinessHours | null
+  agenda: UnitAgendaConfig
 }): { days: string; time: string | null } | null {
-  const bh = unit.businessHours
+  if (unit.agenda.mode === 'always_open') return { days: 'Todos os dias', time: '24h' }
+  const bh = unitBusinessHours(unit.agenda)
   if (!bh) return null
   const open = ORDER.filter((d) => dayHoursToRanges(bh[d]).length > 0)
   if (open.length === 0) return null
-  return { days: formatDays(open), time: formatTime({ ...unit, businessHours: bh }, open) }
+  return { days: formatDays(open), time: formatTime(bh, open) }
 }

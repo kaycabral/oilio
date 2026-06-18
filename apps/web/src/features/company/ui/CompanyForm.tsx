@@ -1,19 +1,10 @@
 'use client'
 
-import {
-  DEFAULT_CANCELLATION_POLICY,
-  MAX_CANCELLATION_NOTICE_MINUTES,
-  MIN_CANCELLATION_NOTICE_MINUTES,
-  ORG_DESCRIPTION_MAX,
-  VERTICALS,
-  type Org,
-  type Vertical,
-} from '@/domain'
+import { ORG_DESCRIPTION_MAX, VERTICALS, type Org, type Vertical } from '@/domain'
 import { updateCompany } from '@/features/company/adapters/company.actions'
 import { useFormValidity } from '@/hooks/use-form-validity'
 import {
   Button,
-  Checkbox,
   Input,
   Label,
   Select,
@@ -36,10 +27,6 @@ const VERTICAL_LABELS: Record<Vertical, string> = {
 export function CompanyForm({ org, canManage }: { org: Org; canManage: boolean }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [cancellationEnabled, setCancellationEnabled] = useState(org.cancellationPolicy.enabled)
-  const [cancellationMinNotice, setCancellationMinNotice] = useState<number>(
-    org.cancellationPolicy.minNoticeMinutes || DEFAULT_CANCELLATION_POLICY.minNoticeMinutes,
-  )
   const { formRef, isValid, refresh } = useFormValidity()
 
   function onSubmit(formData: FormData) {
@@ -152,78 +139,9 @@ export function CompanyForm({ org, canManage }: { org: Org; canManage: boolean }
           </div>
         </fieldset>
 
-        <fieldset className="border-border rounded-md border p-4">
-          <legend className="px-1 text-sm font-medium">Políticas</legend>
-          <p className="text-muted-foreground pt-2 pb-3 text-xs">
-            Política de cancelamento aplicada ao auto-serviço do cliente. Quando ativa, a página
-            pública de agendamento mostra a antecedência sugerida. Cancelar continua sempre
-            disponível — a política comunica a expectativa, sem bloquear.
-          </p>
-          <div className="flex items-center gap-2 pb-3 text-sm">
-            <Checkbox
-              id="company-cancellationPolicyEnabled"
-              name="cancellationPolicyEnabled"
-              value="on"
-              checked={cancellationEnabled}
-              onCheckedChange={(checked) => setCancellationEnabled(checked === true)}
-            />
-            <Label htmlFor="company-cancellationPolicyEnabled" className="font-normal">
-              Ativar política de cancelamento
-            </Label>
-          </div>
-          {cancellationEnabled ? (
-            <div className="flex flex-col gap-1">
-              <Label
-                htmlFor="company-cancellationPolicyMinNoticeMinutes"
-                className="text-sm font-medium"
-              >
-                Antecedência mínima sugerida
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="company-cancellationPolicyMinNoticeMinutes"
-                  name="cancellationPolicyMinNoticeMinutes"
-                  type="number"
-                  inputMode="numeric"
-                  min={MIN_CANCELLATION_NOTICE_MINUTES}
-                  max={MAX_CANCELLATION_NOTICE_MINUTES}
-                  step={1}
-                  required
-                  value={cancellationMinNotice}
-                  onChange={(e) => setCancellationMinNotice(Number(e.target.value))}
-                  className="max-w-[6rem]"
-                />
-                <span className="text-muted-foreground text-sm">minutos</span>
-              </div>
-              <span className="text-muted-foreground text-xs">
-                Comunicada ao cliente na confirmação pré-reserva. Default 120 minutos (2h).
-              </span>
-            </div>
-          ) : (
-            // Preserve the last entered value across disable/re-enable so the
-            // org doesn't have to retype after toggling off.
-            <input
-              type="hidden"
-              name="cancellationPolicyMinNoticeMinutes"
-              value={cancellationMinNotice}
-            />
-          )}
-        </fieldset>
-
-        <fieldset className="border-border rounded-md border p-4">
-          <legend className="px-1 text-sm font-medium">Mensagem de confirmação (WhatsApp)</legend>
-          <p className="text-muted-foreground pt-2 pb-3 text-xs">
-            Template usado ao clicar em "Enviar confirmação" depois de criar/reagendar. Variáveis
-            disponíveis: <code>{'{customerName}'}</code>, <code>{'{businessName}'}</code>,{' '}
-            <code>{'{serviceName}'}</code>, <code>{'{professionalName}'}</code>,{' '}
-            <code>{'{date}'}</code>, <code>{'{time}'}</code>. Deixe em branco para usar o padrão.
-          </p>
-          <Textarea
-            name="whatsappConfirmation"
-            defaultValue={org.whatsappTemplates.confirmation}
-            rows={4}
-          />
-        </fieldset>
+        {/* Cancellation policy + confirmation message moved to the per-unit
+            agenda settings (PRD Identidade v2 — appointment-agenda concerns of
+            the Unit, not the Org folder). */}
 
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
 

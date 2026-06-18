@@ -6,16 +6,56 @@ import {
   type Address,
   type BusinessHours,
   type DayHours,
+  DEFAULT_CANCELLATION_POLICY,
+  DEFAULT_SLOT_MINUTES,
   type HoursRange,
-  UNIT_HOURS_MODES,
-  type UnitHoursMode,
-  WEEKDAYS,
-  type Weekday,
   isValidUnitSlug,
   normalizeBrazilPhone,
+  resolveWhatsappTemplates,
+  UNIT_HOURS_MODES,
+  type UnitAgendaAppointment,
+  type UnitAgendaConfig,
+  type UnitHoursMode,
   validateHoursRange,
+  type Weekday,
+  WEEKDAYS,
 } from '@/domain'
 import { formString } from '@/shared/form-data'
+
+// Assemble the `Unit.agenda` discriminated union from the parsed form mode +
+// hours (PRD Identidade v2, context 3). The appointment-only configs
+// (slotMinutes, cancellationPolicy, confirmationTemplates, self-booking publish
+// state) exist ONLY in the appointment variant. On edit we PRESERVE the existing
+// appointment configs (the unit form doesn't expose them — they're edited via
+// the agenda settings), falling back to defaults when switching INTO appointment
+// mode for the first time. Pure (functional core); the adapter passes the prior
+// agenda loaded from storage.
+export function assembleAgenda(
+  mode: UnitHoursMode,
+  businessHours: BusinessHours,
+  existing: UnitAgendaConfig | null,
+): UnitAgendaConfig {
+  switch (mode) {
+    case 'always_open':
+      return { mode: 'always_open' }
+    case 'fixed':
+      return { mode: 'fixed', businessHours }
+    case 'appointment': {
+      const prior: UnitAgendaAppointment | null = existing?.mode === 'appointment' ? existing : null
+      return {
+        mode: 'appointment',
+        businessHours,
+        slotMinutes: prior?.slotMinutes ?? DEFAULT_SLOT_MINUTES,
+        cancellationPolicy: prior?.cancellationPolicy ?? { ...DEFAULT_CANCELLATION_POLICY },
+        confirmationTemplates: resolveWhatsappTemplates(prior?.confirmationTemplates),
+        selfBookingPublished: prior?.selfBookingPublished ?? false,
+        ...(prior?.selfBookingPublishedAt != null
+          ? { selfBookingPublishedAt: prior.selfBookingPublishedAt }
+          : {}),
+      }
+    }
+  }
+}
 
 export type ParsedUnit = {
   name: string
@@ -23,11 +63,16 @@ export type ParsedUnit = {
   whatsapp: string
   email: string | null
   address: Address
-  // REQUIRED (PRD Identidade v2 § Contrato de tipagem): every unit declares its
-  // operating hours — `parseUnitForm` rejects an empty hours config rather than
-  // ever producing a unit without `businessHours`.
-  businessHours: BusinessHours
+  // REQUIRED (PRD Identidade v2 § Contrato de tipagem): the establishment's
+  // timezone (moved Org→Unit). The unit form doesn't expose a tz picker yet —
+  // it derives from the address state (BR UFs) at the action, defaulting to
+  // `DEFAULT_UNIT_TIMEZONE`. `parseUnitForm` returns the raw inputs; the action
+  // assembles `Unit.agenda` (the discriminated union) and timezone.
   hoursMode: UnitHoursMode
+  // The base hours (per-day ranges). For `always_open` the action drops this
+  // (that variant carries no businessHours). `parseUnitForm` rejects an empty
+  // hours config rather than ever producing a unit without operating hours.
+  businessHours: BusinessHours
 }
 
 const WEEKDAY_LABEL_PT: Record<Weekday, string> = {

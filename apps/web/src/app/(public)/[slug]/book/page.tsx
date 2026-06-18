@@ -1,4 +1,4 @@
-import { StoredUnit, isOperational } from '@/domain'
+import { DEFAULT_CANCELLATION_POLICY, StoredUnit, appointmentAgenda, isOperational } from '@/domain'
 import { getPublicOrgBundle } from '@/features/self-book/adapters/public-org'
 import { BookingForm } from '@/features/self-book/ui/BookingForm'
 import { getAdminFirestore } from '@/shared/db'
@@ -38,6 +38,12 @@ export default async function PublicBookingPage({ params }: PageProps) {
 
   const units = unitsSnap.docs.map((d) => d.data())
   const unitNameById = new Map(units.map((u) => [u.id, u.name]))
+  // Cancellation policy is the establishment's now (PRD Identidade v2 — moved
+  // Org→Unit). This legacy org-wide page shows the first appointment unit's
+  // policy as representative; the snapshot at commit uses the booked unit's.
+  const cancellationPolicy =
+    units.map((u) => appointmentAgenda(u.agenda)?.cancellationPolicy).find((p) => p != null) ??
+    DEFAULT_CANCELLATION_POLICY
   const professionals = allProfessionals
     .filter((p) => p.unitIds.length > 0)
     .filter((p) => isOperational(p.operationalStatus))
@@ -64,7 +70,7 @@ export default async function PublicBookingPage({ params }: PageProps) {
           priceCents: s.priceCents,
         }))}
         professionals={professionals}
-        cancellationPolicy={org.cancellationPolicy}
+        cancellationPolicy={cancellationPolicy}
       />
     </main>
   )

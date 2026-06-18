@@ -1,45 +1,16 @@
-import { DEFAULT_CANCELLATION_POLICY, MAX_CANCELLATION_NOTICE_MINUTES } from '@/domain'
 import { describe, expect, it } from 'vitest'
-import { parseBranding, parseCancellationPolicy, parseWhatsappTemplates } from './company-form'
+import { parseBranding } from './company-form'
 
+// Cancellation-policy + confirmation-template parsing moved out of the Org form
+// (PRD Identidade v2, context 3 — appointment-agenda concerns of the Unit). The
+// Org form now only edits the folder fields (name/slug/vertical/branding), so
+// this file covers branding only; the agenda configs are assembled in
+// `units.actions` (assembleAgenda) with defaults.
 function fd(entries: Record<string, string>): FormData {
   const form = new FormData()
   for (const [k, v] of Object.entries(entries)) form.append(k, v)
   return form
 }
-
-describe('parseCancellationPolicy', () => {
-  it('returns empty update when the minutes field is absent', () => {
-    expect(parseCancellationPolicy(new FormData())).toEqual({})
-  })
-
-  it('parses an enabled policy with valid minutes', () => {
-    const result = parseCancellationPolicy(
-      fd({ cancellationPolicyMinNoticeMinutes: '120', cancellationPolicyEnabled: 'on' }),
-    )
-    expect(result).toEqual({ cancellationPolicy: { enabled: true, minNoticeMinutes: 120 } })
-  })
-
-  it('rejects enabled policy with out-of-range minutes', () => {
-    const result = parseCancellationPolicy(
-      fd({
-        cancellationPolicyMinNoticeMinutes: String(MAX_CANCELLATION_NOTICE_MINUTES + 1),
-        cancellationPolicyEnabled: 'on',
-      }),
-    )
-    expect(typeof result).toBe('string')
-  })
-
-  it('disabled toggle keeps the value but ignores invalidity, falling back to default', () => {
-    const result = parseCancellationPolicy(fd({ cancellationPolicyMinNoticeMinutes: 'abc' }))
-    expect(result).toEqual({
-      cancellationPolicy: {
-        enabled: false,
-        minNoticeMinutes: DEFAULT_CANCELLATION_POLICY.minNoticeMinutes,
-      },
-    })
-  })
-})
 
 describe('parseBranding', () => {
   it('returns empty update when no branding field is present', () => {
@@ -83,16 +54,5 @@ describe('parseBranding', () => {
   it('rejects an over-long description', () => {
     const result = parseBranding(fd({ brandingDescription: 'x'.repeat(5000) }))
     expect(typeof result).toBe('string')
-  })
-})
-
-describe('parseWhatsappTemplates', () => {
-  it('returns empty update when the field is absent', () => {
-    expect(parseWhatsappTemplates(new FormData())).toEqual({})
-  })
-
-  it('resolves templates when the field is present', () => {
-    const result = parseWhatsappTemplates(fd({ whatsappConfirmation: 'Olá {{name}}' }))
-    expect(result).toHaveProperty('whatsappTemplates')
   })
 })

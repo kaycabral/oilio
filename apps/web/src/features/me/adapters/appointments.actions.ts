@@ -15,13 +15,41 @@ import { emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { Schema } from 'effect'
 
-// Only `cancellationPolicy` is read off the org doc here; a small local
-// projection keeps the converter narrow (excess fields are ignored).
-const OrgCancellationPolicyProjection = Schema.Struct({
-  cancellationPolicy: Schema.optional(Schema.Unknown),
+// The live cancellation policy lives on the UNIT's appointment agenda now (PRD
+// Identidade v2 — moved Org→Unit). A small local projection keeps the converter
+// narrow (excess fields ignored) — read only the agenda off the unit doc.
+const UnitAgendaProjection = Schema.Struct({
+  agenda: Schema.optional(Schema.Unknown),
 })
 
 export type SelfCancelResult = { ok: true } | { ok: false; error: string }
+
+// Read the live cancellation policy from a unit's appointment agenda (raw doc
+// projection). Returns `undefined` for a missing unit or a non-appointment
+// agenda (no policy exists there); `normalizeCancellationPolicy` then yields the
+// default. Used only as the legacy fallback when the appointment has no
+// commit-time snapshot.
+async function readLiveUnitCancellationPolicy(
+  orgRef: FirebaseFirestore.DocumentReference,
+  unitId: string,
+): Promise<unknown> {
+  const snap = await orgRef
+    .collection('units')
+    .withConverter(fsConverter(UnitAgendaProjection))
+    .doc(unitId)
+    .get()
+  const agenda = snap.data()?.agenda
+  if (
+    typeof agenda === 'object' &&
+    agenda !== null &&
+    'mode' in agenda &&
+    agenda.mode === 'appointment' &&
+    'cancellationPolicy' in agenda
+  ) {
+    return agenda.cancellationPolicy
+  }
+  return undefined
+}
 
 // #845 — Customer self-cancel from `/me/appointments`.
 //
@@ -46,17 +74,11 @@ export async function cancelOwnAppointment(input: {
   if (!session) return { ok: false, error: 'Sessão expirada — entre de novo.' }
 
   const db = getAdminFirestore()
-  const orgRef = db
-    .collection('orgs')
-    .withConverter(fsConverter(OrgCancellationPolicyProjection))
-    .doc(input.orgId)
+  const orgRef = db.collection('orgs').doc(input.orgId)
   const apptRef = orgRef
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
     .doc(input.appointmentId)
-  const orgSnap = await orgRef.get()
-  if (!orgSnap.exists) return { ok: false, error: 'Estabelecimento não encontrado.' }
-  const livePolicy = normalizeCancellationPolicy(orgSnap.data()?.cancellationPolicy)
 
   const apptSnap = await apptRef.get()
   const appointment = apptSnap.data()
@@ -67,11 +89,12 @@ export async function cancelOwnAppointment(input: {
   }
 
   // Snapshot-on-use (#1038): a elegibilidade lê a policy congelada no commit,
-  // não a viva — mudar a policy do org não retroage. Fallback pra policy
-  // viva em agendamentos legados (pré-migração) sem snapshot.
+  // não a viva — mudar a policy não retroage. Fallback pra policy viva da
+  // agenda da unidade (modo appointment) em agendamentos legados sem snapshot.
+  // A policy é da Unidade agora (PRD Identidade v2 — movida Org→Unit).
   const policy = appointment.cancellationPolicySnapshot
     ? normalizeCancellationPolicy(appointment.cancellationPolicySnapshot)
-    : livePolicy
+    : normalizeCancellationPolicy(await readLiveUnitCancellationPolicy(orgRef, appointment.unitId))
 
   const check = canCustomerCancelAppointment(appointment, policy)
   if (!check.ok) {

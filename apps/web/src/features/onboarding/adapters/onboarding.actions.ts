@@ -3,11 +3,7 @@
 import {
   type Membership,
   type Role,
-  DEFAULT_CANCELLATION_POLICY,
   DEFAULT_ORG_BRANDING,
-  DEFAULT_ORG_TIMEZONE,
-  DEFAULT_WHATSAPP_TEMPLATES,
-  VERTICAL_DEFAULTS,
   defaultPermissionsForRole,
   membershipDocId,
   slugify,
@@ -40,26 +36,19 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
   const orgId = orgRef.id
   const now = new Date().toISOString()
 
-  // PII (taxIdentity = owner CPF/CNPJ) never enters the event payload (LGPD).
-  // It's null at onboarding anyway; the owner fills it later via the company
-  // form, which writes the deletable `orgs/{id}/private/taxIdentity` doc.
-  // The projection stores only operational fields. #1036.
+  // The Org is a pure folder/shell (PRD Identidade v2): name, slug, segment
+  // (vertical), branding, ownerUserId, timestamps. NO fiscal identity (the CNPJ
+  // is the establishment's — `Unit.fiscal`) and NO agenda/self-booking config
+  // (timezone, slot, cancellation, confirmation messages, self-booking publish
+  // moved to `Unit.agenda`). Those are set per-unit when the first unit is
+  // created. The projection stores only these fields.
   const org = {
     id: orgId,
     name,
     slug,
     vertical,
     ownerUserId: session.uid,
-    selfBookingPublished: false,
-    selfBookingPublishedAt: null,
-    // A new Org is born informal — it operates without a CNPJ (brief 0048 /
-    // PRD Identidade). Formalization is a later upgrade via the Formalizar flow.
-    fiscalProfile: { stage: 'informal' as const },
-    timezone: DEFAULT_ORG_TIMEZONE,
-    slotMinutes: VERTICAL_DEFAULTS[vertical].defaultSlotMinutes,
     branding: { ...DEFAULT_ORG_BRANDING },
-    cancellationPolicy: { ...DEFAULT_CANCELLATION_POLICY },
-    whatsappTemplates: { ...DEFAULT_WHATSAPP_TEMPLATES },
     createdAt: now,
     updatedAt: now,
   }

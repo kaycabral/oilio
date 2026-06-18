@@ -7,7 +7,6 @@ import {
   isOperational,
   isReservedSlug,
   isReservedUnitSlug,
-  isUnitBookable,
   isValidSlug,
   isValidUnitSlug,
   type Org,
@@ -19,6 +18,7 @@ import {
   toPublicCatalogItem,
   toPublicService,
   type Unit,
+  unitSelfBookingPublished,
 } from '@/domain'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
@@ -110,7 +110,11 @@ export async function getPublicOrgBundle(slug: string): Promise<PublicOrgBundle 
 
   const org = await getOrgBySlug(slug)
   if (!org) return null
-  if (!org.selfBookingPublished) return null
+  // Self-booking publication is per-unit now (PRD Identidade v2 — moved
+  // Org→Unit): the org-wide legacy bundle is live iff ≥1 unit is published in
+  // its appointment agenda.
+  const units = await loadOrgUnits(org.id)
+  if (!units.some((u) => unitSelfBookingPublished(u.agenda))) return null
 
   const services = await loadPublicServices(org.id)
   return { org, services }
@@ -125,10 +129,11 @@ export async function getPublicOrgSummary(slug: string): Promise<PublicOrgSummar
   const org = await getOrgBySlug(slug)
   if (!org) return null
 
-  // SPIKE (inferred availability): the org is "live" iff ≥1 unit is bookable
-  // (appointment mode + hours). The landing lists only bookable units; none →
-  // 404 (the derived org-level "is anything live", computed not stored).
-  const units = (await loadOrgUnits(org.id)).filter((u) => isUnitBookable(u))
+  // The landing lists only PUBLISHED units (PRD Identidade v2 — self-booking
+  // publish is a per-unit appointment-agenda concern). A published unit is
+  // necessarily in appointment mode (the flag exists only there); none → 404
+  // (the derived org-level "is anything live", computed not stored).
+  const units = (await loadOrgUnits(org.id)).filter((u) => unitSelfBookingPublished(u.agenda))
   if (units.length === 0) return null
   return { org, units }
 }
@@ -164,9 +169,10 @@ export async function getPublicUnitBundle(
 
   const unit = units.find((u) => u.slug === unitSlug)
   if (!unit) return null
-  // SPIKE (inferred availability): a non-bookable unit's page is offline even
-  // if siblings are live.
-  if (!isUnitBookable(unit)) return null
+  // A unit's public page is offline unless its appointment agenda is published
+  // (PRD Identidade v2 — per-unit self-booking publish), even if siblings are
+  // live.
+  if (!unitSelfBookingPublished(unit.agenda)) return null
 
   let unitServices = services.filter((s) => Array.isArray(s.unitIds) && s.unitIds.includes(unit.id))
   // Both kinds offered in this unit (AC-08): services + products with

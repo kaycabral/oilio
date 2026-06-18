@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 
-import { CancellationPolicy } from './org'
 import { CommissionRule } from './professional'
+import { CancellationPolicy } from './unit'
 
 export const APPOINTMENT_STATUSES = ['scheduled', 'completed', 'cancelled', 'no_show'] as const
 export const AppointmentStatus = Schema.Literal(...APPOINTMENT_STATUSES)

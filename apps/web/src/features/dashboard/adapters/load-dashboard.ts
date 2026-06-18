@@ -1,4 +1,4 @@
-import { DEFAULT_ORG_TIMEZONE, StoredCustomer, StoredUnit } from '@/domain'
+import { DEFAULT_UNIT_TIMEZONE, StoredCustomer, StoredUnit } from '@/domain'
 import { loadDashboardKpis } from '@/features/dashboard/adapters/kpis.repo'
 import { loadDashboardPendencies } from '@/features/dashboard/adapters/pendencies.repo'
 import { loadDashboardTrend } from '@/features/dashboard/adapters/trend.repo'
@@ -13,7 +13,6 @@ import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { enrichCustomers } from '@/shared/org/customer-read'
 import { getActiveOrgContext } from '@/shared/org/membership'
-import { getOrg } from '@/shared/org/org'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -44,10 +43,11 @@ export async function loadDashboardPage(params: SearchParams): Promise<Dashboard
 
   const orgId = ctx.membership.orgId
   const orgRef = getAdminFirestore().collection('orgs').doc(orgId)
-  const [org, unitsSnap] = await Promise.all([
-    getOrg(orgId),
-    orgRef.collection('units').withConverter(fsConverter(StoredUnit)).orderBy('name').get(),
-  ])
+  const unitsSnap = await orgRef
+    .collection('units')
+    .withConverter(fsConverter(StoredUnit))
+    .orderBy('name')
+    .get()
 
   const units = unitsSnap.docs.map((d) => d.data())
   // Every surface reads only the active unit from the shared context (brief
@@ -55,18 +55,24 @@ export async function loadDashboardPage(params: SearchParams): Promise<Dashboard
   // switcher is the single source of unit context; `activeUnitId` is null only
   // for a org with no units yet (operational data is empty in that case).
   const { activeUnitId } = await resolveActiveUnit(ctx.membership)
+  // Timezone is the establishment's (PRD Identidade v2 — moved Org→Unit): use
+  // the active unit's tz; fall back to the first unit / default for an org with
+  // no unit yet.
+  const orgTz =
+    (activeUnitId ? units.find((u) => u.id === activeUnitId)?.timezone : undefined) ??
+    units[0]?.timezone ??
+    DEFAULT_UNIT_TIMEZONE
   const filters = resolveDashboardFilters(
     {
       period: pickFirst(params.period),
       from: pickFirst(params.from),
       to: pickFirst(params.to),
     },
-    org?.timezone ?? DEFAULT_ORG_TIMEZONE,
+    orgTz,
   )
   // KPIs/trend always scope to the active unit.
   const scopedFilters = { ...filters, unitId: activeUnitId }
 
-  const orgTz = org?.timezone ?? DEFAULT_ORG_TIMEZONE
   // Pendências are operational — always scoped to the active unit.
   const pendenciesUnitId = activeUnitId
   const [kpis, trendPoints, pendencies] = await Promise.all([

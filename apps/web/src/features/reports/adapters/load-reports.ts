@@ -1,4 +1,4 @@
-import { type LiquidationStatus, DEFAULT_ORG_TIMEZONE } from '@/domain'
+import { type LiquidationStatus, DEFAULT_UNIT_TIMEZONE } from '@/domain'
 import { type CashReportRange, resolveCashReportRange } from '@/features/cash/core/range'
 import { loadCommissionsSectionData } from '@/features/reports/adapters/commissions.repo'
 import { type SalesSectionData, loadSalesSectionData } from '@/features/reports/adapters/sales.repo'
@@ -7,7 +7,6 @@ import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { getActiveOrgContext } from '@/shared/org/membership'
-import { getOrg } from '@/shared/org/org'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -46,12 +45,15 @@ export async function loadReportsPage(params: SearchParams): Promise<ReportsPage
 
   // Escopo de unidade (brief 0044): as duas seções leem só a unidade ativa do
   // contexto. `activeUnitId` é null só pra org sem unidade (dados vazios).
-  const { activeUnitId } = await resolveActiveUnit(ctx.membership)
+  const { activeUnitId, units } = await resolveActiveUnit(ctx.membership)
 
   // Janela compartilhada pelas duas seções, por dia de calendário no fuso do
-  // org (ADR 0009 / brief 0015 AC-05).
-  const org = await getOrg(ctx.membership.orgId)
-  const tz = org?.timezone ?? DEFAULT_ORG_TIMEZONE
+  // estabelecimento (PRD Identidade v2 — tz movida Org→Unit): usa a unidade
+  // ativa; cai na primeira unidade / default pra org sem unidade.
+  const tz =
+    (activeUnitId ? units.find((u) => u.id === activeUnitId)?.timezone : undefined) ??
+    units[0]?.timezone ??
+    DEFAULT_UNIT_TIMEZONE
   const range = resolveCashReportRange(
     { period: pickFirst(params.period), from: pickFirst(params.from), to: pickFirst(params.to) },
     tz,

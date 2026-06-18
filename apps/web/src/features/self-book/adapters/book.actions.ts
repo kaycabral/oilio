@@ -20,6 +20,7 @@ import { fsConverter } from '@/shared/db/converter'
 import { formString } from '@/shared/form-data'
 import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
 import { getOrgBySlug } from '@/shared/org/org'
+import { getUnitById } from '@/shared/org/unit-read'
 
 export type PublicBookingResult =
   | { ok: true; bookingId: string; orgId: string }
@@ -73,9 +74,7 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
   }
 
   const org = await getOrgBySlug(slug)
-  if (!org || !org.selfBookingPublished) {
-    return { ok: false, error: 'Estabelecimento indisponível.' }
-  }
+  if (!org) return { ok: false, error: 'Estabelecimento indisponível.' }
 
   const serviceId = formString(formData, 'serviceId').trim()
   const professionalId = formString(formData, 'professionalId').trim()
@@ -92,26 +91,34 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
   const whatsapp = normalizeBrazilPhone(customerWhatsappRaw)
   if (!whatsapp) return { ok: false, error: 'Número de WhatsApp inválido.' }
 
-  // Parse datetime-local como hora-local-do-org. O <input type="datetime-local">
-  // envia "yyyy-MM-ddTHH:mm" sem timezone — interpretar como UTC seria errado;
-  // tratamos esses dígitos como horário do org e convertemos pra UTC.
-  // Usamos Intl.DateTimeFormat para resolver o offset do dia escolhido (DST).
-  let startAtUtc: Date
-  try {
-    startAtUtc = parseOrgLocalAsUtc(startAtLocal, org.timezone)
-  } catch {
-    return { ok: false, error: 'Data/horário inválidos.' }
-  }
-  if (startAtUtc.getTime() <= Date.now()) {
-    return { ok: false, error: 'Escolha um horário no futuro.' }
-  }
-
   const db = getAdminFirestore()
   const orgRef = db.collection('orgs').doc(org.id)
 
   const entities = await resolvePublicBookingEntities(orgRef, serviceId, professionalId)
   if (typeof entities === 'string') return { ok: false, error: entities }
   const { service, unitId } = entities
+
+  // Timezone, the publish gate, and the cancellation policy are the
+  // establishment's now (PRD Identidade v2 — moved Org→Unit). Resolve the unit
+  // the booking lands on and gate on its appointment-agenda publish state.
+  const unit = await getUnitById(org.id, unitId)
+  if (!unit || unit.agenda.mode !== 'appointment' || !unit.agenda.selfBookingPublished) {
+    return { ok: false, error: 'Estabelecimento indisponível.' }
+  }
+
+  // Parse datetime-local como hora-local-da-unidade. O <input
+  // type="datetime-local"> envia "yyyy-MM-ddTHH:mm" sem timezone — interpretar
+  // como UTC seria errado; tratamos esses dígitos como horário da unidade e
+  // convertemos pra UTC. Intl.DateTimeFormat resolve o offset do dia (DST).
+  let startAtUtc: Date
+  try {
+    startAtUtc = parseOrgLocalAsUtc(startAtLocal, unit.timezone)
+  } catch {
+    return { ok: false, error: 'Data/horário inválidos.' }
+  }
+  if (startAtUtc.getTime() <= Date.now()) {
+    return { ok: false, error: 'Escolha um horário no futuro.' }
+  }
 
   const resolved = resolveCatalogItemForUnit(service, unitId)
   const endAtUtc = new Date(startAtUtc.getTime() + resolved.durationMinutes * 60_000)
@@ -148,8 +155,8 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
     servicePriceCentsSnapshot: resolved.priceCents,
     serviceDurationMinutesSnapshot: resolved.durationMinutes,
     commissionSnapshot: resolved.commission,
-    // Snapshot da cancellation policy no commit (#1038).
-    cancellationPolicySnapshot: normalizeCancellationPolicy(org.cancellationPolicy),
+    // Snapshot da cancellation policy no commit (#1038) — da agenda da unidade.
+    cancellationPolicySnapshot: normalizeCancellationPolicy(unit.agenda.cancellationPolicy),
     customerUserId: userIds.ids.customerUserId,
     professionalUserId: userIds.ids.professionalUserId,
     createdAt: now,

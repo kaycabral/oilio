@@ -5,8 +5,8 @@
 // in a separate mutable/deletable doc and is merged at read time. See #1036 +
 // ADR 0010 (PII fora de evento — direito à eliminação / LGPD).
 //
-// `name`/`slug`/`address`/`businessHours` are NOT PII and stay on the unit doc
-// — only the contact channels move out.
+// `name`/`slug`/`address`/`agenda`/`timezone` are NOT PII and stay on the unit
+// doc — only the contact channels move out.
 
 import {
   StoredUnit,

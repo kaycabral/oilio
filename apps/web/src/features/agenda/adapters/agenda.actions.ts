@@ -3,10 +3,10 @@
 import {
   Appointment,
   isValidSlotMinutes,
-  normalizeCancellationPolicy,
   resolveCatalogItemForUnit,
+  unitCancellationPolicySnapshot,
 } from '@/domain'
-import { AppointmentConfig, OrgConfig } from '@/domain/aggregates'
+import { AppointmentConfig, UnitConfig } from '@/domain/aggregates'
 import {
   decideSnapshotRefresh,
   validateEditableCustomer,
@@ -30,9 +30,10 @@ import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointme
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
 
+import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
 import { requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
-import { getOrg } from '@/shared/org/org'
+import { getUnitById } from '@/shared/org/unit-read'
 import {
   checkSlotConflicts,
   guardCustomerNotBlocked,
@@ -54,11 +55,25 @@ export async function updateAgendaSlotMinutes(
   }
 
   const orgId = r.ctx.membership.orgId
-  // Event-first: estado da empresa vem do evento (sem `.update` paralelo).
-  const updated = await emitEvent(OrgConfig, `orgs/${orgId}`, {
-    _tag: 'org.updated',
+  // The slot grid is an appointment-agenda concern of the establishment (PRD
+  // Identidade v2 — moved Org→Unit): update the ACTIVE unit's appointment
+  // agenda. The agenda page is unit-scoped, so the slot control acts on the unit
+  // the user is currently viewing.
+  const { activeUnitId, units } = await resolveActiveUnit(r.ctx.membership)
+  const activeUnit = activeUnitId ? units.find((u) => u.id === activeUnitId) : undefined
+  if (!activeUnit) return { ok: false, error: 'Unidade ativa não encontrada' }
+  if (activeUnit.agenda.mode !== 'appointment') {
+    return { ok: false, error: 'A unidade ativa não usa a agenda online' }
+  }
+
+  // Event-first: a granularidade vem do evento na agenda da unidade (sem
+  // `.update` paralelo). O reducer projeta a nova config de appointment.
+  const updated = await emitEvent(UnitConfig, `orgs/${orgId}/units/${activeUnit.id}`, {
+    _tag: 'unit.updated',
     actorId: r.ctx.session.uid,
-    payload: { changes: { slotMinutes: slotMinutesInput } },
+    payload: {
+      changes: { agenda: { ...activeUnit.agenda, slotMinutes: slotMinutesInput } },
+    },
   })
   if (!updated.ok) return { ok: false, error: updated.error }
 
@@ -193,10 +208,14 @@ export async function updateAppointment(
 ): Promise<AppointmentMutationResult> {
   const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
-  const org = await getOrg(r.ctx.membership.orgId)
-  if (!org) return { ok: false, error: 'Org não encontrado' }
   const parsed = parseAppointmentForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
+
+  // Timezone + cancellation policy are establishment/agenda concerns of the
+  // target unit (PRD Identidade v2 — moved Org→Unit). Resolve the unit the
+  // appointment belongs to and source them from its agenda.
+  const unit = await getUnitById(r.ctx.membership.orgId, parsed.unitId)
+  if (!unit) return { ok: false, error: 'Unidade não encontrada' }
 
   // Pure (core): an edit can't create a customer and must target an existing one.
   const editable = validateEditableCustomer(parsed)
@@ -237,13 +256,13 @@ export async function updateAppointment(
     resolvedDurationMinutes: resolved.durationMinutes,
   })
 
-  const times = resolveStartEnd(org, parsed, effectiveDurationMinutes)
+  const times = resolveStartEnd({ timezone: unit.timezone }, parsed, effectiveDurationMinutes)
   if (typeof times === 'string') return { ok: false, error: times }
   const { startAt, endAt } = times
 
   const conflict = await checkSlotConflicts({
     orgRef,
-    org,
+    org: { timezone: unit.timezone },
     parsed,
     startAt,
     endAt,
@@ -257,7 +276,7 @@ export async function updateAppointment(
   const scopeCheck = await enforceSubscriptionScope({
     db,
     orgId: r.ctx.membership.orgId,
-    orgTimezone: org.timezone,
+    orgTimezone: unit.timezone,
     customerId,
     unitId: parsed.unitId,
     startAt,
@@ -282,10 +301,13 @@ export async function updateAppointment(
 export async function createAppointment(formData: FormData): Promise<AppointmentMutationResult> {
   const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
-  const org = await getOrg(r.ctx.membership.orgId)
-  if (!org) return { ok: false, error: 'Org não encontrado' }
   const parsed = parseAppointmentForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
+
+  // Timezone + cancellation policy are establishment/agenda concerns of the
+  // target unit (PRD Identidade v2 — moved Org→Unit).
+  const unit = await getUnitById(r.ctx.membership.orgId, parsed.unitId)
+  if (!unit) return { ok: false, error: 'Unidade não encontrada' }
 
   const db = getAdminFirestore()
   const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
@@ -304,11 +326,17 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   // the snapshot write below — keeping them on a single source.
   const resolved = resolveCatalogItemForUnit(item, parsed.unitId)
 
-  const times = resolveStartEnd(org, parsed, resolved.durationMinutes)
+  const times = resolveStartEnd({ timezone: unit.timezone }, parsed, resolved.durationMinutes)
   if (typeof times === 'string') return { ok: false, error: times }
   const { startAt, endAt } = times
 
-  const conflict = await checkSlotConflicts({ orgRef, org, parsed, startAt, endAt })
+  const conflict = await checkSlotConflicts({
+    orgRef,
+    org: { timezone: unit.timezone },
+    parsed,
+    startAt,
+    endAt,
+  })
   if (conflict) return { ok: false, error: conflict.error, conflicts: conflict.conflicts }
 
   let customerId = parsed.customerId
@@ -340,7 +368,7 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   const scopeCheck = await enforceSubscriptionScope({
     db,
     orgId: r.ctx.membership.orgId,
-    orgTimezone: org.timezone,
+    orgTimezone: unit.timezone,
     customerId,
     unitId: parsed.unitId,
     startAt,
@@ -370,9 +398,11 @@ export async function createAppointment(formData: FormData): Promise<Appointment
     servicePriceCentsSnapshot: resolved.priceCents,
     serviceDurationMinutesSnapshot: resolved.durationMinutes,
     commissionSnapshot: resolved.commission,
-    // Snapshot da cancellation policy no commit (#1038). Editar a policy do
-    // org depois não retroage sobre o direito de cancelar deste booking.
-    cancellationPolicySnapshot: normalizeCancellationPolicy(org.cancellationPolicy),
+    // Snapshot da cancellation policy no commit (#1038). Editar a policy da
+    // unidade depois não retroage sobre o direito de cancelar deste booking. A
+    // policy é da agenda da unidade (modo appointment); fora desse modo não
+    // existe — cai no default (PRD Identidade v2 — config movida Org→Unit).
+    cancellationPolicySnapshot: unitCancellationPolicySnapshot(unit.agenda),
     customerUserId: userIds.ids.customerUserId,
     professionalUserId: userIds.ids.professionalUserId,
     createdAt: now,

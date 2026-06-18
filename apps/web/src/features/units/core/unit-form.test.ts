@@ -1,5 +1,17 @@
+import {
+  type BusinessHours,
+  DEFAULT_CANCELLATION_POLICY,
+  DEFAULT_SLOT_MINUTES,
+  type UnitAgendaAppointment,
+} from '@/domain'
 import { describe, expect, it } from 'vitest'
-import { parseAddress, parseBusinessHours, parseHoursMode, parseUnitForm } from './unit-form'
+import {
+  assembleAgenda,
+  parseAddress,
+  parseBusinessHours,
+  parseHoursMode,
+  parseUnitForm,
+} from './unit-form'
 
 function fd(entries: Record<string, string>): FormData {
   const form = new FormData()
@@ -142,5 +154,82 @@ describe('parseUnitForm', () => {
     // Identidade v2 § Contrato de tipagem).
     const noDays = { ...VALID_ADDRESS, name: 'Matriz', whatsapp: '11999998888' }
     expect(typeof parseUnitForm(fd(noDays))).toBe('string')
+  })
+})
+
+const HOURS: BusinessHours = {
+  monday: { open: '09:00', close: '18:00' },
+  tuesday: null,
+  wednesday: null,
+  thursday: null,
+  friday: null,
+  saturday: null,
+  sunday: null,
+}
+
+// assembleAgenda builds the discriminated union from the parsed mode + hours
+// (PRD Identidade v2, context 3). The appointment-only configs exist ONLY in the
+// appointment variant; on edit they are PRESERVED from the prior agenda.
+describe('assembleAgenda', () => {
+  it('builds the fixed variant (no agenda-only configs)', () => {
+    expect(assembleAgenda('fixed', HOURS, null)).toEqual({ mode: 'fixed', businessHours: HOURS })
+  })
+
+  it('builds the always_open variant (no businessHours, no configs)', () => {
+    expect(assembleAgenda('always_open', HOURS, null)).toEqual({ mode: 'always_open' })
+  })
+
+  it('seeds appointment defaults when switching into appointment mode for the first time', () => {
+    const agenda = assembleAgenda('appointment', HOURS, null)
+    expect(agenda.mode).toBe('appointment')
+    if (agenda.mode !== 'appointment') throw new Error('expected appointment')
+    expect(agenda.businessHours).toEqual(HOURS)
+    expect(agenda.slotMinutes).toBe(DEFAULT_SLOT_MINUTES)
+    expect(agenda.cancellationPolicy).toEqual(DEFAULT_CANCELLATION_POLICY)
+    expect(agenda.selfBookingPublished).toBe(false)
+    // No prior publish timestamp → the optional field is omitted.
+    expect('selfBookingPublishedAt' in agenda).toBe(false)
+  })
+
+  it('preserves the prior appointment configs on edit (form does not expose them)', () => {
+    const prior: UnitAgendaAppointment = {
+      mode: 'appointment',
+      businessHours: HOURS,
+      slotMinutes: 30,
+      cancellationPolicy: { enabled: true, minNoticeMinutes: 240 },
+      confirmationTemplates: { confirmation: 'c', reminder: 'r', cancellation: 'x' },
+      selfBookingPublished: true,
+      selfBookingPublishedAt: '2026-06-18T00:00:00.000Z',
+    }
+    const newHours: BusinessHours = { ...HOURS, tuesday: { open: '10:00', close: '16:00' } }
+    const agenda = assembleAgenda('appointment', newHours, prior)
+    if (agenda.mode !== 'appointment') throw new Error('expected appointment')
+    // Hours come from the new form input; the agenda-only configs are preserved.
+    expect(agenda.businessHours).toEqual(newHours)
+    expect(agenda.slotMinutes).toBe(30)
+    expect(agenda.cancellationPolicy).toEqual({ enabled: true, minNoticeMinutes: 240 })
+    expect(agenda.confirmationTemplates).toEqual(prior.confirmationTemplates)
+    expect(agenda.selfBookingPublished).toBe(true)
+    expect(agenda.selfBookingPublishedAt).toBe('2026-06-18T00:00:00.000Z')
+  })
+
+  it('drops the appointment configs when switching appointment → fixed', () => {
+    const prior: UnitAgendaAppointment = {
+      mode: 'appointment',
+      businessHours: HOURS,
+      slotMinutes: 30,
+      cancellationPolicy: { enabled: true, minNoticeMinutes: 240 },
+      confirmationTemplates: { confirmation: 'c', reminder: 'r', cancellation: 'x' },
+      selfBookingPublished: true,
+    }
+    expect(assembleAgenda('fixed', HOURS, prior)).toEqual({ mode: 'fixed', businessHours: HOURS })
+  })
+
+  it('does not carry a prior fixed agenda into appointment defaults', () => {
+    const agenda = assembleAgenda('appointment', HOURS, { mode: 'fixed', businessHours: HOURS })
+    if (agenda.mode !== 'appointment') throw new Error('expected appointment')
+    // A non-appointment prior is treated as no prior → defaults.
+    expect(agenda.slotMinutes).toBe(DEFAULT_SLOT_MINUTES)
+    expect(agenda.selfBookingPublished).toBe(false)
   })
 })

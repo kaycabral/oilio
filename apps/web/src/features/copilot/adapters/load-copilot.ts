@@ -1,4 +1,4 @@
-import { DEFAULT_ORG_TIMEZONE, type Goal } from '@/domain'
+import { DEFAULT_UNIT_TIMEZONE, type Goal } from '@/domain'
 import { getGoalForPeriod } from '@/features/copilot/adapters/goals.repo'
 import { loadGoalActuals } from '@/features/copilot/adapters/tracking.repo'
 import { currentPeriod } from '@/features/copilot/core/period'
@@ -11,7 +11,6 @@ import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { getActiveOrgContext } from '@/shared/org/membership'
-import { getOrg } from '@/shared/org/org'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -38,11 +37,13 @@ export async function loadCopilotPage(): Promise<CopilotPageProps> {
   if (!ctx) redirect('/onboarding')
 
   const orgId = ctx.membership.orgId
-  const [org, { activeUnitId }] = await Promise.all([
-    getOrg(orgId),
-    resolveActiveUnit(ctx.membership),
-  ])
-  const tz = org?.timezone ?? DEFAULT_ORG_TIMEZONE
+  const { activeUnitId, units } = await resolveActiveUnit(ctx.membership)
+  // Timezone is the establishment's (PRD Identidade v2 — moved Org→Unit): the
+  // Copiloto scopes to the active unit, so use its tz.
+  const tz =
+    (activeUnitId ? units.find((u) => u.id === activeUnitId)?.timezone : undefined) ??
+    units[0]?.timezone ??
+    DEFAULT_UNIT_TIMEZONE
   const period = currentPeriod(tz)
   const window = resolveGoalPeriodWindow(period, tz)
 

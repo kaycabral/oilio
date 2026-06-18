@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_CANCELLATION_POLICY,
   DEFAULT_ORG_BRANDING,
-  MAX_CANCELLATION_NOTICE_MINUTES,
-  MIN_CANCELLATION_NOTICE_MINUTES,
   ORG_DESCRIPTION_MAX,
-  isValidCancellationNoticeMinutes,
   isValidPublicHttpUrl,
-  normalizeCancellationPolicy,
   normalizeOrgBranding,
 } from './org'
+
+// NOTE: cancellation-policy + slotMinutes helpers moved Org→Unit (context 3) —
+// their tests now live in `unit.test.ts`. The Org is a pure folder (no agenda /
+// self-booking config), so this file only covers branding + the public URL guard.
 
 describe('isValidPublicHttpUrl', () => {
   it('accepts http and https', () => {
@@ -65,49 +64,5 @@ describe('normalizeOrgBranding', () => {
   it('returns null description for empty strings', () => {
     expect(normalizeOrgBranding({ description: '   ' }).description).toBeNull()
     expect(normalizeOrgBranding({ description: '' }).description).toBeNull()
-  })
-})
-
-describe('isValidCancellationNoticeMinutes', () => {
-  it('accepts non-negative integers within the bounded range', () => {
-    expect(isValidCancellationNoticeMinutes(0)).toBe(true)
-    expect(isValidCancellationNoticeMinutes(120)).toBe(true)
-    expect(isValidCancellationNoticeMinutes(MIN_CANCELLATION_NOTICE_MINUTES)).toBe(true)
-    expect(isValidCancellationNoticeMinutes(MAX_CANCELLATION_NOTICE_MINUTES)).toBe(true)
-  })
-
-  it('rejects negative, out-of-range, non-integer or non-number values', () => {
-    expect(isValidCancellationNoticeMinutes(-1)).toBe(false)
-    expect(isValidCancellationNoticeMinutes(MAX_CANCELLATION_NOTICE_MINUTES + 1)).toBe(false)
-    expect(isValidCancellationNoticeMinutes(60.5)).toBe(false)
-    expect(isValidCancellationNoticeMinutes('120')).toBe(false)
-    expect(isValidCancellationNoticeMinutes(Number.NaN)).toBe(false)
-    expect(isValidCancellationNoticeMinutes(null)).toBe(false)
-  })
-})
-
-describe('normalizeCancellationPolicy', () => {
-  it('returns the default policy when input is null/undefined or not an object', () => {
-    expect(normalizeCancellationPolicy(null)).toEqual(DEFAULT_CANCELLATION_POLICY)
-    expect(normalizeCancellationPolicy(undefined)).toEqual(DEFAULT_CANCELLATION_POLICY)
-    expect(normalizeCancellationPolicy('not-an-object')).toEqual(DEFAULT_CANCELLATION_POLICY)
-  })
-
-  it('keeps valid fields and falls back to defaults for invalid ones', () => {
-    expect(normalizeCancellationPolicy({ enabled: true, minNoticeMinutes: 30 })).toEqual({
-      enabled: true,
-      minNoticeMinutes: 30,
-    })
-    expect(normalizeCancellationPolicy({ enabled: 'sim', minNoticeMinutes: -10 })).toEqual({
-      enabled: DEFAULT_CANCELLATION_POLICY.enabled,
-      minNoticeMinutes: DEFAULT_CANCELLATION_POLICY.minNoticeMinutes,
-    })
-  })
-
-  it('preserves minNoticeMinutes when enabled is false (so re-enable restores the value)', () => {
-    expect(normalizeCancellationPolicy({ enabled: false, minNoticeMinutes: 240 })).toEqual({
-      enabled: false,
-      minNoticeMinutes: 240,
-    })
   })
 })

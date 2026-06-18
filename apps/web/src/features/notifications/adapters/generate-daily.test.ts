@@ -51,18 +51,22 @@ function makeStore(initial: Record<string, FirestoreDoc> = {}) {
 describe('generateDailyNotifications', () => {
   it('creates birthday notification for matching customer', async () => {
     const { store, layer } = makeStore({
-      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1': { id: 't1' },
       'orgs/t1/units/u1': {
         id: 'u1',
         orgId: 't1',
-        businessHours: {
-          monday: { open: '08:00', close: '18:00' },
-          tuesday: { open: '08:00', close: '18:00' },
-          wednesday: { open: '08:00', close: '18:00' },
-          thursday: { open: '08:00', close: '18:00' },
-          friday: { open: '08:00', close: '18:00' },
-          saturday: null,
-          sunday: null,
+        timezone: 'America/Sao_Paulo',
+        agenda: {
+          mode: 'fixed',
+          businessHours: {
+            monday: { open: '08:00', close: '18:00' },
+            tuesday: { open: '08:00', close: '18:00' },
+            wednesday: { open: '08:00', close: '18:00' },
+            thursday: { open: '08:00', close: '18:00' },
+            friday: { open: '08:00', close: '18:00' },
+            saturday: null,
+            sunday: null,
+          },
         },
       },
       'orgs/t1/customers/c1': { id: 'c1', userId: 'user-1' },
@@ -91,18 +95,22 @@ describe('generateDailyNotifications', () => {
 
   it('creates subscription_expiring_tomorrow on D-1', async () => {
     const { store, layer } = makeStore({
-      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1': { id: 't1' },
       'orgs/t1/units/u1': {
         id: 'u1',
         orgId: 't1',
-        businessHours: {
-          monday: { open: '08:00', close: '18:00' },
-          tuesday: { open: '08:00', close: '18:00' },
-          wednesday: null,
-          thursday: null,
-          friday: null,
-          saturday: null,
-          sunday: null,
+        timezone: 'America/Sao_Paulo',
+        agenda: {
+          mode: 'fixed',
+          businessHours: {
+            monday: { open: '08:00', close: '18:00' },
+            tuesday: { open: '08:00', close: '18:00' },
+            wednesday: null,
+            thursday: null,
+            friday: null,
+            saturday: null,
+            sunday: null,
+          },
         },
       },
       'orgs/t1/subscriptions/s1': {
@@ -131,18 +139,22 @@ describe('generateDailyNotifications', () => {
 
   it('creates subscription_expired on D+1', async () => {
     const { store, layer } = makeStore({
-      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1': { id: 't1' },
       'orgs/t1/units/u1': {
         id: 'u1',
         orgId: 't1',
-        businessHours: {
-          monday: { open: '08:00', close: '18:00' },
-          tuesday: { open: '08:00', close: '18:00' },
-          wednesday: null,
-          thursday: null,
-          friday: null,
-          saturday: null,
-          sunday: null,
+        timezone: 'America/Sao_Paulo',
+        agenda: {
+          mode: 'fixed',
+          businessHours: {
+            monday: { open: '08:00', close: '18:00' },
+            tuesday: { open: '08:00', close: '18:00' },
+            wednesday: null,
+            thursday: null,
+            friday: null,
+            saturday: null,
+            sunday: null,
+          },
         },
       },
       'orgs/t1/subscriptions/s1': {
@@ -170,18 +182,22 @@ describe('generateDailyNotifications', () => {
 
   it('creates subscription_overdue_followup on D+7', async () => {
     const { store, layer } = makeStore({
-      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1': { id: 't1' },
       'orgs/t1/units/u1': {
         id: 'u1',
         orgId: 't1',
-        businessHours: {
-          monday: { open: '08:00', close: '18:00' },
-          tuesday: { open: '08:00', close: '18:00' },
-          wednesday: null,
-          thursday: null,
-          friday: null,
-          saturday: null,
-          sunday: null,
+        timezone: 'America/Sao_Paulo',
+        agenda: {
+          mode: 'fixed',
+          businessHours: {
+            monday: { open: '08:00', close: '18:00' },
+            tuesday: { open: '08:00', close: '18:00' },
+            wednesday: null,
+            thursday: null,
+            friday: null,
+            saturday: null,
+            sunday: null,
+          },
         },
       },
       'orgs/t1/subscriptions/s1': {
@@ -209,18 +225,22 @@ describe('generateDailyNotifications', () => {
 
   it('idempotent — second run does not duplicate', async () => {
     const { store, layer } = makeStore({
-      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1': { id: 't1' },
       'orgs/t1/units/u1': {
         id: 'u1',
         orgId: 't1',
-        businessHours: {
-          monday: { open: '08:00', close: '18:00' },
-          tuesday: { open: '08:00', close: '18:00' },
-          wednesday: { open: '08:00', close: '18:00' },
-          thursday: { open: '08:00', close: '18:00' },
-          friday: { open: '08:00', close: '18:00' },
-          saturday: null,
-          sunday: null,
+        timezone: 'America/Sao_Paulo',
+        agenda: {
+          mode: 'fixed',
+          businessHours: {
+            monday: { open: '08:00', close: '18:00' },
+            tuesday: { open: '08:00', close: '18:00' },
+            wednesday: { open: '08:00', close: '18:00' },
+            thursday: { open: '08:00', close: '18:00' },
+            friday: { open: '08:00', close: '18:00' },
+            saturday: null,
+            sunday: null,
+          },
         },
       },
       'orgs/t1/customers/c1': { id: 'c1', userId: 'user-1' },
@@ -244,18 +264,22 @@ describe('generateDailyNotifications', () => {
 
   it('skips unit outside processing window', async () => {
     const { layer } = makeStore({
-      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1': { id: 't1' },
       'orgs/t1/units/u1': {
         id: 'u1',
         orgId: 't1',
-        businessHours: {
-          monday: { open: '08:00', close: '18:00' },
-          tuesday: { open: '08:00', close: '18:00' },
-          wednesday: { open: '08:00', close: '18:00' },
-          thursday: { open: '08:00', close: '18:00' },
-          friday: { open: '08:00', close: '18:00' },
-          saturday: null,
-          sunday: null,
+        timezone: 'America/Sao_Paulo',
+        agenda: {
+          mode: 'fixed',
+          businessHours: {
+            monday: { open: '08:00', close: '18:00' },
+            tuesday: { open: '08:00', close: '18:00' },
+            wednesday: { open: '08:00', close: '18:00' },
+            thursday: { open: '08:00', close: '18:00' },
+            friday: { open: '08:00', close: '18:00' },
+            saturday: null,
+            sunday: null,
+          },
         },
       },
       'orgs/t1/customers/c1': { id: 'c1', userId: 'user-1', birthDate: '1990-06-02' },

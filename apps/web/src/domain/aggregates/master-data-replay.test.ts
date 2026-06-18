@@ -109,9 +109,10 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
         orgId: 't1',
         name: 'Centro',
         slug: 'centro',
-        // address/businessHours/hoursMode are REQUIRED in the v2 schema (PRD
-        // Identidade) — the `unit.created` payload carries a real establishment
-        // address and hours, not the null/absent state of the v1 auto-matriz.
+        // address/timezone/agenda are REQUIRED in the v2 schema (PRD Identidade)
+        // — the `unit.created` payload carries a real establishment address,
+        // timezone and agenda union, not the null/absent state of the v1
+        // auto-matriz.
         address: {
           postalCode: '01310-100',
           state: 'SP',
@@ -121,16 +122,19 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
           number: '1000',
           complement: null,
         },
-        businessHours: {
-          monday: { open: '09:00', close: '18:00' },
-          tuesday: { open: '09:00', close: '18:00' },
-          wednesday: { open: '09:00', close: '18:00' },
-          thursday: { open: '09:00', close: '18:00' },
-          friday: { open: '09:00', close: '18:00' },
-          saturday: null,
-          sunday: null,
+        timezone: 'America/Sao_Paulo',
+        agenda: {
+          mode: 'fixed',
+          businessHours: {
+            monday: { open: '09:00', close: '18:00' },
+            tuesday: { open: '09:00', close: '18:00' },
+            wednesday: { open: '09:00', close: '18:00' },
+            thursday: { open: '09:00', close: '18:00' },
+            friday: { open: '09:00', close: '18:00' },
+            saturday: null,
+            sunday: null,
+          },
         },
-        hoursMode: 'fixed',
         archivedAt: null,
         // A unit is born informal — the CNPJ (Unit.fiscal company variant) only
         // appears via `unit.formalized` (brief 0048). NON-PII, so it rides in
@@ -285,51 +289,68 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
         slug: 'barbearia',
         vertical: 'barbershop',
         ownerUserId: 'owner-1',
-        selfBookingPublished: false,
-        selfBookingPublishedAt: null,
-        timezone: 'America/Sao_Paulo',
-        slotMinutes: 15,
         branding: { logoUrl: null, bannerUrl: null, description: null },
-        cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
-        whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
         createdAt: '2026-06-01T12:00:00.000Z',
         updatedAt: '2026-06-01T12:00:00.000Z',
       },
-      changes: { slotMinutes: 30 },
+      changes: { name: 'Barbearia do Zé' },
     }))
 
-  // Dedicated self-booking publish event (brief 0008 #988): created → published
-  // → unpublished. Replay must reconstruct selfBookingPublished from the stream
-  // (event-first; the flag is never written outside events).
-  it('org — self-booking publish/unpublish (event-first)', async () => {
+  // Dedicated self-booking publish event (brief 0008 #988), now PER-UNIT (PRD
+  // Identidade v2, context 3 — moved Org→Unit): an appointment unit goes
+  // created → published → unpublished. Replay must reconstruct
+  // `agenda.selfBookingPublished` from the stream (event-first; the flag is
+  // never written outside events) and the publish state lives ONLY in the
+  // appointment variant of the agenda union.
+  it('unit — self-booking publish/unpublish (event-first, per-unit)', async () => {
     const { store, layer } = makeStore()
-    const path = 'orgs/t2'
+    const path = 'orgs/t2/units/u2'
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(OrgConfig, path, {
-          _tag: 'org.created',
+        yield* appendEvent(UnitConfig, path, {
+          _tag: 'unit.created',
           actorId: 'owner-2',
           payload: {
             data: {
-              id: 't2',
-              name: 'Salão',
-              slug: 'salao',
-              vertical: 'barbershop',
-              ownerUserId: 'owner-2',
-              selfBookingPublished: false,
-              selfBookingPublishedAt: null,
+              id: 'u2',
+              orgId: 't2',
+              name: 'Centro',
+              slug: 'centro',
+              address: {
+                postalCode: '01310-100',
+                state: 'SP',
+                city: 'São Paulo',
+                neighborhood: 'Bela Vista',
+                street: 'Av. Paulista',
+                number: '1000',
+                complement: null,
+              },
               timezone: 'America/Sao_Paulo',
-              slotMinutes: 15,
-              branding: { logoUrl: null, bannerUrl: null, description: null },
-              cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
-              whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
+              agenda: {
+                mode: 'appointment',
+                businessHours: {
+                  monday: { open: '09:00', close: '18:00' },
+                  tuesday: null,
+                  wednesday: null,
+                  thursday: null,
+                  friday: null,
+                  saturday: null,
+                  sunday: null,
+                },
+                slotMinutes: 15,
+                cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
+                confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
+                selfBookingPublished: false,
+              },
+              archivedAt: null,
+              fiscal: { kind: 'informal' },
               createdAt: '2026-06-01T12:00:00.000Z',
               updatedAt: '2026-06-01T12:00:00.000Z',
             },
           },
         })
-        yield* appendEvent(OrgConfig, path, {
-          _tag: 'org.self_booking_published',
+        yield* appendEvent(UnitConfig, path, {
+          _tag: 'unit.self_booking_published',
           actorId: 'owner-2',
           payload: {},
         })
@@ -337,26 +358,30 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
     )
 
     const afterPublish = await Effect.runPromise(
-      replayAggregate(OrgConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(UnitConfig, path).pipe(Effect.provide(layer)),
     )
     expect(afterPublish).toEqual(store.get(path))
-    expect(afterPublish.selfBookingPublished).toBe(true)
-    expect(afterPublish.selfBookingPublishedAt).not.toBeNull()
+    // The publish state lives in the appointment variant of the agenda union.
+    expect(afterPublish.agenda.mode).toBe('appointment')
+    if (afterPublish.agenda.mode !== 'appointment') throw new Error('expected appointment')
+    expect(afterPublish.agenda.selfBookingPublished).toBe(true)
+    expect(afterPublish.agenda.selfBookingPublishedAt).not.toBeNull()
     expect(afterPublish._version).toBe(2)
 
     // Unpublish reverses the flag (timestamp left as the last publish moment).
     await Effect.runPromise(
-      appendEvent(OrgConfig, path, {
-        _tag: 'org.self_booking_unpublished',
+      appendEvent(UnitConfig, path, {
+        _tag: 'unit.self_booking_unpublished',
         actorId: 'owner-2',
         payload: {},
       }).pipe(Effect.provide(layer)),
     )
     const afterUnpublish = await Effect.runPromise(
-      replayAggregate(OrgConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(UnitConfig, path).pipe(Effect.provide(layer)),
     )
     expect(afterUnpublish).toEqual(store.get(path))
-    expect(afterUnpublish.selfBookingPublished).toBe(false)
+    if (afterUnpublish.agenda.mode !== 'appointment') throw new Error('expected appointment')
+    expect(afterUnpublish.agenda.selfBookingPublished).toBe(false)
     expect(afterUnpublish._version).toBe(3)
   })
 })
@@ -422,7 +447,7 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
       orgId: 't1',
       name: 'Centro',
       slug: 'centro',
-      // address/businessHours/hoursMode REQUIRED in the v2 schema (PRD Identidade).
+      // address/timezone/agenda REQUIRED in the v2 schema (PRD Identidade).
       address: {
         postalCode: '01310-100',
         state: 'SP',
@@ -432,16 +457,19 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
         number: '1000',
         complement: null,
       },
-      businessHours: {
-        monday: { open: '09:00', close: '18:00' },
-        tuesday: { open: '09:00', close: '18:00' },
-        wednesday: { open: '09:00', close: '18:00' },
-        thursday: { open: '09:00', close: '18:00' },
-        friday: { open: '09:00', close: '18:00' },
-        saturday: null,
-        sunday: null,
+      timezone: 'America/Sao_Paulo',
+      agenda: {
+        mode: 'fixed',
+        businessHours: {
+          monday: { open: '09:00', close: '18:00' },
+          tuesday: { open: '09:00', close: '18:00' },
+          wednesday: { open: '09:00', close: '18:00' },
+          thursday: { open: '09:00', close: '18:00' },
+          friday: { open: '09:00', close: '18:00' },
+          saturday: null,
+          sunday: null,
+        },
       },
-      hoursMode: 'fixed',
       archivedAt: null,
       fiscal: { kind: 'informal' },
       createdAt: '2026-06-01T12:00:00.000Z',

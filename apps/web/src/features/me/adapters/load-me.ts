@@ -1,6 +1,7 @@
 import {
   Appointment,
   CatalogItem,
+  DEFAULT_UNIT_TIMEZONE,
   type Professional,
   StoredOrg,
   StoredProfessional,
@@ -87,14 +88,18 @@ export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> 
     const service = services.get(`${a.orgId}:${a.serviceId}`)
     const professional = professionals.get(`${a.orgId}:${a.professionalId}`)
     const unit = units.get(`${a.orgId}:${a.unitId}`)
-    // Snapshot-on-use (#1038): cada linha avalia o cancel contra a policy
-    // congelada no commit do agendamento; fallback pra policy viva do org
-    // em agendamentos legados (pré-migração) sem snapshot.
+    // Timezone + cancellation policy are the establishment's (PRD Identidade v2
+    // — moved Org→Unit). Snapshot-on-use (#1038): cada linha avalia o cancel
+    // contra a policy congelada no commit; fallback pra policy viva da agenda da
+    // unidade (modo appointment) em agendamentos legados sem snapshot.
+    const livePolicy =
+      unit?.agenda.mode === 'appointment' ? unit.agenda.cancellationPolicy : undefined
     const policy = a.cancellationPolicySnapshot
       ? normalizeCancellationPolicy(a.cancellationPolicySnapshot)
-      : normalizeCancellationPolicy(org.cancellationPolicy)
+      : normalizeCancellationPolicy(livePolicy)
+    const timeZone = unit?.timezone ?? DEFAULT_UNIT_TIMEZONE
     const fmt = new Intl.DateTimeFormat('pt-BR', {
-      timeZone: org.timezone,
+      timeZone,
       weekday: 'short',
       day: '2-digit',
       month: 'short',
@@ -103,7 +108,7 @@ export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> 
     })
     const startAtLabel = fmt.format(new Date(a.startAt))
     const endFmt = new Intl.DateTimeFormat('pt-BR', {
-      timeZone: org.timezone,
+      timeZone,
       hour: '2-digit',
       minute: '2-digit',
     })

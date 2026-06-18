@@ -31,6 +31,7 @@ import type {
   SubscriptionPlan,
   SubscriptionPlanSnapshot,
   Unit,
+  UnitAgendaConfig,
   UnitFiscal,
   UnitHoursMode,
   User,
@@ -157,6 +158,29 @@ const UNITS = [
   hoursMode: UnitHoursMode
 }[]
 const UNIT_IDS = UNITS.map((u) => u.id)
+
+// Assemble the seed unit's `Unit.agenda` union by mode (PRD Identidade v2): the
+// agenda-only configs (slot/policy/templates/self-booking publish) live ONLY in
+// the appointment variant; the seed force-publishes it so the public page is
+// live. always_open/fixed carry no agenda-only configs.
+function buildSeedAgenda(mode: UnitHoursMode): UnitAgendaConfig {
+  switch (mode) {
+    case 'appointment':
+      return {
+        mode: 'appointment',
+        businessHours: BUSINESS_HOURS,
+        slotMinutes: 30,
+        cancellationPolicy: { enabled: true, minNoticeMinutes: 120 },
+        confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
+        selfBookingPublished: true,
+        selfBookingPublishedAt: NOW,
+      }
+    case 'always_open':
+      return { mode: 'always_open' }
+    case 'fixed':
+      return { mode: 'fixed', businessHours: BUSINESS_HOURS }
+  }
+}
 
 const COMMISSION: CommissionRule = { kind: 'percentage', value: 40 }
 
@@ -608,16 +632,12 @@ async function seed(): Promise<void> {
     name: 'Barbearia do Zé',
     slug: ORG_SLUG,
     vertical: 'barbershop',
-    // The Org is a pure folder (PRD Identidade v2) — no fiscal identity; the
-    // CNPJ lives on Unit.fiscal. Barbearia do Zé's units stay informal.
+    // The Org is a pure folder (PRD Identidade v2) — no fiscal identity (CNPJ on
+    // Unit.fiscal) and no agenda/self-booking config (timezone, slot,
+    // cancellation, confirmation messages, self-booking publish all on
+    // Unit.agenda). Barbearia do Zé's units stay informal.
     ownerUserId: OWNER.uid,
-    timezone: ORG_TZ,
-    slotMinutes: 30,
     branding: { logoUrl: null, bannerUrl: null, description: 'Cortes clássicos e barba na régua.' },
-    cancellationPolicy: { enabled: true, minNoticeMinutes: 120 },
-    whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
-    selfBookingPublished: true,
-    selfBookingPublishedAt: NOW,
     createdAt: NOW,
     updatedAt: NOW,
   } satisfies Org)
@@ -660,6 +680,10 @@ async function seed(): Promise<void> {
   } satisfies User)
 
   for (const u of UNITS) {
+    // Build the agenda union (PRD Identidade v2): appointment units carry the
+    // agenda-only configs + force-published self-booking (so the seed page is
+    // live); the always_open walk-in unit carries none.
+    const agenda: UnitAgendaConfig = buildSeedAgenda(u.hoursMode)
     batch.set(ref(`units/${u.id}`), {
       id: u.id,
       orgId: ORG_ID,
@@ -668,8 +692,9 @@ async function seed(): Promise<void> {
       whatsapp: u.whatsapp,
       email: null,
       address: u.address,
-      businessHours: BUSINESS_HOURS,
-      hoursMode: u.hoursMode,
+      // Timezone is the establishment's (PRD Identidade v2 — moved Org→Unit).
+      timezone: ORG_TZ,
+      agenda,
       archivedAt: null,
       // Barbearia do Zé's units stay informal (no CNPJ) — the operational
       // baseline. Formalization is an opt-in upgrade (brief 0048).
@@ -1069,13 +1094,7 @@ async function seedFormalizationOrgs(): Promise<void> {
     slug: 'estudio-informal',
     vertical: 'barbershop',
     ownerUserId: FORMALIZE_OWNER.uid,
-    timezone: ORG_TZ,
-    slotMinutes: 30,
     branding: { logoUrl: null, bannerUrl: null, description: 'Opera sem CNPJ (estágio informal).' },
-    cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
-    whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
-    selfBookingPublished: false,
-    selfBookingPublishedAt: null,
     createdAt: now,
     updatedAt: now,
   } satisfies Org)
@@ -1094,13 +1113,7 @@ async function seedFormalizationOrgs(): Promise<void> {
     slug: 'cabral-tecnologia',
     vertical: 'barbershop',
     ownerUserId: FORMALIZE_OWNER.uid,
-    timezone: ORG_TZ,
-    slotMinutes: 30,
     branding: { logoUrl: null, bannerUrl: null, description: 'Empresa formalizada (CNPJ ATIVA).' },
-    cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
-    whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
-    selfBookingPublished: false,
-    selfBookingPublishedAt: null,
     createdAt: now,
     updatedAt: now,
   } satisfies Org)
@@ -1158,7 +1171,7 @@ function seedFormalizeUnit(
     whatsapp: FORMALIZE_OWNER.whatsapp,
     email: null,
     // Real address/hours: a Unidade is an operating establishment (PRD
-    // Identidade v2 — address/businessHours/hoursMode are required).
+    // Identidade v2 — address/timezone/agenda are required).
     address: {
       postalCode: '01310-100',
       state: 'SP',
@@ -1168,8 +1181,18 @@ function seedFormalizeUnit(
       number: '1000',
       complement: null,
     },
-    businessHours: BUSINESS_HOURS,
-    hoursMode: 'appointment',
+    timezone: ORG_TZ,
+    // Appointment agenda (context 3): the agenda-only configs (slot/policy/
+    // templates/self-booking publish) live ONLY in this variant.
+    agenda: {
+      mode: 'appointment',
+      businessHours: BUSINESS_HOURS,
+      slotMinutes: 30,
+      cancellationPolicy: { enabled: true, minNoticeMinutes: 120 },
+      confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
+      selfBookingPublished: true,
+      selfBookingPublishedAt: NOW,
+    },
     archivedAt: null,
     // The fiscal identity lives on the unit (brief 0048): informal → no CNPJ;
     // company → CNPJ-14 + CompanyProfile (non-PII). Matriz/raiz derived on read.

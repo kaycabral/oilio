@@ -22,6 +22,8 @@ import {
   type Service,
   StoredProfessional as StoredProfessionalSchema,
   StoredUnit,
+  unitBusinessHours,
+  unitSlotMinutes,
 } from '@/domain'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
@@ -115,7 +117,10 @@ export async function getPublicAvailability(
   // Day bounds in org tz, then read both appointments + blocks for the
   // unit on that day. Block query is unit-wide (no startAt filter) since
   // recurring blocks don't have one.
-  const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(opts.date, org.timezone)
+  // Timezone + slot grid are the establishment's (PRD Identidade v2 — moved
+  // Org→Unit). The unit is bookable (appointment mode) by the guard above.
+  const timezone = unit.timezone
+  const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(opts.date, timezone)
   const [apptSnap, blocksSnap] = await Promise.all([
     orgRef
       .collection('appointments')
@@ -132,18 +137,18 @@ export async function getPublicAvailability(
   ])
   const appointments = apptSnap.docs.map((d) => d.data())
   const blocks = blocksSnap.docs.map((d) => d.data())
-  const blockSegments = getBlockSegmentsForDay(blocks, opts.date, org.timezone)
+  const blockSegments = getBlockSegmentsForDay(blocks, opts.date, timezone)
 
   const rawSlots = computeAvailabilityForDay({
     service,
     unitId: unit.id,
     professionals: candidates,
-    unitBusinessHours: unit.businessHours,
+    unitBusinessHours: unitBusinessHours(unit.agenda),
     appointments,
     blockSegments,
     date: opts.date,
-    slotMinutes: org.slotMinutes,
-    timezone: org.timezone,
+    slotMinutes: unitSlotMinutes(unit.agenda),
+    timezone,
   })
 
   // Temporal scope filter (brief 0019, Group B — AC-07). Apply per-slot
@@ -154,9 +159,9 @@ export async function getPublicAvailability(
     opts.timeScope == null
       ? rawSlots
       : (() => {
-          const today = getTodayInOrgTz(org.timezone)
+          const today = getTodayInOrgTz(timezone)
           return rawSlots.filter((s) =>
-            isInstantWithinTimeScope(opts.timeScope, s.startAt, org.timezone, today),
+            isInstantWithinTimeScope(opts.timeScope, s.startAt, timezone, today),
           )
         })()
 

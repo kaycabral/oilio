@@ -32,7 +32,8 @@ function adminApp(): App {
 
 export type SeedOrgInput = {
   // Mirrors the `SlotMinutes` read-model literal (5|10|15|30) — the value lands
-  // on `StoredOrg.slotMinutes`, so the union must match the schema.
+  // on the unit's appointment agenda `slotMinutes` (moved Org→Unit, context 3),
+  // so the union must match the schema.
   slotMinutes?: 5 | 10 | 15 | 30
   hasBusinessHours?: boolean
   unitCount?: number
@@ -40,7 +41,8 @@ export type SeedOrgInput = {
   professionalOperationalStatus?: 'incomplete' | 'operational'
   // Self-booking publication gate (#988) — controls public page visibility.
   // Default true matches the 99% case where specs target an already-published
-  // org; pass `false` to seed an unpublished one (public page 404s).
+  // unit; pass `false` to seed an unpublished one (public page 404s). Per-unit
+  // now (moved Org→Unit, context 3) — applied to the unit's appointment agenda.
   selfBookingPublished?: boolean
   vertical?: 'barbershop' | 'auto_wash' | 'auto_detailing' | 'other'
   cancellationPolicy?: { enabled: boolean; minNoticeMinutes: number }
@@ -141,6 +143,7 @@ import {
   type AllowedTimeScope,
   type Appointment,
   type BookingLimits,
+  type BusinessHours,
   type CatalogItem,
   type CatalogProductItem,
   type CatalogServiceItem,
@@ -309,7 +312,7 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
       }
     : EMPTY_ADDRESS
 
-  const businessHours: StoredUnit['businessHours'] = hasBusinessHours
+  const businessHours: BusinessHours = hasBusinessHours
     ? {
         monday: { open: '09:00', close: '18:00' },
         tuesday: { open: '09:00', close: '18:00' },
@@ -322,26 +325,18 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
     : EMPTY_BUSINESS_HOURS
 
   // Org doc. The Org is a pure folder (PRD Identidade v2) — no fiscal identity
-  // (it lives on Unit.fiscal). Decoded as `StoredOrg`.
+  // (it lives on Unit.fiscal) and no agenda/self-booking config (moved to
+  // Unit.agenda — context 3). Decoded as `StoredOrg`.
   const orgDoc: StoredOrg = {
     id: orgId,
     name: `E2E ${orgId}`,
     slug: `e2e-${orgId}`.toLowerCase(),
     vertical,
     ownerUserId: uid,
-    selfBookingPublished,
-    selfBookingPublishedAt: selfBookingPublished ? now : null,
-    timezone: 'America/Sao_Paulo',
-    slotMinutes,
     // Mirror what createOrg writes (DEFAULT_* fills) so the doc is
     // schema-complete — the read boundary now decodes StoredOrg, so a partial
     // fixture (the old shape) fails validation.
     branding: { logoUrl: null, bannerUrl: null, description: null },
-    whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
-    cancellationPolicy: {
-      enabled: cancellationPolicy?.enabled ?? false,
-      minNoticeMinutes: cancellationPolicy?.minNoticeMinutes ?? 120,
-    },
     createdAt: now,
     updatedAt: now,
   }
@@ -391,11 +386,25 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
       name: `Unidade ${i + 1}`,
       slug: `unidade-${i + 1}`,
       address,
-      businessHours,
-      // Default to the appointment hours mode so the unit drives the agenda
+      // Timezone is the establishment's now (moved from Org — context 3).
+      timezone: 'America/Sao_Paulo',
+      // Default to the appointment agenda so the unit drives the agenda
       // (unitUsesAgenda). The agenda page redirects to /orders when no unit
-      // uses scheduling, which most specs depend on.
-      hoursMode: 'appointment',
+      // uses scheduling, which most specs depend on. The agenda-only configs
+      // (slotMinutes/cancellationPolicy/templates/self-booking publish) live
+      // ONLY in this appointment variant (moved from Org).
+      agenda: {
+        mode: 'appointment',
+        businessHours,
+        slotMinutes,
+        cancellationPolicy: {
+          enabled: cancellationPolicy?.enabled ?? false,
+          minNoticeMinutes: cancellationPolicy?.minNoticeMinutes ?? 120,
+        },
+        confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
+        selfBookingPublished,
+        selfBookingPublishedAt: selfBookingPublished ? now : null,
+      },
       // Uniform delete policy (brief 0027, #1041) — seeds match the new shape.
       archivedAt: null,
       // Born informal (no CNPJ) — formalization is an opt-in upgrade (0048).
@@ -662,13 +671,7 @@ export function seedAdditionalOrg(
     slug: `e2e-${orgId}`.toLowerCase(),
     vertical: 'barbershop',
     ownerUserId: uid,
-    selfBookingPublished: false,
-    selfBookingPublishedAt: null,
-    timezone: 'America/Sao_Paulo',
-    slotMinutes: 15,
     branding: { logoUrl: null, bannerUrl: null, description: null },
-    whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
-    cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
     createdAt: now,
     updatedAt: now,
   }
@@ -702,8 +705,17 @@ export function seedAdditionalOrg(
       // Address/hours required on every Unit (PRD Identidade v2): extra seeded
       // units use the EMPTY zero-value (valid Unit, not publish-ready).
       address: EMPTY_ADDRESS,
-      businessHours: EMPTY_BUSINESS_HOURS,
-      hoursMode: 'appointment',
+      timezone: 'America/Sao_Paulo',
+      // Appointment agenda (unpublished) — agenda-only configs live here only.
+      agenda: {
+        mode: 'appointment',
+        businessHours: EMPTY_BUSINESS_HOURS,
+        slotMinutes: 15,
+        cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
+        confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
+        selfBookingPublished: false,
+        selfBookingPublishedAt: null,
+      },
       archivedAt: null,
       fiscal: { kind: 'informal' },
       createdAt: now,
@@ -1444,8 +1456,17 @@ export function seedUnit(
     // Address/hours required on every Unit (PRD Identidade v2): the extra
     // seeded unit uses the EMPTY zero-value (valid Unit, not publish-ready).
     address: EMPTY_ADDRESS,
-    businessHours: EMPTY_BUSINESS_HOURS,
-    hoursMode: 'appointment',
+    timezone: 'America/Sao_Paulo',
+    // Appointment agenda (unpublished) — agenda-only configs live here only.
+    agenda: {
+      mode: 'appointment',
+      businessHours: EMPTY_BUSINESS_HOURS,
+      slotMinutes: 15,
+      cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
+      confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
+      selfBookingPublished: false,
+      selfBookingPublishedAt: null,
+    },
     archivedAt: opts.archivedAt ?? null,
     fiscal: { kind: 'informal' },
     createdAt: now,

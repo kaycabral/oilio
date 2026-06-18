@@ -3,6 +3,7 @@
 import {
   CatalogItem,
   DEFAULT_UNIT_FISCAL,
+  inferTimezoneFromAddress,
   isCatalogService,
   isValidUnitSlug,
   slugifyUnitName,
@@ -10,13 +11,18 @@ import {
   StoredUnit,
 } from '@/domain'
 import { UnitConfig } from '@/domain/aggregates'
-import { parseUnitForm } from '@/features/units/core/unit-form'
+import {
+  computeUnitPublishReadiness,
+  unitHasAddressAndHours,
+  type UnitPublishReadiness,
+} from '@/features/units/core/publish-readiness'
+import { assembleAgenda, parseUnitForm } from '@/features/units/core/unit-form'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
 import { canDeleteUnit } from '@/shared/org/delete-guard'
 import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
-import { deleteUnitPii, writeUnitPii } from '@/shared/org/unit-read'
+import { deleteUnitPii, getUnitById, writeUnitPii } from '@/shared/org/unit-read'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
@@ -97,8 +103,10 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     name: parsed.name,
     slug,
     address: parsed.address,
-    businessHours: parsed.businessHours,
-    hoursMode: parsed.hoursMode,
+    // Timezone is the establishment's (PRD Identidade v2 — moved Org→Unit):
+    // inferred from the address state (BR UFs); the unit form has no tz picker.
+    timezone: inferTimezoneFromAddress(parsed.address.state, parsed.address.city),
+    agenda: assembleAgenda(parsed.hoursMode, parsed.businessHours, null),
     archivedAt: null,
     // A new unit is born informal — no CNPJ until the owner formalizes it via
     // the Formalizar flow (`unit.formalized`, brief 0048).
@@ -130,6 +138,12 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
   const parsed = parseUnitForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
+  // Load the existing unit so the agenda assembly preserves the
+  // appointment-only configs (slotMinutes/cancellationPolicy/templates/publish
+  // state) that the unit form doesn't expose. PRD Identidade v2.
+  const existing = await getUnitById(r.ctx.membership.orgId, unitId)
+  if (!existing) return { ok: false, error: 'Unidade não encontrada' }
+
   const db = getAdminFirestore()
   const slug = await resolveUnitSlug({
     db,
@@ -160,8 +174,8 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
         name: parsed.name,
         slug,
         address: parsed.address,
-        businessHours: parsed.businessHours,
-        hoursMode: parsed.hoursMode,
+        timezone: inferTimezoneFromAddress(parsed.address.state, parsed.address.city),
+        agenda: assembleAgenda(parsed.hoursMode, parsed.businessHours, existing.agenda),
       },
     },
   })
@@ -259,16 +273,10 @@ export async function archiveUnit(unitId: string, archived = true): Promise<Unit
 // helper feeds the read-only feedback card on the unit page.
 // ────────────────────────────────────────────────────────────────────────
 
-export type UnitPublishReadiness = { ready: boolean; missing: string[] }
-
-const UNIT_REQUIREMENTS = {
-  address: 'Endereço e horário de funcionamento preenchidos',
-  service: '1 serviço público oferecido nesta unidade',
-  professional: '1 profissional aprovado nesta unidade',
-} as const
-
 // Readiness scoped to a single unit — the requirement set the org-wide gate
 // used to check globally, now evaluated for exactly the unit being published.
+// The pure decision lives in the functional core (`computeUnitPublishReadiness`);
+// this shell only resolves the three facts from Firestore.
 export async function getUnitPublishReadiness(
   orgId: string,
   unitId: string,
@@ -282,20 +290,76 @@ export async function getUnitPublishReadiness(
   ])
 
   const unit = unitSnap.data()
-  const hasAddressAndHours = unit?.address != null && unit?.businessHours != null
   const hasPublicService = servicesSnap.docs
     .map((d) => d.data())
     .filter(isCatalogService)
     .some(
       (s) => s.active && s.publicVisible && Array.isArray(s.unitIds) && s.unitIds.includes(unitId),
     )
-  const hasOperationalPro = prosSnap.docs
+  const hasOperationalProfessional = prosSnap.docs
     .map((d) => d.data())
     .some((p) => p.operationalStatus === 'operational' && p.unitIds.includes(unitId))
 
-  const missing: string[] = []
-  if (!hasAddressAndHours) missing.push(UNIT_REQUIREMENTS.address)
-  if (!hasPublicService) missing.push(UNIT_REQUIREMENTS.service)
-  if (!hasOperationalPro) missing.push(UNIT_REQUIREMENTS.professional)
-  return { ready: missing.length === 0, missing }
+  return computeUnitPublishReadiness({
+    hasAddressAndHours: unit != null && unitHasAddressAndHours(unit.agenda),
+    hasPublicService,
+    hasOperationalProfessional,
+  })
+}
+
+// --- Per-unit self-booking publication (brief 0008 #988) ----------------------
+//
+// Self-booking publish is a per-unit appointment-agenda concern (PRD Identidade
+// v2 — moved Org→Unit). Replaces the Org-level `org.self_booking_*` events with
+// `unit.self_booking_published`/`unpublished`. The publish state lives in the
+// `appointment` variant of `Unit.agenda`; publishing a unit that isn't in
+// appointment mode is rejected (the flag doesn't exist there).
+
+export type UnitPublishResult = { ok: true } | { ok: false; error: string }
+
+export async function publishUnitSelfBooking(unitId: string): Promise<UnitPublishResult> {
+  const r = await requireOwnerCtx()
+  if (!r.ok) return r
+  const orgId = r.ctx.membership.orgId
+
+  const unit = await getUnitById(orgId, unitId)
+  if (!unit) return { ok: false, error: 'Unidade não encontrada' }
+  if (unit.agenda.mode !== 'appointment') {
+    return { ok: false, error: 'A unidade não usa a agenda online' }
+  }
+  // AC-07: server revalidates the minimum before publishing (defense in depth —
+  // never trust the UI checklist).
+  const readiness = await getUnitPublishReadiness(orgId, unitId)
+  if (!readiness.ready) {
+    return { ok: false, error: `Faltam requisitos: ${readiness.missing.join('; ')}` }
+  }
+
+  // Event-first: the publication state is a dedicated domain event; the reducer
+  // projects `agenda.selfBookingPublished`. Auditoria = stream (actorId no
+  // evento) — sem recordAudit.
+  const published = await emitEvent(UnitConfig, `orgs/${orgId}/units/${unitId}`, {
+    _tag: 'unit.self_booking_published',
+    actorId: r.ctx.session.uid,
+    payload: {},
+  })
+  if (!published.ok) return { ok: false, error: published.error }
+
+  revalidatePath('/units')
+  return { ok: true }
+}
+
+export async function unpublishUnitSelfBooking(unitId: string): Promise<UnitPublishResult> {
+  const r = await requireOwnerCtx()
+  if (!r.ok) return r
+  const orgId = r.ctx.membership.orgId
+
+  const unpublished = await emitEvent(UnitConfig, `orgs/${orgId}/units/${unitId}`, {
+    _tag: 'unit.self_booking_unpublished',
+    actorId: r.ctx.session.uid,
+    payload: {},
+  })
+  if (!unpublished.ok) return { ok: false, error: unpublished.error }
+
+  revalidatePath('/units')
+  return { ok: true }
 }

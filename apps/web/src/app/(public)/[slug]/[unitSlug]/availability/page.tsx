@@ -82,11 +82,11 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
   if (!bundle) notFound()
 
   const date = bundle.date
-  const rows = groupAvailabilityByLocalTime(bundle.slots, bundle.org.timezone)
+  const rows = groupAvailabilityByLocalTime(bundle.slots, bundle.unit.timezone)
   const proNameById = new Map(bundle.professionals.map((p) => [p.id, p.name]))
 
   const dateFmt = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: bundle.org.timezone,
+    timeZone: bundle.unit.timezone,
     weekday: 'long',
     day: '2-digit',
     month: 'long',

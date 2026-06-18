@@ -1,35 +1,21 @@
-import {
-  DEFAULT_ORG_TIMEZONE,
-  DEFAULT_SLOT_MINUTES,
-  type Org,
-  StoredOrg,
-  isValidSlotMinutes,
-  normalizeCancellationPolicy,
-  normalizeOrgBranding,
-  resolveWhatsappTemplates,
-} from '@/domain'
+import { DEFAULT_UNIT_TIMEZONE, type Org, StoredOrg, normalizeOrgBranding } from '@/domain'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
+import { listUnitsForOrg } from '@/shared/org/unit-read'
 import 'server-only'
 
 // What we persist under `orgs/{id}` (the event projection). The Org is a pure
-// folder/shell (PRD Identidade v2) — it has NO fiscal identity anymore (the
-// CNPJ moved to `Unit.fiscal`, brief 0048), so the stored shape equals the read
-// model `StoredOrg`. `name` is the BUSINESS name (not titular PII) and stays on
-// the doc. The owner's CPF lives on `User.taxIdentity`, never here.
+// folder/shell (PRD Identidade v2) — it has NO fiscal identity (the CNPJ moved
+// to `Unit.fiscal`, brief 0048) and NO agenda/self-booking config (timezone,
+// slotMinutes, cancellationPolicy, confirmation messages, self-booking publish
+// state moved to `Unit.agenda`), so the stored shape equals the read model
+// `StoredOrg`. `name` is the BUSINESS name (not titular PII) and stays on the
+// doc. The owner's CPF lives on `User.taxIdentity`, never here.
 
 function normalizeOrg(t: StoredOrg): Org {
   return {
     ...t,
-    timezone: t.timezone || DEFAULT_ORG_TIMEZONE,
-    slotMinutes: isValidSlotMinutes(t.slotMinutes) ? t.slotMinutes : DEFAULT_SLOT_MINUTES,
     branding: normalizeOrgBranding(t.branding),
-    cancellationPolicy: normalizeCancellationPolicy(t.cancellationPolicy),
-    whatsappTemplates: resolveWhatsappTemplates(t.whatsappTemplates),
-    // Pre-#988 orgs have no `selfBookingPublished` field — default to false
-    // (unpublished) so a missing flag never leaks a public page.
-    selfBookingPublished: t.selfBookingPublished === true,
-    selfBookingPublishedAt: t.selfBookingPublishedAt ?? null,
   }
 }
 
@@ -57,4 +43,17 @@ export async function getOrgBySlug(slug: string): Promise<Org | null> {
   const data = doc.data()
   if (!data) return null
   return normalizeOrg(data)
+}
+
+// Representative timezone for an ORG-SCOPED aggregate (dashboard, reports,
+// copilot, daily notifications header) after the tz moved Org→Unit (PRD
+// Identidade v2). The timezone is the establishment's, so an org-wide view has
+// no single tz; we use the first active unit's tz (units are listed ordered by
+// name), falling back to the default when the org has no unit yet. LIMITATION:
+// when units span timezones, the org-wide aggregate renders in this one unit's
+// tz — acceptable for the V0 single-tz-per-org reality; per-unit views use the
+// unit's own tz.
+export async function getOrgRepresentativeTimezone(orgId: string): Promise<string> {
+  const units = await listUnitsForOrg(orgId)
+  return units[0]?.timezone ?? DEFAULT_UNIT_TIMEZONE
 }

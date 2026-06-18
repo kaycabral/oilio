@@ -1,10 +1,12 @@
 import {
-  BusinessHours,
+  UnitAgendaConfig,
   getBusinessHoursForDay,
   getOrgDayBoundsUtc,
   hhmmToMinutes,
   shiftDateInOrgTz,
   toOrgTime,
+  unitBusinessHours,
+  type BusinessHours,
 } from '@/domain'
 import { createNotification } from '@/domain/aggregates'
 import { FirestoreService, type EventValidationError } from '@/domain/effect'
@@ -13,14 +15,16 @@ import { Effect, Option, Schema } from 'effect'
 
 const OrgDoc = Schema.Struct({
   id: Schema.String,
-  timezone: Schema.String,
 })
 type OrgDoc = typeof OrgDoc.Type
 
+// Timezone + hours are the establishment's now (PRD Identidade v2 — moved
+// Org→Unit): each unit carries its own tz and agenda union.
 const UnitDoc = Schema.Struct({
   id: Schema.String,
   orgId: Schema.String,
-  businessHours: Schema.NullOr(BusinessHours),
+  timezone: Schema.String,
+  agenda: UnitAgendaConfig,
 })
 type UnitDoc = typeof UnitDoc.Type
 
@@ -54,11 +58,7 @@ export function generateDailyNotifications(
 
     for (const raw of orgDocs) {
       const org = decodeAs(OrgDoc, raw)
-      if (!org.id || !org.timezone) continue
-
-      const orgTime = toOrgTime(now.toISOString(), org.timezone)
-      const today = orgTime.dateISO
-      const currentMinutes = orgTime.hour * 60 + orgTime.minute
+      if (!org.id) continue
 
       const unitDocs = yield* firestore.getDocs(`orgs/${org.id}/units`)
       const units = unitDocs.map((r) => decodeAs(UnitDoc, r))
@@ -66,7 +66,15 @@ export function generateDailyNotifications(
       for (const unit of units) {
         if (!unit.id) continue
 
-        if (!shouldProcessUnit(unit.businessHours, today, org.timezone, currentMinutes)) continue
+        // Each unit's clock is its own timezone (moved Org→Unit).
+        const unitTime = toOrgTime(now.toISOString(), unit.timezone)
+        const today = unitTime.dateISO
+        const currentMinutes = unitTime.hour * 60 + unitTime.minute
+
+        if (
+          !shouldProcessUnit(unitBusinessHours(unit.agenda), today, unit.timezone, currentMinutes)
+        )
+          continue
 
         const birthdayCount = yield* generateBirthdayNotifications(org, unit, today)
         created += birthdayCount
@@ -123,7 +131,7 @@ function generateBirthdayNotifications(
       const customerMonthDay = birthDate.slice(5)
       if (customerMonthDay !== monthDay) continue
 
-      const { endUtc } = getOrgDayBoundsUtc(today, org.timezone)
+      const { endUtc } = getOrgDayBoundsUtc(today, unit.timezone)
       const eventKey = `birthday-${today}-customer-${customer.id}-unit-${unit.id}`
 
       const result = yield* createNotification({
@@ -158,15 +166,15 @@ function generateSubscriptionTouchNotifications(
     ])
     let created = 0
 
-    const tomorrow = shiftDateInOrgTz(today, 1, org.timezone)
-    const yesterday = shiftDateInOrgTz(today, -1, org.timezone)
-    const sevenDaysAgo = shiftDateInOrgTz(today, -7, org.timezone)
+    const tomorrow = shiftDateInOrgTz(today, 1, unit.timezone)
+    const yesterday = shiftDateInOrgTz(today, -1, unit.timezone)
+    const sevenDaysAgo = shiftDateInOrgTz(today, -7, unit.timezone)
 
     for (const raw of subDocs) {
       const sub = decodeAs(SubscriptionDoc, raw)
       if (!sub.currentPeriod?.endAt) continue
 
-      const endDate = toOrgTime(sub.currentPeriod.endAt, org.timezone).dateISO
+      const endDate = toOrgTime(sub.currentPeriod.endAt, unit.timezone).dateISO
       const touches = matchSubscriptionTouches(endDate, tomorrow, yesterday, sevenDaysAgo)
 
       for (const touch of touches) {

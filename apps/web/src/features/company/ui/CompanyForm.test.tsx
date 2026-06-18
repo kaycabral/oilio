@@ -14,6 +14,10 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn() },
 }))
 
+// The Org is a pure folder (PRD Identidade v2, context 3): the company form
+// edits only name/slug/vertical/branding. The agenda configs (cancellation
+// policy / confirmation messages / slot / self-booking publish) moved to the
+// per-unit agenda settings, so they're no longer on this form.
 function buildOrg(overrides: Partial<Org> = {}): Org {
   return {
     id: 't1',
@@ -21,13 +25,7 @@ function buildOrg(overrides: Partial<Org> = {}): Org {
     slug: 'barbearia-joao',
     vertical: 'barbershop',
     ownerUserId: 'u1',
-    selfBookingPublished: false,
-    selfBookingPublishedAt: null,
-    timezone: 'America/Sao_Paulo',
-    slotMinutes: 15,
     branding: { logoUrl: null, bannerUrl: null, description: null },
-    cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
-    whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -38,48 +36,24 @@ beforeEach(() => {
   updateCompany.mockReset()
 })
 
-describe('CompanyForm — cancellation policy (#871)', () => {
-  it('hides the notice-minutes input until the cancellation toggle is enabled (#871)', () => {
-    render(<CompanyForm org={buildOrg()} canManage />)
-    expect(screen.queryByText(/antecedência mínima sugerida/i)).not.toBeInTheDocument()
-    fireEvent.click(screen.getByLabelText(/ativar política de cancelamento/i))
-    expect(screen.getByText(/antecedência mínima sugerida/i)).toBeInTheDocument()
-  })
-
-  it('submits enabled + minNoticeMinutes when toggle is on (#871)', async () => {
+describe('CompanyForm — folder fields (PRD Identidade v2)', () => {
+  it('submits the org folder fields (name/slug/branding)', async () => {
     updateCompany.mockResolvedValue({ ok: true })
     render(<CompanyForm org={buildOrg()} canManage />)
-    fireEvent.click(screen.getByLabelText(/ativar política de cancelamento/i))
-    const input = screen.getByLabelText(/antecedência mínima sugerida/i)
-    fireEvent.change(input, { target: { value: '60' } })
     const saveButton = screen.getByRole('button', { name: /salvar/i })
     const form = saveButton instanceof HTMLButtonElement ? saveButton.form : null
     expect(form).not.toBeNull()
     fireEvent.submit(form ?? saveButton)
     await waitFor(() => expect(updateCompany).toHaveBeenCalledTimes(1))
     const fd = updateCompany.mock.calls[0]![0]
-    expect(fd.get('cancellationPolicyEnabled')).toBe('on')
-    expect(fd.get('cancellationPolicyMinNoticeMinutes')).toBe('60')
+    expect(fd.get('name')).toBe('Barbearia do João')
+    expect(fd.get('slug')).toBe('barbearia-joao')
+    expect(fd.get('vertical')).toBe('barbershop')
   })
 
-  it('preserves minNoticeMinutes across enable → disable (#871)', () => {
-    render(
-      <CompanyForm
-        org={buildOrg({ cancellationPolicy: { enabled: true, minNoticeMinutes: 240 } })}
-        canManage
-      />,
-    )
-    // When enabled, the visible input shows 240.
-    const visible = screen.getByLabelText(/antecedência mínima sugerida/i)
-    expect(visible).toHaveDisplayValue('240')
-    // Toggle off: the value persists in a hidden input so a future re-enable
-    // restores it without retyping.
-    fireEvent.click(screen.getByLabelText(/ativar política de cancelamento/i))
-    const saveButton = screen.getByRole('button', { name: /salvar/i })
-    const form = saveButton instanceof HTMLButtonElement ? saveButton.form : null
-    expect(form).not.toBeNull()
-    const fd = new FormData(form ?? undefined)
-    expect(fd.has('cancellationPolicyEnabled')).toBe(false)
-    expect(fd.get('cancellationPolicyMinNoticeMinutes')).toBe('240')
+  it('does NOT render the agenda configs that moved to the unit (cancellation policy)', () => {
+    render(<CompanyForm org={buildOrg()} canManage />)
+    expect(screen.queryByText(/política de cancelamento/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/antecedência mínima sugerida/i)).not.toBeInTheDocument()
   })
 })

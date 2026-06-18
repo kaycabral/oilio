@@ -21,7 +21,7 @@ export default async function EditUnitPage({ params }: { params: Promise<{ id: s
       <Typography variant="pageTitle">Editar unidade</Typography>
       <UnitForm unit={unit} />
 
-      <UnitPublishCard orgId={orgId} unitId={unit.id} hoursMode={unit.hoursMode} />
+      <UnitPublishCard orgId={orgId} unitId={unit.id} mode={unit.agenda.mode} />
 
       {isUnitBookable(unit) && org?.slug ? (
         <UnitBookingQr orgSlug={org.slug} unitSlug={unit.slug} unitName={unit.name} />

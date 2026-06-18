@@ -2,7 +2,7 @@
 
 import { AddressFields } from '@/components/address-fields'
 import { PhoneInput } from '@/components/PhoneInput'
-import { isValidUnitSlug, slugifyUnitName, type Unit } from '@/domain'
+import { isValidUnitSlug, slugifyUnitName, type Unit, unitBusinessHours } from '@/domain'
 import {
   checkUnitSlugAvailability,
   createUnit,
@@ -172,8 +172,8 @@ export function UnitForm({ unit }: { unit?: Unit }) {
         <AddressFields defaults={unit?.address ?? null} simplified numberRequired />
         <FieldSeparator />
         <BusinessHoursFields
-          defaults={unit?.businessHours ?? null}
-          defaultMode={unit?.hoursMode ?? 'fixed'}
+          defaults={unit ? unitBusinessHours(unit.agenda) : null}
+          defaultMode={unit?.agenda.mode ?? 'fixed'}
         />
         {error ? <FieldError>{error}</FieldError> : null}
         <Field orientation="horizontal" className="justify-end">

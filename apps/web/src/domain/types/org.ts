@@ -1,25 +1,6 @@
 import { Schema } from 'effect'
 
-import type { WhatsappTemplates } from '../utils/whatsapp'
 import { Vertical } from './enums'
-
-// `WhatsappTemplates` (a hand-written `type` in `../utils/whatsapp`, outside the
-// read-model kernel) projected as a schema so the `Org.whatsappTemplates`
-// field stays a single source of truth here. The `_proof` below pins it to the
-// canonical type — drift fails the build.
-const WhatsappTemplatesSchema = Schema.mutable(
-  Schema.Struct({
-    confirmation: Schema.String,
-    reminder: Schema.String,
-    cancellation: Schema.String,
-  }),
-)
-type _ProofWhatsappTemplates = [
-  typeof WhatsappTemplatesSchema.Type extends WhatsappTemplates ? true : false,
-  WhatsappTemplates extends typeof WhatsappTemplatesSchema.Type ? true : false,
-]
-const _proofWhatsappTemplates: _ProofWhatsappTemplates = [true, true]
-void _proofWhatsappTemplates
 
 export const OrgBranding = Schema.mutable(
   Schema.Struct({
@@ -68,57 +49,12 @@ export function normalizeOrgBranding(raw: unknown): OrgBranding {
   }
 }
 
-export const SlotMinutes = Schema.Literal(5, 10, 15, 30)
-export type SlotMinutes = typeof SlotMinutes.Type
-
-export const SLOT_MINUTES_OPTIONS = [5, 10, 15, 30] as const satisfies readonly SlotMinutes[]
-
-export function isValidSlotMinutes(v: unknown): v is SlotMinutes {
-  return SLOT_MINUTES_OPTIONS.some((o) => o === v)
-}
-
-// Opt-in self-service cancellation policy. When `enabled = false`, the public
-// pre-booking screen shows no policy copy and cancel/reschedule UX has zero
-// friction. Tracking on Appointment is always populated regardless of this
-// flag — the flag only gates customer-facing communication. Wiki:
-// 04-Roadmap-Politica-Cancelamento.
-export const CancellationPolicy = Schema.mutable(
-  Schema.Struct({
-    enabled: Schema.Boolean,
-    minNoticeMinutes: Schema.Number,
-  }),
-)
-export type CancellationPolicy = typeof CancellationPolicy.Type
-
-export const DEFAULT_CANCELLATION_POLICY: CancellationPolicy = {
-  enabled: false,
-  minNoticeMinutes: 120,
-}
-
-export const MIN_CANCELLATION_NOTICE_MINUTES = 0
-export const MAX_CANCELLATION_NOTICE_MINUTES = 7 * 24 * 60
-
-export function isValidCancellationNoticeMinutes(v: unknown): v is number {
-  return (
-    typeof v === 'number' &&
-    Number.isFinite(v) &&
-    Number.isInteger(v) &&
-    v >= MIN_CANCELLATION_NOTICE_MINUTES &&
-    v <= MAX_CANCELLATION_NOTICE_MINUTES
-  )
-}
-
-export function normalizeCancellationPolicy(raw: unknown): CancellationPolicy {
-  if (!isRecord(raw)) return { ...DEFAULT_CANCELLATION_POLICY }
-  const r = raw
-  return {
-    enabled: typeof r.enabled === 'boolean' ? r.enabled : DEFAULT_CANCELLATION_POLICY.enabled,
-    minNoticeMinutes: isValidCancellationNoticeMinutes(r.minNoticeMinutes)
-      ? r.minNoticeMinutes
-      : DEFAULT_CANCELLATION_POLICY.minNoticeMinutes,
-  }
-}
-
+// The Org is a pure folder/shell (PRD Identidade v2): name, slug, segment
+// (= vertical), branding, website, ownerUserId, timestamps. It carries NO
+// fiscal identity (the CNPJ is the establishment's — `Unit.fiscal`, brief 0048)
+// and NO agenda/self-booking config (timezone, slotMinutes, cancellationPolicy,
+// confirmation messages, self-booking publish state all moved to `Unit.agenda`
+// — they're establishment/agenda concerns of the Unit, not the folder).
 export const Org = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
@@ -128,22 +64,8 @@ export const Org = Schema.mutable(
     // The brand's site/domain (optional). Future: domain verification + Google
     // Shopping (PRD Identidade § Contrato de tipagem — Org ganha `website`).
     website: Schema.optional(Schema.NullOr(Schema.String)),
-    // The Org carries NO fiscal identity (PRD Identidade v2): the CNPJ is, by
-    // law, the establishment's — it lives on `Unit.fiscal` (brief 0048). The Org
-    // is a pure folder/shell: branding + segment + members; never a CNPJ nor a
-    // titular tax id.
     ownerUserId: Schema.String,
-    // Self-booking publication gate (brief 0008 #988). The public page is only
-    // reachable when `selfBookingPublished` is true — the owner publishes
-    // explicitly after the minimum (1 unit w/ address+hours, 1 public service,
-    // 1 approved professional). Event-sourced via `org.self_booking_published`.
-    selfBookingPublished: Schema.Boolean,
-    selfBookingPublishedAt: Schema.optional(Schema.NullOr(Schema.String)),
-    timezone: Schema.String,
-    slotMinutes: SlotMinutes,
     branding: OrgBranding,
-    cancellationPolicy: CancellationPolicy,
-    whatsappTemplates: WhatsappTemplatesSchema,
     createdAt: Schema.String,
     updatedAt: Schema.String,
   }),
@@ -151,11 +73,9 @@ export const Org = Schema.mutable(
 export type Org = typeof Org.Type
 
 // Storage projection of `Org`: the `orgs/{id}` doc. The Org has NO fiscal PII
-// anymore (PRD Identidade v2 — the fiscal identity moved to `Unit.fiscal`), so
-// the stored shape equals the read model. `name` is the BUSINESS name (not
-// titular PII) and stays on the doc. Decode raw `orgs` docs against this.
+// anymore (PRD Identidade v2 — the fiscal identity moved to `Unit.fiscal`) and
+// no agenda config (moved to `Unit.agenda`), so the stored shape equals the
+// read model. `name` is the BUSINESS name (not titular PII) and stays on the
+// doc. Decode raw `orgs` docs against this.
 export const StoredOrg = Org
 export type StoredOrg = typeof StoredOrg.Type
-
-export const DEFAULT_ORG_TIMEZONE = 'America/Sao_Paulo'
-export const DEFAULT_SLOT_MINUTES: SlotMinutes = 15

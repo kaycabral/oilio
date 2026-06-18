@@ -3,7 +3,7 @@ import { isSnoozeOption } from '@/features/notifications/core/snooze'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { readJson } from '@/shared/http'
 import { getActiveOrgContext } from '@/shared/org/membership'
-import { getOrg } from '@/shared/org/org'
+import { getOrgRepresentativeTimezone } from '@/shared/org/org'
 import { Schema } from 'effect'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -26,8 +26,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Opção de adiamento inválida' }, { status: 400 })
   }
 
-  const org = await getOrg(ctx.membership.orgId)
-  if (!org) return NextResponse.json({ error: 'Org não encontrado' }, { status: 404 })
+  // Timezone is the establishment's now (PRD Identidade v2 — moved Org→Unit);
+  // snooze is org-scoped, so use a representative unit's tz.
+  const tz = await getOrgRepresentativeTimezone(ctx.membership.orgId)
 
   const { id } = await params
   const result = await snoozeNotification({
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     notificationId: id,
     option: body.option,
     actorUid: session.uid,
-    tz: org.timezone,
+    tz,
   })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
 

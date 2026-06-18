@@ -200,9 +200,7 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   }
 
   const org = await getOrgBySlug(slug)
-  if (!org || !org.selfBookingPublished) {
-    return { ok: false, error: 'Estabelecimento indisponível.' }
-  }
+  if (!org) return { ok: false, error: 'Estabelecimento indisponível.' }
 
   const fields = parseWizardFields(formData)
   if (typeof fields === 'string') return { ok: false, error: fields }
@@ -216,13 +214,26 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   if (typeof entities === 'string') return { ok: false, error: entities }
   const { unit, service } = entities
 
+  // Publish gate, timezone and cancellation policy are the establishment's now
+  // (PRD Identidade v2 — moved Org→Unit): gate on the unit's appointment-agenda
+  // publish state and use the unit's tz for all temporal logic below.
+  if (unit.agenda.mode !== 'appointment' || !unit.agenda.selfBookingPublished) {
+    return { ok: false, error: 'Estabelecimento indisponível.' }
+  }
+  const unitScope = { id: org.id, timezone: unit.timezone }
+
   const resolved = resolveCatalogItemForUnit(service, unit.id)
   const endAt = new Date(startAtDate.getTime() + resolved.durationMinutes * 60_000)
 
   const session = await getSessionUser()
   // Behavioral scope (brief 0019, Group C — AC-12..14) reuses the same resolver;
   // hoist the booking limits to enforce below once the customer is materialized.
-  const scopeResult = await checkWizardSubscriptionScope({ org, session, service, startAtDate })
+  const scopeResult = await checkWizardSubscriptionScope({
+    org: unitScope,
+    session,
+    service,
+    startAtDate,
+  })
   if ('error' in scopeResult) return scopeResult.error
   const bookingLimitsForCustomer = scopeResult.bookingLimits
 
@@ -238,7 +249,7 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
 
   const limitsErr = await enforceWizardBookingLimits({
     db,
-    org,
+    org: unitScope,
     customerId,
     startAtDate,
     session,
@@ -265,7 +276,7 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     serviceDurationMinutesSnapshot: resolved.durationMinutes,
     commissionSnapshot: resolved.commission,
     // Snapshot da cancellation policy no commit (#1038).
-    cancellationPolicySnapshot: normalizeCancellationPolicy(org.cancellationPolicy),
+    cancellationPolicySnapshot: normalizeCancellationPolicy(unit.agenda.cancellationPolicy),
     customerUserId: userIds.ids.customerUserId,
     professionalUserId: userIds.ids.professionalUserId,
     createdAt: now,

@@ -1,5 +1,6 @@
 import type { UnitHoursMode } from '@/domain'
 import { getUnitPublishReadiness } from '@/features/units/adapters/units.actions'
+import { UNIT_REQUIREMENTS } from '@/features/units/core/publish-readiness'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@cbrl/design'
 import { Check, X } from 'lucide-react'
 
@@ -8,16 +9,17 @@ import { Check, X } from 'lucide-react'
 // service + approved professional). This card is just FEEDBACK — it tells the
 // owner whether the agenda is visible and, if not, exactly what's missing.
 // Hidden entirely for non-appointment units (the agenda isn't relevant there).
+// `mode` is `Unit.agenda.mode` (PRD Identidade v2 — agenda moved Org→Unit).
 export async function UnitPublishCard({
   orgId,
   unitId,
-  hoursMode,
+  mode,
 }: {
   orgId: string
   unitId: string
-  hoursMode: UnitHoursMode | undefined
+  mode: UnitHoursMode | undefined
 }) {
-  if (hoursMode !== 'appointment') return null
+  if (mode !== 'appointment') return null
   const readiness = await getUnitPublishReadiness(orgId, unitId)
 
   return (
@@ -32,7 +34,7 @@ export async function UnitPublishCard({
       </CardHeader>
       <CardContent>
         <ul className="space-y-1.5 text-sm" data-slot="unit-agenda-readiness">
-          {Object.values(REQUIREMENTS).map((req) => {
+          {Object.values(UNIT_REQUIREMENTS).map((req) => {
             const ok = !readiness.missing.includes(req)
             return (
               <li key={req} className="flex items-center gap-2">
@@ -50,10 +52,3 @@ export async function UnitPublishCard({
     </Card>
   )
 }
-
-// Mirrors `getUnitPublishReadiness`'s missing[] strings.
-const REQUIREMENTS = {
-  address: 'Endereço e horário de funcionamento preenchidos',
-  service: '1 serviço público oferecido nesta unidade',
-  professional: '1 profissional aprovado nesta unidade',
-} as const

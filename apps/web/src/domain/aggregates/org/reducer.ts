@@ -10,10 +10,6 @@ export function applyOrgEvent(state: OrgState, event: OrgEvent, meta: EventMeta)
       return { ...base, ...event.data, createdAt: meta.timestamp, updatedAt: meta.timestamp }
     case 'org.updated':
       return { ...base, ...event.changes, updatedAt: meta.timestamp }
-    case 'org.self_booking_published':
-      return { ...base, selfBookingPublished: true, selfBookingPublishedAt: meta.timestamp }
-    case 'org.self_booking_unpublished':
-      return { ...base, selfBookingPublished: false }
     case 'org.deleted':
       return base
   }

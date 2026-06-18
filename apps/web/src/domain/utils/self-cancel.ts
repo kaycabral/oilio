@@ -13,7 +13,7 @@
 // Staff still cancels through the agenda path with no policy gate.
 
 import type { Appointment } from '../types/appointment'
-import type { CancellationPolicy } from '../types/org'
+import type { CancellationPolicy } from '../types/unit'
 
 export type SelfCancelCheck =
   | { ok: true }

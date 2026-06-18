@@ -59,7 +59,7 @@ export default async function WizardSuccessPage({ params, searchParams }: PagePr
   const unitDoc = unit
 
   const fmt = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: summary.org.timezone,
+    timeZone: unit.timezone,
     weekday: 'long',
     day: '2-digit',
     month: 'long',

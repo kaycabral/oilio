@@ -4,13 +4,18 @@ import {
   CatalogItem,
   catalogServiceToService,
   type Customer,
+  DEFAULT_SLOT_MINUTES,
+  DEFAULT_UNIT_TIMEZONE,
   getBlockSegmentsForDay,
   getBusinessHoursForDay,
   getOrgDayBoundsUtc,
   getTodayInOrgTz,
   isBusinessHoursConfigured,
   isCatalogService,
+  resolveWhatsappTemplates,
   type Service,
+  unitBusinessHours,
+  unitSlotMinutes,
   unitUsesAgenda,
 } from '@/domain'
 import type { AgendaViewProps } from '@/features/agenda/ui/AgendaView'
@@ -47,11 +52,6 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
   const org = await getOrg(ctx.membership.orgId)
   if (!org) redirect('/onboarding')
 
-  const date =
-    searchParams.date && isValidDateISO(searchParams.date)
-      ? searchParams.date
-      : getTodayInOrgTz(org.timezone)
-
   const db = getAdminFirestore()
   const orgRef = db.collection('orgs').doc(ctx.membership.orgId)
 
@@ -71,14 +71,29 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
 
   const activeUnit = activeUnitId ? (units.find((u) => u.id === activeUnitId) ?? null) : null
 
+  // Timezone + slot grid are establishment/agenda concerns (PRD Identidade v2 —
+  // moved Org→Unit): source them from the active unit's agenda; fall back to the
+  // default tz / slot when no unit is active yet.
+  const timezone = activeUnit?.timezone ?? DEFAULT_UNIT_TIMEZONE
+  const slotMinutes = activeUnit ? unitSlotMinutes(activeUnit.agenda) : DEFAULT_SLOT_MINUTES
+  const confirmationTemplate = resolveWhatsappTemplates(
+    activeUnit?.agenda.mode === 'appointment' ? activeUnit.agenda.confirmationTemplates : null,
+  ).confirmation
+  const activeUnitHours = activeUnit ? unitBusinessHours(activeUnit.agenda) : null
+
+  const date =
+    searchParams.date && isValidDateISO(searchParams.date)
+      ? searchParams.date
+      : getTodayInOrgTz(timezone)
+
   const professionals = activeUnitId
     ? allProfessionals.filter((p) => p.unitIds.includes(activeUnitId))
     : []
 
-  const dayHours = getBusinessHoursForDay(activeUnit?.businessHours ?? null, date, org.timezone)
-  const hasBusinessHours = isBusinessHoursConfigured(activeUnit?.businessHours ?? null)
+  const dayHours = getBusinessHoursForDay(activeUnitHours, date, timezone)
+  const hasBusinessHours = isBusinessHoursConfigured(activeUnitHours)
 
-  const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(date, org.timezone)
+  const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(date, timezone)
 
   let appointments: Appointment[] = []
   let customersById = new Map<string, Customer>()
@@ -113,7 +128,7 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
     ])
     appointments = apptSnap.docs.map((d) => d.data())
     const blocks = blocksSnap.docs.map((d) => d.data())
-    blockSegments = getBlockSegmentsForDay(blocks, date, org.timezone)
+    blockSegments = getBlockSegmentsForDay(blocks, date, timezone)
     // Unified catalog (brief 0023, #1004): the agenda picker offers kind-service
     // items, adapted to the legacy Service shape consumed by the dialog.
     allServices = servicesSnap.docs
@@ -137,8 +152,8 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
 
   return {
     date,
-    timezone: org.timezone,
-    slotMinutes: org.slotMinutes,
+    timezone,
+    slotMinutes,
     units,
     activeUnitId,
     professionals,
@@ -151,7 +166,7 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
     services: allServices,
     customers: allCustomers,
     businessName: org.name,
-    confirmationTemplate: org.whatsappTemplates.confirmation,
+    confirmationTemplate,
     canManage,
   }
 }

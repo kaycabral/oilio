@@ -35,12 +35,26 @@ export const UnitFormalizedSchema = Schema.Struct({
   formalizedAt: Schema.String,
 })
 
+// Self-booking publication (brief 0008 #988), moved Org→Unit (PRD Identidade
+// v2): the public page is a per-unit, appointment-agenda concern. The publish
+// state lives in the `appointment` variant of `Unit.agenda`; these events only
+// have effect on an appointment-mode unit (the reducer guards it).
+export const UnitSelfBookingPublishedSchema = Schema.Struct({
+  _tag: Schema.Literal('unit.self_booking_published'),
+})
+
+export const UnitSelfBookingUnpublishedSchema = Schema.Struct({
+  _tag: Schema.Literal('unit.self_booking_unpublished'),
+})
+
 export const UnitEventSchema = Schema.Union(
   UnitCreatedSchema,
   UnitUpdatedSchema,
   UnitDeletedSchema,
   UnitArchivedSchema,
   UnitFormalizedSchema,
+  UnitSelfBookingPublishedSchema,
+  UnitSelfBookingUnpublishedSchema,
 )
 
 export type UnitCreated = typeof UnitCreatedSchema.Type
@@ -48,4 +62,6 @@ export type UnitUpdated = typeof UnitUpdatedSchema.Type
 export type UnitDeleted = typeof UnitDeletedSchema.Type
 export type UnitArchived = typeof UnitArchivedSchema.Type
 export type UnitFormalized = typeof UnitFormalizedSchema.Type
+export type UnitSelfBookingPublished = typeof UnitSelfBookingPublishedSchema.Type
+export type UnitSelfBookingUnpublished = typeof UnitSelfBookingUnpublishedSchema.Type
 export type UnitEvent = typeof UnitEventSchema.Type

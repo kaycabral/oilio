@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CancellationPolicy } from '../types/org'
+import type { CancellationPolicy } from '../types/unit'
 import { canCustomerCancelAppointment } from './self-cancel'
 
 const policyOff: CancellationPolicy = { enabled: false, minNoticeMinutes: 120 }
