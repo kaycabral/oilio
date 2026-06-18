@@ -16,28 +16,28 @@ Código de feature vive em `src/features/<slice>/{core,adapters,ui}` (dependênc
 
 Firebase Auth + session cookie. Package `db` deste projeto: `@oilio/db`.
 
-## Multi-tenant — invariantes
+## Multi-org — invariantes
 
-Toda rota autenticada vive sob `(app)/` e o layout resolve o tenant via `getActiveTenantContext(uid)`, redirecionando pra `/onboarding` se o usuário ainda não tem tenant. **Não há gate global de onboarding** (brief 0008): o app é operável desde o signup; o setup acontece just-in-time pelos empty-states acionáveis (#987), e a completude só é exigida ao **publicar o self-booking** (`selfBookingPublished`, #988). O contexto é injetado client-side via `<TenantProvider>` — consuma com `useTenant()`.
+Toda rota autenticada vive sob `(app)/` e o layout resolve o org via `getActiveOrgContext(uid)`, redirecionando pra `/onboarding` se o usuário ainda não tem org. **Não há gate global de onboarding** (brief 0008): o app é operável desde o signup; o setup acontece just-in-time pelos empty-states acionáveis (#987), e a completude só é exigida ao **publicar o self-booking** (`selfBookingPublished`, #988). O contexto é injetado client-side via `<OrgProvider>` — consuma com `useOrg()`.
 
-**Invariantes não-negociáveis** (ver ADR [`docs/decisions/0004-multi-tenant-model.md`](../docs/decisions/0004-multi-tenant-model.md) pra contexto e alternativas):
+**Invariantes não-negociáveis** (ver ADR [`docs/decisions/0004-multi-org-model.md`](../docs/decisions/0004-multi-org-model.md) pra contexto e alternativas):
 
-- **Sem cross-tenant query.** Nunca `collectionGroup('<dado operacional>')` no código de produto. Toda query parte de `db.collection('tenants').doc(ctx.tenantId)`. Code review pode rejeitar PR que adicione `collectionGroup` operacional como violação de ADR.
-- **Sem coleção operacional top-level.** Só `users` e `memberships` podem ser top-level. Qualquer dado novo (ex.: `expense_categories`) entra como `tenants/{tenantId}/<nova_coleção>`.
-- **Server actions usam `requireTenantCtx`/`requireManagerCtx`/`requireOwnerCtx`** antes de qualquer write — nunca confiar só nas Firestore Rules.
-- **Tenant scoping**: dados específicos de tenant em `tenants/{tenantId}/{collection}/{id}` (units, professionals, customers, invites, audit_logs).
-- **Memberships**: top-level `memberships/{tenantId}_{userId}`. Helper `membershipDocId()` em `@oilio/shared`.
-- **User doc**: top-level `users/{uid}` com `currentTenantId` (escolha de tenant ativo).
+- **Sem cross-org query.** Nunca `collectionGroup('<dado operacional>')` no código de produto. Toda query parte de `db.collection('orgs').doc(ctx.orgId)`. Code review pode rejeitar PR que adicione `collectionGroup` operacional como violação de ADR.
+- **Sem coleção operacional top-level.** Só `users` e `memberships` podem ser top-level. Qualquer dado novo (ex.: `expense_categories`) entra como `orgs/{orgId}/<nova_coleção>`.
+- **Server actions usam `requireOrgCtx`/`requireManagerCtx`/`requireOwnerCtx`** antes de qualquer write — nunca confiar só nas Firestore Rules.
+- **Org scoping**: dados específicos de org em `orgs/{orgId}/{collection}/{id}` (units, professionals, customers, invites, audit_logs).
+- **Memberships**: top-level `memberships/{orgId}_{userId}`. Helper `membershipDocId()` em `@oilio/shared`.
+- **User doc**: top-level `users/{uid}` com `currentOrgId` (escolha de org ativo).
 - **Audit = event stream (ver § Event Sourcing).** Em ES, a auditoria é o próprio stream de domain events. `recordAudit`/`audit_logs` é mecanismo **legado pré-ES** — débito a converter em projeção; **não** adicionar `recordAudit` novo em feature nova.
-- **Troca de tenant ativo**: hoje só via `users/{uid}.currentTenantId` (sem UI no V0).
-- **Dashboard cross-tenant fica fora do V0.** Owner com 2 tenants alterna; não há agregado.
+- **Troca de org ativo**: hoje só via `users/{uid}.currentOrgId` (sem UI no V0).
+- **Dashboard cross-org fica fora do V0.** Owner com 2 orgs alterna; não há agregado.
 
 ## Event Sourcing — seletivo (núcleo) + CRUD com snapshot-on-use
 
 **ES é seletivo**, não uniforme. Decisão em [`docs/decisions/0010-event-sourcing-seletivo.md`](../docs/decisions/0010-event-sourcing-seletivo.md) (emenda o [`0008`](../docs/decisions/0008-event-sourcing-ddd-effect.md)); conceito canônico na Wiki [[Linguagem Ubíqua]] § "Arquitetura base" + [[Glossário]].
 
 - **Núcleo event-sourced** (verdade temporal/contratual/financeira): `order` · `commission` · `charge` · `cash-movement` · `subscription` · `appointment`.
-- **CRUD + snapshot-on-use** (definição/config/identidade): `catalog-item` · `category` · `product` · `service` · `subscription-plan` · `professional` · `unit` · `tenant` · `customer` · `membership` · `notification` · `agenda-block` · `invite`.
+- **CRUD + snapshot-on-use** (definição/config/identidade): `catalog-item` · `category` · `product` · `service` · `subscription-plan` · `professional` · `unit` · `org` · `customer` · `membership` · `notification` · `agenda-block` · `invite`.
 
 **Regras dos aggregates ES (núcleo):**
 
@@ -58,7 +58,7 @@ Toda rota autenticada vive sob `(app)/` e o layout resolve o tenant via `getActi
 
 Duas regras fixas pra conformidade de ES não re-levantar decisão a cada aggregate (pré-resolvidas pra `/implement` rodar autônomo):
 
-- **Cascata cross-aggregate = saga, nunca transação única.** Quando uma action muda **mais de um aggregate** (ex.: fechar comanda → comissão + agenda + assinatura + caixa; onboarding → tenant + membership; aceite → invite + membership), cada aggregate emite **seu próprio evento em sequência**. Não embrulhar vários aggregates numa transação Firestore (anti-pattern em ES — cada aggregate é sua fronteira de consistência). Recuperação por **compensação** (se um passo falha, emite o evento de desfazer do passo anterior + remove) e **erro à mostra** — nunca silencioso. Padrão de referência: `onboarding/actions.ts` (`createTenant`).
+- **Cascata cross-aggregate = saga, nunca transação única.** Quando uma action muda **mais de um aggregate** (ex.: fechar comanda → comissão + agenda + assinatura + caixa; onboarding → org + membership; aceite → invite + membership), cada aggregate emite **seu próprio evento em sequência**. Não embrulhar vários aggregates numa transação Firestore (anti-pattern em ES — cada aggregate é sua fronteira de consistência). Recuperação por **compensação** (se um passo falha, emite o evento de desfazer do passo anterior + remove) e **erro à mostra** — nunca silencioso. Padrão de referência: `onboarding/actions.ts` (`createOrg`).
 - **Aggregate atrás de kill-switch de gateway = converge domínio agora, E2E espera.** Pra aggregates gated por `isPaymentsGatewayEnabled` (charge, split/subconta — parceria em stand-by): modelar eventos + reducer + **teste de replay** + unit normalmente; o **E2E desses fluxos específicos espera a parceria** ligar o gateway. Não bloqueia as outras fatias.
 
 **Ordem de conformidade quando o aggregate é tocado por uma cascata:** conforme os aggregates-folha **antes** do que integra. Ex.: comissão/caixa/agenda antes do **fechamento da comanda** (que depende deles). E **não conformar aggregate que uma mudança de produto vai deletar** — sequencie a mudança de produto primeiro (ex.: caixa só depois de [[0015]] tirar abrir/fechar).
@@ -67,19 +67,19 @@ Duas regras fixas pra conformidade de ES não re-levantar decisão a cada aggreg
 
 Papéis: `owner`, `manager`, `professional`, `receptionist`.
 
-- `canManageTenant(role)` / `canInviteMembers(role)` em `@oilio/shared`.
-- `assertRole(membership, ...allowed)` / `assertCanManage(membership)` em `@/shared/tenant/membership.ts` lançam `AuthzError` quando role insuficiente.
+- `canManageOrg(role)` / `canInviteMembers(role)` em `@oilio/shared`.
+- `assertRole(membership, ...allowed)` / `assertCanManage(membership)` em `@/shared/org/membership.ts` lançam `AuthzError` quando role insuficiente.
 
 ## Agenda — timezone
 
-**Storage sempre UTC, display sempre em tenant timezone.** Helpers canônicos em `@oilio/shared/utils/timezone`. **Nunca use `getUTCHours()`/`getHours()` direto em código de agenda/comanda** — sempre passe pela conversão.
+**Storage sempre UTC, display sempre em org timezone.** Helpers canônicos em `@oilio/shared/utils/timezone`. **Nunca use `getUTCHours()`/`getHours()` direto em código de agenda/comanda** — sempre passe pela conversão.
 
 Detalhes (helpers, invariants, limitações) em [`docs/timezone.md`](../docs/timezone.md).
 
 ## Invite flow
 
-1. Owner/manager cria invite via `/(app)/team` → server action gera token random, armazena hash (sha256) + email + role + expiresAt em `tenants/{tid}/invites/{id}`.
-2. Link: `/invites/{tenantId}/{inviteId}?token={raw}`.
+1. Owner/manager cria invite via `/(app)/team` → server action gera token random, armazena hash (sha256) + email + role + expiresAt em `orgs/{tid}/invites/{id}`.
+2. Link: `/invites/{orgId}/{inviteId}?token={raw}`.
 3. Aceitar valida hash + expiry + email match e cria Membership server-side.
 
 ## Forms + Server Actions

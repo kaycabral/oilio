@@ -5,7 +5,7 @@
 - **Deciders**: kaycabral
 - **Brief**: [`0025-es-conformidade-total`](https://gitlab.com/cbrl/cbrl/-/wikis/Funcionalidades/0025-es-conformidade-total)
 - **Amends**: [0008-event-sourcing-ddd-effect](0008-event-sourcing-ddd-effect.md) — restringe o escopo do Pilar 1 (ES) de "todo aggregate" para o núcleo financeiro/operacional. DDD tático (Pilar 2) e Effect-TS (Pilar 3) seguem valendo para todos.
-- **Related ADRs**: [0004-multi-tenant-model](0004-multi-tenant-model.md), [0009-timezone-two-clocks](0009-timezone-two-clocks.md)
+- **Related ADRs**: [0004-multi-org-model](0004-multi-org-model.md), [0009-timezone-two-clocks](0009-timezone-two-clocks.md)
 - **Glossário**: [Glossário](https://gitlab.com/cbrl/cbrl/-/wikis/Glossário) · taxonomia de sinais em [Linguagem Ubíqua § Sinais](https://gitlab.com/cbrl/cbrl/-/wikis/Linguagem-Ubíqua)
 
 ## Context
@@ -14,7 +14,7 @@ A ADR 0008 cravou Event Sourcing como invariante **uniforme** ("todo aggregate �
 
 Uma auditoria multi-agente (1 agente por aggregate + crítico cross-aggregate, 2026-06-01) confirmou: dos 19 aggregates, **a maioria é definição/config/identidade** — estado atual é o que importa, edição é ocasional. Forçar ES neles gera dois custos concretos:
 
-1. **Fricção LGPD.** Eventos são imutáveis; o direito à eliminação (LGPD Art. 18) não tem caminho quando PII vive no payload. Hoje `tenant`, `unit`, `professional`, `notification`, `invite` gravam PII (CPF/CNPJ, whatsapp, email, nome) em streams imutáveis. O `customer` já faz **certo** (PII fora do evento, materializada de `users/` na leitura) — mas é o único.
+1. **Fricção LGPD.** Eventos são imutáveis; o direito à eliminação (LGPD Art. 18) não tem caminho quando PII vive no payload. Hoje `org`, `unit`, `professional`, `notification`, `invite` gravam PII (CPF/CNPJ, whatsapp, email, nome) em streams imutáveis. O `customer` já faz **certo** (PII fora do evento, materializada de `users/` na leitura) — mas é o único.
 2. **Over-engineering.** Cada operação ES custa evento + reducer + schema + teste de replay + upcaster. Para uma definição (catálogo, plano, unidade), isso é peso sem retorno — a integridade já vem de outro mecanismo (snapshot-on-use), não do event log.
 
 ## Decision
@@ -23,9 +23,9 @@ Uma auditoria multi-agente (1 agente por aggregate + crítico cross-aggregate, 2
 
 ES vale **apenas** para aggregates cuja verdade é temporal/contratual/financeira, com ciclo de vida real:
 
-| **Event-sourced (núcleo)**                                                           | **CRUD + snapshot-on-use (definição/config/identidade)**                                                                                                                                |
-| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `order` · `commission` · `charge` · `cash-movement` · `subscription` · `appointment` | `catalog-item` · `category` · `product` · `service` · `subscription-plan` · `professional` · `unit` · `tenant` · `customer` · `membership` · `notification` · `agenda-block` · `invite` |
+| **Event-sourced (núcleo)**                                                           | **CRUD + snapshot-on-use (definição/config/identidade)**                                                                                                                             |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `order` · `commission` · `charge` · `cash-movement` · `subscription` · `appointment` | `catalog-item` · `category` · `product` · `service` · `subscription-plan` · `professional` · `unit` · `org` · `customer` · `membership` · `notification` · `agenda-block` · `invite` |
 
 Critério (≥1 forte → ES): (1) "o que valia em T" é pergunta de negócio (dinheiro, contrato, fiscal); (2) máquina de estados rica e reconstruível; (3) append-only intrínseco. Senão → CRUD.
 
@@ -58,8 +58,8 @@ Histórico de "como preço/plano mudou no tempo" (coorte, retenção, pricing) �
 
 **Trabalho de conformidade gerado (issues a abrir):**
 
-- **PII legado em eventos** (`tenant`/`unit`/`professional`/`notification`/`invite`): aplicar D2; os streams já emitidos são passivo a expurgar (decidir crypto-shred vs reescrita na migração).
-- **snapshot-on-use GAPs**: `tenant.cancellationPolicy`/`timezone`/`slotMinutes` lidos ao vivo retroagem em histórico — snapshotar no `appointment` ou aceitar conscientemente.
+- **PII legado em eventos** (`org`/`unit`/`professional`/`notification`/`invite`): aplicar D2; os streams já emitidos são passivo a expurgar (decidir crypto-shred vs reescrita na migração).
+- **snapshot-on-use GAPs**: `org.cancellationPolicy`/`timezone`/`slotMinutes` lidos ao vivo retroagem em histórico — snapshotar no `appointment` ou aceitar conscientemente.
 - **`appointment` snapshot drift vs `order`** (risco financeiro): `appointment.updated` não pode alterar snapshot já consumido por um `order`.
 - **Delete sem guarda** (`subscription-plan`, `unit`): aplicar D5 (arquivar/bloquear).
 

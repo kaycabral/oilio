@@ -7,7 +7,7 @@
 - **Parent issue**: [#979](https://gitlab.com/cbrl/cbrl/-/issues/979)
 - **Supersedes**: nenhum (greenfield architecture)
 - **Amended by**: [0010-event-sourcing-seletivo](0010-event-sourcing-seletivo.md) — o Pilar 1 (ES) deixa de ser uniforme ("todo aggregate") e passa a valer **só no núcleo financeiro/operacional**; o resto é CRUD + snapshot-on-use. Pilares 2 (DDD) e 3 (Effect-TS) seguem para todos.
-- **Related ADRs**: [0004-multi-tenant-model](0004-multi-tenant-model.md), [0007-payment-gateway-interface](0007-payment-gateway-interface.md)
+- **Related ADRs**: [0004-multi-org-model](0004-multi-org-model.md), [0007-payment-gateway-interface](0007-payment-gateway-interface.md)
 
 ## Context
 
@@ -27,8 +27,8 @@ Esses patterns surgiram organicamente. Esta ADR formaliza e unifica sob 3 pilare
 Toda mutação de domínio produz um **evento imutável** persistido numa subcollection `events/` do aggregate doc no Firestore. Uma **projeção** (o doc principal) é atualizada atomicamente na mesma transaction.
 
 ```
-/tenants/{tid}/subscriptions/{sid}              ← projeção (estado atual)
-/tenants/{tid}/subscriptions/{sid}/events/{eid} ← evento imutável
+/orgs/{tid}/subscriptions/{sid}              ← projeção (estado atual)
+/orgs/{tid}/subscriptions/{sid}/events/{eid} ← evento imutável
 ```
 
 - `appendEvent<A>(ref, event)` valida via `@effect/schema`, atribui `version` sequencial, appenda evento, aplica reducer, atualiza projeção — 1 Firestore transaction.
@@ -47,11 +47,11 @@ packages/oilio/shared/src/domain/
   customer/      → ...
   professional/  → ...
   unit/          → ...
-  tenant/        → ...
+  org/        → ...
 ```
 
 - **Reducers puros**: `applyEvent(state, event): state` — testável, sem side effects.
-- **Value Objects**: `Money`, `DateRange`, `BillingCycle`, `TenantId` — tipos opacos com validação, não primitivos raw.
+- **Value Objects**: `Money`, `DateRange`, `BillingCycle`, `OrgId` — tipos opacos com validação, não primitivos raw.
 - **Domain Events como union types**: `SubscriptionEvent = subscription.created | subscription.activated | ...`
 - **Coordenação cross-aggregate**: via domain event reaction, não chamada direta entre aggregates.
 
@@ -68,7 +68,7 @@ Cada server action: (a) valida input via Effect schema, (b) carrega aggregate do
 
 ### AuditLog substituído
 
-O event store É o audit log. `AuditAction` union type com 40+ ações migra pra domain events com payload tipado e schema validado. Subcollection `events/` dentro do tenant (consistente com ADR 0004 path-scoping).
+O event store É o audit log. `AuditAction` union type com 40+ ações migra pra domain events com payload tipado e schema validado. Subcollection `events/` dentro do org (consistente com ADR 0004 path-scoping).
 
 ### Firestore Security Rules
 
@@ -76,9 +76,9 @@ Subcollections `events/` são **server-only** — client write bloqueado via rul
 
 ## Interaction with existing ADRs
 
-### ADR 0004 (multi-tenant path-scoped)
+### ADR 0004 (multi-org path-scoped)
 
-Event subcollections vivem **dentro** do path do tenant: `/tenants/{tid}/<aggregate>/{id}/events/{eid}`. Isolamento preservado. Proibição de `collectionGroup` sobre dados operacionais se estende a subcollections `events/`.
+Event subcollections vivem **dentro** do path do org: `/orgs/{tid}/<aggregate>/{id}/events/{eid}`. Isolamento preservado. Proibição de `collectionGroup` sobre dados operacionais se estende a subcollections `events/`.
 
 ### ADR 0007 (PaymentGateway interface)
 
@@ -96,7 +96,7 @@ Já é o estado atual. Audit log tem 40+ ações sem payload tipado, sem schema 
 
 ### 2. Event Sourcing com banco dedicado — EventStoreDB ou PostgreSQL (rejeitada para V0)
 
-Overhead de infra inviável pra V0 sem tráfego real. Firestore já é o banco; adicionar outro seria duplicação. **Condição de reabertura**: se volume escalar a ponto de reads de replay ficarem caros (milhares de tenants × centenas de eventos/aggregate/mês). Eventos já são tipos — migrar storage = trocar `appendEvent` implementation, não reescrever domínio.
+Overhead de infra inviável pra V0 sem tráfego real. Firestore já é o banco; adicionar outro seria duplicação. **Condição de reabertura**: se volume escalar a ponto de reads de replay ficarem caros (milhares de orgs × centenas de eventos/aggregate/mês). Eventos já são tipos — migrar storage = trocar `appendEvent` implementation, não reescrever domínio.
 
 ### 3. DDD sem Event Sourcing (rejeitada)
 
@@ -136,6 +136,6 @@ fp-ts é predecessor, menor ecossistema, sem schema validation nativo, sem DI na
 
 - Brief: [`0020-event-sourcing-ddd-effect`](https://gitlab.com/cbrl/cbrl/-/wikis/Funcionalidades/0020-event-sourcing-ddd-effect)
 - Parent issue: [#979](https://gitlab.com/cbrl/cbrl/-/issues/979)
-- ADR 0004: [multi-tenant model](0004-multi-tenant-model.md)
+- ADR 0004: [multi-org model](0004-multi-org-model.md)
 - ADR 0007: [payment gateway interface](0007-payment-gateway-interface.md)
 - Decisões Técnicas Fundantes: [Wiki](https://gitlab.com/cbrl/cbrl/-/wikis/Roadmap/Decisões-Técnicas-Fundantes)

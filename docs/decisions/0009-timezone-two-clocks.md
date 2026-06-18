@@ -6,7 +6,7 @@
 - **Brief**: [`0015-caixa-financeiro-v0`](https://gitlab.com/cbrl/cbrl/-/wikis/Funcionalidades/0015-caixa-financeiro-v0) § Princípio — dois relógios
 - **Parent issue**: [#993](https://gitlab.com/cbrl/cbrl/-/issues/993) · **Task**: [#996](https://gitlab.com/cbrl/cbrl/-/issues/996)
 - **Supersedes**: nenhum
-- **Related ADRs**: [0004-multi-tenant-model](0004-multi-tenant-model.md), [0007-payment-gateway-interface](0007-payment-gateway-interface.md), [0008-event-sourcing-ddd-effect](0008-event-sourcing-ddd-effect.md)
+- **Related ADRs**: [0004-multi-org-model](0004-multi-org-model.md), [0007-payment-gateway-interface](0007-payment-gateway-interface.md), [0008-event-sourcing-ddd-effect](0008-event-sourcing-ddd-effect.md)
 
 ## Context
 
@@ -24,8 +24,8 @@ O produto opera em **dois relógios que nunca se misturam**.
 
 Sempre o **fuso local da unidade**, transparente ao usuário: o lojista nunca vê "Brasília" nem configura fuso.
 
-- **Implementação** já canônica em [`docs/timezone.md`](../timezone.md): storage sempre UTC (ISO), display sempre convertido pra `tenant.timezone` (IANA); helpers em `@oilio/shared/utils/timezone`; proibido `getHours()`/`getUTCHours()` direto.
-- Janelas de "dia" (ex.: relatório de caixa por período — [0015](https://gitlab.com/cbrl/cbrl/-/wikis/Funcionalidades/0015-caixa-financeiro-v0) AC-05) usam o **"hoje" local da unidade** via `getTenantDayBoundsUtc`. O corte de Brasília/SPB **não** se aplica aqui.
+- **Implementação** já canônica em [`docs/timezone.md`](../timezone.md): storage sempre UTC (ISO), display sempre convertido pra `org.timezone` (IANA); helpers em `@oilio/shared/utils/timezone`; proibido `getHours()`/`getUTCHours()` direto.
+- Janelas de "dia" (ex.: relatório de caixa por período — [0015](https://gitlab.com/cbrl/cbrl/-/wikis/Funcionalidades/0015-caixa-financeiro-v0) AC-05) usam o **"hoje" local da unidade** via `getOrgDayBoundsUtc`. O corte de Brasília/SPB **não** se aplica aqui.
 
 ### Relógio 2 — Liquidação / repasse
 
@@ -49,4 +49,4 @@ Se o usuário vê → relógio da unidade. Se o dinheiro liquida → relógio do
 - **Deep-research 2026-05-30** (decisão de produto, Kayron): a crença "fechamento às 23h59 / ordens até 22h" em Horário de Brasília **não se confirma** em fonte oficial — esses números não existem na liquidação do SPB; o corte de vendas é decisão de cada adquirente e a SumUp sequer declara fuso. InfinitePay (fonte primária) exibe o relatório do lojista em **horário local**.
 - **Res. BCB nº 105/2021** — grade de liquidação do SPB (Horário de Brasília + dia útil).
 - **Núclea / SLC** — câmara de liquidação de cartões.
-- [`docs/timezone.md`](../timezone.md) — implementação do relógio operacional (storage UTC / display tenant tz).
+- [`docs/timezone.md`](../timezone.md) — implementação do relógio operacional (storage UTC / display org tz).
