@@ -1,26 +1,8 @@
-import { loadUnitsPage } from '@/features/units/adapters/load-units'
-import { UnitsList } from '@/features/units/ui/UnitsList'
-import { Main } from '@cbrl/design'
+import { redirect } from 'next/navigation'
 
-export default async function UnitsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string; mode?: string }>
-}) {
-  const { units, searchQuery, modeFilter, canDelete, state } = await loadUnitsPage(
-    await searchParams,
-  )
-
-  return (
-    <Main width="default">
-      <UnitsList
-        units={units}
-        searchQuery={searchQuery}
-        modeFilter={modeFilter}
-        canManage
-        canDelete={canDelete}
-        isFiltered={state === 'filtered-empty'}
-      />
-    </Main>
-  )
+// The Unidades listing was folded into the single Negócios & Unidades surface
+// (PRD Identidade v2 — simplification). The owner manages Unidades from
+// `/negocios`; this route only forwards there so old links / bookmarks resolve.
+export default function UnitsPage() {
+  redirect('/negocios')
 }

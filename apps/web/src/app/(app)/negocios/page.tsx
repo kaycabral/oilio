@@ -8,11 +8,17 @@ import { Main } from '@cbrl/design'
 // create/edit affordances. The fiscal section lives on each Unidade's detail
 // (`/units/[id]`), not here — the Negócio is a pure folder.
 export default async function BusinessPage() {
-  const { org, units, orgs, canManage } = await loadBusinessPage()
+  const { org, units, orgs, canManage, canDelete } = await loadBusinessPage()
 
   return (
     <Main width="default">
-      <BusinessManager org={org} units={units} orgs={orgs} canManage={canManage} />
+      <BusinessManager
+        org={org}
+        units={units}
+        orgs={orgs}
+        canManage={canManage}
+        canDelete={canDelete}
+      />
     </Main>
   )
 }

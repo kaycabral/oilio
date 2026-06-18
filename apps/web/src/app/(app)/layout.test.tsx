@@ -126,7 +126,7 @@ describe('AppLayout — auth and org gating', () => {
     })
   }
 
-  it('sends an owner with no units to the guided first-unit flow (brief 0046)', async () => {
+  it('renders the app shell for an owner with no units (no first-unit gate)', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u1',
       email: 'a@b.com',
@@ -150,12 +150,13 @@ describe('AppLayout — auth and org gating', () => {
       selfBookingPublished: false,
     })
     mockUnitsSnap([])
-    // Signup creates the Negócio without a unit; the owner is guided to create
-    // the first unit rather than rendering the operational shell over no data.
-    await expect(captureRedirect()).resolves.toBe('/onboarding/first-unit')
+    // PRD Identidade v2 (simplification): a Negócio with no Unidade is a NORMAL
+    // empty state, not a forced onboarding screen. The owner lands in the app and
+    // creates a Unidade as an ordinary action from /negocios — no redirect.
+    await expect(callLayout()).resolves.toBeTruthy()
   })
 
-  it('does NOT force a non-owner (manager) with no units into first-unit', async () => {
+  it('renders the app shell for a non-owner (manager) with no units', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u2',
       email: 'm@b.com',
@@ -179,8 +180,6 @@ describe('AppLayout — auth and org gating', () => {
       selfBookingPublished: false,
     })
     mockUnitsSnap([])
-    // An invited manager joining a not-yet-set-up org must not be bootstrapped
-    // into unit creation (it's the owner's job) — the shell renders, no redirect.
     await expect(callLayout()).resolves.toBeTruthy()
   })
 

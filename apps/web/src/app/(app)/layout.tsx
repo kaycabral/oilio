@@ -38,15 +38,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // this via useOrg()/the cookie; the switcher (#1051) writes the cookie.
   const { units, activeUnitId } = await resolveActiveUnit(ctx.membership)
 
-  // Guided first-unit empty-state (PRD Identidade v2 / brief 0046): signup
-  // creates the Negócio (a folder) WITHOUT a unit, so the OWNER lands here with
-  // zero units — guide them to create the first unit. Scoped to the owner on
-  // purpose: an invited manager (or any non-owner) joining a not-yet-set-up org
-  // must NOT be forced into unit creation (it's not their org to bootstrap) —
-  // they fall through to the app's per-surface empty states.
-  if (units.length === 0 && ctx.membership.role === 'owner') {
-    redirect('/onboarding/first-unit')
-  }
+  // No first-unit gate (PRD Identidade v2 — simplification): a Negócio with no
+  // Unidade is a normal empty state, NOT a forced onboarding screen. The owner
+  // lands in the app normally and creates Unidades as an ordinary action from
+  // /negocios. Onboarding ends after profile + create-Negócio.
 
   // Orgs the user can switch between (brief 0029, AC-09) — switcher shows the
   // org picker only when 2+. Single-unit members are locked (AC-05): the

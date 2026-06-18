@@ -1,18 +1,28 @@
 import type { Org, Unit, UnitAgendaConfig } from '@/domain'
+import type { WithCanDelete } from '@/shared/org/delete-guard'
 import type { OrgContextValue, OrgOption } from '@/shared/org/org-context'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { BusinessManager } from './BusinessManager'
 
 // The folder-manager pulls the active-org switcher off useOrg and renders the
-// CompanyForm (folder settings) + NewOrgDialog (create) — mock the server
-// actions those reach for so the tree mounts in jsdom.
+// CompanyForm (folder settings) + NewOrgDialog (create) + the inline unit CRUD
+// (UnitFormDialog + per-row delete) — mock the server actions those reach for so
+// the tree mounts in jsdom.
 const setActiveOrg = vi.fn<(orgId: string) => Promise<void>>()
 vi.mock('@/shared/org/org-context', () => ({
   useOrg: (): Pick<OrgContextValue, 'setActiveOrg'> => ({ setActiveOrg }),
 }))
 vi.mock('@/features/company/adapters/company.actions', () => ({ updateCompany: vi.fn() }))
 vi.mock('@/features/onboarding/adapters/onboarding.actions', () => ({ createOrg: vi.fn() }))
+vi.mock('@/features/units/adapters/units.actions', () => ({
+  createUnit: vi.fn(),
+  updateUnit: vi.fn(),
+  deleteUnit: vi.fn(),
+}))
+vi.mock('@/hooks/use-cep-lookup', () => ({
+  useCepLookup: () => ({ loading: false, data: null, error: null }),
+}))
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
 
 const FIXED_AGENDA: UnitAgendaConfig = {
@@ -43,7 +53,7 @@ function buildOrg(overrides: Partial<Org> = {}): Org {
   }
 }
 
-function buildUnit(overrides: Partial<Unit> = {}): Unit {
+function buildUnit(overrides: Partial<Unit> = {}): WithCanDelete<Unit> {
   return {
     id: 'unit-1',
     orgId: 't1',
@@ -66,6 +76,7 @@ function buildUnit(overrides: Partial<Unit> = {}): Unit {
     fiscal: { kind: 'informal' },
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    canDelete: true,
     ...overrides,
   }
 }
@@ -78,6 +89,7 @@ describe('BusinessManager — Negócios & Unidades surface (PRD Identidade v2, F
         units={[buildUnit()]}
         orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}
         canManage
+        canDelete
       />,
     )
     // Collapsed heading is "Negócio", not the full hierarchy title.
@@ -91,7 +103,9 @@ describe('BusinessManager — Negócios & Unidades surface (PRD Identidade v2, F
       { id: 't1', name: 'Barbearia do Bairro' },
       { id: 't2', name: 'Lava Rápido' },
     ]
-    render(<BusinessManager org={buildOrg()} units={[buildUnit()]} orgs={orgs} canManage />)
+    render(
+      <BusinessManager org={buildOrg()} units={[buildUnit()]} orgs={orgs} canManage canDelete />,
+    )
     expect(screen.getByRole('heading', { name: 'Negócios & Unidades' })).toBeInTheDocument()
     expect(screen.getByText('Outros negócios')).toBeInTheDocument()
     expect(screen.getByText('Lava Rápido')).toBeInTheDocument()
@@ -104,6 +118,7 @@ describe('BusinessManager — Negócios & Unidades surface (PRD Identidade v2, F
         units={[buildUnit({ name: 'Unidade Centro' })]}
         orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}
         canManage
+        canDelete
       />,
     )
     expect(screen.getByText('Unidade Centro')).toBeInTheDocument()
@@ -137,21 +152,24 @@ describe('BusinessManager — Negócios & Unidades surface (PRD Identidade v2, F
         units={[formalized]}
         orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}
         canManage
+        canDelete
       />,
     )
     expect(screen.getByText('Formalizada')).toBeInTheDocument()
   })
 
-  it('exposes the create affordances to a manager', () => {
+  it('exposes the create affordances to a manager (both inline dialogs)', () => {
     render(
       <BusinessManager
         org={buildOrg()}
         units={[buildUnit()]}
         orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}
         canManage
+        canDelete
       />,
     )
-    expect(screen.getByRole('link', { name: '+ Nova unidade' })).toBeInTheDocument()
+    // Unit creation is now an inline dialog trigger (a button), not a page link.
+    expect(screen.getByRole('button', { name: '+ Nova unidade' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Novo negócio' })).toBeInTheDocument()
   })
 
@@ -162,9 +180,10 @@ describe('BusinessManager — Negócios & Unidades surface (PRD Identidade v2, F
         units={[buildUnit()]}
         orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}
         canManage={false}
+        canDelete={false}
       />,
     )
-    expect(screen.queryByRole('link', { name: '+ Nova unidade' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '+ Nova unidade' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '+ Novo negócio' })).not.toBeInTheDocument()
   })
 })

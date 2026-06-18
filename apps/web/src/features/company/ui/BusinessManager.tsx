@@ -1,5 +1,6 @@
 'use client'
 
+import { RowActions, type RowAction } from '@/components/RowActions'
 import {
   isCompanyUnitFiscal,
   type Org,
@@ -9,6 +10,9 @@ import {
 } from '@/domain'
 import { CompanyForm } from '@/features/company/ui/CompanyForm'
 import { NewOrgDialog } from '@/features/company/ui/NewOrgDialog'
+import { deleteUnit } from '@/features/units/adapters/units.actions'
+import { UnitFormDialog } from '@/features/units/ui/UnitFormDialog'
+import type { WithCanDelete } from '@/shared/org/delete-guard'
 import type { OrgOption } from '@/shared/org/org-context'
 import { useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
@@ -56,11 +60,13 @@ export function BusinessManager({
   units,
   orgs,
   canManage,
+  canDelete,
 }: {
   org: Org
-  units: Unit[]
+  units: WithCanDelete<Unit>[]
   orgs: OrgOption[]
   canManage: boolean
+  canDelete: boolean
 }) {
   const { setActiveOrg } = useOrg()
   const otherOrgs = orgs.filter((o) => o.id !== org.id)
@@ -72,15 +78,19 @@ export function BusinessManager({
         <h1 className="text-2xl font-semibold">{collapsed ? 'Negócio' : 'Negócios & Unidades'}</h1>
         {canManage ? (
           <div className="flex items-center gap-2">
-            <Button asChild variant="outline">
-              <Link href={toRoute('/units/new')}>+ Nova unidade</Link>
-            </Button>
+            <UnitFormDialog orgName={org.name} />
             <NewOrgDialog />
           </div>
         ) : null}
       </header>
 
-      <ActiveOrgCard org={org} units={units} canManage={canManage} showHeader={!collapsed} />
+      <ActiveOrgCard
+        org={org}
+        units={units}
+        canManage={canManage}
+        canDelete={canDelete}
+        showHeader={!collapsed}
+      />
 
       {otherOrgs.length > 0 ? (
         <section className="space-y-2">
@@ -98,11 +108,13 @@ function ActiveOrgCard({
   org,
   units,
   canManage,
+  canDelete,
   showHeader,
 }: {
   org: Org
-  units: Unit[]
+  units: WithCanDelete<Unit>[]
   canManage: boolean
+  canDelete: boolean
   showHeader: boolean
 }) {
   const [editing, setEditing] = useState(false)
@@ -146,7 +158,7 @@ function ActiveOrgCard({
           ) : (
             <ul className="divide-border/60 divide-y">
               {units.map((unit) => (
-                <UnitRow key={unit.id} unit={unit} canManage={canManage} />
+                <UnitRow key={unit.id} unit={unit} canManage={canManage} canDelete={canDelete} />
               ))}
             </ul>
           )}
@@ -156,35 +168,72 @@ function ActiveOrgCard({
   )
 }
 
-function UnitRow({ unit, canManage }: { unit: Unit; canManage: boolean }) {
+function UnitRow({
+  unit,
+  canManage,
+  canDelete,
+}: {
+  unit: WithCanDelete<Unit>
+  canManage: boolean
+  canDelete: boolean
+}) {
   const formalized = isCompanyUnitFiscal(unit.fiscal)
-  const content = (
-    <span className="flex min-w-0 items-center gap-3 py-3">
+  const badges = (
+    <span className="flex shrink-0 items-center gap-2">
+      <Badge variant="outline">{HOURS_MODE_LABELS[unit.agenda.mode]}</Badge>
+      <Badge variant={formalized ? 'default' : 'secondary'}>
+        {formalized ? 'Formalizada' : 'Informal'}
+      </Badge>
+    </span>
+  )
+
+  const identity = (
+    <span className="flex min-w-0 items-center gap-3">
       <Store className="text-muted-foreground size-4 shrink-0" aria-hidden />
       <span className="flex min-w-0 flex-col">
         <span className="truncate font-medium">{unit.name}</span>
         <span className="text-muted-foreground truncate text-xs">{formatAddress(unit)}</span>
       </span>
-      <span className="ml-auto flex shrink-0 items-center gap-2">
-        <Badge variant="outline">{HOURS_MODE_LABELS[unit.agenda.mode]}</Badge>
-        <Badge variant={formalized ? 'default' : 'secondary'}>
-          {formalized ? 'Formalizada' : 'Informal'}
-        </Badge>
-      </span>
     </span>
   )
 
+  // Read-only members see a static row; managers get an edit link + (owner)
+  // the Excluir/Arquivar overflow action — the unit CRUD lives right here on
+  // /negocios (PRD Identidade v2 — simplification), not a separate page.
   if (!canManage) {
-    return <li>{content}</li>
+    return (
+      <li className="flex items-center gap-3 py-3">
+        {identity}
+        <span className="ml-auto">{badges}</span>
+      </li>
+    )
   }
+
+  const actions: RowAction[] = [
+    { kind: 'link', label: 'Editar', href: toRoute(`/units/${unit.id}`) },
+  ]
+  if (canDelete) {
+    actions.push({
+      kind: 'delete',
+      action: () => deleteUnit(unit.id),
+      title: `Excluir unidade "${unit.name}"?`,
+      description: unit.canDelete
+        ? 'A unidade será removida em definitivo. Nenhum profissional ativo ou agendamento futuro a referencia.'
+        : 'A unidade tem profissional ativo ou agendamento futuro. Ela sai das listas e dos seletores, mas o histórico é preservado.',
+      confirmText: unit.name,
+    })
+  }
+
   return (
-    <li>
+    <li className="flex items-center gap-3 py-3">
       <Link
         href={toRoute(`/units/${unit.id}`)}
-        className="hover:bg-accent/40 -mx-2 flex rounded-md px-2 transition-colors"
+        className="hover:bg-accent/40 -mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 transition-colors"
       >
-        {content}
+        {identity}
+        <span className="ml-auto">{badges}</span>
       </Link>
+      <RowActions actions={actions} label={`Ações da unidade ${unit.name}`} />
     </li>
   )
 }
