@@ -1,6 +1,7 @@
 import { Schema } from 'effect'
 
 import { isValidSlug, slugify } from './slug'
+import { INFORMAL_UNIT_FISCAL, UnitFiscal } from './tax'
 
 export const UNIT_HOURS_MODES = ['fixed', 'always_open', 'appointment'] as const
 export const UnitHoursMode = Schema.Literal(...UNIT_HOURS_MODES)
@@ -138,13 +139,15 @@ export const Unit = Schema.mutable(
     // timestamp). Archived units drop out of active lists/pickers but stay
     // resolvable for historical references. `null` = active (not archived).
     archivedAt: Schema.NullOr(Schema.String),
-    // The establishment's full CNPJ-14 (raiz(8) + ordem(4) + DV(2)), set when
-    // the Org formalizes (brief 0048 AC-03/AC-06): the informal matriz becomes
-    // the matriz `0001`. NON-PII (a PJ establishment's CNPJ is not personal —
-    // the MEI civil-name nuance lives in the Org's deletable taxIdentity doc),
-    // so it rides in `StoredUnit` + the `unit.updated` event. `undefined` while
-    // informal.
-    taxId: Schema.optional(Schema.String),
+    // The establishment's fiscal identity (PRD Identidade v2 § Contrato de
+    // tipagem, brief 0048): a discriminated union, NOT a nullable CNPJ field —
+    // the CNPJ literally does not exist without formalization. A Unit is born
+    // `{ kind: 'informal' }` and becomes `{ kind: 'company', taxId, ... }` via
+    // the `unit.formalized` event. NON-PII (a PJ establishment's CNPJ + registry
+    // data are not personal — the MEI civil-name nuance lives in the deletable
+    // `units/{id}/private/taxIdentity` doc), so it rides in `StoredUnit` + the
+    // event payload. The read path backfills a missing field to informal.
+    fiscal: UnitFiscal,
     createdAt: Schema.String,
     updatedAt: Schema.String,
   }),
@@ -162,6 +165,11 @@ export type StoredUnit = typeof StoredUnit.Type
 // from the same base so the omit (storage) and pick (PII sidecar) can't drift.
 export const UnitPii = Unit.pipe(Schema.pick('whatsapp', 'email'))
 export type UnitPii = typeof UnitPii.Type
+
+// A new unit is born informal — no CNPJ until the owner formalizes it (brief
+// 0048). Re-exported zero-value so create flows / the aggregate seed a single
+// source.
+export const DEFAULT_UNIT_FISCAL: UnitFiscal = INFORMAL_UNIT_FISCAL
 
 // Reserved slugs for the per-org public namespace. A unit slug must not
 // collide with a sibling route under `/{orgSlug}/...` (e.g. `/me`,

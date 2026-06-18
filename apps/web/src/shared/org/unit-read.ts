@@ -8,9 +8,16 @@
 // `name`/`slug`/`address`/`businessHours` are NOT PII and stay on the unit doc
 // — only the contact channels move out.
 
-import { StoredUnit, UnitPii, type Unit } from '@/domain'
+import {
+  StoredUnit,
+  TaxIdentity as TaxIdentitySchema,
+  UnitPii,
+  type TaxIdentity,
+  type Unit,
+} from '@/domain'
 import { getAdminFirestore } from '@/shared/db'
 import { decodeAs, fsConverter } from '@/shared/db/converter'
+import { Schema } from 'effect'
 
 // What we actually persist under `orgs/{t}/units/{id}` (the event
 // projection) + the deletable PII doc at `units_pii/{id}` (`UnitPii`).
@@ -104,4 +111,54 @@ export async function deleteUnitPii(orgId: string, unitId: string): Promise<void
     .collection('units_pii')
     .doc(unitId)
     .delete()
+}
+
+// --- Unit fiscal PII (razão social / nome fantasia) ------------------------
+//
+// The name-bearing fiscal fields of a FORMALIZED unit (brief 0048 AC-03):
+// `legalName` / `tradeName`. A MEI's razão social embeds the owner's civil name,
+// so these are PII and live in the deletable per-unit doc
+// `orgs/{orgId}/units/{unitId}/private/taxIdentity`, NEVER in the
+// `unit.formalized` event (ADR 0010). The non-PII fiscal union
+// (`Unit.fiscal` = CNPJ-14 + CompanyProfile) stays on the unit doc. QSA/sócios
+// are NOT stored. Mirrors the Org's `private/taxIdentity` pattern.
+
+const UNIT_PRIVATE_COLLECTION = 'private'
+const UNIT_TAX_IDENTITY_DOC = 'taxIdentity'
+
+const UnitTaxIdentityDocSchema = Schema.Struct({
+  taxIdentity: Schema.NullOr(TaxIdentitySchema),
+})
+
+export async function getUnitTaxIdentity(
+  orgId: string,
+  unitId: string,
+): Promise<TaxIdentity | null> {
+  const snap = await getAdminFirestore()
+    .collection('orgs')
+    .doc(orgId)
+    .collection('units')
+    .doc(unitId)
+    .collection(UNIT_PRIVATE_COLLECTION)
+    .doc(UNIT_TAX_IDENTITY_DOC)
+    .withConverter(fsConverter(UnitTaxIdentityDocSchema))
+    .get()
+  return snap.data()?.taxIdentity ?? null
+}
+
+// Write the deletable unit fiscal-PII doc directly (mutable, NOT event-sourced).
+// Called from the formalize action alongside the `unit.formalized` emission.
+export async function writeUnitTaxIdentity(
+  orgId: string,
+  unitId: string,
+  taxIdentity: TaxIdentity | null,
+): Promise<void> {
+  await getAdminFirestore()
+    .collection('orgs')
+    .doc(orgId)
+    .collection('units')
+    .doc(unitId)
+    .collection(UNIT_PRIVATE_COLLECTION)
+    .doc(UNIT_TAX_IDENTITY_DOC)
+    .set({ taxIdentity })
 }

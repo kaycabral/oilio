@@ -132,6 +132,10 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
         },
         hoursMode: 'fixed',
         archivedAt: null,
+        // A unit is born informal — the CNPJ (Unit.fiscal company variant) only
+        // appears via `unit.formalized` (brief 0048). NON-PII, so it rides in
+        // the projection + event payload.
+        fiscal: { kind: 'informal' },
         createdAt: '2026-06-01T12:00:00.000Z',
         updatedAt: '2026-06-01T12:00:00.000Z',
       },
@@ -268,9 +272,8 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
     }))
 
   it('org', () =>
-    // PII (taxIdentity = owner CPF/CNPJ) lives in the deletable
-    // `orgs/{id}/private/taxIdentity` doc, never in the event payload
-    // (LGPD — #1036). `name` is the business name (not PII) and stays. The
+    // The Org is a pure folder (PRD Identidade v2) — NO fiscal identity (moved
+    // to Unit.fiscal). `name` is the business name (not PII) and stays. The
     // projection carries only operational fields.
     checkReplay({
       config: OrgConfig,
@@ -282,7 +285,6 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
         slug: 'barbearia',
         vertical: 'barbershop',
         ownerUserId: 'owner-1',
-        fiscalProfile: { stage: 'informal' },
         selfBookingPublished: false,
         selfBookingPublishedAt: null,
         timezone: 'America/Sao_Paulo',
@@ -314,7 +316,6 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
               slug: 'salao',
               vertical: 'barbershop',
               ownerUserId: 'owner-2',
-              fiscalProfile: { stage: 'informal' },
               selfBookingPublished: false,
               selfBookingPublishedAt: null,
               timezone: 'America/Sao_Paulo',
@@ -442,6 +443,7 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
       },
       hoursMode: 'fixed',
       archivedAt: null,
+      fiscal: { kind: 'informal' },
       createdAt: '2026-06-01T12:00:00.000Z',
       updatedAt: '2026-06-01T12:00:00.000Z',
     }))

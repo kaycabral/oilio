@@ -1,8 +1,9 @@
-// AC-02 (brief 0048) — replay reconstrói a Org `company` a partir do stream.
-// created (informal) → formalized → replay == projeção: a Org transiciona
-// informal→company com raiz/CNPJ + CompanyProfile + formalizedAt, SEM depender
-// de projeção materializada (event-first). Prova de que `org.formalized` é a
-// fronteira fiscal e que o reducer a aplica deterministicamente.
+// AC-02 (brief 0048) — replay reconstrói a Unidade `company` a partir do stream.
+// created (informal) → formalized → replay == projeção: a Unidade transiciona
+// informal→company com CNPJ-14 + CompanyProfile + formalizedAt, SEM depender de
+// projeção materializada (event-first). Prova de que `unit.formalized` é a
+// fronteira fiscal e que o reducer a aplica deterministicamente. A identidade
+// fiscal mora na UNIDADE (PRD Identidade v2), não na Org.
 
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from 'vitest'
@@ -11,7 +12,7 @@ import { appendEvent, replayAggregate } from '../effect/event-store'
 import type { FirestoreDoc } from '../effect/services'
 import { FirestoreService } from '../effect/services'
 import type { CompanyProfile } from '../types/tax'
-import { OrgConfig } from './org/config'
+import { UnitConfig } from './unit/config'
 
 function makeStore() {
   const store = new Map<string, FirestoreDoc>()
@@ -62,40 +63,52 @@ const companyProfile: CompanyProfile = {
   activityStartedAt: '2020-12-17',
 }
 
-function informalOrg() {
+function informalUnit() {
   return {
-    id: 'org-1',
-    name: 'Estúdio do João',
-    slug: 'estudio-do-joao',
-    vertical: 'barbershop' as const,
-    ownerUserId: 'owner-1',
-    fiscalProfile: { stage: 'informal' as const },
-    selfBookingPublished: false,
-    selfBookingPublishedAt: null,
-    timezone: 'America/Sao_Paulo',
-    slotMinutes: 15 as const,
-    branding: { logoUrl: null, bannerUrl: null, description: null },
-    cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
-    whatsappTemplates: { confirmation: '', reminder: '', cancellation: '' },
+    id: 'unit-1',
+    orgId: 'org-1',
+    name: 'Centro',
+    slug: 'centro',
+    address: {
+      postalCode: '01310-100',
+      state: 'SP',
+      city: 'São Paulo',
+      neighborhood: 'Bela Vista',
+      street: 'Av. Paulista',
+      number: '1000',
+      complement: null,
+    },
+    businessHours: {
+      monday: { open: '09:00', close: '18:00' },
+      tuesday: { open: '09:00', close: '18:00' },
+      wednesday: { open: '09:00', close: '18:00' },
+      thursday: { open: '09:00', close: '18:00' },
+      friday: { open: '09:00', close: '18:00' },
+      saturday: null,
+      sunday: null,
+    },
+    hoursMode: 'fixed' as const,
+    archivedAt: null,
+    fiscal: { kind: 'informal' as const },
     createdAt: '2026-06-01T00:00:00.000Z',
     updatedAt: '2026-06-01T00:00:00.000Z',
   }
 }
 
-describe('Org — org.formalized replay (brief 0048 AC-02)', () => {
-  it('created (informal) → formalized → replay reconstrói stage=company', async () => {
+describe('Unit — unit.formalized replay (brief 0048 AC-02)', () => {
+  it('created (informal) → formalized → replay reconstrói fiscal.kind=company', async () => {
     const { store, layer } = makeStore()
-    const path = 'orgs/org-1'
+    const path = 'orgs/org-1/units/unit-1'
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(OrgConfig, path, {
-          _tag: 'org.created',
+        yield* appendEvent(UnitConfig, path, {
+          _tag: 'unit.created',
           actorId: 'owner-1',
-          payload: { data: informalOrg() },
+          payload: { data: informalUnit() },
         })
-        yield* appendEvent(OrgConfig, path, {
-          _tag: 'org.formalized',
+        yield* appendEvent(UnitConfig, path, {
+          _tag: 'unit.formalized',
           actorId: 'owner-1',
           payload: { taxId: CNPJ, companyProfile, formalizedAt: FORMALIZED_AT },
         })
@@ -104,36 +117,36 @@ describe('Org — org.formalized replay (brief 0048 AC-02)', () => {
 
     const projection = store.get(path)!
     const replayed = await Effect.runPromise(
-      replayAggregate(OrgConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(UnitConfig, path).pipe(Effect.provide(layer)),
     )
 
     // Replay deep-equals the projection (no materialized-state dependency).
     expect(replayed).toEqual(projection)
     expect(replayed._version).toBe(2)
-    // The Org is now company-stage with the full CNPJ-14 + profile + boundary.
-    expect(replayed.fiscalProfile.stage).toBe('company')
-    if (replayed.fiscalProfile.stage !== 'company') throw new Error('expected company')
-    expect(replayed.fiscalProfile.taxId).toBe(CNPJ)
-    expect(replayed.fiscalProfile.companyProfile).toEqual(companyProfile)
-    expect(replayed.fiscalProfile.formalizedAt).toBe(FORMALIZED_AT)
+    // The Unit is now company-stage with the full CNPJ-14 + profile + boundary.
+    expect(replayed.fiscal.kind).toBe('company')
+    if (replayed.fiscal.kind !== 'company') throw new Error('expected company')
+    expect(replayed.fiscal.taxId).toBe(CNPJ)
+    expect(replayed.fiscal.companyProfile).toEqual(companyProfile)
+    expect(replayed.fiscal.formalizedAt).toBe(FORMALIZED_AT)
     // Operational identity is untouched by formalization (zero migration).
-    expect(replayed.name).toBe('Estúdio do João')
-    expect(replayed.slug).toBe('estudio-do-joao')
+    expect(replayed.name).toBe('Centro')
+    expect(replayed.slug).toBe('centro')
   })
 
   it('the event payload carries NO razão social / nome fantasia (ADR 0010)', async () => {
     const { store, layer } = makeStore()
-    const path = 'orgs/org-2'
+    const path = 'orgs/org-1/units/unit-2'
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(OrgConfig, path, {
-          _tag: 'org.created',
+        yield* appendEvent(UnitConfig, path, {
+          _tag: 'unit.created',
           actorId: 'owner-1',
-          payload: { data: { ...informalOrg(), id: 'org-2' } },
+          payload: { data: { ...informalUnit(), id: 'unit-2' } },
         })
-        yield* appendEvent(OrgConfig, path, {
-          _tag: 'org.formalized',
+        yield* appendEvent(UnitConfig, path, {
+          _tag: 'unit.formalized',
           actorId: 'owner-1',
           payload: { taxId: CNPJ, companyProfile, formalizedAt: FORMALIZED_AT },
         })
@@ -143,9 +156,9 @@ describe('Org — org.formalized replay (brief 0048 AC-02)', () => {
     const event = store.get(`${path}/events/v000002`)!
     const serialized = JSON.stringify(event)
     // PII name fields never enter the immutable event (they live in the
-    // deletable orgs/{id}/private/taxIdentity doc).
+    // deletable orgs/{orgId}/units/{unitId}/private/taxIdentity doc).
     expect(serialized).not.toMatch(/legalName|tradeName|raz[aã]o/i)
-    expect(event['_tag']).toBe('org.formalized')
+    expect(event['_tag']).toBe('unit.formalized')
     expect(event['actorId']).toBe('owner-1')
   })
 })

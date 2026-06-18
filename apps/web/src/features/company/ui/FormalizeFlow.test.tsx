@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FormalizeFlow } from './FormalizeFlow'
 
 type FormalizeResult = { ok: true } | { ok: false; error: string }
-const formalizeOrg = vi.fn<(fd: FormData) => Promise<FormalizeResult>>()
+const formalizeUnit = vi.fn<(fd: FormData) => Promise<FormalizeResult>>()
 
 vi.mock('@/features/company/adapters/formalize.actions', () => ({
-  formalizeOrg: (fd: FormData): Promise<FormalizeResult> => formalizeOrg(fd),
+  formalizeUnit: (fd: FormData): Promise<FormalizeResult> => formalizeUnit(fd),
 }))
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
@@ -41,7 +41,7 @@ function mockFetchOnce(body: unknown, ok = true, status = 200): void {
 }
 
 beforeEach(() => {
-  formalizeOrg.mockReset()
+  formalizeUnit.mockReset()
 })
 
 afterEach(() => {
@@ -50,15 +50,15 @@ afterEach(() => {
 
 describe('FormalizeFlow (brief 0048 AC-07/AC-08)', () => {
   it('renders the CNPJ CTA empty-state and masks input as the owner types', () => {
-    render(<FormalizeFlow />)
-    expect(screen.getByText('Formalizar empresa')).toBeInTheDocument()
+    render(<FormalizeFlow unitId="u1" />)
+    expect(screen.getByText('Formalizar unidade')).toBeInTheDocument()
     const input = screen.getByLabelText('CNPJ')
     fireEvent.change(input, { target: { value: '40148980000199' } })
     expect(input).toHaveValue('40.148.980/0001-99')
   })
 
   it('keeps the lookup button disabled until the CNPJ has 14 digits', () => {
-    render(<FormalizeFlow />)
+    render(<FormalizeFlow unitId="u1" />)
     const button = screen.getByRole('button', { name: 'Consultar CNPJ' })
     expect(button).toBeDisabled()
     fireEvent.change(screen.getByLabelText('CNPJ'), { target: { value: '40148980000199' } })
@@ -67,7 +67,7 @@ describe('FormalizeFlow (brief 0048 AC-07/AC-08)', () => {
 
   it('lookup → review shows razão social / fantasia before confirming', async () => {
     mockFetchOnce(LOOKUP_BODY)
-    render(<FormalizeFlow />)
+    render(<FormalizeFlow unitId="u1" />)
     fireEvent.change(screen.getByLabelText('CNPJ'), { target: { value: '40148980000199' } })
     fireEvent.click(screen.getByRole('button', { name: 'Consultar CNPJ' }))
 
@@ -79,22 +79,23 @@ describe('FormalizeFlow (brief 0048 AC-07/AC-08)', () => {
 
   it('confirm submits the looked-up data to the action', async () => {
     mockFetchOnce(LOOKUP_BODY)
-    formalizeOrg.mockResolvedValue({ ok: true })
-    render(<FormalizeFlow />)
+    formalizeUnit.mockResolvedValue({ ok: true })
+    render(<FormalizeFlow unitId="u1" />)
     fireEvent.change(screen.getByLabelText('CNPJ'), { target: { value: '40148980000199' } })
     fireEvent.click(screen.getByRole('button', { name: 'Consultar CNPJ' }))
     await screen.findByText('Confira os dados da Receita')
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar e formalizar' }))
-    await waitFor(() => expect(formalizeOrg).toHaveBeenCalledTimes(1))
-    const fd = formalizeOrg.mock.calls[0]?.[0]
+    await waitFor(() => expect(formalizeUnit).toHaveBeenCalledTimes(1))
+    const fd = formalizeUnit.mock.calls[0]?.[0]
+    expect(fd?.get('unitId')).toBe('u1')
     expect(fd?.get('taxId')).toBe('40148980000199')
     expect(fd?.get('legalName')).toBe('CABRAL TECNOLOGIA LTDA')
   })
 
   it('surfaces a lookup error and stays on the input step', async () => {
     mockFetchOnce({ error: 'CNPJ não encontrado.' }, false, 404)
-    render(<FormalizeFlow />)
+    render(<FormalizeFlow unitId="u1" />)
     fireEvent.change(screen.getByLabelText('CNPJ'), { target: { value: '40148980000199' } })
     fireEvent.click(screen.getByRole('button', { name: 'Consultar CNPJ' }))
     expect(await screen.findByText('CNPJ não encontrado.')).toBeInTheDocument()
@@ -103,11 +104,11 @@ describe('FormalizeFlow (brief 0048 AC-07/AC-08)', () => {
 
   it('cancel from review returns to the input step', async () => {
     mockFetchOnce(LOOKUP_BODY)
-    render(<FormalizeFlow />)
+    render(<FormalizeFlow unitId="u1" />)
     fireEvent.change(screen.getByLabelText('CNPJ'), { target: { value: '40148980000199' } })
     fireEvent.click(screen.getByRole('button', { name: 'Consultar CNPJ' }))
     await screen.findByText('Confira os dados da Receita')
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-    expect(screen.getByText('Formalizar empresa')).toBeInTheDocument()
+    expect(screen.getByText('Formalizar unidade')).toBeInTheDocument()
   })
 })

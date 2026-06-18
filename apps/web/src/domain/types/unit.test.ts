@@ -120,6 +120,7 @@ describe('Unit / StoredUnit schema (v2 — required address/hours/mode)', () => 
       sunday: null,
     },
     archivedAt: null,
+    fiscal: { kind: 'informal' },
     createdAt: '2026-06-01T12:00:00.000Z',
     updatedAt: '2026-06-01T12:00:00.000Z',
   }
@@ -145,6 +146,47 @@ describe('Unit / StoredUnit schema (v2 — required address/hours/mode)', () => 
     expect('whatsapp' in decodedStored).toBe(false)
     const decodedPii = Schema.decodeUnknownSync(UnitPii)({ whatsapp, email })
     expect(decodedPii.whatsapp).toBe('5511999998888')
+  })
+
+  it('a new Unit is born informal (fiscal default)', () => {
+    const decoded = Schema.decodeUnknownSync(Unit)(VALID_UNIT)
+    expect(decoded.fiscal.kind).toBe('informal')
+  })
+
+  it('decodes the company fiscal variant (brief 0048) — CNPJ-14 + profile ride in StoredUnit', () => {
+    const company = {
+      ...VALID_UNIT,
+      fiscal: {
+        kind: 'company',
+        taxId: '40148980000199',
+        companyProfile: {
+          taxId: '40148980000199',
+          isMei: false,
+          taxRegime: 'simples_nacional',
+          primaryActivity: { code: '6201501', description: 'Software' },
+          secondaryActivities: [],
+          companySize: 'micro',
+          legalNature: '2062',
+          registrationStatus: 'ATIVA',
+          shareCapital: 1000,
+          activityStartedAt: '2020-01-01',
+        },
+        formalizedAt: '2026-06-18T00:00:00.000Z',
+      },
+    }
+    const { whatsapp, email, ...stored } = company
+    void whatsapp
+    void email
+    const decoded = Schema.decodeUnknownSync(StoredUnit)(stored)
+    expect(decoded.fiscal.kind).toBe('company')
+    if (decoded.fiscal.kind !== 'company') throw new Error('expected company')
+    expect(decoded.fiscal.taxId).toBe('40148980000199')
+  })
+
+  it('rejects a company fiscal variant missing the CNPJ-14', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(Unit)({ ...VALID_UNIT, fiscal: { kind: 'company' } }),
+    ).toThrow()
   })
 })
 

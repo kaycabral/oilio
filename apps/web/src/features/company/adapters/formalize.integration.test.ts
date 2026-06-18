@@ -1,17 +1,19 @@
-// Integration test for the `formalizeOrg` action (F3 / brief 0048) — runs
-// against the Firestore emulator via the admin SDK (no Firestore mocks). Start
-// the emulator with `pnpm --filter @oilio/web db:start`, or run via
-// `pnpm test:integration` (boots it under `firebase emulators:exec`).
+// Integration test for the `formalizeUnit` action (brief 0048 / PRD Identidade
+// v2) — runs against the Firestore emulator via the admin SDK (no Firestore
+// mocks). Start the emulator with `pnpm --filter @oilio/web db:start`, or run
+// via `pnpm test:integration` (boots it under `firebase emulators:exec`).
 //
 // What's asserted (DoD scenarios 1/2/4 + the ATIVA gate + idempotency):
-//   - an informal Org → formalize with an ATIVA CNPJ → `org.formalized` emitted;
-//   - replay reconstructs the company-stage Org (raiz + CompanyProfile +
+//   - an informal Unit → formalize with an ATIVA CNPJ → `unit.formalized`
+//     emitted;
+//   - replay reconstructs the company-stage Unit (CNPJ-14 + CompanyProfile +
 //     formalizedAt) from events alone;
-//   - the corporate profile lands in StoredOrg; razão social / nome fantasia
-//     land in the deletable PII doc (orgs/{id}/private/taxIdentity), NOT events;
-//   - the matriz Unit gains the full CNPJ-14;
-//   - the ATIVA gate rejects a non-ATIVA CNPJ (no event, Org stays informal);
-//   - an already-`company` Org can't be re-formalized.
+//   - the corporate profile lands in StoredUnit; razão social / nome fantasia
+//     land in the deletable per-unit PII doc
+//     (orgs/{orgId}/units/{unitId}/private/taxIdentity), NOT events;
+//   - matriz/filial/raiz are derivable from the CNPJ-14;
+//   - the ATIVA gate rejects a non-ATIVA CNPJ (no event, Unit stays informal);
+//   - an already-`company` Unit can't be re-formalized.
 //
 // `getSessionUser` (auth) is mocked; every Firestore write targets the emulator.
 
@@ -32,14 +34,13 @@ vi.mock('next/cache', () => ({
 }))
 
 import type { CompanyProfile } from '@/domain'
-import { StoredUnit, defaultPermissionsForRole, membershipDocId } from '@/domain'
-import { OrgConfig } from '@/domain/aggregates'
+import { cnpjRaiz, defaultPermissionsForRole, isMatrizCnpj, membershipDocId } from '@/domain'
+import { UnitConfig } from '@/domain/aggregates'
 import { replayAggregate } from '@/domain/effect'
 import { getAdminFirestore } from '@/shared/db'
-import { fsConverter } from '@/shared/db/converter'
 import { FirestoreLayerLive } from '@/shared/db/effect'
-import { getOrg } from '@/shared/org/org'
-import { formalizeOrg } from './formalize.actions'
+import { getUnitById, getUnitTaxIdentity } from '@/shared/org/unit-read'
+import { formalizeUnit } from './formalize.actions'
 
 const db = getAdminFirestore()
 
@@ -79,7 +80,6 @@ async function seedInformalOrg(): Promise<void> {
     name: 'Estúdio do João',
     slug: `estudio-${orgId}`.toLowerCase(),
     vertical: 'barbershop',
-    fiscalProfile: { stage: 'informal' },
     ownerUserId: UID,
     selfBookingPublished: false,
     selfBookingPublishedAt: null,
@@ -98,15 +98,38 @@ async function seedInformalOrg(): Promise<void> {
   await unitRef.set({
     id: unitId,
     orgId,
-    name: 'Matriz',
-    slug: 'matriz',
-    address: null,
-    businessHours: null,
+    name: 'Centro',
+    slug: 'centro',
+    address: {
+      postalCode: '01310-100',
+      state: 'SP',
+      city: 'São Paulo',
+      neighborhood: 'Bela Vista',
+      street: 'Av. Paulista',
+      number: '1000',
+      complement: null,
+    },
+    businessHours: {
+      monday: { open: '09:00', close: '18:00' },
+      tuesday: { open: '09:00', close: '18:00' },
+      wednesday: { open: '09:00', close: '18:00' },
+      thursday: { open: '09:00', close: '18:00' },
+      friday: { open: '09:00', close: '18:00' },
+      saturday: null,
+      sunday: null,
+    },
+    hoursMode: 'fixed',
     archivedAt: null,
+    fiscal: { kind: 'informal' },
     createdAt: now,
     updatedAt: now,
     _version: 1,
   })
+  // PII sidecar (whatsapp/email) so getUnitById hydrates a real Unit.
+  await unitRef.parent
+    .parent!.collection('units_pii')
+    .doc(unitId)
+    .set({ whatsapp: '5511999990000', email: null })
 
   const mId = membershipDocId(orgId, UID)
   await db
@@ -153,6 +176,7 @@ async function seedInformalOrg(): Promise<void> {
 function formFor(overrides: Partial<CompanyProfile> = {}, legalName = 'CABRAL TECNOLOGIA LTDA') {
   const merged = { ...profile, ...overrides }
   const fd = new FormData()
+  fd.set('unitId', unitId)
   fd.set('taxId', '40.148.980/0001-99')
   fd.set('profile', JSON.stringify(merged))
   fd.set('legalName', legalName)
@@ -176,67 +200,77 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('formalizeOrg (brief 0048 — emulator)', () => {
-  it('informal → ATIVA CNPJ → org.formalized → company stage, profile in Stored, PII in doc, matriz CNPJ-14', async () => {
-    const res = await formalizeOrg(formFor())
+describe('formalizeUnit (brief 0048 — emulator)', () => {
+  it('informal → ATIVA CNPJ → unit.formalized → company, profile in Stored, PII in doc, raiz derivable', async () => {
+    const res = await formalizeUnit(formFor())
     expect(res).toEqual({ ok: true })
 
-    // Replay reconstructs the company-stage Org from events alone (scenario 4).
+    // Replay reconstructs the company-stage Unit from events alone (scenario 4).
     const replayed = await Effect.runPromise(
-      replayAggregate(OrgConfig, `orgs/${orgId}`).pipe(Effect.provide(FirestoreLayerLive)),
+      replayAggregate(UnitConfig, `orgs/${orgId}/units/${unitId}`).pipe(
+        Effect.provide(FirestoreLayerLive),
+      ),
     )
-    expect(replayed.fiscalProfile.stage).toBe('company')
-    if (replayed.fiscalProfile.stage !== 'company') throw new Error('expected company')
-    expect(replayed.fiscalProfile.taxId).toBe(CNPJ)
-    expect(replayed.fiscalProfile.companyProfile.taxRegime).toBe('simples_nacional')
-    expect(replayed.fiscalProfile.formalizedAt).toBeTruthy()
+    expect(replayed.fiscal.kind).toBe('company')
+    if (replayed.fiscal.kind !== 'company') throw new Error('expected company')
+    expect(replayed.fiscal.taxId).toBe(CNPJ)
+    expect(replayed.fiscal.companyProfile.taxRegime).toBe('simples_nacional')
+    expect(replayed.fiscal.formalizedAt).toBeTruthy()
+    // Matriz/raiz are derivable from the CNPJ-14 (never stored).
+    expect(isMatrizCnpj(replayed.fiscal.taxId)).toBe(true)
+    expect(cnpjRaiz(replayed.fiscal.taxId)).toBe('40148980')
 
-    // The read path (StoredOrg profile + merged PII doc) reflects the company
-    // stage: CompanyProfile (non-PII) in Stored, razão social / fantasia merged
-    // from the deletable PII doc.
-    const org = await getOrg(orgId)
-    expect(org?.fiscalProfile.stage).toBe('company')
-    if (org?.fiscalProfile.stage !== 'company') throw new Error('expected company')
-    expect(org.fiscalProfile.companyProfile.taxId).toBe(CNPJ)
-    expect(org.taxIdentity?.kind).toBe('company')
-    if (org.taxIdentity?.kind !== 'company') throw new Error('expected company taxIdentity')
-    expect(org.taxIdentity.legalName).toBe('CABRAL TECNOLOGIA LTDA')
-    expect(org.taxIdentity.tradeName).toBe('CABRAL TECH')
+    // The read path (StoredUnit fiscal + merged PII doc) reflects the company
+    // stage: CompanyProfile (non-PII) in Stored, razão social / fantasia in the
+    // deletable per-unit PII doc.
+    const unit = await getUnitById(orgId, unitId)
+    expect(unit?.fiscal.kind).toBe('company')
+    if (unit?.fiscal.kind !== 'company') throw new Error('expected company fiscal')
+    expect(unit.fiscal.companyProfile.taxId).toBe(CNPJ)
+    const taxIdentity = await getUnitTaxIdentity(orgId, unitId)
+    expect(taxIdentity?.kind).toBe('company')
+    if (taxIdentity?.kind !== 'company') throw new Error('expected company taxIdentity')
+    expect(taxIdentity.legalName).toBe('CABRAL TECNOLOGIA LTDA')
+    expect(taxIdentity.tradeName).toBe('CABRAL TECH')
 
     // The event carries NO razão social / nome fantasia (ADR 0010).
     const eventDoc = (
-      await db.collection('orgs').doc(orgId).collection('events').doc('v000002').get()
+      await db
+        .collection('orgs')
+        .doc(orgId)
+        .collection('units')
+        .doc(unitId)
+        .collection('events')
+        .doc('v000002')
+        .get()
     ).data()
-    expect(eventDoc?._tag).toBe('org.formalized')
+    expect(eventDoc?._tag).toBe('unit.formalized')
     expect(JSON.stringify(eventDoc)).not.toMatch(/CABRAL TECNOLOGIA LTDA|CABRAL TECH/)
+  })
 
-    // The informal matriz becomes matriz 0001 — gains the full CNPJ-14.
-    const unitSnap = await db
+  it('ATIVA gate: a non-ATIVA CNPJ is rejected and the Unit stays informal', async () => {
+    const res = await formalizeUnit(formFor({ registrationStatus: 'BAIXADA' }))
+    expect(res.ok).toBe(false)
+
+    const unit = await getUnitById(orgId, unitId)
+    expect(unit?.fiscal.kind).toBe('informal')
+    // No unit.formalized event was appended (still at v1 from the seed).
+    const v2 = await db
       .collection('orgs')
       .doc(orgId)
       .collection('units')
       .doc(unitId)
-      .withConverter(fsConverter(StoredUnit))
+      .collection('events')
+      .doc('v000002')
       .get()
-    expect(unitSnap.data()?.taxId).toBe(CNPJ)
-  })
-
-  it('ATIVA gate: a non-ATIVA CNPJ is rejected and the Org stays informal', async () => {
-    const res = await formalizeOrg(formFor({ registrationStatus: 'BAIXADA' }))
-    expect(res.ok).toBe(false)
-
-    const org = await getOrg(orgId)
-    expect(org?.fiscalProfile.stage).toBe('informal')
-    // No org.formalized event was appended (still at v1 from the seed).
-    const v2 = await db.collection('orgs').doc(orgId).collection('events').doc('v000002').get()
     expect(v2.exists).toBe(false)
   })
 
-  it('idempotency: an already-formalized Org cannot be re-formalized', async () => {
-    const first = await formalizeOrg(formFor())
+  it('idempotency: an already-formalized Unit cannot be re-formalized', async () => {
+    const first = await formalizeUnit(formFor())
     expect(first.ok).toBe(true)
 
-    const second = await formalizeOrg(formFor())
+    const second = await formalizeUnit(formFor())
     expect(second.ok).toBe(false)
     if (second.ok) throw new Error('expected rejection')
     expect(second.error).toMatch(/já está formalizada/)

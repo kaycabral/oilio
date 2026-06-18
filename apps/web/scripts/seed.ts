@@ -31,6 +31,7 @@ import type {
   SubscriptionPlan,
   SubscriptionPlanSnapshot,
   Unit,
+  UnitFiscal,
   UnitHoursMode,
   User,
 } from '@/domain'
@@ -607,9 +608,8 @@ async function seed(): Promise<void> {
     name: 'Barbearia do Zé',
     slug: ORG_SLUG,
     vertical: 'barbershop',
-    taxIdentity: null,
-    // Barbearia do Zé stays informal (no CNPJ) — the operational baseline org.
-    fiscalProfile: { stage: 'informal' },
+    // The Org is a pure folder (PRD Identidade v2) — no fiscal identity; the
+    // CNPJ lives on Unit.fiscal. Barbearia do Zé's units stay informal.
     ownerUserId: OWNER.uid,
     timezone: ORG_TZ,
     slotMinutes: 30,
@@ -621,14 +621,6 @@ async function seed(): Promise<void> {
     createdAt: NOW,
     updatedAt: NOW,
   } satisfies Org)
-
-  // Org tax PII lives in a deletable sibling doc (#1036, ADR 0010), read by
-  // `getOrgTaxIdentity`. Mirrors `writeOrgTaxIdentity` —
-  // `orgs/{id}/private/taxIdentity`. Seeded as null (read also tolerates the
-  // doc being absent), kept here so the shape is documented.
-  batch.set(orgRef.collection('private').doc('taxIdentity'), {
-    taxIdentity: null,
-  })
 
   const membershipId = membershipDocId(ORG_ID, OWNER.uid)
   batch.set(db.collection('memberships').doc(membershipId), {
@@ -679,6 +671,9 @@ async function seed(): Promise<void> {
       businessHours: BUSINESS_HOURS,
       hoursMode: u.hoursMode,
       archivedAt: null,
+      // Barbearia do Zé's units stay informal (no CNPJ) — the operational
+      // baseline. Formalization is an opt-in upgrade (brief 0048).
+      fiscal: { kind: 'informal' },
       createdAt: NOW,
       updatedAt: NOW,
     } satisfies Unit)
@@ -998,10 +993,13 @@ async function seed(): Promise<void> {
   await seedFormalizationOrgs()
 }
 
-// Formalization manual-testing fixtures (F3 / brief 0048). Leaves a SECOND
-// owner with two orgs ready to exercise the Formalizar flow tomorrow:
-//   (a) an INFORMAL org (no CNPJ) — see the "Formalizar empresa" CTA + flow;
-//   (b) a COMPANY (already formalized) org — see the read-only fiscal section.
+// Formalization manual-testing fixtures (brief 0048 / PRD Identidade v2). The
+// fiscal identity lives on the UNIT, not the Org. Leaves a SECOND owner with two
+// orgs ready to exercise the Formalizar flow:
+//   (a) an org with an INFORMAL unit (no CNPJ) — see the "Formalizar unidade"
+//       CTA + flow;
+//   (b) an org with a COMPANY unit (already formalized) — see the read-only
+//       fiscal section.
 // Seeded directly (bypassing the UI). The owner alternates via the org switcher.
 const FORMALIZE_OWNER = {
   uid: 'seed-formalize-owner',
@@ -1063,15 +1061,13 @@ async function seedFormalizationOrgs(): Promise<void> {
     activityStartedAt: '2020-12-17',
   }
 
-  // (a) Informal org — no CNPJ; the owner sees the Formalizar CTA.
+  // (a) Org with an informal unit — no CNPJ; the owner sees the Formalizar CTA.
   const informalRef = db.collection('orgs').doc(FORMALIZE_INFORMAL_ORG_ID)
   batch.set(informalRef, {
     id: FORMALIZE_INFORMAL_ORG_ID,
     name: 'Estúdio Informal',
     slug: 'estudio-informal',
     vertical: 'barbershop',
-    taxIdentity: null,
-    fiscalProfile: { stage: 'informal' },
     ownerUserId: FORMALIZE_OWNER.uid,
     timezone: ORG_TZ,
     slotMinutes: 30,
@@ -1083,25 +1079,20 @@ async function seedFormalizationOrgs(): Promise<void> {
     createdAt: now,
     updatedAt: now,
   } satisfies Org)
-  batch.set(informalRef.collection('private').doc('taxIdentity'), { taxIdentity: null })
-  seedFormalizeMatriz(batch, FORMALIZE_INFORMAL_ORG_ID, 'Estúdio Informal — Matriz', null)
+  seedFormalizeUnit(batch, FORMALIZE_INFORMAL_ORG_ID, 'Estúdio Informal — Centro', {
+    kind: 'informal',
+  })
   seedFormalizeMembership(batch, FORMALIZE_INFORMAL_ORG_ID)
 
-  // (b) Company org — already formalized; the owner sees the read-only fiscal
-  // section. CompanyProfile in Stored; razão social/fantasia in the PII doc.
+  // (b) Org with a formalized unit — the owner sees the read-only fiscal
+  // section. CompanyProfile in StoredUnit; razão social/fantasia in the per-unit
+  // PII doc.
   const companyRef = db.collection('orgs').doc(FORMALIZE_COMPANY_ORG_ID)
   batch.set(companyRef, {
     id: FORMALIZE_COMPANY_ORG_ID,
     name: 'Cabral Tecnologia',
     slug: 'cabral-tecnologia',
     vertical: 'barbershop',
-    taxIdentity: null,
-    fiscalProfile: {
-      stage: 'company',
-      taxId: FIXTURE_CNPJ,
-      companyProfile: fixtureProfile,
-      formalizedAt: now,
-    },
     ownerUserId: FORMALIZE_OWNER.uid,
     timezone: ORG_TZ,
     slotMinutes: 30,
@@ -1113,17 +1104,15 @@ async function seedFormalizationOrgs(): Promise<void> {
     createdAt: now,
     updatedAt: now,
   } satisfies Org)
-  // Razão social + nome fantasia → deletable PII doc (LGPD, ADR 0010).
-  batch.set(companyRef.collection('private').doc('taxIdentity'), {
-    taxIdentity: {
-      kind: 'company',
-      taxId: FIXTURE_CNPJ,
-      legalName: 'CABRAL TECNOLOGIA LTDA',
-      tradeName: 'CABRAL TECH',
-    },
+  // The formalized unit carries the CNPJ-14 + CompanyProfile (non-PII) on its
+  // `fiscal`; razão social + nome fantasia → deletable per-unit PII doc
+  // (LGPD, ADR 0010). Ordem 0001 = matriz (derived from the CNPJ-14, not stored).
+  seedFormalizeUnit(batch, FORMALIZE_COMPANY_ORG_ID, 'Cabral Tecnologia — Centro', {
+    kind: 'company',
+    taxId: FIXTURE_CNPJ,
+    companyProfile: fixtureProfile,
+    formalizedAt: now,
   })
-  // Matriz 0001 with the full CNPJ-14.
-  seedFormalizeMatriz(batch, FORMALIZE_COMPANY_ORG_ID, 'Cabral Tecnologia — Matriz', FIXTURE_CNPJ)
   seedFormalizeMembership(batch, FORMALIZE_COMPANY_ORG_ID)
 
   // The second owner's user doc (currentOrgId = the informal one, so the
@@ -1154,18 +1143,18 @@ async function seedFormalizationOrgs(): Promise<void> {
   await batch.commit()
 }
 
-function seedFormalizeMatriz(
+function seedFormalizeUnit(
   batch: FirebaseFirestore.WriteBatch,
   orgId: string,
   name: string,
-  taxId: string | null,
+  fiscal: UnitFiscal,
 ): void {
-  const unitRef = db.collection('orgs').doc(orgId).collection('units').doc(`${orgId}-matriz`)
+  const unitRef = db.collection('orgs').doc(orgId).collection('units').doc(`${orgId}-centro`)
   const unit: Unit = {
     id: unitRef.id,
     orgId,
     name,
-    slug: 'matriz',
+    slug: 'centro',
     whatsapp: FORMALIZE_OWNER.whatsapp,
     email: null,
     // Real address/hours: a Unidade is an operating establishment (PRD
@@ -1182,16 +1171,29 @@ function seedFormalizeMatriz(
     businessHours: BUSINESS_HOURS,
     hoursMode: 'appointment',
     archivedAt: null,
+    // The fiscal identity lives on the unit (brief 0048): informal → no CNPJ;
+    // company → CNPJ-14 + CompanyProfile (non-PII). Matriz/raiz derived on read.
+    fiscal,
     createdAt: NOW,
     updatedAt: NOW,
   }
-  // A formalized matriz carries the full CNPJ-14; an informal one omits it.
-  if (taxId) unit.taxId = taxId
   batch.set(unitRef, unit)
   batch.set(db.collection('orgs').doc(orgId).collection('units_pii').doc(unitRef.id), {
     whatsapp: FORMALIZE_OWNER.whatsapp,
     email: null,
   } satisfies UnitPii)
+  // A formalized unit's razão social + nome fantasia (PII) live in the deletable
+  // per-unit doc (LGPD, ADR 0010); an informal unit has none.
+  if (fiscal.kind === 'company') {
+    batch.set(unitRef.collection('private').doc('taxIdentity'), {
+      taxIdentity: {
+        kind: 'company',
+        taxId: fiscal.taxId,
+        legalName: 'CABRAL TECNOLOGIA LTDA',
+        tradeName: 'CABRAL TECH',
+      },
+    })
+  }
 }
 
 function seedFormalizeMembership(batch: FirebaseFirestore.WriteBatch, orgId: string): void {
@@ -2433,7 +2435,7 @@ seed()
     console.log(line)
     console.log('  Formalização fiscal (brief 0048) — 2º dono "Ana Fiscal" (fiscal@cbrl.local):')
     console.log('    · Org informal "Estúdio Informal" → CTA Formalizar em /company')
-    console.log('    · Org "Cabral Tecnologia" já formalizada → seção fiscal read-only')
+    console.log('    · Unidade de "Cabral Tecnologia" já formalizada → seção fiscal read-only')
     console.log('    (alterne entre as duas pelo switcher de org)')
     console.log(`${line}\n`)
     process.exit(0)

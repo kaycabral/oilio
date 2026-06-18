@@ -321,15 +321,14 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
       }
     : EMPTY_BUSINESS_HOURS
 
-  // Org doc. Decoded as `StoredOrg` (omits `taxIdentity`, which lives in
-  // the deletable PII doc) — so the fixture object must NOT carry it.
+  // Org doc. The Org is a pure folder (PRD Identidade v2) — no fiscal identity
+  // (it lives on Unit.fiscal). Decoded as `StoredOrg`.
   const orgDoc: StoredOrg = {
     id: orgId,
     name: `E2E ${orgId}`,
     slug: `e2e-${orgId}`.toLowerCase(),
     vertical,
     ownerUserId: uid,
-    fiscalProfile: { stage: 'informal' },
     selfBookingPublished,
     selfBookingPublishedAt: selfBookingPublished ? now : null,
     timezone: 'America/Sao_Paulo',
@@ -399,6 +398,8 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
       hoursMode: 'appointment',
       // Uniform delete policy (brief 0027, #1041) — seeds match the new shape.
       archivedAt: null,
+      // Born informal (no CNPJ) — formalization is an opt-in upgrade (0048).
+      fiscal: { kind: 'informal' },
       createdAt: now,
       updatedAt: now,
     }
@@ -661,7 +662,6 @@ export function seedAdditionalOrg(
     slug: `e2e-${orgId}`.toLowerCase(),
     vertical: 'barbershop',
     ownerUserId: uid,
-    fiscalProfile: { stage: 'informal' },
     selfBookingPublished: false,
     selfBookingPublishedAt: null,
     timezone: 'America/Sao_Paulo',
@@ -705,6 +705,7 @@ export function seedAdditionalOrg(
       businessHours: EMPTY_BUSINESS_HOURS,
       hoursMode: 'appointment',
       archivedAt: null,
+      fiscal: { kind: 'informal' },
       createdAt: now,
       updatedAt: now,
     }
@@ -1446,6 +1447,7 @@ export function seedUnit(
     businessHours: EMPTY_BUSINESS_HOURS,
     hoursMode: 'appointment',
     archivedAt: opts.archivedAt ?? null,
+    fiscal: { kind: 'informal' },
     createdAt: now,
     updatedAt: now,
   }

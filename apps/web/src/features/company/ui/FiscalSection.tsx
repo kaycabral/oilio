@@ -1,9 +1,10 @@
 import {
   formatCnpj,
-  isCompanyFiscalProfile,
+  isCompanyUnitFiscal,
   type CompanySize,
-  type Org,
+  type TaxIdentity,
   type TaxRegime,
+  type Unit,
 } from '@/domain'
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@cbrl/design'
 
@@ -19,23 +20,30 @@ const SIZE_LABELS: Record<CompanySize, string> = {
   other: 'Demais',
 }
 
-// Read-only fiscal identity of a FORMALIZED org (brief 0048 AC-08): razão
-// social / nome fantasia (from the PII doc, merged at read time) + regime /
-// CNAE / porte (from the StoredOrg fiscalProfile). No editable taxId, no
-// "optional / CPF-or-CNPJ" affordance — formalization is the only way in, and
-// it's immutable once done.
-export function FiscalSection({ org }: { org: Org }) {
-  const fiscal = org.fiscalProfile
-  if (!isCompanyFiscalProfile(fiscal)) return null
+// Read-only fiscal identity of a FORMALIZED unit (brief 0048 AC-08): razão
+// social / nome fantasia (from the per-unit PII doc, merged at read time) +
+// regime / CNAE / porte (from the StoredUnit fiscal union). No editable taxId,
+// no "optional / CPF-or-CNPJ" affordance — formalization is the only way in, and
+// it's immutable once done. The fiscal identity belongs to the establishment
+// (the Unit), not the Org (PRD Identidade v2).
+export function FiscalSection({
+  unit,
+  taxIdentity,
+}: {
+  unit: Unit
+  taxIdentity: TaxIdentity | null
+}) {
+  const fiscal = unit.fiscal
+  if (!isCompanyUnitFiscal(fiscal)) return null
   const { companyProfile } = fiscal
-  const legalName = org.taxIdentity?.kind === 'company' ? org.taxIdentity.legalName : null
-  const tradeName = org.taxIdentity?.kind === 'company' ? (org.taxIdentity.tradeName ?? null) : null
+  const legalName = taxIdentity?.kind === 'company' ? taxIdentity.legalName : null
+  const tradeName = taxIdentity?.kind === 'company' ? (taxIdentity.tradeName ?? null) : null
 
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-base">Identidade fiscal</CardTitle>
-        <Badge>Empresa formalizada</Badge>
+        <Badge>Unidade formalizada</Badge>
       </CardHeader>
       <CardContent>
         <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-[10rem_1fr]">

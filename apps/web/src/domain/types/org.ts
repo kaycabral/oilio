@@ -2,7 +2,6 @@ import { Schema } from 'effect'
 
 import type { WhatsappTemplates } from '../utils/whatsapp'
 import { Vertical } from './enums'
-import { FiscalProfile, TaxIdentity } from './tax'
 
 // `WhatsappTemplates` (a hand-written `type` in `../utils/whatsapp`, outside the
 // read-model kernel) projected as a schema so the `Org.whatsappTemplates`
@@ -129,14 +128,10 @@ export const Org = Schema.mutable(
     // The brand's site/domain (optional). Future: domain verification + Google
     // Shopping (PRD Identidade § Contrato de tipagem — Org ganha `website`).
     website: Schema.optional(Schema.NullOr(Schema.String)),
-    taxIdentity: Schema.NullOr(TaxIdentity),
-    // The Org's fiscal lifecycle stage (brief 0048). The SINGLE source of truth
-    // for informal vs. formalized: the `company` variant carries the matriz
-    // CNPJ-14, the registry `CompanyProfile` (NON-PII), and `formalizedAt`. So,
-    // unlike `taxIdentity`, it stays in `StoredOrg` + the `org.formalized`
-    // event: queryable + replay-safe. A new Org is born `informal`; the read
-    // path (`normalizeOrg`) backfills a missing field to informal.
-    fiscalProfile: FiscalProfile,
+    // The Org carries NO fiscal identity (PRD Identidade v2): the CNPJ is, by
+    // law, the establishment's — it lives on `Unit.fiscal` (brief 0048). The Org
+    // is a pure folder/shell: branding + segment + members; never a CNPJ nor a
+    // titular tax id.
     ownerUserId: Schema.String,
     // Self-booking publication gate (brief 0008 #988). The public page is only
     // reachable when `selfBookingPublished` is true — the owner publishes
@@ -155,10 +150,11 @@ export const Org = Schema.mutable(
 )
 export type Org = typeof Org.Type
 
-// Storage projection of `Org`: the `orgs/{id}` doc that OMITS the PII
-// (taxIdentity), which lives in a deletable doc and is merged at read time.
-// Decode raw `orgs` docs against this.
-export const StoredOrg = Org.pipe(Schema.omit('taxIdentity'))
+// Storage projection of `Org`: the `orgs/{id}` doc. The Org has NO fiscal PII
+// anymore (PRD Identidade v2 — the fiscal identity moved to `Unit.fiscal`), so
+// the stored shape equals the read model. `name` is the BUSINESS name (not
+// titular PII) and stays on the doc. Decode raw `orgs` docs against this.
+export const StoredOrg = Org
 export type StoredOrg = typeof StoredOrg.Type
 
 export const DEFAULT_ORG_TIMEZONE = 'America/Sao_Paulo'

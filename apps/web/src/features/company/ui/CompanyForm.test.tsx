@@ -20,8 +20,6 @@ function buildOrg(overrides: Partial<Org> = {}): Org {
     name: 'Barbearia do João',
     slug: 'barbearia-joao',
     vertical: 'barbershop',
-    taxIdentity: null,
-    fiscalProfile: { stage: 'informal' },
     ownerUserId: 'u1',
     selfBookingPublished: false,
     selfBookingPublishedAt: null,

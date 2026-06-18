@@ -52,6 +52,7 @@ function buildUnit(id: string, name = `Unit ${id}`): Unit {
     businessHours: EMPTY_BUSINESS_HOURS,
     hoursMode: 'fixed',
     archivedAt: null,
+    fiscal: { kind: 'informal' },
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   }

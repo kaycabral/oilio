@@ -2,14 +2,18 @@ import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   CompanyProfile,
-  FiscalProfile,
-  INFORMAL_FISCAL_PROFILE,
+  INFORMAL_UNIT_FISCAL,
+  UnitFiscal,
+  cnpjOrdem,
+  cnpjRaiz,
   deriveCompanySize,
   deriveTaxRegime,
   formatCnpj,
+  groupUnitsByRaiz,
   isActiveRegistrationStatus,
   isCompany,
-  isCompanyFiscalProfile,
+  isCompanyUnitFiscal,
+  isMatrizCnpj,
   isValidCompanyTaxId,
   isValidIndividualTaxId,
   normalizeTaxId,
@@ -178,41 +182,108 @@ describe('isActiveRegistrationStatus (ATIVA gate, brief 0048 AC-05)', () => {
   })
 })
 
-describe('FiscalProfile (brief 0048 AC-01)', () => {
-  const decode = Schema.decodeUnknownSync(FiscalProfile)
+describe('UnitFiscal (brief 0048 AC-01)', () => {
+  const decode = Schema.decodeUnknownSync(UnitFiscal)
+
+  const companyFiscal: UnitFiscal = {
+    kind: 'company',
+    taxId: '40148980000199',
+    companyProfile: {
+      taxId: '40148980000199',
+      isMei: false,
+      taxRegime: 'simples_nacional',
+      primaryActivity: { code: '6201501', description: 'Desenvolvimento de software' },
+      secondaryActivities: [],
+      companySize: 'micro',
+      legalNature: '2062',
+      registrationStatus: 'ATIVA',
+      shareCapital: 1000,
+      activityStartedAt: '2020-01-01',
+    },
+    formalizedAt: '2026-06-18T00:00:00.000Z',
+  }
 
   it('the informal default narrows as informal', () => {
-    expect(INFORMAL_FISCAL_PROFILE).toEqual({ stage: 'informal' })
-    expect(isCompanyFiscalProfile(INFORMAL_FISCAL_PROFILE)).toBe(false)
+    expect(INFORMAL_UNIT_FISCAL).toEqual({ kind: 'informal' })
+    expect(isCompanyUnitFiscal(INFORMAL_UNIT_FISCAL)).toBe(false)
   })
 
   it('narrows the company variant', () => {
-    const company: FiscalProfile = {
-      stage: 'company',
-      taxId: '40148980000199',
-      companyProfile: {
-        taxId: '40148980000199',
-        isMei: false,
-        taxRegime: 'simples_nacional',
-        primaryActivity: { code: '6201501', description: 'Desenvolvimento de software' },
-        secondaryActivities: [],
-        companySize: 'micro',
-        legalNature: '2062',
-        registrationStatus: 'ATIVA',
-        shareCapital: 1000,
-        activityStartedAt: '2020-01-01',
-      },
-      formalizedAt: '2026-06-18T00:00:00.000Z',
-    }
-    expect(isCompanyFiscalProfile(company)).toBe(true)
-    expect(decode(company)).toEqual(company)
+    expect(isCompanyUnitFiscal(companyFiscal)).toBe(true)
+    expect(decode(companyFiscal)).toEqual(companyFiscal)
   })
 
   it('rejects a company variant missing the required corporate fields', () => {
-    expect(() => decode({ stage: 'company', taxId: '40148980000199' })).toThrow()
+    expect(() => decode({ kind: 'company', taxId: '40148980000199' })).toThrow()
   })
 
-  it('rejects an unknown stage', () => {
-    expect(() => decode({ stage: 'partial' })).toThrow()
+  it('rejects an unknown kind', () => {
+    expect(() => decode({ kind: 'partial' })).toThrow()
   })
 })
+
+describe('CNPJ-14 structure derivations (brief 0048 AC-09)', () => {
+  // 40.148.980/0001-99 — matriz (ordem 0001), raiz 40148980.
+  const MATRIZ = '40148980000199'
+  // Same raiz, ordem 0002 — a filial.
+  const FILIAL = '40148980000279'
+  // Different raiz entirely.
+  const OTHER = '11222333000181'
+
+  it('derives raiz (first 8) and ordem (next 4), digit-only and from masked input', () => {
+    expect(cnpjRaiz(MATRIZ)).toBe('40148980')
+    expect(cnpjOrdem(MATRIZ)).toBe('0001')
+    expect(cnpjRaiz('40.148.980/0002-79')).toBe('40148980')
+    expect(cnpjOrdem('40.148.980/0002-79')).toBe('0002')
+  })
+
+  it('flags matriz (ordem 0001) vs filial (0002+)', () => {
+    expect(isMatrizCnpj(MATRIZ)).toBe(true)
+    expect(isMatrizCnpj(FILIAL)).toBe(false)
+  })
+
+  it('groups company units by raiz; informal units are skipped, not an error', () => {
+    const company = (id: string, taxId: string): { id: string; fiscal: UnitFiscal } => ({
+      id,
+      fiscal: {
+        kind: 'company',
+        taxId,
+        companyProfile: companyProfileFor(taxId),
+        formalizedAt: 'x',
+      },
+    })
+    const units: { id: string; fiscal: UnitFiscal }[] = [
+      company('a', MATRIZ),
+      company('b', FILIAL),
+      { id: 'c', fiscal: { kind: 'informal' } },
+      company('d', OTHER),
+    ]
+    const groups = groupUnitsByRaiz(units)
+    // Two raízes: 40148980 (matriz + filial) and 11222333 (single).
+    expect(groups.size).toBe(2)
+    expect(groups.get('40148980')?.map((u) => u.id)).toEqual(['a', 'b'])
+    expect(groups.get('11222333')?.map((u) => u.id)).toEqual(['d'])
+    // The informal unit is in no group (it carries no CNPJ; not an invariant).
+    expect([...groups.values()].flat().map((u) => u.id)).not.toContain('c')
+  })
+
+  it('empty / all-informal input yields an empty grouping (no raiz invariant)', () => {
+    expect(groupUnitsByRaiz([]).size).toBe(0)
+    expect(groupUnitsByRaiz([{ fiscal: { kind: 'informal' as const } }]).size).toBe(0)
+  })
+})
+
+function companyProfileFor(taxId: string): CompanyProfile {
+  return {
+    taxId,
+    isMei: false,
+    taxRegime: 'simples_nacional',
+    primaryActivity: { code: '6201501', description: 'Software' },
+    secondaryActivities: [],
+    companySize: 'micro',
+    legalNature: '2062',
+    registrationStatus: 'ATIVA',
+    shareCapital: 1000,
+    activityStartedAt: '2020-01-01',
+  }
+}

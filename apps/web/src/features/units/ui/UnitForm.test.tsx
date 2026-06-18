@@ -25,6 +25,7 @@ function buildUnit(overrides: Partial<Unit> = {}): Unit {
     businessHours: EMPTY_BUSINESS_HOURS,
     hoursMode: 'fixed',
     archivedAt: null,
+    fiscal: { kind: 'informal' },
     createdAt: '2026-05-18T00:00:00.000Z',
     updatedAt: '2026-05-18T00:00:00.000Z',
     ...overrides,

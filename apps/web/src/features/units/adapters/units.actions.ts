@@ -2,6 +2,7 @@
 
 import {
   CatalogItem,
+  DEFAULT_UNIT_FISCAL,
   isCatalogService,
   isValidUnitSlug,
   slugifyUnitName,
@@ -99,6 +100,9 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     businessHours: parsed.businessHours,
     hoursMode: parsed.hoursMode,
     archivedAt: null,
+    // A new unit is born informal — no CNPJ until the owner formalizes it via
+    // the Formalizar flow (`unit.formalized`, brief 0048).
+    fiscal: DEFAULT_UNIT_FISCAL,
     createdAt: now,
     updatedAt: now,
   }

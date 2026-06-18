@@ -1,11 +1,8 @@
 import {
   DEFAULT_ORG_TIMEZONE,
   DEFAULT_SLOT_MINUTES,
-  INFORMAL_FISCAL_PROFILE,
   type Org,
   StoredOrg,
-  type TaxIdentity,
-  TaxIdentity as TaxIdentitySchema,
   isValidSlotMinutes,
   normalizeCancellationPolicy,
   normalizeOrgBranding,
@@ -13,25 +10,17 @@ import {
 } from '@/domain'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
-import { Schema } from 'effect'
 import 'server-only'
 
-// What we actually persist under `orgs/{id}` (the event projection). The
-// owner's `taxIdentity` (CPF/CNPJ — PII) is merged in at read time from the
-// deletable `orgs/{id}/private/taxIdentity` doc. `name` is the BUSINESS
-// name (not PII) and stays on the doc. See #1036 + ADR 0010 (LGPD). The
-// storage projection schema is the read-model `StoredOrg` from `@/domain`.
+// What we persist under `orgs/{id}` (the event projection). The Org is a pure
+// folder/shell (PRD Identidade v2) — it has NO fiscal identity anymore (the
+// CNPJ moved to `Unit.fiscal`, brief 0048), so the stored shape equals the read
+// model `StoredOrg`. `name` is the BUSINESS name (not titular PII) and stays on
+// the doc. The owner's CPF lives on `User.taxIdentity`, never here.
 
-// Subcollection + doc id that hold the org's tax PII.
-const PRIVATE_COLLECTION = 'private'
-const TAX_IDENTITY_DOC = 'taxIdentity'
-
-const TaxIdentityDocSchema = Schema.Struct({ taxIdentity: Schema.NullOr(TaxIdentitySchema) })
-
-function normalizeOrg(t: StoredOrg, taxIdentity: TaxIdentity | null): Org {
+function normalizeOrg(t: StoredOrg): Org {
   return {
     ...t,
-    taxIdentity,
     timezone: t.timezone || DEFAULT_ORG_TIMEZONE,
     slotMinutes: isValidSlotMinutes(t.slotMinutes) ? t.slotMinutes : DEFAULT_SLOT_MINUTES,
     branding: normalizeOrgBranding(t.branding),
@@ -41,47 +30,18 @@ function normalizeOrg(t: StoredOrg, taxIdentity: TaxIdentity | null): Org {
     // (unpublished) so a missing flag never leaks a public page.
     selfBookingPublished: t.selfBookingPublished === true,
     selfBookingPublishedAt: t.selfBookingPublishedAt ?? null,
-    // An Org without a persisted `fiscalProfile` (pre-0048, or never
-    // formalized) reads as informal — the default stage (brief 0048 AC-01).
-    fiscalProfile: t.fiscalProfile ?? INFORMAL_FISCAL_PROFILE,
   }
 }
 
-// Read the deletable tax PII doc for a org. null when absent (e.g. owner
-// hasn't filled it yet, or it was erased — LGPD).
-async function getOrgTaxIdentity(orgId: string): Promise<TaxIdentity | null> {
+export async function getOrg(orgId: string): Promise<Org | null> {
   const snap = await getAdminFirestore()
     .collection('orgs')
     .doc(orgId)
-    .collection(PRIVATE_COLLECTION)
-    .doc(TAX_IDENTITY_DOC)
-    .withConverter(fsConverter(TaxIdentityDocSchema))
+    .withConverter(fsConverter(StoredOrg))
     .get()
-  return snap.data()?.taxIdentity ?? null
-}
-
-// Write the tax PII doc directly (mutable, deletable, NOT event-sourced).
-// Called from the company-update action alongside the domain event emission.
-export async function writeOrgTaxIdentity(
-  orgId: string,
-  taxIdentity: TaxIdentity | null,
-): Promise<void> {
-  await getAdminFirestore()
-    .collection('orgs')
-    .doc(orgId)
-    .collection(PRIVATE_COLLECTION)
-    .doc(TAX_IDENTITY_DOC)
-    .set({ taxIdentity })
-}
-
-export async function getOrg(orgId: string): Promise<Org | null> {
-  const [snap, taxIdentity] = await Promise.all([
-    getAdminFirestore().collection('orgs').doc(orgId).withConverter(fsConverter(StoredOrg)).get(),
-    getOrgTaxIdentity(orgId),
-  ])
   const data = snap.data()
   if (!data) return null
-  return normalizeOrg(data, taxIdentity)
+  return normalizeOrg(data)
 }
 
 export async function getOrgBySlug(slug: string): Promise<Org | null> {
@@ -96,6 +56,5 @@ export async function getOrgBySlug(slug: string): Promise<Org | null> {
   if (!doc) return null
   const data = doc.data()
   if (!data) return null
-  const taxIdentity = await getOrgTaxIdentity(doc.id)
-  return normalizeOrg(data, taxIdentity)
+  return normalizeOrg(data)
 }

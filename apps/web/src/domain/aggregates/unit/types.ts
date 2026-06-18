@@ -1,4 +1,9 @@
-import { EMPTY_ADDRESS, EMPTY_BUSINESS_HOURS, type StoredUnit } from '@/domain/types/unit'
+import {
+  DEFAULT_UNIT_FISCAL,
+  EMPTY_ADDRESS,
+  EMPTY_BUSINESS_HOURS,
+  type StoredUnit,
+} from '@/domain/types/unit'
 
 // Projeção event-sourced = o doc operacional `StoredUnit` (PII whatsapp/email
 // omitida — materializada na leitura via unit-read) + a versão do stream.
@@ -18,6 +23,7 @@ export const INITIAL_UNIT_STATE: UnitState = {
   businessHours: EMPTY_BUSINESS_HOURS,
   hoursMode: 'fixed',
   archivedAt: null,
+  fiscal: DEFAULT_UNIT_FISCAL,
   createdAt: '',
   updatedAt: '',
   _version: 0,

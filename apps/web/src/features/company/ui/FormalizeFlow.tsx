@@ -1,7 +1,7 @@
 'use client'
 
 import { formatCnpj, isValidCompanyTaxId, normalizeTaxId } from '@/domain'
-import { formalizeOrg } from '@/features/company/adapters/formalize.actions'
+import { formalizeUnit } from '@/features/company/adapters/formalize.actions'
 import { readJson } from '@/shared/http'
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from '@cbrl/design'
 import { useState, useTransition } from 'react'
@@ -96,7 +96,7 @@ function validateErrorBody(data: unknown): { error?: string } {
 
 type Step = 'input' | 'review'
 
-export function FormalizeFlow() {
+export function FormalizeFlow({ unitId }: { unitId: string }) {
   const [step, setStep] = useState<Step>('input')
   const [cnpj, setCnpj] = useState('')
   const [lookup, setLookup] = useState<CompanyLookupResponse | null>(null)
@@ -129,9 +129,9 @@ export function FormalizeFlow() {
   function onConfirm(formData: FormData) {
     setError(null)
     startConfirm(async () => {
-      const res = await formalizeOrg(formData)
+      const res = await formalizeUnit(formData)
       if (!res.ok) setError(res.error)
-      else toast.success('Empresa formalizada')
+      else toast.success('Unidade formalizada')
     })
   }
 
@@ -172,6 +172,7 @@ export function FormalizeFlow() {
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
           <form action={onConfirm} className="flex justify-end gap-2">
+            <input type="hidden" name="unitId" value={unitId} />
             <input type="hidden" name="taxId" value={profile.taxId} />
             <input type="hidden" name="legalName" value={legalName} />
             <input type="hidden" name="tradeName" value={tradeName ?? ''} />
@@ -199,11 +200,11 @@ export function FormalizeFlow() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Formalizar empresa</CardTitle>
+        <CardTitle className="text-base">Formalizar unidade</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-muted-foreground text-sm">
-          Tem CNPJ? Informe-o para anexar a identidade fiscal à sua empresa. Buscamos os dados na
+          Tem CNPJ? Informe-o para anexar a identidade fiscal a esta unidade. Buscamos os dados na
           Receita e você confirma antes de formalizar.
         </p>
         <div className="flex flex-col gap-1">

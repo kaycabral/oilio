@@ -1,10 +1,10 @@
 // Feature E2E — brief 0048 (F3 — Formalização fiscal) `[critical]`.
 //
 // Cenários do DoD exercitados de ponta a ponta na UI:
-//   - empty-state: a Org informal mostra o CTA "Formalizar empresa";
+//   - empty-state: uma Unidade informal mostra o CTA "Formalizar unidade";
 //   - fluxo real: CNPJ (com máscara) → consulta → review (razão social /
 //     fantasia / regime / CNAE / porte) → confirma → seção fiscal read-only;
-//   - gate ATIVA: um CNPJ não-ATIVA é recusado e a Org segue informal.
+//   - gate ATIVA: um CNPJ não-ATIVA é recusado e a Unidade segue informal.
 //
 // BrasilAPI é stubada via `page.route('**/api/tax-id/**')` — a UI consulta o
 // route interno `/api/tax-id/[cnpj]` no browser (interceptável), o mesmo padrão
@@ -50,7 +50,7 @@ test.describe('Formalização fiscal (brief 0048)', () => {
     await authedPage.goto('/company')
 
     // Empty-state: the informal org surfaces the Formalizar CTA.
-    await expect(authedPage.getByText('Formalizar empresa')).toBeVisible()
+    await expect(authedPage.getByText('Formalizar unidade')).toBeVisible()
 
     // CNPJ input with mask: typing digits renders the formatted value.
     const cnpjInput = authedPage.getByLabel('CNPJ', { exact: true })
@@ -68,16 +68,16 @@ test.describe('Formalização fiscal (brief 0048)', () => {
     await authedPage.getByRole('button', { name: 'Confirmar e formalizar' }).click()
 
     // Fiscal section now read-only — formalized badge + the data, no CTA.
-    // Scope to `main`: the success toast ("Empresa formalizada") carries the
+    // Scope to `main`: the success toast ("Unidade formalizada") carries the
     // same text, so an unscoped query is a strict-mode violation.
     await expect(authedPage.getByText('Identidade fiscal')).toBeVisible()
-    await expect(authedPage.getByRole('main').getByText('Empresa formalizada')).toBeVisible()
+    await expect(authedPage.getByRole('main').getByText('Unidade formalizada')).toBeVisible()
     await expect(authedPage.getByText(CNPJ_MASKED)).toBeVisible()
     await expect(authedPage.getByText('CABRAL TECNOLOGIA LTDA')).toBeVisible()
-    await expect(authedPage.getByText('Formalizar empresa')).toHaveCount(0)
+    await expect(authedPage.getByText('Formalizar unidade')).toHaveCount(0)
   })
 
-  test('@critical gate ATIVA: CNPJ não-ATIVA é recusado e a Org segue informal', async ({
+  test('@critical gate ATIVA: CNPJ não-ATIVA é recusado e a Unidade segue informal', async ({
     authedPage,
   }) => {
     await authedPage.route('**/api/tax-id/**', (route) =>
