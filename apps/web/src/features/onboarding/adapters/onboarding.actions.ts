@@ -12,11 +12,18 @@ import {
   membershipDocId,
   slugify,
 } from '@/domain'
-import { MembershipConfig, OrgConfig } from '@/domain/aggregates'
+import { MembershipConfig, OrgConfig, UnitConfig } from '@/domain/aggregates'
+import {
+  buildMatrizUnit,
+  matrizSlugCandidates,
+  resolveMatrizPii,
+} from '@/features/onboarding/core/matriz'
 import { parseOrgForm } from '@/features/onboarding/core/org-form'
 import { getAdminFirestore } from '@/shared/db'
 import { emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
+import { getUserDoc } from '@/shared/org/membership'
+import { deleteUnitPii, writeUnitPii } from '@/shared/org/unit-read'
 import { redirect } from 'next/navigation'
 
 const SLUG_MAX_ATTEMPTS = 20
@@ -78,9 +85,34 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
 
   const userRef = db.collection('users').doc(session.uid)
 
-  // Event-first: a empresa nasce do evento `org.created` (a projeção escreve
-  // o doc — sem `batch.set(orgRef)` paralelo). Auditoria = stream (sem
-  // recordAudit de org.create).
+  // The matriz unit (the first establishment) is materialized in the SAME saga
+  // so an Org never exists without a unit (the "empresa sem unidade" hole, F2 /
+  // brief 0046, AC-02/AC-03). Its PII (whatsapp) is REQUIRED by the UnitPii
+  // schema and is derived from the owner's completed profile — the org-creation
+  // route (`/onboarding`) gates on `completionCompleted` (redirects to
+  // `/onboarding/profile?next=/onboarding`), so at this point `User.whatsapp`
+  // is set (the only completed-without-whatsapp state is the LGPD-anonymized
+  // branch, which can't reach onboarding). We read the completed profile rather
+  // than ever writing an empty whatsapp.
+  const ownerUser = await getUserDoc(session.uid)
+  const ownerPii = resolveMatrizPii(ownerUser)
+  if (!ownerPii.ok) return { ok: false, error: ownerPii.error }
+
+  const unitRef = db.collection('orgs').doc(orgId).collection('units').doc()
+  const unitId = unitRef.id
+  // Resolved before any event is emitted — nothing to compensate if it fails.
+  const unitSlug = await generateUniqueUnitSlug(db, orgId, name)
+  if (!unitSlug) {
+    return { ok: false, error: 'Could not generate a unique slug for the matriz unit' }
+  }
+
+  // PII (whatsapp/email) never enters the unit event payload (LGPD); it goes to
+  // the deletable `units_pii/{id}` doc and is merged on read.
+  const matriz = buildMatrizUnit({ unitId, orgId, name, slug: unitSlug, now })
+
+  // Event-first: the org is born from `org.created` (the projection writes the
+  // doc — no parallel `batch.set(orgRef)`). Auditoria = stream (sem recordAudit
+  // de org.create).
   const created = await emitEvent(OrgConfig, `orgs/${orgId}`, {
     _tag: 'org.created',
     actorId: session.uid,
@@ -89,22 +121,31 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
   if (!created.ok) return { ok: false, error: created.error }
 
   // Saga recuperável com compensação (event-first; cada aggregate seu evento, sem
-  // transação única). Passo 2: o vínculo do dono nasce de `membership.created`
-  // (projeção). Passo 3: a marca no usuário (doc de auth, não-aggregate). Se algum
-  // falha, COMPENSA os anteriores (evento de desfazer + remove o doc) e retorna
-  // erro à mostra — sem órfão, sem erro silencioso. Auditoria = stream.
+  // transação única). Passo 2: a unidade matriz nasce de `unit.created`
+  // (projeção) + PII sidecar. Passo 3: o vínculo do dono nasce de
+  // `membership.created`. Passo 4: a marca no usuário (doc de auth,
+  // não-aggregate). Se algum falha, COMPENSA os anteriores (evento de desfazer +
+  // remove o doc/PII) e retorna erro à mostra — sem órfão, sem erro silencioso.
+  // Auditoria = stream.
+  await writeUnitPii(orgId, unitId, ownerPii.pii)
+  const unitCreated = await emitEvent(UnitConfig, `orgs/${orgId}/units/${unitId}`, {
+    _tag: 'unit.created',
+    actorId: session.uid,
+    payload: { data: matriz },
+  })
+  const sagaRefs: SagaRefs = { orgId, unitId, orgRef, unitRef, actorId: session.uid }
+  if (!unitCreated.ok) {
+    await compensateOrgAndUnit(sagaRefs)
+    return { ok: false, error: 'Não foi possível concluir a criação da conta. Tente de novo.' }
+  }
+
   const membershipCreated = await emitEvent(MembershipConfig, `memberships/${membership.id}`, {
     _tag: 'membership.created',
     actorId: session.uid,
     payload: { data: membership },
   })
   if (!membershipCreated.ok) {
-    await emitEvent(OrgConfig, `orgs/${orgId}`, {
-      _tag: 'org.deleted',
-      actorId: session.uid,
-      payload: {},
-    })
-    await orgRef.delete().catch(() => undefined)
+    await compensateOrgAndUnit(sagaRefs)
     return { ok: false, error: 'Não foi possível concluir a criação da conta. Tente de novo.' }
   }
   try {
@@ -120,12 +161,7 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
       .doc(membership.id)
       .delete()
       .catch(() => undefined)
-    await emitEvent(OrgConfig, `orgs/${orgId}`, {
-      _tag: 'org.deleted',
-      actorId: session.uid,
-      payload: {},
-    })
-    await orgRef.delete().catch(() => undefined)
+    await compensateOrgAndUnit(sagaRefs)
     return { ok: false, error: 'Não foi possível concluir a criação da conta. Tente de novo.' }
   }
 
@@ -146,4 +182,54 @@ async function generateUniqueSlug(
     if (taken.empty) return candidate
   }
   return null
+}
+
+// Slug unique within the org's (brand-new, empty) units collection. Mirrors
+// `resolveUnitSlug` in units.actions but for the auto-derived matriz: derives
+// from the org name and escapes the reserved set. The org is fresh so there's
+// no real collision, but we keep the loop + reserved-slug guard for parity.
+async function generateUniqueUnitSlug(
+  db: ReturnType<typeof getAdminFirestore>,
+  orgId: string,
+  name: string,
+): Promise<string | null> {
+  const unitsRef = db.collection('orgs').doc(orgId).collection('units')
+  for (const candidate of matrizSlugCandidates(name, SLUG_MAX_ATTEMPTS)) {
+    const taken = await unitsRef.where('slug', '==', candidate).limit(1).get()
+    if (taken.empty) return candidate
+  }
+  return null
+}
+
+type SagaRefs = {
+  orgId: string
+  unitId: string
+  orgRef: FirebaseFirestore.DocumentReference
+  unitRef: FirebaseFirestore.DocumentReference
+  actorId: string
+}
+
+// Compensation: undo the matriz unit (event + projection + PII sidecar). Used
+// when a later saga step fails. Best-effort — failures here are swallowed so the
+// caller can still report the original error to the user.
+async function compensateUnit({ orgId, unitId, unitRef, actorId }: SagaRefs): Promise<void> {
+  await emitEvent(UnitConfig, `orgs/${orgId}/units/${unitId}`, {
+    _tag: 'unit.deleted',
+    actorId,
+    payload: {},
+  })
+  await unitRef.delete().catch(() => undefined)
+  await deleteUnitPii(orgId, unitId).catch(() => undefined)
+}
+
+// Compensation: undo both the matriz unit and the org (leaf-first), leaving no
+// partial state behind.
+async function compensateOrgAndUnit(refs: SagaRefs): Promise<void> {
+  await compensateUnit(refs)
+  await emitEvent(OrgConfig, `orgs/${refs.orgId}`, {
+    _tag: 'org.deleted',
+    actorId: refs.actorId,
+    payload: {},
+  })
+  await refs.orgRef.delete().catch(() => undefined)
 }

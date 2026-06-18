@@ -15,9 +15,15 @@
 // Roda contra emulator + build de produção (modo canônico do playwright.config).
 
 import { expect, test } from '../fixtures'
+import { fillBirthDate } from '../helpers/forms'
 import { checkStable, fillStable } from '../helpers/hydration'
 import { listItem } from '../helpers/list'
-import { linkProfessionalToServices, seedService } from '../helpers/session'
+import {
+  linkProfessionalToServices,
+  seedAuthUser,
+  seedService,
+  signInAndAttachSession,
+} from '../helpers/session'
 import { PublicBookingPage, orgSlug } from '../pages'
 
 // Toda rota interna autenticada — o org vazio tem que alcançar todas sem
@@ -218,5 +224,53 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
       expect(after?.status()).toBe(200)
       await expect(booking.serviceCard('Corte DoD')).toBeVisible()
     })
+  })
+})
+
+// F2 / brief 0046 — Onboarding conta-first + auto-criação da matriz.
+// Diferente do 0008 acima (que parte de um org já semeado), este cenário dirige
+// o fluxo REAL de signup (`createOrg`) ponta a ponta e prova o invariante novo:
+// o signup nunca deixa "empresa sem unidade" — a matriz nasce na mesma saga, e o
+// dono cai operável sem o estado vazio de "selecione uma unidade".
+test.describe('Feature 0046 — conta-first + matriz auto-criada', { tag: '@critical' }, () => {
+  test('signup cria a matriz na mesma saga; app operável sem unidade vazia (AC-02/AC-03)', async ({
+    context,
+    page,
+    baseURL,
+  }) => {
+    // Owner novo, perfil ainda incompleto (sem org, sem unidade) — o estado de
+    // quem acabou de autenticar via OAuth.
+    const owner = await seedAuthUser({ completionCompleted: false })
+    await signInAndAttachSession(context, owner.email, owner.password, baseURL ?? undefined)
+
+    // O gate de completude (#838) leva ao /onboarding/profile antes do org;
+    // espelhamos o `next` que o /onboarding usaria.
+    await page.goto('/onboarding/profile?next=/onboarding')
+    await page.getByRole('textbox', { name: /nome/i }).fill('Dona Matriz')
+    await page.getByRole('textbox', { name: /whatsapp/i }).fill('11944443333')
+    await fillBirthDate(page, '15/03/1992')
+    await page.getByRole('button', { name: /continuar/i }).click()
+
+    // Cai no form de criação da empresa (conta-first: só nome + vertical, sem CNPJ).
+    await expect(page).toHaveURL(/\/onboarding$/, { timeout: 10_000 })
+    const orgName = `Barbearia Matriz ${Date.now()}`
+    await fillStable(page.locator('input[name="name"]'), orgName)
+    // Select do @cbrl/design: abrir pelo trigger e escolher a opção visível.
+    await page.getByRole('combobox').click()
+    await page.getByRole('option', { name: 'Barbearia' }).click()
+    await page.getByRole('button', { name: 'Criar empresa' }).click()
+
+    // createOrg redireciona pra '/' (app operável). NÃO pode parar num
+    // /select-unit sem opção nem em /onboarding.
+    await page.waitForURL(/\/(dashboard|orders|units|agenda)?$/, { timeout: 10_000 })
+    await expect(page).not.toHaveURL(/\/onboarding(\/|$)/)
+    await expect(page).not.toHaveURL(/\/select-unit(\/|$)/)
+
+    // A matriz existe: a listagem de unidades mostra exatamente a unidade
+    // (nome = nome da empresa) e o empty-state "nenhuma unidade" NÃO aparece.
+    await page.goto('/units')
+    await expect(page).toHaveURL(/\/units$/)
+    await expect(listItem(page, orgName)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(/nenhuma unidade/i)).toBeHidden()
   })
 })
