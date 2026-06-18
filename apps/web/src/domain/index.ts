@@ -8,7 +8,7 @@ export {
   VERTICALS,
   Vertical,
   canInviteMembers,
-  canManageTenant,
+  canManageOrg,
   isOperational,
 } from './types/enums'
 
@@ -81,33 +81,33 @@ export {
   canRoleSeeNotificationType,
 } from './types/notification-permissions'
 export {
+  CancellationPolicy,
+  DEFAULT_CANCELLATION_POLICY,
+  DEFAULT_ORG_BRANDING,
+  DEFAULT_ORG_TIMEZONE,
+  DEFAULT_SLOT_MINUTES,
+  MAX_CANCELLATION_NOTICE_MINUTES,
+  MIN_CANCELLATION_NOTICE_MINUTES,
+  ORG_DESCRIPTION_MAX,
+  Org,
+  OrgBranding,
+  SLOT_MINUTES_OPTIONS,
+  SlotMinutes,
+  StoredOrg,
+  isValidCancellationNoticeMinutes,
+  isValidPublicHttpUrl,
+  isValidSlotMinutes,
+  normalizeCancellationPolicy,
+  normalizeOrgBranding,
+} from './types/org'
+export { OrgLink, orgLinkDocPath } from './types/org-link'
+export {
   CommissionRule,
   Professional,
   ProfessionalPii,
   StoredProfessional,
   professionalsForService,
 } from './types/professional'
-export {
-  CancellationPolicy,
-  DEFAULT_CANCELLATION_POLICY,
-  DEFAULT_SLOT_MINUTES,
-  DEFAULT_TENANT_BRANDING,
-  DEFAULT_TENANT_TIMEZONE,
-  MAX_CANCELLATION_NOTICE_MINUTES,
-  MIN_CANCELLATION_NOTICE_MINUTES,
-  SLOT_MINUTES_OPTIONS,
-  SlotMinutes,
-  StoredTenant,
-  TENANT_DESCRIPTION_MAX,
-  Tenant,
-  TenantBranding,
-  isValidCancellationNoticeMinutes,
-  isValidPublicHttpUrl,
-  isValidSlotMinutes,
-  normalizeCancellationPolicy,
-  normalizeTenantBranding,
-} from './types/tenant'
-export { TenantLink, tenantLinkDocPath } from './types/tenant-link'
 export {
   Address,
   BusinessHours,
@@ -252,19 +252,19 @@ export type { CashMovementTotals } from './utils/cash-register'
 
 export {
   assertValidTimezone,
-  fromTenantTime,
-  getTenantDayBoundsUtc,
-  getTodayInTenantTz,
+  fromOrgTime,
+  getOrgDayBoundsUtc,
+  getTodayInOrgTz,
   isValidTimezone,
-  shiftDateInTenantTz,
-  toTenantTime,
+  shiftDateInOrgTz,
+  toOrgTime,
 } from './utils/timezone'
-export type { TenantTime } from './utils/timezone'
+export type { OrgTime } from './utils/timezone'
 
 export {
   UF_TO_TZ,
   inferTimezoneFromAddress,
-  resolveTenantTimezoneFromAddress,
+  resolveOrgTimezoneFromAddress,
 } from './utils/timezone-br'
 
 export { getBlockSegmentsForDay } from './utils/agenda-blocks'
@@ -336,7 +336,7 @@ export * from './subscription-self-cancel'
 export {
   WEEKDAYS,
   getBusinessHoursForDay,
-  getWeekdayInTenantTz,
+  getWeekdayInOrgTz,
   hhmmToMinutes,
   isBusinessHoursConfigured,
   isValidHHmm,

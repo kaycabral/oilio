@@ -18,7 +18,7 @@ function mv(
     direction: _direction,
     ...rest
   } = overrides
-  const common = { tenantId: 't1', unitId: 'u1', description: null, recordedByUid: 'u1', ...rest }
+  const common = { orgId: 't1', unitId: 'u1', description: null, recordedByUid: 'u1', ...rest }
   switch (kind) {
     case 'sale':
       return {

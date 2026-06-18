@@ -103,7 +103,7 @@ const CASES: { name: string; run: () => Promise<void> }[] = [
     run: () =>
       checkDod(MembershipConfig, 'memberships/t1_u1', 'membership.created', {
         id: 't1_u1',
-        tenantId: 't1',
+        orgId: 't1',
         userId: 'u1',
         role: 'owner',
         status: 'active',
@@ -118,9 +118,9 @@ const CASES: { name: string; run: () => Promise<void> }[] = [
   {
     name: 'commission',
     run: () =>
-      checkDod(CommissionConfig, 'tenants/t1/commissions/c1', 'commission.created', {
+      checkDod(CommissionConfig, 'orgs/t1/commissions/c1', 'commission.created', {
         id: 'c1',
-        tenantId: 't1',
+        orgId: 't1',
         orderId: 'o1',
         orderItemId: 'item-1',
         attributedUserId: 'pro-1',
@@ -137,9 +137,9 @@ const CASES: { name: string; run: () => Promise<void> }[] = [
   {
     name: 'order',
     run: () =>
-      checkDod(OrderConfig, 'tenants/t1/orders/o1', 'order.created', {
+      checkDod(OrderConfig, 'orgs/t1/orders/o1', 'order.created', {
         id: 'o1',
-        tenantId: 't1',
+        orgId: 't1',
         unitId: 'u1',
         customerId: null,
         appointmentId: null,
@@ -157,9 +157,9 @@ const CASES: { name: string; run: () => Promise<void> }[] = [
   {
     name: 'charge',
     run: () =>
-      checkDod(ChargeConfig, 'tenants/t1/charges/ch1', 'charge.created', {
+      checkDod(ChargeConfig, 'orgs/t1/charges/ch1', 'charge.created', {
         id: 'ch1',
-        tenantId: 't1',
+        orgId: 't1',
         unitId: 'u1',
         subscriptionId: 's1',
         customerId: 'c1',
@@ -180,9 +180,9 @@ const CASES: { name: string; run: () => Promise<void> }[] = [
   {
     name: 'cash-movement',
     run: () =>
-      checkDod(CashMovementConfig, 'tenants/t1/cash_movements/m1', 'cash_movement.created', {
+      checkDod(CashMovementConfig, 'orgs/t1/cash_movements/m1', 'cash_movement.created', {
         id: 'm1',
-        tenantId: 't1',
+        orgId: 't1',
         unitId: 'u1',
         kind: 'sale',
         direction: 'in',

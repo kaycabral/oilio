@@ -42,7 +42,7 @@ export class EntityNotFoundError extends Data.TaggedError('EntityNotFoundError')
 export class AuthorizationError extends Data.TaggedError('AuthorizationError')<{
   readonly userId: string
   readonly requiredRole: string
-  readonly tenantId: string
+  readonly orgId: string
 }> {}
 
 export type DomainError =

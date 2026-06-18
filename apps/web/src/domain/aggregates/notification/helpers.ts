@@ -12,14 +12,14 @@ import { NotificationConfig } from './config'
 import type { NotificationSource, NotificationType } from './types'
 
 export function notificationExists(
-  tenantId: string,
+  orgId: string,
   type: string,
   eventKey: string,
   unitId: string,
 ): Effect.Effect<boolean, never, FirestoreService> {
   return Effect.gen(function* () {
     const firestore = yield* FirestoreService
-    const docs = yield* firestore.getDocs(`tenants/${tenantId}/notifications`, [
+    const docs = yield* firestore.getDocs(`orgs/${orgId}/notifications`, [
       { kind: 'where', field: 'type', op: '==', value: type },
       { kind: 'where', field: 'eventKey', op: '==', value: eventKey },
       { kind: 'where', field: 'unitId', op: '==', value: unitId },
@@ -30,7 +30,7 @@ export function notificationExists(
 }
 
 export type CreateNotificationInput = {
-  tenantId: string
+  orgId: string
   unitId: string
   type: NotificationType
   source: NotificationSource
@@ -47,23 +47,18 @@ export function createNotification(
   input: CreateNotificationInput,
 ): Effect.Effect<EventEnvelope | null, EventValidationError, FirestoreService> {
   return Effect.gen(function* () {
-    const exists = yield* notificationExists(
-      input.tenantId,
-      input.type,
-      input.eventKey,
-      input.unitId,
-    )
+    const exists = yield* notificationExists(input.orgId, input.type, input.eventKey, input.unitId)
     if (exists) return null
 
     const notificationId = crypto.randomUUID()
     const envelope = yield* appendEvent(
       NotificationConfig,
-      `tenants/${input.tenantId}/notifications/${notificationId}`,
+      `orgs/${input.orgId}/notifications/${notificationId}`,
       {
         _tag: 'notification.created',
         actorId: input.actorId,
         payload: {
-          tenantId: input.tenantId,
+          orgId: input.orgId,
           unitId: input.unitId,
           type: input.type,
           customerId: input.customerId,

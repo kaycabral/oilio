@@ -15,23 +15,23 @@ import type { NotificationType } from './types'
 // passes these explicitly — see customers/subscription-charges actions). Decoded
 // here so handlers read typed fields with no `as`.
 const NewCustomerPayload = Schema.Struct({
-  tenantId: Schema.String,
+  orgId: Schema.String,
   name: Schema.String,
   whatsapp: Schema.String,
 })
 const ChargeFailedPayload = Schema.Struct({
   reason: Schema.String,
-  tenantId: Schema.String,
+  orgId: Schema.String,
   subscriptionId: Schema.String,
 })
 const SubscriptionActivatedPayload = Schema.Struct({
-  tenantId: Schema.String,
+  orgId: Schema.String,
   subscriptionId: Schema.String,
 })
 
 function createNotificationForUnits(
   envelope: EventEnvelope,
-  tenantId: string,
+  orgId: string,
   opts: {
     type: NotificationType
     customerId: string | null
@@ -43,7 +43,7 @@ function createNotificationForUnits(
 ): Effect.Effect<void, EventValidationError, FirestoreService> {
   return Effect.gen(function* () {
     const firestore = yield* FirestoreService
-    const unitDocs = yield* firestore.getDocs(`tenants/${tenantId}/units`)
+    const unitDocs = yield* firestore.getDocs(`orgs/${orgId}/units`)
 
     for (const unitDoc of unitDocs) {
       const idValue = unitDoc['id']
@@ -51,7 +51,7 @@ function createNotificationForUnits(
       if (!unitId) continue
 
       yield* createNotification({
-        tenantId,
+        orgId,
         unitId,
         type: opts.type,
         source: 'event',
@@ -71,7 +71,7 @@ export const newCustomerReaction: EventReaction<FirestoreService, EventValidatio
   trigger: 'customer.created',
   handle: (envelope) => {
     const p = Schema.decodeUnknownSync(NewCustomerPayload)(envelope.payload)
-    return createNotificationForUnits(envelope, p.tenantId, {
+    return createNotificationForUnits(envelope, p.orgId, {
       type: 'new_customer',
       customerId: envelope.actorId,
       subscriptionId: null,
@@ -86,7 +86,7 @@ export const paymentFailureReaction: EventReaction<FirestoreService, EventValida
   trigger: 'subscription.charge_failed',
   handle: (envelope) => {
     const p = Schema.decodeUnknownSync(ChargeFailedPayload)(envelope.payload)
-    return createNotificationForUnits(envelope, p.tenantId, {
+    return createNotificationForUnits(envelope, p.orgId, {
       type: 'payment_failure',
       customerId: null,
       subscriptionId: p.subscriptionId,
@@ -110,7 +110,7 @@ export const subscriptionActivatedReaction: EventReaction<FirestoreService, Even
       const p = Schema.decodeUnknownSync(SubscriptionActivatedPayload)(envelope.payload)
       return Effect.gen(function* () {
         const firestore = yield* FirestoreService
-        const notifications = yield* firestore.getDocs(`tenants/${p.tenantId}/notifications`, [
+        const notifications = yield* firestore.getDocs(`orgs/${p.orgId}/notifications`, [
           { kind: 'where', field: 'subscriptionId', op: '==', value: p.subscriptionId },
           { kind: 'where', field: 'dispatchedAt', op: '==', value: null },
         ])
@@ -121,7 +121,7 @@ export const subscriptionActivatedReaction: EventReaction<FirestoreService, Even
           if (typeof notifId !== 'string' || !notifId || typeof notifType !== 'string') continue
           if (!SUBSCRIPTION_EXPIRY_TYPES.some((t) => t === notifType)) continue
 
-          yield* appendEvent(NotificationConfig, `tenants/${p.tenantId}/notifications/${notifId}`, {
+          yield* appendEvent(NotificationConfig, `orgs/${p.orgId}/notifications/${notifId}`, {
             _tag: 'notification.expired',
             actorId: envelope.actorId,
             payload: {},

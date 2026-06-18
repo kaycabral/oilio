@@ -8,18 +8,18 @@ import { Schema } from 'effect'
 // event-first like every entity in the app (`GoalConfig` + `emitEvent` +
 // replay), per ADR 0010 / web/CLAUDE.md ("Sem mudança de estado sem evento").
 //
-// Stored at `tenants/{tenantId}/goals/{id}`, with the doc id derived from
+// Stored at `orgs/{orgId}/goals/{id}`, with the doc id derived from
 // `(unitId, period)` so a goal is unique per unit/month and resolvable by a
-// direct get (no cross-tenant query, no index).
+// direct get (no cross-org query, no index).
 export const GoalType = Schema.Literal('profit')
 export type GoalType = typeof GoalType.Type
 
 export const Goal = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     // The unit this goal belongs to. Goals are always per-unit; the consolidated
-    // view (AC-07) sums per-unit goals — there is no tenant-level goal doc.
+    // view (AC-07) sums per-unit goals — there is no org-level goal doc.
     unitId: Schema.String,
     // Billing/measurement period as `YYYY-MM` (monthly — brief decision).
     period: Schema.String,

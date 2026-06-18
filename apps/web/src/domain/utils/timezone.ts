@@ -1,7 +1,7 @@
-// Timezone helpers for the tenant-aware agenda.
+// Timezone helpers for the org-aware agenda.
 //
 // Invariant: storage is always UTC ISO strings; display is always in the
-// tenant's IANA timezone. These helpers bridge the two without external deps —
+// org's IANA timezone. These helpers bridge the two without external deps —
 // they rely solely on `Intl.DateTimeFormat`, which ships in every modern JS
 // runtime (Node ≥ 18, V8, browsers).
 
@@ -43,9 +43,9 @@ export function assertValidTimezone(tz: string): void {
   if (!isValidTimezone(tz)) throw new Error(`Invalid IANA timezone: ${tz}`)
 }
 
-export type TenantTime = { dateISO: string; hour: number; minute: number }
+export type OrgTime = { dateISO: string; hour: number; minute: number }
 
-export function toTenantTime(utcIso: string, tz: string): TenantTime {
+export function toOrgTime(utcIso: string, tz: string): OrgTime {
   const d = new Date(utcIso)
   if (Number.isNaN(d.getTime())) throw new Error(`Invalid UTC ISO: ${utcIso}`)
   const get = partsOf(getFormatter(tz), d)
@@ -75,7 +75,7 @@ function getOffsetMs(tz: string, instant: Date): number {
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 
-export function fromTenantTime(
+export function fromOrgTime(
   { date, hour, minute }: { date: string; hour: number; minute: number },
   tz: string,
 ): string {
@@ -100,24 +100,21 @@ function addDays(dateISO: string, days: number): string {
   return `${yyyy}-${mm}-${dd}`
 }
 
-export function getTodayInTenantTz(tz: string, now: Date = new Date()): string {
-  return toTenantTime(now.toISOString(), tz).dateISO
+export function getTodayInOrgTz(tz: string, now: Date = new Date()): string {
+  return toOrgTime(now.toISOString(), tz).dateISO
 }
 
 // Returns the UTC ISO range [startUtc, endUtc] that covers the entire local
 // day `date` in `tz`. `endUtc` is inclusive (00:00 of the next local day minus
 // 1ms) so it composes with Firestore `<=` range queries.
-export function getTenantDayBoundsUtc(
-  date: string,
-  tz: string,
-): { startUtc: string; endUtc: string } {
-  const startUtc = fromTenantTime({ date, hour: 0, minute: 0 }, tz)
-  const startOfNext = fromTenantTime({ date: addDays(date, 1), hour: 0, minute: 0 }, tz)
+export function getOrgDayBoundsUtc(date: string, tz: string): { startUtc: string; endUtc: string } {
+  const startUtc = fromOrgTime({ date, hour: 0, minute: 0 }, tz)
+  const startOfNext = fromOrgTime({ date: addDays(date, 1), hour: 0, minute: 0 }, tz)
   const endUtc = new Date(new Date(startOfNext).getTime() - 1).toISOString()
   return { startUtc, endUtc }
 }
 
-export function shiftDateInTenantTz(date: string, days: number, _tz: string): string {
+export function shiftDateInOrgTz(date: string, days: number, _tz: string): string {
   // Day arithmetic on a YYYY-MM-DD label doesn't depend on the timezone — a
   // "day" in the local calendar always advances by 1 regardless of DST. The tz
   // argument is kept for call-site symmetry and to make intent explicit.

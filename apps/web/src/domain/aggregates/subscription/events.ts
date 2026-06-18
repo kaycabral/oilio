@@ -42,7 +42,7 @@ const PlanSnapshotSchema = Schema.Struct({
 export const SubscriptionCreatedSchema = Schema.Struct({
   _tag: Schema.Literal('subscription.created'),
   id: Schema.String,
-  tenantId: Schema.String,
+  orgId: Schema.String,
   unitId: Schema.String,
   customerId: Schema.String,
   customerUserId: Schema.NullOr(Schema.String),

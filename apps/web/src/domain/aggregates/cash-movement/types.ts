@@ -10,7 +10,7 @@ export type CashMovementState = CashMovement & { readonly _version: number }
 // vínculos pra ser um membro válido da união sem FK falsa.
 export const INITIAL_CASH_MOVEMENT_STATE: CashMovementState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   unitId: '',
   kind: 'sangria',
   direction: 'out',

@@ -10,7 +10,7 @@ import {
 function commission(partial: Partial<Commission>): Commission {
   return {
     id: 'c',
-    tenantId: 't',
+    orgId: 't',
     orderId: 'o',
     orderItemId: 'i',
     attributedUserId: 'p',
@@ -109,7 +109,7 @@ function orderItem(partial: Partial<OrderItem>): OrderItem {
 function order(items: OrderItem[]): Order {
   return {
     id: 'o',
-    tenantId: 't',
+    orgId: 't',
     unitId: 'u',
     customerId: 'cust',
     appointmentId: null,

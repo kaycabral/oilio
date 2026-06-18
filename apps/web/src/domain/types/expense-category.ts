@@ -1,15 +1,15 @@
 import { Schema } from 'effect'
 
-// Catálogo per-tenant de categorias de despesa. Substitui o texto livre
+// Catálogo per-org de categorias de despesa. Substitui o texto livre
 // no movimento de caixa kind=despesa por uma referência estável — facilita
 // agrupar despesas no relatório e evita ruído de digitação ("aluguel" vs
 // "Aluguel" vs "alguel").
 //
-// Stored em `tenants/{tenantId}/expense_categories/{id}`.
+// Stored em `orgs/{orgId}/expense_categories/{id}`.
 export const ExpenseCategory = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     name: Schema.String,
     // Soft-delete: categoria com movements históricos não pode ser apagada
     // (perderíamos o rótulo do passado), mas pode ser arquivada — somem da

@@ -15,7 +15,7 @@ import {
 function buildServiceItem(overrides: Partial<CatalogServiceItem> = {}): CatalogServiceItem {
   return {
     id: 's1',
-    tenantId: 't1',
+    orgId: 't1',
     kind: 'service',
     name: 'Corte',
     categoryId: 'cat-cabelo',
@@ -38,7 +38,7 @@ function buildServiceItem(overrides: Partial<CatalogServiceItem> = {}): CatalogS
 function buildProductItem(overrides: Partial<CatalogProductItem> = {}): CatalogProductItem {
   return {
     id: 'p1',
-    tenantId: 't1',
+    orgId: 't1',
     kind: 'product',
     name: 'Pomada',
     categoryId: null,
@@ -119,7 +119,7 @@ describe('catalogProductToProduct', () => {
     const prod = catalogProductToProduct(buildProductItem())
     expect(prod).toEqual({
       id: 'p1',
-      tenantId: 't1',
+      orgId: 't1',
       name: 'Pomada',
       sku: 'POM-01',
       priceCents: 3500,

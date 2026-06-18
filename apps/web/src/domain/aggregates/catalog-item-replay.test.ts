@@ -51,7 +51,7 @@ async function checkReplay(
   changes: Record<string, unknown>,
 ): Promise<FirestoreDoc> {
   const { store, layer } = makeStore()
-  const path = `tenants/t1/catalog_items/${id}`
+  const path = `orgs/t1/catalog_items/${id}`
 
   await Effect.runPromise(
     Effect.gen(function* () {
@@ -84,7 +84,7 @@ describe('CatalogItem — replay reconstrói o doc completo (event-first)', () =
       'svc1',
       {
         id: 'svc1',
-        tenantId: 't1',
+        orgId: 't1',
         kind: 'service',
         name: 'Corte',
         categoryId: 'cat-1',
@@ -113,7 +113,7 @@ describe('CatalogItem — replay reconstrói o doc completo (event-first)', () =
       'prod1',
       {
         id: 'prod1',
-        tenantId: 't1',
+        orgId: 't1',
         kind: 'product',
         name: 'Pomada',
         categoryId: 'cat-2',
@@ -144,7 +144,7 @@ describe('CatalogItem — replay reconstrói o doc completo (event-first)', () =
       'prod2',
       {
         id: 'prod2',
-        tenantId: 't1',
+        orgId: 't1',
         kind: 'product',
         name: 'Item Solto',
         categoryId: null,
@@ -170,7 +170,7 @@ describe('CatalogItem — replay reconstrói o doc completo (event-first)', () =
 
   it('delete não ressuscita a projeção (hard-delete via caller)', async () => {
     const { layer } = makeStore()
-    const path = 'tenants/t1/catalog_items/svc-del'
+    const path = 'orgs/t1/catalog_items/svc-del'
     await Effect.runPromise(
       Effect.gen(function* () {
         yield* appendEvent(CatalogItemConfig, path, {
@@ -179,7 +179,7 @@ describe('CatalogItem — replay reconstrói o doc completo (event-first)', () =
           payload: {
             data: {
               id: 'svc-del',
-              tenantId: 't1',
+              orgId: 't1',
               kind: 'service',
               name: 'Temp',
               categoryId: null,

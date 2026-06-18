@@ -13,7 +13,7 @@ import {
 function makeMembership(role: Role, unitId: string | null): Membership {
   return {
     id: membershipDocId('t1', 'u1'),
-    tenantId: 't1',
+    orgId: 't1',
     userId: 'u1',
     role,
     status: 'active',
@@ -40,7 +40,7 @@ const PERMISSION_KEYS: readonly (keyof MembershipPermissions)[] = [
 ] as const
 
 describe('membershipDocId', () => {
-  it('joins tenantId and userId with an underscore', () => {
+  it('joins orgId and userId with an underscore', () => {
     expect(membershipDocId('t1', 'u2')).toBe('t1_u2')
   })
 })
@@ -154,11 +154,11 @@ describe('roleDescription', () => {
 })
 
 describe('operatesCrossUnit', () => {
-  it('is true for an owner (always tenant-wide, unitId null)', () => {
+  it('is true for an owner (always org-wide, unitId null)', () => {
     expect(operatesCrossUnit(makeMembership('owner', null))).toBe(true)
   })
 
-  it('is true for a tenant-wide manager (unitId null)', () => {
+  it('is true for a org-wide manager (unitId null)', () => {
     expect(operatesCrossUnit(makeMembership('manager', null))).toBe(true)
   })
 
@@ -166,20 +166,20 @@ describe('operatesCrossUnit', () => {
     expect(operatesCrossUnit(makeMembership('manager', 'unit-1'))).toBe(false)
   })
 
-  it('is false for an owner bound to a unit (defensive — owner is normally tenant-wide)', () => {
+  it('is false for an owner bound to a unit (defensive — owner is normally org-wide)', () => {
     expect(operatesCrossUnit(makeMembership('owner', 'unit-1'))).toBe(false)
   })
 
-  it('is false for a receptionist (cannot manage tenant)', () => {
+  it('is false for a receptionist (cannot manage org)', () => {
     expect(operatesCrossUnit(makeMembership('receptionist', null))).toBe(false)
     expect(operatesCrossUnit(makeMembership('receptionist', 'unit-1'))).toBe(false)
   })
 
-  it('is false for a professional (cannot manage tenant)', () => {
+  it('is false for a professional (cannot manage org)', () => {
     expect(operatesCrossUnit(makeMembership('professional', null))).toBe(false)
   })
 
-  it('is false for a customer (cannot manage tenant)', () => {
+  it('is false for a customer (cannot manage org)', () => {
     expect(operatesCrossUnit(makeMembership('customer', null))).toBe(false)
   })
 })

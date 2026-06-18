@@ -51,7 +51,7 @@ function makeStore() {
 
 const CREATED_DATA = {
   id: 'pro1',
-  tenantId: 't1',
+  orgId: 't1',
   userId: 'u-pro1',
   // Born from the accept saga with an incomplete profile (#1045): no units/
   // services yet, so the operational status starts at `incomplete`.
@@ -66,7 +66,7 @@ const CREATED_DATA = {
 describe('Professional operational — replay reconstrói operationalStatus só por evento (#1047)', () => {
   it('created (incomplete) → activated → suspended reconstrói pelo stream', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/professionals/pro1'
+    const path = 'orgs/t1/professionals/pro1'
 
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -115,7 +115,7 @@ describe('Professional operational — replay reconstrói operationalStatus só 
 
   it('replay sem evento de ativação mantém operationalStatus em incomplete', async () => {
     const { layer } = makeStore()
-    const path = 'tenants/t1/professionals/pro2'
+    const path = 'orgs/t1/professionals/pro2'
     await Effect.runPromise(
       appendEvent(ProfessionalConfig, path, {
         _tag: 'professional.created',

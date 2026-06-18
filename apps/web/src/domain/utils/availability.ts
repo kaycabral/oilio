@@ -1,6 +1,6 @@
 // Public availability computation for the unit calendar (#842).
 //
-// Pure function — given a tenant's slot granularity, a unit's business hours,
+// Pure function — given a org's slot granularity, a unit's business hours,
 // the appointments and blocks for the target day, and the professionals who
 // execute the requested service at this unit, returns the per-professional
 // slot starts (ISO UTC) that are still bookable.
@@ -14,7 +14,7 @@
 //      the unit.
 //
 // Filtering responsibilities upstream keep this helper testable without
-// re-implementing tenant scoping.
+// re-implementing org scoping.
 
 import type { Appointment } from '../types/appointment'
 import { isOperational } from '../types/enums'
@@ -25,7 +25,7 @@ import type { BusinessHours } from '../types/unit'
 import type { BlockSegment } from './agenda-blocks'
 import { intervalsOverlap } from './appointment-overlap'
 import { getBusinessHoursForDay, hhmmToMinutes, type Weekday } from './business-hours'
-import { fromTenantTime, toTenantTime } from './timezone'
+import { fromOrgTime, toOrgTime } from './timezone'
 
 export type AvailabilitySlot = {
   professionalId: string
@@ -40,9 +40,9 @@ export type ComputeAvailabilityInput = {
   unitBusinessHours: BusinessHours | null
   appointments: readonly Appointment[]
   blockSegments: readonly BlockSegment[]
-  // YYYY-MM-DD in tenant tz.
+  // YYYY-MM-DD in org tz.
   date: string
-  // Slot grid granularity (Tenant.slotMinutes — 5/10/15/30/60).
+  // Slot grid granularity (Org.slotMinutes — 5/10/15/30/60).
   slotMinutes: number
   timezone: string
   // Clock cutoff — slots strictly before this instant are dropped (UTC ms).
@@ -99,10 +99,7 @@ function slotsForProfessional(
   const slots: AvailabilitySlot[] = []
   for (const window of windows) {
     for (let m = window.openMin; m <= window.lastStartMin; m += slotMinutes) {
-      const startUtcIso = fromTenantTime(
-        { date, hour: Math.floor(m / 60), minute: m % 60 },
-        timezone,
-      )
+      const startUtcIso = fromOrgTime({ date, hour: Math.floor(m / 60), minute: m % 60 }, timezone)
       const startMs = new Date(startUtcIso).getTime()
       if (startMs < nowMs) continue
       const endUtcIso = new Date(startMs + window.duration * 60_000).toISOString()
@@ -132,7 +129,7 @@ export function computeAvailabilityForDay(input: ComputeAvailabilityInput): Avai
 // that group availability by day).
 export type AvailabilityWeekday = Weekday
 
-// Group slots by their tenant-local clock time, so the UI can render a
+// Group slots by their org-local clock time, so the UI can render a
 // "10:00 → Alice, Bob" row even when the underlying appointments are stored
 // in UTC. Returns a sorted list of `{ localHHmm, slots[] }` pairs.
 export type AvailabilityRow = {
@@ -146,7 +143,7 @@ export function groupAvailabilityByLocalTime(
 ): AvailabilityRow[] {
   const byHHmm = new Map<string, AvailabilitySlot[]>()
   for (const s of slots) {
-    const local = toTenantTime(s.startAt, timezone)
+    const local = toOrgTime(s.startAt, timezone)
     const key = `${String(local.hour).padStart(2, '0')}:${String(local.minute).padStart(2, '0')}`
     const list = byHHmm.get(key) ?? []
     list.push(s)

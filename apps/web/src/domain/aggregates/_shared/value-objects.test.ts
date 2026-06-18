@@ -1,7 +1,7 @@
 import { Either } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { AggregateVersion, Money, TenantId } from './value-objects'
+import { AggregateVersion, Money, OrgId } from './value-objects'
 
 describe('Money', () => {
   it('AC-09: accepts non-negative integer', () => {
@@ -18,13 +18,13 @@ describe('Money', () => {
   })
 })
 
-describe('TenantId', () => {
+describe('OrgId', () => {
   it('AC-09: accepts non-empty string', () => {
-    expect(TenantId('t-123')).toBe('t-123')
+    expect(OrgId('t-123')).toBe('t-123')
   })
 
   it('AC-09: rejects empty string', () => {
-    expect(Either.isLeft(TenantId.either(''))).toBe(true)
+    expect(Either.isLeft(OrgId.either(''))).toBe(true)
   })
 })
 

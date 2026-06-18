@@ -26,7 +26,7 @@ export type CustomerCancelResult =
  * - cancelAtPeriodEnd NÃO pode já estar marcado
  *
  * Janela de antecedência (minNoticeMinutes) NÃO é aplicada nesta versão.
- * Owner pode adicionar via tenant config futura — capturar atrito se
+ * Owner pode adicionar via org config futura — capturar atrito se
  * Aurora #X confirmar necessidade.
  */
 export function canCustomerCancelSubscription(

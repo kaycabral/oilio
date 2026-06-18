@@ -9,7 +9,7 @@ export type ChargeState = Charge & { readonly _version: number }
 
 export const INITIAL_CHARGE_STATE: ChargeState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   unitId: '',
   subscriptionId: '',
   customerId: '',

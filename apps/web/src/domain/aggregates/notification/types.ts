@@ -12,7 +12,7 @@ export type NotificationSource = 'cron' | 'event'
 
 export type NotificationState = {
   readonly id: string
-  readonly tenantId: string
+  readonly orgId: string
   readonly unitId: string
   readonly type: NotificationType
   readonly customerId: string | null
@@ -35,7 +35,7 @@ export type NotificationState = {
 
 export const INITIAL_NOTIFICATION_STATE: NotificationState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   unitId: '',
   type: 'birthday',
   customerId: null,

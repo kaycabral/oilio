@@ -72,14 +72,14 @@ export type SubscriptionPeriod = typeof SubscriptionPeriod.Type
 export const Subscription = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     // Unidade dona da assinatura (contexto de unidade único — brief 0043).
     // Capturado da unidade ativa na criação e imutável durante a vigência;
     // MRR/ARR/assinantes filtram por ele. Espelha `Order.unitId`. Multi-unidade
     // por assinatura fica fora (futuro).
     unitId: Schema.String,
     customerId: Schema.String,
-    // Denormalizado do Customer.userId pra permitir cross-tenant query
+    // Denormalizado do Customer.userId pra permitir cross-org query
     // via collectionGroup quando customer acessa /me/subscriptions (#651).
     // Pattern espelha Appointment.customerUserId — User é a única bridge
     // de identidade do customer (não tem membership). null em legacy data.
@@ -102,7 +102,7 @@ export const Subscription = Schema.mutable(
     // Quando alcança `pastDueThreshold`, próxima falha vira
     // `cancelled_for_non_payment`. Default 0.
     pastDueCycles: Schema.Number,
-    // Threshold configurável por subscription (snapshot do plan/tenant). Default 2.
+    // Threshold configurável por subscription (snapshot do plan/org). Default 2.
     pastDueThreshold: Schema.Number,
     // Razão do cancelamento (texto curto opcional do owner ou cliente).
     cancellationReason: Schema.NullOr(Schema.String),

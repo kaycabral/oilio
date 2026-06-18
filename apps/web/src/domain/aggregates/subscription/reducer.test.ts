@@ -25,7 +25,7 @@ function created(): SubscriptionState {
     {
       _tag: 'subscription.created',
       id: 's1',
-      tenantId: 't1',
+      orgId: 't1',
       unitId: 'unit-a',
       customerId: 'c1',
       customerUserId: 'u-c1',

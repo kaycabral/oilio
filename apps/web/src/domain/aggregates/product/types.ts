@@ -4,7 +4,7 @@ export type ProductState = Product & { readonly _version: number }
 
 export const INITIAL_PRODUCT_STATE: ProductState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   name: '',
   sku: null,
   priceCents: 0,

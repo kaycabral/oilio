@@ -46,10 +46,10 @@ function makeStore() {
 describe('CashMovement — replay reconstrói o doc completo (event-first)', () => {
   it('created (snapshot) → replay == projeção', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/cash_movements/m1'
+    const path = 'orgs/t1/cash_movements/m1'
     const data = {
       id: 'm1',
-      tenantId: 't1',
+      orgId: 't1',
       unitId: 'u1',
       kind: 'sale',
       direction: 'in',

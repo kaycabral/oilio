@@ -7,7 +7,7 @@ export type AgendaBlockState = AgendaBlock & { readonly _version: number }
 
 export const INITIAL_AGENDA_BLOCK_STATE: AgendaBlockState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   unitId: '',
   professionalId: null,
   reason: '',

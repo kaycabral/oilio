@@ -7,7 +7,7 @@ export type CommissionState = Commission & { readonly _version: number }
 
 export const INITIAL_COMMISSION_STATE: CommissionState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   orderId: '',
   orderItemId: '',
   attributedUserId: '',

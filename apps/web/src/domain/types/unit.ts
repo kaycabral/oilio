@@ -75,15 +75,15 @@ export type Address = typeof Address.Type
 export const Unit = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     name: Schema.String,
-    // Path segment used in the public unit-scoped URL `/{tenantSlug}/{slug}`.
-    // Unique within tenant (cross-tenant collisions are allowed — two tenants
+    // Path segment used in the public unit-scoped URL `/{orgSlug}/{slug}`.
+    // Unique within org (cross-org collisions are allowed — two orgs
     // can each have a `centro`). See #873.
     slug: Schema.String,
     // Public-facing WhatsApp for confirmations, reminders and customer fallback
     // contact. Stored normalized via `normalizeBrazilPhone`. Required — decided
-    // in #822: per-unit WA, no Tenant-level WA.
+    // in #822: per-unit WA, no Org-level WA.
     whatsapp: Schema.String,
     // Optional second channel (docs, corporate contact). null when absent.
     email: Schema.NullOr(Schema.String),
@@ -107,7 +107,7 @@ export const Unit = Schema.mutable(
 )
 export type Unit = typeof Unit.Type
 
-// Storage projection of `Unit`: the per-tenant `units/{id}` doc that OMITS the
+// Storage projection of `Unit`: the per-org `units/{id}` doc that OMITS the
 // PII contact channels (whatsapp/email), which live in the deletable
 // `units_pii/{id}` doc and are merged at read time. Decode raw `units` docs
 // against this.
@@ -119,11 +119,11 @@ export type StoredUnit = typeof StoredUnit.Type
 export const UnitPii = Unit.pipe(Schema.pick('whatsapp', 'email'))
 export type UnitPii = typeof UnitPii.Type
 
-// Reserved slugs for the per-tenant public namespace. A unit slug must not
-// collide with a sibling route under `/{tenantSlug}/...` (e.g. `/me`,
+// Reserved slugs for the per-org public namespace. A unit slug must not
+// collide with a sibling route under `/{orgSlug}/...` (e.g. `/me`,
 // `/book`, `/booking`). Kept distinct from `RESERVED_SLUGS` — that one
 // guards the top-level namespace; this one will evolve as public routes
-// under tenant scope land (#841, #842, #844).
+// under org scope land (#841, #842, #844).
 export const RESERVED_UNIT_SLUGS = new Set<string>([
   'admin',
   'api',

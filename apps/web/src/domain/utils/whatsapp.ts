@@ -1,8 +1,8 @@
 // WhatsApp deep link helpers. We use wa.me links (no API) — the browser opens
 // the user's WhatsApp with the message pre-filled; the operator hits send.
 
-// Default templates per template kind. Tenants can override via the /company
-// page; if a tenant's stored template is empty/missing, these defaults render.
+// Default templates per template kind. Orgs can override via the /company
+// page; if a org's stored template is empty/missing, these defaults render.
 export const DEFAULT_WHATSAPP_TEMPLATES = {
   confirmation:
     'Olá {customerName}! Confirmando seu agendamento em {businessName}: {serviceName} com {professionalName} em {date} às {time}. Qualquer dúvida, é só responder por aqui.',
@@ -90,7 +90,7 @@ export function buildWhatsappLink(rawPhone: string, message: string): string | n
   return `https://wa.me/${phone}?text=${text}`
 }
 
-// Fills missing template fields with defaults — used when reading a tenant doc
+// Fills missing template fields with defaults — used when reading a org doc
 // that pre-dates the templates field, or when an operator wipes one to "".
 export function resolveWhatsappTemplates(
   partial: Partial<WhatsappTemplates> | null | undefined,

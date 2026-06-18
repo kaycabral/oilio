@@ -13,7 +13,7 @@ describe('isOperational (#753 gate)', () => {
 function buildPro(overrides: Partial<Professional> = {}): Professional {
   return {
     id: 'p1',
-    tenantId: 't1',
+    orgId: 't1',
     userId: 'u-ana',
     name: 'Ana',
     whatsapp: '5511900000000',

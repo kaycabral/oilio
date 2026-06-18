@@ -7,7 +7,7 @@ export type MembershipState = Membership & { readonly _version: number }
 
 export const INITIAL_MEMBERSHIP_STATE: MembershipState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   userId: '',
   role: 'customer',
   status: 'active',

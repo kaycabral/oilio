@@ -17,7 +17,7 @@ const AppointmentForOverlap = Schema.Struct({
 })
 
 export function checkAppointmentAvailability(input: {
-  readonly tenantId: string
+  readonly orgId: string
   readonly unitId: string
   readonly professionalId: string
   readonly proposed: AppointmentInterval
@@ -29,7 +29,7 @@ export function checkAppointmentAvailability(input: {
     const firestore = yield* FirestoreService
 
     const professionalDoc = yield* firestore.getDoc(
-      `tenants/${input.tenantId}/professionals/${input.professionalId}`,
+      `orgs/${input.orgId}/professionals/${input.professionalId}`,
     )
     if (!professionalDoc) {
       return yield* Effect.fail(
@@ -37,13 +37,13 @@ export function checkAppointmentAvailability(input: {
       )
     }
 
-    const appointmentDocs = yield* firestore.getDocs(`tenants/${input.tenantId}/appointments`, [
+    const appointmentDocs = yield* firestore.getDocs(`orgs/${input.orgId}/appointments`, [
       { kind: 'where', field: 'unitId', op: '==', value: input.unitId },
       { kind: 'where', field: 'professionalId', op: '==', value: input.professionalId },
     ])
     const existing = appointmentDocs.map((d) => Schema.decodeUnknownSync(AppointmentForOverlap)(d))
 
-    const blockDocs = yield* firestore.getDocs(`tenants/${input.tenantId}/agendaBlocks`)
+    const blockDocs = yield* firestore.getDocs(`orgs/${input.orgId}/agendaBlocks`)
     // Raw blocks (recurring/one-off) resolved to concrete day segments — the
     // shape `findAppointmentConflicts` expects (previously a raw-doc cast).
     const blocks = blockDocs.map((d) => Schema.decodeUnknownSync(AgendaBlock)(d))

@@ -17,7 +17,7 @@ const NullableString = Schema.NullOr(Schema.String)
 
 export const NotificationCreatedSchema = Schema.Struct({
   _tag: Schema.Literal('notification.created'),
-  tenantId: Schema.String,
+  orgId: Schema.String,
   unitId: Schema.String,
   type: NotificationTypeSchema,
   customerId: NullableString,

@@ -37,12 +37,12 @@ import { INITIAL_INVITE_STATE } from './invite/types'
 import { INITIAL_MEMBERSHIP_STATE } from './membership/types'
 import { INITIAL_NOTIFICATION_STATE } from './notification/types'
 import { INITIAL_ORDER_STATE } from './order/types'
+import { INITIAL_ORG_STATE } from './org/types'
 import { INITIAL_PRODUCT_STATE } from './product/types'
 import { INITIAL_PROFESSIONAL_STATE } from './professional/types'
 import { INITIAL_SERVICE_STATE } from './service/types'
 import { INITIAL_SUBSCRIPTION_PLAN_STATE } from './subscription-plan/types'
 import { INITIAL_SUBSCRIPTION_STATE } from './subscription/types'
-import { INITIAL_TENANT_STATE } from './tenant/types'
 import { INITIAL_UNIT_STATE } from './unit/types'
 
 // Todo aggregate com `INITIAL_*_STATE` — o snapshot persistido. ES-core
@@ -83,7 +83,7 @@ const SNAPSHOTS: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
   ['subscription-plan', INITIAL_SUBSCRIPTION_PLAN_STATE],
   ['professional', INITIAL_PROFESSIONAL_STATE],
   ['unit', INITIAL_UNIT_STATE],
-  ['tenant', INITIAL_TENANT_STATE],
+  ['org', INITIAL_ORG_STATE],
   ['customer', INITIAL_CUSTOMER_STATE],
   ['membership', INITIAL_MEMBERSHIP_STATE],
   ['invite', INITIAL_INVITE_STATE],
@@ -125,9 +125,9 @@ const PII_TOKENS = [
 const ALLOWED_NAME_PATHS = new Set<string>([
   // Nome do estabelecimento (não titular) — `units_pii` é contato da unidade.
   'unit.name',
-  // Nome do negócio do tenant (não titular) — taxIdentity (PII do dono) vive
-  // em doc apagável, fora do snapshot (StoredTenant = Omit<Tenant,'taxIdentity'>).
-  'tenant.name',
+  // Nome do negócio do org (não titular) — taxIdentity (PII do dono) vive
+  // em doc apagável, fora do snapshot (StoredOrg = Omit<Org,'taxIdentity'>).
+  'org.name',
   // Rótulo do item de catálogo (serviço/produto) — não é pessoa.
   'catalog-item.name',
   'category.name',
@@ -146,7 +146,7 @@ const ALLOWED_NAME_PATHS = new Set<string>([
   // (quem foi pago; art. 16 — deve permanecer identificável), legalmente
   // DISTINTO do contrato D2 do ADR 0010 ("PII fora de evento"), que governa PII
   // de CLIENTE e o direito à eliminação (LGPD). O join ao vivo
-  // (`listTenantMembers`, `status==active`) dropa o membro revogado/anonimizado
+  // (`listOrgMembers`, `status==active`) dropa o membro revogado/anonimizado
   // → relatório mostrava "--"; snapshotar o nome torna o registro self-contained
   // e imune a isso. Exceção restrita a ESTE campo neste aggregate; qualquer
   // outro `name`/PII de titular num snapshot continua falhando o audit.
@@ -159,12 +159,12 @@ const ALLOWED_NAME_PATHS = new Set<string>([
 // ESTABELECIMENTO ou config, fora do escopo de titular (LGPD). Documentado por
 // `<path>::<token>`. O contato real do estabelecimento (whatsapp/email da unidade)
 // vive em `units_pii` apagável; aqui ficam só endereço público da unidade e os
-// templates de mensagem do tenant (config, não número de pessoa).
+// templates de mensagem do org (config, não número de pessoa).
 const ALLOWED_NON_TITULAR_PII = new Set<string>([
   // Endereço público da unidade (estabelecimento), não residência de titular.
   'unit.address::address',
-  // Templates de mensagem WhatsApp do tenant (config) — o NÚMERO vive em units_pii.
-  'tenant.whatsappTemplates::whatsapp',
+  // Templates de mensagem WhatsApp do org (config) — o NÚMERO vive em units_pii.
+  'org.whatsappTemplates::whatsapp',
 ])
 
 // Walk recursivo: coleta `<path>` de toda chave do snapshot, descendo em objetos
@@ -218,7 +218,7 @@ describe('AC-05 — zero PII in event snapshots/payloads (ADR 0010 invariant)', 
           // `name` é o token com exceção de label de negócio/plano/catálogo.
           if (token === 'name' && ALLOWED_NAME_PATHS.has(path)) continue
           // Dado de estabelecimento/config (endereço da unidade, templates do
-          // tenant) — fora do escopo de titular.
+          // org) — fora do escopo de titular.
           if (ALLOWED_NON_TITULAR_PII.has(`${path}::${token}`)) continue
           leaks.push(`${path} (matched PII token "${token}")`)
         }

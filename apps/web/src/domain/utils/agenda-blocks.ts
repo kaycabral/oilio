@@ -1,9 +1,9 @@
 // Resolve agenda blocks (recurring + one-off) into concrete minute-interval
-// segments for a given calendar day in a tenant's timezone.
+// segments for a given calendar day in a org's timezone.
 
 import type { AgendaBlock } from '../types/agenda-block'
-import { getWeekdayInTenantTz, hhmmToMinutes, type Weekday } from './business-hours'
-import { toTenantTime } from './timezone'
+import { getWeekdayInOrgTz, hhmmToMinutes, type Weekday } from './business-hours'
+import { toOrgTime } from './timezone'
 
 // A resolved block segment, in minutes since 00:00 local on the target day.
 export type BlockSegment = {
@@ -31,8 +31,8 @@ function resolveRecurring(b: AgendaBlock, weekday: Weekday): BlockSegment | null
 // One-off block: intersect the [startAt, endAt] UTC interval with the day in tz.
 function resolveOneOff(b: AgendaBlock, date: string, tz: string): BlockSegment | null {
   if (b.kind !== 'one_off') return null
-  const startLocal = toTenantTime(b.startAt, tz)
-  const endLocal = toTenantTime(b.endAt, tz)
+  const startLocal = toOrgTime(b.startAt, tz)
+  const endLocal = toOrgTime(b.endAt, tz)
   const startsOnDay = startLocal.dateISO === date
   const endsOnDay = endLocal.dateISO === date
   const spansDay = startLocal.dateISO < date && endLocal.dateISO > date
@@ -51,7 +51,7 @@ export function getBlockSegmentsForDay(
   date: string,
   tz: string,
 ): BlockSegment[] {
-  const weekday = getWeekdayInTenantTz(date, tz)
+  const weekday = getWeekdayInOrgTz(date, tz)
   return blocks
     .map((b) => resolveRecurring(b, weekday) ?? resolveOneOff(b, date, tz))
     .filter((s): s is BlockSegment => s !== null)

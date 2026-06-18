@@ -14,7 +14,7 @@ export function applyNotificationEvent(
       return {
         ...base,
         id: meta.actorId,
-        tenantId: event.tenantId,
+        orgId: event.orgId,
         unitId: event.unitId,
         type: event.type,
         customerId: event.customerId,

@@ -51,7 +51,7 @@ async function checkReplay(
   changes: Record<string, unknown>,
 ): Promise<FirestoreDoc> {
   const { store, layer } = makeStore()
-  const path = `tenants/t1/categories/${id}`
+  const path = `orgs/t1/categories/${id}`
 
   await Effect.runPromise(
     Effect.gen(function* () {
@@ -84,7 +84,7 @@ describe('Category — replay reconstrói o doc completo (event-first)', () => {
       'cat-1',
       {
         id: 'cat-1',
-        tenantId: 't1',
+        orgId: 't1',
         name: 'Cabelo',
         icon: 'scissors',
         color: '#3366ff',
@@ -108,7 +108,7 @@ describe('Category — replay reconstrói o doc completo (event-first)', () => {
       'cat-2',
       {
         id: 'cat-2',
-        tenantId: 't1',
+        orgId: 't1',
         name: 'Estética',
         icon: null,
         color: null,
@@ -126,7 +126,7 @@ describe('Category — replay reconstrói o doc completo (event-first)', () => {
 
   it('delete não ressuscita a projeção (hard-delete via caller)', async () => {
     const { layer } = makeStore()
-    const path = 'tenants/t1/categories/cat-del'
+    const path = 'orgs/t1/categories/cat-del'
     await Effect.runPromise(
       Effect.gen(function* () {
         yield* appendEvent(CategoryConfig, path, {
@@ -135,7 +135,7 @@ describe('Category — replay reconstrói o doc completo (event-first)', () => {
           payload: {
             data: {
               id: 'cat-del',
-              tenantId: 't1',
+              orgId: 't1',
               name: 'Temp',
               icon: null,
               color: null,

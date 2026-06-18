@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_CANCELLATION_POLICY,
-  DEFAULT_TENANT_BRANDING,
+  DEFAULT_ORG_BRANDING,
   MAX_CANCELLATION_NOTICE_MINUTES,
   MIN_CANCELLATION_NOTICE_MINUTES,
-  TENANT_DESCRIPTION_MAX,
+  ORG_DESCRIPTION_MAX,
   isValidCancellationNoticeMinutes,
   isValidPublicHttpUrl,
   normalizeCancellationPolicy,
-  normalizeTenantBranding,
-} from './tenant'
+  normalizeOrgBranding,
+} from './org'
 
 describe('isValidPublicHttpUrl', () => {
   it('accepts http and https', () => {
@@ -35,14 +35,14 @@ describe('isValidPublicHttpUrl', () => {
   })
 })
 
-describe('normalizeTenantBranding', () => {
+describe('normalizeOrgBranding', () => {
   it('returns default branding for null/undefined', () => {
-    expect(normalizeTenantBranding(null)).toEqual(DEFAULT_TENANT_BRANDING)
-    expect(normalizeTenantBranding(undefined)).toEqual(DEFAULT_TENANT_BRANDING)
+    expect(normalizeOrgBranding(null)).toEqual(DEFAULT_ORG_BRANDING)
+    expect(normalizeOrgBranding(undefined)).toEqual(DEFAULT_ORG_BRANDING)
   })
 
   it('coerces invalid URLs to null', () => {
-    const r = normalizeTenantBranding({
+    const r = normalizeOrgBranding({
       logoUrl: 'javascript:foo',
       bannerUrl: 'https://ok.example.com/b.jpg',
       description: 'Hello',
@@ -52,19 +52,19 @@ describe('normalizeTenantBranding', () => {
     expect(r.description).toBe('Hello')
   })
 
-  it('trims description and clips to TENANT_DESCRIPTION_MAX', () => {
-    const long = 'x'.repeat(TENANT_DESCRIPTION_MAX + 50)
-    const r = normalizeTenantBranding({
+  it('trims description and clips to ORG_DESCRIPTION_MAX', () => {
+    const long = 'x'.repeat(ORG_DESCRIPTION_MAX + 50)
+    const r = normalizeOrgBranding({
       logoUrl: null,
       bannerUrl: null,
       description: `   ${long}   `,
     })
-    expect(r.description).toHaveLength(TENANT_DESCRIPTION_MAX)
+    expect(r.description).toHaveLength(ORG_DESCRIPTION_MAX)
   })
 
   it('returns null description for empty strings', () => {
-    expect(normalizeTenantBranding({ description: '   ' }).description).toBeNull()
-    expect(normalizeTenantBranding({ description: '' }).description).toBeNull()
+    expect(normalizeOrgBranding({ description: '   ' }).description).toBeNull()
+    expect(normalizeOrgBranding({ description: '' }).description).toBeNull()
   })
 })
 

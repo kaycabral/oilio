@@ -62,28 +62,28 @@ export function anonymizedLabel(userId: string, noun: string): string {
 }
 
 // A subject whose data has been blocked (LGPD art. 18 "bloqueio") in a single
-// tenant (brief 0032 / #1096, AC-09). Unlike account anonymization, the global
-// account stays intact — the blockage is per-tenant and reversible. The marker
-// lives at `tenants/{tenantId}/blocked_subjects/{userId}`; `blockedAt` is the
+// org (brief 0032 / #1096, AC-09). Unlike account anonymization, the global
+// account stays intact — the blockage is per-org and reversible. The marker
+// lives at `orgs/{orgId}/blocked_subjects/{userId}`; `blockedAt` is the
 // ISO proof timestamp. The display layer keys off the marker's existence to
-// swap the live name for the neutral label IN THAT TENANT only.
+// swap the live name for the neutral label IN THAT ORG only.
 export type BlockedSubject = {
   blockedAt: string
 }
 
-// Options for `resolveSubjectName`. `blockedInTenant` is true when the subject
-// has a `blocked_subjects` marker in the surface's tenant (#1096, AC-09) — the
-// caller loads the tenant's blocked set once and passes the per-row result.
+// Options for `resolveSubjectName`. `blockedInOrg` is true when the subject
+// has a `blocked_subjects` marker in the surface's org (#1096, AC-09) — the
+// caller loads the org's blocked set once and passes the per-row result.
 export type ResolveSubjectNameOpts = {
-  blockedInTenant?: boolean
+  blockedInOrg?: boolean
 }
 
 // Resolves the name to display for an account, applying the LGPD neutral
 // fallback at the single resolution layer. The neutral label `‹Role› ‹CODE›`
 // surfaces when EITHER:
 //   - the global account is anonymized (#1095, AC-03 — applies everywhere), OR
-//   - the subject is blocked in this tenant (#1096, AC-09 — per-tenant; the
-//     global account and other tenants keep the live name).
+//   - the subject is blocked in this org (#1096, AC-09 — per-org; the
+//     global account and other orgs keep the live name).
 // Otherwise a non-anonymized account keeps its live `displayName`. `noun` is
 // the surface's role/entity noun (Cliente / Profissional / Recepção / Membro).
 // `userId` is the global account id used to derive the distinguishing code.
@@ -94,7 +94,7 @@ export function resolveSubjectName(
   opts?: ResolveSubjectNameOpts,
 ): string | null {
   if (!user) return null
-  if (isAnonymized(user) || opts?.blockedInTenant === true) {
+  if (isAnonymized(user) || opts?.blockedInOrg === true) {
     return anonymizedLabel(userId, noun)
   }
   return user.displayName
@@ -104,9 +104,9 @@ export function resolveSubjectName(
 // same single resolution layer as the name. The photo is BLANKED (null — UI
 // renders its placeholder) when EITHER the global account is anonymized
 // (#1093 already nulls `avatarUrl` on `users/{uid}`) OR the subject is blocked
-// in this tenant (#1096/#1100, AC-13 — the photo is a re-identification vector,
-// so a blocked customer's surfaces in this tenant show no photo even though the
-// global account keeps it). `blockedInTenant` is the CUSTOMER per-tenant block;
+// in this org (#1096/#1100, AC-13 — the photo is a re-identification vector,
+// so a blocked customer's surfaces in this org show no photo even though the
+// global account keeps it). `blockedInOrg` is the CUSTOMER per-org block;
 // it never applies to a professional (the employment relationship stays
 // identifiable — brief 0041).
 export function resolveSubjectAvatar(
@@ -114,7 +114,7 @@ export function resolveSubjectAvatar(
   opts?: ResolveSubjectNameOpts,
 ): string | null {
   if (!user) return null
-  if (isAnonymized(user) || opts?.blockedInTenant === true) return null
+  if (isAnonymized(user) || opts?.blockedInOrg === true) return null
   return user.avatarUrl
 }
 

@@ -15,7 +15,7 @@ const UNIT_ID = 'u1'
 function svc(o: Partial<Service> = {}): Service {
   return {
     id: 'svc1',
-    tenantId: 't1',
+    orgId: 't1',
     name: 'Corte',
     category: null,
     durationMinutes: 30,
@@ -36,7 +36,7 @@ function svc(o: Partial<Service> = {}): Service {
 function pro(o: Partial<Professional> = {}): Professional {
   return {
     id: 'p1',
-    tenantId: 't1',
+    orgId: 't1',
     userId: 'u-pro1',
     name: 'Alice',
     whatsapp: '5511900000000',
@@ -69,7 +69,7 @@ function bh(opts: Partial<BusinessHours> = {}): BusinessHours {
 function appt(o: Partial<Appointment> = {}): Appointment {
   return {
     id: 'a1',
-    tenantId: 't1',
+    orgId: 't1',
     unitId: UNIT_ID,
     professionalId: 'p1',
     customerId: 'c1',
@@ -448,7 +448,7 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
 })
 
 describe('groupAvailabilityByLocalTime', () => {
-  it('groups by tenant-local HH:mm and sorts ascending', () => {
+  it('groups by org-local HH:mm and sorts ascending', () => {
     const slots: AvailabilitySlot[] = [
       { professionalId: 'p1', startAt: '2026-08-17T13:30:00.000Z' },
       { professionalId: 'p2', startAt: '2026-08-17T13:30:00.000Z' },

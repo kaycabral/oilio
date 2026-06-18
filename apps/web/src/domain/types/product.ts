@@ -3,7 +3,7 @@ import { Schema } from 'effect'
 export const Product = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     name: Schema.String,
     sku: Schema.NullOr(Schema.String),
     priceCents: Schema.Number,

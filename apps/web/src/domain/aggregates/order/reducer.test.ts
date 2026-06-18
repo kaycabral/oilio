@@ -30,7 +30,7 @@ describe('Order reducer', () => {
   it('created projeta o snapshot completo da comanda', () => {
     const data: Order = {
       id: 'o1',
-      tenantId: 't1',
+      orgId: 't1',
       unitId: 'u1',
       customerId: 'c1',
       appointmentId: 'a1',
@@ -54,7 +54,7 @@ describe('Order reducer', () => {
   it('created projeta venda avulsa sem cliente (appointmentId/customerId null — brief 0030)', () => {
     const data: Order = {
       id: 'o2',
-      tenantId: 't1',
+      orgId: 't1',
       unitId: 'u1',
       customerId: null,
       appointmentId: null,
@@ -166,7 +166,7 @@ describe('AC-10: cross-aggregate event reaction', () => {
       trigger: 'order.closed',
       handle: (env) =>
         Effect.gen(function* () {
-          const subscriptionPath = `tenants/t1/subscriptions/s1`
+          const subscriptionPath = `orgs/t1/subscriptions/s1`
           yield* appendEvent(SubscriptionConfig, subscriptionPath, {
             _tag: 'subscription.usage_incremented',
             actorId: env.actorId,
@@ -179,7 +179,7 @@ describe('AC-10: cross-aggregate event reaction', () => {
     const reactor = buildReactor([orderClosedReaction])
 
     const store = new Map<string, FirestoreDoc>()
-    store.set('tenants/t1/subscriptions/s1', {
+    store.set('orgs/t1/subscriptions/s1', {
       _version: 5,
       status: 'active',
       currentPeriod: {
@@ -228,10 +228,10 @@ describe('AC-10: cross-aggregate event reaction', () => {
     await Effect.runPromise(reactor(orderClosedEnvelope).pipe(Effect.provide(layer)))
 
     expect(emitted).toEqual([
-      { tag: 'subscription.usage_incremented', path: 'tenants/t1/subscriptions/s1' },
+      { tag: 'subscription.usage_incremented', path: 'orgs/t1/subscriptions/s1' },
     ])
 
-    const subProjection = store.get('tenants/t1/subscriptions/s1')
+    const subProjection = store.get('orgs/t1/subscriptions/s1')
     const currentPeriod = subProjection?.['currentPeriod']
     const consumed =
       typeof currentPeriod === 'object' && currentPeriod !== null && 'consumed' in currentPeriod

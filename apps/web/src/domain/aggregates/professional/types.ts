@@ -8,7 +8,7 @@ export type ProfessionalState = StoredProfessional & { readonly _version: number
 
 export const INITIAL_PROFESSIONAL_STATE: ProfessionalState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   userId: '',
   operationalStatus: 'incomplete',
   defaultCommission: null,

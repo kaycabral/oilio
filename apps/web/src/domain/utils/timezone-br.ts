@@ -9,7 +9,7 @@
 // 3MB worldwide shapefile; BrasilAPI returns no TZ field. A 27-entry table
 // is smaller than any of those and never grows (Brazil has 26 states + DF).
 
-import { DEFAULT_TENANT_TIMEZONE } from '../types/tenant'
+import { DEFAULT_ORG_TIMEZONE } from '../types/org'
 
 export const UF_TO_TZ: Readonly<Record<string, string>> = {
   AC: 'America/Rio_Branco',
@@ -79,19 +79,19 @@ export function inferTimezoneFromAddress(state: string, city: string): string {
   if (uf === 'AM' && WESTERN_AMAZONAS_CITIES.has(normalizedCity)) {
     return 'America/Eirunepe'
   }
-  return UF_TO_TZ[uf] ?? DEFAULT_TENANT_TIMEZONE
+  return UF_TO_TZ[uf] ?? DEFAULT_ORG_TIMEZONE
 }
 
-// Decides whether the tenant's timezone should be silently updated from a
+// Decides whether the org's timezone should be silently updated from a
 // unit address. Returns the new timezone, or null if no change should happen.
 // Two rules: (a) only override the untouched default — never an owner's
 // explicit choice; (b) skip when the inferred value already matches current.
-export function resolveTenantTimezoneFromAddress(
+export function resolveOrgTimezoneFromAddress(
   currentTimezone: string,
   state: string,
   city: string,
 ): string | null {
-  if (currentTimezone !== DEFAULT_TENANT_TIMEZONE) return null
+  if (currentTimezone !== DEFAULT_ORG_TIMEZONE) return null
   const inferred = inferTimezoneFromAddress(state, city)
   if (inferred === currentTimezone) return null
   return inferred

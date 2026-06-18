@@ -74,10 +74,10 @@ const itemB = {
 describe('Order — replay reconstrói o doc completo (event-first)', () => {
   it('created → item_added → attribution → meta → item_removed → cancelled → replay == projeção', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/orders/o1'
+    const path = 'orgs/t1/orders/o1'
     const data = {
       id: 'o1',
-      tenantId: 't1',
+      orgId: 't1',
       unitId: 'u1',
       customerId: 'c1',
       appointmentId: 'a1',
@@ -155,10 +155,10 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
 
   it('item_coverage_changed projeta cobertura por item (brief 0021)', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/orders/o2'
+    const path = 'orgs/t1/orders/o2'
     const data = {
       id: 'o2',
-      tenantId: 't1',
+      orgId: 't1',
       unitId: 'u1',
       customerId: 'c1',
       appointmentId: null,

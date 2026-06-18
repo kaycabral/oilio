@@ -32,7 +32,7 @@ function makeTestFirestoreLayer(docs: Record<string, FirestoreDoc>) {
 }
 
 const BASE_INPUT = {
-  tenantId: 't1',
+  orgId: 't1',
   unitId: 'u1',
   professionalId: 'prof-1',
   proposed: { startAt: '2026-06-01T14:00:00Z', endAt: '2026-06-01T15:00:00Z' },
@@ -43,7 +43,7 @@ const BASE_INPUT = {
 describe('checkAppointmentAvailability', () => {
   it('AC-06: resolves via FirestoreService layer — no direct singleton import', async () => {
     const layer = makeTestFirestoreLayer({
-      'tenants/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
+      'orgs/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
     })
 
     const result = await Effect.runPromise(
@@ -55,8 +55,8 @@ describe('checkAppointmentAvailability', () => {
 
   it('AC-05: returns AppointmentConflictError when slot is occupied', async () => {
     const layer = makeTestFirestoreLayer({
-      'tenants/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
-      'tenants/t1/appointments/apt-99': {
+      'orgs/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
+      'orgs/t1/appointments/apt-99': {
         id: 'apt-99',
         unitId: 'u1',
         professionalId: 'prof-1',
@@ -107,12 +107,12 @@ describe('checkAppointmentAvailability', () => {
 
   it('AC-07: same production code works with different test layer data', async () => {
     const emptyLayer = makeTestFirestoreLayer({
-      'tenants/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
+      'orgs/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
     })
 
     const busyLayer = makeTestFirestoreLayer({
-      'tenants/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
-      'tenants/t1/appointments/apt-1': {
+      'orgs/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
+      'orgs/t1/appointments/apt-1': {
         id: 'apt-1',
         unitId: 'u1',
         professionalId: 'prof-1',

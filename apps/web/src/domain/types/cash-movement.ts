@@ -28,7 +28,7 @@ export type CashMovementDirection = typeof CashMovementDirection.Type
 
 const cashMovementCommonFields = {
   id: Schema.String,
-  tenantId: Schema.String,
+  orgId: Schema.String,
   unitId: Schema.String,
   // Sempre positivo. `direction` carrega o sinal.
   amountCents: Schema.Number,

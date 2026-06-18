@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 
 import type { Vertical } from './enums'
-import { SlotMinutes } from './tenant'
+import { SlotMinutes } from './org'
 
 export const SuggestedService = Schema.mutable(
   Schema.Struct({

@@ -11,7 +11,7 @@ export type OrderState = Order & { readonly _version: number }
 // (não a união) preserva a correlação ao espalhá-lo.
 export const INITIAL_ORDER_STATE: OpenOrder & { readonly _version: number } = {
   id: '',
-  tenantId: '',
+  orgId: '',
   unitId: '',
   customerId: '',
   appointmentId: null,

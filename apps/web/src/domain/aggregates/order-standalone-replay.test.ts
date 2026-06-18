@@ -65,11 +65,11 @@ const STANDALONE_ITEM = {
 describe('Order — venda avulsa sem cliente reconstrói do event store (brief 0030)', () => {
   it('created(appointmentId:null, customerId:null) → item_added → closed: replay == projeção', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/orders/o-standalone'
+    const path = 'orgs/t1/orders/o-standalone'
 
     const snapshot = {
       id: 'o-standalone',
-      tenantId: 't1',
+      orgId: 't1',
       unitId: 'u1',
       // Os dois nulos que esta fatia habilita (AC-01 + AC-02).
       customerId: null,

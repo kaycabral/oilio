@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 
+import { CancellationPolicy } from './org'
 import { CommissionRule } from './professional'
-import { CancellationPolicy } from './tenant'
 
 export const APPOINTMENT_STATUSES = ['scheduled', 'completed', 'cancelled', 'no_show'] as const
 export const AppointmentStatus = Schema.Literal(...APPOINTMENT_STATUSES)
@@ -11,7 +11,7 @@ export type AppointmentStatus = typeof AppointmentStatus.Type
 // customer-facing flow (#845) sets 'customer'; staff actions from the agenda
 // or order set 'staff'; 'system' is a non-human transition — e.g. the LGPD
 // erasure cascade cancelling a customer's future appointments (brief 0032,
-// AC-12). Tracking is always populated even when the tenant's cancellation
+// AC-12). Tracking is always populated even when the org's cancellation
 // policy is disabled — the policy only gates customer communication. Wiki:
 // 04-Roadmap-Politica-Cancelamento.
 export const AppointmentActorRole = Schema.Literal('customer', 'staff', 'system')
@@ -20,7 +20,7 @@ export type AppointmentActorRole = typeof AppointmentActorRole.Type
 export const Appointment = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     unitId: Schema.String,
     professionalId: Schema.String,
     customerId: Schema.String,
@@ -39,17 +39,17 @@ export const Appointment = Schema.mutable(
     servicePriceCentsSnapshot: Schema.Number,
     serviceDurationMinutesSnapshot: Schema.Number,
     commissionSnapshot: Schema.NullOr(CommissionRule),
-    // Snapshot da `Tenant.cancellationPolicy` NO MOMENTO do booking (#1038,
+    // Snapshot da `Org.cancellationPolicy` NO MOMENTO do booking (#1038,
     // ES-seletivo frente C). O direito do cliente de auto-cancelar é avaliado
     // contra esta cópia imutável, não contra a policy viva — mudar a policy do
-    // tenant não retroage sobre agendamentos já criados. `null` em
+    // org não retroage sobre agendamentos já criados. `null` em
     // agendamentos legados/pré-migração: os call-sites de cancel caem na policy
-    // viva do tenant como fallback. Ver brief 0027.
+    // viva do org como fallback. Ver brief 0027.
     cancellationPolicySnapshot: Schema.NullOr(CancellationPolicy),
     // Duplicated from the related `Customer.userId` / `Professional.userId`
     // so that Firestore CollectionGroup queries — `collectionGroup('appointments')
     // .where('customerUserId', '==', myUid)` — can return the signed-in user's
-    // history across every tenant they appear in. CG queries only filter on
+    // history across every org they appear in. CG queries only filter on
     // fields stored *directly* on the doc, not via FK joins, so we copy the
     // canonical userId here. Decided in #832 — wiki:
     // 02-Estrategia-Modelo-Identidade § Visibilidade de histórico.
@@ -58,7 +58,7 @@ export const Appointment = Schema.mutable(
     // attached (rec-created placeholder before the pro accepts an invite).
     professionalUserId: Schema.NullOr(Schema.String),
     // Transition tracking — populated on every cancel/reschedule/no-show
-    // regardless of the tenant's cancellation policy toggle. Lets the product
+    // regardless of the org's cancellation policy toggle. Lets the product
     // decide later whether to gate UX on `noticeMinutes` once data exists.
     cancelledAt: Schema.optional(Schema.String),
     cancelledBy: Schema.optional(AppointmentActorRole),

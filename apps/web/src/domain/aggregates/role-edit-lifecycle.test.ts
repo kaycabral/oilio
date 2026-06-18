@@ -61,7 +61,7 @@ describe('Role-edit — permissions re-derivadas no mesmo fluxo (#1086 AC-06)', 
     const path = 'memberships/t1_user-1'
     const data = {
       id: 't1_user-1',
-      tenantId: 't1',
+      orgId: 't1',
       userId: 'user-1',
       role: 'receptionist',
       status: 'active',
@@ -128,7 +128,7 @@ describe('Role-edit — permissions re-derivadas no mesmo fluxo (#1086 AC-06)', 
 describe('Role-edit — demoção desativa a projeção (#1086 AC-04/AC-05)', () => {
   it('professional operável → suspended pelo evento: replay reconstrói não-operável, sem deletar', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/professionals/pro1'
+    const path = 'orgs/t1/professionals/pro1'
 
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -138,7 +138,7 @@ describe('Role-edit — demoção desativa a projeção (#1086 AC-04/AC-05)', ()
           payload: {
             data: {
               id: 'pro1',
-              tenantId: 't1',
+              orgId: 't1',
               userId: 'u-pro1',
               operationalStatus: 'incomplete',
               defaultCommission: null,

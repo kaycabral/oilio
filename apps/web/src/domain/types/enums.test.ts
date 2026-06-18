@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canInviteMembers,
-  canManageTenant,
+  canManageOrg,
   isOperational,
   OPERATIONAL_STATUSES,
   ROLES,
@@ -39,7 +39,7 @@ describe('isOperational', () => {
   })
 })
 
-describe('canManageTenant / canInviteMembers', () => {
+describe('canManageOrg / canInviteMembers', () => {
   // Both gate on owner|manager — pin the full truth table so the `||` operands
   // and role literals are each load-bearing.
   const expected: Record<Role, boolean> = {
@@ -51,8 +51,8 @@ describe('canManageTenant / canInviteMembers', () => {
   }
 
   for (const role of ROLES) {
-    it(`canManageTenant(${role}) === ${expected[role]}`, () => {
-      expect(canManageTenant(role)).toBe(expected[role])
+    it(`canManageOrg(${role}) === ${expected[role]}`, () => {
+      expect(canManageOrg(role)).toBe(expected[role])
     })
     it(`canInviteMembers(${role}) === ${expected[role]}`, () => {
       expect(canInviteMembers(role)).toBe(expected[role])

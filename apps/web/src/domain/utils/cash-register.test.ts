@@ -10,7 +10,7 @@ function movement(
 ): CashMovement {
   const common = {
     id: 'm_' + Math.random().toString(36).slice(2, 8),
-    tenantId: 't1',
+    orgId: 't1',
     unitId: 'u1',
     amountCents,
     description: null,

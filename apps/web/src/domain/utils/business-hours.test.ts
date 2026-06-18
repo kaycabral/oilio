@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { BusinessHours } from '../types/unit'
 import {
   getBusinessHoursForDay,
-  getWeekdayInTenantTz,
+  getWeekdayInOrgTz,
   hhmmToMinutes,
   isBusinessHoursConfigured,
   isValidHHmm,
@@ -91,16 +91,16 @@ describe('isBusinessHoursConfigured', () => {
   })
 })
 
-describe('getWeekdayInTenantTz', () => {
+describe('getWeekdayInOrgTz', () => {
   it('returns BR weekday for known dates', () => {
     // 2026-05-14 is a Thursday
-    expect(getWeekdayInTenantTz('2026-05-14', BR)).toBe('thursday')
+    expect(getWeekdayInOrgTz('2026-05-14', BR)).toBe('thursday')
     // 2026-05-17 is a Sunday
-    expect(getWeekdayInTenantTz('2026-05-17', BR)).toBe('sunday')
+    expect(getWeekdayInOrgTz('2026-05-17', BR)).toBe('sunday')
   })
 
   it('returns same weekday in UTC for same calendar date', () => {
-    expect(getWeekdayInTenantTz('2026-05-14', 'UTC')).toBe('thursday')
+    expect(getWeekdayInOrgTz('2026-05-14', 'UTC')).toBe('thursday')
   })
 })
 

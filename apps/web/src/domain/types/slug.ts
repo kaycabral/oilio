@@ -1,7 +1,7 @@
 export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
 
 // Slugs reservados — usados por rotas top-level do app, não podem virar slug
-// público de tenant (causaria conflito de rota no Next.js, com a rota
+// público de org (causaria conflito de rota no Next.js, com a rota
 // estática vencendo da rota dinâmica `[slug]`). Lista mantida em sync com
 // `apps/oilio/web/src/app/` (api, auth, invites, login, onboarding,
 // page.tsx homepage) + tudo dentro de `(app)/`.

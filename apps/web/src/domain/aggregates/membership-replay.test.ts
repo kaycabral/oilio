@@ -50,7 +50,7 @@ describe('Membership — replay reconstrói o doc completo (event-first)', () =>
     const path = 'memberships/t1_user-1'
     const data = {
       id: 't1_user-1',
-      tenantId: 't1',
+      orgId: 't1',
       userId: 'user-1',
       role: 'receptionist',
       status: 'active',
@@ -99,7 +99,7 @@ describe('Membership — replay reconstrói o doc completo (event-first)', () =>
     const path = 'memberships/t1_user-2'
     const data = {
       id: 't1_user-2',
-      tenantId: 't1',
+      orgId: 't1',
       userId: 'user-2',
       role: 'professional',
       status: 'active',

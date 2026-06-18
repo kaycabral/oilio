@@ -13,11 +13,11 @@ import { CatalogItemConfig } from './catalog-item/config'
 import { CategoryConfig } from './category/config'
 import { CustomerConfig } from './customer/config'
 import { InviteConfig } from './invite/config'
+import { OrgConfig } from './org/config'
 import { ProductConfig } from './product/config'
 import { ProfessionalConfig } from './professional/config'
 import { ServiceConfig } from './service/config'
 import { SubscriptionPlanConfig } from './subscription-plan/config'
-import { TenantConfig } from './tenant/config'
 import { UnitConfig } from './unit/config'
 
 function makeStore() {
@@ -70,7 +70,7 @@ async function checkReplay<
   changes: Record<string, unknown>
 }): Promise<void> {
   const { store, layer } = makeStore()
-  const path = `tenants/t1/${tag}s/${id}`
+  const path = `orgs/t1/${tag}s/${id}`
 
   await Effect.runPromise(
     Effect.gen(function* () {
@@ -106,7 +106,7 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       id: 'u1',
       data: {
         id: 'u1',
-        tenantId: 't1',
+        orgId: 't1',
         name: 'Centro',
         slug: 'centro',
         address: null,
@@ -125,7 +125,7 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       id: 's1',
       data: {
         id: 's1',
-        tenantId: 't1',
+        orgId: 't1',
         name: 'Corte',
         priceCents: 5000,
         durationMinutes: 30,
@@ -150,7 +150,7 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       id: 'p1',
       data: {
         id: 'p1',
-        tenantId: 't1',
+        orgId: 't1',
         name: 'Pomada',
         sku: null,
         priceCents: 3000,
@@ -172,7 +172,7 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       id: 'pro1',
       data: {
         id: 'pro1',
-        tenantId: 't1',
+        orgId: 't1',
         userId: 'u-pro1',
         operationalStatus: 'operational',
         defaultCommission: null,
@@ -191,7 +191,7 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       id: 'c1',
       data: {
         id: 'c1',
-        tenantId: 't1',
+        orgId: 't1',
         userId: 'user-1',
         archivedAt: null,
         deactivatedAt: null,
@@ -208,7 +208,7 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       id: 'plan1',
       data: {
         id: 'plan1',
-        tenantId: 't1',
+        orgId: 't1',
         name: 'Mensal',
         description: null,
         priceCents: 9000,
@@ -233,7 +233,7 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       id: 'i1',
       data: {
         id: 'i1',
-        tenantId: 't1',
+        orgId: 't1',
         role: 'manager',
         tokenHash: 'h',
         expiresAt: '2026-07-01T00:00:00.000Z',
@@ -247,14 +247,14 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       changes: { status: 'revoked' },
     }))
 
-  it('tenant', () =>
+  it('org', () =>
     // PII (taxIdentity = owner CPF/CNPJ) lives in the deletable
-    // `tenants/{id}/private/taxIdentity` doc, never in the event payload
+    // `orgs/{id}/private/taxIdentity` doc, never in the event payload
     // (LGPD — #1036). `name` is the business name (not PII) and stays. The
     // projection carries only operational fields.
     checkReplay({
-      config: TenantConfig,
-      tag: 'tenant',
+      config: OrgConfig,
+      tag: 'org',
       id: 't1',
       data: {
         id: 't1',
@@ -278,13 +278,13 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
   // Dedicated self-booking publish event (brief 0008 #988): created → published
   // → unpublished. Replay must reconstruct selfBookingPublished from the stream
   // (event-first; the flag is never written outside events).
-  it('tenant — self-booking publish/unpublish (event-first)', async () => {
+  it('org — self-booking publish/unpublish (event-first)', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t2'
+    const path = 'orgs/t2'
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(TenantConfig, path, {
-          _tag: 'tenant.created',
+        yield* appendEvent(OrgConfig, path, {
+          _tag: 'org.created',
           actorId: 'owner-2',
           payload: {
             data: {
@@ -305,8 +305,8 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
             },
           },
         })
-        yield* appendEvent(TenantConfig, path, {
-          _tag: 'tenant.self_booking_published',
+        yield* appendEvent(OrgConfig, path, {
+          _tag: 'org.self_booking_published',
           actorId: 'owner-2',
           payload: {},
         })
@@ -314,7 +314,7 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
     )
 
     const afterPublish = await Effect.runPromise(
-      replayAggregate(TenantConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(OrgConfig, path).pipe(Effect.provide(layer)),
     )
     expect(afterPublish).toEqual(store.get(path))
     expect(afterPublish.selfBookingPublished).toBe(true)
@@ -323,14 +323,14 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
 
     // Unpublish reverses the flag (timestamp left as the last publish moment).
     await Effect.runPromise(
-      appendEvent(TenantConfig, path, {
-        _tag: 'tenant.self_booking_unpublished',
+      appendEvent(OrgConfig, path, {
+        _tag: 'org.self_booking_unpublished',
         actorId: 'owner-2',
         payload: {},
       }).pipe(Effect.provide(layer)),
     )
     const afterUnpublish = await Effect.runPromise(
-      replayAggregate(TenantConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(OrgConfig, path).pipe(Effect.provide(layer)),
     )
     expect(afterUnpublish).toEqual(store.get(path))
     expect(afterUnpublish.selfBookingPublished).toBe(false)
@@ -352,7 +352,7 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
     data: Record<string, unknown>,
   ): Promise<void> {
     const { store, layer } = makeStore()
-    const path = `tenants/t1/${tag}s/${id}`
+    const path = `orgs/t1/${tag}s/${id}`
     const archivedAt = '2026-06-01T12:00:00.000Z'
 
     await Effect.runPromise(
@@ -396,7 +396,7 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
   it('unit', () =>
     checkArchive(UnitConfig, 'unit', 'u1', {
       id: 'u1',
-      tenantId: 't1',
+      orgId: 't1',
       name: 'Centro',
       slug: 'centro',
       address: null,
@@ -409,7 +409,7 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
   it('subscription_plan', () =>
     checkArchive(SubscriptionPlanConfig, 'subscription_plan', 'plan1', {
       id: 'plan1',
-      tenantId: 't1',
+      orgId: 't1',
       name: 'Mensal',
       description: null,
       priceCents: 9000,
@@ -426,7 +426,7 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
   it('catalog_item', () =>
     checkArchive(CatalogItemConfig, 'catalog_item', 'ci1', {
       id: 'ci1',
-      tenantId: 't1',
+      orgId: 't1',
       kind: 'service',
       name: 'Corte',
       categoryId: null,
@@ -447,7 +447,7 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
   it('category', () =>
     checkArchive(CategoryConfig, 'category', 'cat1', {
       id: 'cat1',
-      tenantId: 't1',
+      orgId: 't1',
       name: 'Cabelo',
       icon: null,
       color: null,

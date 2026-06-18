@@ -1,7 +1,7 @@
 // MessageTemplate — texto editável pelo owner, renderizado no envio de
 // notificação (wa.me hoje; outros canais no futuro). Persistência: config-doc
-// `tenants/{tid}/message_templates/{type}` (NÃO aggregate ES — ver brief 0018
-// § Riscos, decisão 2026-05-28). Espelha o pattern de `Tenant.whatsappTemplates`.
+// `orgs/{tid}/message_templates/{type}` (NÃO aggregate ES — ver brief 0018
+// § Riscos, decisão 2026-05-28). Espelha o pattern de `Org.whatsappTemplates`.
 
 import { Schema } from 'effect'
 
@@ -30,7 +30,7 @@ void _proofNotificationType
 export const MessageTemplate = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     type: NotificationTypeSchema,
     body: Schema.String,
     enabled: Schema.Boolean,

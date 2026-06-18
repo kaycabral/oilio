@@ -20,7 +20,7 @@ export function applySubscriptionEvent(
       return {
         ...base,
         id: event.id,
-        tenantId: event.tenantId,
+        orgId: event.orgId,
         unitId: event.unitId,
         customerId: event.customerId,
         customerUserId: event.customerUserId,

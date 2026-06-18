@@ -56,10 +56,10 @@ function makeStore(initial: Record<string, FirestoreDoc> = {}) {
 describe('Notification reactions', () => {
   it('customer.created creates notification for each unit', async () => {
     const { store, layer } = makeStore({
-      'tenants/t1/units/u1': { id: 'u1', tenantId: 't1', name: 'Unit 1' },
-      'tenants/t1/units/u2': { id: 'u2', tenantId: 't1', name: 'Unit 2' },
+      'orgs/t1/units/u1': { id: 'u1', orgId: 't1', name: 'Unit 1' },
+      'orgs/t1/units/u2': { id: 'u2', orgId: 't1', name: 'Unit 2' },
       // A malformed unit doc with no `id` must be skipped (not a 3rd notif).
-      'tenants/t1/units/broken': { tenantId: 't1', name: 'No Id' },
+      'orgs/t1/units/broken': { orgId: 't1', name: 'No Id' },
     })
 
     const reactor = buildReactor([...notificationReactions])
@@ -70,13 +70,13 @@ describe('Notification reactions', () => {
       timestamp: '2026-06-01T10:00:00Z',
       actorId: 'c1',
       schemaVersion: 1,
-      payload: { tenantId: 't1', name: 'João', whatsapp: '5511999999999' },
+      payload: { orgId: 't1', name: 'João', whatsapp: '5511999999999' },
     }
 
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
 
     const projections = [...store.entries()]
-      .filter(([key]) => key.startsWith('tenants/t1/notifications/'))
+      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
       .filter(([key]) => !key.includes('/events/'))
       .map(([, doc]) => doc)
 
@@ -94,7 +94,7 @@ describe('Notification reactions', () => {
 
   it('customer.created is idempotent — does not duplicate', async () => {
     const { store, layer } = makeStore({
-      'tenants/t1/units/u1': { id: 'u1', tenantId: 't1', name: 'Unit 1' },
+      'orgs/t1/units/u1': { id: 'u1', orgId: 't1', name: 'Unit 1' },
     })
 
     const reactor = buildReactor([...notificationReactions])
@@ -105,14 +105,14 @@ describe('Notification reactions', () => {
       timestamp: '2026-06-01T10:00:00Z',
       actorId: 'c1',
       schemaVersion: 1,
-      payload: { tenantId: 't1', name: 'João', whatsapp: '5511999999999' },
+      payload: { orgId: 't1', name: 'João', whatsapp: '5511999999999' },
     }
 
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
 
     const notifications = [...store.entries()]
-      .filter(([key]) => key.startsWith('tenants/t1/notifications/'))
+      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
       .filter(([key]) => !key.includes('/events/'))
 
     expect(notifications).toHaveLength(1)
@@ -120,7 +120,7 @@ describe('Notification reactions', () => {
 
   it('subscription.charge_failed creates payment_failure for all units', async () => {
     const { store, layer } = makeStore({
-      'tenants/t1/units/u1': { id: 'u1', tenantId: 't1', name: 'Unit 1' },
+      'orgs/t1/units/u1': { id: 'u1', orgId: 't1', name: 'Unit 1' },
     })
 
     const reactor = buildReactor([...notificationReactions])
@@ -131,13 +131,13 @@ describe('Notification reactions', () => {
       timestamp: '2026-06-01T10:00:00Z',
       actorId: 'owner-1',
       schemaVersion: 1,
-      payload: { reason: 'card_declined', tenantId: 't1', subscriptionId: 's1' },
+      payload: { reason: 'card_declined', orgId: 't1', subscriptionId: 's1' },
     }
 
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
 
     const notifications = [...store.entries()]
-      .filter(([key]) => key.startsWith('tenants/t1/notifications/'))
+      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
       .filter(([key]) => !key.includes('/events/'))
 
     expect(notifications).toHaveLength(1)
@@ -152,9 +152,9 @@ describe('Notification reactions', () => {
   it('subscription.activated expires pending subscription notifications', async () => {
     const notifId = 'notif-1'
     const { store, layer } = makeStore({
-      [`tenants/t1/notifications/${notifId}`]: {
+      [`orgs/t1/notifications/${notifId}`]: {
         id: notifId,
-        tenantId: 't1',
+        orgId: 't1',
         unitId: 'u1',
         type: 'subscription_expiring_tomorrow',
         subscriptionId: 's1',
@@ -171,12 +171,12 @@ describe('Notification reactions', () => {
       timestamp: '2026-06-01T10:00:00Z',
       actorId: 'owner-1',
       schemaVersion: 1,
-      payload: { tenantId: 't1', subscriptionId: 's1' },
+      payload: { orgId: 't1', subscriptionId: 's1' },
     }
 
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
 
-    const notif = store.get(`tenants/t1/notifications/${notifId}`)
+    const notif = store.get(`orgs/t1/notifications/${notifId}`)
     expect(notif!['validUntil']).toBeTruthy()
     expect(notif!['_version']).toBe(2)
   })
@@ -184,9 +184,9 @@ describe('Notification reactions', () => {
   it('subscription.activated expires every expiry type for the subscription, and nothing else', async () => {
     function notif(id: string, over: Record<string, unknown>) {
       return {
-        [`tenants/t1/notifications/${id}`]: {
+        [`orgs/t1/notifications/${id}`]: {
           id,
-          tenantId: 't1',
+          orgId: 't1',
           unitId: 'u1',
           subscriptionId: 's1',
           dispatchedAt: null,
@@ -218,13 +218,13 @@ describe('Notification reactions', () => {
       timestamp: '2026-06-01T10:00:00Z',
       actorId: 'owner-1',
       schemaVersion: 1,
-      payload: { tenantId: 't1', subscriptionId: 's1' },
+      payload: { orgId: 't1', subscriptionId: 's1' },
     }
 
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
 
     const isExpired = (id: string) =>
-      Boolean(store.get(`tenants/t1/notifications/${id}`)?.['validUntil'])
+      Boolean(store.get(`orgs/t1/notifications/${id}`)?.['validUntil'])
 
     expect(isExpired('n-tomorrow')).toBe(true)
     expect(isExpired('n-expired')).toBe(true)

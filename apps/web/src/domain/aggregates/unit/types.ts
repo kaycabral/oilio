@@ -7,7 +7,7 @@ export type UnitState = StoredUnit & { readonly _version: number }
 
 export const INITIAL_UNIT_STATE: UnitState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   name: '',
   slug: '',
   address: null,

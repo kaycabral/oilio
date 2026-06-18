@@ -50,7 +50,7 @@ async function checkReplay(
   changes: Record<string, unknown>,
 ): Promise<FirestoreDoc> {
   const { store, layer } = makeStore()
-  const path = `tenants/t1/goals/${id}`
+  const path = `orgs/t1/goals/${id}`
 
   await Effect.runPromise(
     Effect.gen(function* () {
@@ -83,7 +83,7 @@ describe('Goal — replay reconstructs the full doc (event-first)', () => {
       'profit__unit-a__2026-06',
       {
         id: 'profit__unit-a__2026-06',
-        tenantId: 't1',
+        orgId: 't1',
         unitId: 'unit-a',
         period: '2026-06',
         type: 'profit',
@@ -102,7 +102,7 @@ describe('Goal — replay reconstructs the full doc (event-first)', () => {
 
   it('defined snapshot stands on its own (no edit) — version 1 projects fully', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/goals/profit__unit-b__2026-07'
+    const path = 'orgs/t1/goals/profit__unit-b__2026-07'
 
     await Effect.runPromise(
       appendEvent(GoalConfig, path, {
@@ -111,7 +111,7 @@ describe('Goal — replay reconstructs the full doc (event-first)', () => {
         payload: {
           data: {
             id: 'profit__unit-b__2026-07',
-            tenantId: 't1',
+            orgId: 't1',
             unitId: 'unit-b',
             period: '2026-07',
             type: 'profit',

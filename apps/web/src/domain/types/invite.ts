@@ -5,7 +5,7 @@ import { InviteStatus, Role } from './enums'
 const InviteFields = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     email: Schema.String,
     role: Role,
     tokenHash: Schema.String,
@@ -45,7 +45,7 @@ export type Invite = typeof Invite.Type
 // refinement, então os eventos usam esta forma não-filtrada.
 export const StoredInviteFields = InviteFields.pipe(Schema.omit('email'))
 
-// Storage projection of `Invite`: the per-tenant `invites/{id}` doc that OMITS
+// Storage projection of `Invite`: the per-org `invites/{id}` doc that OMITS
 // the PII (email), which lives in the deletable `invites_pii/{id}` doc and is
 // merged at read time. Decode raw `invites` docs against this (com refinamento).
 export const StoredInvite = StoredInviteFields.pipe(

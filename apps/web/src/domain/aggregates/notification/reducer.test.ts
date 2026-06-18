@@ -14,7 +14,7 @@ describe('Notification reducer', () => {
       INITIAL_NOTIFICATION_STATE,
       {
         _tag: 'notification.created',
-        tenantId: 't1',
+        orgId: 't1',
         unitId: 'u1',
         type: 'birthday',
         customerId: 'c1',
@@ -28,7 +28,7 @@ describe('Notification reducer', () => {
       meta(1),
     )
 
-    expect(state.tenantId).toBe('t1')
+    expect(state.orgId).toBe('t1')
     expect(state.unitId).toBe('u1')
     expect(state.type).toBe('birthday')
     expect(state.customerId).toBe('c1')
@@ -46,7 +46,7 @@ describe('Notification reducer', () => {
       INITIAL_NOTIFICATION_STATE,
       {
         _tag: 'notification.created',
-        tenantId: 't1',
+        orgId: 't1',
         unitId: 'u1',
         type: 'new_customer',
         customerId: 'c1',
@@ -75,7 +75,7 @@ describe('Notification reducer', () => {
       INITIAL_NOTIFICATION_STATE,
       {
         _tag: 'notification.created',
-        tenantId: 't1',
+        orgId: 't1',
         unitId: 'u1',
         type: 'cash_register_open',
         customerId: null,
@@ -99,7 +99,7 @@ describe('Notification reducer', () => {
       INITIAL_NOTIFICATION_STATE,
       {
         _tag: 'notification.created',
-        tenantId: 't1',
+        orgId: 't1',
         unitId: 'u1',
         type: 'subscription_expired',
         customerId: 'c1',
@@ -127,7 +127,7 @@ describe('Notification reducer', () => {
       INITIAL_NOTIFICATION_STATE,
       {
         _tag: 'notification.created',
-        tenantId: 't1',
+        orgId: 't1',
         unitId: 'u1',
         type: 'subscription_expiring_tomorrow',
         customerId: 'c1',
@@ -154,7 +154,7 @@ describe('Notification reducer', () => {
       state,
       {
         _tag: 'notification.created',
-        tenantId: 't1',
+        orgId: 't1',
         unitId: 'u1',
         type: 'payment_failure',
         customerId: null,

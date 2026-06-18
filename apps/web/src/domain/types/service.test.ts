@@ -9,7 +9,7 @@ import {
 function buildService(overrides: Partial<Service> = {}): Service {
   return {
     id: 's1',
-    tenantId: 't1',
+    orgId: 't1',
     name: 'Corte',
     category: null,
     durationMinutes: 30,
@@ -93,7 +93,7 @@ describe('normalizeServicePriceVisibility', () => {
 })
 
 describe('toPublicService', () => {
-  it('strips commission, unitOverrides, active, publicVisible, tenantId', () => {
+  it('strips commission, unitOverrides, active, publicVisible, orgId', () => {
     const s = buildService({
       unitOverrides: { u1: { priceCents: 7000 } },
       commission: { kind: 'fixed', value: 999 },

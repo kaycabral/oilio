@@ -26,7 +26,7 @@ export function liquidationStatusOf(c: { liquidationStatus?: string }): Liquidat
 export const CommissionFields = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     orderId: Schema.String,
     // Item da order que gerou esta comissão. Permite re-conciliar / auditar.
     orderItemId: Schema.String,
@@ -41,7 +41,7 @@ export const CommissionFields = Schema.mutable(
     // da apuração (brief 0041 AC-11). Registro de RETENÇÃO de vínculo (art. 16): a
     // identidade tem que sobreviver mesmo que o membro seja revogado (offboarding
     // #1103), suspenso ou anonimizado-como-cliente — casos em que o join ao vivo
-    // (`listTenantMembers`, `status==active`) dropa o membro e o relatório
+    // (`listOrgMembers`, `status==active`) dropa o membro e o relatório
     // mostrava "--". O relatório lê este snapshot, não o join ao vivo. Vazio
     // quando não há membro atribuído ou ele não pôde ser resolvido na apuração —
     // nunca lança. Distinto do contrato D2 "PII fora de evento" (ADR 0010), que

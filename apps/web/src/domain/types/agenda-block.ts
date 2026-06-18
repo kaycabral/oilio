@@ -17,7 +17,7 @@ import { WEEKDAYS } from '../utils/business-hours'
 // identically: a UTC interval intersected with the day's grid window.
 const AgendaBlockBaseFields = {
   id: Schema.String,
-  tenantId: Schema.String,
+  orgId: Schema.String,
   unitId: Schema.String,
   professionalId: Schema.NullOr(Schema.String),
   reason: Schema.String,

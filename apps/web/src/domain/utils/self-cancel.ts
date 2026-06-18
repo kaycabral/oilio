@@ -1,6 +1,6 @@
 // Customer self-cancel eligibility (#845).
 //
-// Self-cancel runs against the tenant's `cancellationPolicy` instead of
+// Self-cancel runs against the org's `cancellationPolicy` instead of
 // the unconditional staff path. When `policy.enabled` is true, the
 // customer must cancel ≥ `minNoticeMinutes` before `appointment.startAt`.
 // Already-cancelled or already-completed appointments can't be cancelled
@@ -13,7 +13,7 @@
 // Staff still cancels through the agenda path with no policy gate.
 
 import type { Appointment } from '../types/appointment'
-import type { CancellationPolicy } from '../types/tenant'
+import type { CancellationPolicy } from '../types/org'
 
 export type SelfCancelCheck =
   | { ok: true }

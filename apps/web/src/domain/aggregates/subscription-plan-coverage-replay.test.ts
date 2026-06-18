@@ -55,7 +55,7 @@ function makeStore() {
 describe('SubscriptionPlan coverage — replay reconstructs items + categories (event-first)', () => {
   it('AC-01/AC-02 — created carries coverage; a coverage-change event mutates it; replay == projection', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/subscription_plans/plan-cov'
+    const path = 'orgs/t1/subscription_plans/plan-cov'
 
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -65,7 +65,7 @@ describe('SubscriptionPlan coverage — replay reconstructs items + categories (
           payload: {
             data: {
               id: 'plan-cov',
-              tenantId: 't1',
+              orgId: 't1',
               name: 'Combo Barba + Pomada',
               description: null,
               priceCents: 12000,

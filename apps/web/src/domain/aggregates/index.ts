@@ -1,11 +1,5 @@
 export { buildReactor, type EventReaction } from './_shared/reactions'
-export {
-  AggregateVersion,
-  Money,
-  MoneySchema,
-  TenantId,
-  TenantIdSchema,
-} from './_shared/value-objects'
+export { AggregateVersion, Money, MoneySchema, OrgId, OrgIdSchema } from './_shared/value-objects'
 
 // Subscription
 export { SubscriptionConfig } from './subscription/config'
@@ -23,10 +17,10 @@ export { applyOrderEvent } from './order/reducer'
 export { INITIAL_ORDER_STATE } from './order/types'
 export type { OrderState, OrderStatus } from './order/types'
 
-// Tenant
-export { TenantConfig } from './tenant/config'
-export type { TenantEvent } from './tenant/events'
-export type { TenantState } from './tenant/types'
+// Org
+export { OrgConfig } from './org/config'
+export type { OrgEvent } from './org/events'
+export type { OrgState } from './org/types'
 
 // Unit
 export { UnitConfig } from './unit/config'

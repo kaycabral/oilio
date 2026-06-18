@@ -6,7 +6,7 @@ export type CustomerState = StoredCustomer & { readonly _version: number }
 
 export const INITIAL_CUSTOMER_STATE: CustomerState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   userId: '',
   archivedAt: null,
   deactivatedAt: null,

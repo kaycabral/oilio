@@ -9,7 +9,7 @@ export type AppointmentState = Appointment & { readonly _version: number }
 
 export const INITIAL_APPOINTMENT_STATE: AppointmentState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   unitId: '',
   professionalId: '',
   customerId: '',

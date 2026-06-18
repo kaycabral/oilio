@@ -6,7 +6,7 @@ const BR = 'America/Sao_Paulo'
 
 const lunch = (id: string): RecurringAgendaBlock => ({
   id,
-  tenantId: 't1',
+  orgId: 't1',
   unitId: 'u1',
   professionalId: 'p1',
   reason: 'Almoço',
@@ -22,7 +22,7 @@ const lunch = (id: string): RecurringAgendaBlock => ({
 
 const oneOff = (id: string, startUtc: string, endUtc: string): AgendaBlock => ({
   id,
-  tenantId: 't1',
+  orgId: 't1',
   unitId: 'u1',
   professionalId: null,
   reason: 'Feriado',

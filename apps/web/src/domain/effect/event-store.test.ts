@@ -81,7 +81,7 @@ function makeStore(initial: Record<string, FirestoreDoc> = {}) {
   return { store, layer }
 }
 
-const PATH = 'tenants/t1/counters/c1'
+const PATH = 'orgs/t1/counters/c1'
 
 // ---------------------------------------------------------------------------
 // Tests

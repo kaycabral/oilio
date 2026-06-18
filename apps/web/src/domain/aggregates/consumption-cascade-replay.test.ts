@@ -113,7 +113,7 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
 
   it('subscription: usage_incremented (cota = soma de itens cobertos) → replay == projeção', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/subscriptions/sub-1'
+    const path = 'orgs/t1/subscriptions/sub-1'
     const amount = coveredItemQuantity([COVERED_SERVICE, COVERED_PRODUCT])
 
     await Effect.runPromise(
@@ -123,7 +123,7 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
           actorId: 'staff-1',
           payload: {
             id: 'sub-1',
-            tenantId: 't1',
+            orgId: 't1',
             unitId: 'u1',
             customerId: 'c1',
             customerUserId: 'u-c1',
@@ -159,7 +159,7 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
 
   it('catalog_item (produto): updated baixa estoque → replay == projeção', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/catalog_items/prod-pomada'
+    const path = 'orgs/t1/catalog_items/prod-pomada'
     const dec = coveredProducts([COVERED_PRODUCT])[0]!
 
     await Effect.runPromise(
@@ -170,7 +170,7 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
           payload: {
             data: {
               id: 'prod-pomada',
-              tenantId: 't1',
+              orgId: 't1',
               name: 'Pomada',
               kind: 'product',
               categoryId: 'cat-produtos',

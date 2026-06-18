@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 
-import { canManageTenant, MembershipStatus, Role } from './enums'
+import { canManageOrg, MembershipStatus, Role } from './enums'
 
 // Granular permissions live on the Membership so that fluid role transitions
 // (recepcionista que atende às vezes, owner que também corta) are toggles —
@@ -27,7 +27,7 @@ export type MembershipPermissions = typeof MembershipPermissions.Type
 export const Membership = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     userId: Schema.String,
     role: Role,
     status: MembershipStatus,
@@ -36,33 +36,33 @@ export const Membership = Schema.mutable(
     updatedAt: Schema.String,
     // Optional: scopes the membership to a single unit (typical for
     // receptionists assigned to a specific location). Null = scoped to the
-    // tenant as a whole.
+    // org as a whole.
     unitId: Schema.NullOr(Schema.String),
     // Granular capability gates. Every creation path must populate this
     // explicitly — usually via `defaultPermissionsForRole(role)`. Code must
     // gate on `permissions.<capability>`, never on `role` directly.
     permissions: MembershipPermissions,
-    // Only meaningful when role === 'professional'. May differ per tenant
+    // Only meaningful when role === 'professional'. May differ per org
     // (Maria 50% no Salão A, 60% no Salão B). Other roles set this to null.
     commissionRate: Schema.NullOr(Schema.Number),
   }),
 )
 export type Membership = typeof Membership.Type
 
-export function membershipDocId(tenantId: string, userId: string): string {
-  return `${tenantId}_${userId}`
+export function membershipDocId(orgId: string, userId: string): string {
+  return `${orgId}_${userId}`
 }
 
 // Single source of truth for the cross-unit gating predicate. A membership
-// "operates cross-unit" when it can manage the tenant (owner/manager) AND is
-// not bound to a single unit (`unitId == null`, i.e. tenant-wide). Since brief
+// "operates cross-unit" when it can manage the org (owner/manager) AND is
+// not bound to a single unit (`unitId == null`, i.e. org-wide). Since brief
 // 0044 removed the cross-unit aggregate report view, the only surface this now
 // gates is `/units` management — unit-bound managers, receptionists and
-// professionals stay scoped to their own unit. Owner is always tenant-wide; a
+// professionals stay scoped to their own unit. Owner is always org-wide; a
 // manager qualifies only when `unitId == null`. Keep this the only place the
 // predicate is defined.
 export function operatesCrossUnit(membership: Membership): boolean {
-  return canManageTenant(membership.role) && !membership.unitId
+  return canManageOrg(membership.role) && !membership.unitId
 }
 
 // Short, human-facing description of what each role can do — derived from the
@@ -102,7 +102,7 @@ const ALL_FALSE: MembershipPermissions = {
 // owner minus financial-sensitive bits (kept open here for V0 simplicity
 // but easy to tighten); professional gets agenda + appointments;
 // receptionist gets customer + appointment ops; customer gets nothing
-// (a customer membership exists so the user shows up in the tenant's
+// (a customer membership exists so the user shows up in the org's
 // scope — capability checks are not driven by customer memberships).
 export function defaultPermissionsForRole(role: Role): MembershipPermissions {
   switch (role) {

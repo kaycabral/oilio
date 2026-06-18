@@ -6,7 +6,7 @@ export type GoalState = Goal & { readonly _version: number }
 // replay (event-first: replay reconstructs the full doc from the stream).
 export const INITIAL_GOAL_STATE: GoalState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   unitId: '',
   period: '',
   type: 'profit',

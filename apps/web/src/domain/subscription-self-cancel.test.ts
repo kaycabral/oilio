@@ -7,7 +7,7 @@ import type { Subscription } from './types/subscription'
 function makeSubscription(overrides: Partial<Subscription> = {}): Subscription {
   return {
     id: 'sub-1',
-    tenantId: 'tenant-1',
+    orgId: 'org-1',
     unitId: 'unit-a',
     customerId: 'cust-1',
     customerUserId: 'user-1',

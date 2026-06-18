@@ -36,7 +36,7 @@ export type MembershipStatus = typeof MembershipStatus.Type
 export const InviteStatus = Schema.Literal('pending', 'accepted', 'expired', 'revoked')
 export type InviteStatus = typeof InviteStatus.Type
 
-export function canManageTenant(role: Role): boolean {
+export function canManageOrg(role: Role): boolean {
   return role === 'owner' || role === 'manager'
 }
 

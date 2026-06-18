@@ -1,5 +1,5 @@
 // Conflict detection for a new/edited appointment against existing appointments
-// and agenda blocks. Operates on ISO-UTC instants — callers convert tenant-local
+// and agenda blocks. Operates on ISO-UTC instants — callers convert org-local
 // inputs to UTC before calling.
 //
 // Semantics: half-open intervals [start, end). Two intervals overlap when
@@ -7,7 +7,7 @@
 // overlap — booking at 10:00 right after a 09:00–10:00 appointment is allowed.
 
 import type { BlockSegment } from './agenda-blocks'
-import { toTenantTime } from './timezone'
+import { toOrgTime } from './timezone'
 
 export type AppointmentInterval = {
   startAt: string
@@ -63,9 +63,9 @@ function blockConflicts({
   date: string
   tz: string
 }): AppointmentConflict[] {
-  const proposedStart = toTenantTime(proposed.startAt, tz)
+  const proposedStart = toOrgTime(proposed.startAt, tz)
   if (proposedStart.dateISO !== date) return []
-  const proposedEnd = toTenantTime(proposed.endAt, tz)
+  const proposedEnd = toOrgTime(proposed.endAt, tz)
   const startMin = proposedStart.hour * 60 + proposedStart.minute
   // If the proposed interval crosses midnight, clip at 1440 — anything past
   // belongs to the next day and is handled by that day's segments.
@@ -88,7 +88,7 @@ function blockConflicts({
 // professional on a given local day. Cancelled appointments are ignored.
 //
 // - `existing` should be pre-filtered to the same unit + professional + day.
-// - `blockSegments` are already resolved for the day in tenant tz.
+// - `blockSegments` are already resolved for the day in org tz.
 // - `excludeAppointmentId` skips a specific appointment id (for edit flows).
 export function findAppointmentConflicts({
   proposed,

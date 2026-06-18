@@ -6,7 +6,7 @@ export type CategoryState = Category & { readonly _version: number }
 // replay (event-first: replay reconstructs the full doc from the stream).
 export const INITIAL_CATEGORY_STATE: CategoryState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   name: '',
   icon: null,
   color: null,

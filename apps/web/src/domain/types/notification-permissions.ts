@@ -3,7 +3,7 @@
 // administrativos (caixa, falha de pagamento) só Manager+ (cliente-zero).
 
 import type { NotificationType } from '../aggregates/notification/types'
-import { canManageTenant, type Role } from './enums'
+import { canManageOrg, type Role } from './enums'
 
 // Tipos que só Manager/Owner enxergam — financeiro/administrativo.
 export const MANAGER_ONLY_NOTIFICATION_TYPES = [
@@ -17,7 +17,7 @@ function isManagerOnlyType(type: string): boolean {
 
 // AC-18/19: receptionist NÃO vê tipos manager-only; manager+ vê tudo.
 export function canRoleSeeNotificationType(role: Role, type: string): boolean {
-  if (isManagerOnlyType(type)) return canManageTenant(role)
+  if (isManagerOnlyType(type)) return canManageOrg(role)
   return true
 }
 

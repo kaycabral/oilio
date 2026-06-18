@@ -8,7 +8,7 @@ export type CatalogItemState = CatalogItem & { readonly _version: number }
 // `created` event — replay reconstructs the full doc from the stream.
 export const INITIAL_CATALOG_ITEM_STATE: CatalogItemState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   kind: 'service',
   name: '',
   categoryId: null,

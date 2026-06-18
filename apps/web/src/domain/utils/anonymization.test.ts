@@ -98,20 +98,20 @@ describe('resolveSubjectName', () => {
     ).toBe(`Recepção ${code}`)
   })
 
-  // Per-tenant blocking (LGPD art. 18 "bloqueio") — brief 0032 / #1096, AC-09.
-  it('returns the neutral label when blockedInTenant on a non-anonymized account', () => {
+  // Per-org blocking (LGPD art. 18 "bloqueio") — brief 0032 / #1096, AC-09.
+  it('returns the neutral label when blockedInOrg on a non-anonymized account', () => {
     const code = anonymizedSubjectCode('u1')
     expect(
       resolveSubjectName('u1', { displayName: 'Maria', anonymizedAt: null }, 'Cliente', {
-        blockedInTenant: true,
+        blockedInOrg: true,
       }),
     ).toBe(`Cliente ${code}`)
   })
 
-  it('keeps the live displayName when blockedInTenant is false', () => {
+  it('keeps the live displayName when blockedInOrg is false', () => {
     expect(
       resolveSubjectName('u1', { displayName: 'Maria', anonymizedAt: null }, 'Cliente', {
-        blockedInTenant: false,
+        blockedInOrg: false,
       }),
     ).toBe('Maria')
   })
@@ -122,11 +122,11 @@ describe('resolveSubjectName', () => {
     )
   })
 
-  it('anonymized account still wins even with blockedInTenant false', () => {
+  it('anonymized account still wins even with blockedInOrg false', () => {
     const code = anonymizedSubjectCode('u1')
     expect(
       resolveSubjectName('u1', { displayName: null, anonymizedAt: 'x' }, 'Cliente', {
-        blockedInTenant: false,
+        blockedInOrg: false,
       }),
     ).toBe(`Cliente ${code}`)
   })
@@ -153,11 +153,11 @@ describe('resolveSubjectAvatar', () => {
     expect(resolveSubjectAvatar({ avatarUrl: 'https://x/a.png', anonymizedAt: 'x' })).toBeNull()
   })
 
-  it('blanks the photo when blockedInTenant (re-identification vector)', () => {
+  it('blanks the photo when blockedInOrg (re-identification vector)', () => {
     expect(
       resolveSubjectAvatar(
         { avatarUrl: 'https://x/a.png', anonymizedAt: null },
-        { blockedInTenant: true },
+        { blockedInOrg: true },
       ),
     ).toBeNull()
   })
@@ -169,7 +169,7 @@ describe('resolveSubjectAvatar', () => {
     expect(
       resolveSubjectAvatar(
         { avatarUrl: 'https://x/a.png', anonymizedAt: null },
-        { blockedInTenant: false },
+        { blockedInOrg: false },
       ),
     ).toBe('https://x/a.png')
   })

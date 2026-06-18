@@ -5,7 +5,7 @@ import { buildPlanSnapshot } from './plan-snapshot'
 function makePlan(overrides: Partial<SubscriptionPlan> = {}): SubscriptionPlan {
   return {
     id: 'plan-1',
-    tenantId: 't1',
+    orgId: 't1',
     name: 'Mensal Corte',
     description: null,
     priceCents: 9000,

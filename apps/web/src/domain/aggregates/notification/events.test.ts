@@ -8,7 +8,7 @@ const decode = Schema.decodeUnknownSync(NotificationEventSchema)
 // to `unknown`. Exercises every NotificationCreatedSchema field on decode.
 const created = {
   _tag: 'notification.created',
-  tenantId: 't1',
+  orgId: 't1',
   unitId: 'u1',
   type: 'birthday',
   customerId: 'c1',

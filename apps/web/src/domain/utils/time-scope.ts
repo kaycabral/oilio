@@ -14,7 +14,7 @@
 
 import type { AllowedTimeScope } from '../types/subscription-plan'
 import { hhmmToMinutes } from './business-hours'
-import { toTenantTime } from './timezone'
+import { toOrgTime } from './timezone'
 
 const HHMM_RE = /^(\d{2}):(\d{2})$/
 
@@ -27,14 +27,14 @@ export function isValidTimeScopeHHmm(s: string): boolean {
 }
 
 // Whether a `daysOfWeek` filter (0-6, Sun-Sat) admits the given UTC date
-// interpreted in tenant tz. `undefined` filter = admit all.
+// interpreted in org tz. `undefined` filter = admit all.
 export function isDayOfWeekAllowed(
   daysOfWeek: readonly number[] | undefined,
   utcIso: string,
   tz: string,
 ): boolean {
   if (!daysOfWeek || daysOfWeek.length === 0) return true
-  const { dateISO } = toTenantTime(utcIso, tz)
+  const { dateISO } = toOrgTime(utcIso, tz)
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateISO)
   if (!m) return false
   const day = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay()
@@ -52,13 +52,13 @@ export function isHourRangeAllowed(
   const start = hhmmToMinutes(hourRange.start)
   const end = hhmmToMinutes(hourRange.end)
   if (end <= start) return false
-  const { hour, minute } = toTenantTime(utcIso, tz)
+  const { hour, minute } = toOrgTime(utcIso, tz)
   const slotMinutes = hour * 60 + minute
   return slotMinutes >= start && slotMinutes < end
 }
 
-// Whether `dateISO` (YYYY-MM-DD in tenant tz) is within the advance booking
-// window measured from `todayISO` (also in tenant tz). `undefined` = no cap.
+// Whether `dateISO` (YYYY-MM-DD in org tz) is within the advance booking
+// window measured from `todayISO` (also in org tz). `undefined` = no cap.
 // `advanceBookingDays = 0` is treated as unrestricted (the form parser
 // collapses 0 to undefined upstream).
 export function isAdvanceBookingAllowed(
@@ -91,7 +91,7 @@ export function isInstantWithinTimeScope(
   if (!scope) return true
   if (!isDayOfWeekAllowed(scope.daysOfWeek, utcIso, tz)) return false
   if (!isHourRangeAllowed(scope.hourRange, utcIso, tz)) return false
-  const { dateISO } = toTenantTime(utcIso, tz)
+  const { dateISO } = toOrgTime(utcIso, tz)
   if (!isAdvanceBookingAllowed(scope.advanceBookingDays, todayISO, dateISO)) {
     return false
   }

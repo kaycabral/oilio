@@ -40,8 +40,8 @@ export function isValidCompanyTaxId(raw: string): boolean {
 //
 // Data about the legal entity, sourced from the public CNPJ registry
 // (BrasilAPI). Under the LGPD this is NOT personal data — it identifies the
-// company, not a natural person — so it rides in the `tenant.created` event
-// payload and the `StoredTenant` projection: queryable and replay-safe. The
+// company, not a natural person — so it rides in the `org.created` event
+// payload and the `StoredOrg` projection: queryable and replay-safe. The
 // name-bearing fields (razão social / nome fantasia) deliberately stay OUT of
 // here, in the deletable PII doc, because a MEI's razão social embeds a civil
 // name. See ADR 0010 (PII never in the event payload) + brief 0046.

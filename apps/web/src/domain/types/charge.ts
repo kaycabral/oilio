@@ -21,7 +21,7 @@ export type ChargeStatus = typeof ChargeStatus.Type
 export const Charge = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     // Snapshot do `unitId` da assinatura no ciclo (brief 0043). Capturado na
     // criação/renovação do Charge — recebíveis por unidade derivam daqui.
     unitId: Schema.String,

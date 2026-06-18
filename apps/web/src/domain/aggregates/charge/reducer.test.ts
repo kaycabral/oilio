@@ -13,7 +13,7 @@ function meta(version: number, timestamp = '2026-06-01T10:00:00.000Z'): EventMet
 // complete `Charge`), so the event payload is the full shape.
 const CREATED_DATA: Charge = {
   id: 'ch1',
-  tenantId: 't1',
+  orgId: 't1',
   unitId: 'u1',
   subscriptionId: 's1',
   customerId: 'c1',

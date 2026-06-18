@@ -18,17 +18,17 @@ export const MoneySchema = Schema.Number.pipe(
 )
 
 // ---------------------------------------------------------------------------
-// TenantId — non-empty string
+// OrgId — non-empty string
 // ---------------------------------------------------------------------------
 
-export type TenantId = string & Brand.Brand<'TenantId'>
+export type OrgId = string & Brand.Brand<'OrgId'>
 
-export const TenantId = Brand.refined<TenantId>(
+export const OrgId = Brand.refined<OrgId>(
   (s) => typeof s === 'string' && s.length > 0,
-  (s) => Brand.error(`TenantId must be a non-empty string, got '${s}'`),
+  (s) => Brand.error(`OrgId must be a non-empty string, got '${s}'`),
 )
 
-export const TenantIdSchema = Schema.String.pipe(Schema.nonEmptyString(), Schema.brand('TenantId'))
+export const OrgIdSchema = Schema.String.pipe(Schema.nonEmptyString(), Schema.brand('OrgId'))
 
 // ---------------------------------------------------------------------------
 // AggregateVersion — non-negative integer

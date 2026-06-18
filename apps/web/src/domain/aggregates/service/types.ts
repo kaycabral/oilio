@@ -4,7 +4,7 @@ export type ServiceState = Service & { readonly _version: number }
 
 export const INITIAL_SERVICE_STATE: ServiceState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   name: '',
   category: null,
   durationMinutes: 0,

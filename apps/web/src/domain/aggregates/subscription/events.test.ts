@@ -28,7 +28,7 @@ const plan = {
 const created = {
   _tag: 'subscription.created',
   id: 's1',
-  tenantId: 't1',
+  orgId: 't1',
   unitId: 'u1',
   customerId: 'c1',
   customerUserId: null,
@@ -91,8 +91,8 @@ describe('SubscriptionEventSchema', () => {
   })
 
   it('rejects a created event missing a required field', () => {
-    const { tenantId: _omitted, ...withoutTenant } = created
-    expect(() => decode(withoutTenant)).toThrow()
+    const { orgId: _omitted, ...withoutOrg } = created
+    expect(() => decode(withoutOrg)).toThrow()
   })
 
   it('rejects an invalid charge_failed status literal', () => {

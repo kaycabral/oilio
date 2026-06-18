@@ -14,7 +14,7 @@ export type CommissionRule = typeof CommissionRule.Type
 export const Professional = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     // Non-null (#1045 / brief 0028 AC-01). A Professional is the operational
     // projection of a `Membership(role=professional)` + `User`, born only from
     // the invite-acceptance saga — never a standalone entity with a null link.
@@ -31,7 +31,7 @@ export const Professional = Schema.mutable(
     operationalStatus: OperationalStatus,
     defaultCommission: Schema.NullOr(CommissionRule),
     unitIds: Schema.mutable(Schema.Array(Schema.String)),
-    // Subset dos serviços do tenant que esse profissional executa — FKs em
+    // Subset dos serviços do org que esse profissional executa — FKs em
     // `catalog_items` de kind service (brief 0023, #1004; era a coleção legada
     // `services`). Invariante server-side: cada id precisa de
     // `CatalogItem.unitIds ∩ Professional.unitIds ≠ ∅`. Vazio = não executa
@@ -44,7 +44,7 @@ export const Professional = Schema.mutable(
 )
 export type Professional = typeof Professional.Type
 
-// Storage projection of `Professional`: the per-tenant `professionals/{id}` doc
+// Storage projection of `Professional`: the per-org `professionals/{id}` doc
 // that OMITS the PII (name/whatsapp/email/taxIdentity) materialized from
 // `users/` at read time. Decode raw `professionals` docs against this.
 export const StoredProfessional = Professional.pipe(
@@ -52,7 +52,7 @@ export const StoredProfessional = Professional.pipe(
 )
 export type StoredProfessional = typeof StoredProfessional.Type
 
-// The deletable `professionals_pii/{id}` doc. Only `taxIdentity` is per-tenant
+// The deletable `professionals_pii/{id}` doc. Only `taxIdentity` is per-org
 // PII stored here; name/whatsapp/email are read live from `users/{userId}`.
 // Picked from the same base so it can't drift from `Professional`.
 export const ProfessionalPii = Professional.pipe(Schema.pick('taxIdentity'))

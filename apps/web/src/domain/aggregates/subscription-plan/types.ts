@@ -4,7 +4,7 @@ export type SubscriptionPlanState = SubscriptionPlan & { readonly _version: numb
 
 export const INITIAL_SUBSCRIPTION_PLAN_STATE: SubscriptionPlanState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   name: '',
   description: null,
   priceCents: 0,

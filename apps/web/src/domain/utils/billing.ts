@@ -1,6 +1,6 @@
 // Helpers puros pra cálculo de ciclos e janelas de cobrança.
 //
-// Invariante: tudo em ISO UTC. Display em tenant timezone é
+// Invariante: tudo em ISO UTC. Display em org timezone é
 // responsabilidade da camada de UI (ver utils/timezone).
 
 import type { BillingCycle } from '../types/subscription-plan'

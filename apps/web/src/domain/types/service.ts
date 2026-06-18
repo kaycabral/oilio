@@ -22,7 +22,7 @@ export type ServicePriceVisibility = typeof ServicePriceVisibility.Type
 export const Service = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     name: Schema.String,
     category: Schema.NullOr(Schema.String),
     // Base pricing/duration/commission — used unless overridden per unit.
@@ -40,7 +40,7 @@ export const Service = Schema.mutable(
     // Where the service is offered. Non-empty. A service oferecido em uma
     // unit pode opcionalmente ter override de preço/duração/comissão na
     // mesma — keys de `unitOverrides` ⊆ `unitIds`. Identidade do serviço
-    // ("Corte") é única no tenant (mesmo nome/categoria em todas as units);
+    // ("Corte") é única no org (mesmo nome/categoria em todas as units);
     // só os atributos comerciais variam (#874).
     unitIds: Schema.mutable(Schema.Array(Schema.String)),
     unitOverrides: Schema.NullOr(
@@ -61,7 +61,7 @@ export function normalizeServicePriceVisibility(value: unknown): ServicePriceVis
 }
 
 // Sanitized projection of `Service` for the public catalog (#841). Drops
-// `commission`, `unitOverrides`, `active`, `publicVisible`, `tenantId` and
+// `commission`, `unitOverrides`, `active`, `publicVisible`, `orgId` and
 // other internal fields. `priceCents` is `null` when `priceVisibility ===
 // 'on_request'` so callers can render "Sob consulta" without re-reading the
 // flag. `priceCents`/`durationMinutes` are resolved per-unit via

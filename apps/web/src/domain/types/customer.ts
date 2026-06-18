@@ -1,23 +1,23 @@
 import { Schema } from 'effect'
 
-// `Customer` is the **conceptual entity** of a person known to a tenant —
+// `Customer` is the **conceptual entity** of a person known to a org —
 // what every read site and UI component handles. PII (name, whatsapp,
 // email, birthDate) is materialized into this shape at read time by the
 // server, but the canonical storage lives on the global `users/{userId}`
-// doc (referenced via `userId`). Per-tenant `tenants/{t}/customers/{id}`
+// doc (referenced via `userId`). Per-org `orgs/{t}/customers/{id}`
 // only persists operational data (eventual scores). Schema
 // decided in #832 + #836 — canonical doc:
 // https://github.com/cbrl-dev/cbrl/wiki/02-Estrategia-Modelo-Identidade
 //
 // The storage shape (what's in Firestore) is intentionally not exported —
 // it's an implementation detail of the read/write helpers in
-// `apps/oilio/web/src/lib/tenant/customer-{read,upsert}.ts`. Callers
+// `apps/oilio/web/src/lib/org/customer-{read,upsert}.ts`. Callers
 // outside that boundary never need to think about the split.
 
 export const Customer = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     // FK into `users/{userId}` (top-level). Required — no PII-only customers.
     userId: Schema.String,
     // Materialized from `User` at read time. UI components consume these
@@ -27,10 +27,10 @@ export const Customer = Schema.mutable(
     email: Schema.NullOr(Schema.String),
     birthDate: Schema.NullOr(Schema.String),
     // Materialized from `User.avatarUrl` at read time. Neutralized (null) for a
-    // customer blocked in this tenant (LGPD art. 18 — brief 0032, AC-13: the
+    // customer blocked in this org (LGPD art. 18 — brief 0032, AC-13: the
     // photo is a re-identification vector, so it's blanked alongside the name).
     avatarUrl: Schema.NullOr(Schema.String),
-    // Per-tenant terminal block (LGPD art. 18 "bloqueio" — brief 0032, AC-09/
+    // Per-org terminal block (LGPD art. 18 "bloqueio" — brief 0032, AC-09/
     // AC-11). When set, the customer shadow is archived: dropped from active
     // lists/pickers, write-guarded, history resolves to the neutral label. This
     // is the materialized projection of the `blocked_subjects/{userId}` marker
@@ -52,7 +52,7 @@ export const Customer = Schema.mutable(
 )
 export type Customer = typeof Customer.Type
 
-// Storage projection of `Customer`: the per-tenant `customers/{id}` doc that
+// Storage projection of `Customer`: the per-org `customers/{id}` doc that
 // OMITS the PII (name/whatsapp/email/birthDate/avatarUrl) materialized from
 // `users/` at read time. Decode raw `customers` docs against this — decoding
 // against the full `Customer` would fail by design (the PII isn't stored).

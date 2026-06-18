@@ -101,7 +101,7 @@ export type CommissionAccrual = {
 
 // `resolveMemberName` mapeia o `attributedUserId` do item pro display name do
 // membro NO MOMENTO da apuração (brief 0041 AC-11). O caller (closeOrder) passa
-// o resolver do contexto do tenant; retorna '' quando não há membro atribuído
+// o resolver do contexto do org; retorna '' quando não há membro atribuído
 // ou ele não pôde ser resolvido — nunca lança. Default no-op mantém a função
 // pura e os call-sites de teste antigos compatíveis (snapshot vazio).
 export function accrueCommissionForItem(

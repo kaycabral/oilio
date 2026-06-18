@@ -11,7 +11,7 @@ function appt(
 ): Appointment {
   return {
     id: 'a1',
-    tenantId: 't1',
+    orgId: 't1',
     unitId: 'u1',
     professionalId: 'p1',
     customerId: 'c1',

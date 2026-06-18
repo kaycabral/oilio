@@ -47,10 +47,10 @@ function makeStore() {
 describe('Charge — replay reconstrói o doc completo (event-first, gateway-gated)', () => {
   it('created (scheduled) → failed (recovering) → succeeded (paid) → replay == projeção', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/charges/ch1'
+    const path = 'orgs/t1/charges/ch1'
     const data = {
       id: 'ch1',
-      tenantId: 't1',
+      orgId: 't1',
       unitId: 'unit-a',
       subscriptionId: 'sub1',
       customerId: 'c1',

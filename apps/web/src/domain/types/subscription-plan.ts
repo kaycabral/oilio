@@ -24,11 +24,11 @@ export type UsageLimit = typeof UsageLimit.Type
 // - `daysOfWeek`: ISO weekday numbers (0=Sun … 6=Sat). When set, only listed
 //   weekdays are bookable. Empty array would be senseless ("nothing
 //   bookable"), so the parser collapses empty → `undefined`.
-// - `hourRange`: HH:mm strings in tenant local time. Slots whose local start
+// - `hourRange`: HH:mm strings in org local time. Slots whose local start
 //   falls outside `[start, end)` are hidden. Inclusive start, exclusive end
 //   matches business-hours semantics.
 // - `advanceBookingDays`: max days ahead a subscriber can book from "today
-//   in tenant tz". `0` would forbid bookings entirely so the parser also
+//   in org tz". `0` would forbid bookings entirely so the parser also
 //   collapses non-positive → `undefined`.
 export const AllowedTimeScope = Schema.mutable(
   Schema.Struct({
@@ -46,7 +46,7 @@ export type AllowedTimeScope = typeof AllowedTimeScope.Type
 // mirror `unitAllowlist` / `allowedTimeScope`: frozen into Subscription on
 // creation, never retroactive.
 //
-// - `maxPerDay`: max appointments the customer can hold on the same tenant
+// - `maxPerDay`: max appointments the customer can hold on the same org
 //   day. Undefined = no daily cap. Trying to create the (N+1)th in the same
 //   day surfaces a reschedule signal (UI opens a "trocar horário" modal).
 // - `maxConcurrent`: cap on confirmed/scheduled future appointments at any
@@ -67,13 +67,13 @@ export type BookingLimits = typeof BookingLimits.Type
 export const SubscriptionPlan = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
-    tenantId: Schema.String,
+    orgId: Schema.String,
     name: Schema.String,
     description: Schema.NullOr(Schema.String),
     priceCents: Schema.Number,
     billingCycle: BillingCycle,
     // FK array into `CatalogItem.id` (brief 0024, AC-01 — #1008). Canonical
-    // per-item coverage: each id references a `tenants/{tenantId}/catalog_items/
+    // per-item coverage: each id references a `orgs/{orgId}/catalog_items/
     // {id}` doc, of ANY kind (service|product). A plan/package is exactly this
     // set of granular items — there is no opaque "combo" item (AC-06). The
     // expansion of `includedCategoryIds` to items at consumption time is slice 2
@@ -81,14 +81,14 @@ export const SubscriptionPlan = Schema.mutable(
     includedItemIds: Schema.mutable(Schema.Array(Schema.String)),
     // FK array into `Category.id` (brief 0023, AC-04 — #1003). Replaced the
     // former free-text `includedServiceCategories: string[]`. Each id references
-    // a `tenants/{tenantId}/categories/{id}` doc. Stays as convenience coverage
+    // a `orgs/{orgId}/categories/{id}` doc. Stays as convenience coverage
     // ("all items of category X") alongside the explicit `includedItemIds`
     // (brief 0024, AC-02) — it does NOT replace the per-item list.
     includedCategoryIds: Schema.mutable(Schema.Array(Schema.String)),
     usageLimit: UsageLimit,
     // Spatial scope rule (brief 0019, Group A). When set, the plan restricts
     // self-book coverage to the listed unit ids. Absent OR `null` means "no
-    // restriction" (all public tenant units are covered): `create` omits the
+    // restriction" (all public org units are covered): `create` omits the
     // field, `update` writes `null` to clear it (event-sourced projection
     // merges via spread, so clearing requires an explicit null). Snapshotted
     // into Subscription on creation — changes here do not retroact.

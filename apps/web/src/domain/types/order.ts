@@ -45,7 +45,7 @@ export const OrderItem = Schema.mutable(
     quantity: Schema.Number,
     unitPriceCents: Schema.Number,
     // Snapshot da regra de comissão. Produtos podem ter comissão nula (depende
-    // do tenant); serviços geralmente têm. `null` = sem comissão pra este item.
+    // do org); serviços geralmente têm. `null` = sem comissão pra este item.
     commission: Schema.NullOr(CommissionRule),
     // Membro a quem o item é atribuído (brief 0030, AC-04). Guarda o `userId`
     // GLOBAL do membro — NÃO o doc id de `Professional` (que a recepção não tem)
@@ -67,7 +67,7 @@ export type OrderItem = typeof OrderItem.Type
 
 const orderCommonFields = {
   id: Schema.String,
-  tenantId: Schema.String,
+  orgId: Schema.String,
   unitId: Schema.String,
   // Cliente opcional (brief 0030, AC-02): venda avulsa de balcão pode ser
   // anônima (`null`). Venda nascida de agendamento sempre carrega o cliente do

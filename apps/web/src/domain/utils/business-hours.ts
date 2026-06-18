@@ -1,11 +1,11 @@
-// Business hours helpers for the tenant-aware agenda.
+// Business hours helpers for the org-aware agenda.
 //
 // `BusinessHours` lives on `Unit` (one map per weekday). A `null` for a weekday
 // means "closed that day". A `null` for the whole `Unit.businessHours` means
 // "not configured" — render layer treats that as no constraint.
 
 import { type BusinessHours, type HoursRange, dayHoursToRanges } from '../types/unit'
-import { toTenantTime } from './timezone'
+import { toOrgTime } from './timezone'
 
 export type Weekday =
   | 'sunday'
@@ -52,15 +52,15 @@ export function minutesToHHmm(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-// Weekday of `date` (YYYY-MM-DD) interpreted as a calendar day in tenant `tz`.
+// Weekday of `date` (YYYY-MM-DD) interpreted as a calendar day in org `tz`.
 // Uses noon UTC of the date as the canonical instant for weekday lookup — noon
 // is far from any DST/midnight edge so the weekday is unambiguous regardless of
 // tz.
-export function getWeekdayInTenantTz(date: string, tz: string): Weekday {
+export function getWeekdayInOrgTz(date: string, tz: string): Weekday {
   const noonUtc = `${date}T12:00:00.000Z`
-  const { dateISO } = toTenantTime(noonUtc, tz)
+  const { dateISO } = toOrgTime(noonUtc, tz)
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateISO)
-  if (!m) throw new Error(`Unexpected tenant date format: ${dateISO}`)
+  if (!m) throw new Error(`Unexpected org date format: ${dateISO}`)
   // Date.UTC then .getUTCDay() gives weekday without local-tz drift.
   const day = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay()
   const wd = WEEKDAYS[day]
@@ -77,7 +77,7 @@ export function getBusinessHoursForDay(
   tz: string,
 ): HoursRange[] {
   if (!businessHours) return []
-  const weekday = getWeekdayInTenantTz(date, tz)
+  const weekday = getWeekdayInOrgTz(date, tz)
   return dayHoursToRanges(businessHours[weekday])
 }
 

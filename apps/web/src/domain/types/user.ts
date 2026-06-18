@@ -8,8 +8,8 @@ const userCommonFields = {
   displayName: Schema.NullOr(Schema.String),
   avatarUrl: Schema.NullOr(Schema.String),
   emailVerified: Schema.Boolean,
-  currentTenantId: Schema.NullOr(Schema.String),
-  // PF/PJ identity. Same shape used by Tenant and Professional. Null until the
+  currentOrgId: Schema.NullOr(Schema.String),
+  // PF/PJ identity. Same shape used by Org and Professional. Null until the
   // user activates a role that requires it. See [[02-Estrategia-Modelo-Identidade]].
   taxIdentity: Schema.NullOr(TaxIdentity),
   // Personal description and skills surfaced on professional profiles.

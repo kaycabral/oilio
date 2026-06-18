@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isValidTimezone } from './timezone'
-import { UF_TO_TZ, inferTimezoneFromAddress, resolveTenantTimezoneFromAddress } from './timezone-br'
+import { UF_TO_TZ, inferTimezoneFromAddress, resolveOrgTimezoneFromAddress } from './timezone-br'
 
 describe('UF_TO_TZ', () => {
   it('covers all 27 Brazilian UFs (26 states + DF)', () => {
@@ -105,27 +105,27 @@ describe('inferTimezoneFromAddress', () => {
   })
 })
 
-describe('resolveTenantTimezoneFromAddress', () => {
-  it('returns the inferred tz when tenant has default and inferred differs', () => {
-    expect(resolveTenantTimezoneFromAddress('America/Sao_Paulo', 'AM', 'Manaus')).toBe(
+describe('resolveOrgTimezoneFromAddress', () => {
+  it('returns the inferred tz when org has default and inferred differs', () => {
+    expect(resolveOrgTimezoneFromAddress('America/Sao_Paulo', 'AM', 'Manaus')).toBe(
       'America/Manaus',
     )
-    expect(resolveTenantTimezoneFromAddress('America/Sao_Paulo', 'AC', 'Rio Branco')).toBe(
+    expect(resolveOrgTimezoneFromAddress('America/Sao_Paulo', 'AC', 'Rio Branco')).toBe(
       'America/Rio_Branco',
     )
-    expect(resolveTenantTimezoneFromAddress('America/Sao_Paulo', 'PE', 'Fernando de Noronha')).toBe(
+    expect(resolveOrgTimezoneFromAddress('America/Sao_Paulo', 'PE', 'Fernando de Noronha')).toBe(
       'America/Noronha',
     )
   })
 
-  it('returns null when tenant has default and inferred matches default', () => {
-    expect(resolveTenantTimezoneFromAddress('America/Sao_Paulo', 'SP', 'São Paulo')).toBe(null)
-    expect(resolveTenantTimezoneFromAddress('America/Sao_Paulo', 'RJ', 'Rio')).toBe(null)
+  it('returns null when org has default and inferred matches default', () => {
+    expect(resolveOrgTimezoneFromAddress('America/Sao_Paulo', 'SP', 'São Paulo')).toBe(null)
+    expect(resolveOrgTimezoneFromAddress('America/Sao_Paulo', 'RJ', 'Rio')).toBe(null)
   })
 
-  it('returns null when tenant already has a non-default tz (never overrides owner choice)', () => {
-    expect(resolveTenantTimezoneFromAddress('America/Manaus', 'AM', 'Manaus')).toBe(null)
-    expect(resolveTenantTimezoneFromAddress('America/Manaus', 'SP', 'São Paulo')).toBe(null)
-    expect(resolveTenantTimezoneFromAddress('UTC', 'AC', 'Rio Branco')).toBe(null)
+  it('returns null when org already has a non-default tz (never overrides owner choice)', () => {
+    expect(resolveOrgTimezoneFromAddress('America/Manaus', 'AM', 'Manaus')).toBe(null)
+    expect(resolveOrgTimezoneFromAddress('America/Manaus', 'SP', 'São Paulo')).toBe(null)
+    expect(resolveOrgTimezoneFromAddress('UTC', 'AC', 'Rio Branco')).toBe(null)
   })
 })

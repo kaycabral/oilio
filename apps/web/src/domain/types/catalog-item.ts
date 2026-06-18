@@ -27,7 +27,7 @@ export type CatalogItemUnitOverride = typeof CatalogItemUnitOverride.Type
 
 const CatalogItemBaseFields = {
   id: Schema.String,
-  tenantId: Schema.String,
+  orgId: Schema.String,
   name: Schema.String,
   // Plain category id string for now — Category becomes a real entity in
   // #1003, at which point this stays a string FK (no shape change expected).
@@ -36,10 +36,10 @@ const CatalogItemBaseFields = {
   // Base price (cents) used unless overridden per unit.
   priceCents: Schema.Number,
   // Commission rule snapshot template. `null` = no commission (common for
-  // products in some tenants).
+  // products in some orgs).
   commission: Schema.NullOr(CommissionRule),
   // Where the item is offered/sold. Non-empty for bookable services; products
-  // may be sold tenant-wide but still carry their unit scope explicitly.
+  // may be sold org-wide but still carry their unit scope explicitly.
   unitIds: Schema.mutable(Schema.Array(Schema.String)),
   unitOverrides: Schema.NullOr(
     Schema.mutable(Schema.Record({ key: Schema.String, value: CatalogItemUnitOverride })),
@@ -153,7 +153,7 @@ export function resolveCatalogItemForUnit(
 export function catalogServiceToService(item: CatalogServiceItem): Service {
   return {
     id: item.id,
-    tenantId: item.tenantId,
+    orgId: item.orgId,
     name: item.name,
     category: item.categoryId,
     durationMinutes: item.durationMinutes,
@@ -176,7 +176,7 @@ export function catalogServiceToService(item: CatalogServiceItem): Service {
 export function catalogProductToProduct(item: CatalogProductItem): Product {
   return {
     id: item.id,
-    tenantId: item.tenantId,
+    orgId: item.orgId,
     name: item.name,
     sku: item.sku,
     priceCents: item.priceCents,
@@ -189,7 +189,7 @@ export function catalogProductToProduct(item: CatalogProductItem): Product {
 
 // Sanitized projection of a `CatalogItem` for the public catalog (brief 0023,
 // AC-08). Supersedes `PublicService`: projects BOTH kinds discriminated by
-// `kind`, dropping commission/unitOverrides/active/publicVisible/tenantId.
+// `kind`, dropping commission/unitOverrides/active/publicVisible/orgId.
 // `priceCents` is `null` when `priceVisibility === 'on_request'`. Services
 // carry `durationMinutes` (resolved per unit); products carry `null`.
 export const PublicCatalogItem = Schema.mutable(

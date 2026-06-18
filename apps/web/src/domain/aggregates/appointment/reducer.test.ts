@@ -10,7 +10,7 @@ function meta(version: number, timestamp = '2026-06-01T10:00:00.000Z'): EventMet
 
 const CREATED_DATA: Partial<AppointmentState> = {
   id: 'a1',
-  tenantId: 't1',
+  orgId: 't1',
   unitId: 'u1',
   professionalId: 'p1',
   customerId: 'c1',

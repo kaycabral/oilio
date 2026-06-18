@@ -21,7 +21,7 @@ const INITIAL_PLAN_SNAPSHOT: SubscriptionPlanSnapshot = {
 // tudo — estes valores só existem pra completude de tipo do replay vazio.
 export const INITIAL_SUBSCRIPTION_STATE: SubscriptionState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   unitId: '',
   customerId: '',
   customerUserId: null,

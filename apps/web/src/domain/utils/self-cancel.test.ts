@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CancellationPolicy } from '../types/tenant'
+import type { CancellationPolicy } from '../types/org'
 import { canCustomerCancelAppointment } from './self-cancel'
 
 const policyOff: CancellationPolicy = { enabled: false, minNoticeMinutes: 120 }
@@ -79,11 +79,11 @@ describe('canCustomerCancelAppointment', () => {
   // #1038 — snapshot-on-use. The helper decides purely from the policy it's
   // handed; the read-sites feed it `appointment.cancellationPolicySnapshot`.
   // This proves the booking-time policy (snapshot) drives the decision even
-  // when the tenant's LIVE policy later diverges.
-  describe('snapshot governs eligibility, not the live tenant policy (#1038)', () => {
+  // when the org's LIVE policy later diverges.
+  describe('snapshot governs eligibility, not the live org policy (#1038)', () => {
     it('booked under strict policy → still blocked even if live policy is now off', () => {
       // Appointment 1h ahead. Snapshot froze a 2h window → inside it → blocked,
-      // regardless of the tenant having since disabled cancellation.
+      // regardless of the org having since disabled cancellation.
       const snapshotAtCommit: CancellationPolicy = { enabled: true, minNoticeMinutes: 120 }
       const r = canCustomerCancelAppointment(
         apptAt('2026-06-01T13:00:00.000Z'),
@@ -98,7 +98,7 @@ describe('canCustomerCancelAppointment', () => {
 
     it('booked under disabled policy → still allowed even if live policy is now strict', () => {
       // Appointment 1h ahead. Snapshot froze a disabled policy → allowed, even
-      // though the tenant has since enabled a 2h window.
+      // though the org has since enabled a 2h window.
       const snapshotAtCommit: CancellationPolicy = { enabled: false, minNoticeMinutes: 120 }
       const r = canCustomerCancelAppointment(
         apptAt('2026-06-01T13:00:00.000Z'),

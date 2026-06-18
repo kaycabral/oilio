@@ -111,7 +111,7 @@ describe('isReservedSlug', () => {
     }
   })
 
-  it('does not reserve an arbitrary tenant slug', () => {
+  it('does not reserve an arbitrary org slug', () => {
     expect(isReservedSlug('barbearia-joao')).toBe(false)
   })
 })

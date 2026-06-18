@@ -41,13 +41,13 @@ function makeStore(initial: Record<string, FirestoreDoc> = {}) {
   }
 }
 
-const SUB_PATH = 'tenants/t1/subscriptions/s1'
-const ORDER_PATH = 'tenants/t1/orders/o1'
+const SUB_PATH = 'orgs/t1/subscriptions/s1'
+const ORDER_PATH = 'orgs/t1/orders/o1'
 
 // Snapshot completo de criação — o evento `created` é a fonte única do estado.
 const CREATED_PAYLOAD = {
   id: 's1',
-  tenantId: 't1',
+  orgId: 't1',
   unitId: 'u1',
   customerId: 'c1',
   customerUserId: 'u-c1',
@@ -153,7 +153,7 @@ describe('Feature 0020 — Definition of Done', () => {
           payload: {
             data: {
               id: 'o1',
-              tenantId: 't1',
+              orgId: 't1',
               unitId: 'u1',
               customerId: 'c1',
               appointmentId: 'a1',

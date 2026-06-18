@@ -48,10 +48,10 @@ function makeStore() {
 describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
   it('appointment — created → updated → rescheduled → cancelled', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/appointments/a1'
+    const path = 'orgs/t1/appointments/a1'
     const data = {
       id: 'a1',
-      tenantId: 't1',
+      orgId: 't1',
       unitId: 'u1',
       professionalId: 'pro1',
       customerId: 'c1',
@@ -118,10 +118,10 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
 
   it('appointment — no_show → no_show_reverted volta pra scheduled', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/appointments/a2'
+    const path = 'orgs/t1/appointments/a2'
     const data = {
       id: 'a2',
-      tenantId: 't1',
+      orgId: 't1',
       unitId: 'u1',
       professionalId: 'pro1',
       customerId: 'c1',
@@ -169,10 +169,10 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
 
   it('agenda_block — created → updated (one_off)', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/agenda_blocks/b1'
+    const path = 'orgs/t1/agenda_blocks/b1'
     const data = {
       id: 'b1',
-      tenantId: 't1',
+      orgId: 't1',
       unitId: 'u1',
       professionalId: null,
       reason: 'Almoço',

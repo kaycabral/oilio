@@ -50,10 +50,10 @@ function makeStore() {
 describe('Commission — replay reconstrói o doc completo (event-first)', () => {
   it('created (snapshot completo) → updated (marcado pago) → replay == projeção', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/commissions/c1'
+    const path = 'orgs/t1/commissions/c1'
     const data = {
       id: 'c1',
-      tenantId: 't1',
+      orgId: 't1',
       orderId: 'o1',
       orderItemId: 'item-1',
       attributedUserId: 'pro-1',
@@ -111,10 +111,10 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
   // não-profissional é event-sourced de ponta a ponta.
   it('comissão de membro não-profissional (recepção) reconstrói por attributedUserId', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/commissions/c-reception'
+    const path = 'orgs/t1/commissions/c-reception'
     const data = {
       id: 'c-reception',
-      tenantId: 't1',
+      orgId: 't1',
       orderId: 'o-standalone',
       orderItemId: 'item-product-1',
       // userId do membro recepção (não tem doc Professional).
@@ -154,10 +154,10 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
 
   it('eventos com estado legado de split continuam reconstruíveis (migração é leitura)', async () => {
     const { store, layer } = makeStore()
-    const path = 'tenants/t1/commissions/c-legacy'
+    const path = 'orgs/t1/commissions/c-legacy'
     const data = {
       id: 'c-legacy',
-      tenantId: 't1',
+      orgId: 't1',
       orderId: 'o1',
       orderItemId: 'item-1',
       attributedUserId: 'pro-1',
@@ -199,7 +199,7 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
   // estado conhecido — a reversão é auditável, nunca silenciosa.
   it('created (pendente) → deleted (reversão na reabertura) — replay mantém o stream', async () => {
     const { layer } = makeStore()
-    const path = 'tenants/t1/commissions/c-reversed'
+    const path = 'orgs/t1/commissions/c-reversed'
     await Effect.runPromise(
       Effect.gen(function* () {
         yield* appendEvent(CommissionConfig, path, {
@@ -208,7 +208,7 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
           payload: {
             data: {
               id: 'c-reversed',
-              tenantId: 't1',
+              orgId: 't1',
               orderId: 'o1',
               orderItemId: 'item-1',
               attributedUserId: 'pro-1',

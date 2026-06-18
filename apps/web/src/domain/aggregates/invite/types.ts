@@ -6,7 +6,7 @@ export type InviteState = StoredInvite & { readonly _version: number }
 
 export const INITIAL_INVITE_STATE: InviteState = {
   id: '',
-  tenantId: '',
+  orgId: '',
   role: 'professional',
   tokenHash: '',
   expiresAt: '',
