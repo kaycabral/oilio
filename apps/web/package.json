@@ -17,7 +17,7 @@
     "test:e2e:smoke": "pnpm db:exec \"playwright test --grep @smoke\"",
     "test:e2e:critical": "pnpm db:exec \"playwright test --grep @critical\"",
     "db:exec": "npx -y firebase-tools emulators:exec --only firestore,auth --project scheduling-local --config ../firebase.json",
-    "db:start": "npx -y firebase-tools emulators:start --project scheduling-local --config ../firebase.json",
+    "db:start": "npx -y firebase-tools emulators:start --project scheduling-local --config ../firebase.local.json",
     "db:stop": "pkill -f 'firebase-tools.*emulators:start|java.*firestore' || true",
     "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
     "type-coverage": "type-coverage --at-least 99 --strict --ignore-catch",
