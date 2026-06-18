@@ -7,7 +7,7 @@ import 'server-only'
 // Ephemeral, device-local active-unit cookie (brief 0029, AC-01). NOT persisted
 // in the DB — it only scopes the operational surfaces (Agenda, Comandas,
 // Bloqueios, Dashboard-hoje) for the current device. The value is validated
-// against the tenant's accessible units on every read, so a stale/forged id
+// against the org's accessible units on every read, so a stale/forged id
 // can never widen access.
 export const ACTIVE_UNIT_COOKIE_NAME = 'activeUnitId'
 
@@ -18,9 +18,9 @@ export const ACTIVE_UNIT_COOKIE_MAX_AGE_S = 60 * 60 * 24 * 365
 export type ActiveUnitContext = {
   // All units the member can operate. For a single-unit member
   // (membership.unitId set) this is the locked unit only; otherwise every unit
-  // of the tenant, ordered by name.
+  // of the org, ordered by name.
   units: Unit[]
-  // Resolved active unit id, or null when the tenant has no units yet (the app
+  // Resolved active unit id, or null when the org has no units yet (the app
   // stays navigable; operational pages render their empty state).
   activeUnitId: string | null
 }
@@ -29,7 +29,7 @@ export type ActiveUnitContext = {
  * Whether the member must pick a unit before entering the app (brief 0029,
  * AC-04): the interstitial shows on first access — no valid `activeUnitId`
  * cookie AND 2+ accessible units AND not pinned to a single unit. A single-unit
- * member or a one-unit tenant never sees it (enters directly).
+ * member or a one-unit org never sees it (enters directly).
  *
  * Kept separate from `resolveActiveUnit` (which always falls back to the first
  * unit) so the layout can distinguish "explicitly chosen" from "defaulted".
@@ -45,15 +45,15 @@ export async function needsUnitSelection(membership: Membership): Promise<boolea
 
 /**
  * Units the member is allowed to operate. A member locked to a single unit
- * (`membership.unitId`) only sees that one; otherwise all tenant units.
+ * (`membership.unitId`) only sees that one; otherwise all org units.
  *
- * Reads are tenant-scoped (`tenants/{tenantId}/units`) — never a
- * cross-tenant collectionGroup (multi-tenant invariant).
+ * Reads are org-scoped (`orgs/{orgId}/units`) — never a
+ * cross-org collectionGroup (multi-org invariant).
  */
 export async function listAccessibleUnits(membership: Membership): Promise<Unit[]> {
   const unitsSnap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(membership.tenantId)
+    .collection('orgs')
+    .doc(membership.orgId)
     .collection('units')
     .orderBy('name')
     .withConverter(fsConverter(StoredUnit))
@@ -66,7 +66,7 @@ export async function listAccessibleUnits(membership: Membership): Promise<Unit[
   // Archived units (brief 0033, bug 3 — `archivedAt` set by `deleteUnit`'s
   // soft-delete) MUST drop out of the selector AND of active-unit resolution:
   // a deleted unit must not be switchable to nor operable in. Mirrors
-  // `listUnitsForTenant` (unit-read.ts). Filtered in-memory (truthy
+  // `listUnitsForOrg` (unit-read.ts). Filtered in-memory (truthy
   // `archivedAt`) so legacy docs without the field still surface.
   const allUnits: Unit[] = unitsSnap.docs
     .map((d) => ({ ...d.data(), id: d.id, whatsapp: '', email: null }))

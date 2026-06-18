@@ -58,7 +58,7 @@ export function buildUser(uid: string, now: string, overrides: BuildUserOverride
     displayName: null,
     avatarUrl: null,
     emailVerified: false,
-    currentTenantId: null,
+    currentOrgId: null,
     taxIdentity: null,
     bio: null,
     specialties: null,
@@ -82,17 +82,17 @@ export function buildUser(uid: string, now: string, overrides: BuildUserOverride
     : { ...common, completionCompleted: false, whatsapp, birthDate }
 }
 
-// Per-tenant Customer shadow (`tenants/{tid}/customers/{id}`). PII lives on the
+// Per-org Customer shadow (`orgs/{tid}/customers/{id}`). PII lives on the
 // User (referenced by `userId`); this projection is operational only.
 export function buildStoredCustomer(
   id: string,
-  tenantId: string,
+  orgId: string,
   userId: string,
   now: string,
 ): StoredCustomer {
   return {
     id,
-    tenantId,
+    orgId,
     userId,
     archivedAt: null,
     deactivatedAt: null,
@@ -117,13 +117,13 @@ type BuildSubscriptionOverrides = Partial<Omit<Subscription, 'plan'>> & {
   plan?: Partial<SubscriptionPlanSnapshot>
 }
 
-// Subscription read-model (`tenants/{tid}/subscriptions/{id}`). Defaults to an
+// Subscription read-model (`orgs/{tid}/subscriptions/{id}`). Defaults to an
 // active, free subscription with a current period anchored at `now`. The
 // `cancelledAt`-iff-cancelled invariant is honored automatically from `status`
 // unless the caller overrides `cancelledAt` explicitly.
 export function buildSubscription(
   id: string,
-  tenantId: string,
+  orgId: string,
   now: string,
   overrides: BuildSubscriptionOverrides = {},
 ): Subscription {
@@ -132,7 +132,7 @@ export function buildSubscription(
   const cancelled = status === 'cancelled' || status === 'cancelled_for_non_payment'
   const base: Subscription = {
     id,
-    tenantId,
+    orgId,
     unitId: 'unit',
     customerId: 'cust',
     customerUserId: null,
@@ -151,18 +151,18 @@ export function buildSubscription(
   return { ...base, ...rest }
 }
 
-// Appointment read-model (`tenants/{tid}/appointments/{id}`). `customerUserId` is
+// Appointment read-model (`orgs/{tid}/appointments/{id}`). `customerUserId` is
 // non-null by contract (collectionGroup bridge) — defaulted here so seeds never
 // produce the illegal `null` the schema rejects.
 export function buildAppointment(
   id: string,
-  tenantId: string,
+  orgId: string,
   now: string,
   overrides: Partial<Appointment> = {},
 ): Appointment {
   const base: Appointment = {
     id,
-    tenantId,
+    orgId,
     unitId: 'unit',
     professionalId: 'pro',
     customerId: 'cust',
@@ -182,18 +182,18 @@ export function buildAppointment(
   return { ...base, ...overrides }
 }
 
-// Subscription Charge (`tenants/{tid}/charges/{id}`). `paidAt` defaults from
+// Subscription Charge (`orgs/{tid}/charges/{id}`). `paidAt` defaults from
 // `status` (paid → `now`) for realism; override for other states.
 export function buildCharge(
   id: string,
-  tenantId: string,
+  orgId: string,
   now: string,
   overrides: Partial<Charge> = {},
 ): Charge {
   const status = overrides.status ?? 'scheduled'
   const base: Charge = {
     id,
-    tenantId,
+    orgId,
     unitId: 'unit',
     subscriptionId: 'sub',
     customerId: 'cust',
@@ -213,18 +213,18 @@ export function buildCharge(
   return { ...base, ...overrides }
 }
 
-// Membership (`memberships/{tenantId}_{userId}`). Doc id derives from the pair.
+// Membership (`memberships/{orgId}_{userId}`). Doc id derives from the pair.
 // Permissions default to the role's canonical set.
 export function buildMembership(
-  tenantId: string,
+  orgId: string,
   userId: string,
   now: string,
   overrides: Partial<Membership> = {},
 ): Membership {
   const role = overrides.role ?? 'professional'
   const base: Membership = {
-    id: membershipDocId(tenantId, userId),
-    tenantId,
+    id: membershipDocId(orgId, userId),
+    orgId,
     userId,
     role,
     status: 'active',
@@ -238,12 +238,12 @@ export function buildMembership(
   return { ...base, ...overrides }
 }
 
-// Invite (`tenants/{tid}/invites/{id}`). The accepted-iff (`acceptedByUid`/
+// Invite (`orgs/{tid}/invites/{id}`). The accepted-iff (`acceptedByUid`/
 // `acceptedAt` present iff `status === 'accepted'`) invariant is honored from
 // `status` unless the caller overrides those fields explicitly.
 export function buildInvite(
   id: string,
-  tenantId: string,
+  orgId: string,
   now: string,
   overrides: Partial<Invite> = {},
 ): Invite {
@@ -251,7 +251,7 @@ export function buildInvite(
   const accepted = status === 'accepted'
   const base: Invite = {
     id,
-    tenantId,
+    orgId,
     email: 'invitee@example.com',
     role: 'professional',
     tokenHash: 'hash',
@@ -266,11 +266,11 @@ export function buildInvite(
   return { ...base, ...overrides }
 }
 
-// Commission (`tenants/{tid}/commissions/{id}`). The paidAt-iff-paid invariant is
+// Commission (`orgs/{tid}/commissions/{id}`). The paidAt-iff-paid invariant is
 // honored from `liquidationStatus` unless `paidAt` is overridden explicitly.
 export function buildCommission(
   id: string,
-  tenantId: string,
+  orgId: string,
   now: string,
   overrides: Partial<Commission> = {},
 ): Commission {
@@ -278,7 +278,7 @@ export function buildCommission(
   const paid = liquidationStatus === 'pago'
   const base: Commission = {
     id,
-    tenantId,
+    orgId,
     orderId: 'order',
     orderItemId: 'item',
     attributedUserId: 'user',

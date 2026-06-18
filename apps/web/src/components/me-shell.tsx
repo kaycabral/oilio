@@ -8,8 +8,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ME_NAV_SECTIONS } from './me-nav-items'
 
-// Customer self-service shell (`/me/*`): the same design `AppShell` the tenant
-// app uses, with the static customer nav and no tenant chrome (no unit/tenant
+// Customer self-service shell (`/me/*`): the same design `AppShell` the org
+// app uses, with the static customer nav and no org chrome (no unit/org
 // switcher, no notifications). Keeps the customer surface visually consistent
 // with the rest of the product instead of a bespoke centered page.
 export function MeShell({

@@ -116,69 +116,69 @@ async function runGuard(defPath: string, ticketPath: string, displayed: number |
 
 describe('appendEventGuarded — atomic discontinuation + lawful price (AC-08/AC-09)', () => {
   it('rejects when the definition is discontinued (archivedAt set)', async () => {
-    const tenant = uniq('t')
-    const defPath = `tenants/${tenant}/defs/d1`
+    const org = uniq('t')
+    const defPath = `orgs/${org}/defs/d1`
     await db
       .doc(defPath)
       .set({ id: 'd1', active: true, archivedAt: new Date().toISOString(), priceCents: 5000 })
 
-    const res = await runGuard(defPath, `tenants/${tenant}/tickets/k1`, 5000)
+    const res = await runGuard(defPath, `orgs/${org}/tickets/k1`, 5000)
     expect(res.ok).toBe(false)
     if (res.ok) return
     expect(res.error).toBe('descontinuado')
-    const written = await db.doc(`tenants/${tenant}/tickets/k1`).get()
+    const written = await db.doc(`orgs/${org}/tickets/k1`).get()
     expect(written.exists).toBe(false)
   })
 
   it('rejects when the definition is inactive (active=false)', async () => {
-    const tenant = uniq('t')
-    const defPath = `tenants/${tenant}/defs/d1`
+    const org = uniq('t')
+    const defPath = `orgs/${org}/defs/d1`
     await db.doc(defPath).set({ id: 'd1', active: false, archivedAt: null, priceCents: 5000 })
 
-    const res = await runGuard(defPath, `tenants/${tenant}/tickets/k1`, 5000)
+    const res = await runGuard(defPath, `orgs/${org}/tickets/k1`, 5000)
     expect(res.ok).toBe(false)
     if (res.ok) return
     expect(res.error).toBe('descontinuado')
   })
 
   it('charges the displayed price when the current price rose between display and commit', async () => {
-    const tenant = uniq('t')
-    const defPath = `tenants/${tenant}/defs/d1`
+    const org = uniq('t')
+    const defPath = `orgs/${org}/defs/d1`
     // Displayed 5000, but the live price was raised to 8000 → charge the lower (displayed).
     await db.doc(defPath).set({ id: 'd1', active: true, archivedAt: null, priceCents: 8000 })
 
-    const res = await runGuard(defPath, `tenants/${tenant}/tickets/k1`, 5000)
+    const res = await runGuard(defPath, `orgs/${org}/tickets/k1`, 5000)
     expect(res.ok).toBe(true)
-    const written = await db.doc(`tenants/${tenant}/tickets/k1`).get()
+    const written = await db.doc(`orgs/${org}/tickets/k1`).get()
     expect(written.data()?.priceCents).toBe(5000)
   })
 
   it('charges the current price when it dropped below the displayed price', async () => {
-    const tenant = uniq('t')
-    const defPath = `tenants/${tenant}/defs/d1`
+    const org = uniq('t')
+    const defPath = `orgs/${org}/defs/d1`
     // Displayed 5000, but the live price dropped to 3000 → charge the lower (current).
     await db.doc(defPath).set({ id: 'd1', active: true, archivedAt: null, priceCents: 3000 })
 
-    const res = await runGuard(defPath, `tenants/${tenant}/tickets/k1`, 5000)
+    const res = await runGuard(defPath, `orgs/${org}/tickets/k1`, 5000)
     expect(res.ok).toBe(true)
-    const written = await db.doc(`tenants/${tenant}/tickets/k1`).get()
+    const written = await db.doc(`orgs/${org}/tickets/k1`).get()
     expect(written.data()?.priceCents).toBe(3000)
   })
 
   it('charges the current price when no displayed price is threaded', async () => {
-    const tenant = uniq('t')
-    const defPath = `tenants/${tenant}/defs/d1`
+    const org = uniq('t')
+    const defPath = `orgs/${org}/defs/d1`
     await db.doc(defPath).set({ id: 'd1', active: true, archivedAt: null, priceCents: 4200 })
 
-    const res = await runGuard(defPath, `tenants/${tenant}/tickets/k1`, null)
+    const res = await runGuard(defPath, `orgs/${org}/tickets/k1`, null)
     expect(res.ok).toBe(true)
-    const written = await db.doc(`tenants/${tenant}/tickets/k1`).get()
+    const written = await db.doc(`orgs/${org}/tickets/k1`).get()
     expect(written.data()?.priceCents).toBe(4200)
   })
 
   it('closes the TOCTOU race: discontinuation committed mid-flight rejects the append', async () => {
-    const tenant = uniq('t')
-    const defPath = `tenants/${tenant}/defs/d1`
+    const org = uniq('t')
+    const defPath = `orgs/${org}/defs/d1`
     await db.doc(defPath).set({ id: 'd1', active: true, archivedAt: null, priceCents: 5000 })
 
     // Fire the guarded append and a discontinuation concurrently. Firestore
@@ -187,11 +187,11 @@ describe('appendEventGuarded — atomic discontinuation + lawful price (AC-08/AC
     // Either way the committed state is consistent — never an active ticket
     // against a state the transaction didn't observe.
     const [appendRes] = await Promise.all([
-      runGuard(defPath, `tenants/${tenant}/tickets/race`, 5000),
+      runGuard(defPath, `orgs/${org}/tickets/race`, 5000),
       db.doc(defPath).update({ archivedAt: new Date().toISOString() }),
     ])
 
-    const ticket = await db.doc(`tenants/${tenant}/tickets/race`).get()
+    const ticket = await db.doc(`orgs/${org}/tickets/race`).get()
     if (appendRes.ok) {
       // Append won the race — it observed the still-active definition.
       expect(ticket.exists).toBe(true)
@@ -203,16 +203,14 @@ describe('appendEventGuarded — atomic discontinuation + lawful price (AC-08/AC
   })
 
   it('serializes many concurrent appends against a single discontinuation deterministically', async () => {
-    const tenant = uniq('t')
-    const defPath = `tenants/${tenant}/defs/d1`
+    const org = uniq('t')
+    const defPath = `orgs/${org}/defs/d1`
     await db.doc(defPath).set({ id: 'd1', active: true, archivedAt: null, priceCents: 5000 })
     // Discontinue first, THEN fire appends — all must reject (no stale add).
     await db.doc(defPath).update({ archivedAt: new Date().toISOString() })
 
     const appends = await Promise.all(
-      Array.from({ length: 8 }, (_, i) =>
-        runGuard(defPath, `tenants/${tenant}/tickets/k${i}`, 5000),
-      ),
+      Array.from({ length: 8 }, (_, i) => runGuard(defPath, `orgs/${org}/tickets/k${i}`, 5000)),
     )
     expect(appends.every((r) => !r.ok)).toBe(true)
     for (const r of appends) {

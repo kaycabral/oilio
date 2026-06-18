@@ -6,7 +6,7 @@ import 'server-only'
 // The LGPD lifecycle emits three auditable events: `pii_erasure_requested`,
 // `pii_anonymized`, `pii_rectified`. Per the canonical Event Catalog
 // (Telemetria § "privacy") these events carry NO PII — only opaque refs: the
-// tenant id, an opaque `subject_ref` (the global `userId` or the derived
+// org id, an opaque `subject_ref` (the global `userId` or the derived
 // anonymized subject code — both opaque, never a name/contact), the `scope`,
 // and `fields_changed` as field NAMES ONLY (never their values). This keeps
 // the ADR 0010 invariant (PII never in an event payload, audited by
@@ -24,7 +24,7 @@ export type PiiEventName = 'pii_erasure_requested' | 'pii_anonymized' | 'pii_rec
 // anonymized subject code) — never a name/whatsapp/email. `fieldsChanged`
 // carries field NAMES only (e.g. `displayName`), never the new values.
 export type PiiEventPayload = {
-  readonly tenantId: string | null
+  readonly orgId: string | null
   readonly subjectRef: string
   readonly scope: 'account'
   readonly requestedBy?: string
@@ -47,7 +47,7 @@ export async function emitPiiEvent(event: PiiEventName, payload: PiiEventPayload
 
   const record: Record<string, unknown> = {
     event,
-    tenant_id: payload.tenantId,
+    org_id: payload.orgId,
     subject_ref: payload.subjectRef,
     scope: payload.scope,
     ts: new Date().toISOString(),

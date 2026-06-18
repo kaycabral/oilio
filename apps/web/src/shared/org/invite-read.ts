@@ -1,5 +1,5 @@
 // Server-side reads that hydrate Invite docs with the invitee email from the
-// per-tenant `invites_pii/{id}` collection. Mirrors `customer-read.ts` (the
+// per-org `invites_pii/{id}` collection. Mirrors `customer-read.ts` (the
 // reference LGPD pattern): the immutable event payload + projection carry NO
 // PII; the email lives in a separate mutable/deletable doc and is merged at
 // read time. See #1036 + ADR 0010 (PII fora de evento — direito à
@@ -9,7 +9,7 @@ import { type Invite, InvitePii, StoredInvite } from '@/domain'
 import { getAdminFirestore } from '@/shared/db'
 import { decodeAs, fsConverter } from '@/shared/db/converter'
 
-// What we actually persist under `tenants/{t}/invites/{id}` (the event
+// What we actually persist under `orgs/{t}/invites/{id}` (the event
 // projection) + the deletable PII doc at `invites_pii/{id}` (`InvitePii`,
 // holding `email`). Both re-exported from `@/domain` (read-model
 // source-of-truth) so existing importers (`team.actions`, `offboard-member`)
@@ -21,13 +21,13 @@ function mergeWithPii(i: StoredInvite, pii: InvitePii | undefined): Invite {
 }
 
 async function fetchPiiByIds(
-  tenantId: string,
+  orgId: string,
   ids: readonly string[],
 ): Promise<Map<string, InvitePii>> {
   const unique = [...new Set(ids.filter((id) => Boolean(id)))]
   if (unique.length === 0) return new Map()
   const db = getAdminFirestore()
-  const piiCol = db.collection('tenants').doc(tenantId).collection('invites_pii')
+  const piiCol = db.collection('orgs').doc(orgId).collection('invites_pii')
   const refs = unique.map((id) => piiCol.doc(id))
   const snaps = await db.getAll(...refs)
   return new Map(
@@ -42,33 +42,33 @@ async function fetchPiiByIds(
 // Hydrate a batch of Invite docs in one round-trip to the PII collection.
 // Order is preserved.
 export async function enrichInvites(
-  tenantId: string,
+  orgId: string,
   invites: readonly StoredInvite[],
 ): Promise<Invite[]> {
   if (invites.length === 0) return []
   const pii = await fetchPiiByIds(
-    tenantId,
+    orgId,
     invites.map((i) => i.id),
   )
   return invites.map((i) => mergeWithPii(i, pii.get(i.id)))
 }
 
-// List all invites for a tenant, enriched with the invitee email.
-export async function listInvitesForTenant(tenantId: string): Promise<Invite[]> {
+// List all invites for a org, enriched with the invitee email.
+export async function listInvitesForOrg(orgId: string): Promise<Invite[]> {
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('invites')
     .withConverter(fsConverter(StoredInvite))
     .get()
   const stored = snap.docs.map((d) => ({ ...d.data(), id: d.id }))
-  return enrichInvites(tenantId, stored)
+  return enrichInvites(orgId, stored)
 }
 
-export async function getInviteById(tenantId: string, inviteId: string): Promise<Invite | null> {
+export async function getInviteById(orgId: string, inviteId: string): Promise<Invite | null> {
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('invites')
     .doc(inviteId)
     .withConverter(fsConverter(StoredInvite))
@@ -76,20 +76,20 @@ export async function getInviteById(tenantId: string, inviteId: string): Promise
   const data = snap.data()
   const stored = data ? { ...data, id: snap.id } : undefined
   if (!stored) return null
-  const [enriched] = await enrichInvites(tenantId, [stored])
+  const [enriched] = await enrichInvites(orgId, [stored])
   return enriched ?? null
 }
 
 // Write the PII doc directly (mutable, deletable, NOT event-sourced). Called
 // from the create-invite action alongside the domain event emission.
 export async function writeInvitePii(
-  tenantId: string,
+  orgId: string,
   inviteId: string,
   pii: InvitePii,
 ): Promise<void> {
   await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('invites_pii')
     .doc(inviteId)
     .set(pii)
@@ -98,10 +98,10 @@ export async function writeInvitePii(
 // Delete the PII doc (LGPD erasure) — the invitee email is the only PII it
 // holds and it is deletable / not replayed. Used by the account anonymization
 // flow (brief 0032 / #1093) to scrub the subject's invite emails.
-export async function deleteInvitePii(tenantId: string, inviteId: string): Promise<void> {
+export async function deleteInvitePii(orgId: string, inviteId: string): Promise<void> {
   await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('invites_pii')
     .doc(inviteId)
     .delete()

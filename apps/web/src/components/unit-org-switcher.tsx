@@ -1,6 +1,6 @@
 'use client'
 
-import { useTenant } from '@/shared/tenant/tenant-context'
+import { useOrg } from '@/shared/org/org-context'
 import {
   Button,
   DropdownMenu,
@@ -15,27 +15,26 @@ import { useState, useTransition } from 'react'
 
 /**
  * Fixed top context switcher (brief 0029, AC-03/AC-05/AC-09). Shows
- * `tenant > unidade` and lets the user:
+ * `org > unidade` and lets the user:
  *  - switch the active unit (writes the ephemeral cookie + revalidates), and
- *  - switch the active tenant when they belong to 2+ (resets the unit context).
+ *  - switch the active org when they belong to 2+ (resets the unit context).
  *
  * A single-unit member (`membership.unitId`) is locked (AC-05): the unit picker
  * is hidden and only the active unit label is shown. When the user belongs to a
- * single tenant the tenant picker is omitted; with a single unit the unit picker
+ * single org the org picker is omitted; with a single unit the unit picker
  * collapses to a static label.
  */
-export function UnitTenantSwitcher() {
-  const { tenant, tenants, units, activeUnitId, unitLocked, setActiveUnit, setActiveTenant } =
-    useTenant()
+export function UnitOrgSwitcher() {
+  const { org, orgs, units, activeUnitId, unitLocked, setActiveUnit, setActiveOrg } = useOrg()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 
   const activeUnit = units.find((u) => u.id === activeUnitId) ?? null
-  const multiTenant = tenants.length >= 2
+  const multiOrg = orgs.length >= 2
   const canSwitchUnit = !unitLocked && units.length >= 2
   // No actionable choice anywhere → render a static breadcrumb (still shows
-  // "tenant > unidade" per AC-03, just not interactive).
-  const interactive = multiTenant || canSwitchUnit
+  // "org > unidade" per AC-03, just not interactive).
+  const interactive = multiOrg || canSwitchUnit
 
   const unitLabel = activeUnit?.name ?? 'Sem unidade'
 
@@ -46,17 +45,17 @@ export function UnitTenantSwitcher() {
     })
   }
 
-  function onSelectTenant(tenantId: string) {
+  function onSelectOrg(orgId: string) {
     setOpen(false)
     startTransition(() => {
-      void setActiveTenant(tenantId)
+      void setActiveOrg(orgId)
     })
   }
 
   const breadcrumb = (
     <span className="flex min-w-0 items-center gap-1.5">
       <Building2 className="text-muted-foreground size-4 shrink-0" aria-hidden />
-      <span className="truncate font-medium">{tenant.name}</span>
+      <span className="truncate font-medium">{org.name}</span>
       <span className="text-muted-foreground" aria-hidden>
         ›
       </span>
@@ -99,14 +98,14 @@ export function UnitTenantSwitcher() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
-        {multiTenant && (
+        {multiOrg && (
           <>
             <DropdownMenuLabel>Negócio</DropdownMenuLabel>
-            {tenants.map((t) => (
-              <DropdownMenuItem key={t.id} onSelect={() => onSelectTenant(t.id)}>
+            {orgs.map((t) => (
+              <DropdownMenuItem key={t.id} onSelect={() => onSelectOrg(t.id)}>
                 <Building2 className="size-4" aria-hidden />
                 <span className="truncate">{t.name}</span>
-                {t.id === tenant.id && <Check className="ml-auto size-4" aria-hidden />}
+                {t.id === org.id && <Check className="ml-auto size-4" aria-hidden />}
               </DropdownMenuItem>
             ))}
             {canSwitchUnit && <DropdownMenuSeparator />}

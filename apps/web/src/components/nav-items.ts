@@ -1,4 +1,4 @@
-import { canManageTenant, type Membership } from '@/domain'
+import { canManageOrg, type Membership } from '@/domain'
 import type { NavItem, NavSection } from '@cbrl/design'
 import {
   BarChart3,
@@ -18,23 +18,23 @@ import {
 } from 'lucide-react'
 
 // Minimum capability a nav entry requires to be shown (brief 0029, AC-08).
-// `manageTenant` gates tenant-admin surfaces (Configuração) and the
+// `manageOrg` gates org-admin surfaces (Configuração) and the
 // financeiro-admin item (Relatórios) — receptionists do not see
-// them. `undefined` = visible to every member of the tenant. Resolved against
+// them. `undefined` = visible to every member of the org. Resolved against
 // the membership role via the canonical RBAC helpers in `@/domain`
 // (never branch on `role` here directly).
-type NavCapability = 'manageTenant'
+type NavCapability = 'manageOrg'
 
-// SPIKE (hours mode): per-tenant facts that gate a nav entry, resolved at
-// request time (not from membership or a global flag). `usesAgenda` = the tenant
+// SPIKE (hours mode): per-org facts that gate a nav entry, resolved at
+// request time (not from membership or a global flag). `usesAgenda` = the org
 // has ≥1 unit in 'appointment' hours mode — drives whether the Agenda surface
-// shows. Multi-vertical: a retail-only tenant (no appointment units) loses it.
-type NavTenantSignal = 'usesAgenda'
-export type NavTenantSignals = { usesAgenda: boolean }
+// shows. Multi-vertical: a retail-only org (no appointment units) loses it.
+type NavOrgSignal = 'usesAgenda'
+export type NavOrgSignals = { usesAgenda: boolean }
 
 type GatedNavItem = NavItem & {
   requires?: NavCapability
-  requiresTenant?: NavTenantSignal
+  requiresOrg?: NavOrgSignal
 }
 type GatedNavSection = Omit<NavSection, 'items'> & { items: readonly GatedNavItem[] }
 
@@ -47,7 +47,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         label: 'Agenda',
         icon: CalendarDays,
         match: 'prefix',
-        requiresTenant: 'usesAgenda',
+        requiresOrg: 'usesAgenda',
       },
       // Sidebar lands these pre-filtered on the open items (the list's own
       // default is the neutral "all"); `isActive` matches on the path, so the
@@ -64,7 +64,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         label: 'Relatórios',
         icon: BarChart3,
         match: 'prefix',
-        requires: 'manageTenant',
+        requires: 'manageOrg',
       },
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: 'prefix' },
       {
@@ -72,7 +72,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         label: 'Copiloto',
         icon: Target,
         match: 'prefix',
-        requires: 'manageTenant',
+        requires: 'manageOrg',
       },
     ],
   },
@@ -92,21 +92,21 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         label: 'Unidades',
         icon: Store,
         match: 'prefix',
-        requires: 'manageTenant',
+        requires: 'manageOrg',
       },
       {
         href: '/team',
         label: 'Equipe',
         icon: ShieldCheck,
         match: 'prefix',
-        requires: 'manageTenant',
+        requires: 'manageOrg',
       },
       {
         href: '/company',
         label: 'Empresa',
         icon: Building,
         match: 'prefix',
-        requires: 'manageTenant',
+        requires: 'manageOrg',
       },
     ],
   },
@@ -115,7 +115,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
     // Meu perfil is self-service rectification (brief 0032, AC-06) and
     // Privacidade is self-service erasure (AC-07); both are kept out of the
     // admin-only Configuração section so receptionists still see them without
-    // gaining tenant-admin links.
+    // gaining org-admin links.
     label: 'Conta',
     items: [
       { href: '/settings/profile', label: 'Perfil', icon: UserCog, match: 'prefix' },
@@ -126,17 +126,13 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
 
 function hasCapability(membership: Membership, capability: NavCapability): boolean {
   switch (capability) {
-    case 'manageTenant':
-      return canManageTenant(membership.role)
+    case 'manageOrg':
+      return canManageOrg(membership.role)
   }
 }
 
-function canSeeItem(
-  membership: Membership,
-  signals: NavTenantSignals,
-  item: GatedNavItem,
-): boolean {
-  if (item.requiresTenant === 'usesAgenda' && !signals.usesAgenda) return false
+function canSeeItem(membership: Membership, signals: NavOrgSignals, item: GatedNavItem): boolean {
+  if (item.requiresOrg === 'usesAgenda' && !signals.usesAgenda) return false
   return item.requires === undefined || hasCapability(membership, item.requires)
 }
 
@@ -145,7 +141,7 @@ function canSeeItem(
 // sections that end up empty are dropped — so a receptionist loses the whole
 // Configuração section plus the financeiro-admin items, while owner/manager
 // see everything.
-export function getNavSections(membership: Membership, signals: NavTenantSignals): NavSection[] {
+export function getNavSections(membership: Membership, signals: NavOrgSignals): NavSection[] {
   return ALL_NAV_SECTIONS.flatMap((section) => {
     const items = section.items
       .filter((item) => canSeeItem(membership, signals, item))

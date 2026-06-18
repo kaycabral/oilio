@@ -7,7 +7,7 @@ import 'server-only'
 
 // CUSTOMER erasure cascade — brief 0032 / #1101 (AC-12 + AC-14, Cenário 7).
 //
-// When a CUSTOMER is erased (per-tenant block OR global anonymization), their
+// When a CUSTOMER is erased (per-org block OR global anonymization), their
 // operational footprint that has a forward effect must be stopped:
 //   1. Any ACTIVE subscription is cancelled immediately (`subscription.cancelled`,
 //      hard cut) so future renewals stop.
@@ -26,11 +26,11 @@ import 'server-only'
 // subscription/appointment projections denormalize) so it works whether or not
 // the customer shadow was already archived by the block.
 //
-// Scope: ALWAYS within a single tenant — all reads start from
-// `tenants/{tenantId}` (ADR 0004, no cross-tenant query). The caller decides the
-// tenant set: the per-tenant block passes the one tenant; the global
-// anonymization path iterates the subject's known tenants and calls this once
-// per tenant.
+// Scope: ALWAYS within a single org — all reads start from
+// `orgs/{orgId}` (ADR 0004, no cross-org query). The caller decides the
+// org set: the per-org block passes the one org; the global
+// anonymization path iterates the subject's known orgs and calls this once
+// per org.
 
 // Default actor stamped on the cancel events — PII-free, an enum-like marker
 // that the cancel was driven by an LGPD erasure. The operator-side customer
@@ -55,7 +55,7 @@ const ACTIVE_SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = [
 const PENDING_CHARGE_STATUSES = new Set(['scheduled', 'recovering'])
 
 export type EraseCustomerCascadeResult = {
-  // Whether the subject had at least one active subscription in this tenant when
+  // Whether the subject had at least one active subscription in this org when
   // the cascade ran. Surfaced to the caller so the informed-consent warning
   // (AC-12) can be shown before confirming, and reported post-erasure.
   hadActiveSubscription: boolean
@@ -68,16 +68,13 @@ export type EraseCustomerCascadeResult = {
 }
 
 // Detects whether the subject currently has an ACTIVE subscription in this
-// tenant — the fact the informed-consent warning (AC-12) is built on. Read-only;
+// org — the fact the informed-consent warning (AC-12) is built on. Read-only;
 // no side effects. An empty `userId` (anonymous walk-in) is always false.
-export async function hasActiveSubscriptionInTenant(
-  tenantId: string,
-  userId: string,
-): Promise<boolean> {
+export async function hasActiveSubscriptionInOrg(orgId: string, userId: string): Promise<boolean> {
   if (!userId) return false
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('subscriptions')
     .where('customerUserId', '==', userId)
     .where('status', 'in', ACTIVE_SUBSCRIPTION_STATUSES)
@@ -86,11 +83,11 @@ export async function hasActiveSubscriptionInTenant(
   return !snap.empty
 }
 
-// Runs the erasure cascade for `userId` as a CUSTOMER in `tenantId`. Idempotent
+// Runs the erasure cascade for `userId` as a CUSTOMER in `orgId`. Idempotent
 // + errors surface (AC-14). An empty `userId` is a no-op. Authorization is the
-// CALLER's responsibility (mirrors `blockSubjectInTenant`/`anonymizeAccount`).
-export async function eraseCustomerCascadeInTenant(
-  tenantId: string,
+// CALLER's responsibility (mirrors `blockSubjectInOrg`/`anonymizeAccount`).
+export async function eraseCustomerCascadeInOrg(
+  orgId: string,
   userId: string,
   actor: string = ERASURE_ACTOR,
 ): Promise<EraseCustomerCascadeResult> {
@@ -104,9 +101,9 @@ export async function eraseCustomerCascadeInTenant(
   }
 
   // 1 + 2. Active subscriptions → cancel immediately + stop pending charges.
-  const subResult = await cancelActiveSubscriptions(tenantId, userId, actor)
+  const subResult = await cancelActiveSubscriptions(orgId, userId, actor)
   // 3. Future appointments → cancel.
-  const cancelledAppointments = await cancelFutureAppointments(tenantId, userId, actor)
+  const cancelledAppointments = await cancelFutureAppointments(orgId, userId, actor)
 
   return {
     hadActiveSubscription: subResult.hadActive,
@@ -117,13 +114,13 @@ export async function eraseCustomerCascadeInTenant(
 }
 
 async function cancelActiveSubscriptions(
-  tenantId: string,
+  orgId: string,
   userId: string,
   actor: string,
 ): Promise<{ hadActive: boolean; cancelledSubscriptions: number; cancelledCharges: number }> {
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(tenantId)
-  const snap = await tenantRef
+  const orgRef = db.collection('orgs').doc(orgId)
+  const snap = await orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .where('customerUserId', '==', userId)
@@ -140,22 +137,18 @@ async function cancelActiveSubscriptions(
     // Hard cut (immediate) — NOT `cancel_scheduled` (soft, at period end). The
     // erasure severs the relationship now; the benefit does not run out the
     // period. Event-first: the reducer projects status='cancelled' + cancelledAt.
-    const cancelled = await emitEvent(
-      SubscriptionConfig,
-      `tenants/${tenantId}/subscriptions/${doc.id}`,
-      {
-        _tag: 'subscription.cancelled',
-        actorId: actor,
-        payload: { cancelledBy: actor },
-      },
-    )
+    const cancelled = await emitEvent(SubscriptionConfig, `orgs/${orgId}/subscriptions/${doc.id}`, {
+      _tag: 'subscription.cancelled',
+      actorId: actor,
+      payload: { cancelledBy: actor },
+    })
     // Erro à mostra (AC-14): a partial cascade is retryable, never silent.
     if (!cancelled.ok) {
       throw new Error(`Failed to cancel subscription ${doc.id}: ${cancelled.error}`)
     }
     cancelledSubscriptions += 1
 
-    cancelledCharges += await cancelPendingCharges(tenantId, doc.id, actor)
+    cancelledCharges += await cancelPendingCharges(orgId, doc.id, actor)
   }
 
   return { hadActive: snap.size > 0, cancelledSubscriptions, cancelledCharges }
@@ -164,16 +157,16 @@ async function cancelActiveSubscriptions(
 // Stops every never-collected charge of a subscription (`scheduled`/`recovering`)
 // so the recovery/billing loop ends. Past charges (paid/failed/refunded) are
 // left untouched — retained, de-identified. Idempotent: an already-`cancelled`
-// charge is skipped. Within-tenant query (allowed).
+// charge is skipped. Within-org query (allowed).
 async function cancelPendingCharges(
-  tenantId: string,
+  orgId: string,
   subscriptionId: string,
   actor: string,
 ): Promise<number> {
   const db = getAdminFirestore()
   const snap = await db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('charges')
     .withConverter(fsConverter(Charge))
     .where('subscriptionId', '==', subscriptionId)
@@ -185,7 +178,7 @@ async function cancelPendingCharges(
     if (!PENDING_CHARGE_STATUSES.has(charge.status)) continue
 
     const now = new Date().toISOString()
-    const res = await emitEvent(ChargeConfig, `tenants/${tenantId}/charges/${doc.id}`, {
+    const res = await emitEvent(ChargeConfig, `orgs/${orgId}/charges/${doc.id}`, {
       _tag: 'charge.cancelled',
       actorId: actor,
       payload: {
@@ -198,21 +191,21 @@ async function cancelPendingCharges(
   return cancelled
 }
 
-// Cancels the subject's FUTURE appointments in this tenant (`startAt` ahead of
+// Cancels the subject's FUTURE appointments in this org (`startAt` ahead of
 // now, still `scheduled`). Past appointments are LEFT (retained, neutral). The
-// customer footprint per tenant is small, so we filter the future/scheduled
+// customer footprint per org is small, so we filter the future/scheduled
 // subset in memory off the single-field `customerUserId` query — no range index
 // needed. Idempotent: an already-cancelled/completed/no-show appointment is
-// skipped. Within-tenant query (allowed).
+// skipped. Within-org query (allowed).
 async function cancelFutureAppointments(
-  tenantId: string,
+  orgId: string,
   userId: string,
   actor: string,
 ): Promise<number> {
   const db = getAdminFirestore()
   const snap = await db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
     .where('customerUserId', '==', userId)
@@ -233,7 +226,7 @@ async function cancelFutureAppointments(
       0,
       Math.round((new Date(appt.startAt).getTime() - nowMs) / 60000),
     )
-    const res = await emitEvent(AppointmentConfig, `tenants/${tenantId}/appointments/${doc.id}`, {
+    const res = await emitEvent(AppointmentConfig, `orgs/${orgId}/appointments/${doc.id}`, {
       _tag: 'appointment.cancelled',
       actorId: actor,
       payload: { cancelledBy: 'system', cancelledAt: now, noticeMinutes },

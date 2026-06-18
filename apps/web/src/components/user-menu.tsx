@@ -11,7 +11,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 // A single route shortcut shown above "Sair" in the account menu. The list is
-// open-ended — each context (tenant app, customer `/me`, …) passes whatever
+// open-ended — each context (org app, customer `/me`, …) passes whatever
 // shortcuts make sense (Perfil today; settings, billing, help… tomorrow).
 export type UserMenuShortcut = {
   href: string

@@ -4,8 +4,8 @@ import {
   ACTIVE_UNIT_COOKIE_MAX_AGE_S,
   ACTIVE_UNIT_COOKIE_NAME,
   listAccessibleUnits,
-} from '@/shared/tenant/active-unit'
-import { requireTenantCtx } from '@/shared/tenant/membership'
+} from '@/shared/org/active-unit'
+import { requireOrgCtx } from '@/shared/org/membership'
 import { cookies } from 'next/headers'
 
 export type SetActiveUnitResult = { ok: true } | { ok: false; error: string }
@@ -18,7 +18,7 @@ export type SetActiveUnitResult = { ok: true } | { ok: false; error: string }
  * action exists here so the shared context exposes a working `setActiveUnit`.
  */
 export async function setActiveUnit(unitId: string): Promise<SetActiveUnitResult> {
-  const result = await requireTenantCtx()
+  const result = await requireOrgCtx()
   if (!result.ok) return { ok: false, error: result.error }
 
   const { membership } = result.ctx

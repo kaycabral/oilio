@@ -6,13 +6,13 @@
 //   - /(public)/[slug]/book/actions.ts (public landing booking)
 //
 // Schema decided in #832 + #836: PII (name, whatsapp, email, birthDate)
-// lives on the global `users/{userId}` doc; per-tenant `customers/{id}`
+// lives on the global `users/{userId}` doc; per-org `customers/{id}`
 // only carries operational data (computed scores) + the
 // userId FK. See https://github.com/cbrl-dev/cbrl/wiki/02-Estrategia-Modelo-Identidade
 //
 // Idempotency: dedupe by whatsapp at the User level (a single User backs
-// the same WhatsApp across every tenant). A Customer doc is created
-// per-tenant; if one already exists for the same userId in this tenant we
+// the same WhatsApp across every org). A Customer doc is created
+// per-org; if one already exists for the same userId in this org we
 // patch its operational fields instead of inserting a duplicate.
 //
 // All Firestore writes go through the admin SDK (rules bypassed). Public
@@ -24,10 +24,10 @@ import { CustomerConfig } from '@/domain/aggregates'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
-import { linkCustomerTenant } from '@/shared/identity/tenant-links'
+import { linkCustomerOrg } from '@/shared/identity/org-links'
 import { randomUUID } from 'node:crypto'
 
-// What we actually persist under `tenants/{t}/customers/{id}`. The PII
+// What we actually persist under `orgs/{t}/customers/{id}`. The PII
 // fields on the public `Customer` type are merged in at read time — see
 // `customer-read.ts`. Re-exported from `@/domain` (the read-model
 // source-of-truth) so other persistence-layer writers (e.g. the dev seed in
@@ -35,7 +35,7 @@ import { randomUUID } from 'node:crypto'
 export type { StoredCustomer } from '@/domain'
 
 export type UpsertCustomerInput = {
-  tenantId: string
+  orgId: string
   name: string
   whatsappRaw: string
   email: string | null
@@ -61,7 +61,7 @@ function buildUserStub(
     displayName: input.name,
     avatarUrl: null,
     emailVerified: false,
-    currentTenantId: null,
+    currentOrgId: null,
     whatsapp,
     birthDate: input.birthDate,
     taxIdentity: null,
@@ -80,7 +80,7 @@ function buildUserStub(
 }
 
 // Non-destructive PII fill — only on stubs. Once a user claims the doc via OAuth
-// (`claimedAt != null`), the tenant can't write to the User anymore (data
+// (`claimedAt != null`), the org can't write to the User anymore (data
 // ownership — #832 / #839); the typed-in PII is silently ignored.
 async function fillStubPii(
   ref: FirebaseFirestore.DocumentReference,
@@ -99,7 +99,7 @@ async function fillStubPii(
 }
 
 // Resolve User by whatsapp (PII canonical channel). A match wins regardless of
-// which tenant first saw the User — the "global User" principle. Returns the
+// which org first saw the User — the "global User" principle. Returns the
 // userId, creating a stub or filling a matched stub's PII as needed.
 async function resolveUserId(
   db: ReturnType<typeof getAdminFirestore>,
@@ -138,18 +138,18 @@ export async function upsertCustomerWithUser(
 
   const userId = await resolveUserId(db, input, whatsapp, now)
 
-  // Resolve Customer in this tenant. Re-booking reuses the shadow: no
+  // Resolve Customer in this org. Re-booking reuses the shadow: no
   // operator-editable fields remain on it.
-  const tenantCustomers = db.collection('tenants').doc(input.tenantId).collection('customers')
-  const existing = await tenantCustomers.where('userId', '==', userId).limit(1).get()
+  const orgCustomers = db.collection('orgs').doc(input.orgId).collection('customers')
+  const existing = await orgCustomers.where('userId', '==', userId).limit(1).get()
   if (!existing.empty) {
     return { ok: true, customerId: existing.docs[0]!.id, userId }
   }
 
-  const ref = tenantCustomers.doc()
+  const ref = orgCustomers.doc()
   const customer: StoredCustomer = {
     id: ref.id,
-    tenantId: input.tenantId,
+    orgId: input.orgId,
     userId,
     archivedAt: null,
     deactivatedAt: null,
@@ -157,48 +157,48 @@ export async function upsertCustomerWithUser(
     updatedAt: now,
   }
   // Event-first: the projection writes the Customer doc (no parallel `ref.set`).
-  const created = await emitEvent(CustomerConfig, `tenants/${input.tenantId}/customers/${ref.id}`, {
+  const created = await emitEvent(CustomerConfig, `orgs/${input.orgId}/customers/${ref.id}`, {
     _tag: 'customer.created',
     actorId: userId,
     payload: { data: customer },
   })
   if (!created.ok) return { ok: false, error: created.error }
   // Saga step (brief 0032 / #1097, AC-10): identity-layer reverse index so the
-  // subject can later discover this establishment without a cross-tenant query.
-  await linkCustomerTenant(userId, input.tenantId)
+  // subject can later discover this establishment without a cross-org query.
+  await linkCustomerOrg(userId, input.orgId)
 
   return { ok: true, customerId: ref.id, userId }
 }
 
-// Idempotently materializes a Customer doc in `tenantId` for an already
+// Idempotently materializes a Customer doc in `orgId` for an already
 // existing `userId`. Used by the self-signup flow (#840) — the User doc
 // was created by the OAuth session route, PII was captured by the
-// completion step, so we only need the per-tenant operational shadow.
+// completion step, so we only need the per-org operational shadow.
 //
 // Idempotent on re-entry: a returning customer hitting `/{slug}/signup/done`
 // gets their existing Customer id back, untouched.
 export async function ensureSelfSignupCustomer(
-  tenantId: string,
+  orgId: string,
   userId: string,
 ): Promise<{ customerId: string; created: boolean }> {
   const db = getAdminFirestore()
-  const tenantCustomers = db.collection('tenants').doc(tenantId).collection('customers')
-  const existing = await tenantCustomers.where('userId', '==', userId).limit(1).get()
+  const orgCustomers = db.collection('orgs').doc(orgId).collection('customers')
+  const existing = await orgCustomers.where('userId', '==', userId).limit(1).get()
   if (!existing.empty) {
     return { customerId: existing.docs[0]!.id, created: false }
   }
-  const ref = tenantCustomers.doc()
+  const ref = orgCustomers.doc()
   const now = new Date().toISOString()
   const customer: StoredCustomer = {
     id: ref.id,
-    tenantId,
+    orgId,
     userId,
     archivedAt: null,
     deactivatedAt: null,
     createdAt: now,
     updatedAt: now,
   }
-  const ev = await emitEvent(CustomerConfig, `tenants/${tenantId}/customers/${ref.id}`, {
+  const ev = await emitEvent(CustomerConfig, `orgs/${orgId}/customers/${ref.id}`, {
     _tag: 'customer.created',
     actorId: userId,
     payload: { data: customer },
@@ -206,7 +206,7 @@ export async function ensureSelfSignupCustomer(
   if (!ev.ok) throw new Error(ev.error)
   // Saga step (brief 0032 / #1097, AC-10): record the identity-layer reverse
   // index for the self-signup customer relationship. References only, zero PII.
-  await linkCustomerTenant(userId, tenantId)
+  await linkCustomerOrg(userId, orgId)
   return { customerId: ref.id, created: true }
 }
 
@@ -216,7 +216,7 @@ export async function ensureSelfSignupCustomer(
 // this helper enforces that as a hard gate (data ownership, #832).
 export async function updateCustomerPii(
   customerId: string,
-  tenantId: string,
+  orgId: string,
   patch: {
     name?: string
     whatsappRaw?: string
@@ -226,8 +226,8 @@ export async function updateCustomerPii(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const db = getAdminFirestore()
   const customerSnap = await db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('customers')
     .doc(customerId)
     .withConverter(fsConverter(StoredCustomer))

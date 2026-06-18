@@ -33,8 +33,8 @@ export const BrasilApiCnpjResponse = Schema.Struct({
 export type BrasilApiCnpjResponse = typeof BrasilApiCnpjResponse.Type
 
 // What the lookup endpoint returns. Split by LGPD class so the caller
-// (`createTenant`, #1132) can route each part to its home: `profile` is
-// corporate (→ `tenant.created` event + `StoredTenant`), while `legalName` /
+// (`createOrg`, #1132) can route each part to its home: `profile` is
+// corporate (→ `org.created` event + `StoredOrg`), while `legalName` /
 // `tradeName` are PII (→ deletable doc). `profile.registrationStatus` drives
 // the ATIVA gate. See brief 0046.
 export type CompanyLookup = {

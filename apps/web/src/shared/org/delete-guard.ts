@@ -13,7 +13,7 @@
 // call `canDelete*` here so the UI's offered action and the server's rejection
 // can never drift apart.
 //
-// Query discipline (ADR 0004): every query starts at `tenants/{tenantId}` —
+// Query discipline (ADR 0004): every query starts at `orgs/{orgId}` —
 // never `collectionGroup` on operational data. We use `.limit(1)` existence
 // probes; the moment one active reference is found we stop.
 
@@ -40,8 +40,8 @@ const OrderItemsProbe = Schema.Struct({
 const OrderStatusProbe = Schema.Struct({ status: Schema.String })
 const ProUserIdProbe = Schema.Struct({ userId: Schema.optional(Schema.String) })
 
-function tenantRef(tenantId: string) {
-  return getAdminFirestore().collection('tenants').doc(tenantId)
+function orgRef(orgId: string) {
+  return getAdminFirestore().collection('orgs').doc(orgId)
 }
 
 // Future-scheduled appointment probe shared by the professional and customer
@@ -51,11 +51,11 @@ function tenantRef(tenantId: string) {
 // cancelled / no-show and past `scheduled` slots are historical (the
 // appointment snapshotted price/duration/commission), so they never block.
 async function hasFutureScheduledAppointment(
-  tenantId: string,
+  orgId: string,
   field: 'professionalId' | 'customerId',
   id: string,
 ): Promise<boolean> {
-  const appts = await tenantRef(tenantId)
+  const appts = await orgRef(orgId)
     .collection('appointments')
     .where(field, '==', id)
     .where('status', '==', 'scheduled')
@@ -87,8 +87,8 @@ export async function attachCanDelete<T extends { id: string }>(
 // at this plan (`plan.planId`). A cancelled / cancelled_for_non_payment
 // subscription is historical and keeps the plan resolvable via its own
 // snapshot, so it does not block.
-export async function planHasActiveReference(tenantId: string, planId: string): Promise<boolean> {
-  const snap = await tenantRef(tenantId)
+export async function planHasActiveReference(orgId: string, planId: string): Promise<boolean> {
+  const snap = await orgRef(orgId)
     .collection('subscriptions')
     .where('plan.planId', '==', planId)
     .withConverter(fsConverter(Subscription))
@@ -96,8 +96,8 @@ export async function planHasActiveReference(tenantId: string, planId: string): 
   return snap.docs.map((d) => d.data()).some((s) => isActiveSubscriptionStatus(s.status))
 }
 
-export async function canDeletePlan(tenantId: string, planId: string): Promise<boolean> {
-  return !(await planHasActiveReference(tenantId, planId))
+export async function canDeletePlan(orgId: string, planId: string): Promise<boolean> {
+  return !(await planHasActiveReference(orgId, planId))
 }
 
 // ── Catalog item ───────────────────────────────────────────────────────────
@@ -110,13 +110,13 @@ export async function canDeletePlan(tenantId: string, planId: string): Promise<b
 // coverage does (brief 0033 risk note: "comanda aberta + cobertura de
 // assinatura ativa").
 export async function catalogItemHasActiveReference(
-  tenantId: string,
+  orgId: string,
   catalogItemId: string,
 ): Promise<boolean> {
-  const tenant = tenantRef(tenantId)
+  const org = orgRef(orgId)
   // (a) Open orders referencing the item in any line. `items` is an array of
   // objects, so we scope by open status and scan the (small) open-order set.
-  const openOrders = await tenant
+  const openOrders = await org
     .collection('orders')
     .where('status', '==', 'open')
     .withConverter(fsConverter(OrderItemsProbe))
@@ -128,7 +128,7 @@ export async function catalogItemHasActiveReference(
 
   // (b) Active subscriptions whose frozen `plan.includedItemIds` snapshot
   // covers the item.
-  const covering = await tenant
+  const covering = await org
     .collection('subscriptions')
     .where('plan.includedItemIds', 'array-contains', catalogItemId)
     .withConverter(fsConverter(Subscription))
@@ -136,11 +136,8 @@ export async function catalogItemHasActiveReference(
   return covering.docs.map((d) => d.data()).some((s) => isActiveSubscriptionStatus(s.status))
 }
 
-export async function canDeleteCatalogItem(
-  tenantId: string,
-  catalogItemId: string,
-): Promise<boolean> {
-  return !(await catalogItemHasActiveReference(tenantId, catalogItemId))
+export async function canDeleteCatalogItem(orgId: string, catalogItemId: string): Promise<boolean> {
+  return !(await catalogItemHasActiveReference(orgId, catalogItemId))
 }
 
 // ── Unit ───────────────────────────────────────────────────────────────────
@@ -150,10 +147,10 @@ export async function canDeleteCatalogItem(
 // cancelled appointments are historical (snapshotted) and do not block. Catalog
 // items offered in the unit are editable config (the owner repoints `unitIds`),
 // so they no longer block on their own.
-export async function unitHasActiveReference(tenantId: string, unitId: string): Promise<boolean> {
-  const tenant = tenantRef(tenantId)
+export async function unitHasActiveReference(orgId: string, unitId: string): Promise<boolean> {
+  const org = orgRef(orgId)
   // Professional actively scoped to the unit → live dependency.
-  const pros = await tenant
+  const pros = await org
     .collection('professionals')
     .where('unitIds', 'array-contains', unitId)
     .limit(1)
@@ -162,7 +159,7 @@ export async function unitHasActiveReference(tenantId: string, unitId: string): 
 
   // Future scheduled appointment in the unit. Filter by `scheduled` status in
   // the query, then drop past-dated ones in memory via the shared predicate.
-  const appts = await tenant
+  const appts = await org
     .collection('appointments')
     .where('unitId', '==', unitId)
     .where('status', '==', 'scheduled')
@@ -171,8 +168,8 @@ export async function unitHasActiveReference(tenantId: string, unitId: string): 
   return appts.docs.map((d) => d.data()).some((data) => isFutureScheduledAppointment(data))
 }
 
-export async function canDeleteUnit(tenantId: string, unitId: string): Promise<boolean> {
-  return !(await unitHasActiveReference(tenantId, unitId))
+export async function canDeleteUnit(orgId: string, unitId: string): Promise<boolean> {
+  return !(await unitHasActiveReference(orgId, unitId))
 }
 
 // ── Professional ─────────────────────────────────────────────────────────────
@@ -192,12 +189,12 @@ export async function canDeleteUnit(tenantId: string, unitId: string): Promise<b
 // `professionalId`. Membership is keyed by the professional's `userId` (the
 // projection always carries a non-null link, #1045) at `memberships/{tid}_{uid}`.
 export async function professionalHasActiveReference(
-  tenantId: string,
+  orgId: string,
   professionalId: string,
 ): Promise<boolean> {
-  if (await hasFutureScheduledAppointment(tenantId, 'professionalId', professionalId)) return true
+  if (await hasFutureScheduledAppointment(orgId, 'professionalId', professionalId)) return true
 
-  const proSnap = await tenantRef(tenantId)
+  const proSnap = await orgRef(orgId)
     .collection('professionals')
     .doc(professionalId)
     .withConverter(fsConverter(ProUserIdProbe))
@@ -207,7 +204,7 @@ export async function professionalHasActiveReference(
 
   const memberSnap = await getAdminFirestore()
     .collection('memberships')
-    .doc(membershipDocId(tenantId, userId))
+    .doc(membershipDocId(orgId, userId))
     .withConverter(fsConverter(Membership))
     .get()
   const member = memberSnap.data()
@@ -215,10 +212,10 @@ export async function professionalHasActiveReference(
 }
 
 export async function canDeleteProfessional(
-  tenantId: string,
+  orgId: string,
   professionalId: string,
 ): Promise<boolean> {
-  return !(await professionalHasActiveReference(tenantId, professionalId))
+  return !(await professionalHasActiveReference(orgId, professionalId))
 }
 
 // ── Customer (operator delete — brief 0033, AC-07) ───────────────────────────
@@ -229,15 +226,12 @@ export async function canDeleteProfessional(
 // rule shared with the LGPD block AC-11e and professional offboarding 0041).
 //
 // An active subscription + future appointments do NOT block — they are
-// cascade-cancelled (`eraseCustomerCascadeInTenant`) and listed in the confirm
+// cascade-cancelled (`eraseCustomerCascadeInOrg`) and listed in the confirm
 // dialog (AC-10) so the operator sees the impact first. The deletion itself then
 // chooses hard-delete (no footprint) vs cascade + soft-archive (`deactivatedAt`,
-// name kept) — see `deleteCustomer`. `customerId` is the per-tenant shadow id.
-export async function customerHasOpenComanda(
-  tenantId: string,
-  customerId: string,
-): Promise<boolean> {
-  const openOrders = await tenantRef(tenantId)
+// name kept) — see `deleteCustomer`. `customerId` is the per-org shadow id.
+export async function customerHasOpenComanda(orgId: string, customerId: string): Promise<boolean> {
+  const openOrders = await orgRef(orgId)
     .collection('orders')
     .where('customerId', '==', customerId)
     .where('status', '==', 'open')
@@ -246,13 +240,13 @@ export async function customerHasOpenComanda(
   return !openOrders.empty
 }
 
-export async function canDeleteCustomer(tenantId: string, customerId: string): Promise<boolean> {
-  return !(await customerHasOpenComanda(tenantId, customerId))
+export async function canDeleteCustomer(orgId: string, customerId: string): Promise<boolean> {
+  return !(await customerHasOpenComanda(orgId, customerId))
 }
 
 // What removing this customer will affect — shown in the confirm dialog (AC-07/
 // AC-10: "the team sees what will be cancelled") AND consumed by `deleteCustomer`
-// to decide cascade vs hard-delete. All within-tenant reads (ADR 0004).
+// to decide cascade vs hard-delete. All within-org reads (ADR 0004).
 export type CustomerDeletionImpact = {
   // OPEN comandas — the blocker. Non-zero → deletion refused until resolved.
   openComandas: number
@@ -268,19 +262,19 @@ export type CustomerDeletionImpact = {
 }
 
 export async function getCustomerDeletionImpact(
-  tenantId: string,
+  orgId: string,
   customerId: string,
 ): Promise<CustomerDeletionImpact> {
-  const tenant = tenantRef(tenantId)
+  const org = orgRef(orgId)
 
-  const orders = await tenant
+  const orders = await org
     .collection('orders')
     .where('customerId', '==', customerId)
     .withConverter(fsConverter(OrderStatusProbe))
     .get()
   const openComandas = orders.docs.map((d) => d.data()).filter((o) => o.status === 'open').length
 
-  const subsSnap = await tenant
+  const subsSnap = await org
     .collection('subscriptions')
     .where('customerId', '==', customerId)
     .withConverter(fsConverter(Subscription))
@@ -292,7 +286,7 @@ export async function getCustomerDeletionImpact(
     ? { planName: activeSub.plan.name, periodEndAt: activeSub.currentPeriod.endAt }
     : null
 
-  const futureAppts = await tenant
+  const futureAppts = await org
     .collection('appointments')
     .where('customerId', '==', customerId)
     .where('status', '==', 'scheduled')
@@ -306,7 +300,7 @@ export async function getCustomerDeletionImpact(
   // already establish it cheaply; only probe appointments when neither did.
   let hasFootprint = !orders.empty || !subsSnap.empty || futureAppts.size > 0
   if (!hasFootprint) {
-    const anyAppt = await tenant
+    const anyAppt = await org
       .collection('appointments')
       .where('customerId', '==', customerId)
       .limit(1)

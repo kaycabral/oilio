@@ -41,21 +41,21 @@ function mergeWithUser(c: StoredCustomer, u: User | undefined): Customer {
   if (!u) return emptyEnrichment(c)
   // Anonymized accounts (LGPD #1095, AC-03) resolve to the neutral label
   // `Cliente ‹CODE›` — contact PII is scrubbed to null on the global doc. A
-  // customer blocked in THIS tenant (#1096/#1100, AC-09) resolves to the same
+  // customer blocked in THIS org (#1096/#1100, AC-09) resolves to the same
   // neutral label + blanked avatar (AC-13) here, even though the global account
   // keeps its name. The block is detected from the customer's own `archivedAt`
   // projection — never from the professional relationship (kept identifiable).
-  const blockedInTenant = isBlockedCustomer(c)
-  const name = resolveSubjectName(c.userId, u, 'Cliente', { blockedInTenant }) ?? ''
+  const blockedInOrg = isBlockedCustomer(c)
+  const name = resolveSubjectName(c.userId, u, 'Cliente', { blockedInOrg }) ?? ''
   return {
     ...c,
     name,
-    whatsapp: blockedInTenant ? '' : (u.whatsapp ?? ''),
-    email: blockedInTenant ? null : u.email,
-    birthDate: blockedInTenant ? null : u.birthDate,
+    whatsapp: blockedInOrg ? '' : (u.whatsapp ?? ''),
+    email: blockedInOrg ? null : u.email,
+    birthDate: blockedInOrg ? null : u.birthDate,
     // Avatar neutralized (AC-13) when blocked — the photo is a re-identification
-    // vector. The global User keeps its avatar; only this tenant blanks it.
-    avatarUrl: resolveSubjectAvatar(u, { blockedInTenant }),
+    // vector. The global User keeps its avatar; only this org blanks it.
+    avatarUrl: resolveSubjectAvatar(u, { blockedInOrg }),
     archivedAt: c.archivedAt ?? null,
     deactivatedAt: c.deactivatedAt ?? null,
   }
@@ -86,7 +86,7 @@ async function fetchUsersByIds(
 // its own materialized `archivedAt` and rendered with the neutral label/avatar
 // — no separate blocked-set read is needed (the fact lives on the shadow).
 export async function enrichCustomers(
-  _tenantId: string,
+  _orgId: string,
   customers: readonly StoredCustomer[],
 ): Promise<Customer[]> {
   if (customers.length === 0) return []
@@ -94,42 +94,39 @@ export async function enrichCustomers(
   return customers.map((c) => mergeWithUser(c, users.get(c.userId)))
 }
 
-// All customers of a tenant, INCLUDING blocked/archived ones (resolved to the
+// All customers of a org, INCLUDING blocked/archived ones (resolved to the
 // neutral label). Use for history/reports/detail where a past customer must
-// still resolve. For active lists/pickers use `listActiveCustomersForTenant`.
-export async function listCustomersForTenant(tenantId: string): Promise<Customer[]> {
+// still resolve. For active lists/pickers use `listActiveCustomersForOrg`.
+export async function listCustomersForOrg(orgId: string): Promise<Customer[]> {
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('customers')
     .withConverter(fsConverter(StoredCustomer))
     .get()
   // `id` vem do doc ref (fonte de verdade), nunca do campo denormalizado —
   // docs com `id` ausente/vazio (dado legado/sujo) quebrariam delete/links.
   const customers = snap.docs.map((d) => ({ ...d.data(), id: d.id }))
-  return enrichCustomers(tenantId, customers)
+  return enrichCustomers(orgId, customers)
 }
 
 // ACTIVE customers only — drops two distinct non-active states (filtered in JS;
-// the collection is tenant-scoped and small, avoiding an index on fields that
+// the collection is org-scoped and small, avoiding an index on fields that
 // are null for the overwhelming majority of docs):
 //   - `archivedAt` → LGPD block (#1100, AC-09/AC-11): resolves to the neutral
 //     label in history; gone from active lists/pickers.
 //   - `deactivatedAt` → operator removal (brief 0033, AC-07): keeps the NAME in
 //     history; gone from active lists/pickers.
-// History/reports still resolve both via `listCustomersForTenant`.
-export async function listActiveCustomersForTenant(tenantId: string): Promise<Customer[]> {
-  const all = await listCustomersForTenant(tenantId)
+// History/reports still resolve both via `listCustomersForOrg`.
+export async function listActiveCustomersForOrg(orgId: string): Promise<Customer[]> {
+  const all = await listCustomersForOrg(orgId)
   return all.filter((c) => c.archivedAt === null && c.deactivatedAt === null)
 }
 
-export async function getCustomerById(
-  tenantId: string,
-  customerId: string,
-): Promise<Customer | null> {
+export async function getCustomerById(orgId: string, customerId: string): Promise<Customer | null> {
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('customers')
     .doc(customerId)
     .withConverter(fsConverter(StoredCustomer))
@@ -137,6 +134,6 @@ export async function getCustomerById(
   const data = snap.data()
   const customer = data ? { ...data, id: snap.id } : undefined
   if (!customer) return null
-  const [enriched] = await enrichCustomers(tenantId, [customer])
+  const [enriched] = await enrichCustomers(orgId, [customer])
   return enriched ?? null
 }

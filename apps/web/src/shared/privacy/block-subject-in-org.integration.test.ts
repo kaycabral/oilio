@@ -1,4 +1,4 @@
-// Integration test for `blockSubjectInTenant` (#1096 + #1100 / brief 0032
+// Integration test for `blockSubjectInOrg` (#1096 + #1100 / brief 0032
 // AC-09/AC-11). Runs against the Firestore emulator via the admin SDK — no
 // mocks. The marker write + the event-first customer archive run server-side
 // and bypass Rules in the real app too.
@@ -15,7 +15,7 @@
 //
 // The shared (default) emulator db is wiped between test FILES, but vitest runs
 // files in parallel — a global DELETE would clobber a sibling suite mid-run. So
-// every fixture here uses a per-run-unique tenant/user id (Date.now + counter)
+// every fixture here uses a per-run-unique org/user id (Date.now + counter)
 // and we never wipe globally; reads target only our own ids.
 
 import { describe, expect, it, vi } from 'vitest'
@@ -26,7 +26,7 @@ vi.mock('next/headers', () => ({
 
 import type { BlockedSubject } from '@/domain'
 import { getAdminFirestore } from '@/shared/db'
-import { blockSubjectInTenant } from './block-subject-in-tenant'
+import { blockSubjectInOrg } from './block-subject-in-org'
 
 const db = getAdminFirestore()
 
@@ -63,7 +63,7 @@ async function seedUser(uid: string, email: string | null): Promise<void> {
       displayName: 'Subject Name',
       avatarUrl: 'https://example.com/avatar.png',
       emailVerified: true,
-      currentTenantId: null,
+      currentOrgId: null,
       whatsapp: '5511900000000',
       birthDate: null,
       taxIdentity: { kind: 'individual', taxId: '39053344705' },
@@ -81,14 +81,14 @@ async function seedUser(uid: string, email: string | null): Promise<void> {
     })
 }
 
-// Seeds a customer shadow doc for a userId in a tenant. The stored shape carries
+// Seeds a customer shadow doc for a userId in a org. The stored shape carries
 // no PII — only the operational projection + the userId FK. Returns the id.
-async function seedCustomerShadow(tenantId: string, userId: string): Promise<string> {
-  const ref = db.collection('tenants').doc(tenantId).collection('customers').doc()
+async function seedCustomerShadow(orgId: string, userId: string): Promise<string> {
+  const ref = db.collection('orgs').doc(orgId).collection('customers').doc()
   const now = new Date().toISOString()
   await ref.set({
     id: ref.id,
-    tenantId,
+    orgId,
     userId,
     tags: [],
     notes: null,
@@ -99,16 +99,16 @@ async function seedCustomerShadow(tenantId: string, userId: string): Promise<str
   return ref.id
 }
 
-describe('blockSubjectInTenant (customer-scoped)', () => {
-  it('writes the marker and archives the customer shadow in that tenant only; global account intact', async () => {
+describe('blockSubjectInOrg (customer-scoped)', () => {
+  it('writes the marker and archives the customer shadow in that org only; global account intact', async () => {
     const userId = uniqueId('subject')
     const email = `${userId}@example.com`
-    const tenantA = uniqueId('tenant')
+    const orgA = uniqueId('org')
     await seedUser(userId, email)
-    const customerId = await seedCustomerShadow(tenantA, userId)
-    const tenantRef = db.collection('tenants').doc(tenantA)
+    const customerId = await seedCustomerShadow(orgA, userId)
+    const orgRef = db.collection('orgs').doc(orgA)
 
-    const result = await blockSubjectInTenant(tenantA, userId)
+    const result = await blockSubjectInOrg(orgA, userId)
 
     expect(result.blocked).toBe(true)
     expect(result.archivedCustomers).toBe(1)
@@ -116,12 +116,12 @@ describe('blockSubjectInTenant (customer-scoped)', () => {
     expect(result.hadActiveSubscription).toBe(false)
 
     // Marker written with an ISO timestamp.
-    const marker = await tenantRef.collection('blocked_subjects').doc(userId).get()
+    const marker = await orgRef.collection('blocked_subjects').doc(userId).get()
     expect(marker.exists).toBe(true)
     expect(asBlockedSubject(marker.data()).blockedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
 
     // Customer shadow archived (event-first projection set `archivedAt`).
-    const customer = await tenantRef.collection('customers').doc(customerId).get()
+    const customer = await orgRef.collection('customers').doc(customerId).get()
     expect(customer.exists).toBe(true)
     expect(readStringField(customer.data(), 'archivedAt')).toMatch(/^\d{4}-\d{2}-\d{2}T/)
 
@@ -133,32 +133,32 @@ describe('blockSubjectInTenant (customer-scoped)', () => {
     expect(user?.anonymizedAt).toBeNull()
   })
 
-  it('does not leak into a second tenant where the subject is also a customer', async () => {
+  it('does not leak into a second org where the subject is also a customer', async () => {
     const userId = uniqueId('subject')
     const email = `${userId}@example.com`
-    const tenantA = uniqueId('tenant')
-    const tenantB = uniqueId('tenant')
+    const orgA = uniqueId('org')
+    const orgB = uniqueId('org')
     await seedUser(userId, email)
-    const custA = await seedCustomerShadow(tenantA, userId)
-    const custB = await seedCustomerShadow(tenantB, userId)
-    const refA = db.collection('tenants').doc(tenantA)
-    const refB = db.collection('tenants').doc(tenantB)
+    const custA = await seedCustomerShadow(orgA, userId)
+    const custB = await seedCustomerShadow(orgB, userId)
+    const refA = db.collection('orgs').doc(orgA)
+    const refB = db.collection('orgs').doc(orgB)
 
-    await blockSubjectInTenant(tenantA, userId)
+    await blockSubjectInOrg(orgA, userId)
 
-    // Tenant A archived + marked.
+    // Org A archived + marked.
     expect((await refA.collection('blocked_subjects').doc(userId).get()).exists).toBe(true)
     expect((await refA.collection('customers').doc(custA).get()).data()?.archivedAt).toMatch(
       /^\d{4}-\d{2}-\d{2}T/,
     )
 
-    // Tenant B fully intact — no marker, shadow not archived.
+    // Org B fully intact — no marker, shadow not archived.
     expect((await refB.collection('blocked_subjects').doc(userId).get()).exists).toBe(false)
     expect((await refB.collection('customers').doc(custB).get()).data()?.archivedAt).toBeNull()
   })
 
   it('is a no-op for an empty userId (anonymous walk-in)', async () => {
-    const result = await blockSubjectInTenant(uniqueId('tenant'), '')
+    const result = await blockSubjectInOrg(uniqueId('org'), '')
     expect(result).toEqual({ blocked: false, archivedCustomers: 0, hadActiveSubscription: false })
   })
 })

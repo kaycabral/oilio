@@ -5,8 +5,8 @@
 // snapshot covers the past). Covers all three entities the slice touches:
 // subscription-plan, catalog-item, unit.
 //
-// Every fixture uses a per-run-unique tenant id (Date.now + counter); we never
-// wipe globally and read only our own tenant's ids.
+// Every fixture uses a per-run-unique org id (Date.now + counter); we never
+// wipe globally and read only our own org's ids.
 
 import { type MembershipStatus, type SubscriptionStatus } from '@/domain'
 import { getAdminFirestore } from '@/shared/db'
@@ -29,66 +29,66 @@ import {
 const db = getAdminFirestore()
 
 let seq = 0
-function uniqueTenant(): string {
+function uniqueOrg(): string {
   seq += 1
   return `t-delguard-${Date.now()}-${seq}`
 }
 
-function tenant(tenantId: string) {
-  return db.collection('tenants').doc(tenantId)
+function org(orgId: string) {
+  return db.collection('orgs').doc(orgId)
 }
 
-async function seedPlan(tenantId: string): Promise<string> {
-  const ref = tenant(tenantId).collection('subscription_plans').doc()
-  await ref.set({ id: ref.id, tenantId, name: 'Plano X', archivedAt: null })
+async function seedPlan(orgId: string): Promise<string> {
+  const ref = org(orgId).collection('subscription_plans').doc()
+  await ref.set({ id: ref.id, orgId, name: 'Plano X', archivedAt: null })
   return ref.id
 }
 
 async function seedSubscription(
-  tenantId: string,
+  orgId: string,
   opts: { planId?: string; includedItemIds?: string[]; status: SubscriptionStatus },
 ): Promise<void> {
-  const ref = tenant(tenantId).collection('subscriptions').doc()
+  const ref = org(orgId).collection('subscriptions').doc()
   await ref.set(
-    buildSubscription(ref.id, tenantId, new Date().toISOString(), {
+    buildSubscription(ref.id, orgId, new Date().toISOString(), {
       status: opts.status,
       plan: { planId: opts.planId ?? 'unused', includedItemIds: opts.includedItemIds ?? [] },
     }),
   )
 }
 
-async function seedCatalogItem(tenantId: string): Promise<string> {
-  const ref = tenant(tenantId).collection('catalog_items').doc()
-  await ref.set({ id: ref.id, tenantId, name: 'Item X', kind: 'service', archivedAt: null })
+async function seedCatalogItem(orgId: string): Promise<string> {
+  const ref = org(orgId).collection('catalog_items').doc()
+  await ref.set({ id: ref.id, orgId, name: 'Item X', kind: 'service', archivedAt: null })
   return ref.id
 }
 
 async function seedOrder(
-  tenantId: string,
+  orgId: string,
   opts: { status: 'open' | 'closed' | 'cancelled'; refId: string },
 ): Promise<void> {
-  const ref = tenant(tenantId).collection('orders').doc()
+  const ref = org(orgId).collection('orders').doc()
   await ref.set({
     id: ref.id,
-    tenantId,
+    orgId,
     status: opts.status,
     items: [{ id: 'i1', kind: 'service', refId: opts.refId, name: 'Item X', quantity: 1 }],
   })
 }
 
-async function seedUnit(tenantId: string): Promise<string> {
-  const ref = tenant(tenantId).collection('units').doc()
-  await ref.set({ id: ref.id, tenantId, name: 'Unidade X', archivedAt: null })
+async function seedUnit(orgId: string): Promise<string> {
+  const ref = org(orgId).collection('units').doc()
+  await ref.set({ id: ref.id, orgId, name: 'Unidade X', archivedAt: null })
   return ref.id
 }
 
 async function seedAppointment(
-  tenantId: string,
+  orgId: string,
   opts: { unitId: string; status: 'scheduled' | 'completed' | 'cancelled'; startAt: string },
 ): Promise<void> {
-  const ref = tenant(tenantId).collection('appointments').doc()
+  const ref = org(orgId).collection('appointments').doc()
   await ref.set(
-    buildAppointment(ref.id, tenantId, new Date().toISOString(), {
+    buildAppointment(ref.id, orgId, new Date().toISOString(), {
       unitId: opts.unitId,
       status: opts.status,
       startAt: opts.startAt,
@@ -96,42 +96,42 @@ async function seedAppointment(
   )
 }
 
-async function seedProfessional(tenantId: string, unitId: string): Promise<void> {
-  const ref = tenant(tenantId).collection('professionals').doc()
-  await ref.set({ id: ref.id, tenantId, unitIds: [unitId] })
+async function seedProfessional(orgId: string, unitId: string): Promise<void> {
+  const ref = org(orgId).collection('professionals').doc()
+  await ref.set({ id: ref.id, orgId, unitIds: [unitId] })
 }
 
 // Professional projection carrying a `userId` link (the membership FK) +
 // optional unit scope. Returns the professional DOC id.
 async function seedProfessionalDoc(
-  tenantId: string,
+  orgId: string,
   opts: { userId: string; unitIds?: string[] },
 ): Promise<string> {
-  const ref = tenant(tenantId).collection('professionals').doc()
-  await ref.set({ id: ref.id, tenantId, userId: opts.userId, unitIds: opts.unitIds ?? [] })
+  const ref = org(orgId).collection('professionals').doc()
+  await ref.set({ id: ref.id, orgId, userId: opts.userId, unitIds: opts.unitIds ?? [] })
   return ref.id
 }
 
 async function seedMembership(
-  tenantId: string,
+  orgId: string,
   userId: string,
   status: MembershipStatus,
 ): Promise<void> {
-  const membership = buildMembership(tenantId, userId, new Date().toISOString(), { status })
+  const membership = buildMembership(orgId, userId, new Date().toISOString(), { status })
   await db.collection('memberships').doc(membership.id).set(membership)
 }
 
 async function seedProAppointment(
-  tenantId: string,
+  orgId: string,
   opts: {
     professionalId: string
     status: 'scheduled' | 'completed' | 'cancelled'
     startAt: string
   },
 ): Promise<void> {
-  const ref = tenant(tenantId).collection('appointments').doc()
+  const ref = org(orgId).collection('appointments').doc()
   await ref.set(
-    buildAppointment(ref.id, tenantId, new Date().toISOString(), {
+    buildAppointment(ref.id, orgId, new Date().toISOString(), {
       professionalId: opts.professionalId,
       status: opts.status,
       startAt: opts.startAt,
@@ -140,12 +140,12 @@ async function seedProAppointment(
 }
 
 async function seedCustomerAppointment(
-  tenantId: string,
+  orgId: string,
   opts: { customerId: string; status: 'scheduled' | 'completed' | 'cancelled'; startAt: string },
 ): Promise<void> {
-  const ref = tenant(tenantId).collection('appointments').doc()
+  const ref = org(orgId).collection('appointments').doc()
   await ref.set(
-    buildAppointment(ref.id, tenantId, new Date().toISOString(), {
+    buildAppointment(ref.id, orgId, new Date().toISOString(), {
       customerId: opts.customerId,
       status: opts.status,
       startAt: opts.startAt,
@@ -154,13 +154,13 @@ async function seedCustomerAppointment(
 }
 
 async function seedCustomerOrder(
-  tenantId: string,
+  orgId: string,
   opts: { customerId: string; status: 'open' | 'closed' | 'cancelled' },
 ): Promise<void> {
-  const ref = tenant(tenantId).collection('orders').doc()
+  const ref = org(orgId).collection('orders').doc()
   await ref.set({
     id: ref.id,
-    tenantId,
+    orgId,
     customerId: opts.customerId,
     status: opts.status,
     items: [],
@@ -168,12 +168,12 @@ async function seedCustomerOrder(
 }
 
 async function seedCustomerSubscription(
-  tenantId: string,
+  orgId: string,
   opts: { customerId: string; status: SubscriptionStatus; planName?: string; periodEndAt?: string },
 ): Promise<void> {
-  const ref = tenant(tenantId).collection('subscriptions').doc()
+  const ref = org(orgId).collection('subscriptions').doc()
   await ref.set(
-    buildSubscription(ref.id, tenantId, new Date().toISOString(), {
+    buildSubscription(ref.id, orgId, new Date().toISOString(), {
       customerId: opts.customerId,
       status: opts.status,
       plan: { planId: 'p1', name: opts.planName ?? 'Plano X' },
@@ -187,20 +187,20 @@ const past = () => new Date(Date.now() - 86_400_000).toISOString()
 
 describe('canDeletePlan — active vs historical subscription', () => {
   it('no reference → deletable', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const planId = await seedPlan(t)
     expect(await canDeletePlan(t, planId)).toBe(true)
   })
 
   it('active subscription → blocked', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const planId = await seedPlan(t)
     await seedSubscription(t, { planId, status: 'active' })
     expect(await canDeletePlan(t, planId)).toBe(false)
   })
 
   it('only a cancelled (historical) subscription → still deletable', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const planId = await seedPlan(t)
     await seedSubscription(t, { planId, status: 'cancelled' })
     await seedSubscription(t, { planId, status: 'cancelled_for_non_payment' })
@@ -210,20 +210,20 @@ describe('canDeletePlan — active vs historical subscription', () => {
 
 describe('canDeleteCatalogItem — open order / active coverage vs historical', () => {
   it('no reference → deletable', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const itemId = await seedCatalogItem(t)
     expect(await canDeleteCatalogItem(t, itemId)).toBe(true)
   })
 
   it('open order referencing it → blocked', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const itemId = await seedCatalogItem(t)
     await seedOrder(t, { status: 'open', refId: itemId })
     expect(await canDeleteCatalogItem(t, itemId)).toBe(false)
   })
 
   it('only closed/cancelled orders (historical) → still deletable', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const itemId = await seedCatalogItem(t)
     await seedOrder(t, { status: 'closed', refId: itemId })
     await seedOrder(t, { status: 'cancelled', refId: itemId })
@@ -231,14 +231,14 @@ describe('canDeleteCatalogItem — open order / active coverage vs historical', 
   })
 
   it('active subscription covering it → blocked', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const itemId = await seedCatalogItem(t)
     await seedSubscription(t, { includedItemIds: [itemId], status: 'active' })
     expect(await canDeleteCatalogItem(t, itemId)).toBe(false)
   })
 
   it('only a cancelled subscription covering it (historical) → still deletable', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const itemId = await seedCatalogItem(t)
     await seedSubscription(t, { includedItemIds: [itemId], status: 'cancelled' })
     expect(await canDeleteCatalogItem(t, itemId)).toBe(true)
@@ -247,27 +247,27 @@ describe('canDeleteCatalogItem — open order / active coverage vs historical', 
 
 describe('canDeleteUnit — active pro / future appointment vs historical', () => {
   it('no reference → deletable', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const unitId = await seedUnit(t)
     expect(await canDeleteUnit(t, unitId)).toBe(true)
   })
 
   it('professional scoped to the unit → blocked', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const unitId = await seedUnit(t)
     await seedProfessional(t, unitId)
     expect(await canDeleteUnit(t, unitId)).toBe(false)
   })
 
   it('future scheduled appointment → blocked', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const unitId = await seedUnit(t)
     await seedAppointment(t, { unitId, status: 'scheduled', startAt: future() })
     expect(await canDeleteUnit(t, unitId)).toBe(false)
   })
 
   it('only past/completed/cancelled appointments (historical) → still deletable', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const unitId = await seedUnit(t)
     await seedAppointment(t, { unitId, status: 'scheduled', startAt: past() })
     await seedAppointment(t, { unitId, status: 'completed', startAt: future() })
@@ -278,7 +278,7 @@ describe('canDeleteUnit — active pro / future appointment vs historical', () =
 
 describe('attachCanDelete — per-row precompute (AC-03)', () => {
   it('attaches the reference-based flag per row', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const free = await seedPlan(t)
     const used = await seedPlan(t)
     await seedSubscription(t, { planId: used, status: 'active' })
@@ -293,7 +293,7 @@ describe('attachCanDelete — per-row precompute (AC-03)', () => {
 
 describe('canDeleteProfessional — future appointment / active membership vs historical', () => {
   it('no reference (revoked membership, no future appt) → deletable', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const uid = `u-${Date.now()}`
     const proId = await seedProfessionalDoc(t, { userId: uid })
     await seedMembership(t, uid, 'revoked')
@@ -301,12 +301,12 @@ describe('canDeleteProfessional — future appointment / active membership vs hi
   })
 
   it('professional doc absent → deletable (nothing to orphan)', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     expect(await canDeleteProfessional(t, 'ghost')).toBe(true)
   })
 
   it('active membership → blocked', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const uid = `u-${Date.now()}`
     const proId = await seedProfessionalDoc(t, { userId: uid })
     await seedMembership(t, uid, 'active')
@@ -314,7 +314,7 @@ describe('canDeleteProfessional — future appointment / active membership vs hi
   })
 
   it('suspended membership (0029 deactivation, reversible) → still blocked', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const uid = `u-${Date.now()}`
     const proId = await seedProfessionalDoc(t, { userId: uid })
     await seedMembership(t, uid, 'suspended')
@@ -322,7 +322,7 @@ describe('canDeleteProfessional — future appointment / active membership vs hi
   })
 
   it('future scheduled appointment → blocked even after offboarding', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const uid = `u-${Date.now()}`
     const proId = await seedProfessionalDoc(t, { userId: uid })
     await seedMembership(t, uid, 'revoked')
@@ -331,7 +331,7 @@ describe('canDeleteProfessional — future appointment / active membership vs hi
   })
 
   it('only past/completed/cancelled appointments + revoked membership (historical) → deletable', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const uid = `u-${Date.now()}`
     const proId = await seedProfessionalDoc(t, { userId: uid })
     await seedMembership(t, uid, 'revoked')
@@ -347,33 +347,33 @@ describe('canDeleteProfessional — future appointment / active membership vs hi
 // are cascade-cancelled and surfaced in `getCustomerDeletionImpact`.
 describe('canDeleteCustomer — only an open comanda blocks', () => {
   it('no reference → deletable', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     expect(await canDeleteCustomer(t, `c-${Date.now()}`)).toBe(true)
   })
 
   it('open comanda → blocked', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const cid = `c-${Date.now()}`
     await seedCustomerOrder(t, { customerId: cid, status: 'open' })
     expect(await canDeleteCustomer(t, cid)).toBe(false)
   })
 
   it('future appointment → NOT blocked (cascade cancels it)', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const cid = `c-${Date.now()}`
     await seedCustomerAppointment(t, { customerId: cid, status: 'scheduled', startAt: future() })
     expect(await canDeleteCustomer(t, cid)).toBe(true)
   })
 
   it('active subscription → NOT blocked (cascade cancels it)', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const cid = `c-${Date.now()}`
     await seedCustomerSubscription(t, { customerId: cid, status: 'active' })
     expect(await canDeleteCustomer(t, cid)).toBe(true)
   })
 
   it('only historical refs (closed/cancelled order, past appt, cancelled sub) → deletable', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const cid = `c-${Date.now()}`
     await seedCustomerOrder(t, { customerId: cid, status: 'closed' })
     await seedCustomerOrder(t, { customerId: cid, status: 'cancelled' })
@@ -385,7 +385,7 @@ describe('canDeleteCustomer — only an open comanda blocks', () => {
 
 describe('getCustomerDeletionImpact — what removing the customer affects', () => {
   it('no footprint → zeros + hasFootprint false', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const impact = await getCustomerDeletionImpact(t, `c-${Date.now()}`)
     expect(impact).toEqual({
       openComandas: 0,
@@ -396,7 +396,7 @@ describe('getCustomerDeletionImpact — what removing the customer affects', () 
   })
 
   it('active sub + future appts → listed; open comanda counted; hasFootprint true', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const cid = `c-${Date.now()}`
     const due = future()
     await seedCustomerSubscription(t, {
@@ -416,7 +416,7 @@ describe('getCustomerDeletionImpact — what removing the customer affects', () 
   })
 
   it('only historical footprint → hasFootprint true, nothing active', async () => {
-    const t = uniqueTenant()
+    const t = uniqueOrg()
     const cid = `c-${Date.now()}`
     await seedCustomerOrder(t, { customerId: cid, status: 'closed' })
     const impact = await getCustomerDeletionImpact(t, cid)
