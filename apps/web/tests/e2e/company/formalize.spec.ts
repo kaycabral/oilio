@@ -68,8 +68,10 @@ test.describe('Formalização fiscal (brief 0048)', () => {
     await authedPage.getByRole('button', { name: 'Confirmar e formalizar' }).click()
 
     // Fiscal section now read-only — formalized badge + the data, no CTA.
+    // Scope to `main`: the success toast ("Empresa formalizada") carries the
+    // same text, so an unscoped query is a strict-mode violation.
     await expect(authedPage.getByText('Identidade fiscal')).toBeVisible()
-    await expect(authedPage.getByText('Empresa formalizada')).toBeVisible()
+    await expect(authedPage.getByRole('main').getByText('Empresa formalizada')).toBeVisible()
     await expect(authedPage.getByText(CNPJ_MASKED)).toBeVisible()
     await expect(authedPage.getByText('CABRAL TECNOLOGIA LTDA')).toBeVisible()
     await expect(authedPage.getByText('Formalizar empresa')).toHaveCount(0)
