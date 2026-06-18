@@ -294,14 +294,19 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
     test('sem unidade: dono cross-unit acessa as surfaces (sem interstitial, sem gate)', async ({
       authedPage,
     }) => {
-      await authedPage.goto('/agenda')
-      await expect(authedPage).toHaveURL(/\/agenda(\/|\?|$)/)
-      await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
-      await expect(authedPage).not.toHaveURL(/\/select-unit(\/|$)/)
-
+      // /orders renderiza seu empty-state; nenhum gate de onboarding/select-unit.
       await authedPage.goto('/orders')
       await expect(authedPage).toHaveURL(/\/orders(\/|\?|$)/)
       await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
+      await expect(authedPage).not.toHaveURL(/\/select-unit(\/|$)/)
+
+      // A Agenda é gated em ter ≥1 unidade em modo appointment (load-agenda.ts):
+      // com 0 unidades redireciona pra /orders (gating de capability, não gate de
+      // onboarding nem interstitial de seleção de unidade).
+      await authedPage.goto('/agenda')
+      await expect(authedPage).toHaveURL(/\/orders(\/|\?|$)/)
+      await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
+      await expect(authedPage).not.toHaveURL(/\/select-unit(\/|$)/)
     })
   })
 })

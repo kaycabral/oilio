@@ -157,17 +157,22 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
   test.describe('baseline — zero-unit org', () => {
     test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
 
-    test('owner com 0 unidades acessa as surfaces sem gate (empty-state)', async ({
+    test('owner com 0 unidades acessa as surfaces sem gate de onboarding', async ({
       authedPage,
     }) => {
-      // PRD Identidade v2 / brief 0046: NÃO há gate de first-unit. Um dono
-      // cross-unit com 0 unidades acessa as surfaces operacionais normalmente;
-      // as que dependem de unidade ativa renderizam seu empty-state, sem redirect.
+      // PRD Identidade v2 / brief 0046: NÃO há gate de first-unit nem de
+      // onboarding/select-unit. Um dono cross-unit com 0 unidades acessa as
+      // surfaces operacionais normalmente: /orders renderiza seu empty-state.
       await authedPage.goto('/orders')
       await expect(authedPage).toHaveURL(/\/orders(\/|\?|$)/)
       await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
+      await expect(authedPage).not.toHaveURL(/\/select-unit(\/|$)/)
+
+      // A Agenda é uma capability gated em ter ≥1 unidade em modo appointment
+      // (load-agenda.ts) — com 0 unidades ela redireciona pra /orders. É gating
+      // de capability por superfície, NÃO um gate de onboarding.
       await authedPage.goto('/agenda')
-      await expect(authedPage).toHaveURL(/\/agenda(\/|\?|$)/)
+      await expect(authedPage).toHaveURL(/\/orders(\/|\?|$)/)
       await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
     })
   })
