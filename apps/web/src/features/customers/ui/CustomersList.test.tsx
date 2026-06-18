@@ -32,7 +32,7 @@ function renderList(props: Parameters<typeof CustomersList>[0]) {
 function makeCustomer(over: Partial<Customer>): Customer {
   return {
     id: 'c1',
-    tenantId: 't1',
+    orgId: 't1',
     userId: 'u1',
     name: 'Maria Silva',
     whatsapp: '+5511900000000',

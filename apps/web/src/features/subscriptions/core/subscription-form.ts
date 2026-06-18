@@ -30,7 +30,7 @@ export function parseCreateForm(formData: FormData): CreatePayloadWithDisplay | 
   const billingCycle: BillingCycle = billingCycleRaw
 
   // Input do form é `date` (YYYY-MM-DD) — interpretamos como meia-noite UTC
-  // do dia escolhido. Suficiente p/ V0; precisão por timezone do tenant pode
+  // do dia escolhido. Suficiente p/ V0; precisão por timezone do org pode
   // entrar depois sem mudar contrato (mesmo dia, hora diferente).
   const startInput = formString(formData, 'startAt').trim()
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startInput)) return 'Data de início inválida'

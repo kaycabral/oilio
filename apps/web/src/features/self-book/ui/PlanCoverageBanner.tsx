@@ -2,7 +2,7 @@ import type { AllowedTimeScope, BookingLimits, StoredUnit } from '@/domain'
 
 // Brief 0019 Group D — AC-16. Discreet banner that reminds the
 // subscribed customer of the coverage they actually have on this
-// tenant. Server component — receives the already-resolved scope.
+// org. Server component — receives the already-resolved scope.
 // Skips render entirely when every axis is unrestricted (avulso path
 // or unrestricted plan): the avulso UX must not change.
 export function PlanCoverageBanner({
@@ -14,7 +14,7 @@ export function PlanCoverageBanner({
   unitAllowlist: Set<string> | null
   allowedTimeScope: AllowedTimeScope | null
   bookingLimits: BookingLimits | null
-  // Full list of units in the tenant — used to translate allow-listed
+  // Full list of units in the org — used to translate allow-listed
   // ids into human names. Order is rendered as-is (loader already sorts
   // by name).
   units: StoredUnit[]

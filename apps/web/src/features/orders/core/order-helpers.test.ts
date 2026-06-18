@@ -18,7 +18,7 @@ function form(fields: Record<string, string>): FormData {
 function service(over: Partial<CatalogServiceItem> = {}): CatalogServiceItem {
   return {
     id: 'svc-1',
-    tenantId: 't1',
+    orgId: 't1',
     name: 'Corte',
     categoryId: null,
     priceCents: 8000,

@@ -3,7 +3,7 @@ import { loadCustomersAndPlans } from '@/features/subscriptions/adapters/load-su
 import { SubscriptionForm } from '@/features/subscriptions/ui/SubscriptionForm'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
+import { getActiveOrgContext } from '@/shared/org/membership'
 import { Button, Main } from '@cbrl/design'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
@@ -12,13 +12,13 @@ export default async function NewSubscriptionPage() {
   if (!isFirebaseConfigured()) redirect('/')
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
   if (ctx.membership.role !== 'owner' && ctx.membership.role !== 'manager') {
     redirect('/subscriptions')
   }
 
-  const { customers, plans } = await loadCustomersAndPlans(ctx.membership.tenantId)
+  const { customers, plans } = await loadCustomersAndPlans(ctx.membership.orgId)
 
   if (plans.length === 0) {
     return (

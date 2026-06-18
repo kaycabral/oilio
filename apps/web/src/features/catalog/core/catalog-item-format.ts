@@ -53,7 +53,7 @@ export function overrideCommissionKindFor(
   return override.commission.kind
 }
 
-// A NEW item pre-checks the active unit (or the sole unit when the tenant has
+// A NEW item pre-checks the active unit (or the sole unit when the org has
 // exactly one); empty when neither resolves. Edits ignore this (they keep
 // `item.unitIds`).
 export function resolveDefaultNewUnitIds(

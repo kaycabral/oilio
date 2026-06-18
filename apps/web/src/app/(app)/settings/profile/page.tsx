@@ -1,20 +1,20 @@
 import { EditProfileForm } from '@/features/settings/ui/EditProfileForm'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
+import { getActiveOrgContext } from '@/shared/org/membership'
 import { Main } from '@cbrl/design'
 import { redirect } from 'next/navigation'
 
 // Self-service rectification surface (brief 0032 / AC-06): the subject edits
 // their own global profile. One write reflects live across every screen and
-// tenant (identity by reference) — no special flow, no per-record fan-out.
+// org (identity by reference) — no special flow, no per-record fan-out.
 export default async function ProfileSettingsPage() {
   if (!isFirebaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   return (

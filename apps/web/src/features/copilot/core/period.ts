@@ -1,6 +1,6 @@
-// Resolve the current measurement period (`YYYY-MM`) in the tenant timezone.
+// Resolve the current measurement period (`YYYY-MM`) in the org timezone.
 // Pure + injectable clock so it's unit-testable and timezone-correct (storage
-// is UTC, display/measurement is tenant-local — web/CLAUDE.md § Agenda).
+// is UTC, display/measurement is org-local — web/CLAUDE.md § Agenda).
 export function currentPeriod(timezone: string, now: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,

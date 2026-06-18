@@ -11,7 +11,7 @@ import {
 function unit(over: Partial<Unit> = {}): Unit {
   return {
     id: 'u1',
-    tenantId: 't1',
+    orgId: 't1',
     name: 'Centro',
     slug: 'centro',
     whatsapp: '5511999990000',
@@ -84,7 +84,7 @@ describe('resolveDefaultNewUnitIds', () => {
     expect(resolveDefaultNewUnitIds('u2', [unit({ id: 'u1' }), unit({ id: 'u2' })])).toEqual(['u2'])
   })
 
-  it('pre-checks the sole unit when the tenant has exactly one', () => {
+  it('pre-checks the sole unit when the org has exactly one', () => {
     expect(resolveDefaultNewUnitIds(null, [unit({ id: 'only' })])).toEqual(['only'])
   })
 

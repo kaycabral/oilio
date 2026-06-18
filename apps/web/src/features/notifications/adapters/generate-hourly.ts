@@ -5,21 +5,21 @@ import { Effect, Schema } from 'effect'
 
 const DEFAULT_ORDER_STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000
 
-const TenantDoc = Schema.Struct({
+const OrgDoc = Schema.Struct({
   id: Schema.String,
   timezone: Schema.String,
 })
-type TenantDoc = typeof TenantDoc.Type
+type OrgDoc = typeof OrgDoc.Type
 
 const UnitDoc = Schema.Struct({
   id: Schema.String,
-  tenantId: Schema.String,
+  orgId: Schema.String,
 })
 type UnitDoc = typeof UnitDoc.Type
 
 const OrderDoc = Schema.Struct({
   id: Schema.String,
-  tenantId: Schema.String,
+  orgId: Schema.String,
   status: Schema.String,
   appointmentId: Schema.NullOr(Schema.String),
 })
@@ -36,18 +36,18 @@ export function generateHourlyNotifications(
 ): Effect.Effect<number, EventValidationError, FirestoreService> {
   return Effect.gen(function* () {
     const firestore = yield* FirestoreService
-    const tenantDocs = yield* firestore.getDocs('tenants')
+    const orgDocs = yield* firestore.getDocs('orgs')
     let created = 0
 
-    for (const raw of tenantDocs) {
-      const tenant = decodeAs(TenantDoc, raw)
-      if (!tenant.id) continue
+    for (const raw of orgDocs) {
+      const org = decodeAs(OrgDoc, raw)
+      if (!org.id) continue
 
-      const unitDocs = yield* firestore.getDocs(`tenants/${tenant.id}/units`)
+      const unitDocs = yield* firestore.getDocs(`orgs/${org.id}/units`)
       const units = unitDocs.map((r) => decodeAs(UnitDoc, r))
       const unitMap = new Map(units.map((u) => [u.id, u]))
 
-      const orderCount = yield* generateOrderStaleNotifications(tenant, unitMap, now)
+      const orderCount = yield* generateOrderStaleNotifications(org, unitMap, now)
       created += orderCount
     }
 
@@ -56,13 +56,13 @@ export function generateHourlyNotifications(
 }
 
 function generateOrderStaleNotifications(
-  tenant: TenantDoc,
+  org: OrgDoc,
   unitMap: Map<string, UnitDoc>,
   now: Date,
 ): Effect.Effect<number, EventValidationError, FirestoreService> {
   return Effect.gen(function* () {
     const firestore = yield* FirestoreService
-    const orderDocs = yield* firestore.getDocs(`tenants/${tenant.id}/orders`, [
+    const orderDocs = yield* firestore.getDocs(`orgs/${org.id}/orders`, [
       { kind: 'where', field: 'status', op: '==', value: 'open' },
     ])
     let created = 0
@@ -71,9 +71,7 @@ function generateOrderStaleNotifications(
       const order = decodeAs(OrderDoc, raw)
       if (!order.appointmentId) continue
 
-      const apptDoc = yield* firestore.getDoc(
-        `tenants/${tenant.id}/appointments/${order.appointmentId}`,
-      )
+      const apptDoc = yield* firestore.getDoc(`orgs/${org.id}/appointments/${order.appointmentId}`)
       if (!apptDoc) continue
 
       const appointment = decodeAs(AppointmentDoc, apptDoc)
@@ -89,7 +87,7 @@ function generateOrderStaleNotifications(
 
       const eventKey = `order_stale-order-${order.id}-unit-${unitId}`
       const result = yield* createNotification({
-        tenantId: tenant.id,
+        orgId: org.id,
         unitId,
         type: 'order_stale',
         source: 'cron',

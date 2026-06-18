@@ -7,8 +7,8 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 
 export type AppointmentRowData = {
-  tenantId: string
-  tenantSlug: string
+  orgId: string
+  orgSlug: string
   unitSlug: string | null
   appointmentId: string
   serviceName: string
@@ -35,7 +35,7 @@ export function AppointmentRow({ data }: { data: AppointmentRowData }) {
     setError(null)
     startTransition(async () => {
       const res = await cancelOwnAppointment({
-        tenantId: data.tenantId,
+        orgId: data.orgId,
         appointmentId: data.appointmentId,
       })
       if (!res.ok) {
@@ -48,8 +48,8 @@ export function AppointmentRow({ data }: { data: AppointmentRowData }) {
 
   const effectiveStatus = cancelled ? 'cancelled' : data.status
   const rescheduleHref = data.unitSlug
-    ? (`/${data.tenantSlug}/${data.unitSlug}` as const)
-    : (`/${data.tenantSlug}` as const)
+    ? (`/${data.orgSlug}/${data.unitSlug}` as const)
+    : (`/${data.orgSlug}` as const)
 
   return (
     <li className="border-border space-y-2 rounded-md border p-4">

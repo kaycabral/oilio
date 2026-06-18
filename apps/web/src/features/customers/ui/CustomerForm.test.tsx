@@ -27,7 +27,7 @@ describe('CustomerForm — birthDate (#819)', () => {
       <CustomerForm
         customer={{
           id: 'c1',
-          tenantId: 't1',
+          orgId: 't1',
           userId: 'u1',
           name: 'Maria',
           whatsapp: '+5511900000000',
@@ -51,7 +51,7 @@ describe('CustomerForm — birthDate (#819)', () => {
       <CustomerForm
         customer={{
           id: 'c1',
-          tenantId: 't1',
+          orgId: 't1',
           userId: 'u1',
           name: 'Maria',
           whatsapp: '+5511900000000',

@@ -1,32 +1,32 @@
 import {
   BusinessHours,
   getBusinessHoursForDay,
-  getTenantDayBoundsUtc,
+  getOrgDayBoundsUtc,
   hhmmToMinutes,
-  shiftDateInTenantTz,
-  toTenantTime,
+  shiftDateInOrgTz,
+  toOrgTime,
 } from '@/domain'
 import { createNotification } from '@/domain/aggregates'
 import { FirestoreService, type EventValidationError } from '@/domain/effect'
 import { decodeAs } from '@/shared/db/converter'
 import { Effect, Option, Schema } from 'effect'
 
-const TenantDoc = Schema.Struct({
+const OrgDoc = Schema.Struct({
   id: Schema.String,
   timezone: Schema.String,
 })
-type TenantDoc = typeof TenantDoc.Type
+type OrgDoc = typeof OrgDoc.Type
 
 const UnitDoc = Schema.Struct({
   id: Schema.String,
-  tenantId: Schema.String,
+  orgId: Schema.String,
   businessHours: Schema.NullOr(BusinessHours),
 })
 type UnitDoc = typeof UnitDoc.Type
 
 const SubscriptionDoc = Schema.Struct({
   id: Schema.String,
-  tenantId: Schema.String,
+  orgId: Schema.String,
   customerId: Schema.String,
   status: Schema.String,
   currentPeriod: Schema.Struct({ startAt: Schema.String, endAt: Schema.String }),
@@ -37,7 +37,7 @@ const CustomerDoc = Schema.Struct({
   userId: Schema.String,
 })
 
-// birthDate is PII — it lives on the `users/{uid}` doc, not the tenant-scoped
+// birthDate is PII — it lives on the `users/{uid}` doc, not the org-scoped
 // customer doc (the customer doc omits all PII). The birthday cron joins the
 // two via `customer.userId`.
 const UserBirthDateDoc = Schema.Struct({
@@ -49,29 +49,29 @@ export function generateDailyNotifications(
 ): Effect.Effect<number, EventValidationError, FirestoreService> {
   return Effect.gen(function* () {
     const firestore = yield* FirestoreService
-    const tenantDocs = yield* firestore.getDocs('tenants')
+    const orgDocs = yield* firestore.getDocs('orgs')
     let created = 0
 
-    for (const raw of tenantDocs) {
-      const tenant = decodeAs(TenantDoc, raw)
-      if (!tenant.id || !tenant.timezone) continue
+    for (const raw of orgDocs) {
+      const org = decodeAs(OrgDoc, raw)
+      if (!org.id || !org.timezone) continue
 
-      const tenantTime = toTenantTime(now.toISOString(), tenant.timezone)
-      const today = tenantTime.dateISO
-      const currentMinutes = tenantTime.hour * 60 + tenantTime.minute
+      const orgTime = toOrgTime(now.toISOString(), org.timezone)
+      const today = orgTime.dateISO
+      const currentMinutes = orgTime.hour * 60 + orgTime.minute
 
-      const unitDocs = yield* firestore.getDocs(`tenants/${tenant.id}/units`)
+      const unitDocs = yield* firestore.getDocs(`orgs/${org.id}/units`)
       const units = unitDocs.map((r) => decodeAs(UnitDoc, r))
 
       for (const unit of units) {
         if (!unit.id) continue
 
-        if (!shouldProcessUnit(unit.businessHours, today, tenant.timezone, currentMinutes)) continue
+        if (!shouldProcessUnit(unit.businessHours, today, org.timezone, currentMinutes)) continue
 
-        const birthdayCount = yield* generateBirthdayNotifications(tenant, unit, today)
+        const birthdayCount = yield* generateBirthdayNotifications(org, unit, today)
         created += birthdayCount
 
-        const subCount = yield* generateSubscriptionTouchNotifications(tenant, unit, today)
+        const subCount = yield* generateSubscriptionTouchNotifications(org, unit, today)
         created += subCount
       }
     }
@@ -97,14 +97,14 @@ function shouldProcessUnit(
 }
 
 function generateBirthdayNotifications(
-  tenant: TenantDoc,
+  org: OrgDoc,
   unit: UnitDoc,
   today: string,
 ): Effect.Effect<number, EventValidationError, FirestoreService> {
   return Effect.gen(function* () {
     const firestore = yield* FirestoreService
     const monthDay = today.slice(5)
-    const customerDocs = yield* firestore.getDocs(`tenants/${tenant.id}/customers`)
+    const customerDocs = yield* firestore.getDocs(`orgs/${org.id}/customers`)
     let created = 0
 
     for (const raw of customerDocs) {
@@ -112,9 +112,9 @@ function generateBirthdayNotifications(
       if (!customer.userId) continue
       const userDoc = yield* firestore.getDoc(`users/${customer.userId}`)
       if (!userDoc) continue
-      // This is a best-effort cross-tenant sweep: a customer with no resolvable
+      // This is a best-effort cross-org sweep: a customer with no resolvable
       // birthDate (no user doc shape we can read) simply gets no reminder — one
-      // unreadable record must not abort notifications for every other tenant.
+      // unreadable record must not abort notifications for every other org.
       const parsed = Schema.decodeUnknownOption(UserBirthDateDoc)(userDoc)
       if (Option.isNone(parsed)) continue
       const { birthDate } = parsed.value
@@ -123,11 +123,11 @@ function generateBirthdayNotifications(
       const customerMonthDay = birthDate.slice(5)
       if (customerMonthDay !== monthDay) continue
 
-      const { endUtc } = getTenantDayBoundsUtc(today, tenant.timezone)
+      const { endUtc } = getOrgDayBoundsUtc(today, org.timezone)
       const eventKey = `birthday-${today}-customer-${customer.id}-unit-${unit.id}`
 
       const result = yield* createNotification({
-        tenantId: tenant.id,
+        orgId: org.id,
         unitId: unit.id,
         type: 'birthday',
         source: 'cron',
@@ -147,32 +147,32 @@ function generateBirthdayNotifications(
 }
 
 function generateSubscriptionTouchNotifications(
-  tenant: TenantDoc,
+  org: OrgDoc,
   unit: UnitDoc,
   today: string,
 ): Effect.Effect<number, EventValidationError, FirestoreService> {
   return Effect.gen(function* () {
     const firestore = yield* FirestoreService
-    const subDocs = yield* firestore.getDocs(`tenants/${tenant.id}/subscriptions`, [
+    const subDocs = yield* firestore.getDocs(`orgs/${org.id}/subscriptions`, [
       { kind: 'where', field: 'status', op: 'in', value: ['active', 'past_due'] },
     ])
     let created = 0
 
-    const tomorrow = shiftDateInTenantTz(today, 1, tenant.timezone)
-    const yesterday = shiftDateInTenantTz(today, -1, tenant.timezone)
-    const sevenDaysAgo = shiftDateInTenantTz(today, -7, tenant.timezone)
+    const tomorrow = shiftDateInOrgTz(today, 1, org.timezone)
+    const yesterday = shiftDateInOrgTz(today, -1, org.timezone)
+    const sevenDaysAgo = shiftDateInOrgTz(today, -7, org.timezone)
 
     for (const raw of subDocs) {
       const sub = decodeAs(SubscriptionDoc, raw)
       if (!sub.currentPeriod?.endAt) continue
 
-      const endDate = toTenantTime(sub.currentPeriod.endAt, tenant.timezone).dateISO
+      const endDate = toOrgTime(sub.currentPeriod.endAt, org.timezone).dateISO
       const touches = matchSubscriptionTouches(endDate, tomorrow, yesterday, sevenDaysAgo)
 
       for (const touch of touches) {
         const eventKey = `${touch.type}-sub-${sub.id}-unit-${unit.id}`
         const result = yield* createNotification({
-          tenantId: tenant.id,
+          orgId: org.id,
           unitId: unit.id,
           type: touch.type,
           source: 'cron',

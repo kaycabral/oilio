@@ -12,9 +12,9 @@ import {
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { getSessionUser } from '@/shared/firebase/admin'
-import { getActiveTenantContext, getUserDoc } from '@/shared/tenant/membership'
-import { getProfessionalByUserId } from '@/shared/tenant/professional-read'
-import { getTenant } from '@/shared/tenant/tenant'
+import { getActiveOrgContext, getUserDoc } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
+import { getProfessionalByUserId } from '@/shared/org/professional-read'
 import { notFound, redirect } from 'next/navigation'
 import 'server-only'
 
@@ -28,7 +28,7 @@ type ProfessionalEditData = {
   professionalEdit: ProfessionalEditContext | null
   professionalBlocks: AgendaBlock[]
   professionalUnits: StoredUnit[]
-  tenantTimezone: string
+  orgTimezone: string
 }
 
 export type MemberDetailData = {
@@ -46,30 +46,30 @@ const EMPTY_PROFESSIONAL_EDIT: ProfessionalEditData = {
   professionalEdit: null,
   professionalBlocks: [],
   professionalUnits: [],
-  tenantTimezone: 'America/Sao_Paulo',
+  orgTimezone: 'America/Sao_Paulo',
 }
 
 // Operational edit context for a professional member (AC-02): the projection +
-// the tenant's units/services for the form, plus this professional's own agenda
+// the org's units/services for the form, plus this professional's own agenda
 // blocks (brief 0036 #1082). Only called when the member is a professional.
 async function loadProfessionalEditContext(
-  tenantId: string,
+  orgId: string,
   userId: string,
 ): Promise<ProfessionalEditData> {
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(tenantId)
-  const [professional, unitSnap, servicesSnap, tenant] = await Promise.all([
-    getProfessionalByUserId(tenantId, userId),
-    tenantRef.collection('units').orderBy('name').withConverter(fsConverter(StoredUnit)).get(),
-    tenantRef
+  const orgRef = db.collection('orgs').doc(orgId)
+  const [professional, unitSnap, servicesSnap, org] = await Promise.all([
+    getProfessionalByUserId(orgId, userId),
+    orgRef.collection('units').orderBy('name').withConverter(fsConverter(StoredUnit)).get(),
+    orgRef
       .collection('catalog_items')
       .orderBy('name')
       .withConverter(fsConverter(CatalogItem))
       .get(),
-    getTenant(tenantId),
+    getOrg(orgId),
   ])
-  const tenantTimezone = tenant?.timezone ?? EMPTY_PROFESSIONAL_EDIT.tenantTimezone
-  if (!professional) return { ...EMPTY_PROFESSIONAL_EDIT, tenantTimezone }
+  const orgTimezone = org?.timezone ?? EMPTY_PROFESSIONAL_EDIT.orgTimezone
+  if (!professional) return { ...EMPTY_PROFESSIONAL_EDIT, orgTimezone }
 
   const units = unitSnap.docs.map((d) => d.data())
   // Unified catalog (brief 0023, #1004): kind service only, adapted to Service.
@@ -80,7 +80,7 @@ async function loadProfessionalEditContext(
   // The professional operates in a subset of units; a block applies to one of
   // them. Equality-only query → no composite index; sort in-memory.
   const professionalUnits = units.filter((u) => professional.unitIds.includes(u.id))
-  const blocksSnap = await tenantRef
+  const blocksSnap = await orgRef
     .collection('agenda_blocks')
     .where('professionalId', '==', professional.id)
     .withConverter(fsConverter(AgendaBlock))
@@ -92,7 +92,7 @@ async function loadProfessionalEditContext(
     professionalEdit: { professional, units, services },
     professionalBlocks,
     professionalUnits,
-    tenantTimezone,
+    orgTimezone,
   }
 }
 
@@ -103,26 +103,26 @@ async function loadProfessionalEditContext(
 export async function loadMemberDetailPage(userId: string): Promise<MemberDetailData> {
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
   if (!canManage) redirect('/team')
 
-  const tenantId = ctx.membership.tenantId
+  const orgId = ctx.membership.orgId
   const db = getAdminFirestore()
 
   const memberSnap = await db
     .collection('memberships')
     .withConverter(fsConverter(Membership))
-    .doc(membershipDocId(tenantId, userId))
+    .doc(membershipDocId(orgId, userId))
     .get()
   const member = memberSnap.data()
   if (!member) notFound()
 
   const user = await getUserDoc(userId)
   // Anonymized accounts (LGPD #1095, AC-03) resolve to the neutral `‹Role›
-  // ‹CODE›` keyed by the member's role. The CUSTOMER per-tenant block
+  // ‹CODE›` keyed by the member's role. The CUSTOMER per-org block
   // (#1096/#1100) is NOT applied here: member detail is the professional/
   // employment relationship (brief 0032 re-scope 04/06), retained IDENTIFIABLE
   // (art. 16) — a member blocked as a customer keeps their real name + contact
@@ -158,7 +158,7 @@ export async function loadMemberDetailPage(userId: string): Promise<MemberDetail
 
   // Operational edit context — only loaded for professional members (AC-02).
   const professionalData = isProfessional
-    ? await loadProfessionalEditContext(tenantId, userId)
+    ? await loadProfessionalEditContext(orgId, userId)
     : EMPTY_PROFESSIONAL_EDIT
 
   return {

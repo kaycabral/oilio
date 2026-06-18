@@ -19,7 +19,7 @@ function daysAgo(d: number): string {
 function makeOrder(p: Partial<Order> & { status: Order['status']; createdAt: string }): Order {
   const common = {
     id: 'c',
-    tenantId: 't',
+    orgId: 't',
     unitId: 'u',
     customerId: 'cust',
     appointmentId: null,
@@ -43,7 +43,7 @@ function makeOrder(p: Partial<Order> & { status: Order['status']; createdAt: str
 function makeCustomer(p: Partial<Customer> & { createdAt: string; updatedAt: string }): Customer {
   const base: Customer = {
     id: 'cust',
-    tenantId: 't',
+    orgId: 't',
     userId: 'user',
     name: 'Alice',
     whatsapp: '1',

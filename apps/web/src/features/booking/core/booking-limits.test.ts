@@ -11,7 +11,7 @@ const NOW = new Date('2026-06-10T12:00:00.000Z')
 function appt(over: Partial<Appointment> & { id: string; startAt: string }): Appointment {
   const base: Appointment = {
     id: over.id,
-    tenantId: 't1',
+    orgId: 't1',
     unitId: 'u1',
     professionalId: 'p1',
     customerId: 'c1',
@@ -37,7 +37,7 @@ describe('evaluateBookingLimits', () => {
       appointments: [],
       limits: {},
       proposedStartAt: '2026-06-10T15:00:00.000Z',
-      tenantTimezone: TZ,
+      orgTimezone: TZ,
       now: NOW,
     })
     expect(r).toEqual({ kind: 'ok' })
@@ -52,7 +52,7 @@ describe('evaluateBookingLimits', () => {
       ],
       limits: { maxPerDay: 1 },
       proposedStartAt: proposed,
-      tenantTimezone: TZ,
+      orgTimezone: TZ,
       now: NOW,
     })
     expect(r).toEqual({
@@ -67,7 +67,7 @@ describe('evaluateBookingLimits', () => {
       appointments: [appt({ id: 'x', startAt: '2026-06-10T13:00:00.000Z', status: 'cancelled' })],
       limits: { maxPerDay: 1 },
       proposedStartAt: '2026-06-10T20:00:00.000Z',
-      tenantTimezone: TZ,
+      orgTimezone: TZ,
       now: NOW,
     })
     expect(r).toEqual({ kind: 'ok' })
@@ -78,7 +78,7 @@ describe('evaluateBookingLimits', () => {
       appointments: [appt({ id: 'fut', startAt: '2026-06-12T10:00:00.000Z' })],
       limits: { requireCompleteBeforeNext: true },
       proposedStartAt: '2026-06-15T10:00:00.000Z',
-      tenantTimezone: TZ,
+      orgTimezone: TZ,
       now: NOW,
     })
     expect(r.kind).toBe('blocked')
@@ -93,7 +93,7 @@ describe('evaluateBookingLimits', () => {
       ],
       limits: { maxConcurrent: 2 },
       proposedStartAt: '2026-06-15T10:00:00.000Z',
-      tenantTimezone: TZ,
+      orgTimezone: TZ,
       now: NOW,
     })
     expect(r.kind).toBe('blocked')

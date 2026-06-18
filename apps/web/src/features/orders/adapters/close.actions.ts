@@ -23,7 +23,7 @@ import { emitEvent } from '@/shared/effect-bridge'
 
 import { fsConverter } from '@/shared/db/converter'
 
-import { requireManagerCtx, requireTenantCtx } from '@/shared/tenant/membership'
+import { requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
 
 import type { CloseOrderResult, OrderMutationResult } from '@/features/orders/core/order-results'
 import {
@@ -46,15 +46,15 @@ export type CloseOrderFormState = { ok: boolean; error?: string }
 export type UndoCloseOrderFormState = { ok: boolean; error?: string }
 
 export async function closeOrder(orderId: string, formData: FormData): Promise<CloseOrderResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
   const paymentMethodRaw = parsePaymentMethod(formString(formData, 'paymentMethod'))
 
   const db = getAdminFirestore()
-  const tenantId = r.ctx.membership.tenantId
-  const tenantRef = db.collection('tenants').doc(tenantId)
-  const loaded = await loadOpenOrder(tenantRef, orderId)
+  const orgId = r.ctx.membership.orgId
+  const orgRef = db.collection('orgs').doc(orgId)
+  const loaded = await loadOpenOrder(orgRef, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
   const itemsErr = validateClosableItems(loaded.order.items)
@@ -68,15 +68,15 @@ export async function closeOrder(orderId: string, formData: FormData): Promise<C
   }
   const paymentMethod: PaymentMethod | null = sale ? paymentMethodRaw : null
 
-  const consumption = await resolveSubscriptionConsumption(tenantRef, loaded.order, sale)
+  const consumption = await resolveSubscriptionConsumption(orgRef, loaded.order, sale)
   if (typeof consumption === 'string') return { ok: false, error: consumption }
 
   const closedAt = new Date().toISOString()
   const totals = computeOrderTotals(loaded.order.items, loaded.order.discountCents)
 
   const commissions = await buildOrderCommissions({
-    tenantId,
-    tenantRef,
+    orgId,
+    orgRef,
     orderId,
     items: loaded.order.items,
     paymentMethod,
@@ -84,8 +84,8 @@ export async function closeOrder(orderId: string, formData: FormData): Promise<C
   })
 
   const sagaErr = await emitCloseOrderSaga({
-    tenantId,
-    tenantRef,
+    orgId,
+    orgRef,
     actorUid: r.ctx.session.uid,
     orderId,
     order: loaded.order,
@@ -109,8 +109,8 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
   if (!r.ok) return { ok: false, error: r.error }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const orderRef = tenantRef.collection('orders').withConverter(fsConverter(Order)).doc(orderId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const orderRef = orgRef.collection('orders').withConverter(fsConverter(Order)).doc(orderId)
   const snap = await orderRef.get()
   const order = snap.data()
   if (!order) return { ok: false, error: 'Venda não encontrada' }
@@ -127,7 +127,7 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
   const now = new Date().toISOString()
 
   // Comissões geradas no close (projeção a remover do read model).
-  const commissionsSnap = await tenantRef
+  const commissionsSnap = await orgRef
     .collection('commissions')
     .withConverter(fsConverter(Commission))
     .where('orderId', '==', orderId)
@@ -149,7 +149,7 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
   }
 
   // Movimento de venda original (existe só se havia caixa aberto no close).
-  const saleSnap = await tenantRef
+  const saleSnap = await orgRef
     .collection('cash_movements')
     .withConverter(fsConverter(CashMovement))
     .where('orderId', '==', orderId)
@@ -164,7 +164,7 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
   let subscriptionRestore: { id: string; amount: number } | null = null
   const coveredQty = coveredItemQuantity(order.items)
   if (coveredQty > 0 && order.customerId) {
-    const subsSnap = await tenantRef
+    const subsSnap = await orgRef
       .collection('subscriptions')
       .where('customerId', '==', order.customerId)
       .where('status', '==', 'active')
@@ -188,12 +188,12 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
   } | null = null
   const sale = saleSnap.docs.map((d) => d.data())[0]
   if (sale) {
-    const reversalRef = tenantRef.collection('cash_movements').doc()
+    const reversalRef = orgRef.collection('cash_movements').doc()
     cashReversal = {
       ref: reversalRef,
       movement: {
         id: reversalRef.id,
-        tenantId: r.ctx.membership.tenantId,
+        orgId: r.ctx.membership.orgId,
         unitId: sale.unitId,
         kind: 'sale_reversal',
         direction: 'out',
@@ -209,8 +209,8 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
   }
 
   await emitUndoCompensation({
-    tenantId: r.ctx.membership.tenantId,
-    tenantRef,
+    orgId: r.ctx.membership.orgId,
+    orgRef,
     actorUid: r.ctx.session.uid,
     order,
     subscriptionRestore,
@@ -220,7 +220,7 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
   })
 
   // AC-10: o lifecycle vive no event store — emite `order.reopened` com o diff.
-  await emitEvent(OrderConfig, `tenants/${r.ctx.membership.tenantId}/orders/${orderId}`, {
+  await emitEvent(OrderConfig, `orgs/${r.ctx.membership.orgId}/orders/${orderId}`, {
     _tag: 'order.reopened',
     actorId: r.ctx.session.uid,
     payload: {

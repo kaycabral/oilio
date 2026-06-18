@@ -1,7 +1,7 @@
 'use client'
 
 import { readJson } from '@/shared/http'
-import { useTenant } from '@/shared/tenant/tenant-context'
+import { useOrg } from '@/shared/org/org-context'
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from '@cbrl/design'
 import { Bell } from 'lucide-react'
 import Link from 'next/link'
@@ -34,7 +34,7 @@ function validateNotificationList(data: unknown): NotificationListResponse {
 export function NotificationBell() {
   // Bell follows the active unit (brief 0039, AC-01) — no per-feature unit
   // picker; the top switcher owns unit context.
-  const { activeUnitId } = useTenant()
+  const { activeUnitId } = useOrg()
   const [notifications, setNotifications] = useState<NotificationSummary[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [open, setOpen] = useState(false)

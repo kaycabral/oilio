@@ -1,7 +1,7 @@
 import { groupAvailabilityByLocalTime } from '@/domain'
 import { resolveScopeForSessionBySlug } from '@/features/booking/adapters/subscription-scope.repo'
 import { getPublicAvailability } from '@/features/self-book/adapters/availability'
-import { getPublicTenantSummary } from '@/features/self-book/adapters/public-tenant'
+import { getPublicOrgSummary } from '@/features/self-book/adapters/public-org'
 import { PlanCoverageBanner } from '@/features/self-book/ui/PlanCoverageBanner'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -20,8 +20,8 @@ function readQuery(sp: Record<string, string | string[] | undefined>, key: strin
   return typeof v === 'string' && v.length > 0 ? v : null
 }
 
-function todayInTenantTz(tz: string): string {
-  // Render-side ISO date in the tenant tz. We don't have the tenant tz until
+function todayInOrgTz(tz: string): string {
+  // Render-side ISO date in the org tz. We don't have the org tz until
   // after the loader, so the page falls back to a sentinel and the loader
   // returns the validated date.
   const now = new Date()
@@ -62,10 +62,10 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
     )
   }
 
-  // Fast date fallback: today in the tenant tz once we have the bundle.
-  // We need the tenant tz before computing — temporary pass through a
+  // Fast date fallback: today in the org tz once we have the bundle.
+  // We need the org tz before computing — temporary pass through a
   // probe call with a sentinel and trust the loader's validation.
-  const probeDate = dateQuery ?? todayInTenantTz('America/Sao_Paulo')
+  const probeDate = dateQuery ?? todayInOrgTz('America/Sao_Paulo')
 
   // Resolve the visitor's subscription scope (brief 0019, Group B — AC-07).
   // The loader filters slots by `allowedTimeScope` and the unit-slug page
@@ -82,11 +82,11 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
   if (!bundle) notFound()
 
   const date = bundle.date
-  const rows = groupAvailabilityByLocalTime(bundle.slots, bundle.tenant.timezone)
+  const rows = groupAvailabilityByLocalTime(bundle.slots, bundle.org.timezone)
   const proNameById = new Map(bundle.professionals.map((p) => [p.id, p.name]))
 
   const dateFmt = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: bundle.tenant.timezone,
+    timeZone: bundle.org.timezone,
     weekday: 'long',
     day: '2-digit',
     month: 'long',
@@ -99,7 +99,7 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
   // Cheap fallback to `[bundle.unit]`.
   const summaryUnits =
     scope?.unitAllowlist && scope.unitAllowlist.size > 0
-      ? ((await getPublicTenantSummary(slug))?.units ?? [bundle.unit])
+      ? ((await getPublicOrgSummary(slug))?.units ?? [bundle.unit])
       : [bundle.unit]
 
   return (

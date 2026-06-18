@@ -6,7 +6,7 @@ import {
   undoCloseOrderFormAction,
 } from '@/features/orders/adapters/close.actions'
 import { formatBRL, PAYMENT_LABEL } from '@/features/orders/core/order-detail-format'
-import type { TenantMember } from '@/shared/tenant/membership'
+import type { OrgMember } from '@/shared/org/membership'
 import {
   Button,
   Dialog,
@@ -34,7 +34,7 @@ export function OrderClosePanel({
   onDone,
 }: {
   order: Order
-  memberByUserId: Record<string, TenantMember>
+  memberByUserId: Record<string, OrgMember>
   disabled: boolean
   onDone: () => void
 }) {

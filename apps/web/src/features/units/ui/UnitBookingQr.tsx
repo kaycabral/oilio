@@ -4,20 +4,20 @@ import QRCode from 'qrcode'
 import { CopyPublicUrlButton } from './CopyPublicUrlButton'
 
 // Booking-entry QR for a single unit (#864). Lives on the unit page since
-// the QR is a unit-level artifact — it points at `/{tenantSlug}/{unitSlug}`,
+// the QR is a unit-level artifact — it points at `/{orgSlug}/{unitSlug}`,
 // Step 1 of the self-book wizard (#844). Whoever scans lands straight on the
 // unit's agenda; the customer record is created on booking confirmation.
 export async function UnitBookingQr({
-  tenantSlug,
+  orgSlug,
   unitSlug,
   unitName,
 }: {
-  tenantSlug: string
+  orgSlug: string
   unitSlug: string
   unitName: string
 }) {
   const baseUrl = await resolveBaseUrl()
-  const url = `${baseUrl}/${tenantSlug}/${unitSlug}`
+  const url = `${baseUrl}/${orgSlug}/${unitSlug}`
   const qrSvg = await QRCode.toString(url, {
     type: 'svg',
     margin: 1,

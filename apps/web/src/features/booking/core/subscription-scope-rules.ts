@@ -67,12 +67,11 @@ export function checkCategoryCoverage(
 export function checkTimeScope(
   scope: Pick<SubscriptionScopeView, 'allowedTimeScope'>,
   startAt: string,
-  tenantTimezone: string,
+  orgTimezone: string,
   todayIso: string,
 ): ScopeBlocked | null {
   if (!scope.allowedTimeScope) return null
-  if (isInstantWithinTimeScope(scope.allowedTimeScope, startAt, tenantTimezone, todayIso))
-    return null
+  if (isInstantWithinTimeScope(scope.allowedTimeScope, startAt, orgTimezone, todayIso)) return null
   return {
     ok: false,
     rule: 'allowedTimeScope',

@@ -3,8 +3,8 @@ import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
-import { getCustomerById, listActiveCustomersForTenant } from '@/shared/tenant/customer-read'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
+import { getCustomerById, listActiveCustomersForOrg } from '@/shared/org/customer-read'
+import { getActiveOrgContext } from '@/shared/org/membership'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -25,12 +25,12 @@ export async function loadCustomersPage(
   if (!isFirebaseConfigured()) redirect('/')
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   const canDelete = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
   const searchQuery = rawParams.q ?? ''
-  const allCustomers = (await listActiveCustomersForTenant(ctx.membership.tenantId)).sort((a, b) =>
+  const allCustomers = (await listActiveCustomersForOrg(ctx.membership.orgId)).sort((a, b) =>
     a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }),
   )
   const customers = filterBySearch(allCustomers, searchQuery, (c) => [c.name])
@@ -45,7 +45,7 @@ export async function loadCustomersPage(
 export async function loadCustomerForEdit(customerId: string): Promise<Customer | null> {
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
-  return getCustomerById(ctx.membership.tenantId, customerId)
+  return getCustomerById(ctx.membership.orgId, customerId)
 }

@@ -15,7 +15,7 @@ vi.mock('@/hooks/use-cep-lookup', () => ({
 function buildUnit(overrides: Partial<Unit> = {}): Unit {
   return {
     id: 'u1',
-    tenantId: 't1',
+    orgId: 't1',
     name: 'Matriz',
     slug: 'matriz',
     whatsapp: '5511900000000',

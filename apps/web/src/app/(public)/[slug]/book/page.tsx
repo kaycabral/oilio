@@ -1,9 +1,9 @@
 import { StoredUnit, isOperational } from '@/domain'
-import { getPublicTenantBundle } from '@/features/self-book/adapters/public-tenant'
+import { getPublicOrgBundle } from '@/features/self-book/adapters/public-org'
 import { BookingForm } from '@/features/self-book/ui/BookingForm'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
-import { listProfessionalsForTenant } from '@/shared/tenant/professional-read'
+import { listProfessionalsForOrg } from '@/shared/org/professional-read'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
@@ -11,29 +11,29 @@ type PageProps = { params: Promise<{ slug: string }> }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params
-  const bundle = await getPublicTenantBundle(slug)
+  const bundle = await getPublicOrgBundle(slug)
   if (!bundle) return { title: 'Página não encontrada' }
-  return { title: `Agendar — ${bundle.tenant.name}` }
+  return { title: `Agendar — ${bundle.org.name}` }
 }
 
 export default async function PublicBookingPage({ params }: PageProps) {
   const { slug } = await params
-  const bundle = await getPublicTenantBundle(slug)
+  const bundle = await getPublicOrgBundle(slug)
   if (!bundle) notFound()
 
-  const { tenant, services } = bundle
+  const { org, services } = bundle
   if (services.length === 0) notFound()
 
   const db = getAdminFirestore()
   const [unitsSnap, allProfessionals] = await Promise.all([
     db
-      .collection('tenants')
-      .doc(tenant.id)
+      .collection('orgs')
+      .doc(org.id)
       .collection('units')
       .orderBy('name')
       .withConverter(fsConverter(StoredUnit))
       .get(),
-    listProfessionalsForTenant(tenant.id),
+    listProfessionalsForOrg(org.id),
   ])
 
   const units = unitsSnap.docs.map((d) => d.data())
@@ -50,7 +50,7 @@ export default async function PublicBookingPage({ params }: PageProps) {
   return (
     <main className="mx-auto max-w-md space-y-6 px-4 py-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Agendar em {tenant.name}</h1>
+        <h1 className="text-2xl font-semibold">Agendar em {org.name}</h1>
         <p className="text-muted-foreground text-sm">
           Preencha seus dados e escolha um horário. Confirmaremos por WhatsApp.
         </p>
@@ -64,7 +64,7 @@ export default async function PublicBookingPage({ params }: PageProps) {
           priceCents: s.priceCents,
         }))}
         professionals={professionals}
-        cancellationPolicy={tenant.cancellationPolicy}
+        cancellationPolicy={org.cancellationPolicy}
       />
     </main>
   )

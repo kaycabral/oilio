@@ -1,6 +1,6 @@
 'use client'
 
-import { setActiveUnit } from '@/shared/tenant/active-unit-actions'
+import { setActiveUnit } from '@/shared/org/active-unit-actions'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@cbrl/design'
 import { Store } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -9,13 +9,13 @@ import { useState, useTransition } from 'react'
 /**
  * First-access unit picker (brief 0029, AC-04). Writes the active-unit cookie
  * via the server action, then enters the app. Standalone (not under
- * TenantProvider) — it calls the action directly instead of via useTenant().
+ * OrgProvider) — it calls the action directly instead of via useOrg().
  */
 export function SelectUnitForm({
-  tenantName,
+  orgName,
   units,
 }: {
-  tenantName: string
+  orgName: string
   units: { id: string; name: string }[]
 }) {
   const router = useRouter()
@@ -42,8 +42,8 @@ export function SelectUnitForm({
       <CardHeader>
         <CardTitle>Escolha a unidade</CardTitle>
         <CardDescription>
-          {tenantName} tem mais de uma unidade. Selecione onde você vai operar — você troca a
-          qualquer momento pelo seletor no topo.
+          {orgName} tem mais de uma unidade. Selecione onde você vai operar — você troca a qualquer
+          momento pelo seletor no topo.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">

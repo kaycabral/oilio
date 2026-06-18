@@ -252,7 +252,7 @@ export function PlanForm({
           if (!restrictUnits) {
             return (
               <p className="text-muted-foreground pt-1 text-xs">
-                Sem restrição — clientes podem agendar em qualquer unidade do tenant.
+                Sem restrição — clientes podem agendar em qualquer unidade do org.
               </p>
             )
           }

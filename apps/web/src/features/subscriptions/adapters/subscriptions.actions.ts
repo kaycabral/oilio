@@ -18,8 +18,8 @@ import { emitEvent, emitEventGuarded } from '@/shared/effect-bridge'
 import { Effect, Schema } from 'effect'
 
 import { parseCreateForm } from '@/features/subscriptions/core/subscription-form'
-import { resolveActiveUnit } from '@/shared/tenant/active-unit'
-import { requireManagerCtx } from '@/shared/tenant/membership'
+import { resolveActiveUnit } from '@/shared/org/active-unit'
+import { requireManagerCtx } from '@/shared/org/membership'
 
 import type {
   ChargeMutationResult,
@@ -49,15 +49,15 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
   }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
 
   const [customerSnap, planSnap] = await Promise.all([
-    tenantRef
+    orgRef
       .collection('customers')
       .withConverter(fsConverter(CustomerUserIdProjection))
       .doc(parsed.customerId)
       .get(),
-    tenantRef
+    orgRef
       .collection('subscription_plans')
       .withConverter(fsConverter(SubscriptionPlan))
       .doc(parsed.planId)
@@ -85,7 +85,7 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
 
   // Bloqueia segunda assinatura ativa pro mesmo cliente — modelo V0 assume
   // 1 plano por cliente. Owner pode cancelar e criar nova se precisar trocar.
-  const existing = await tenantRef
+  const existing = await orgRef
     .collection('subscriptions')
     .where('customerId', '==', parsed.customerId)
     .where('status', 'in', ['pending', 'active', 'past_due', 'suspended'])
@@ -98,9 +98,9 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
   const period = computeBillingPeriod(parsed.startAt, parsed.billingCycle)
   const now = new Date().toISOString()
 
-  const subRef = tenantRef.collection('subscriptions').doc()
-  const chargeRef = tenantRef.collection('charges').doc()
-  const planPath = `tenants/${r.ctx.membership.tenantId}/subscription_plans/${parsed.planId}`
+  const subRef = orgRef.collection('subscriptions').doc()
+  const chargeRef = orgRef.collection('charges').doc()
+  const planPath = `orgs/${r.ctx.membership.orgId}/subscription_plans/${parsed.planId}`
 
   // Guard transacional de descontinuação + preço (brief 0033 AC-08/AC-09): o
   // read do plano (ativo + preço) acontece DENTRO da transação que appenda
@@ -113,7 +113,7 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
   let lawfulPriceCents = plan.priceCents
   const created = await emitEventGuarded({
     config: SubscriptionConfig,
-    aggregatePath: `tenants/${r.ctx.membership.tenantId}/subscriptions/${subRef.id}`,
+    aggregatePath: `orgs/${r.ctx.membership.orgId}/subscriptions/${subRef.id}`,
     actorId: r.ctx.session.uid,
     tag: 'subscription.created',
     guard: (reader) =>
@@ -136,7 +136,7 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
           _tag: 'ok' as const,
           payload: {
             id: subRef.id,
-            tenantId: r.ctx.membership.tenantId,
+            orgId: r.ctx.membership.orgId,
             unitId: activeUnitId,
             customerId: parsed.customerId,
             customerUserId,
@@ -157,7 +157,7 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
   // guard (min(exibido, vigente)), nunca o `plan.priceCents` do pre-flight.
   const charge: Charge = {
     id: chargeRef.id,
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     unitId: activeUnitId,
     subscriptionId: subRef.id,
     customerId: parsed.customerId,
@@ -176,7 +176,7 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
   }
   const chargeCreated = await emitEvent(
     ChargeConfig,
-    `tenants/${r.ctx.membership.tenantId}/charges/${chargeRef.id}`,
+    `orgs/${r.ctx.membership.orgId}/charges/${chargeRef.id}`,
     { _tag: 'charge.created', actorId: r.ctx.session.uid, payload: { data: charge } },
   )
   if (!chargeCreated.ok) return { ok: false, error: chargeCreated.error }
@@ -193,8 +193,8 @@ export async function cancelSubscription(
   if (!r.ok) return r
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const subRef = tenantRef
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const subRef = orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .doc(subscriptionId)
@@ -211,7 +211,7 @@ export async function cancelSubscription(
   // Auditoria vem do stream — sem `recordAudit` paralelo (AC-07).
   const scheduled = await emitEvent(
     SubscriptionConfig,
-    `tenants/${r.ctx.membership.tenantId}/subscriptions/${subscriptionId}`,
+    `orgs/${r.ctx.membership.orgId}/subscriptions/${subscriptionId}`,
     {
       _tag: 'subscription.cancel_scheduled',
       actorId: r.ctx.session.uid,
@@ -250,15 +250,15 @@ export async function changeSubscriptionPlan(
   if (!trimmedPlanId) return { ok: false, error: 'Plano de destino é obrigatório' }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const subRef = tenantRef
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const subRef = orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .doc(subscriptionId)
 
   const [subSnap, planSnap] = await Promise.all([
     subRef.get(),
-    tenantRef
+    orgRef
       .collection('subscription_plans')
       .withConverter(fsConverter(SubscriptionPlan))
       .doc(trimmedPlanId)
@@ -282,7 +282,7 @@ export async function changeSubscriptionPlan(
 
   const changed = await emitEvent(
     SubscriptionConfig,
-    `tenants/${r.ctx.membership.tenantId}/subscriptions/${subscriptionId}`,
+    `orgs/${r.ctx.membership.orgId}/subscriptions/${subscriptionId}`,
     {
       _tag: 'subscription.plan_changed',
       actorId: r.ctx.session.uid,
@@ -303,8 +303,8 @@ export async function reactivateSubscription(
   if (!r.ok) return r
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const subRef = tenantRef
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const subRef = orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .doc(subscriptionId)
@@ -317,7 +317,7 @@ export async function reactivateSubscription(
 
   const reactivated = await emitEvent(
     SubscriptionConfig,
-    `tenants/${r.ctx.membership.tenantId}/subscriptions/${subscriptionId}`,
+    `orgs/${r.ctx.membership.orgId}/subscriptions/${subscriptionId}`,
     { _tag: 'subscription.reactivated', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!reactivated.ok) return { ok: false, error: reactivated.error }

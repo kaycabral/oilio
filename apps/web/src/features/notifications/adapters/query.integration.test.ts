@@ -25,7 +25,7 @@ beforeAll(() => {
   db = getFirestore(app)
 })
 
-function uniqueTenantId(label: string) {
+function uniqueOrgId(label: string) {
   return `t-${label}-${Math.random().toString(36).slice(2, 8)}`
 }
 
@@ -37,15 +37,15 @@ type SeedOpts = {
   dispatchedAt?: string | null
 }
 
-async function seed(tenantId: string, id: string, opts: SeedOpts) {
+async function seed(orgId: string, id: string, opts: SeedOpts) {
   await db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('notifications')
     .doc(id)
     .set({
       id,
-      tenantId,
+      orgId,
       unitId: opts.unitId,
       type: opts.type ?? 'birthday',
       customerId: null,
@@ -65,12 +65,12 @@ async function seed(tenantId: string, id: string, opts: SeedOpts) {
 
 describe('fetchUnitNotifications (integration)', () => {
   it('counts unread + returns top N for the unit', async () => {
-    const tenantId = uniqueTenantId('topn')
-    await seed(tenantId, 'n1', { unitId: 'u1', createdAt: '2026-06-01T10:00:00.000Z' })
-    await seed(tenantId, 'n2', { unitId: 'u1', createdAt: '2026-06-01T11:00:00.000Z' })
-    await seed(tenantId, 'n3', { unitId: 'u1', createdAt: '2026-06-01T12:00:00.000Z' })
+    const orgId = uniqueOrgId('topn')
+    await seed(orgId, 'n1', { unitId: 'u1', createdAt: '2026-06-01T10:00:00.000Z' })
+    await seed(orgId, 'n2', { unitId: 'u1', createdAt: '2026-06-01T11:00:00.000Z' })
+    await seed(orgId, 'n3', { unitId: 'u1', createdAt: '2026-06-01T12:00:00.000Z' })
 
-    const result = await fetchUnitNotifications({ db, tenantId, unitId: 'u1', limit: 2 })
+    const result = await fetchUnitNotifications({ db, orgId, unitId: 'u1', limit: 2 })
 
     expect(result.unreadCount).toBe(3)
     expect(result.items).toHaveLength(2)
@@ -80,20 +80,20 @@ describe('fetchUnitNotifications (integration)', () => {
   })
 
   it('excludes read and dispatched notifications', async () => {
-    const tenantId = uniqueTenantId('readstate')
-    await seed(tenantId, 'unread', { unitId: 'u1', createdAt: '2026-06-01T10:00:00.000Z' })
-    await seed(tenantId, 'read', {
+    const orgId = uniqueOrgId('readstate')
+    await seed(orgId, 'unread', { unitId: 'u1', createdAt: '2026-06-01T10:00:00.000Z' })
+    await seed(orgId, 'read', {
       unitId: 'u1',
       createdAt: '2026-06-01T11:00:00.000Z',
       readAt: '2026-06-01T11:30:00.000Z',
     })
-    await seed(tenantId, 'dispatched', {
+    await seed(orgId, 'dispatched', {
       unitId: 'u1',
       createdAt: '2026-06-01T12:00:00.000Z',
       dispatchedAt: '2026-06-01T12:30:00.000Z',
     })
 
-    const result = await fetchUnitNotifications({ db, tenantId, unitId: 'u1', limit: 10 })
+    const result = await fetchUnitNotifications({ db, orgId, unitId: 'u1', limit: 10 })
 
     expect(result.unreadCount).toBe(1)
     expect(result.items).toHaveLength(1)
@@ -101,20 +101,20 @@ describe('fetchUnitNotifications (integration)', () => {
   })
 
   it('isolates by unit — does not leak other units', async () => {
-    const tenantId = uniqueTenantId('isolation')
-    await seed(tenantId, 'u1-a', { unitId: 'u1', createdAt: '2026-06-01T10:00:00.000Z' })
-    await seed(tenantId, 'u2-a', { unitId: 'u2', createdAt: '2026-06-01T11:00:00.000Z' })
-    await seed(tenantId, 'u2-b', { unitId: 'u2', createdAt: '2026-06-01T12:00:00.000Z' })
+    const orgId = uniqueOrgId('isolation')
+    await seed(orgId, 'u1-a', { unitId: 'u1', createdAt: '2026-06-01T10:00:00.000Z' })
+    await seed(orgId, 'u2-a', { unitId: 'u2', createdAt: '2026-06-01T11:00:00.000Z' })
+    await seed(orgId, 'u2-b', { unitId: 'u2', createdAt: '2026-06-01T12:00:00.000Z' })
 
-    const result = await fetchUnitNotifications({ db, tenantId, unitId: 'u1', limit: 10 })
+    const result = await fetchUnitNotifications({ db, orgId, unitId: 'u1', limit: 10 })
 
     expect(result.unreadCount).toBe(1)
     expect(result.items.every((n) => n.unitId === 'u1')).toBe(true)
   })
 
   it('empty state: 0 unread → count 0 + empty items', async () => {
-    const tenantId = uniqueTenantId('empty')
-    const result = await fetchUnitNotifications({ db, tenantId, unitId: 'u1', limit: 10 })
+    const orgId = uniqueOrgId('empty')
+    const result = await fetchUnitNotifications({ db, orgId, unitId: 'u1', limit: 10 })
 
     expect(result.unreadCount).toBe(0)
     expect(result.items).toHaveLength(0)

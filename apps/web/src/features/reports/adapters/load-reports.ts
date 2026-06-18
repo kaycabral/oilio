@@ -1,13 +1,13 @@
-import { type LiquidationStatus, DEFAULT_TENANT_TIMEZONE } from '@/domain'
+import { type LiquidationStatus, DEFAULT_ORG_TIMEZONE } from '@/domain'
 import { type CashReportRange, resolveCashReportRange } from '@/features/cash/core/range'
 import { loadCommissionsSectionData } from '@/features/reports/adapters/commissions.repo'
 import { type SalesSectionData, loadSalesSectionData } from '@/features/reports/adapters/sales.repo'
 import { type CommissionsSectionData } from '@/features/reports/core/commissions'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { resolveActiveUnit } from '@/shared/tenant/active-unit'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
-import { getTenant } from '@/shared/tenant/tenant'
+import { resolveActiveUnit } from '@/shared/org/active-unit'
+import { getActiveOrgContext } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -36,7 +36,7 @@ export async function loadReportsPage(params: SearchParams): Promise<ReportsPage
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   const role = ctx.membership.role
@@ -45,13 +45,13 @@ export async function loadReportsPage(params: SearchParams): Promise<ReportsPage
   const canMarkPaid = role === 'owner'
 
   // Escopo de unidade (brief 0044): as duas seções leem só a unidade ativa do
-  // contexto. `activeUnitId` é null só pra tenant sem unidade (dados vazios).
+  // contexto. `activeUnitId` é null só pra org sem unidade (dados vazios).
   const { activeUnitId } = await resolveActiveUnit(ctx.membership)
 
   // Janela compartilhada pelas duas seções, por dia de calendário no fuso do
-  // tenant (ADR 0009 / brief 0015 AC-05).
-  const tenant = await getTenant(ctx.membership.tenantId)
-  const tz = tenant?.timezone ?? DEFAULT_TENANT_TIMEZONE
+  // org (ADR 0009 / brief 0015 AC-05).
+  const org = await getOrg(ctx.membership.orgId)
+  const tz = org?.timezone ?? DEFAULT_ORG_TIMEZONE
   const range = resolveCashReportRange(
     { period: pickFirst(params.period), from: pickFirst(params.from), to: pickFirst(params.to) },
     tz,
@@ -65,9 +65,9 @@ export async function loadReportsPage(params: SearchParams): Promise<ReportsPage
     rawStatus === 'pendente' || rawStatus === 'pago' ? rawStatus : null
 
   const [sales, commissions] = await Promise.all([
-    loadSalesSectionData({ tenantId: ctx.membership.tenantId, range, unitId: activeUnitId }),
+    loadSalesSectionData({ orgId: ctx.membership.orgId, range, unitId: activeUnitId }),
     loadCommissionsSectionData({
-      tenantId: ctx.membership.tenantId,
+      orgId: ctx.membership.orgId,
       range,
       unitId: activeUnitId,
       memberFilter,

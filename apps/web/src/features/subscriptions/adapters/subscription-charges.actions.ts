@@ -13,7 +13,7 @@ import { ChargeConfig, SubscriptionConfig } from '@/domain/aggregates'
 import { dispatchNotificationReactions } from '@/features/notifications/adapters/reactor-dispatch'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
-import { requireManagerCtx, requireOwnerCtx } from '@/shared/tenant/membership'
+import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
 
 import type { ChargeMutationResult } from '@/features/subscriptions/core/subscription-results'
 
@@ -22,8 +22,8 @@ export async function markChargePaid(chargeId: string): Promise<ChargeMutationRe
   if (!r.ok) return r
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const chargeRef = tenantRef.collection('charges').withConverter(fsConverter(Charge)).doc(chargeId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const chargeRef = orgRef.collection('charges').withConverter(fsConverter(Charge)).doc(chargeId)
   const snap = await chargeRef.get()
   const charge = snap.data()
   if (!charge) return { ok: false, error: 'Cobrança não encontrada' }
@@ -32,7 +32,7 @@ export async function markChargePaid(chargeId: string): Promise<ChargeMutationRe
     return { ok: false, error: 'Cobrança não pode ser marcada como paga (estornada/cancelada)' }
   }
 
-  const subRef = tenantRef
+  const subRef = orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .doc(charge.subscriptionId)
@@ -42,25 +42,21 @@ export async function markChargePaid(chargeId: string): Promise<ChargeMutationRe
 
   const now = new Date().toISOString()
   // Event-first: a liquidação manual emite `charge.succeeded` (sem `.update`).
-  const paid = await emitEvent(
-    ChargeConfig,
-    `tenants/${r.ctx.membership.tenantId}/charges/${chargeId}`,
-    {
-      _tag: 'charge.succeeded',
-      actorId: r.ctx.session.uid,
-      payload: {
-        changes: {
-          status: 'paid',
-          paidAt: now,
-          failedAt: null,
-          failureReason: null,
-          attempts: charge.attempts + 1,
-          lastActorUid: r.ctx.session.uid,
-          updatedAt: now,
-        },
+  const paid = await emitEvent(ChargeConfig, `orgs/${r.ctx.membership.orgId}/charges/${chargeId}`, {
+    _tag: 'charge.succeeded',
+    actorId: r.ctx.session.uid,
+    payload: {
+      changes: {
+        status: 'paid',
+        paidAt: now,
+        failedAt: null,
+        failureReason: null,
+        attempts: charge.attempts + 1,
+        lastActorUid: r.ctx.session.uid,
+        updatedAt: now,
       },
     },
-  )
+  })
   if (!paid.ok) return { ok: false, error: paid.error }
 
   // Liquidar a cobrança reativa a assinatura (status='active') via evento —
@@ -69,7 +65,7 @@ export async function markChargePaid(chargeId: string): Promise<ChargeMutationRe
   if (sub.status !== 'cancelled') {
     const settled = await emitEvent(
       SubscriptionConfig,
-      `tenants/${r.ctx.membership.tenantId}/subscriptions/${charge.subscriptionId}`,
+      `orgs/${r.ctx.membership.orgId}/subscriptions/${charge.subscriptionId}`,
       { _tag: 'subscription.charge_settled', actorId: r.ctx.session.uid, payload: {} },
     )
     if (!settled.ok) return { ok: false, error: settled.error }
@@ -88,8 +84,8 @@ export async function markChargeFailed(
   if (!r.ok) return r
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const chargeRef = tenantRef.collection('charges').withConverter(fsConverter(Charge)).doc(chargeId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const chargeRef = orgRef.collection('charges').withConverter(fsConverter(Charge)).doc(chargeId)
   const snap = await chargeRef.get()
   const charge = snap.data()
   if (!charge) return { ok: false, error: 'Cobrança não encontrada' }
@@ -98,7 +94,7 @@ export async function markChargeFailed(
     return { ok: false, error: 'Cobrança não pode ser marcada como falha' }
   }
 
-  const subRef = tenantRef
+  const subRef = orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .doc(charge.subscriptionId)
@@ -114,7 +110,7 @@ export async function markChargeFailed(
   // no changes — sem `.update` paralelo).
   const chargeFailed = await emitEvent(
     ChargeConfig,
-    `tenants/${r.ctx.membership.tenantId}/charges/${chargeId}`,
+    `orgs/${r.ctx.membership.orgId}/charges/${chargeId}`,
     {
       _tag: 'charge.failed',
       actorId: r.ctx.session.uid,
@@ -136,7 +132,7 @@ export async function markChargeFailed(
   // `nextSubscriptionStatusAfterFailure` e o reducer projeta (sem write direto).
   const failed = await emitEvent(
     SubscriptionConfig,
-    `tenants/${r.ctx.membership.tenantId}/subscriptions/${charge.subscriptionId}`,
+    `orgs/${r.ctx.membership.orgId}/subscriptions/${charge.subscriptionId}`,
     {
       _tag: 'subscription.charge_failed',
       actorId: r.ctx.session.uid,
@@ -147,7 +143,7 @@ export async function markChargeFailed(
 
   await dispatchNotificationReactions('subscription.charge_failed', r.ctx.session.uid, {
     reason: reason?.trim() || 'manual_mark',
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     subscriptionId: charge.subscriptionId,
   })
 
@@ -167,8 +163,8 @@ export async function renewSubscription(subscriptionId: string): Promise<ChargeM
   if (!r.ok) return r
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const subRef = tenantRef
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const subRef = orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .doc(subscriptionId)
@@ -184,7 +180,7 @@ export async function renewSubscription(subscriptionId: string): Promise<ChargeM
   if (sub.cancelAtPeriodEnd) {
     const cancelled = await emitEvent(
       SubscriptionConfig,
-      `tenants/${r.ctx.membership.tenantId}/subscriptions/${subscriptionId}`,
+      `orgs/${r.ctx.membership.orgId}/subscriptions/${subscriptionId}`,
       {
         _tag: 'subscription.cancelled',
         actorId: r.ctx.session.uid,
@@ -198,11 +194,11 @@ export async function renewSubscription(subscriptionId: string): Promise<ChargeM
   }
 
   const nextPeriod = computeBillingPeriod(sub.currentPeriod.endAt, sub.plan.billingCycle)
-  const chargeRef = tenantRef.collection('charges').doc()
+  const chargeRef = orgRef.collection('charges').doc()
 
   const charge: Charge = {
     id: chargeRef.id,
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     // Herda a unidade da assinatura (brief 0043) — o ciclo seguinte cobra na
     // mesma unidade que originou a recorrência.
     unitId: sub.unitId,
@@ -227,14 +223,14 @@ export async function renewSubscription(subscriptionId: string): Promise<ChargeM
   // status).
   const chargeCreated = await emitEvent(
     ChargeConfig,
-    `tenants/${r.ctx.membership.tenantId}/charges/${chargeRef.id}`,
+    `orgs/${r.ctx.membership.orgId}/charges/${chargeRef.id}`,
     { _tag: 'charge.created', actorId: r.ctx.session.uid, payload: { data: charge } },
   )
   if (!chargeCreated.ok) return { ok: false, error: chargeCreated.error }
 
   const renewed = await emitEvent(
     SubscriptionConfig,
-    `tenants/${r.ctx.membership.tenantId}/subscriptions/${subscriptionId}`,
+    `orgs/${r.ctx.membership.orgId}/subscriptions/${subscriptionId}`,
     {
       _tag: 'subscription.renewed',
       actorId: r.ctx.session.uid,
@@ -247,7 +243,7 @@ export async function renewSubscription(subscriptionId: string): Promise<ChargeM
   )
   if (!renewed.ok) return { ok: false, error: renewed.error }
   await dispatchNotificationReactions('subscription.activated', r.ctx.session.uid, {
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     subscriptionId,
   })
 
@@ -263,13 +259,13 @@ export async function deleteSubscription(subscriptionId: string): Promise<Charge
   if (!r.ok) return r
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
 
   // Event-first: emite `deleted` (o appendEvent preserva o stream e NÃO
   // reprojeta — convenção `.deleted`) e só então remove o read model.
   const deleted = await emitEvent(
     SubscriptionConfig,
-    `tenants/${r.ctx.membership.tenantId}/subscriptions/${subscriptionId}`,
+    `orgs/${r.ctx.membership.orgId}/subscriptions/${subscriptionId}`,
     {
       _tag: 'subscription.deleted',
       actorId: r.ctx.session.uid,
@@ -277,7 +273,7 @@ export async function deleteSubscription(subscriptionId: string): Promise<Charge
     },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
-  await tenantRef.collection('subscriptions').doc(subscriptionId).delete()
+  await orgRef.collection('subscriptions').doc(subscriptionId).delete()
 
   revalidatePath('/subscriptions')
   redirect('/subscriptions')

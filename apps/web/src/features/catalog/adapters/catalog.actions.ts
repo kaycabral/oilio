@@ -18,9 +18,9 @@ import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
-import { canDeleteCatalogItem } from '@/shared/tenant/delete-guard'
-import { requireManagerCtx, requireOwnerCtx } from '@/shared/tenant/membership'
-import { getProfessionalById } from '@/shared/tenant/professional-read'
+import { canDeleteCatalogItem } from '@/shared/org/delete-guard'
+import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
+import { getProfessionalById } from '@/shared/org/professional-read'
 import { revalidatePath } from 'next/cache'
 
 // Unified catalog CRUD (brief 0023, AC-02). Mirrors the service/product server
@@ -33,30 +33,26 @@ export type CatalogItemMutationResult = { ok: true } | { ok: false; error: strin
 
 // Distributive Omit: keeps the discriminated union intact (each member keeps
 // its kind-specific fields) instead of collapsing to the common keys only.
-type StoredFields = 'id' | 'tenantId' | 'archivedAt' | 'createdAt' | 'updatedAt'
+type StoredFields = 'id' | 'orgId' | 'archivedAt' | 'createdAt' | 'updatedAt'
 type CatalogItemPayload = CatalogItem extends infer T
   ? T extends CatalogItem
     ? Omit<T, StoredFields>
     : never
   : never
 
-async function tenantUnitIds(tenantId: string): Promise<Set<string>> {
-  const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
-    .collection('units')
-    .get()
+async function orgUnitIds(orgId: string): Promise<Set<string>> {
+  const snap = await getAdminFirestore().collection('orgs').doc(orgId).collection('units').get()
   return new Set(snap.docs.map((d) => d.id))
 }
 
-// AC-04: `categoryId` is a real FK into `tenants/{tenantId}/categories/{id}`.
+// AC-04: `categoryId` is a real FK into `orgs/{orgId}/categories/{id}`.
 // Defense in depth — like the unit check above, the server action validates the
-// referenced category exists in this tenant before accepting the write so a
+// referenced category exists in this org before accepting the write so a
 // crafted form can't point an item at a nonexistent/foreign category.
-async function tenantCategoryExists(tenantId: string, categoryId: string): Promise<boolean> {
+async function orgCategoryExists(orgId: string, categoryId: string): Promise<boolean> {
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('categories')
     .doc(categoryId)
     .get()
@@ -64,7 +60,7 @@ async function tenantCategoryExists(tenantId: string, categoryId: string): Promi
 }
 
 async function parseCatalogItemForm(
-  tenantId: string,
+  orgId: string,
   formData: FormData,
 ): Promise<CatalogItemPayload | string> {
   const kind: CatalogItemKind = normalizeCatalogItemKind(formData.get('kind'))
@@ -73,7 +69,7 @@ async function parseCatalogItemForm(
   if (name.length < 2) return 'Nome é obrigatório'
 
   const categoryId = formString(formData, 'categoryId').trim() || null
-  if (categoryId !== null && !(await tenantCategoryExists(tenantId, categoryId))) {
+  if (categoryId !== null && !(await orgCategoryExists(orgId, categoryId))) {
     return 'Categoria inválida ou inexistente'
   }
 
@@ -97,7 +93,7 @@ async function parseCatalogItemForm(
   if (unitIds.length === 0) {
     return 'Selecione pelo menos uma unidade onde o item é oferecido.'
   }
-  const known = await tenantUnitIds(tenantId)
+  const known = await orgUnitIds(orgId)
   const unknown = unitIds.filter((u) => !known.has(u))
   if (unknown.length > 0) {
     return `Unidade(s) desconhecida(s): ${unknown.join(', ')}`
@@ -150,26 +146,26 @@ async function parseCatalogItemForm(
 export async function createCatalogItem(formData: FormData): Promise<CatalogItemMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  const tenantId = r.ctx.membership.tenantId
-  const parsed = await parseCatalogItemForm(tenantId, formData)
+  const orgId = r.ctx.membership.orgId
+  const parsed = await parseCatalogItemForm(orgId, formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const db = getAdminFirestore()
-  const ref = db.collection('tenants').doc(tenantId).collection('catalog_items').doc()
+  const ref = db.collection('orgs').doc(orgId).collection('catalog_items').doc()
   const now = new Date().toISOString()
   const item = {
     id: ref.id,
-    tenantId,
+    orgId,
     ...parsed,
     archivedAt: null,
     createdAt: now,
     updatedAt: now,
   } as CatalogItem
-  const created = await emitEvent(
-    CatalogItemConfig,
-    `tenants/${tenantId}/catalog_items/${ref.id}`,
-    { _tag: 'catalog_item.created', actorId: r.ctx.session.uid, payload: { data: item } },
-  )
+  const created = await emitEvent(CatalogItemConfig, `orgs/${orgId}/catalog_items/${ref.id}`, {
+    _tag: 'catalog_item.created',
+    actorId: r.ctx.session.uid,
+    payload: { data: item },
+  })
   if (!created.ok) return { ok: false, error: created.error }
   revalidatePath('/catalog')
   return { ok: true }
@@ -181,13 +177,13 @@ export async function updateCatalogItem(
 ): Promise<CatalogItemMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  const tenantId = r.ctx.membership.tenantId
-  const parsed = await parseCatalogItemForm(tenantId, formData)
+  const orgId = r.ctx.membership.orgId
+  const parsed = await parseCatalogItemForm(orgId, formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const updated = await emitEvent(
     CatalogItemConfig,
-    `tenants/${tenantId}/catalog_items/${catalogItemId}`,
+    `orgs/${orgId}/catalog_items/${catalogItemId}`,
     {
       _tag: 'catalog_item.updated',
       actorId: r.ctx.session.uid,
@@ -202,7 +198,7 @@ export async function updateCatalogItem(
 export async function deleteCatalogItem(catalogItemId: string): Promise<CatalogItemMutationResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return r
-  const tenantId = r.ctx.membership.tenantId
+  const orgId = r.ctx.membership.orgId
 
   // One-verb "Excluir" (brief 0033, AC-03 — #1070): single destructive verb,
   // hard vs soft decided here. Active-reference guard (AC-01/AC-02): a live
@@ -213,19 +209,19 @@ export async function deleteCatalogItem(catalogItemId: string): Promise<CatalogI
   // active reference we soft-delete (archive) — the item drops from the active
   // catalog while open comandas/active subscriptions keep their frozen snapshot.
   // With no active reference we hard-delete.
-  if (!(await canDeleteCatalogItem(tenantId, catalogItemId))) {
+  if (!(await canDeleteCatalogItem(orgId, catalogItemId))) {
     return archiveCatalogItem(catalogItemId)
   }
 
   const deleted = await emitEvent(
     CatalogItemConfig,
-    `tenants/${tenantId}/catalog_items/${catalogItemId}`,
+    `orgs/${orgId}/catalog_items/${catalogItemId}`,
     { _tag: 'catalog_item.deleted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
   await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('catalog_items')
     .doc(catalogItemId)
     .delete()
@@ -247,7 +243,7 @@ export async function archiveCatalogItem(
   const archivedAt = archived ? new Date().toISOString() : null
   const res = await emitEvent(
     CatalogItemConfig,
-    `tenants/${r.ctx.membership.tenantId}/catalog_items/${catalogItemId}`,
+    `orgs/${r.ctx.membership.orgId}/catalog_items/${catalogItemId}`,
     { _tag: 'catalog_item.archived', actorId: r.ctx.session.uid, payload: { archivedAt } },
   )
   if (!res.ok) return { ok: false, error: res.error }
@@ -271,11 +267,11 @@ export async function setServiceProfessionals(
 ): Promise<CatalogItemMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  const tenantId = r.ctx.membership.tenantId
+  const orgId = r.ctx.membership.orgId
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(tenantId)
+  const orgRef = db.collection('orgs').doc(orgId)
 
-  const serviceSnap = await tenantRef
+  const serviceSnap = await orgRef
     .collection('catalog_items')
     .withConverter(fsConverter(CatalogItem))
     .doc(serviceId)
@@ -285,7 +281,7 @@ export async function setServiceProfessionals(
   const serviceUnitSet = new Set(service.unitIds ?? [])
 
   const desired = new Set(professionalIds)
-  const profsSnap = await tenantRef
+  const profsSnap = await orgRef
     .collection('professionals')
     .withConverter(fsConverter(StoredProfessional))
     .get()
@@ -299,7 +295,7 @@ export async function setServiceProfessionals(
       const sharesUnit = (pro.unitIds ?? []).some((u) => serviceUnitSet.has(u))
       if (!sharesUnit) {
         // Resolve the name from the deletable PII doc only for the error.
-        const enriched = await getProfessionalById(tenantId, pro.id)
+        const enriched = await getProfessionalById(orgId, pro.id)
         const proName = enriched?.name ?? 'Profissional'
         return {
           ok: false,
@@ -316,15 +312,11 @@ export async function setServiceProfessionals(
   // Event-first: o vínculo pro↔serviço é estado do PROFISSIONAL — cada
   // profissional afetado emite `professional.updated`.
   for (const u of updates) {
-    const res = await emitEvent(
-      ProfessionalConfig,
-      `tenants/${tenantId}/professionals/${u.proId}`,
-      {
-        _tag: 'professional.updated',
-        actorId: r.ctx.session.uid,
-        payload: { changes: { serviceIds: u.nextServiceIds } },
-      },
-    )
+    const res = await emitEvent(ProfessionalConfig, `orgs/${orgId}/professionals/${u.proId}`, {
+      _tag: 'professional.updated',
+      actorId: r.ctx.session.uid,
+      payload: { changes: { serviceIds: u.nextServiceIds } },
+    })
     if (!res.ok) return { ok: false, error: res.error }
   }
   revalidatePath(`/catalog/${serviceId}`)

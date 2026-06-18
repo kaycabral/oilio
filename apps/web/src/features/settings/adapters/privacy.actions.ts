@@ -2,12 +2,12 @@
 
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
-import { isLinkedToTenant } from '@/shared/identity/tenant-links'
+import { isLinkedToOrg } from '@/shared/identity/org-links'
+import { requireOrgCtx } from '@/shared/org/membership'
 import { anonymizeAccount } from '@/shared/privacy/anonymize-account'
-import { blockSubjectInTenant } from '@/shared/privacy/block-subject-in-tenant'
-import { hasActiveSubscriptionInTenant } from '@/shared/privacy/erase-customer-cascade'
+import { blockSubjectInOrg } from '@/shared/privacy/block-subject-in-org'
+import { hasActiveSubscriptionInOrg } from '@/shared/privacy/erase-customer-cascade'
 import { emitPiiEvent } from '@/shared/privacy/pii-events'
-import { requireTenantCtx } from '@/shared/tenant/membership'
 
 // On success the erasure reports whether an active subscription was cancelled as
 // part of the cascade (brief 0032 / #1101, AC-12) so the caller can confirm the
@@ -24,7 +24,7 @@ export type ErasureWarningResult =
 
 // Self-service erasure (brief 0032 / AC-07): the signed-in subject deletes
 // their own data. Irreversibly anonymizes the global account + the subject's
-// per-tenant `_pii` docs (AC-01/02). Records keep their `userId` (AC-04). After
+// per-org `_pii` docs (AC-01/02). Records keep their `userId` (AC-04). After
 // this the account holds no PII, so the client signs the session out.
 export async function deleteMyDataAction(): Promise<AnonymizeAccountActionResult> {
   const session = await getSessionUser()
@@ -32,9 +32,9 @@ export async function deleteMyDataAction(): Promise<AnonymizeAccountActionResult
   if (!session.emailVerified) return { ok: false, error: 'E-mail não verificado' }
 
   // `pii_erasure_requested` (AC-07) — PII-free: opaque subject_ref, requested
-  // by the subject themselves. Account-level erasure is cross-tenant (null).
+  // by the subject themselves. Account-level erasure is cross-org (null).
   await emitPiiEvent('pii_erasure_requested', {
-    tenantId: null,
+    orgId: null,
     subjectRef: session.uid,
     scope: 'account',
     requestedBy: session.uid,
@@ -50,34 +50,34 @@ export async function deleteMyDataAction(): Promise<AnonymizeAccountActionResult
 // em nome dele; o vínculo profissional/trabalhista se encerra por offboarding
 // (brief 0041), identificável. Ver mapa Ciclo de Vida e Exclusão.
 
-// Per-tenant CUSTOMER erasure via BLOCKING (brief 0032 / AC-09). Self-service:
-// the signed-in subject blocks their own CUSTOMER data in their CURRENT tenant
-// only — the global account and any other tenants stay intact. Gated via
-// `requireTenantCtx` (the subject acting on themselves, scoped to that tenant).
-export async function blockMyDataInTenantAction(): Promise<AnonymizeAccountActionResult> {
-  const r = await requireTenantCtx()
+// Per-org CUSTOMER erasure via BLOCKING (brief 0032 / AC-09). Self-service:
+// the signed-in subject blocks their own CUSTOMER data in their CURRENT org
+// only — the global account and any other orgs stay intact. Gated via
+// `requireOrgCtx` (the subject acting on themselves, scoped to that org).
+export async function blockMyDataInOrgAction(): Promise<AnonymizeAccountActionResult> {
+  const r = await requireOrgCtx()
   if (!r.ok) return r
 
-  const tenantId = r.ctx.membership.tenantId
+  const orgId = r.ctx.membership.orgId
   const subjectUserId = r.ctx.membership.userId
 
   await emitPiiEvent('pii_erasure_requested', {
-    tenantId,
+    orgId,
     subjectRef: subjectUserId,
     scope: 'account',
     requestedBy: subjectUserId,
   })
-  const result = await blockSubjectInTenant(tenantId, subjectUserId)
+  const result = await blockSubjectInOrg(orgId, subjectUserId)
   return { ok: true, cancelledActiveSubscription: result.hadActiveSubscription }
 }
 
 // Self-service per-establishment CUSTOMER erasure via BLOCKING from the privacy
 // surface (brief 0032 / AC-10, #1097). The signed-in subject blocks their own
 // CUSTOMER data in a SPECIFIC establishment they discovered in the reverse-index
-// list — which may NOT be their `currentTenantId` (a pure customer with no
+// list — which may NOT be their `currentOrgId` (a pure customer with no
 // membership). Authorization is the subject acting on THEMSELVES, scoped to a
-// tenant their OWN `tenant_links` records them as a customer of — a per-user
-// check, never a cross-tenant reach. The global account and other tenants stay
+// org their OWN `org_links` records them as a customer of — a per-user
+// check, never a cross-org reach. The global account and other orgs stay
 // intact.
 export async function blockMyDataInEstablishmentAction(
   formData: FormData,
@@ -86,19 +86,19 @@ export async function blockMyDataInEstablishmentAction(
   if (!session) return { ok: false, error: 'Sessão expirada' }
   if (!session.emailVerified) return { ok: false, error: 'E-mail não verificado' }
 
-  const tenantId = formString(formData, 'tenantId').trim()
-  if (!tenantId) return { ok: false, error: 'Estabelecimento não informado' }
-  if (!(await isLinkedToTenant(session.uid, tenantId))) {
+  const orgId = formString(formData, 'orgId').trim()
+  if (!orgId) return { ok: false, error: 'Estabelecimento não informado' }
+  if (!(await isLinkedToOrg(session.uid, orgId))) {
     return { ok: false, error: 'Você não é cliente deste estabelecimento' }
   }
 
   await emitPiiEvent('pii_erasure_requested', {
-    tenantId,
+    orgId,
     subjectRef: session.uid,
     scope: 'account',
     requestedBy: session.uid,
   })
-  const result = await blockSubjectInTenant(tenantId, session.uid)
+  const result = await blockSubjectInOrg(orgId, session.uid)
   return { ok: true, cancelledActiveSubscription: result.hadActiveSubscription }
 }
 
@@ -113,25 +113,25 @@ export async function blockMyDataInEstablishmentWarningAction(
   if (!session) return { ok: false, error: 'Sessão expirada' }
   if (!session.emailVerified) return { ok: false, error: 'E-mail não verificado' }
 
-  const tenantId = formString(formData, 'tenantId').trim()
-  if (!tenantId) return { ok: false, error: 'Estabelecimento não informado' }
-  if (!(await isLinkedToTenant(session.uid, tenantId))) {
+  const orgId = formString(formData, 'orgId').trim()
+  if (!orgId) return { ok: false, error: 'Estabelecimento não informado' }
+  if (!(await isLinkedToOrg(session.uid, orgId))) {
     return { ok: false, error: 'Você não é cliente deste estabelecimento' }
   }
 
-  const hasActive = await hasActiveSubscriptionInTenant(tenantId, session.uid)
+  const hasActive = await hasActiveSubscriptionInOrg(orgId, session.uid)
   return { ok: true, hasActiveSubscription: hasActive }
 }
 
 // Informed-consent pre-check (brief 0032 / #1101, AC-12). Reports whether the
-// signed-in subject has an active subscription in their CURRENT tenant that the
-// per-tenant block would cancel — so the UI (#1097) can warn before confirming.
+// signed-in subject has an active subscription in their CURRENT org that the
+// per-org block would cancel — so the UI (#1097) can warn before confirming.
 // Read-only; no side effects.
 export async function blockMyDataWarningAction(): Promise<ErasureWarningResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return r
-  const hasActive = await hasActiveSubscriptionInTenant(
-    r.ctx.membership.tenantId,
+  const hasActive = await hasActiveSubscriptionInOrg(
+    r.ctx.membership.orgId,
     r.ctx.membership.userId,
   )
   return { ok: true, hasActiveSubscription: hasActive }

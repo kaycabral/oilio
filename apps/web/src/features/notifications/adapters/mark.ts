@@ -6,13 +6,13 @@ export type MarkResult = { ok: true } | { ok: false; error: string }
 
 // AC-16: marca como lida (sem agir) — emite notification.read (seta readAt).
 export async function markNotificationRead(
-  tenantId: string,
+  orgId: string,
   notificationId: string,
   actorUid: string,
 ): Promise<MarkResult> {
   const result = await emitEvent(
     NotificationConfig,
-    `tenants/${tenantId}/notifications/${notificationId}`,
+    `orgs/${orgId}/notifications/${notificationId}`,
     { _tag: 'notification.read', actorId: actorUid, payload: {} },
   )
   return result.ok ? { ok: true } : { ok: false, error: result.error }
@@ -21,14 +21,14 @@ export async function markNotificationRead(
 // AC-17: adia — emite notification.snoozed com snoozedUntil futuro. A
 // notificação some do popover (fetchUnitNotifications filtra) até chegar.
 export async function snoozeNotification({
-  tenantId,
+  orgId,
   notificationId,
   option,
   actorUid,
   tz,
   now = new Date(),
 }: {
-  tenantId: string
+  orgId: string
   notificationId: string
   option: SnoozeOption
   actorUid: string
@@ -38,7 +38,7 @@ export async function snoozeNotification({
   const snoozedUntil = computeSnoozeUntil(option, now, tz)
   const result = await emitEvent(
     NotificationConfig,
-    `tenants/${tenantId}/notifications/${notificationId}`,
+    `orgs/${orgId}/notifications/${notificationId}`,
     { _tag: 'notification.snoozed', actorId: actorUid, payload: { snoozedUntil } },
   )
   return result.ok ? { ok: true } : { ok: false, error: result.error }

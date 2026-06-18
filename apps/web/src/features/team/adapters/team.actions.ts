@@ -11,25 +11,22 @@ import {
 } from '@/domain'
 import { InviteConfig, MembershipConfig, ProfessionalConfig } from '@/domain/aggregates'
 import { generateInviteToken } from '@/features/invites/adapters/invite-token'
-import {
-  offboardMemberInTenant,
-  type OffboardWarning,
-} from '@/features/team/adapters/offboard-member'
+import { offboardMemberInOrg, type OffboardWarning } from '@/features/team/adapters/offboard-member'
 import { parseProfessionalForm } from '@/features/team/core/professional-form'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
-import { canDeleteProfessional } from '@/shared/tenant/delete-guard'
-import { type StoredInvite, writeInvitePii } from '@/shared/tenant/invite-read'
+import { canDeleteProfessional } from '@/shared/org/delete-guard'
+import { type StoredInvite, writeInvitePii } from '@/shared/org/invite-read'
 import {
   assertCanManage,
-  getActiveTenantContext,
+  getActiveOrgContext,
   requireManagerCtx,
   requireOwnerCtx,
-} from '@/shared/tenant/membership'
-import { deleteProfessionalPii, writeProfessionalPii } from '@/shared/tenant/professional-read'
+} from '@/shared/org/membership'
+import { deleteProfessionalPii, writeProfessionalPii } from '@/shared/org/professional-read'
 import { revalidatePath } from 'next/cache'
 
 import {
@@ -50,8 +47,8 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
   const session = await getSessionUser()
   if (!session) return { ok: false, error: 'Not signed in' }
 
-  const ctx = await getActiveTenantContext(session.uid)
-  if (!ctx) return { ok: false, error: 'No active tenant' }
+  const ctx = await getActiveOrgContext(session.uid)
+  if (!ctx) return { ok: false, error: 'No active org' }
 
   if (!canInviteMembers(ctx.membership.role)) {
     return { ok: false, error: 'Only owners and managers can invite' }
@@ -69,13 +66,13 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
   const now = Date.now()
   const { raw, hash } = generateInviteToken()
 
-  const ref = db.collection('tenants').doc(ctx.membership.tenantId).collection('invites').doc()
+  const ref = db.collection('orgs').doc(ctx.membership.orgId).collection('invites').doc()
   // PII (invitee email) never enters the event payload (LGPD). The
   // projection stores only operational fields; the email goes to the
   // deletable `invites_pii` doc and is merged on read (invite-read.ts). #1036.
   const stored: StoredInvite = {
     id: ref.id,
-    tenantId: ctx.membership.tenantId,
+    orgId: ctx.membership.orgId,
     role,
     tokenHash: hash,
     expiresAt: new Date(now + INVITE_TTL_MS).toISOString(),
@@ -86,10 +83,10 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
     createdAt: new Date(now).toISOString(),
     updatedAt: new Date(now).toISOString(),
   }
-  await writeInvitePii(ctx.membership.tenantId, ref.id, { email })
+  await writeInvitePii(ctx.membership.orgId, ref.id, { email })
   const created = await emitEvent(
     InviteConfig,
-    `tenants/${ctx.membership.tenantId}/invites/${stored.id}`,
+    `orgs/${ctx.membership.orgId}/invites/${stored.id}`,
     { _tag: 'invite.created', actorId: session.uid, payload: { data: stored } },
   )
   if (!created.ok) return { ok: false, error: created.error }
@@ -99,7 +96,7 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
     throw new Error('NEXT_PUBLIC_APP_URL (or VERCEL_URL) must be set to build invite links')
   }
   const base = origin.startsWith('http') ? origin : `https://${origin}`
-  const inviteLink = `${base}/invites/${ctx.membership.tenantId}/${stored.id}?token=${raw}`
+  const inviteLink = `${base}/invites/${ctx.membership.orgId}/${stored.id}?token=${raw}`
 
   revalidatePath('/team')
   return { ok: true, inviteLink }
@@ -126,7 +123,7 @@ export async function updateProfessional(
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const invariantErr = await validateServiceUnitIntersection(
-    r.ctx.membership.tenantId,
+    r.ctx.membership.orgId,
     parsed.serviceIds,
     parsed.unitIds,
   )
@@ -137,10 +134,10 @@ export async function updateProfessional(
   // `professionals_pii` doc, never to the event. Personal identity
   // (name/whatsapp/email) is NOT written here — it derives live from
   // `users/{userId}` (#1046 / AC-04).
-  await writeProfessionalPii(r.ctx.membership.tenantId, professionalId, { taxIdentity })
+  await writeProfessionalPii(r.ctx.membership.orgId, professionalId, { taxIdentity })
   const updated = await emitEvent(
     ProfessionalConfig,
-    `tenants/${r.ctx.membership.tenantId}/professionals/${professionalId}`,
+    `orgs/${r.ctx.membership.orgId}/professionals/${professionalId}`,
     {
       _tag: 'professional.updated',
       actorId: r.ctx.session.uid,
@@ -154,7 +151,7 @@ export async function updateProfessional(
   // event when it crosses. Event-first — the reducer projects the status, so
   // replay reconstructs it from the stream alone. Never written by a UI input.
   const derivedErr = await reconcileApproval({
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     professionalId,
     actorId: r.ctx.session.uid,
     unitIds: operational.unitIds,
@@ -176,23 +173,23 @@ export async function deleteProfessional(
   // active membership is a live dependency: the path is deactivate (0029) /
   // offboard (0041), never hard-delete. Offboarding sets `revoked` + cancels
   // future appointments, so a fully-offboarded pro clears this guard.
-  if (!(await canDeleteProfessional(r.ctx.membership.tenantId, professionalId))) {
+  if (!(await canDeleteProfessional(r.ctx.membership.orgId, professionalId))) {
     return { ok: false, error: 'Profissional tem vínculo ativo — desative ou remova do time.' }
   }
   const deleted = await emitEvent(
     ProfessionalConfig,
-    `tenants/${r.ctx.membership.tenantId}/professionals/${professionalId}`,
+    `orgs/${r.ctx.membership.orgId}/professionals/${professionalId}`,
     { _tag: 'professional.deleted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
   await getAdminFirestore()
-    .collection('tenants')
-    .doc(r.ctx.membership.tenantId)
+    .collection('orgs')
+    .doc(r.ctx.membership.orgId)
     .collection('professionals')
     .doc(professionalId)
     .delete()
   // LGPD erasure — drop the PII doc alongside the projection.
-  await deleteProfessionalPii(r.ctx.membership.tenantId, professionalId)
+  await deleteProfessionalPii(r.ctx.membership.orgId, professionalId)
   revalidatePath('/team')
   return { ok: true }
 }
@@ -229,7 +226,7 @@ export async function deleteProfessional(
 export type ChangeRoleResult = { ok: true } | { ok: false; error: string }
 
 // Roles a member can be moved between via the UI. `owner` is excluded: it is
-// the tenant-creator identity (onboarding), never assigned by role-edit — same
+// the org-creator identity (onboarding), never assigned by role-edit — same
 // guard as the invite flow (`createInvite` rejects `owner`).
 const ASSIGNABLE_ROLES: readonly Role[] = ['manager', 'professional', 'receptionist'] as const
 
@@ -240,7 +237,7 @@ export async function changeMemberRole(
   // AC-04: owner/manager only.
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  const { tenantId } = r.ctx.membership
+  const { orgId } = r.ctx.membership
   const actorId = r.ctx.session.uid
 
   if (!ASSIGNABLE_ROLES.includes(newRole)) {
@@ -251,7 +248,7 @@ export async function changeMemberRole(
   }
 
   const db = getAdminFirestore()
-  const membershipId = membershipDocId(tenantId, targetUserId)
+  const membershipId = membershipDocId(orgId, targetUserId)
   const memberSnap = await db
     .collection('memberships')
     .withConverter(fsConverter(Membership))
@@ -287,10 +284,10 @@ export async function changeMemberRole(
     }).catch(() => undefined)
   }
 
-  // Step 2 — projection lifecycle (≤1 projection per userId per tenant).
+  // Step 2 — projection lifecycle (≤1 projection per userId per org).
   const projErr = await syncProfessionalProjection({
     db,
-    tenantId,
+    orgId,
     actorId,
     targetUserId,
     willBeProfessional,
@@ -313,7 +310,7 @@ export async function changeMemberRole(
 // (same aggregate as `changeMemberRole`, different field — no conflict; the
 // stream records who/when). A `suspended` membership stops operating: every
 // operational read/write keys on `status == 'active'` (server resolvers via
-// `getActiveTenantContext` / `getUserMemberships`; Firestore Rules via
+// `getActiveOrgContext` / `getUserMemberships`; Firestore Rules via
 // `isMember`), so a suspended member has no effective access until reactivated.
 //
 // Owner/manager only (`requireManagerCtx`). The owner identity can't be
@@ -329,7 +326,7 @@ export async function setMemberStatus(
 ): Promise<SetMemberStatusResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  const { tenantId } = r.ctx.membership
+  const { orgId } = r.ctx.membership
   const actorId = r.ctx.session.uid
 
   if (status !== 'active' && status !== 'suspended') {
@@ -340,7 +337,7 @@ export async function setMemberStatus(
   }
 
   const db = getAdminFirestore()
-  const membershipId = membershipDocId(tenantId, targetUserId)
+  const membershipId = membershipDocId(orgId, targetUserId)
   const memberSnap = await db
     .collection('memberships')
     .withConverter(fsConverter(Membership))
@@ -348,7 +345,7 @@ export async function setMemberStatus(
     .get()
   const member = memberSnap.data()
   if (!member) return { ok: false, error: 'Member not found' }
-  // The owner is the tenant-creator identity — never deactivated (mirrors the
+  // The owner is the org-creator identity — never deactivated (mirrors the
   // `owner` immutability in `changeMemberRole`).
   if (member.role === 'owner') return { ok: false, error: 'Cannot deactivate the owner' }
   if (member.status === status) return { ok: true }
@@ -383,9 +380,9 @@ export async function setMemberStatus(
 // the member's real name.
 //
 // Gating (AC-01): owner/manager only (`requireManagerCtx`); you CANNOT remove
-// yourself (no self-lockout) nor the owner (tenant-creator identity) — same
+// yourself (no self-lockout) nor the owner (org-creator identity) — same
 // guards as `changeMemberRole` / `setMemberStatus`. The owner check + the
-// idempotent saga core live in `offboardMemberInTenant` (session-free, so it is
+// idempotent saga core live in `offboardMemberInOrg` (session-free, so it is
 // integration-testable); this action is the gated entry point.
 // ---------------------------------------------------------------------------
 
@@ -399,7 +396,7 @@ export async function removeMemberFromTeam(targetUserId: string): Promise<Remove
   // AC-01: owner/manager only.
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  const { tenantId } = r.ctx.membership
+  const { orgId } = r.ctx.membership
   const actorId = r.ctx.session.uid
 
   // AC-01: no self-lockout — you can't offboard yourself.
@@ -407,7 +404,7 @@ export async function removeMemberFromTeam(targetUserId: string): Promise<Remove
     return { ok: false, error: 'Cannot remove yourself from the team' }
   }
 
-  const result = await offboardMemberInTenant(tenantId, targetUserId, actorId)
+  const result = await offboardMemberInOrg(orgId, targetUserId, actorId)
   if (!result.ok) return result
 
   // When there's an AC-08 capacity warning the UI STAYS on the member detail to

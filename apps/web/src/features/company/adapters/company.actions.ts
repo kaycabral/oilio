@@ -9,7 +9,7 @@ import {
   type Vertical,
   VERTICALS,
 } from '@/domain'
-import { TenantConfig } from '@/domain/aggregates'
+import { OrgConfig } from '@/domain/aggregates'
 import {
   parseBranding,
   parseCancellationPolicy,
@@ -19,9 +19,9 @@ import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
-import { requireManagerCtx, requireOwnerCtx } from '@/shared/tenant/membership'
-import { parseTaxIdentityFromForm } from '@/shared/tenant/tax-identity'
-import { writeTenantTaxIdentity } from '@/shared/tenant/tenant'
+import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
+import { writeOrgTaxIdentity } from '@/shared/org/org'
+import { parseTaxIdentityFromForm } from '@/shared/org/tax-identity'
 import { revalidatePath } from 'next/cache'
 
 function isVertical(value: string): value is Vertical {
@@ -45,9 +45,9 @@ export async function updateCompany(formData: FormData): Promise<UpdateCompanyRe
   const vertical: Vertical = verticalRaw
 
   const db = getAdminFirestore()
-  const tenantId = r.ctx.membership.tenantId
-  const slugTaken = await db.collection('tenants').where('slug', '==', slug).limit(1).get()
-  if (!slugTaken.empty && slugTaken.docs[0]?.id !== tenantId) {
+  const orgId = r.ctx.membership.orgId
+  const slugTaken = await db.collection('orgs').where('slug', '==', slug).limit(1).get()
+  if (!slugTaken.empty && slugTaken.docs[0]?.id !== orgId) {
     return { ok: false, error: 'Slug já está em uso' }
   }
 
@@ -59,14 +59,14 @@ export async function updateCompany(formData: FormData): Promise<UpdateCompanyRe
   if (typeof branding === 'string') return { ok: false, error: branding }
 
   // PII (taxIdentity = owner CPF/CNPJ) goes to the deletable
-  // `tenants/{id}/private/taxIdentity` doc, never to the immutable event
+  // `orgs/{id}/private/taxIdentity` doc, never to the immutable event
   // (LGPD — #1036). The event carries only operational fields.
-  await writeTenantTaxIdentity(tenantId, taxIdentity)
+  await writeOrgTaxIdentity(orgId, taxIdentity)
 
   // Event-first: estado da empresa vem do evento (sem `.update` paralelo); o
   // reducer projeta todas as mudanças.
-  const updated = await emitEvent(TenantConfig, `tenants/${tenantId}`, {
-    _tag: 'tenant.updated',
+  const updated = await emitEvent(OrgConfig, `orgs/${orgId}`, {
+    _tag: 'org.updated',
     actorId: r.ctx.session.uid,
     payload: {
       changes: {
@@ -96,14 +96,14 @@ export type PublishingReadiness = {
   missing: string[]
 }
 
-export async function getPublishingReadiness(tenantId: string): Promise<PublishingReadiness> {
+export async function getPublishingReadiness(orgId: string): Promise<PublishingReadiness> {
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(tenantId)
+  const orgRef = db.collection('orgs').doc(orgId)
 
   const [unitsSnap, servicesSnap, professionalsSnap] = await Promise.all([
-    tenantRef.collection('units').withConverter(fsConverter(StoredUnit)).get(),
-    tenantRef.collection('catalog_items').withConverter(fsConverter(CatalogItem)).get(),
-    tenantRef.collection('professionals').withConverter(fsConverter(StoredProfessional)).get(),
+    orgRef.collection('units').withConverter(fsConverter(StoredUnit)).get(),
+    orgRef.collection('catalog_items').withConverter(fsConverter(CatalogItem)).get(),
+    orgRef.collection('professionals').withConverter(fsConverter(StoredProfessional)).get(),
   ])
 
   const hasReadyUnit = unitsSnap.docs
@@ -132,10 +132,10 @@ export async function publishSelfBooking(): Promise<PublishResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return r
 
-  const tenantId = r.ctx.membership.tenantId
+  const orgId = r.ctx.membership.orgId
   // AC-07: server revalidates the minimum before publishing (defense in depth —
   // never trust the UI checklist).
-  const readiness = await getPublishingReadiness(tenantId)
+  const readiness = await getPublishingReadiness(orgId)
   if (!readiness.ready) {
     return { ok: false, error: `Faltam requisitos: ${readiness.missing.join('; ')}` }
   }
@@ -143,8 +143,8 @@ export async function publishSelfBooking(): Promise<PublishResult> {
   // Event-first: the publication state is a dedicated domain event; the reducer
   // projects selfBookingPublished. Auditoria = stream (actorId no evento) — sem
   // recordAudit.
-  const published = await emitEvent(TenantConfig, `tenants/${tenantId}`, {
-    _tag: 'tenant.self_booking_published',
+  const published = await emitEvent(OrgConfig, `orgs/${orgId}`, {
+    _tag: 'org.self_booking_published',
     actorId: r.ctx.session.uid,
     payload: {},
   })
@@ -158,9 +158,9 @@ export async function unpublishSelfBooking(): Promise<PublishResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return r
 
-  const tenantId = r.ctx.membership.tenantId
-  const unpublished = await emitEvent(TenantConfig, `tenants/${tenantId}`, {
-    _tag: 'tenant.self_booking_unpublished',
+  const orgId = r.ctx.membership.orgId
+  const unpublished = await emitEvent(OrgConfig, `orgs/${orgId}`, {
+    _tag: 'org.self_booking_unpublished',
     actorId: r.ctx.session.uid,
     payload: {},
   })

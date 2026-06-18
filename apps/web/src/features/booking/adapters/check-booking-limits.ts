@@ -16,8 +16,8 @@ export type { BookingLimitsCheck }
 // future-only filter would still need a composite index; simple is fine for V0).
 export async function checkBookingLimits(args: {
   db: Firestore
-  tenantId: string
-  tenantTimezone: string
+  orgId: string
+  orgTimezone: string
   customerId: string
   limits: BookingLimits
   proposedStartAt: string
@@ -26,8 +26,8 @@ export async function checkBookingLimits(args: {
   // the customer's own appointment counts against them.
   excludeAppointmentId?: string
 }): Promise<BookingLimitsCheck> {
-  const tenantRef = args.db.collection('tenants').doc(args.tenantId)
-  const customerAptsSnap = await tenantRef
+  const orgRef = args.db.collection('orgs').doc(args.orgId)
+  const customerAptsSnap = await orgRef
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
     .where('customerId', '==', args.customerId)
@@ -40,7 +40,7 @@ export async function checkBookingLimits(args: {
     appointments,
     limits: args.limits,
     proposedStartAt: args.proposedStartAt,
-    tenantTimezone: args.tenantTimezone,
+    orgTimezone: args.orgTimezone,
     now: args.now ?? new Date(),
   })
 }

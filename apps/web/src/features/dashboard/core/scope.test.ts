@@ -20,7 +20,7 @@ describe('scopeByUnit (brief 0043, AC-03)', () => {
     expect(scoped.applied).toEqual([{ field: 'unitId', value: 'unit-a' }])
   })
 
-  it('leaves the query tenant-wide when no unit is active (null)', () => {
+  it('leaves the query org-wide when no unit is active (null)', () => {
     const base = fakeQuery()
     const scoped = scopeByUnit(base, null)
     expect(scoped).toBe(base)

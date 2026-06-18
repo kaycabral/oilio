@@ -1,26 +1,26 @@
 import { describe, expect, it } from 'vitest'
-import { parseTenantLocalAsUtc, tzOffsetAt } from './datetime'
+import { parseOrgLocalAsUtc, tzOffsetAt } from './datetime'
 
-describe('parseTenantLocalAsUtc', () => {
+describe('parseOrgLocalAsUtc', () => {
   it('reads wall-clock digits as São Paulo local time (UTC-3)', () => {
     // 2026-03-10 is outside Brazil DST (abolished 2019) → fixed -03:00.
-    const utc = parseTenantLocalAsUtc('2026-03-10T09:00', 'America/Sao_Paulo')
+    const utc = parseOrgLocalAsUtc('2026-03-10T09:00', 'America/Sao_Paulo')
     expect(utc.toISOString()).toBe('2026-03-10T12:00:00.000Z')
   })
 
   it('treats a UTC timezone as identity', () => {
-    const utc = parseTenantLocalAsUtc('2026-03-10T09:00', 'UTC')
+    const utc = parseOrgLocalAsUtc('2026-03-10T09:00', 'UTC')
     expect(utc.toISOString()).toBe('2026-03-10T09:00:00.000Z')
   })
 
   it('handles a positive-offset zone (Asia/Tokyo, UTC+9)', () => {
-    const utc = parseTenantLocalAsUtc('2026-03-10T09:00', 'Asia/Tokyo')
+    const utc = parseOrgLocalAsUtc('2026-03-10T09:00', 'Asia/Tokyo')
     expect(utc.toISOString()).toBe('2026-03-10T00:00:00.000Z')
   })
 
   it('throws on malformed input', () => {
-    expect(() => parseTenantLocalAsUtc('not-a-date', 'UTC')).toThrow()
-    expect(() => parseTenantLocalAsUtc('2026-03-10 09:00', 'UTC')).toThrow()
+    expect(() => parseOrgLocalAsUtc('not-a-date', 'UTC')).toThrow()
+    expect(() => parseOrgLocalAsUtc('2026-03-10 09:00', 'UTC')).toThrow()
   })
 })
 

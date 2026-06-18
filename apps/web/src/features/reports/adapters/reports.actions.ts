@@ -5,7 +5,7 @@ import { CommissionConfig } from '@/domain/aggregates'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
-import { requireOwnerCtx } from '@/shared/tenant/membership'
+import { requireOwnerCtx } from '@/shared/org/membership'
 import { revalidatePath } from 'next/cache'
 
 export type MarkPaidResult = { ok: true; markedCount: number } | { ok: false; error: string }
@@ -38,8 +38,8 @@ export async function markCommissionsPaid(formData: FormData): Promise<MarkPaidR
   const paymentProof = typeof proofRaw === 'string' && proofRaw.trim() ? proofRaw.trim() : null
   const paidAt = new Date().toISOString()
 
-  const tenantRef = getAdminFirestore().collection('tenants').doc(r.ctx.membership.tenantId)
-  const snap = await tenantRef
+  const orgRef = getAdminFirestore().collection('orgs').doc(r.ctx.membership.orgId)
+  const snap = await orgRef
     .collection('commissions')
     .withConverter(fsConverter(Commission))
     .where('attributedUserId', '==', attributedUserId)
@@ -58,7 +58,7 @@ export async function markCommissionsPaid(formData: FormData): Promise<MarkPaidR
   for (const doc of pending) {
     const updated = await emitEvent(
       CommissionConfig,
-      `tenants/${r.ctx.membership.tenantId}/commissions/${doc.id}`,
+      `orgs/${r.ctx.membership.orgId}/commissions/${doc.id}`,
       {
         _tag: 'commission.updated',
         actorId: r.ctx.session.uid,
@@ -88,8 +88,8 @@ export async function markCommissionPaid(formData: FormData): Promise<MarkPaidRe
   const proofRaw = formData.get('paymentProof')
   const paymentProof = typeof proofRaw === 'string' && proofRaw.trim() ? proofRaw.trim() : null
 
-  const tenantRef = getAdminFirestore().collection('tenants').doc(r.ctx.membership.tenantId)
-  const ref = tenantRef
+  const orgRef = getAdminFirestore().collection('orgs').doc(r.ctx.membership.orgId)
+  const ref = orgRef
     .collection('commissions')
     .withConverter(fsConverter(Commission))
     .doc(commissionId)
@@ -105,7 +105,7 @@ export async function markCommissionPaid(formData: FormData): Promise<MarkPaidRe
 
   const updated = await emitEvent(
     CommissionConfig,
-    `tenants/${r.ctx.membership.tenantId}/commissions/${commissionId}`,
+    `orgs/${r.ctx.membership.orgId}/commissions/${commissionId}`,
     {
       _tag: 'commission.updated',
       actorId: r.ctx.session.uid,

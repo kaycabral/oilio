@@ -1,7 +1,7 @@
 'use client'
 
 import { VERTICALS, type Vertical } from '@/domain'
-import { createTenant } from '@/features/onboarding/adapters/onboarding.actions'
+import { createOrg } from '@/features/onboarding/adapters/onboarding.actions'
 import { useFormValidity } from '@/hooks/use-form-validity'
 import {
   Button,
@@ -30,7 +30,7 @@ export function OnboardingForm() {
   function onSubmit(formData: FormData) {
     setError(null)
     startTransition(async () => {
-      const result = await createTenant(formData)
+      const result = await createOrg(formData)
       if (!result.ok) setError(result.error)
     })
   }

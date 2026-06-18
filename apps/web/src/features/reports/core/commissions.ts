@@ -66,7 +66,7 @@ export function shapeCommissionsSection(input: ShapeCommissionsInput): Commissio
   const summary = summarizeCommissions(scopedCommissions)
   const byMember = summarizeCommissionsByMember(scopedCommissions)
   // Display name vem do SNAPSHOT na própria comissão (brief 0041 AC-11), NÃO do
-  // join ao vivo em `listTenantMembers` (que filtra `status==active` e dropa o
+  // join ao vivo em `listOrgMembers` (que filtra `status==active` e dropa o
   // membro revogado/suspenso → "--"). O snapshot é self-contained: profissional
   // revogado (offboarding #1103) ou anonimizado-como-cliente ainda exibe o nome
   // real (retenção de vínculo, art. 16). O join ao vivo entra só como fallback

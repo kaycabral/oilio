@@ -16,7 +16,7 @@ export type PlanPayload = {
   billingCycle: BillingCycle
   // FK array into CatalogItem.id (brief 0024, AC-01 — #1008). Canonical
   // per-item coverage of ANY kind. Selected via the item picker in PlanForm.
-  // Existence is validated server-side against the tenant's `catalog_items`
+  // Existence is validated server-side against the org's `catalog_items`
   // (AC-03, defense in depth) before the event is emitted.
   includedItemIds: string[]
   // FK array into Category.id (brief 0023, AC-04 — #1003). Convenience coverage
@@ -25,7 +25,7 @@ export type PlanPayload = {
   includedCategoryIds: string[]
   usageLimit: UsageLimit
   // Spatial scope (brief 0019, Group A). `undefined` = no restriction
-  // (all tenant units). Empty array would mean "no unit covered" which
+  // (all org units). Empty array would mean "no unit covered" which
   // would silently break self-book — the parser collapses empty to
   // `undefined` and the form guards by hiding the field until the
   // owner explicitly opts in.
@@ -186,7 +186,7 @@ export function parseAllowedTimeScope(formData: FormData): AllowedTimeScope | un
 
 // Coverage integrity (brief 0024, AC-03). Pure core of the server-side
 // existence check: given the ids referenced by a plan's coverage and the sets
-// of ids that actually exist under the tenant, returns a human-readable error
+// of ids that actually exist under the org, returns a human-readable error
 // for the FIRST dangling reference, or `null` when every ref resolves. The
 // action wires the existing-id sets from Firestore reads; keeping the decision
 // pure makes it unit-testable without the emulator.

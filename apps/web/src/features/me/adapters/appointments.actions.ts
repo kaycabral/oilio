@@ -15,9 +15,9 @@ import { emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { Schema } from 'effect'
 
-// Only `cancellationPolicy` is read off the tenant doc here; a small local
+// Only `cancellationPolicy` is read off the org doc here; a small local
 // projection keeps the converter narrow (excess fields are ignored).
-const TenantCancellationPolicyProjection = Schema.Struct({
+const OrgCancellationPolicyProjection = Schema.Struct({
   cancellationPolicy: Schema.optional(Schema.Unknown),
 })
 
@@ -26,37 +26,37 @@ export type SelfCancelResult = { ok: true } | { ok: false; error: string }
 // #845 — Customer self-cancel from `/me/appointments`.
 //
 // Authorization: a customer can only cancel an appointment where
-// `customerUserId === session.uid`. Cross-tenant access is enforced
-// here because the customer doesn't have a tenant membership — the
+// `customerUserId === session.uid`. Cross-org access is enforced
+// here because the customer doesn't have a org membership — the
 // User doc is the only identity bridge (see #832).
 //
-// Policy: `Tenant.cancellationPolicy.minNoticeMinutes`. Pure helper
+// Policy: `Org.cancellationPolicy.minNoticeMinutes`. Pure helper
 // `canCustomerCancelAppointment` makes the decision so the same logic
 // drives the UI (button enabled/disabled) and the server (authorization).
 //
 // Tracking: `cancelledBy = 'customer'`, `cancelledNoticeMinutes` always
-// populated. Audit log lands under the *tenant* the appointment belongs
+// populated. Audit log lands under the *org* the appointment belongs
 // to so the recepção can see "Cliente X cancelou Y" in the same audit
 // stream as staff actions.
 export async function cancelOwnAppointment(input: {
-  tenantId: string
+  orgId: string
   appointmentId: string
 }): Promise<SelfCancelResult> {
   const session = await getSessionUser()
   if (!session) return { ok: false, error: 'Sessão expirada — entre de novo.' }
 
   const db = getAdminFirestore()
-  const tenantRef = db
-    .collection('tenants')
-    .withConverter(fsConverter(TenantCancellationPolicyProjection))
-    .doc(input.tenantId)
-  const apptRef = tenantRef
+  const orgRef = db
+    .collection('orgs')
+    .withConverter(fsConverter(OrgCancellationPolicyProjection))
+    .doc(input.orgId)
+  const apptRef = orgRef
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
     .doc(input.appointmentId)
-  const tenantSnap = await tenantRef.get()
-  if (!tenantSnap.exists) return { ok: false, error: 'Estabelecimento não encontrado.' }
-  const livePolicy = normalizeCancellationPolicy(tenantSnap.data()?.cancellationPolicy)
+  const orgSnap = await orgRef.get()
+  if (!orgSnap.exists) return { ok: false, error: 'Estabelecimento não encontrado.' }
+  const livePolicy = normalizeCancellationPolicy(orgSnap.data()?.cancellationPolicy)
 
   const apptSnap = await apptRef.get()
   const appointment = apptSnap.data()
@@ -67,7 +67,7 @@ export async function cancelOwnAppointment(input: {
   }
 
   // Snapshot-on-use (#1038): a elegibilidade lê a policy congelada no commit,
-  // não a viva — mudar a policy do tenant não retroage. Fallback pra policy
+  // não a viva — mudar a policy do org não retroage. Fallback pra policy
   // viva em agendamentos legados (pré-migração) sem snapshot.
   const policy = appointment.cancellationPolicySnapshot
     ? normalizeCancellationPolicy(appointment.cancellationPolicySnapshot)
@@ -100,7 +100,7 @@ export async function cancelOwnAppointment(input: {
   // sem `apptRef.update()` paralelo.
   const cancelled = await emitEvent(
     AppointmentConfig,
-    `tenants/${input.tenantId}/appointments/${input.appointmentId}`,
+    `orgs/${input.orgId}/appointments/${input.appointmentId}`,
     {
       _tag: 'appointment.cancelled',
       actorId: session.uid,

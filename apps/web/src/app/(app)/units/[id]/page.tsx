@@ -8,7 +8,7 @@ import { Main, Typography } from '@cbrl/design'
 
 export default async function EditUnitPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { tenantId, unit, tenant } = await loadUnitForEdit(id)
+  const { orgId, unit, org } = await loadUnitForEdit(id)
 
   return (
     <Main width="narrow" className="space-y-6">
@@ -21,10 +21,10 @@ export default async function EditUnitPage({ params }: { params: Promise<{ id: s
       <Typography variant="pageTitle">Editar unidade</Typography>
       <UnitForm unit={unit} />
 
-      <UnitPublishCard tenantId={tenantId} unitId={unit.id} hoursMode={unit.hoursMode} />
+      <UnitPublishCard orgId={orgId} unitId={unit.id} hoursMode={unit.hoursMode} />
 
-      {isUnitBookable(unit) && tenant?.slug ? (
-        <UnitBookingQr tenantSlug={tenant.slug} unitSlug={unit.slug} unitName={unit.name} />
+      {isUnitBookable(unit) && org?.slug ? (
+        <UnitBookingQr orgSlug={org.slug} unitSlug={unit.slug} unitName={unit.name} />
       ) : null}
     </Main>
   )

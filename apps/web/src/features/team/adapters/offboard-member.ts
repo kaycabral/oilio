@@ -18,7 +18,7 @@ import {
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
-import { deleteInvitePii } from '@/shared/tenant/invite-read'
+import { deleteInvitePii } from '@/shared/org/invite-read'
 import { Schema } from 'effect'
 import 'server-only'
 
@@ -84,14 +84,14 @@ export type OffboardResult =
 // AC-05 pre-flight (settlement-first): is there an OPEN order attributed to this
 // member? Attribution lives per-item as `attributedUserId` (the member's GLOBAL
 // userId — brief 0030, AC-04), so an order counts when ANY of its items points
-// at the target. Within-tenant query off the `status == 'open'` index (no
-// cross-tenant query, no range scan); the open set is small. Returns the first
+// at the target. Within-org query off the `status == 'open'` index (no
+// cross-org query, no range scan); the open set is small. Returns the first
 // offending order id, or null when clear. Read-only — vetoes BEFORE the saga
 // mutates anything.
-async function findOpenComanda(tenantId: string, targetUserId: string): Promise<string | null> {
+async function findOpenComanda(orgId: string, targetUserId: string): Promise<string | null> {
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('orders')
     .where('status', '==', 'open')
     .withConverter(fsConverter(Order))
@@ -108,17 +108,17 @@ async function findOpenComanda(tenantId: string, targetUserId: string): Promise<
 // denormalize as `professionalId`), so it only has work when a projection
 // exists. Past appointments are LEFT; a cancelled appointment is RETAINED
 // struck-through in the grid (status flip, not removal). Event-first + idempotent
-// (already cancelled/completed/no-show is skipped); within-tenant query (no
+// (already cancelled/completed/no-show is skipped); within-org query (no
 // range index — filters the future/scheduled subset in memory). Errors surface
 // as a saga-aborting message.
 async function cancelFutureAppointments(
-  tenantId: string,
+  orgId: string,
   professionalId: string,
   actorId: string,
 ): Promise<string | null> {
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('appointments')
     .where('professionalId', '==', professionalId)
     .withConverter(fsConverter(Appointment))
@@ -133,53 +133,49 @@ async function cancelFutureAppointments(
       0,
       Math.round((new Date(appt.startAt).getTime() - nowMs) / 60000),
     )
-    const cancelled = await emitEvent(
-      AppointmentConfig,
-      `tenants/${tenantId}/appointments/${doc.id}`,
-      {
-        _tag: 'appointment.cancelled',
-        actorId,
-        payload: { cancelledBy: 'system', cancelledAt: now, noticeMinutes },
-      },
-    )
+    const cancelled = await emitEvent(AppointmentConfig, `orgs/${orgId}/appointments/${doc.id}`, {
+      _tag: 'appointment.cancelled',
+      actorId,
+      payload: { cancelledBy: 'system', cancelledAt: now, noticeMinutes },
+    })
     if (!cancelled.ok) return `Failed to cancel appointment ${doc.id}: ${cancelled.error}`
   }
   return null
 }
 
 // AC-07 — clean the professional's agenda-blocks. Keys off the professional DOC
-// id (`agenda_blocks.professionalId`); tenant-wide blocks (`professionalId ==
+// id (`agenda_blocks.professionalId`); org-wide blocks (`professionalId ==
 // null`) are NOT the member's and stay. Event-first (`agenda_block.deleted`)
 // then hard-delete the projection — mirrors `deleteBlock` (the event store does
 // NOT reproject a delete, so the caller removes the doc; history lives in the
 // subcollection). Idempotent: re-running finds none. Errors surface.
 async function cleanAgendaBlocks(
-  tenantId: string,
+  orgId: string,
   professionalId: string,
   actorId: string,
 ): Promise<string | null> {
   const db = getAdminFirestore()
   const snap = await db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('agenda_blocks')
     .where('professionalId', '==', professionalId)
     .withConverter(fsConverter(AgendaBlock))
     .get()
   for (const doc of snap.docs) {
     const block = doc.data()
-    const deleted = await emitEvent(
-      AgendaBlockConfig,
-      `tenants/${tenantId}/agenda_blocks/${block.id}`,
-      { _tag: 'agenda_block.deleted', actorId, payload: {} },
-    )
+    const deleted = await emitEvent(AgendaBlockConfig, `orgs/${orgId}/agenda_blocks/${block.id}`, {
+      _tag: 'agenda_block.deleted',
+      actorId,
+      payload: {},
+    })
     if (!deleted.ok) return `Failed to delete agenda-block ${block.id}: ${deleted.error}`
     await doc.ref.delete()
   }
   return null
 }
 
-// AC-09 — clean the member's PENDING invites in this tenant (#1105). A removed
+// AC-09 — clean the member's PENDING invites in this org (#1105). A removed
 // member could still hold an open invite (e.g. re-invited under another role
 // before removal); an orphan pending invite would also block a clean re-invite
 // later. Matched by EMAIL (the invite's identity, per AC-09) — the email lives in
@@ -189,7 +185,7 @@ async function cleanAgendaBlocks(
 // drop the `invites_pii` doc (the email PII) — mirrors the invite-create write
 // pairing. Idempotent: re-running finds none. Errors surface.
 async function cleanPendingInvites(
-  tenantId: string,
+  orgId: string,
   targetUserId: string,
   actorId: string,
 ): Promise<string | null> {
@@ -206,8 +202,8 @@ async function cleanPendingInvites(
   const normalizedEmail = email.trim().toLowerCase()
 
   const snap = await db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('invites')
     .where('status', '==', 'pending')
     .withConverter(fsConverter(StoredInvite))
@@ -215,8 +211,8 @@ async function cleanPendingInvites(
   for (const doc of snap.docs) {
     const invite = doc.data()
     const piiSnap = await db
-      .collection('tenants')
-      .doc(tenantId)
+      .collection('orgs')
+      .doc(orgId)
       .collection('invites_pii')
       .doc(doc.id)
       .withConverter(fsConverter(InviteEmailProbe))
@@ -224,14 +220,14 @@ async function cleanPendingInvites(
     const inviteEmail = piiSnap.data()?.email
     if (!inviteEmail || inviteEmail.trim().toLowerCase() !== normalizedEmail) continue
 
-    const deleted = await emitEvent(InviteConfig, `tenants/${tenantId}/invites/${invite.id}`, {
+    const deleted = await emitEvent(InviteConfig, `orgs/${orgId}/invites/${invite.id}`, {
       _tag: 'invite.deleted',
       actorId,
       payload: {},
     })
     if (!deleted.ok) return `Failed to delete invite ${invite.id}: ${deleted.error}`
     await doc.ref.delete()
-    await deleteInvitePii(tenantId, doc.id)
+    await deleteInvitePii(orgId, doc.id)
   }
   return null
 }
@@ -241,20 +237,20 @@ async function cleanPendingInvites(
 // has ZERO active professionals. Bookings on those units would have no slots —
 // the owner must be told (never a silent gap), but it does NOT block the removal.
 //
-// Reads ALL professionals for the tenant (no `operationalStatus` index filter — that
+// Reads ALL professionals for the org (no `operationalStatus` index filter — that
 // raced the just-committed `professional.suspended` write) and excludes the
 // removed projection EXPLICITLY by id, so it never counts itself as staffing
 // regardless of read-after-write timing. Active = `operationalStatus == 'operational'`.
-// Within-tenant read; small set. Read-only.
+// Within-org read; small set. Read-only.
 async function detectUnitsLeftWithoutProfessional(
-  tenantId: string,
+  orgId: string,
   removedProfessionalId: string,
   removedUnitIds: readonly string[],
 ): Promise<string[]> {
   if (removedUnitIds.length === 0) return []
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('professionals')
     .withConverter(fsConverter(StoredProfessional))
     .get()
@@ -271,14 +267,14 @@ async function detectUnitsLeftWithoutProfessional(
 // Cascade steps stacked by #1104/#1105, in saga order. Each is event-first +
 // idempotent; a non-null return aborts the saga (caller compensates the
 // membership-end + surfaces it — never a silent partial). The AC-05 open-comanda
-// veto is NOT here — it's a pre-flight in `offboardMemberInTenant` that runs
+// veto is NOT here — it's a pre-flight in `offboardMemberInOrg` that runs
 // BEFORE the membership is ended (settlement-first). There is NO commission veto
 // (AC-06 revised: off-system settlement). #1105 appends the AC-09 pending-invite
 // cleanup here; the
 // AC-08 unit-capacity warning is computed by the saga (non-blocking signal, not a
 // cascade abort).
 async function runOffboardingCascade(
-  tenantId: string,
+  orgId: string,
   professionalId: string | null,
   targetUserId: string,
   actorId: string,
@@ -287,23 +283,23 @@ async function runOffboardingCascade(
   // the member email and runs regardless of a projection (a non-professional can
   // hold a pending invite too).
   if (professionalId) {
-    const apptErr = await cancelFutureAppointments(tenantId, professionalId, actorId)
+    const apptErr = await cancelFutureAppointments(orgId, professionalId, actorId)
     if (apptErr) return apptErr
-    const blockErr = await cleanAgendaBlocks(tenantId, professionalId, actorId)
+    const blockErr = await cleanAgendaBlocks(orgId, professionalId, actorId)
     if (blockErr) return blockErr
   }
-  const inviteErr = await cleanPendingInvites(tenantId, targetUserId, actorId)
+  const inviteErr = await cleanPendingInvites(orgId, targetUserId, actorId)
   if (inviteErr) return inviteErr
   return null
 }
 
-export async function offboardMemberInTenant(
-  tenantId: string,
+export async function offboardMemberInOrg(
+  orgId: string,
   targetUserId: string,
   actorId: string,
 ): Promise<OffboardResult> {
   const db = getAdminFirestore()
-  const membershipId = membershipDocId(tenantId, targetUserId)
+  const membershipId = membershipDocId(orgId, targetUserId)
   const memberSnap = await db
     .collection('memberships')
     .doc(membershipId)
@@ -311,7 +307,7 @@ export async function offboardMemberInTenant(
     .get()
   const member = memberSnap.data()
   if (!member) return { ok: false, error: 'Member not found' }
-  // The owner is the tenant-creator identity — never offboarded.
+  // The owner is the org-creator identity — never offboarded.
   if (member.role === 'owner') return { ok: false, error: 'Cannot remove the owner' }
   // AC-04 idempotency: an already-revoked membership short-circuits to a no-op
   // (re-running is safe, no throw, no duplicate events).
@@ -322,7 +318,7 @@ export async function offboardMemberInTenant(
   // not be orphaned. Runs BEFORE any mutation (no membership end, no
   // compensation needed), so the member is left fully intact and the owner is
   // told to settle first. The "acerto entre as partes" precedes removal.
-  const openComanda = await findOpenComanda(tenantId, targetUserId)
+  const openComanda = await findOpenComanda(orgId, targetUserId)
   if (openComanda) {
     return {
       ok: false,
@@ -364,8 +360,8 @@ export async function offboardMemberInTenant(
   // IDENTIFIABLE (art. 16). Idempotent — an already-suspended projection re-emits
   // harmlessly.
   const proSnap = await db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('professionals')
     .where('userId', '==', targetUserId)
     .limit(1)
@@ -378,7 +374,7 @@ export async function offboardMemberInTenant(
   if (existingPro) {
     const suspended = await emitEvent(
       ProfessionalConfig,
-      `tenants/${tenantId}/professionals/${existingPro.id}`,
+      `orgs/${orgId}/professionals/${existingPro.id}`,
       { _tag: 'professional.suspended', actorId, payload: {} },
     )
     if (!suspended.ok) {
@@ -392,7 +388,7 @@ export async function offboardMemberInTenant(
   // keyed on the member email). A non-null return is an error: compensate the
   // membership-end + surface it (no silent partial).
   const cascadeErr = await runOffboardingCascade(
-    tenantId,
+    orgId,
     existingPro?.id ?? null,
     targetUserId,
     actorId,
@@ -406,7 +402,7 @@ export async function offboardMemberInTenant(
   // the just-removed member no longer counts as staffing its units). Surfaced in
   // the result, never a veto: bookings on an unstaffed unit simply have no slots.
   const unitsWithoutProfessional = existingPro
-    ? await detectUnitsLeftWithoutProfessional(tenantId, existingPro.id, removedUnitIds)
+    ? await detectUnitsLeftWithoutProfessional(orgId, existingPro.id, removedUnitIds)
     : []
   const warnings: OffboardWarning[] =
     unitsWithoutProfessional.length > 0

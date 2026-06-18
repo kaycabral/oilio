@@ -24,19 +24,19 @@ export type ResolvedAppointmentUserIds = {
 type Resolution = { ok: true; ids: ResolvedAppointmentUserIds } | { ok: false; error: string }
 
 export async function resolveAppointmentUserIds(
-  tenantId: string,
+  orgId: string,
   customerId: string,
   professionalId: string,
 ): Promise<Resolution> {
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(tenantId)
+  const orgRef = db.collection('orgs').doc(orgId)
   const [customerSnap, professionalSnap] = await Promise.all([
-    tenantRef
+    orgRef
       .collection('customers')
       .doc(customerId)
       .withConverter(fsConverter(CustomerUserIdProbe))
       .get(),
-    tenantRef
+    orgRef
       .collection('professionals')
       .doc(professionalId)
       .withConverter(fsConverter(ProfessionalUserIdProbe))

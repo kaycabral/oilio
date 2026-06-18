@@ -27,69 +27,58 @@ beforeAll(() => {
   db = getFirestore(app)
 })
 
-function uniqueTenantId(label: string) {
+function uniqueOrgId(label: string) {
   return `t-${label}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 describe('MessageTemplate config-doc (AC-12)', () => {
   it('getMessageTemplate returns null when never customized', async () => {
-    const tenantId = uniqueTenantId('tpl-absent')
-    const tpl = await getMessageTemplate(tenantId, 'birthday')
+    const orgId = uniqueOrgId('tpl-absent')
+    const tpl = await getMessageTemplate(orgId, 'birthday')
     expect(tpl).toBeNull()
   })
 
   it('reads custom body after write', async () => {
-    const tenantId = uniqueTenantId('tpl-custom')
-    await db
-      .collection('tenants')
-      .doc(tenantId)
-      .collection('message_templates')
-      .doc('birthday')
-      .set({
-        id: 'birthday',
-        tenantId,
-        type: 'birthday',
-        body: 'Parabéns {cliente_nome}! 🎂',
-        enabled: true,
-        updatedAt: '2026-06-01T10:00:00Z',
-        lastActorUid: 'owner-1',
-      })
+    const orgId = uniqueOrgId('tpl-custom')
+    await db.collection('orgs').doc(orgId).collection('message_templates').doc('birthday').set({
+      id: 'birthday',
+      orgId,
+      type: 'birthday',
+      body: 'Parabéns {cliente_nome}! 🎂',
+      enabled: true,
+      updatedAt: '2026-06-01T10:00:00Z',
+      lastActorUid: 'owner-1',
+    })
 
-    const tpl = await getMessageTemplate(tenantId, 'birthday')
+    const tpl = await getMessageTemplate(orgId, 'birthday')
     expect(tpl?.body).toBe('Parabéns {cliente_nome}! 🎂')
     expect(tpl?.enabled).toBe(true)
   })
 
   it('resolveTemplateBody: custom when enabled, default when disabled', async () => {
-    const tenantId = uniqueTenantId('tpl-resolve')
-    const ref = db
-      .collection('tenants')
-      .doc(tenantId)
-      .collection('message_templates')
-      .doc('new_customer')
+    const orgId = uniqueOrgId('tpl-resolve')
+    const ref = db.collection('orgs').doc(orgId).collection('message_templates').doc('new_customer')
 
     await ref.set({
       id: 'new_customer',
-      tenantId,
+      orgId,
       type: 'new_customer',
       body: 'Custom welcome {cliente_nome}',
       enabled: true,
       updatedAt: '2026-06-01T10:00:00Z',
       lastActorUid: 'owner-1',
     })
-    expect(await resolveTemplateBody(tenantId, 'new_customer')).toBe(
-      'Custom welcome {cliente_nome}',
-    )
+    expect(await resolveTemplateBody(orgId, 'new_customer')).toBe('Custom welcome {cliente_nome}')
 
     await ref.update({ enabled: false })
-    expect(await resolveTemplateBody(tenantId, 'new_customer')).toBe(
+    expect(await resolveTemplateBody(orgId, 'new_customer')).toBe(
       DEFAULT_NOTIFICATION_TEMPLATES.new_customer,
     )
   })
 })
 
 describe('dispatchNotificationWhatsapp (AC-14)', () => {
-  async function seedCustomerAndNotification(tenantId: string) {
+  async function seedCustomerAndNotification(orgId: string) {
     const uid = `u-${Math.random().toString(36).slice(2, 8)}`
     const customerId = `c-${Math.random().toString(36).slice(2, 8)}`
     const notifId = `n-${Math.random().toString(36).slice(2, 8)}`
@@ -101,19 +90,19 @@ describe('dispatchNotificationWhatsapp (AC-14)', () => {
         buildUser(uid, '2026-06-01T10:00:00Z', { displayName: 'Maria', whatsapp: '11999998888' }),
       )
     await db
-      .collection('tenants')
-      .doc(tenantId)
+      .collection('orgs')
+      .doc(orgId)
       .collection('customers')
       .doc(customerId)
-      .set(buildStoredCustomer(customerId, tenantId, uid, '2026-06-01T10:00:00Z'))
+      .set(buildStoredCustomer(customerId, orgId, uid, '2026-06-01T10:00:00Z'))
     await db
-      .collection('tenants')
-      .doc(tenantId)
+      .collection('orgs')
+      .doc(orgId)
       .collection('notifications')
       .doc(notifId)
       .set({
         id: notifId,
-        tenantId,
+        orgId,
         unitId: 'u1',
         type: 'birthday',
         customerId,
@@ -135,10 +124,10 @@ describe('dispatchNotificationWhatsapp (AC-14)', () => {
   }
 
   it('returns wa.me link + grava snapshot channel + body no dispatched', async () => {
-    const tenantId = uniqueTenantId('dispatch')
-    const { notifId } = await seedCustomerAndNotification(tenantId)
+    const orgId = uniqueOrgId('dispatch')
+    const { notifId } = await seedCustomerAndNotification(orgId)
 
-    const result = await dispatchNotificationWhatsapp(tenantId, notifId, 'owner-1')
+    const result = await dispatchNotificationWhatsapp(orgId, notifId, 'owner-1')
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -146,8 +135,8 @@ describe('dispatchNotificationWhatsapp (AC-14)', () => {
     expect(result.link).toContain('Maria')
 
     const snap = await db
-      .collection('tenants')
-      .doc(tenantId)
+      .collection('orgs')
+      .doc(orgId)
       .collection('notifications')
       .doc(notifId)
       .get()
@@ -160,16 +149,16 @@ describe('dispatchNotificationWhatsapp (AC-14)', () => {
   })
 
   it('rejects non-dispatchable type', async () => {
-    const tenantId = uniqueTenantId('dispatch-reject')
+    const orgId = uniqueOrgId('dispatch-reject')
     const notifId = `n-${Math.random().toString(36).slice(2, 8)}`
     await db
-      .collection('tenants')
-      .doc(tenantId)
+      .collection('orgs')
+      .doc(orgId)
       .collection('notifications')
       .doc(notifId)
-      .set({ id: notifId, tenantId, type: 'cash_register_open', customerId: null, payload: {} })
+      .set({ id: notifId, orgId, type: 'cash_register_open', customerId: null, payload: {} })
 
-    const result = await dispatchNotificationWhatsapp(tenantId, notifId, 'owner-1')
+    const result = await dispatchNotificationWhatsapp(orgId, notifId, 'owner-1')
     expect(result.ok).toBe(false)
   })
 })

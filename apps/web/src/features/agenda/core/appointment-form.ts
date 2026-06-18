@@ -3,7 +3,7 @@
 // unit-tested. No I/O — the actions keep the Firestore reads, conflict checks
 // and event emission.
 
-import { fromTenantTime } from '@/domain'
+import { fromOrgTime } from '@/domain'
 import { formString } from '@/shared/form-data'
 
 export type ParsedNewCustomer = {
@@ -60,13 +60,13 @@ export function parseAppointmentForm(formData: FormData): ParsedAppointment | st
 }
 
 export function resolveStartEnd(
-  tenant: { timezone: string },
+  org: { timezone: string },
   parsed: SlotInput,
   durationMinutes: number,
 ): { startAt: string; endAt: string } | string {
   const [hh, mm] = parsed.startTime.split(':').map(Number)
   if (hh === undefined || mm === undefined) return 'Horário inválido'
-  const startAt = fromTenantTime({ date: parsed.date, hour: hh, minute: mm }, tenant.timezone)
+  const startAt = fromOrgTime({ date: parsed.date, hour: hh, minute: mm }, org.timezone)
   const endAt = new Date(new Date(startAt).getTime() + durationMinutes * 60_000).toISOString()
   return { startAt, endAt }
 }

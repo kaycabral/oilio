@@ -17,10 +17,10 @@ type QueryWindow = {
   unitId: string | null
 }
 
-async function loadClosedOrdersInWindow(tenantId: string, win: QueryWindow): Promise<Order[]> {
+async function loadClosedOrdersInWindow(orgId: string, win: QueryWindow): Promise<Order[]> {
   const base = getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('orders')
     .withConverter(fsConverter(Order))
   const q = base
@@ -32,13 +32,10 @@ async function loadClosedOrdersInWindow(tenantId: string, win: QueryWindow): Pro
   return snap.docs.map((d) => d.data())
 }
 
-async function loadAppointmentsInWindow(
-  tenantId: string,
-  win: QueryWindow,
-): Promise<Appointment[]> {
+async function loadAppointmentsInWindow(orgId: string, win: QueryWindow): Promise<Appointment[]> {
   const base = getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
   const q = base
@@ -50,7 +47,7 @@ async function loadAppointmentsInWindow(
 }
 
 export async function loadDashboardKpis(
-  tenantId: string,
+  orgId: string,
   filters: DashboardFilters,
 ): Promise<DashboardKpis> {
   const currentWindow: QueryWindow = {
@@ -65,8 +62,8 @@ export async function loadDashboardKpis(
   }
 
   const subsBase = getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
 
@@ -80,10 +77,10 @@ export async function loadDashboardKpis(
     await Promise.all([
       subsByStatus('active').get(),
       subsByStatus('past_due').get(),
-      loadClosedOrdersInWindow(tenantId, currentWindow),
-      loadClosedOrdersInWindow(tenantId, previousWindow),
-      loadAppointmentsInWindow(tenantId, currentWindow),
-      loadAppointmentsInWindow(tenantId, previousWindow),
+      loadClosedOrdersInWindow(orgId, currentWindow),
+      loadClosedOrdersInWindow(orgId, previousWindow),
+      loadAppointmentsInWindow(orgId, currentWindow),
+      loadAppointmentsInWindow(orgId, previousWindow),
     ])
 
   const activeSubs = [

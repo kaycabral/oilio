@@ -8,8 +8,8 @@ import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
+import { getUserMemberships } from '@/shared/org/membership'
 import { toRoute } from '@/shared/routes'
-import { getUserMemberships } from '@/shared/tenant/membership'
 import type { Route } from 'next'
 import { redirect } from 'next/navigation'
 
@@ -49,7 +49,7 @@ export async function completeProfile(formData: FormData): Promise<CompleteProfi
   // Customer book. If the WhatsApp matches, fold the stub into this OAuth
   // user — re-points every Customer/Membership/Appointment FK and deletes
   // the stub. Name from the completion form wins (data ownership — the
-  // user is canonical, not the tenant's typed-in copy). When no stub
+  // user is canonical, not the org's typed-in copy). When no stub
   // exists this is a normal new-user completion.
   const stubMatches = await db
     .collection('users')
@@ -72,7 +72,7 @@ export async function completeProfile(formData: FormData): Promise<CompleteProfi
   // Derived approval (#1047 / AC-06/AC-07): setting `User.whatsapp` here can be
   // the missing fact that completes a professional's profile. Re-derive across
   // every professional projection linked to this user (a person may operate in
-  // multiple tenants) and emit `professional.activated` where the profile is now
+  // multiple orgs) and emit `professional.activated` where the profile is now
   // complete (whatsapp ∧ ≥1 unit ∧ ≥1 service). Event-first — no direct status
   // write. Best-effort: a failure here must not trap the user mid-onboarding,
   // so errors surface in logs but don't abort the redirect; the next
@@ -84,21 +84,21 @@ export async function completeProfile(formData: FormData): Promise<CompleteProfi
 
 // Re-derives `operationalStatus` for every professional projection linked to this
 // user and emits `professional.activated` where the profile is now complete
-// (#1047 / AC-07). Scoped via the user's active memberships (no cross-tenant
+// (#1047 / AC-07). Scoped via the user's active memberships (no cross-org
 // product query — ADR 0004): only `role=professional` memberships matter.
-// Event-first; no direct status write. Best-effort — a per-tenant failure is
+// Event-first; no direct status write. Best-effort — a per-org failure is
 // logged and skipped so onboarding never traps; the next professional mutation
 // re-derives.
 async function activateCompletedProfessionalsFor(uid: string, whatsapp: string): Promise<void> {
   const memberships = await getUserMemberships(uid)
-  const proTenantIds = memberships.filter((m) => m.role === 'professional').map((m) => m.tenantId)
-  if (proTenantIds.length === 0) return
+  const proOrgIds = memberships.filter((m) => m.role === 'professional').map((m) => m.orgId)
+  if (proOrgIds.length === 0) return
   const db = getAdminFirestore()
-  for (const tenantId of proTenantIds) {
+  for (const orgId of proOrgIds) {
     try {
       const snap = await db
-        .collection('tenants')
-        .doc(tenantId)
+        .collection('orgs')
+        .doc(orgId)
         .collection('professionals')
         .where('userId', '==', uid)
         .withConverter(fsConverter(StoredProfessional))
@@ -113,14 +113,14 @@ async function activateCompletedProfessionalsFor(uid: string, whatsapp: string):
           serviceIds: stored.serviceIds,
         })
         if (derived !== 'operational') continue
-        await emitEvent(ProfessionalConfig, `tenants/${tenantId}/professionals/${doc.id}`, {
+        await emitEvent(ProfessionalConfig, `orgs/${orgId}/professionals/${doc.id}`, {
           _tag: 'professional.activated',
           actorId: uid,
           payload: {},
         })
       }
     } catch (err) {
-      console.error(`[completeProfile] approval derivation failed for tenant ${tenantId}`, err)
+      console.error(`[completeProfile] approval derivation failed for org ${orgId}`, err)
     }
   }
 }

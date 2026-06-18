@@ -16,7 +16,7 @@ import {
   computeNoticeMinutes,
   findAppointmentConflicts,
   getBlockSegmentsForDay,
-  getTenantDayBoundsUtc,
+  getOrgDayBoundsUtc,
   isCatalogService,
   isOperational,
 } from '@/domain'
@@ -29,20 +29,20 @@ import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
 import { assertCustomerIdNotBlocked } from '@/shared/privacy/assert-customer-not-blocked'
 
-import { AuthzError } from '@/shared/tenant/membership'
+import { AuthzError } from '@/shared/org/membership'
 
 export type AppointmentMutationResult =
   | { ok: true; appointmentId: string }
   | { ok: false; error: string; conflicts?: string[] }
 
-// Surfaces the per-tenant CUSTOMER write-guard (brief 0032, AC-11) as an action
+// Surfaces the per-org CUSTOMER write-guard (brief 0032, AC-11) as an action
 // error instead of a thrown `AuthzError`. Returns null when allowed.
 export async function guardCustomerNotBlocked(
-  tenantId: string,
+  orgId: string,
   customerId: string,
 ): Promise<{ ok: false; error: string } | null> {
   try {
-    await assertCustomerIdNotBlocked(tenantId, customerId)
+    await assertCustomerIdNotBlocked(orgId, customerId)
     return null
   } catch (e) {
     if (e instanceof AuthzError) {
@@ -55,10 +55,10 @@ export async function guardCustomerNotBlocked(
 // Helpers return `T | string` (error message) — the form-parser convention used
 // across this app (see `parseAppointmentForm`).
 export async function loadActiveService(
-  tenantRef: FirebaseFirestore.DocumentReference,
+  orgRef: FirebaseFirestore.DocumentReference,
   serviceId: string,
 ): Promise<CatalogItem | string> {
-  const snap = await tenantRef
+  const snap = await orgRef
     .collection('catalog_items')
     .withConverter(fsConverter(CatalogItem))
     .doc(serviceId)
@@ -73,10 +73,10 @@ export async function loadActiveService(
 // Approval gate (#753): only `approved` professionals take bookings — re-checked
 // on update too (owner could move an appointment onto a non-approved pro).
 export async function loadApprovedProfessional(
-  tenantRef: FirebaseFirestore.DocumentReference,
+  orgRef: FirebaseFirestore.DocumentReference,
   professionalId: string,
 ): Promise<StoredProfessional | string> {
-  const snap = await tenantRef
+  const snap = await orgRef
     .collection('professionals')
     .withConverter(fsConverter(StoredProfessional))
     .doc(professionalId)
@@ -93,24 +93,24 @@ export async function loadApprovedProfessional(
 // Returns a staff-friendly error + labels, or null when the slot is free. The
 // in-transaction check at commit time is the authoritative one under contention.
 export async function checkSlotConflicts(args: {
-  tenantRef: FirebaseFirestore.DocumentReference
-  tenant: { timezone: string }
+  orgRef: FirebaseFirestore.DocumentReference
+  org: { timezone: string }
   parsed: SlotInput
   startAt: string
   endAt: string
   excludeAppointmentId?: string
 }): Promise<{ error: string; conflicts: string[] } | null> {
-  const { tenantRef, tenant, parsed, startAt, endAt, excludeAppointmentId } = args
-  const { startUtc: dayStart, endUtc: dayEnd } = getTenantDayBoundsUtc(parsed.date, tenant.timezone)
+  const { orgRef, org, parsed, startAt, endAt, excludeAppointmentId } = args
+  const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(parsed.date, org.timezone)
   const [apptSnap, blocksSnap] = await Promise.all([
-    tenantRef
+    orgRef
       .collection('appointments')
       .withConverter(fsConverter(Appointment))
       .where('unitId', '==', parsed.unitId)
       .where('startAt', '>=', dayStart)
       .where('startAt', '<=', dayEnd)
       .get(),
-    tenantRef
+    orgRef
       .collection('agenda_blocks')
       .withConverter(fsConverter(AgendaBlock))
       .where('unitId', '==', parsed.unitId)
@@ -118,14 +118,14 @@ export async function checkSlotConflicts(args: {
   ])
   const existing = apptSnap.docs.map((d) => d.data())
   const blocks = blocksSnap.docs.map((d) => d.data())
-  const blockSegments = getBlockSegmentsForDay(blocks, parsed.date, tenant.timezone)
+  const blockSegments = getBlockSegmentsForDay(blocks, parsed.date, org.timezone)
   const conflicts = findAppointmentConflicts({
     proposed: { startAt, endAt },
     professionalId: parsed.professionalId,
     existing,
     blockSegments,
     date: parsed.date,
-    tz: tenant.timezone,
+    tz: org.timezone,
     excludeAppointmentId,
   })
   if (conflicts.length === 0) return null
@@ -139,7 +139,7 @@ export async function checkSlotConflicts(args: {
 // or professional changed, emit `appointment.updated` (diff of mutable fields),
 // and add `appointment.rescheduled` when the start instant moved.
 export async function persistAppointmentUpdate(args: {
-  tenantId: string
+  orgId: string
   actorUid: string
   appointmentId: string
   parsed: SlotInput & { customerId: string }
@@ -149,17 +149,13 @@ export async function persistAppointmentUpdate(args: {
   resolved: ReturnType<typeof resolveCatalogItemForUnit>
   serviceOrUnitChanged: boolean
 }): Promise<AppointmentMutationResult> {
-  const { tenantId, actorUid, appointmentId, parsed, previous, startAt, endAt, resolved } = args
+  const { orgId, actorUid, appointmentId, parsed, previous, startAt, endAt, resolved } = args
   const userIdsChanged =
     parsed.customerId !== previous.customerId || parsed.professionalId !== previous.professionalId
   let customerUserId = previous.customerUserId
   let professionalUserId = previous.professionalUserId
   if (userIdsChanged) {
-    const userIds = await resolveAppointmentUserIds(
-      tenantId,
-      parsed.customerId,
-      parsed.professionalId,
-    )
+    const userIds = await resolveAppointmentUserIds(orgId, parsed.customerId, parsed.professionalId)
     if (!userIds.ok) return userIds
     customerUserId = userIds.ids.customerUserId
     professionalUserId = userIds.ids.professionalUserId
@@ -183,7 +179,7 @@ export async function persistAppointmentUpdate(args: {
     changes.commissionSnapshot = resolved.commission
   }
 
-  const aggPath = `tenants/${tenantId}/appointments/${appointmentId}`
+  const aggPath = `orgs/${orgId}/appointments/${appointmentId}`
   const edited = await emitEvent(AppointmentConfig, aggPath, {
     _tag: 'appointment.updated',
     actorId: actorUid,

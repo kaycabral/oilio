@@ -4,7 +4,7 @@ import {
   CatalogItem,
   StoredProfessional,
   StoredUnit,
-  getTodayInTenantTz,
+  getTodayInOrgTz,
   isBookingLimitsUnrestricted,
   isCatalogService,
   isInstantWithinTimeScope,
@@ -28,8 +28,8 @@ import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
-import { upsertCustomerWithUser } from '@/shared/tenant/customer-upsert'
-import { getTenantBySlug } from '@/shared/tenant/tenant'
+import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
+import { getOrgBySlug } from '@/shared/org/org'
 
 // Server action for the unit-scoped wizard (#844). Differs from the legacy
 // `createPublicBooking` (which lives at `/{slug}/book` and accepts free-form
@@ -40,7 +40,7 @@ import { getTenantBySlug } from '@/shared/tenant/tenant'
 //   - `professionalId` is required (the calendar in #842 always assigns a pro).
 
 export type WizardBookingResult =
-  | { ok: true; bookingId: string; tenantId: string; unitSlug: string }
+  | { ok: true; bookingId: string; orgId: string; unitSlug: string }
   | { ok: false; error: string }
   // Brief 0019 Group C — AC-12. Surfaces a special signal when the
   // customer already has the maximum same-day appointments allowed by
@@ -62,18 +62,18 @@ export type WizardBookingResult =
 // Resolve the unit / service / professional and validate they form a bookable
 // combination in this unit (public visibility, links, approval). Error or trio.
 async function resolveWizardEntities(
-  tenantRef: FirebaseFirestore.DocumentReference,
+  orgRef: FirebaseFirestore.DocumentReference,
   fields: Pick<WizardFields, 'serviceId' | 'professionalId'>,
   unitSlug: string,
 ): Promise<{ unit: StoredUnit; service: CatalogItem; professional: StoredProfessional } | string> {
   const [unitsSnap, serviceSnap, proSnap] = await Promise.all([
-    tenantRef.collection('units').withConverter(fsConverter(StoredUnit)).get(),
-    tenantRef
+    orgRef.collection('units').withConverter(fsConverter(StoredUnit)).get(),
+    orgRef
       .collection('catalog_items')
       .withConverter(fsConverter(CatalogItem))
       .doc(fields.serviceId)
       .get(),
-    tenantRef
+    orgRef
       .collection('professionals')
       .withConverter(fsConverter(StoredProfessional))
       .doc(fields.professionalId)
@@ -108,14 +108,14 @@ async function resolveWizardEntities(
 // availability UI filtered slots. Avulso (no session) skips. Returns the plan's
 // booking limits to enforce, or an out-of-scope `WizardBookingResult`.
 async function checkWizardSubscriptionScope(args: {
-  tenant: { id: string; timezone: string }
+  org: { id: string; timezone: string }
   session: Awaited<ReturnType<typeof getSessionUser>>
   service: CatalogItem
   startAtDate: Date
 }): Promise<{ bookingLimits: BookingLimits | null } | { error: WizardBookingResult }> {
-  const { tenant, session, service, startAtDate } = args
+  const { org, session, service, startAtDate } = args
   if (!session) return { bookingLimits: null }
-  const scope = await resolveCustomerSubscriptionScope(tenant.id, session.uid)
+  const scope = await resolveCustomerSubscriptionScope(org.id, session.uid)
 
   // Category coverage (brief 0023, AC-06).
   if (scope.includedCategoryIds) {
@@ -132,11 +132,11 @@ async function checkWizardSubscriptionScope(args: {
     }
   }
   if (scope.allowedTimeScope) {
-    const todayInTz = getTodayInTenantTz(tenant.timezone)
+    const todayInTz = getTodayInOrgTz(org.timezone)
     const inScope = isInstantWithinTimeScope(
       scope.allowedTimeScope,
       startAtDate.toISOString(),
-      tenant.timezone,
+      org.timezone,
       todayInTz,
     )
     if (!inScope) {
@@ -158,7 +158,7 @@ async function checkWizardSubscriptionScope(args: {
 // `WizardBookingResult`, or null when the booking may proceed.
 async function enforceWizardBookingLimits(args: {
   db: ReturnType<typeof getAdminFirestore>
-  tenant: { id: string; timezone: string }
+  org: { id: string; timezone: string }
   customerId: string
   startAtDate: Date
   session: Awaited<ReturnType<typeof getSessionUser>>
@@ -168,8 +168,8 @@ async function enforceWizardBookingLimits(args: {
   if (!session || !bookingLimits || isBookingLimitsUnrestricted(bookingLimits)) return null
   const limitCheck = await checkBookingLimits({
     db: args.db,
-    tenantId: args.tenant.id,
-    tenantTimezone: args.tenant.timezone,
+    orgId: args.org.id,
+    orgTimezone: args.org.timezone,
     customerId: args.customerId,
     limits: bookingLimits,
     proposedStartAt: args.startAtDate.toISOString(),
@@ -199,8 +199,8 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     return { ok: false, error: 'Unidade inválida.' }
   }
 
-  const tenant = await getTenantBySlug(slug)
-  if (!tenant || !tenant.selfBookingPublished) {
+  const org = await getOrgBySlug(slug)
+  if (!org || !org.selfBookingPublished) {
     return { ok: false, error: 'Estabelecimento indisponível.' }
   }
 
@@ -210,9 +210,9 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     fields
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(tenant.id)
+  const orgRef = db.collection('orgs').doc(org.id)
 
-  const entities = await resolveWizardEntities(tenantRef, fields, unitSlug)
+  const entities = await resolveWizardEntities(orgRef, fields, unitSlug)
   if (typeof entities === 'string') return { ok: false, error: entities }
   const { unit, service } = entities
 
@@ -222,12 +222,12 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   const session = await getSessionUser()
   // Behavioral scope (brief 0019, Group C — AC-12..14) reuses the same resolver;
   // hoist the booking limits to enforce below once the customer is materialized.
-  const scopeResult = await checkWizardSubscriptionScope({ tenant, session, service, startAtDate })
+  const scopeResult = await checkWizardSubscriptionScope({ org, session, service, startAtDate })
   if ('error' in scopeResult) return scopeResult.error
   const bookingLimitsForCustomer = scopeResult.bookingLimits
 
   const upsert = await upsertCustomerWithUser({
-    tenantId: tenant.id,
+    orgId: org.id,
     name: customerName,
     whatsappRaw: whatsapp,
     email: isValidEmail(customerEmailRaw) ? customerEmailRaw : null,
@@ -238,7 +238,7 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
 
   const limitsErr = await enforceWizardBookingLimits({
     db,
-    tenant,
+    org,
     customerId,
     startAtDate,
     session,
@@ -247,13 +247,13 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   if (limitsErr) return limitsErr
 
   const now = new Date().toISOString()
-  const userIds = await resolveAppointmentUserIds(tenant.id, customerId, professionalId)
+  const userIds = await resolveAppointmentUserIds(org.id, customerId, professionalId)
   if (!userIds.ok) return userIds
 
-  const aptRef = tenantRef.collection('appointments').doc()
+  const aptRef = orgRef.collection('appointments').doc()
   const appointment: Appointment = {
     id: aptRef.id,
-    tenantId: tenant.id,
+    orgId: org.id,
     unitId: unit.id,
     professionalId,
     customerId,
@@ -265,7 +265,7 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     serviceDurationMinutesSnapshot: resolved.durationMinutes,
     commissionSnapshot: resolved.commission,
     // Snapshot da cancellation policy no commit (#1038).
-    cancellationPolicySnapshot: normalizeCancellationPolicy(tenant.cancellationPolicy),
+    cancellationPolicySnapshot: normalizeCancellationPolicy(org.cancellationPolicy),
     customerUserId: userIds.ids.customerUserId,
     professionalUserId: userIds.ids.professionalUserId,
     createdAt: now,
@@ -274,7 +274,7 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
 
   const commit = await commitAppointmentBooking({
     db,
-    tenantRef,
+    orgRef,
     appointment,
     actorUid: `public:${customerId}`,
     via: 'self_book_wizard',
@@ -285,5 +285,5 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
 
   // Auditoria = stream: `commitAppointmentBooking` já emite `appointment.created`
   // (fonte de verdade). Sem `audit_logs` paralelo (erradicação ES, #1029).
-  return { ok: true, bookingId: aptRef.id, tenantId: tenant.id, unitSlug: unit.slug }
+  return { ok: true, bookingId: aptRef.id, orgId: org.id, unitSlug: unit.slug }
 }

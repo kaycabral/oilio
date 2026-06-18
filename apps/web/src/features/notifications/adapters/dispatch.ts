@@ -7,7 +7,7 @@ import { NotificationConfig } from '@/domain/aggregates'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
-import { getCustomerById } from '@/shared/tenant/customer-read'
+import { getCustomerById } from '@/shared/org/customer-read'
 import { Schema } from 'effect'
 import { isDispatchableType, resolveTemplateBody } from './message-templates'
 
@@ -23,14 +23,14 @@ const StoredDispatchNotification = Schema.Struct({
 // wa.me, e grava notification.dispatched com snapshot (channel + body NÃO
 // renderizado). Body renderizado vai só pro link; o snapshot guarda a receita.
 export async function dispatchNotificationWhatsapp(
-  tenantId: string,
+  orgId: string,
   notificationId: string,
   actorUid: string,
 ): Promise<DispatchResult> {
   const db = getAdminFirestore()
   const notifSnap = await db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('notifications')
     .doc(notificationId)
     .withConverter(fsConverter(StoredDispatchNotification))
@@ -48,11 +48,11 @@ export async function dispatchNotificationWhatsapp(
   const customerId = notif.customerId ?? null
   if (!customerId) return { ok: false, error: 'Notificação sem cliente associado' }
 
-  const customer = await getCustomerById(tenantId, customerId)
+  const customer = await getCustomerById(orgId, customerId)
   if (!customer) return { ok: false, error: 'Cliente não encontrado' }
   if (!customer.whatsapp) return { ok: false, error: 'Cliente sem WhatsApp cadastrado' }
 
-  const body = await resolveTemplateBody(tenantId, dispatchableType)
+  const body = await resolveTemplateBody(orgId, dispatchableType)
 
   const payload = notif.payload ?? {}
   const vars: NotificationTemplateVars = {
@@ -69,7 +69,7 @@ export async function dispatchNotificationWhatsapp(
   // Snapshot: body NÃO-renderizado (chave de variante) + canal.
   const result = await emitEvent(
     NotificationConfig,
-    `tenants/${tenantId}/notifications/${notificationId}`,
+    `orgs/${orgId}/notifications/${notificationId}`,
     {
       _tag: 'notification.dispatched',
       actorId: actorUid,

@@ -6,14 +6,14 @@ import {
   toPublicService,
 } from '@/domain'
 import { resolveScopeForSession } from '@/features/booking/adapters/subscription-scope.repo'
-import { getPublicUnitBundle } from '@/features/self-book/adapters/public-tenant'
+import { getPublicUnitBundle } from '@/features/self-book/adapters/public-org'
 import { ConfirmBookingForm } from '@/features/self-book/ui/ConfirmBookingForm'
 import { PlanCoverageBanner } from '@/features/self-book/ui/PlanCoverageBanner'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { getSessionUser } from '@/shared/firebase/admin'
-import { getUserDoc } from '@/shared/tenant/membership'
-import { getProfessionalById } from '@/shared/tenant/professional-read'
+import { getUserDoc } from '@/shared/org/membership'
+import { getProfessionalById } from '@/shared/org/professional-read'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug, unitSlug } = await params
   const bundle = await getPublicUnitBundle(slug, unitSlug)
   if (!bundle) return { title: 'Página não encontrada' }
-  return { title: `Agendar — ${bundle.unit.name} — ${bundle.tenant.name}` }
+  return { title: `Agendar — ${bundle.unit.name} — ${bundle.org.name}` }
 }
 
 // Load + validate the wizard's bundle, chosen service and professional. Every
@@ -48,14 +48,10 @@ async function loadWizardPageEntities(
   const bundle = await getPublicUnitBundle(slug, unitSlug)
   if (!bundle) notFound()
 
-  const tenantRef = getAdminFirestore().collection('tenants').doc(bundle.tenant.id)
+  const orgRef = getAdminFirestore().collection('orgs').doc(bundle.org.id)
   const [serviceSnap, professional] = await Promise.all([
-    tenantRef
-      .collection('catalog_items')
-      .withConverter(fsConverter(CatalogItem))
-      .doc(serviceQ)
-      .get(),
-    getProfessionalById(bundle.tenant.id, professionalQ),
+    orgRef.collection('catalog_items').withConverter(fsConverter(CatalogItem)).doc(serviceQ).get(),
+    getProfessionalById(bundle.org.id, professionalQ),
   ])
   // Unified catalog (brief 0023, #1004): re-sanitize through `toPublicService`
   // so the rendered labels match the wire projection (no commission leak).
@@ -108,7 +104,7 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
     professionalQ,
   )
 
-  // Render the human-readable start label in tenant timezone — pre-formatted
+  // Render the human-readable start label in org timezone — pre-formatted
   // server-side so the client doesn't need to know the tz for display.
   const startAt = new Date(startQ)
   if (Number.isNaN(startAt.getTime())) {
@@ -137,10 +133,10 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
   // Brief 0019 Group D — AC-16. Same scope resolution path as the unit
   // catalog/availability pages — keeps the banner consistent across all
   // 3 wizard steps for subscribed customers.
-  const scope = await resolveScopeForSession(bundle.tenant.id)
+  const scope = await resolveScopeForSession(bundle.org.id)
 
   const fmt = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: bundle.tenant.timezone,
+    timeZone: bundle.org.timezone,
     weekday: 'long',
     day: '2-digit',
     month: 'long',
@@ -163,7 +159,7 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Confirmar agendamento</h1>
         <p className="text-muted-foreground text-sm">
-          {bundle.unit.name} — {bundle.tenant.name}
+          {bundle.unit.name} — {bundle.org.name}
         </p>
         <ol className="text-muted-foreground flex items-center gap-2 pt-1 text-xs">
           <li>
@@ -203,7 +199,7 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
         serviceLabel={serviceLabel}
         professionalLabel={professional.name}
         startAtLabel={startAtLabel}
-        cancellationPolicy={bundle.tenant.cancellationPolicy}
+        cancellationPolicy={bundle.org.cancellationPolicy}
         changeSlotHref={changeSlotHref}
         prefill={prefill}
         unitWhatsapp={bundle.unit.whatsapp}

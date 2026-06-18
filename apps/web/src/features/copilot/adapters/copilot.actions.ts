@@ -4,7 +4,7 @@ import { GOAL_TARGET_MIN_CENTS, goalDocId, isValidGoalPeriod, type Goal } from '
 import { GoalConfig } from '@/domain/aggregates'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
-import { requireManagerCtx } from '@/shared/tenant/membership'
+import { requireManagerCtx } from '@/shared/org/membership'
 import { revalidatePath } from 'next/cache'
 
 export type GoalMutationResult = { ok: true } | { ok: false; error: string }
@@ -36,12 +36,12 @@ export async function defineGoal(formData: FormData): Promise<GoalMutationResult
   const parsed = parseGoalForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  const tenantId = r.ctx.membership.tenantId
+  const orgId = r.ctx.membership.orgId
   const id = goalDocId('profit', parsed.unitId, parsed.period)
   const now = new Date().toISOString()
   const goal: Goal = {
     id,
-    tenantId,
+    orgId,
     unitId: parsed.unitId,
     period: parsed.period,
     type: 'profit',
@@ -50,7 +50,7 @@ export async function defineGoal(formData: FormData): Promise<GoalMutationResult
     updatedAt: now,
   }
 
-  const created = await emitEvent(GoalConfig, `tenants/${tenantId}/goals/${id}`, {
+  const created = await emitEvent(GoalConfig, `orgs/${orgId}/goals/${id}`, {
     _tag: 'goal.defined',
     actorId: r.ctx.session.uid,
     payload: { data: goal },
@@ -70,8 +70,8 @@ export async function updateGoal(goalId: string, formData: FormData): Promise<Go
   const parsed = parseGoalForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  const tenantId = r.ctx.membership.tenantId
-  const updated = await emitEvent(GoalConfig, `tenants/${tenantId}/goals/${goalId}`, {
+  const orgId = r.ctx.membership.orgId
+  const updated = await emitEvent(GoalConfig, `orgs/${orgId}/goals/${goalId}`, {
     _tag: 'goal.updated',
     actorId: r.ctx.session.uid,
     payload: { changes: { targetCents: parsed.targetCents } },

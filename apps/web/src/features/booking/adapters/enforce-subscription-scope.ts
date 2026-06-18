@@ -1,4 +1,4 @@
-import { getTodayInTenantTz, isBookingLimitsUnrestricted, StoredCustomer } from '@/domain'
+import { getTodayInOrgTz, isBookingLimitsUnrestricted, StoredCustomer } from '@/domain'
 import { checkBookingLimits } from '@/features/booking/adapters/check-booking-limits'
 import { resolveCustomerSubscriptionScope } from '@/features/booking/adapters/subscription-scope.repo'
 import {
@@ -19,8 +19,8 @@ type SubscriptionScope = Awaited<ReturnType<typeof resolveCustomerSubscriptionSc
 
 async function checkLimits(args: {
   db: Firestore
-  tenantId: string
-  tenantTimezone: string
+  orgId: string
+  orgTimezone: string
   customerId: string
   startAt: string
   excludeAppointmentId?: string
@@ -30,8 +30,8 @@ async function checkLimits(args: {
   if (!scope.bookingLimits || isBookingLimitsUnrestricted(scope.bookingLimits)) return null
   const limitCheck = await checkBookingLimits({
     db: args.db,
-    tenantId: args.tenantId,
-    tenantTimezone: args.tenantTimezone,
+    orgId: args.orgId,
+    orgTimezone: args.orgTimezone,
     customerId: args.customerId,
     limits: scope.bookingLimits,
     proposedStartAt: args.startAt,
@@ -57,8 +57,8 @@ async function checkLimits(args: {
 
 export async function enforceSubscriptionScope(args: {
   db: Firestore
-  tenantId: string
-  tenantTimezone: string
+  orgId: string
+  orgTimezone: string
   customerId: string
   unitId: string
   startAt: string
@@ -70,10 +70,10 @@ export async function enforceSubscriptionScope(args: {
   serviceCategoryId?: string | null
   excludeAppointmentId?: string
 }): Promise<ScopeEnforcementResult> {
-  const { db, tenantId, tenantTimezone, customerId, unitId, startAt, serviceCategoryId } = args
+  const { db, orgId, orgTimezone, customerId, unitId, startAt, serviceCategoryId } = args
 
-  const tenantRef = db.collection('tenants').doc(tenantId)
-  const customerSnap = await tenantRef
+  const orgRef = db.collection('orgs').doc(orgId)
+  const customerSnap = await orgRef
     .collection('customers')
     .withConverter(fsConverter(StoredCustomer))
     .doc(customerId)
@@ -82,17 +82,17 @@ export async function enforceSubscriptionScope(args: {
   if (!customer) return { ok: true }
   if (!customer.userId) return { ok: true }
 
-  const scope = await resolveCustomerSubscriptionScope(tenantId, customer.userId)
-  const todayIso = getTodayInTenantTz(tenantTimezone)
+  const scope = await resolveCustomerSubscriptionScope(orgId, customer.userId)
+  const todayIso = getTodayInOrgTz(orgTimezone)
 
   return (
     checkUnitAllowlist(scope, unitId) ??
     checkCategoryCoverage(scope, serviceCategoryId) ??
-    checkTimeScope(scope, startAt, tenantTimezone, todayIso) ??
+    checkTimeScope(scope, startAt, orgTimezone, todayIso) ??
     (await checkLimits({
       db,
-      tenantId,
-      tenantTimezone,
+      orgId,
+      orgTimezone,
       customerId,
       startAt,
       excludeAppointmentId: args.excludeAppointmentId,

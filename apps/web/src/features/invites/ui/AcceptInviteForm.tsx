@@ -5,11 +5,11 @@ import { Button } from '@cbrl/design'
 import { useState, useTransition } from 'react'
 
 export function AcceptInviteForm({
-  tenantId,
+  orgId,
   inviteId,
   token,
 }: {
-  tenantId: string
+  orgId: string
   inviteId: string
   token: string
 }) {
@@ -26,7 +26,7 @@ export function AcceptInviteForm({
 
   return (
     <form action={onSubmit} className="flex flex-col gap-3">
-      <input type="hidden" name="tenantId" value={tenantId} />
+      <input type="hidden" name="orgId" value={orgId} />
       <input type="hidden" name="inviteId" value={inviteId} />
       <input type="hidden" name="token" value={token} />
       <Button type="submit" disabled={pending}>

@@ -12,17 +12,17 @@ import { getAdminFirestore } from '@/shared/db'
 import { emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
-import { getInviteById } from '@/shared/tenant/invite-read'
-import { type StoredProfessional, writeProfessionalPii } from '@/shared/tenant/professional-read'
+import { getInviteById } from '@/shared/org/invite-read'
+import { type StoredProfessional, writeProfessionalPii } from '@/shared/org/professional-read'
 import { redirect } from 'next/navigation'
 
-export type AcceptInviteResult = { ok: true; tenantId: string } | { ok: false; error: string }
+export type AcceptInviteResult = { ok: true; orgId: string } | { ok: false; error: string }
 
 export async function acceptInvite(formData: FormData): Promise<AcceptInviteResult> {
   const inviteId = formString(formData, 'inviteId')
   const token = formString(formData, 'token')
-  const tenantId = formString(formData, 'tenantId')
-  if (!inviteId || !token || !tenantId) {
+  const orgId = formString(formData, 'orgId')
+  if (!inviteId || !token || !orgId) {
     return { ok: false, error: 'Missing invite parameters' }
   }
 
@@ -33,12 +33,12 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
   const db = getAdminFirestore()
   // PII (invitee email) merged from `invites_pii` on read (#1036) — the email
   // match below needs it.
-  const invite = await getInviteById(tenantId, inviteId)
+  const invite = await getInviteById(orgId, inviteId)
   if (!invite) return { ok: false, error: 'Invite not found' }
   if (invite.status !== 'pending') return { ok: false, error: 'Invite already used' }
   if (new Date(invite.expiresAt).getTime() < Date.now()) {
     // Event-first: a projeção do convite expirado vem do evento.
-    await emitEvent(InviteConfig, `tenants/${tenantId}/invites/${inviteId}`, {
+    await emitEvent(InviteConfig, `orgs/${orgId}/invites/${inviteId}`, {
       _tag: 'invite.updated',
       actorId: session.uid,
       payload: { changes: { status: 'expired' } },
@@ -58,10 +58,10 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
   }
 
   const now = new Date().toISOString()
-  const membershipId = membershipDocId(invite.tenantId, session.uid)
+  const membershipId = membershipDocId(invite.orgId, session.uid)
   const membership: Membership = {
     id: membershipId,
-    tenantId: invite.tenantId,
+    orgId: invite.orgId,
     userId: session.uid,
     role: invite.role,
     status: 'active',
@@ -106,17 +106,17 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
   // carries operational fields + the non-null `userId`; PII never enters the
   // event payload (LGPD — ADR 0010). Personal identity (name/whatsapp/email)
   // is NOT snapshotted — it derives live from `users/{userId}` at read time
-  // (#1046 / AC-04/AC-05). The only per-tenant PII doc field is `taxIdentity`,
+  // (#1046 / AC-04/AC-05). The only per-org PII doc field is `taxIdentity`,
   // which starts null (the manager fills it in the edit form). unitIds/
   // serviceIds start empty (assigned by the manager later) and approval stays
   // `none` (derived by event in #1047) — `none` keeps the pro off the public
   // agenda until the profile is complete.
   let compensateProfessional: (() => Promise<void>) | null = null
   if (invite.role === 'professional') {
-    const proRef = db.collection('tenants').doc(tenantId).collection('professionals').doc()
+    const proRef = db.collection('orgs').doc(orgId).collection('professionals').doc()
     const stored: StoredProfessional = {
       id: proRef.id,
-      tenantId,
+      orgId,
       userId: session.uid,
       operationalStatus: 'incomplete',
       defaultCommission: null,
@@ -125,20 +125,20 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
       createdAt: now,
       updatedAt: now,
     }
-    await writeProfessionalPii(tenantId, proRef.id, {
+    await writeProfessionalPii(orgId, proRef.id, {
       taxIdentity: null,
     })
     const proCreated = await emitEvent(
       ProfessionalConfig,
-      `tenants/${tenantId}/professionals/${proRef.id}`,
+      `orgs/${orgId}/professionals/${proRef.id}`,
       { _tag: 'professional.created', actorId: session.uid, payload: { data: stored } },
     )
     if (!proCreated.ok) {
       await compensateMembership()
       await proRef.delete().catch(() => undefined)
       await db
-        .collection('tenants')
-        .doc(tenantId)
+        .collection('orgs')
+        .doc(orgId)
         .collection('professionals_pii')
         .doc(proRef.id)
         .delete()
@@ -146,15 +146,15 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
       return { ok: false, error: proCreated.error }
     }
     compensateProfessional = async (): Promise<void> => {
-      await emitEvent(ProfessionalConfig, `tenants/${tenantId}/professionals/${proRef.id}`, {
+      await emitEvent(ProfessionalConfig, `orgs/${orgId}/professionals/${proRef.id}`, {
         _tag: 'professional.deleted',
         actorId: session.uid,
         payload: {},
       })
       await proRef.delete().catch(() => undefined)
       await db
-        .collection('tenants')
-        .doc(tenantId)
+        .collection('orgs')
+        .doc(orgId)
         .collection('professionals_pii')
         .doc(proRef.id)
         .delete()
@@ -162,7 +162,7 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
     }
   }
 
-  const inviteAccepted = await emitEvent(InviteConfig, `tenants/${tenantId}/invites/${inviteId}`, {
+  const inviteAccepted = await emitEvent(InviteConfig, `orgs/${orgId}/invites/${inviteId}`, {
     _tag: 'invite.updated',
     actorId: session.uid,
     payload: { changes: { status: 'accepted', acceptedByUid: session.uid, acceptedAt: now } },
@@ -176,7 +176,7 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
   await db
     .collection('users')
     .doc(session.uid)
-    .set({ currentTenantId: invite.tenantId, updatedAt: now }, { merge: true })
+    .set({ currentOrgId: invite.orgId, updatedAt: now }, { merge: true })
 
   redirect('/dashboard')
 }

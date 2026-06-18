@@ -6,7 +6,7 @@ const TZ = 'America/Sao_Paulo'
 const NOW = new Date('2026-05-15T18:30:00.000Z')
 
 describe('resolveCashReportRange (fuso local — brief 0015 AC-05)', () => {
-  it('default = dia (hoje local do tenant)', () => {
+  it('default = dia (hoje local do org)', () => {
     const r = resolveCashReportRange({}, TZ, NOW)
     expect(r.period).toBe('day')
     expect(r.fromDate).toBe('2026-05-15')

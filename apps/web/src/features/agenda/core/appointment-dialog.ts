@@ -10,10 +10,10 @@ import {
   type Service,
   buildWhatsappLink,
   renderWhatsappTemplate,
-  toTenantTime,
+  toOrgTime,
 } from '@/domain'
 
-// HH:mm in the tenant timezone from a `toTenantTime` result.
+// HH:mm in the org timezone from a `toOrgTime` result.
 function hhmm(t: { hour: number; minute: number }): string {
   return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`
 }
@@ -39,7 +39,7 @@ export function buildAppointmentWhatsappLink(args: {
   if (!customer) return null
   const service = services.find((s) => s.id === appointment.serviceId)
   const professional = professionals.find((p) => p.id === appointment.professionalId)
-  const t = toTenantTime(appointment.startAt, timezone)
+  const t = toOrgTime(appointment.startAt, timezone)
   const message = renderWhatsappTemplate(args.confirmationTemplate, {
     customerName: customer.name,
     businessName: args.businessName,
@@ -52,7 +52,7 @@ export function buildAppointmentWhatsappLink(args: {
 }
 
 // The date + start-time the form opens with: an edit reads them off the
-// appointment (converted to tenant tz); a new appointment uses the clicked
+// appointment (converted to org tz); a new appointment uses the clicked
 // date and the default/fallback time.
 export function resolveInitialDateTime(
   appointment: Pick<Appointment, 'startAt'> | null | undefined,
@@ -61,7 +61,7 @@ export function resolveInitialDateTime(
   timezone: string,
 ): { date: string; startTime: string } {
   if (appointment) {
-    const t = toTenantTime(appointment.startAt, timezone)
+    const t = toOrgTime(appointment.startAt, timezone)
     return { date: t.dateISO, startTime: hhmm(t) }
   }
   return { date, startTime: defaultStartTime ?? '09:00' }

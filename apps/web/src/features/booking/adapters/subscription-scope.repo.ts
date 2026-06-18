@@ -8,7 +8,7 @@ import {
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { getSessionUser } from '@/shared/firebase/admin'
-import { getTenantBySlug } from '@/shared/tenant/tenant'
+import { getOrgBySlug } from '@/shared/org/org'
 import 'server-only'
 
 // Statuses where the customer still has running coverage from a plan
@@ -95,12 +95,12 @@ function allAxesUnrestricted(acc: ScopeAcc): boolean {
 }
 
 async function fetchCustomerScope(
-  tenantId: string,
+  orgId: string,
   customerUserId: string,
 ): Promise<CustomerSubscriptionScope> {
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .where('customerUserId', '==', customerUserId)
@@ -141,24 +141,24 @@ async function fetchCustomerScope(
 
 /**
  * Computes the spatial scope a self-book session sees for a given
- * tenant — brief 0019 Group A (AC-03, AC-04).
+ * org — brief 0019 Group A (AC-03, AC-04).
  *
  * Returns:
  *   - `null` when the customer has no scope-bearing subscription in
- *     this tenant, or has one whose snapshot is unrestricted. Caller
+ *     this org, or has one whose snapshot is unrestricted. Caller
  *     treats `null` as "show all units" — matches the avulso (no
  *     session) path.
  *   - `Set<string>` with the union of allowlists across the
  *     customer's active subscriptions otherwise.
  *
  * Thin wrapper over `resolveCustomerSubscriptionScope` for callers that
- * only need the spatial axis (eg. tenant landing page).
+ * only need the spatial axis (eg. org landing page).
  */
 export async function resolveCustomerUnitAllowlist(
-  tenantId: string,
+  orgId: string,
   customerUserId: string,
 ): Promise<Set<string> | null> {
-  const { unitAllowlist } = await fetchCustomerScope(tenantId, customerUserId)
+  const { unitAllowlist } = await fetchCustomerScope(orgId, customerUserId)
   return unitAllowlist
 }
 
@@ -173,10 +173,10 @@ export async function resolveCustomerUnitAllowlist(
  * with no scope-bearing subscription — equivalent to the avulso path.
  */
 export async function resolveCustomerSubscriptionScope(
-  tenantId: string,
+  orgId: string,
   customerUserId: string,
 ): Promise<CustomerSubscriptionScope> {
-  return fetchCustomerScope(tenantId, customerUserId)
+  return fetchCustomerScope(orgId, customerUserId)
 }
 
 /**
@@ -190,20 +190,20 @@ export async function resolveCustomerSubscriptionScope(
  * — callers that care about the difference can still tell them apart.
  */
 export async function resolveScopeForSession(
-  tenantId: string,
+  orgId: string,
 ): Promise<CustomerSubscriptionScope | null> {
   const session = await getSessionUser()
   if (!session) return null
-  return fetchCustomerScope(tenantId, session.uid)
+  return fetchCustomerScope(orgId, session.uid)
 }
 
 /**
- * Same as `resolveScopeForSession`, but resolves the tenant from a slug
- * first. For pages that don't already have a tenant id in scope
+ * Same as `resolveScopeForSession`, but resolves the org from a slug
+ * first. For pages that don't already have a org id in scope
  * (eg. the availability page, which only reads the slug from the URL).
  *
  * Returns `null` when the visitor is anonymous OR the slug doesn't
- * resolve to a tenant — the caller treats both the same way (no banner,
+ * resolve to a org — the caller treats both the same way (no banner,
  * no scope filter).
  */
 export async function resolveScopeForSessionBySlug(
@@ -211,7 +211,7 @@ export async function resolveScopeForSessionBySlug(
 ): Promise<CustomerSubscriptionScope | null> {
   const session = await getSessionUser()
   if (!session) return null
-  const tenant = await getTenantBySlug(slug)
-  if (!tenant) return null
-  return fetchCustomerScope(tenant.id, session.uid)
+  const org = await getOrgBySlug(slug)
+  if (!org) return null
+  return fetchCustomerScope(org.id, session.uid)
 }

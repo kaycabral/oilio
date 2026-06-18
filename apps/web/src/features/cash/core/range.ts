@@ -1,10 +1,10 @@
 // Resolve a janela do relatório de caixa por período (brief 0015 AC-05), no
-// **fuso local da unidade/tenant** (ADR 0009 — relógio operacional). O "dia"
-// é o dia de calendário do tenant, não UTC nem o fuso do browser.
+// **fuso local da unidade/org** (ADR 0009 — relógio operacional). O "dia"
+// é o dia de calendário do org, não UTC nem o fuso do browser.
 //
 // Períodos: `day` (hoje), `week` (últimos 7 dias), `month` (mês corrente até
 // hoje), `custom` (from/to em yyyy-MM-dd). Default = `day` (o "hoje" do lojista).
-import { getTenantDayBoundsUtc, getTodayInTenantTz, shiftDateInTenantTz } from '@/domain'
+import { getOrgDayBoundsUtc, getTodayInOrgTz, shiftDateInOrgTz } from '@/domain'
 
 export const CASH_REPORT_PERIODS = ['day', 'week', 'month', 'custom'] as const
 export type CashReportPeriod = (typeof CASH_REPORT_PERIODS)[number]
@@ -61,7 +61,7 @@ function resolveDateWindow(
     case 'custom':
       return resolveCustomWindow(params, today)
     case 'week':
-      return { period: 'week', fromDate: shiftDateInTenantTz(today, -6, tz), toDate: today }
+      return { period: 'week', fromDate: shiftDateInOrgTz(today, -6, tz), toDate: today }
     case 'month':
       return { period: 'month', fromDate: `${today.slice(0, 7)}-01`, toDate: today }
     case 'day':
@@ -74,11 +74,11 @@ export function resolveCashReportRange(
   tz: string,
   now: Date = new Date(),
 ): CashReportRange {
-  const today = getTodayInTenantTz(tz, now)
+  const today = getTodayInOrgTz(tz, now)
   const { period, fromDate, toDate } = resolveDateWindow(requestedPeriod(params), params, today, tz)
 
-  const fromIso = getTenantDayBoundsUtc(fromDate, tz).startUtc
-  const toIso = getTenantDayBoundsUtc(toDate, tz).endUtc
+  const fromIso = getOrgDayBoundsUtc(fromDate, tz).startUtc
+  const toIso = getOrgDayBoundsUtc(toDate, tz).endUtc
 
   return { period, fromDate, toDate, fromIso, toIso }
 }

@@ -23,19 +23,19 @@ beforeAll(() => {
   db = getFirestore(app)
 })
 
-function uniqueTenantId(label: string) {
+function uniqueOrgId(label: string) {
   return `t-${label}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-async function seed(tenantId: string, id: string, type: string) {
+async function seed(orgId: string, id: string, type: string) {
   await db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('notifications')
     .doc(id)
     .set({
       id,
-      tenantId,
+      orgId,
       unitId: 'u1',
       type,
       customerId: null,
@@ -57,16 +57,16 @@ async function seed(tenantId: string, id: string, type: string) {
 
 describe('fetchUnitNotifications role filter (AC-18/19)', () => {
   it('receptionist não vê cash_register_open nem payment_failure', async () => {
-    const tenantId = uniqueTenantId('recep')
-    await seed(tenantId, 'birthday', 'birthday')
-    await seed(tenantId, 'cash', 'cash_register_open')
-    await seed(tenantId, 'pay', 'payment_failure')
-    await seed(tenantId, 'order', 'order_stale')
+    const orgId = uniqueOrgId('recep')
+    await seed(orgId, 'birthday', 'birthday')
+    await seed(orgId, 'cash', 'cash_register_open')
+    await seed(orgId, 'pay', 'payment_failure')
+    await seed(orgId, 'order', 'order_stale')
 
     const allowed = allowedNotificationTypesForRole('receptionist')
     const res = await fetchUnitNotifications({
       db,
-      tenantId,
+      orgId,
       unitId: 'u1',
       limit: 10,
       now: new Date(),
@@ -79,15 +79,15 @@ describe('fetchUnitNotifications role filter (AC-18/19)', () => {
   })
 
   it('manager vê tudo', async () => {
-    const tenantId = uniqueTenantId('mgr')
-    await seed(tenantId, 'birthday', 'birthday')
-    await seed(tenantId, 'cash', 'cash_register_open')
-    await seed(tenantId, 'pay', 'payment_failure')
+    const orgId = uniqueOrgId('mgr')
+    await seed(orgId, 'birthday', 'birthday')
+    await seed(orgId, 'cash', 'cash_register_open')
+    await seed(orgId, 'pay', 'payment_failure')
 
     const allowed = allowedNotificationTypesForRole('manager')
     const res = await fetchUnitNotifications({
       db,
-      tenantId,
+      orgId,
       unitId: 'u1',
       limit: 10,
       now: new Date(),
@@ -98,9 +98,9 @@ describe('fetchUnitNotifications role filter (AC-18/19)', () => {
   })
 
   it('sem allowedTypes → sem filtro de role (count total)', async () => {
-    const tenantId = uniqueTenantId('noflt')
-    await seed(tenantId, 'cash', 'cash_register_open')
-    const res = await fetchUnitNotifications({ db, tenantId, unitId: 'u1', limit: 10 })
+    const orgId = uniqueOrgId('noflt')
+    await seed(orgId, 'cash', 'cash_register_open')
+    const res = await fetchUnitNotifications({ db, orgId, unitId: 'u1', limit: 10 })
     expect(res.unreadCount).toBe(1)
   })
 })

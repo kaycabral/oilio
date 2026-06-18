@@ -64,7 +64,7 @@ describe('resolveInitialDateTime', () => {
     })
   })
 
-  it('reads the appointment start (converted to tenant tz) in edit mode', () => {
+  it('reads the appointment start (converted to org tz) in edit mode', () => {
     expect(
       resolveInitialDateTime({ startAt: '2026-06-15T13:00:00.000Z' }, '2026-01-01', '08:00', TZ),
     ).toEqual({

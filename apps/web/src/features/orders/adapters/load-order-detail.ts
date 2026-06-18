@@ -13,12 +13,12 @@ import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { getCustomerById } from '@/shared/tenant/customer-read'
-import { getActiveTenantContext, listTenantMembers } from '@/shared/tenant/membership'
+import { getCustomerById } from '@/shared/org/customer-read'
+import { getActiveOrgContext, listOrgMembers } from '@/shared/org/membership'
 import { notFound, redirect } from 'next/navigation'
 import 'server-only'
 
-// Imperative shell for the order detail route: resolves session/tenant, loads
+// Imperative shell for the order detail route: resolves session/org, loads
 // the order plus its customer/catalog/members/commissions/active subscription,
 // and returns the typed view-model `OrderDetail` consumes. The route component
 // (page.tsx) stays a thin caller. `notFound()`/`redirect()` propagate from here
@@ -29,11 +29,11 @@ export async function loadOrderDetailPage(orderId: string): Promise<OrderDetailP
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
-  const tenantRef = getAdminFirestore().collection('tenants').doc(ctx.membership.tenantId)
-  const orderSnap = await tenantRef
+  const orgRef = getAdminFirestore().collection('orgs').doc(ctx.membership.orgId)
+  const orderSnap = await orgRef
     .collection('orders')
     .withConverter(fsConverter(Order))
     .doc(orderId)
@@ -46,10 +46,10 @@ export async function loadOrderDetailPage(orderId: string): Promise<OrderDetailP
     // `users/` pra retornar o `Customer` enriched com PII. Venda avulsa (brief
     // 0030, AC-02) não tem cliente: `customerId` null → sem lookup.
     order.customerId
-      ? getCustomerById(ctx.membership.tenantId, order.customerId)
+      ? getCustomerById(ctx.membership.orgId, order.customerId)
       : Promise.resolve(null),
     // Unified catalog (brief 0023, #1004): one read, split by kind below.
-    tenantRef
+    orgRef
       .collection('catalog_items')
       .withConverter(fsConverter(CatalogItem))
       .where('active', '==', true)
@@ -57,10 +57,10 @@ export async function loadOrderDetailPage(orderId: string): Promise<OrderDetailP
       .get(),
     // Membros operáveis (brief 0030, AC-04): fonte do controle de atribuição por
     // membro — qualquer membro, não só Professional. Atribui o `userId`.
-    listTenantMembers(ctx.membership.tenantId),
+    listOrgMembers(ctx.membership.orgId),
     // Comissões aparecem quando order está fechada — read-only.
     order.status === 'closed'
-      ? tenantRef
+      ? orgRef
           .collection('commissions')
           .withConverter(fsConverter(Commission))
           .where('orderId', '==', orderId)
@@ -69,7 +69,7 @@ export async function loadOrderDetailPage(orderId: string): Promise<OrderDetailP
     // Assinatura ativa do cliente — base da cobertura por item (brief 0021).
     // Sem cliente (venda anônima) não há assinatura a consultar.
     order.customerId
-      ? tenantRef
+      ? orgRef
           .collection('subscriptions')
           .withConverter(fsConverter(Subscription))
           .where('customerId', '==', order.customerId)

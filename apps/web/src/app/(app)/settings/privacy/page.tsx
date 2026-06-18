@@ -2,16 +2,16 @@ import { DeleteMyDataForm } from '@/features/settings/ui/DeleteMyDataForm'
 import { EstablishmentErasureList } from '@/features/settings/ui/EstablishmentErasureList'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { listMyCustomerEstablishments } from '@/shared/identity/tenant-links'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
+import { listMyCustomerEstablishments } from '@/shared/identity/org-links'
+import { getActiveOrgContext } from '@/shared/org/membership'
 import { Main } from '@cbrl/design'
 import { redirect } from 'next/navigation'
 
 // Self-service privacy surface (brief 0032 / AC-07 + AC-10): the subject's own
 // account area where they exercise the LGPD right to erasure. They discover the
 // establishments where they are a CUSTOMER (via the identity-layer reverse index
-// `users/{uid}/tenant_links` — a per-user read, NOT a cross-tenant query) and,
-// per establishment, can either block their data there (per-tenant, #1100) or
+// `users/{uid}/org_links` — a per-user read, NOT a cross-org query) and,
+// per establishment, can either block their data there (per-org, #1100) or
 // erase their whole account (global anonymization, #1093). Anonymization is
 // irreversible and account-level; records are retained de-identified (AC-04).
 export default async function PrivacySettingsPage() {
@@ -20,11 +20,11 @@ export default async function PrivacySettingsPage() {
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   // Per-user read of the subject's OWN reverse index — discovers where they are
-  // a customer without any cross-tenant query (ADR 0004 clarifying note).
+  // a customer without any cross-org query (ADR 0004 clarifying note).
   const establishments = await listMyCustomerEstablishments(session.uid)
 
   return (

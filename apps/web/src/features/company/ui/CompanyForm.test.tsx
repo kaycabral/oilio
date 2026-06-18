@@ -1,4 +1,4 @@
-import type { Tenant } from '@/domain'
+import type { Org } from '@/domain'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CompanyForm } from './CompanyForm'
@@ -14,7 +14,7 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn() },
 }))
 
-function buildTenant(overrides: Partial<Tenant> = {}): Tenant {
+function buildOrg(overrides: Partial<Org> = {}): Org {
   return {
     id: 't1',
     name: 'Barbearia do João',
@@ -41,7 +41,7 @@ beforeEach(() => {
 
 describe('CompanyForm — cancellation policy (#871)', () => {
   it('hides the notice-minutes input until the cancellation toggle is enabled (#871)', () => {
-    render(<CompanyForm tenant={buildTenant()} canManage />)
+    render(<CompanyForm org={buildOrg()} canManage />)
     expect(screen.queryByText(/antecedência mínima sugerida/i)).not.toBeInTheDocument()
     fireEvent.click(screen.getByLabelText(/ativar política de cancelamento/i))
     expect(screen.getByText(/antecedência mínima sugerida/i)).toBeInTheDocument()
@@ -49,7 +49,7 @@ describe('CompanyForm — cancellation policy (#871)', () => {
 
   it('submits enabled + minNoticeMinutes when toggle is on (#871)', async () => {
     updateCompany.mockResolvedValue({ ok: true })
-    render(<CompanyForm tenant={buildTenant()} canManage />)
+    render(<CompanyForm org={buildOrg()} canManage />)
     fireEvent.click(screen.getByLabelText(/ativar política de cancelamento/i))
     const input = screen.getByLabelText(/antecedência mínima sugerida/i)
     fireEvent.change(input, { target: { value: '60' } })
@@ -66,7 +66,7 @@ describe('CompanyForm — cancellation policy (#871)', () => {
   it('preserves minNoticeMinutes across enable → disable (#871)', () => {
     render(
       <CompanyForm
-        tenant={buildTenant({ cancellationPolicy: { enabled: true, minNoticeMinutes: 240 } })}
+        org={buildOrg({ cancellationPolicy: { enabled: true, minNoticeMinutes: 240 } })}
         canManage
       />,
     )

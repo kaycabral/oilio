@@ -1,7 +1,7 @@
-import { getPublicTenantBundle } from '@/features/self-book/adapters/public-tenant'
+import { getPublicOrgBundle } from '@/features/self-book/adapters/public-org'
 import { getSessionUser } from '@/shared/firebase/admin'
-import { ensureSelfSignupCustomer } from '@/shared/tenant/customer-upsert'
-import { getUserDoc } from '@/shared/tenant/membership'
+import { ensureSelfSignupCustomer } from '@/shared/org/customer-upsert'
+import { getUserDoc } from '@/shared/org/membership'
 import { Button } from '@cbrl/design'
 import { Check } from 'lucide-react'
 import type { Metadata, Route } from 'next'
@@ -17,8 +17,8 @@ import { redirect } from 'next/navigation'
 //      to /onboarding/profile with `next` pointing back here so the
 //      attribution survives across the completion redirect.
 //
-// When `?from={tenant-slug}` resolves to a published tenant, idempotently
-// materialize a Customer shadow in that tenant for this userId — returning
+// When `?from={org-slug}` resolves to a published org, idempotently
+// materialize a Customer shadow in that org for this userId — returning
 // visitors with the same URL get the same record back. PII is already on
 // the User doc; the Customer shadow is operational-only per the #832 schema.
 //
@@ -30,8 +30,8 @@ type PageProps = { searchParams: Promise<{ from?: string }> }
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
   const { from } = await searchParams
   if (from) {
-    const bundle = await getPublicTenantBundle(from)
-    if (bundle) return { title: `Cadastro registrado — ${bundle.tenant.name}` }
+    const bundle = await getPublicOrgBundle(from)
+    if (bundle) return { title: `Cadastro registrado — ${bundle.org.name}` }
   }
   return { title: 'Cadastro registrado — Oilio' }
 }
@@ -49,9 +49,9 @@ export default async function SignupDonePage({ searchParams }: PageProps) {
     redirect(`/onboarding/profile?next=${encodeURIComponent(buildDoneUrl(from))}`)
   }
 
-  const bundle = from ? await getPublicTenantBundle(from) : null
+  const bundle = from ? await getPublicOrgBundle(from) : null
   if (bundle) {
-    await ensureSelfSignupCustomer(bundle.tenant.id, session.uid)
+    await ensureSelfSignupCustomer(bundle.org.id, session.uid)
   }
 
   return (
@@ -63,9 +63,8 @@ export default async function SignupDonePage({ searchParams }: PageProps) {
         <h1 className="text-2xl font-semibold">Pronto, {user.displayName ?? 'você'}!</h1>
         {bundle ? (
           <p className="text-muted-foreground text-sm">
-            Você está cadastrado em{' '}
-            <strong className="text-foreground">{bundle.tenant.name}</strong>. A recepção entrará em
-            contato pelo WhatsApp pra confirmar seu horário.
+            Você está cadastrado em <strong className="text-foreground">{bundle.org.name}</strong>.
+            A recepção entrará em contato pelo WhatsApp pra confirmar seu horário.
           </p>
         ) : (
           <p className="text-muted-foreground text-sm">
@@ -77,7 +76,7 @@ export default async function SignupDonePage({ searchParams }: PageProps) {
       {bundle ? (
         <div className="flex flex-col gap-2">
           <Button asChild variant="outline">
-            <Link href={`/${from}`}>Voltar para {bundle.tenant.name}</Link>
+            <Link href={`/${from}`}>Voltar para {bundle.org.name}</Link>
           </Button>
         </div>
       ) : null}

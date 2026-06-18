@@ -5,7 +5,7 @@ import { fsConverter } from '@/shared/db/converter'
 import 'server-only'
 
 // Props the Vendas section (`<SalesReport>`) consumes. Migrated from the former
-// `/cash/report` query (brief 0031 AC-05): the same tenant-timezone period
+// `/cash/report` query (brief 0031 AC-05): the same org-timezone period
 // window, scoped to the active unit (brief 0044) instead of a unit dropdown.
 // Sales only — the despesa breakdown is dropped (expenses deferred to the 0031
 // parallel branch), so `expense_categories` is no longer read.
@@ -17,23 +17,23 @@ export type SalesSectionData = {
 
 /**
  * Loads the Vendas section data for the reports hub. The period window is the
- * tenant-timezone "dois relógios" range (brief 0015); the data is scoped to the
- * active unit (brief 0044). `unitId` is null only for a tenant with no units
+ * org-timezone "dois relógios" range (brief 0015); the data is scoped to the
+ * active unit (brief 0044). `unitId` is null only for a org with no units
  * (then there are no movements anyway). Only sale/sale_reversal movements exist
  * post-0031 (manual drawer ops removed), so the totals are sales by payment
  * method.
  */
 export async function loadSalesSectionData(args: {
-  tenantId: string
+  orgId: string
   range: CashReportRange
   unitId: string | null
 }): Promise<SalesSectionData> {
-  const { tenantId, range, unitId } = args
-  const tenantRef = getAdminFirestore().collection('tenants').doc(tenantId)
+  const { orgId, range, unitId } = args
+  const orgRef = getAdminFirestore().collection('orgs').doc(orgId)
 
   const [unitsSnap, movementsSnap] = await Promise.all([
-    tenantRef.collection('units').withConverter(fsConverter(StoredUnit)).orderBy('name').get(),
-    tenantRef
+    orgRef.collection('units').withConverter(fsConverter(StoredUnit)).orderBy('name').get(),
+    orgRef
       .collection('cash_movements')
       .withConverter(fsConverter(CashMovement))
       .where('createdAt', '>=', range.fromIso)

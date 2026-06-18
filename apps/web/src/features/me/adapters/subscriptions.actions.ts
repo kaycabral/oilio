@@ -16,7 +16,7 @@ export type SelfCancelResult = { ok: true } | { ok: false; error: string }
 // #651 — Customer self-cancel pela página `/me/subscriptions`.
 //
 // Authorization: cliente só cancela Subscription onde
-// `customerUserId === session.uid`. Cross-tenant access enforced via User
+// `customerUserId === session.uid`. Cross-org access enforced via User
 // (sem membership) — pattern espelha #845 (cancelOwnAppointment).
 //
 // Behavior (AC-12 do brief 0003): cancelamento mid-cycle marca
@@ -27,15 +27,15 @@ export type SelfCancelResult = { ok: true } | { ok: false; error: string }
 // Audit: `subscription.cancel` com `metadata.via: 'self_cancel'` pra
 // distinguir de owner-cancel (managers cancelam via /(app)/subscriptions).
 export async function cancelOwnSubscription(input: {
-  tenantId: string
+  orgId: string
   subscriptionId: string
 }): Promise<SelfCancelResult> {
   const session = await getSessionUser()
   if (!session) return { ok: false, error: 'Sessão expirada — entre de novo.' }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(input.tenantId)
-  const subRef = tenantRef
+  const orgRef = db.collection('orgs').doc(input.orgId)
+  const subRef = orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .doc(input.subscriptionId)
@@ -54,7 +54,7 @@ export async function cancelOwnSubscription(input: {
   // (erradicação ES, #1029).
   const scheduled = await emitEvent(
     SubscriptionConfig,
-    `tenants/${input.tenantId}/subscriptions/${input.subscriptionId}`,
+    `orgs/${input.orgId}/subscriptions/${input.subscriptionId}`,
     {
       _tag: 'subscription.cancel_scheduled',
       actorId: session.uid,

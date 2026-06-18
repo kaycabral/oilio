@@ -4,7 +4,7 @@ import {
   blockMyDataInEstablishmentAction,
   blockMyDataInEstablishmentWarningAction,
 } from '@/features/settings/adapters/privacy.actions'
-import type { LinkedEstablishment } from '@/shared/identity/tenant-links'
+import type { LinkedEstablishment } from '@/shared/identity/org-links'
 import {
   Button,
   Dialog,
@@ -20,7 +20,7 @@ import { toast } from 'sonner'
 
 // Self-service per-establishment CUSTOMER erasure (brief 0032 / AC-10, #1097).
 // Lists the establishments the subject discovered via the reverse index. Each
-// row offers "excluir meus dados deste estabelecimento" → a per-tenant block
+// row offers "excluir meus dados deste estabelecimento" → a per-org block
 // (#1100), wiring the active-subscription warning (#1101) so the subject gives
 // informed consent before the destructive action. The whole-account erasure
 // (#1093) lives in the sibling `DeleteMyDataForm`.
@@ -40,7 +40,7 @@ export function EstablishmentErasureList({
   return (
     <ul className="divide-y rounded-md border" aria-label="Estabelecimentos">
       {establishments.map((est) => (
-        <li key={est.tenantId} className="flex items-center justify-between gap-4 p-4">
+        <li key={est.orgId} className="flex items-center justify-between gap-4 p-4">
           <span className="font-medium">{est.name}</span>
           <EraseInEstablishment establishment={est} />
         </li>
@@ -68,7 +68,7 @@ function EraseInEstablishment({ establishment }: { establishment: LinkedEstablis
     setWarning(null)
     startTransition(async () => {
       const fd = new FormData()
-      fd.set('tenantId', establishment.tenantId)
+      fd.set('orgId', establishment.orgId)
       const res = await blockMyDataInEstablishmentWarningAction(fd)
       if (!res.ok) {
         setError(res.error)
@@ -82,7 +82,7 @@ function EraseInEstablishment({ establishment }: { establishment: LinkedEstablis
     setError(null)
     startTransition(async () => {
       const fd = new FormData()
-      fd.set('tenantId', establishment.tenantId)
+      fd.set('orgId', establishment.orgId)
       const res = await blockMyDataInEstablishmentAction(fd)
       if (!res.ok) {
         setError(res.error)

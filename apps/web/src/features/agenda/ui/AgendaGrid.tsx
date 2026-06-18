@@ -11,12 +11,12 @@ import {
   type SlotMinutes,
   hhmmToMinutes,
   isOperational,
-  toTenantTime,
+  toOrgTime,
 } from '@/domain'
 import { cn } from '@cbrl/design'
 import { useMemo } from 'react'
 
-// MVP: range fixo 06h-22h. Slot granularity vem do tenant (#633).
+// MVP: range fixo 06h-22h. Slot granularity vem do org (#633).
 const GRID_START_HOUR = 6
 const GRID_END_HOUR = 22
 const TOTAL_MINUTES = (GRID_END_HOUR - GRID_START_HOUR) * 60
@@ -27,7 +27,7 @@ const MINUTE_PX = 16 / 15
 const TOTAL_HEIGHT_PX = TOTAL_MINUTES * MINUTE_PX
 
 function minutesFromGridStart(iso: string, dayISO: string, tz: string): number {
-  const { dateISO, hour, minute } = toTenantTime(iso, tz)
+  const { dateISO, hour, minute } = toOrgTime(iso, tz)
   if (dateISO !== dayISO) return -1
   return hour * 60 + minute - GRID_START_HOUR * 60
 }
@@ -37,7 +37,7 @@ function formatTimeLabel(hour: number, minute: number): string {
 }
 
 function formatHHmm(iso: string, tz: string): string {
-  const { hour, minute } = toTenantTime(iso, tz)
+  const { hour, minute } = toOrgTime(iso, tz)
   return formatTimeLabel(hour, minute)
 }
 

@@ -16,7 +16,7 @@ function makeSub(
 ): Subscription {
   const base: Subscription = {
     id: 's',
-    tenantId: 't',
+    orgId: 't',
     unitId: 'u',
     customerId: 'c',
     customerUserId: null,
@@ -93,7 +93,7 @@ describe('isActiveSubscription', () => {
 function makeOrder(totalCents: number): Order {
   return {
     id: 'o',
-    tenantId: 't',
+    orgId: 't',
     unitId: 'u',
     customerId: null,
     appointmentId: null,
@@ -123,7 +123,7 @@ describe('computeOccupancyPct', () => {
   function appt(status: Appointment['status']): Appointment {
     return {
       id: 'a',
-      tenantId: 't',
+      orgId: 't',
       unitId: 'u',
       professionalId: 'p',
       customerId: 'c',

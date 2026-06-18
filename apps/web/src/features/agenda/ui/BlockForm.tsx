@@ -48,12 +48,12 @@ function isAgendaBlockKind(v: string): v is AgendaBlockKind {
 export function BlockForm({
   owner,
   block,
-  tenantTimezone,
+  orgTimezone,
   onDone,
 }: {
   owner: BlockOwner
   block?: AgendaBlock
-  tenantTimezone: string
+  orgTimezone: string
   onDone?: () => void
 }) {
   const [pending, startTransition] = useTransition()
@@ -70,7 +70,7 @@ export function BlockForm({
 
   const oneOffDefaults =
     block && block.kind === 'one_off'
-      ? oneOffToLocal(block.startAt, block.endAt, tenantTimezone)
+      ? oneOffToLocal(block.startAt, block.endAt, orgTimezone)
       : { date: '', start: '09:00', end: '10:00' }
 
   function onSubmit(formData: FormData) {

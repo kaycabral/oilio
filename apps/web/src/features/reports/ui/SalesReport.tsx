@@ -22,7 +22,7 @@ function formatDateTime(iso: string): string {
 }
 
 // Vendas section of the /reports hub (brief 0031 AC-05). Migrated from
-// `CashReport`: same tenant-timezone period presets/custom range + CSV export,
+// `CashReport`: same org-timezone period presets/custom range + CSV export,
 // but SALES ONLY — no unit dropdown (the hub scopes by the aggregate toggle's
 // `unitId`) and no despesa breakdown (expenses deferred). Only sale /
 // sale_reversal movements exist post-0031.
@@ -82,7 +82,7 @@ export function SalesReport({
   }
 
   // Preset (dia/semana/mês): só seta `period`; o range é resolvido no fuso do
-  // tenant no server. Limpa from/to (só fazem sentido no custom).
+  // org no server. Limpa from/to (só fazem sentido no custom).
   function goPeriod(p: CashReportPeriod) {
     const next = new URLSearchParams(searchParams.toString())
     next.set('period', p)

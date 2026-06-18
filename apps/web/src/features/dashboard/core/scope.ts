@@ -1,6 +1,6 @@
 // Unit-scoping for dashboard reads (brief 0043). A query is scoped to the
-// active unit when one is in context; tenant-wide only when there is none
-// (tenant without units yet). Pure + Firestore-agnostic so the decision is
+// active unit when one is in context; org-wide only when there is none
+// (org without units yet). Pure + Firestore-agnostic so the decision is
 // unit-testable without the emulator — the real query round-trip is covered by
 // integration/e2e.
 

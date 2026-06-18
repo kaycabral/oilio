@@ -33,14 +33,14 @@ function describeWhen(block: AgendaBlock, tz: string): string {
 export function BlocksSection({
   owner,
   blocks,
-  tenantTimezone,
+  orgTimezone,
   canManage,
   title,
   description,
 }: {
   owner: BlockOwner
   blocks: AgendaBlock[]
-  tenantTimezone: string
+  orgTimezone: string
   canManage: boolean
   title: string
   description: string
@@ -82,7 +82,7 @@ export function BlocksSection({
 
       {editing === 'new' ? (
         <div className="border-border rounded-md border border-dashed p-3">
-          <BlockForm owner={owner} tenantTimezone={tenantTimezone} onDone={done} />
+          <BlockForm owner={owner} orgTimezone={orgTimezone} onDone={done} />
         </div>
       ) : null}
 
@@ -94,21 +94,14 @@ export function BlocksSection({
             editing === b.id ? (
               <li key={b.id} className="py-3">
                 <div className="border-border rounded-md border border-dashed p-3">
-                  <BlockForm
-                    owner={owner}
-                    block={b}
-                    tenantTimezone={tenantTimezone}
-                    onDone={done}
-                  />
+                  <BlockForm owner={owner} block={b} orgTimezone={orgTimezone} onDone={done} />
                 </div>
               </li>
             ) : (
               <li key={b.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <div className="min-w-0">
                   <span className="font-medium">{b.reason}</span>
-                  <span className="text-muted-foreground ml-2">
-                    {describeWhen(b, tenantTimezone)}
-                  </span>
+                  <span className="text-muted-foreground ml-2">{describeWhen(b, orgTimezone)}</span>
                   {showUnitColumn ? (
                     <span className="text-muted-foreground ml-2 text-xs">
                       · {unitNameById.get(b.unitId) ?? '—'}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseTenantForm } from './tenant-form'
+import { parseOrgForm } from './org-form'
 
 function form(entries: Record<string, string>): FormData {
   const fd = new FormData()
@@ -7,28 +7,28 @@ function form(entries: Record<string, string>): FormData {
   return fd
 }
 
-describe('parseTenantForm', () => {
+describe('parseOrgForm', () => {
   it('parses a valid name + vertical', () => {
-    expect(parseTenantForm(form({ name: 'Barbearia do Bairro', vertical: 'barbershop' }))).toEqual({
+    expect(parseOrgForm(form({ name: 'Barbearia do Bairro', vertical: 'barbershop' }))).toEqual({
       name: 'Barbearia do Bairro',
       vertical: 'barbershop',
     })
   })
 
   it('trims the name', () => {
-    const parsed = parseTenantForm(form({ name: '  Salão  ', vertical: 'other' }))
+    const parsed = parseOrgForm(form({ name: '  Salão  ', vertical: 'other' }))
     expect(parsed).toEqual({ name: 'Salão', vertical: 'other' })
   })
 
   it('rejects a short name', () => {
-    expect(parseTenantForm(form({ name: 'A', vertical: 'barbershop' }))).toBe('Name is too short')
+    expect(parseOrgForm(form({ name: 'A', vertical: 'barbershop' }))).toBe('Name is too short')
   })
 
   it('rejects an unknown vertical', () => {
-    expect(parseTenantForm(form({ name: 'Salão', vertical: 'spaceship' }))).toBe('Invalid vertical')
+    expect(parseOrgForm(form({ name: 'Salão', vertical: 'spaceship' }))).toBe('Invalid vertical')
   })
 
   it('rejects a missing vertical', () => {
-    expect(parseTenantForm(form({ name: 'Salão' }))).toBe('Invalid vertical')
+    expect(parseOrgForm(form({ name: 'Salão' }))).toBe('Invalid vertical')
   })
 })

@@ -2,7 +2,7 @@ import { allowedNotificationTypesForRole } from '@/domain'
 import { fetchUnitNotifications } from '@/features/notifications/adapters/query'
 import { getAdminFirestore } from '@/shared/db'
 import { getSessionUser } from '@/shared/firebase/admin'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
+import { getActiveOrgContext } from '@/shared/org/membership'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
   const session = await getSessionUser()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const ctx = await getActiveTenantContext(session.uid)
-  if (!ctx) return NextResponse.json({ error: 'No tenant' }, { status: 403 })
+  const ctx = await getActiveOrgContext(session.uid)
+  if (!ctx) return NextResponse.json({ error: 'No org' }, { status: 403 })
 
   const unitId = request.nextUrl.searchParams.get('unitId')
   if (!unitId) return NextResponse.json({ error: 'unitId required' }, { status: 400 })
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   const allowedTypes = allowedNotificationTypesForRole(ctx.membership.role)
   const result = await fetchUnitNotifications({
     db: getAdminFirestore(),
-    tenantId: ctx.membership.tenantId,
+    orgId: ctx.membership.orgId,
     unitId,
     limit,
     now: new Date(),

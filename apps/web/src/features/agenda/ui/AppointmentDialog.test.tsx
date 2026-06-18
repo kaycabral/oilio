@@ -47,7 +47,7 @@ vi.mock('next/navigation', () => ({
 function buildProfessional(): Professional {
   return {
     id: 'p1',
-    tenantId: 't1',
+    orgId: 't1',
     userId: 'u-pro1',
     name: 'Ana',
     whatsapp: '5511900000000',
@@ -64,7 +64,7 @@ function buildProfessional(): Professional {
 function buildService(): Service {
   return {
     id: 's1',
-    tenantId: 't1',
+    orgId: 't1',
     name: 'Corte',
     category: null,
     durationMinutes: 30,
@@ -83,7 +83,7 @@ function buildService(): Service {
 function buildCustomer(): Customer {
   return {
     id: 'c1',
-    tenantId: 't1',
+    orgId: 't1',
     userId: 'u1',
     name: 'João',
     whatsapp: '5511999999999',
@@ -99,7 +99,7 @@ function buildCustomer(): Customer {
 function buildAppointment(overrides: Partial<Appointment> = {}): Appointment {
   return {
     id: 'a1',
-    tenantId: 't1',
+    orgId: 't1',
     unitId: 'u1',
     professionalId: 'p1',
     customerId: 'c1',

@@ -2,7 +2,7 @@
 
 import { parseTemplateForm } from '@/features/settings/core/notification-template-form'
 import { getAdminFirestore } from '@/shared/db'
-import { requireManagerCtx } from '@/shared/tenant/membership'
+import { requireManagerCtx } from '@/shared/org/membership'
 import { revalidatePath } from 'next/cache'
 
 export type UpdateTemplateResult = { ok: true } | { ok: false; error: string }
@@ -19,16 +19,16 @@ export async function updateMessageTemplate(formData: FormData): Promise<UpdateT
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const { type, body, enabled } = parsed
-  const tenantId = r.ctx.membership.tenantId
+  const orgId = r.ctx.membership.orgId
 
   await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('message_templates')
     .doc(type)
     .set({
       id: type,
-      tenantId,
+      orgId,
       type,
       body,
       enabled,

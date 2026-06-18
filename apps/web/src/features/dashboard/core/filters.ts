@@ -1,4 +1,4 @@
-import { fromTenantTime, getTodayInTenantTz, shiftDateInTenantTz } from '@/domain'
+import { fromOrgTime, getTodayInOrgTz, shiftDateInOrgTz } from '@/domain'
 
 export const DASHBOARD_PERIODS = ['today', '7d', '30d', 'month', 'custom'] as const
 export type DashboardPeriod = (typeof DASHBOARD_PERIODS)[number]
@@ -7,12 +7,12 @@ export const DEFAULT_PERIOD: DashboardPeriod = '30d'
 
 export type DashboardFilters = {
   // Unit to scope KPIs/trend by (brief 0044 — always the active unit). Null only
-  // when the tenant has no units yet. Resolved by the page from the active unit,
+  // when the org has no units yet. Resolved by the page from the active unit,
   // NOT from a dashboard query param: `resolveDashboardFilters` always leaves it
   // null and the page overlays the active-unit value.
   unitId: string | null
   period: DashboardPeriod
-  // Local YYYY-MM-DD labels in tenant tz, inclusive on both ends.
+  // Local YYYY-MM-DD labels in org tz, inclusive on both ends.
   fromDate: string
   toDate: string
   // UTC ISO bounds (start inclusive, end exclusive — the instant the next
@@ -58,7 +58,7 @@ function startOfMonth(dateISO: string): string {
 }
 
 function endOfPreviousMonth(monthStart: string): string {
-  return shiftDateInTenantTz(monthStart, -1, 'UTC')
+  return shiftDateInOrgTz(monthStart, -1, 'UTC')
 }
 
 function resolvePeriodWindow(
@@ -71,10 +71,10 @@ function resolvePeriodWindow(
     return { fromDate: todayISO, toDate: todayISO, period }
   }
   if (period === '7d') {
-    return { fromDate: shiftDateInTenantTz(todayISO, -6, 'UTC'), toDate: todayISO, period }
+    return { fromDate: shiftDateInOrgTz(todayISO, -6, 'UTC'), toDate: todayISO, period }
   }
   if (period === '30d') {
-    return { fromDate: shiftDateInTenantTz(todayISO, -29, 'UTC'), toDate: todayISO, period }
+    return { fromDate: shiftDateInOrgTz(todayISO, -29, 'UTC'), toDate: todayISO, period }
   }
   if (period === 'month') {
     return { fromDate: startOfMonth(todayISO), toDate: todayISO, period }
@@ -91,11 +91,11 @@ function resolvePeriodWindow(
 
 export function resolveDashboardFilters(
   input: DashboardFilterInput,
-  tenantTimezone: string,
+  orgTimezone: string,
   now: Date = new Date(),
 ): DashboardFilters {
   const period: DashboardPeriod = isDashboardPeriod(input.period) ? input.period : DEFAULT_PERIOD
-  const todayISO = getTodayInTenantTz(tenantTimezone, now)
+  const todayISO = getTodayInOrgTz(orgTimezone, now)
   const {
     fromDate,
     toDate,
@@ -106,10 +106,10 @@ export function resolveDashboardFilters(
   // from a dashboard query param. Always start null.
   const unitId: string | null = null
 
-  const fromUtc = fromTenantTime({ date: fromDate, hour: 0, minute: 0 }, tenantTimezone)
-  const toUtcExclusive = fromTenantTime(
-    { date: shiftDateInTenantTz(toDate, 1, 'UTC'), hour: 0, minute: 0 },
-    tenantTimezone,
+  const fromUtc = fromOrgTime({ date: fromDate, hour: 0, minute: 0 }, orgTimezone)
+  const toUtcExclusive = fromOrgTime(
+    { date: shiftDateInOrgTz(toDate, 1, 'UTC'), hour: 0, minute: 0 },
+    orgTimezone,
   )
 
   // Previous period: same length, immediately preceding fromDate. Month uses
@@ -121,16 +121,13 @@ export function resolveDashboardFilters(
     previousFromDate = startOfMonth(previousToDate)
   } else {
     const length = daysBetween(fromDate, toDate)
-    previousToDate = shiftDateInTenantTz(fromDate, -1, 'UTC')
-    previousFromDate = shiftDateInTenantTz(previousToDate, -(length - 1), 'UTC')
+    previousToDate = shiftDateInOrgTz(fromDate, -1, 'UTC')
+    previousFromDate = shiftDateInOrgTz(previousToDate, -(length - 1), 'UTC')
   }
-  const previousFromUtc = fromTenantTime(
-    { date: previousFromDate, hour: 0, minute: 0 },
-    tenantTimezone,
-  )
-  const previousToUtcExclusive = fromTenantTime(
-    { date: shiftDateInTenantTz(previousToDate, 1, 'UTC'), hour: 0, minute: 0 },
-    tenantTimezone,
+  const previousFromUtc = fromOrgTime({ date: previousFromDate, hour: 0, minute: 0 }, orgTimezone)
+  const previousToUtcExclusive = fromOrgTime(
+    { date: shiftDateInOrgTz(previousToDate, 1, 'UTC'), hour: 0, minute: 0 },
+    orgTimezone,
   )
 
   return {

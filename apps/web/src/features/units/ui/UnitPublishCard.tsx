@@ -9,16 +9,16 @@ import { Check, X } from 'lucide-react'
 // owner whether the agenda is visible and, if not, exactly what's missing.
 // Hidden entirely for non-appointment units (the agenda isn't relevant there).
 export async function UnitPublishCard({
-  tenantId,
+  orgId,
   unitId,
   hoursMode,
 }: {
-  tenantId: string
+  orgId: string
   unitId: string
   hoursMode: UnitHoursMode | undefined
 }) {
   if (hoursMode !== 'appointment') return null
-  const readiness = await getUnitPublishReadiness(tenantId, unitId)
+  const readiness = await getUnitPublishReadiness(orgId, unitId)
 
   return (
     <Card>

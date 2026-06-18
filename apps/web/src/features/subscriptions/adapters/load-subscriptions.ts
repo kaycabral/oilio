@@ -11,8 +11,8 @@ import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
-import { getCustomerById, listCustomersForTenant } from '@/shared/tenant/customer-read'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
+import { getCustomerById, listCustomersForOrg } from '@/shared/org/customer-read'
+import { getActiveOrgContext } from '@/shared/org/membership'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -39,7 +39,7 @@ export async function loadSubscriptionsPage(rawParams: {
   if (!isFirebaseConfigured()) redirect('/')
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   // Default (no param) is the neutral "all"; the sidebar links to `?status=open`
@@ -49,8 +49,8 @@ export async function loadSubscriptionsPage(rawParams: {
   const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
   const searchQuery = rawParams.q ?? ''
 
-  const tenantRef = getAdminFirestore().collection('tenants').doc(ctx.membership.tenantId)
-  let query: FirebaseFirestore.Query<Subscription> = tenantRef
+  const orgRef = getAdminFirestore().collection('orgs').doc(ctx.membership.orgId)
+  let query: FirebaseFirestore.Query<Subscription> = orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
   if (filter === 'open') query = query.where('status', 'in', OPEN_STATUSES)
@@ -60,7 +60,7 @@ export async function loadSubscriptionsPage(rawParams: {
   const snap = await query.get()
   const statusSlice = snap.docs.map((d) => ({ ...d.data(), id: d.id }))
 
-  const allCustomers = await listCustomersForTenant(ctx.membership.tenantId)
+  const allCustomers = await listCustomersForOrg(ctx.membership.orgId)
   const customers: Record<string, Customer> = Object.fromEntries(allCustomers.map((c) => [c.id, c]))
 
   const subscriptions = filterBySearch(statusSlice, searchQuery, (s) => [
@@ -73,7 +73,7 @@ export async function loadSubscriptionsPage(rawParams: {
   const visibleCount = subscriptions.length
   let hasAnyData = visibleCount > 0
   if (!hasAnyData) {
-    const anySnap = await tenantRef.collection('subscriptions').limit(1).get()
+    const anySnap = await orgRef.collection('subscriptions').limit(1).get()
     hasAnyData = !anySnap.empty
   }
   const state = resolveListSurfaceState({ hasAnyData, visibleCount })
@@ -94,11 +94,11 @@ export async function loadSubscriptionDetail(id: string): Promise<SubscriptionDe
   if (!isFirebaseConfigured()) redirect('/')
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
-  const tenantRef = getAdminFirestore().collection('tenants').doc(ctx.membership.tenantId)
-  const subSnap = await tenantRef
+  const orgRef = getAdminFirestore().collection('orgs').doc(ctx.membership.orgId)
+  const subSnap = await orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .doc(id)
@@ -112,8 +112,8 @@ export async function loadSubscriptionDetail(id: string): Promise<SubscriptionDe
   const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
 
   const [customer, chargesSnap, plansSnap] = await Promise.all([
-    getCustomerById(ctx.membership.tenantId, subscription.customerId),
-    tenantRef
+    getCustomerById(ctx.membership.orgId, subscription.customerId),
+    orgRef
       .collection('charges')
       .withConverter(fsConverter(Charge))
       .where('subscriptionId', '==', id)
@@ -123,7 +123,7 @@ export async function loadSubscriptionDetail(id: string): Promise<SubscriptionDe
     // Planos ativos pra afford "trocar plano" (ADR 0010, D5 / AC-07). Só
     // carregados pra quem gerencia — assinante/recepção não troca plano.
     canManage
-      ? tenantRef
+      ? orgRef
           .collection('subscription_plans')
           .withConverter(fsConverter(SubscriptionPlan))
           .where('active', '==', true)

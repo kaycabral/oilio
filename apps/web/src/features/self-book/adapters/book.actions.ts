@@ -14,15 +14,15 @@ import {
 import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointment-user-ids'
 import { commitAppointmentBooking } from '@/features/booking/adapters/commit-appointment'
 import { isValidEmail } from '@/features/self-book/core/contact'
-import { parseTenantLocalAsUtc } from '@/features/self-book/core/datetime'
+import { parseOrgLocalAsUtc } from '@/features/self-book/core/datetime'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { formString } from '@/shared/form-data'
-import { upsertCustomerWithUser } from '@/shared/tenant/customer-upsert'
-import { getTenantBySlug } from '@/shared/tenant/tenant'
+import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
+import { getOrgBySlug } from '@/shared/org/org'
 
 export type PublicBookingResult =
-  | { ok: true; bookingId: string; tenantId: string }
+  | { ok: true; bookingId: string; orgId: string }
   | { ok: false; error: string }
 
 // Booking público anônimo — chamado pelo formulário em /[slug]/book sem
@@ -33,17 +33,17 @@ export type PublicBookingResult =
 //   - Status do appointment é 'scheduled' direto (não há 'pending' hoje).
 //     Owner vê na agenda imediatamente e pode cancelar.
 //   - Idempotência por whatsapp normalizado: se já existe customer com mesmo
-//     telefone no tenant, reusa o doc. Nome novo NÃO sobrescreve o antigo —
+//     telefone no org, reusa o doc. Nome novo NÃO sobrescreve o antigo —
 //     evita squat de identidade.
 // Resolve + validate the booked service and professional for the legacy public
 // flow: service must be a public active kind-service; professional must belong to
-// the tenant with at least one unit (the booking lands on their first unit).
+// the org with at least one unit (the booking lands on their first unit).
 async function resolvePublicBookingEntities(
-  tenantRef: FirebaseFirestore.DocumentReference,
+  orgRef: FirebaseFirestore.DocumentReference,
   serviceId: string,
   professionalId: string,
 ): Promise<{ service: CatalogItem; unitId: string } | string> {
-  const serviceSnap = await tenantRef
+  const serviceSnap = await orgRef
     .collection('catalog_items')
     .withConverter(fsConverter(CatalogItem))
     .doc(serviceId)
@@ -55,7 +55,7 @@ async function resolvePublicBookingEntities(
     return 'Serviço não está disponível para agendamento público.'
   }
 
-  const proSnap = await tenantRef
+  const proSnap = await orgRef
     .collection('professionals')
     .withConverter(fsConverter(StoredProfessional))
     .doc(professionalId)
@@ -72,8 +72,8 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
     return { ok: false, error: 'Página inválida.' }
   }
 
-  const tenant = await getTenantBySlug(slug)
-  if (!tenant || !tenant.selfBookingPublished) {
+  const org = await getOrgBySlug(slug)
+  if (!org || !org.selfBookingPublished) {
     return { ok: false, error: 'Estabelecimento indisponível.' }
   }
 
@@ -92,13 +92,13 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
   const whatsapp = normalizeBrazilPhone(customerWhatsappRaw)
   if (!whatsapp) return { ok: false, error: 'Número de WhatsApp inválido.' }
 
-  // Parse datetime-local como hora-local-do-tenant. O <input type="datetime-local">
+  // Parse datetime-local como hora-local-do-org. O <input type="datetime-local">
   // envia "yyyy-MM-ddTHH:mm" sem timezone — interpretar como UTC seria errado;
-  // tratamos esses dígitos como horário do tenant e convertemos pra UTC.
+  // tratamos esses dígitos como horário do org e convertemos pra UTC.
   // Usamos Intl.DateTimeFormat para resolver o offset do dia escolhido (DST).
   let startAtUtc: Date
   try {
-    startAtUtc = parseTenantLocalAsUtc(startAtLocal, tenant.timezone)
+    startAtUtc = parseOrgLocalAsUtc(startAtLocal, org.timezone)
   } catch {
     return { ok: false, error: 'Data/horário inválidos.' }
   }
@@ -107,9 +107,9 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
   }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(tenant.id)
+  const orgRef = db.collection('orgs').doc(org.id)
 
-  const entities = await resolvePublicBookingEntities(tenantRef, serviceId, professionalId)
+  const entities = await resolvePublicBookingEntities(orgRef, serviceId, professionalId)
   if (typeof entities === 'string') return { ok: false, error: entities }
   const { service, unitId } = entities
 
@@ -118,10 +118,10 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
 
   // Customer + User stub via shared upsert. Idempotency lives at the User
   // level (whatsapp is the canonical channel) so the same human re-booking
-  // in any tenant reuses one User doc — see #832. Done BEFORE the booking
+  // in any org reuses one User doc — see #832. Done BEFORE the booking
   // tx so retries on slot contention don't re-upsert the customer.
   const upsert = await upsertCustomerWithUser({
-    tenantId: tenant.id,
+    orgId: org.id,
     name: customerName,
     whatsappRaw: whatsapp,
     email: isValidEmail(customerEmailRaw) ? customerEmailRaw : null,
@@ -131,13 +131,13 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
   const customerId = upsert.customerId
   const now = new Date().toISOString()
 
-  const userIds = await resolveAppointmentUserIds(tenant.id, customerId, professionalId)
+  const userIds = await resolveAppointmentUserIds(org.id, customerId, professionalId)
   if (!userIds.ok) return userIds
 
-  const aptRef = tenantRef.collection('appointments').doc()
+  const aptRef = orgRef.collection('appointments').doc()
   const appointment: Appointment = {
     id: aptRef.id,
-    tenantId: tenant.id,
+    orgId: org.id,
     unitId,
     professionalId,
     customerId,
@@ -149,7 +149,7 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
     serviceDurationMinutesSnapshot: resolved.durationMinutes,
     commissionSnapshot: resolved.commission,
     // Snapshot da cancellation policy no commit (#1038).
-    cancellationPolicySnapshot: normalizeCancellationPolicy(tenant.cancellationPolicy),
+    cancellationPolicySnapshot: normalizeCancellationPolicy(org.cancellationPolicy),
     customerUserId: userIds.ids.customerUserId,
     professionalUserId: userIds.ids.professionalUserId,
     createdAt: now,
@@ -161,7 +161,7 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
   // conflict logs `appointment.double_book_blocked` within the same tx.
   const commit = await commitAppointmentBooking({
     db,
-    tenantRef,
+    orgRef,
     appointment,
     actorUid: `public:${customerId}`,
     via: 'public_landing',
@@ -172,5 +172,5 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
 
   // Auditoria = stream: `commitAppointmentBooking` já emite `appointment.created`
   // (fonte de verdade). Sem `audit_logs` paralelo (erradicação ES, #1029).
-  return { ok: true, bookingId: aptRef.id, tenantId: tenant.id }
+  return { ok: true, bookingId: aptRef.id, orgId: org.id }
 }

@@ -5,12 +5,12 @@ import { AcceptInviteForm } from '@/features/invites/ui/AcceptInviteForm'
 import { LogoutAndRetryButton } from '@/features/invites/ui/LogoutAndRetryButton'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { getInviteById } from '@/shared/tenant/invite-read'
-import { getUserDoc } from '@/shared/tenant/membership'
-import { getTenant } from '@/shared/tenant/tenant'
+import { getInviteById } from '@/shared/org/invite-read'
+import { getUserDoc } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
 import { redirect } from 'next/navigation'
 
-type Params = Promise<{ tenantId: string; inviteId: string }>
+type Params = Promise<{ orgId: string; inviteId: string }>
 type SearchParams = Promise<{ token?: string }>
 
 export default async function AcceptInvitePage({
@@ -22,7 +22,7 @@ export default async function AcceptInvitePage({
 }) {
   if (!isFirebaseConfigured()) redirect('/')
 
-  const { tenantId, inviteId } = await params
+  const { orgId, inviteId } = await params
   const { token } = await searchParams
 
   if (!token) {
@@ -35,7 +35,7 @@ export default async function AcceptInvitePage({
   }
 
   // PII (invitee email) merged from `invites_pii` on read (#1036).
-  const invite = await getInviteById(tenantId, inviteId)
+  const invite = await getInviteById(orgId, inviteId)
   if (!invite) {
     return (
       <CenteredScreen>
@@ -67,15 +67,15 @@ export default async function AcceptInvitePage({
     )
   }
 
-  const tenant = await getTenant(tenantId)
-  const tenantName = tenant?.name ?? 'esta empresa'
+  const org = await getOrg(orgId)
+  const orgName = org?.name ?? 'esta empresa'
 
   const session = await getSessionUser()
   if (!session) {
-    const next = encodeURIComponent(`/invites/${tenantId}/${inviteId}?token=${token}`)
+    const next = encodeURIComponent(`/invites/${orgId}/${inviteId}?token=${token}`)
     return (
       <CenteredScreen>
-        <h1 className="mb-2 text-xl font-semibold">Convite para {tenantName}</h1>
+        <h1 className="mb-2 text-xl font-semibold">Convite para {orgName}</h1>
         <p className="text-muted-foreground mb-4 text-sm">
           Continue com Google usando a conta do email <strong>{invite.email}</strong>.
         </p>
@@ -94,7 +94,7 @@ export default async function AcceptInvitePage({
           Use a conta do email <strong>{invite.email}</strong>. A conta logada é{' '}
           <strong>{session.email ?? '(sem email)'}</strong>.
         </p>
-        <LogoutAndRetryButton nextUrl={`/invites/${tenantId}/${inviteId}?token=${token}`} />
+        <LogoutAndRetryButton nextUrl={`/invites/${orgId}/${inviteId}?token=${token}`} />
       </CenteredScreen>
     )
   }
@@ -105,17 +105,17 @@ export default async function AcceptInvitePage({
   // accept-flow resumes exactly where they were.
   const user = await getUserDoc(session.uid)
   if (!user?.completionCompleted) {
-    const next = encodeURIComponent(`/invites/${tenantId}/${inviteId}?token=${token}`)
+    const next = encodeURIComponent(`/invites/${orgId}/${inviteId}?token=${token}`)
     redirect(`/onboarding/profile?next=${next}`)
   }
 
   return (
     <CenteredScreen>
-      <h1 className="mb-2 text-xl font-semibold">Convite para {tenantName}</h1>
+      <h1 className="mb-2 text-xl font-semibold">Convite para {orgName}</h1>
       <p className="text-muted-foreground mb-4 text-sm">
         Papel proposto: <strong>{invite.role}</strong>
       </p>
-      <AcceptInviteForm tenantId={tenantId} inviteId={inviteId} token={token} />
+      <AcceptInviteForm orgId={orgId} inviteId={inviteId} token={token} />
     </CenteredScreen>
   )
 }

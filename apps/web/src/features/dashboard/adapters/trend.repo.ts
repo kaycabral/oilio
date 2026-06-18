@@ -7,14 +7,14 @@ import { fsConverter } from '@/shared/db/converter'
 import 'server-only'
 
 export async function loadDashboardTrend(
-  tenantId: string,
-  tenantTimezone: string,
+  orgId: string,
+  orgTimezone: string,
   filters: DashboardFilters,
 ): Promise<TrendPoint[]> {
-  const tenantRef = getAdminFirestore().collection('tenants').doc(tenantId)
-  const dayList = listLocalDays(filters.fromDate, filters.toDate, tenantTimezone)
+  const orgRef = getAdminFirestore().collection('orgs').doc(orgId)
+  const dayList = listLocalDays(filters.fromDate, filters.toDate, orgTimezone)
 
-  const ordersQuery = tenantRef
+  const ordersQuery = orgRef
     .collection('orders')
     .withConverter(fsConverter(Order))
     .where('status', '==', 'closed')
@@ -24,9 +24,9 @@ export async function loadDashboardTrend(
 
   // `newSubs` reflete só a unidade ativa (brief 0043, AC-03): a assinatura é
   // dona de uma unidade (`Subscription.unitId`, #1117), então escopa quando há
-  // unidade ativa — tenant-wide só quando não há nenhuma no contexto.
+  // unidade ativa — org-wide só quando não há nenhuma no contexto.
   const subsQuery = scopeByUnit(
-    tenantRef
+    orgRef
       .collection('subscriptions')
       .withConverter(fsConverter(Subscription))
       .where('createdAt', '>=', filters.fromUtc)
@@ -38,5 +38,5 @@ export async function loadDashboardTrend(
   const orders = ordersSnap.docs.map((d) => d.data())
   const subs = subsSnap.docs.map((d) => d.data())
 
-  return bucketByLocalDay(orders, subs, tenantTimezone, dayList)
+  return bucketByLocalDay(orders, subs, orgTimezone, dayList)
 }

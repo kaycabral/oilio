@@ -5,8 +5,8 @@ import {
 import { getAdminFirestore } from '@/shared/db'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { resolveActiveUnit } from '@/shared/tenant/active-unit'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
+import { resolveActiveUnit } from '@/shared/org/active-unit'
+import { getActiveOrgContext } from '@/shared/org/membership'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -28,19 +28,19 @@ export async function loadNotificationsPage(searchParams: {
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
-  const tenantId = ctx.membership.tenantId
+  const orgId = ctx.membership.orgId
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(tenantId)
+  const orgRef = db.collection('orgs').doc(orgId)
 
   const { activeUnitId } = await resolveActiveUnit(ctx.membership)
 
-  // No active unit (tenant without units yet) → nothing to scope to; render the
+  // No active unit (org without units yet) → nothing to scope to; render the
   // empty state instead of issuing a `unitId == null` query.
   let query = activeUnitId
-    ? tenantRef
+    ? orgRef
         .collection('notifications')
         .where('unitId', '==', activeUnitId)
         .orderBy('createdAt', 'desc')
@@ -48,7 +48,7 @@ export async function loadNotificationsPage(searchParams: {
     : null
 
   if (query && searchParams.type) {
-    query = tenantRef
+    query = orgRef
       .collection('notifications')
       .where('unitId', '==', activeUnitId)
       .where('type', '==', searchParams.type)

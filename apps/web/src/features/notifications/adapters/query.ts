@@ -34,22 +34,22 @@ export type UnitNotificationsResult = {
 // compõe bem esses predicados numa query só; o set de não-lidas é pequeno).
 export async function fetchUnitNotifications({
   db,
-  tenantId,
+  orgId,
   unitId,
   limit,
   now = new Date(),
   allowedTypes,
 }: {
   db: Firestore
-  tenantId: string
+  orgId: string
   unitId: string
   limit: number
   now?: Date
   allowedTypes?: readonly string[]
 }): Promise<UnitNotificationsResult> {
   const notificationsRef = db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('notifications')
     .withConverter(fsConverter(StoredUnitNotification))
 

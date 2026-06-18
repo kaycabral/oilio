@@ -1,10 +1,10 @@
 import { AppShell } from '@/components/app-shell'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { needsUnitSelection, resolveActiveUnit } from '@/shared/tenant/active-unit'
-import { getActiveTenantContext, listAccessibleTenants } from '@/shared/tenant/membership'
-import { getTenant } from '@/shared/tenant/tenant'
-import { TenantProvider } from '@/shared/tenant/tenant-context'
+import { needsUnitSelection, resolveActiveUnit } from '@/shared/org/active-unit'
+import { getActiveOrgContext, listAccessibleOrgs } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
+import { OrgProvider } from '@/shared/org/org-context'
 import { redirect } from 'next/navigation'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -13,15 +13,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   // #838 — every user must complete the post-OAuth profile step before any
   // app surface. Gate at the layout so client-side nav can't slip past.
   if (!ctx.user.completionCompleted) redirect('/onboarding/profile')
 
-  const tenant = await getTenant(ctx.membership.tenantId)
-  if (!tenant) redirect('/onboarding')
+  const org = await getOrg(ctx.membership.orgId)
+  if (!org) redirect('/onboarding')
 
   // No global onboarding gate (#986): the app is operable from signup. Setup
   // completeness is only required when publishing the public self-booking page
@@ -29,37 +29,37 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // First-access interstitial (brief 0029, AC-04): multi-unit member with no
   // chosen unit picks one before any operational surface renders. Single-unit
-  // members (AC-05) and one-unit tenants enter directly — never redirected.
+  // members (AC-05) and one-unit orgs enter directly — never redirected.
   if (await needsUnitSelection(ctx.membership)) redirect('/select-unit')
 
   // Shared active-unit context (brief 0029, AC-01/AC-02): accessible units +
   // the resolved active unit (cookie → validate → first accessible; a
   // single-unit member is pinned to membership.unitId). Operational pages read
-  // this via useTenant()/the cookie; the switcher (#1051) writes the cookie.
+  // this via useOrg()/the cookie; the switcher (#1051) writes the cookie.
   const { units, activeUnitId } = await resolveActiveUnit(ctx.membership)
 
-  // Tenants the user can switch between (brief 0029, AC-09) — switcher shows the
-  // tenant picker only when 2+. Single-unit members are locked (AC-05): the
+  // Orgs the user can switch between (brief 0029, AC-09) — switcher shows the
+  // org picker only when 2+. Single-unit members are locked (AC-05): the
   // switcher hides the unit picker and the interstitial never fires.
-  const tenants = await listAccessibleTenants(session.uid)
+  const orgs = await listAccessibleOrgs(session.uid)
   // Treat a missing `unitId` (legacy memberships predate the field) as
-  // tenant-scoped — only a non-empty value pins the member (AC-05).
+  // org-scoped — only a non-empty value pins the member (AC-05).
   const unitLocked = Boolean(ctx.membership.unitId)
 
   return (
-    <TenantProvider
+    <OrgProvider
       value={{
         user: ctx.user,
-        tenant,
+        org,
         membership: ctx.membership,
-        tenants,
+        orgs,
         units,
         activeUnitId,
         unitLocked,
       }}
     >
       <AppShell
-        tenantName={tenant.name}
+        orgName={org.name}
         user={{
           name: ctx.user.displayName,
           secondary: ctx.user.email,
@@ -68,6 +68,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       >
         {children}
       </AppShell>
-    </TenantProvider>
+    </OrgProvider>
   )
 }

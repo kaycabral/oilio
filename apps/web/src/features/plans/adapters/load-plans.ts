@@ -16,8 +16,8 @@ import {
   attachCanDelete,
   planHasActiveReference,
   type WithCanDelete,
-} from '@/shared/tenant/delete-guard'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
+} from '@/shared/org/delete-guard'
+import { getActiveOrgContext } from '@/shared/org/membership'
 import { notFound, redirect } from 'next/navigation'
 import 'server-only'
 
@@ -51,7 +51,7 @@ export async function loadPlansPage(
   if (!isFirebaseConfigured()) redirect('/')
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
@@ -61,8 +61,8 @@ export async function loadPlansPage(
   const statusFilter = normalizeStatusFilter(rawParams.status)
 
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(ctx.membership.tenantId)
+    .collection('orgs')
+    .doc(ctx.membership.orgId)
     .collection('subscription_plans')
     .withConverter(fsConverter(SubscriptionPlan))
     .orderBy('name')
@@ -74,7 +74,7 @@ export async function loadPlansPage(
   // when no active subscription references the plan, so the UI can offer
   // Excluir; otherwise only Arquivar. Orthogonal to the role gate.
   const allPlans = await attachCanDelete(activePlans, (id) =>
-    planHasActiveReference(ctx.membership.tenantId, id),
+    planHasActiveReference(ctx.membership.orgId, id),
   )
   const byCycle =
     cycleFilter === 'all' ? allPlans : allPlans.filter((p) => p.billingCycle === cycleFilter)
@@ -96,16 +96,16 @@ export type PlanMasterData = {
   categories: Category[]
 }
 
-async function loadPlanMasterData(tenantId: string): Promise<PlanMasterData> {
-  const tenantRef = getAdminFirestore().collection('tenants').doc(tenantId)
+async function loadPlanMasterData(orgId: string): Promise<PlanMasterData> {
+  const orgRef = getAdminFirestore().collection('orgs').doc(orgId)
   const [unitsSnap, itemsSnap, categoriesSnap] = await Promise.all([
-    tenantRef.collection('units').withConverter(fsConverter(StoredUnit)).orderBy('name').get(),
-    tenantRef
+    orgRef.collection('units').withConverter(fsConverter(StoredUnit)).orderBy('name').get(),
+    orgRef
       .collection('catalog_items')
       .withConverter(fsConverter(CatalogItem))
       .orderBy('name')
       .get(),
-    tenantRef.collection('categories').withConverter(fsConverter(Category)).orderBy('name').get(),
+    orgRef.collection('categories').withConverter(fsConverter(Category)).orderBy('name').get(),
   ])
   // Archived master data (brief 0027, AC-06) is hidden from the coverage
   // pickers; the plan keeps resolving any frozen ids it already references.
@@ -124,12 +124,12 @@ async function loadPlanMasterData(tenantId: string): Promise<PlanMasterData> {
 export async function loadNewPlanPage(): Promise<PlanMasterData> {
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
   if (ctx.membership.role !== 'owner' && ctx.membership.role !== 'manager') {
     redirect('/plans')
   }
-  return loadPlanMasterData(ctx.membership.tenantId)
+  return loadPlanMasterData(ctx.membership.orgId)
 }
 
 export type EditPlanPageData = PlanMasterData & { plan: SubscriptionPlan }
@@ -139,19 +139,19 @@ export type EditPlanPageData = PlanMasterData & { plan: SubscriptionPlan }
 export async function loadEditPlanPage(planId: string): Promise<EditPlanPageData> {
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
   if (ctx.membership.role !== 'owner' && ctx.membership.role !== 'manager') {
     redirect('/plans')
   }
-  const tenantRef = getAdminFirestore().collection('tenants').doc(ctx.membership.tenantId)
-  const snap = await tenantRef
+  const orgRef = getAdminFirestore().collection('orgs').doc(ctx.membership.orgId)
+  const snap = await orgRef
     .collection('subscription_plans')
     .withConverter(fsConverter(SubscriptionPlan))
     .doc(planId)
     .get()
   const plan = snap.data()
   if (!plan) notFound()
-  const masterData = await loadPlanMasterData(ctx.membership.tenantId)
+  const masterData = await loadPlanMasterData(ctx.membership.orgId)
   return { plan, ...masterData }
 }

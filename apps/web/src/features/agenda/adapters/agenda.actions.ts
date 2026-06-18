@@ -6,7 +6,7 @@ import {
   normalizeCancellationPolicy,
   resolveCatalogItemForUnit,
 } from '@/domain'
-import { AppointmentConfig, TenantConfig } from '@/domain/aggregates'
+import { AppointmentConfig, OrgConfig } from '@/domain/aggregates'
 import {
   decideSnapshotRefresh,
   validateEditableCustomer,
@@ -30,9 +30,9 @@ import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointme
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
 
-import { upsertCustomerWithUser } from '@/shared/tenant/customer-upsert'
-import { requireManagerCtx, requireTenantCtx } from '@/shared/tenant/membership'
-import { getTenant } from '@/shared/tenant/tenant'
+import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
+import { requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
 import {
   checkSlotConflicts,
   guardCustomerNotBlocked,
@@ -53,10 +53,10 @@ export async function updateAgendaSlotMinutes(
     return { ok: false, error: 'Granularidade inválida' }
   }
 
-  const tenantId = r.ctx.membership.tenantId
+  const orgId = r.ctx.membership.orgId
   // Event-first: estado da empresa vem do evento (sem `.update` paralelo).
-  const updated = await emitEvent(TenantConfig, `tenants/${tenantId}`, {
-    _tag: 'tenant.updated',
+  const updated = await emitEvent(OrgConfig, `orgs/${orgId}`, {
+    _tag: 'org.updated',
     actorId: r.ctx.session.uid,
     payload: { changes: { slotMinutes: slotMinutesInput } },
   })
@@ -67,13 +67,13 @@ export async function updateAgendaSlotMinutes(
 }
 
 export async function cancelAppointment(appointmentId: string): Promise<AppointmentMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
   const db = getAdminFirestore()
   const ref = db
-    .collection('tenants')
-    .doc(r.ctx.membership.tenantId)
+    .collection('orgs')
+    .doc(r.ctx.membership.orgId)
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
     .doc(appointmentId)
@@ -84,7 +84,7 @@ export async function cancelAppointment(appointmentId: string): Promise<Appointm
   // Decision is pure (core); the adapter only reads + emits. Staff actor here —
   // internal panel always runs as the logged-in member. Self-cancel from the
   // customer flow (#845) sets 'customer' via its own action. Tracking is
-  // populated regardless of the tenant's cancellationPolicy toggle (Wiki:
+  // populated regardless of the org's cancellationPolicy toggle (Wiki:
   // 04-Roadmap-Politica-Cancelamento § Tracking sempre on).
   const decision = decideCancel(existing, 'staff', new Date().toISOString())
   if (!decision.ok) return { ok: false, error: decision.error }
@@ -92,7 +92,7 @@ export async function cancelAppointment(appointmentId: string): Promise<Appointm
   // Event-first: a projeção (status/cancelledAt/By/NoticeMinutes) vem do evento.
   const cancelled = await emitEvent(
     AppointmentConfig,
-    `tenants/${r.ctx.membership.tenantId}/appointments/${appointmentId}`,
+    `orgs/${r.ctx.membership.orgId}/appointments/${appointmentId}`,
     {
       _tag: 'appointment.cancelled',
       actorId: r.ctx.session.uid,
@@ -112,13 +112,13 @@ export async function cancelAppointment(appointmentId: string): Promise<Appointm
 export async function markAppointmentNoShow(
   appointmentId: string,
 ): Promise<AppointmentMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
   const db = getAdminFirestore()
   const ref = db
-    .collection('tenants')
-    .doc(r.ctx.membership.tenantId)
+    .collection('orgs')
+    .doc(r.ctx.membership.orgId)
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
     .doc(appointmentId)
@@ -136,7 +136,7 @@ export async function markAppointmentNoShow(
   // Event-first: a projeção (status/noShowMarkedAt/By) vem do evento.
   const marked = await emitEvent(
     AppointmentConfig,
-    `tenants/${r.ctx.membership.tenantId}/appointments/${appointmentId}`,
+    `orgs/${r.ctx.membership.orgId}/appointments/${appointmentId}`,
     {
       _tag: 'appointment.no_show',
       actorId: r.ctx.session.uid,
@@ -155,13 +155,13 @@ export async function markAppointmentNoShow(
 export async function unmarkAppointmentNoShow(
   appointmentId: string,
 ): Promise<AppointmentMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
   const db = getAdminFirestore()
   const ref = db
-    .collection('tenants')
-    .doc(r.ctx.membership.tenantId)
+    .collection('orgs')
+    .doc(r.ctx.membership.orgId)
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
     .doc(appointmentId)
@@ -176,7 +176,7 @@ export async function unmarkAppointmentNoShow(
   // (volta status pra scheduled; o marker anterior fica como histórico).
   const reverted = await emitEvent(
     AppointmentConfig,
-    `tenants/${r.ctx.membership.tenantId}/appointments/${appointmentId}`,
+    `orgs/${r.ctx.membership.orgId}/appointments/${appointmentId}`,
     { _tag: 'appointment.no_show_reverted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!reverted.ok) return { ok: false, error: reverted.error }
@@ -191,10 +191,10 @@ export async function updateAppointment(
   appointmentId: string,
   formData: FormData,
 ): Promise<AppointmentMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
-  const tenant = await getTenant(r.ctx.membership.tenantId)
-  if (!tenant) return { ok: false, error: 'Tenant não encontrado' }
+  const org = await getOrg(r.ctx.membership.orgId)
+  if (!org) return { ok: false, error: 'Org não encontrado' }
   const parsed = parseAppointmentForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
@@ -204,13 +204,13 @@ export async function updateAppointment(
   const customerId = editable.value.customerId
 
   // Write-guard (brief 0032, AC-11): editing an appointment for a blocked
-  // customer in this tenant is rejected — the relationship is severed.
-  const editGuard = await guardCustomerNotBlocked(r.ctx.membership.tenantId, customerId)
+  // customer in this org is rejected — the relationship is severed.
+  const editGuard = await guardCustomerNotBlocked(r.ctx.membership.orgId, customerId)
   if (editGuard) return editGuard
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const apptRef = tenantRef
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const apptRef = orgRef
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
     .doc(appointmentId)
@@ -222,8 +222,8 @@ export async function updateAppointment(
   // `serviceId` now points at a `catalog_items` doc of kind service. The two
   // loads are independent — run them in parallel.
   const [item, professional] = await Promise.all([
-    loadActiveService(tenantRef, parsed.serviceId),
-    loadApprovedProfessional(tenantRef, parsed.professionalId),
+    loadActiveService(orgRef, parsed.serviceId),
+    loadApprovedProfessional(orgRef, parsed.professionalId),
   ])
   if (typeof item === 'string') return { ok: false, error: item }
   if (typeof professional === 'string') return { ok: false, error: professional }
@@ -237,13 +237,13 @@ export async function updateAppointment(
     resolvedDurationMinutes: resolved.durationMinutes,
   })
 
-  const times = resolveStartEnd(tenant, parsed, effectiveDurationMinutes)
+  const times = resolveStartEnd(org, parsed, effectiveDurationMinutes)
   if (typeof times === 'string') return { ok: false, error: times }
   const { startAt, endAt } = times
 
   const conflict = await checkSlotConflicts({
-    tenantRef,
-    tenant,
+    orgRef,
+    org,
     parsed,
     startAt,
     endAt,
@@ -256,8 +256,8 @@ export async function updateAppointment(
   // no update porque staff pode mover um appointment para fora do scope ativo.
   const scopeCheck = await enforceSubscriptionScope({
     db,
-    tenantId: r.ctx.membership.tenantId,
-    tenantTimezone: tenant.timezone,
+    orgId: r.ctx.membership.orgId,
+    orgTimezone: org.timezone,
     customerId,
     unitId: parsed.unitId,
     startAt,
@@ -267,7 +267,7 @@ export async function updateAppointment(
   if (!scopeCheck.ok) return { ok: false, error: scopeCheck.error }
 
   return persistAppointmentUpdate({
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     actorUid: r.ctx.session.uid,
     appointmentId,
     parsed: { ...parsed, customerId },
@@ -280,22 +280,22 @@ export async function updateAppointment(
 }
 
 export async function createAppointment(formData: FormData): Promise<AppointmentMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
-  const tenant = await getTenant(r.ctx.membership.tenantId)
-  if (!tenant) return { ok: false, error: 'Tenant não encontrado' }
+  const org = await getOrg(r.ctx.membership.orgId)
+  if (!org) return { ok: false, error: 'Org não encontrado' }
   const parsed = parseAppointmentForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
 
   // Unified catalog read (brief 0023, #1004): `serviceId` references a
   // `catalog_items` doc of kind service. The two loads are independent — run
   // them in parallel.
   const [item, professional] = await Promise.all([
-    loadActiveService(tenantRef, parsed.serviceId),
-    loadApprovedProfessional(tenantRef, parsed.professionalId),
+    loadActiveService(orgRef, parsed.serviceId),
+    loadApprovedProfessional(orgRef, parsed.professionalId),
   ])
   if (typeof item === 'string') return { ok: false, error: item }
   if (typeof professional === 'string') return { ok: false, error: professional }
@@ -304,17 +304,17 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   // the snapshot write below — keeping them on a single source.
   const resolved = resolveCatalogItemForUnit(item, parsed.unitId)
 
-  const times = resolveStartEnd(tenant, parsed, resolved.durationMinutes)
+  const times = resolveStartEnd(org, parsed, resolved.durationMinutes)
   if (typeof times === 'string') return { ok: false, error: times }
   const { startAt, endAt } = times
 
-  const conflict = await checkSlotConflicts({ tenantRef, tenant, parsed, startAt, endAt })
+  const conflict = await checkSlotConflicts({ orgRef, org, parsed, startAt, endAt })
   if (conflict) return { ok: false, error: conflict.error, conflicts: conflict.conflicts }
 
   let customerId = parsed.customerId
   if (parsed.newCustomer) {
     const upsert = await upsertCustomerWithUser({
-      tenantId: r.ctx.membership.tenantId,
+      orgId: r.ctx.membership.orgId,
       name: parsed.newCustomer.name,
       whatsappRaw: parsed.newCustomer.whatsapp,
       email: null,
@@ -328,10 +328,10 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   if (!customerId) return { ok: false, error: 'Cliente não resolvido' }
 
   // Write-guard (brief 0032, AC-11): a blocked customer's relationship is
-  // severed — no new appointment may be created for them in this tenant. A
+  // severed — no new appointment may be created for them in this org. A
   // freshly upserted customer can't be blocked, but an existing `customerId`
   // can, so guard after resolution.
-  const createGuard = await guardCustomerNotBlocked(r.ctx.membership.tenantId, customerId)
+  const createGuard = await guardCustomerNotBlocked(r.ctx.membership.orgId, customerId)
   if (createGuard) return createGuard
 
   // Brief 0019 — recepção respeita as mesmas regras de plano que o self-book.
@@ -339,8 +339,8 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   // excepcionais resolvem-se via ajuste de Subscription do cliente.
   const scopeCheck = await enforceSubscriptionScope({
     db,
-    tenantId: r.ctx.membership.tenantId,
-    tenantTimezone: tenant.timezone,
+    orgId: r.ctx.membership.orgId,
+    orgTimezone: org.timezone,
     customerId,
     unitId: parsed.unitId,
     startAt,
@@ -349,17 +349,17 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   if (!scopeCheck.ok) return { ok: false, error: scopeCheck.error }
 
   const userIds = await resolveAppointmentUserIds(
-    r.ctx.membership.tenantId,
+    r.ctx.membership.orgId,
     customerId,
     parsed.professionalId,
   )
   if (!userIds.ok) return userIds
 
-  const apptRef = tenantRef.collection('appointments').doc()
+  const apptRef = orgRef.collection('appointments').doc()
   const now = new Date().toISOString()
   const appointment: Appointment = {
     id: apptRef.id,
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     unitId: parsed.unitId,
     professionalId: parsed.professionalId,
     customerId,
@@ -371,8 +371,8 @@ export async function createAppointment(formData: FormData): Promise<Appointment
     serviceDurationMinutesSnapshot: resolved.durationMinutes,
     commissionSnapshot: resolved.commission,
     // Snapshot da cancellation policy no commit (#1038). Editar a policy do
-    // tenant depois não retroage sobre o direito de cancelar deste booking.
-    cancellationPolicySnapshot: normalizeCancellationPolicy(tenant.cancellationPolicy),
+    // org depois não retroage sobre o direito de cancelar deste booking.
+    cancellationPolicySnapshot: normalizeCancellationPolicy(org.cancellationPolicy),
     customerUserId: userIds.ids.customerUserId,
     professionalUserId: userIds.ids.professionalUserId,
     createdAt: now,
@@ -384,7 +384,7 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   // the slot from concurrent public landings + staff agenda writes.
   const commit = await commitAppointmentBooking({
     db,
-    tenantRef,
+    orgRef,
     appointment,
     actorUid: r.ctx.session.uid,
     via: 'internal_panel',

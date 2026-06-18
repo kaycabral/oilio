@@ -1,16 +1,16 @@
-// Functional core for the create-tenant form: pure parsing + validation of the
+// Functional core for the create-org form: pure parsing + validation of the
 // submitted FormData into a typed payload (or a user-facing error string). No
-// I/O — the createTenant saga (adapters) does the slug lookup + event emission.
+// I/O — the createOrg saga (adapters) does the slug lookup + event emission.
 
 import { VERTICALS, type Vertical } from '@/domain'
 import { formString } from '@/shared/form-data'
 
-export type TenantFormPayload = {
+export type OrgFormPayload = {
   name: string
   vertical: Vertical
 }
 
-export function parseTenantForm(formData: FormData): TenantFormPayload | string {
+export function parseOrgForm(formData: FormData): OrgFormPayload | string {
   const name = formString(formData, 'name').trim()
   if (name.length < 2) return 'Name is too short'
 

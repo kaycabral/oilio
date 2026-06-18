@@ -28,7 +28,7 @@ export type BookingCommitResult =
 
 export type BookingCommitInput = {
   db: Firestore
-  tenantRef: DocumentReference
+  orgRef: DocumentReference
   appointment: Appointment
   // Actor (staff uid, or `public:<customerId>` from the public landing).
   // Logged on the *blocked* attempt — the failed double-book.
@@ -46,12 +46,12 @@ const CONFLICT_LOOKBACK_MS = 24 * 60 * 60_000
 
 export async function commitAppointmentBooking({
   db,
-  tenantRef,
+  orgRef,
   appointment,
   actorUid,
   via,
 }: BookingCommitInput): Promise<BookingCommitResult> {
-  const apptRef = tenantRef.collection('appointments').doc(appointment.id)
+  const apptRef = orgRef.collection('appointments').doc(appointment.id)
   // Event-first: o doc do appointment é projeção do `appointment.created`, não um
   // write direto. Montamos o evento (version 1 — aggregate novo) FORA da tx pra
   // falhar cedo em validação; dentro da tx gravamos o envelope + a projeção
@@ -66,7 +66,7 @@ export async function commitAppointmentBooking({
   const end = new Date(appointment.endAt).getTime()
   const lowerBound = new Date(start - CONFLICT_LOOKBACK_MS).toISOString()
   const upperBound = new Date(end + CONFLICT_LOOKBACK_MS).toISOString()
-  const conflictQuery = tenantRef
+  const conflictQuery = orgRef
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
     .where('professionalId', '==', appointment.professionalId)
@@ -103,7 +103,7 @@ export async function commitAppointmentBooking({
     // #1029). Fora da tx: o log não precisa ser atômico e a tx não re-tenta no
     // ramo de conflito (retorna em vez de throw).
     logger.warn('appointment.double_book_blocked', {
-      tenantId: appointment.tenantId,
+      orgId: appointment.orgId,
       actorUid,
       via,
       appointmentId: appointment.id,

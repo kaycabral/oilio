@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   emitEvent: vi.fn((..._args: EmitArgs) => Promise.resolve({ ok: true as const })),
 }))
 
-vi.mock('@/shared/tenant/membership', () => ({
+vi.mock('@/shared/org/membership', () => ({
   requireManagerCtx: mocks.requireManagerCtx,
   requireOwnerCtx: vi.fn(),
 }))
@@ -37,7 +37,7 @@ function makeCtx() {
     ok: true as const,
     ctx: {
       session: { uid: 'user-1' },
-      membership: { tenantId: 'tenant-1', role: 'owner' as const, userId: 'user-1' },
+      membership: { orgId: 'org-1', role: 'owner' as const, userId: 'user-1' },
     },
   }
 }
@@ -57,7 +57,7 @@ const CURRENT_PLAN_SNAPSHOT = {
 }
 
 // Chainable collection ref: the migrated adapter calls
-// `tenantRef.collection(name).withConverter(fsConverter(Schema)).doc(id).get()`.
+// `orgRef.collection(name).withConverter(fsConverter(Schema)).doc(id).get()`.
 // `withConverter` is a passthrough returning the same ref — the converter's
 // `fromFirestore` is NOT invoked, so `snap.data()` yields the fixture untouched
 // (which is what these partial-fixture guard tests rely on).
@@ -67,7 +67,7 @@ interface CollectionRef {
 }
 
 function fakeFirestore({ subscription, plan }: { subscription: unknown; plan?: unknown }) {
-  const tenantRef = {
+  const orgRef = {
     collection: (name: string): CollectionRef => {
       const ref: CollectionRef = {
         withConverter: () => ref,
@@ -84,7 +84,7 @@ function fakeFirestore({ subscription, plan }: { subscription: unknown; plan?: u
       return ref
     },
   }
-  return { collection: () => ({ doc: () => tenantRef }) }
+  return { collection: () => ({ doc: () => orgRef }) }
 }
 
 beforeEach(() => {
@@ -185,7 +185,7 @@ describe('changeSubscriptionPlan', () => {
     const call = mocks.emitEvent.mock.calls[0]
     if (!call) throw new Error('emitEvent not called')
     const [, path, event] = call
-    expect(path).toBe('tenants/tenant-1/subscriptions/sub-1')
+    expect(path).toBe('orgs/org-1/subscriptions/sub-1')
     expect(event._tag).toBe('subscription.plan_changed')
     const payload = event.payload
     expect(payload.planId).toBe('plan-b')

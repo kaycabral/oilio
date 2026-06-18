@@ -46,7 +46,7 @@ async function seedStubUser(uid: string, whatsapp: string): Promise<void> {
     displayName: 'Stub Customer',
     avatarUrl: null,
     emailVerified: false,
-    currentTenantId: null,
+    currentOrgId: null,
     whatsapp,
     birthDate: null,
     taxIdentity: null,
@@ -71,7 +71,7 @@ async function seedClaimerUser(uid: string, whatsapp: string | null): Promise<vo
     displayName: 'Claimer',
     avatarUrl: null,
     emailVerified: true,
-    currentTenantId: null,
+    currentOrgId: null,
     whatsapp,
     birthDate: null,
     taxIdentity: null,
@@ -88,11 +88,11 @@ async function seedClaimerUser(uid: string, whatsapp: string | null): Promise<vo
   })
 }
 
-async function seedCustomer(tenantId: string, customerId: string, userId: string): Promise<void> {
+async function seedCustomer(orgId: string, customerId: string, userId: string): Promise<void> {
   const now = new Date().toISOString()
-  await db.collection('tenants').doc(tenantId).collection('customers').doc(customerId).set({
+  await db.collection('orgs').doc(orgId).collection('customers').doc(customerId).set({
     id: customerId,
-    tenantId,
+    orgId,
     userId,
     tags: [],
     notes: null,
@@ -101,15 +101,15 @@ async function seedCustomer(tenantId: string, customerId: string, userId: string
   })
 }
 
-async function seedMembership(tenantId: string, userId: string, role = 'customer'): Promise<void> {
-  const id = membershipDocId(tenantId, userId)
+async function seedMembership(orgId: string, userId: string, role = 'customer'): Promise<void> {
+  const id = membershipDocId(orgId, userId)
   const now = new Date().toISOString()
   await db
     .collection('memberships')
     .doc(id)
     .set({
       id,
-      tenantId,
+      orgId,
       userId,
       role,
       status: 'active',
@@ -134,15 +134,15 @@ async function seedMembership(tenantId: string, userId: string, role = 'customer
 }
 
 async function seedAppointment(
-  tenantId: string,
+  orgId: string,
   apptId: string,
   customerId: string,
   customerUserId: string,
 ): Promise<void> {
   const now = new Date().toISOString()
-  await db.collection('tenants').doc(tenantId).collection('appointments').doc(apptId).set({
+  await db.collection('orgs').doc(orgId).collection('appointments').doc(apptId).set({
     id: apptId,
-    tenantId,
+    orgId,
     unitId: 'unit-1',
     professionalId: 'prof-1',
     customerId,
@@ -170,7 +170,7 @@ describe('mergeStubUserIntoClaimer', () => {
   it('re-points a single Customer and deletes the stub User doc', async () => {
     await seedStubUser('stub-1', '5511999990001')
     await seedClaimerUser('claimer-1', null)
-    await seedCustomer('tenant-A', 'cust-1', 'stub-1')
+    await seedCustomer('org-A', 'cust-1', 'stub-1')
 
     const result = await mergeStubUserIntoClaimer({
       stubUid: 'stub-1',
@@ -179,11 +179,11 @@ describe('mergeStubUserIntoClaimer', () => {
 
     expect(result.customersRepointed).toBe(1)
     expect(result.customersDropped).toBe(0)
-    expect(result.tenantsTouched).toEqual(['tenant-A'])
+    expect(result.orgsTouched).toEqual(['org-A'])
 
     const customer = await db
-      .collection('tenants')
-      .doc('tenant-A')
+      .collection('orgs')
+      .doc('org-A')
       .collection('customers')
       .doc('cust-1')
       .get()
@@ -193,11 +193,11 @@ describe('mergeStubUserIntoClaimer', () => {
     expect(stub.exists).toBe(false)
   })
 
-  it('re-points Customers across multiple tenants', async () => {
+  it('re-points Customers across multiple orgs', async () => {
     await seedStubUser('stub-2', '5511999990002')
     await seedClaimerUser('claimer-2', null)
-    await seedCustomer('tenant-A', 'cust-A', 'stub-2')
-    await seedCustomer('tenant-B', 'cust-B', 'stub-2')
+    await seedCustomer('org-A', 'cust-A', 'stub-2')
+    await seedCustomer('org-B', 'cust-B', 'stub-2')
 
     const result = await mergeStubUserIntoClaimer({
       stubUid: 'stub-2',
@@ -205,14 +205,14 @@ describe('mergeStubUserIntoClaimer', () => {
     })
 
     expect(result.customersRepointed).toBe(2)
-    expect(result.tenantsTouched.sort()).toEqual(['tenant-A', 'tenant-B'])
+    expect(result.orgsTouched.sort()).toEqual(['org-A', 'org-B'])
   })
 
-  it('drops the stub Customer when claimer already has one in the same tenant', async () => {
+  it('drops the stub Customer when claimer already has one in the same org', async () => {
     await seedStubUser('stub-3', '5511999990003')
     await seedClaimerUser('claimer-3', null)
-    await seedCustomer('tenant-A', 'stub-cust', 'stub-3')
-    await seedCustomer('tenant-A', 'claimer-cust', 'claimer-3')
+    await seedCustomer('org-A', 'stub-cust', 'stub-3')
+    await seedCustomer('org-A', 'claimer-cust', 'claimer-3')
 
     const result = await mergeStubUserIntoClaimer({
       stubUid: 'stub-3',
@@ -223,16 +223,16 @@ describe('mergeStubUserIntoClaimer', () => {
     expect(result.customersDropped).toBe(1)
 
     const stubCust = await db
-      .collection('tenants')
-      .doc('tenant-A')
+      .collection('orgs')
+      .doc('org-A')
       .collection('customers')
       .doc('stub-cust')
       .get()
     expect(stubCust.exists).toBe(false)
 
     const claimerCust = await db
-      .collection('tenants')
-      .doc('tenant-A')
+      .collection('orgs')
+      .doc('org-A')
       .collection('customers')
       .doc('claimer-cust')
       .get()
@@ -242,7 +242,7 @@ describe('mergeStubUserIntoClaimer', () => {
   it('re-points Memberships by recreating at the claimer doc id', async () => {
     await seedStubUser('stub-4', '5511999990004')
     await seedClaimerUser('claimer-4', null)
-    await seedMembership('tenant-A', 'stub-4', 'customer')
+    await seedMembership('org-A', 'stub-4', 'customer')
 
     const result = await mergeStubUserIntoClaimer({
       stubUid: 'stub-4',
@@ -253,23 +253,23 @@ describe('mergeStubUserIntoClaimer', () => {
 
     const stubMembership = await db
       .collection('memberships')
-      .doc(membershipDocId('tenant-A', 'stub-4'))
+      .doc(membershipDocId('org-A', 'stub-4'))
       .get()
     expect(stubMembership.exists).toBe(false)
 
     const claimerMembership = await db
       .collection('memberships')
-      .doc(membershipDocId('tenant-A', 'claimer-4'))
+      .doc(membershipDocId('org-A', 'claimer-4'))
       .get()
     expect(claimerMembership.exists).toBe(true)
     expect(readStringField(claimerMembership.data(), 'userId')).toBe('claimer-4')
   })
 
-  it('drops the stub Membership when the claimer already has one in the same tenant', async () => {
+  it('drops the stub Membership when the claimer already has one in the same org', async () => {
     await seedStubUser('stub-5', '5511999990005')
     await seedClaimerUser('claimer-5', null)
-    await seedMembership('tenant-A', 'stub-5', 'customer')
-    await seedMembership('tenant-A', 'claimer-5', 'customer')
+    await seedMembership('org-A', 'stub-5', 'customer')
+    await seedMembership('org-A', 'claimer-5', 'customer')
 
     const result = await mergeStubUserIntoClaimer({
       stubUid: 'stub-5',
@@ -281,7 +281,7 @@ describe('mergeStubUserIntoClaimer', () => {
 
     const stubMembership = await db
       .collection('memberships')
-      .doc(membershipDocId('tenant-A', 'stub-5'))
+      .doc(membershipDocId('org-A', 'stub-5'))
       .get()
     expect(stubMembership.exists).toBe(false)
   })
@@ -289,9 +289,9 @@ describe('mergeStubUserIntoClaimer', () => {
   it('re-points customerUserId on Appointments', async () => {
     await seedStubUser('stub-6', '5511999990006')
     await seedClaimerUser('claimer-6', null)
-    await seedCustomer('tenant-A', 'cust-1', 'stub-6')
-    await seedAppointment('tenant-A', 'appt-1', 'cust-1', 'stub-6')
-    await seedAppointment('tenant-A', 'appt-2', 'cust-1', 'stub-6')
+    await seedCustomer('org-A', 'cust-1', 'stub-6')
+    await seedAppointment('org-A', 'appt-1', 'cust-1', 'stub-6')
+    await seedAppointment('org-A', 'appt-2', 'cust-1', 'stub-6')
 
     const result = await mergeStubUserIntoClaimer({
       stubUid: 'stub-6',
@@ -300,8 +300,8 @@ describe('mergeStubUserIntoClaimer', () => {
 
     expect(result.appointmentsRepointed).toBe(2)
     const appt1 = await db
-      .collection('tenants')
-      .doc('tenant-A')
+      .collection('orgs')
+      .doc('org-A')
       .collection('appointments')
       .doc('appt-1')
       .get()
@@ -309,7 +309,7 @@ describe('mergeStubUserIntoClaimer', () => {
   })
 
   // (Auditoria via audit_logs removida — ADR 0010 / #1032. O re-point
-  // multi-tenant já é coberto por 're-points Customers across multiple tenants'.)
+  // multi-org já é coberto por 're-points Customers across multiple orgs'.)
 
   it('is a no-op when stub and claimer are the same uid', async () => {
     await seedClaimerUser('same-uid', null)
@@ -325,7 +325,7 @@ describe('mergeStubUserIntoClaimer', () => {
       membershipsRepointed: 0,
       membershipsDropped: 0,
       appointmentsRepointed: 0,
-      tenantsTouched: [],
+      orgsTouched: [],
     })
 
     const same = await db.collection('users').doc('same-uid').get()
@@ -344,7 +344,7 @@ describe('mergeStubUserIntoClaimer', () => {
     expect(result.customersRepointed).toBe(0)
     expect(result.membershipsRepointed).toBe(0)
     expect(result.appointmentsRepointed).toBe(0)
-    expect(result.tenantsTouched).toEqual([])
+    expect(result.orgsTouched).toEqual([])
 
     const stub = await db.collection('users').doc('stub-8').get()
     expect(stub.exists).toBe(false)

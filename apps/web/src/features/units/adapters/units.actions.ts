@@ -13,9 +13,9 @@ import { parseUnitForm } from '@/features/units/core/unit-form'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
-import { canDeleteUnit } from '@/shared/tenant/delete-guard'
-import { requireManagerCtx, requireOwnerCtx } from '@/shared/tenant/membership'
-import { deleteUnitPii, writeUnitPii } from '@/shared/tenant/unit-read'
+import { canDeleteUnit } from '@/shared/org/delete-guard'
+import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
+import { deleteUnitPii, writeUnitPii } from '@/shared/org/unit-read'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
@@ -23,25 +23,25 @@ export type UnitMutationResult = { ok: true } | { ok: false; error: string }
 
 const SLUG_MAX_ATTEMPTS = 50
 
-// Returns a slug that is unique within the tenant's units collection, ignoring
+// Returns a slug that is unique within the org's units collection, ignoring
 // `selfUnitId` (so editing an unit keeps its current slug). Returns null when
 // the user supplied an explicit `desired` and it collides — caller surfaces
 // the error so the user can pick another. When `desired` is blank, derives
 // from `name` and appends `-2`, `-3`, ... until free.
 async function resolveUnitSlug({
   db,
-  tenantId,
+  orgId,
   desired,
   name,
   selfUnitId,
 }: {
   db: ReturnType<typeof getAdminFirestore>
-  tenantId: string
+  orgId: string
   desired: string
   name: string
   selfUnitId: string | null
 }): Promise<string | null> {
-  const unitsRef = db.collection('tenants').doc(tenantId).collection('units')
+  const unitsRef = db.collection('orgs').doc(orgId).collection('units')
   async function isTaken(candidate: string): Promise<boolean> {
     const snap = await unitsRef.where('slug', '==', candidate).limit(2).get()
     return snap.docs.some((d) => d.id !== selfUnitId)
@@ -70,10 +70,10 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const db = getAdminFirestore()
-  const ref = db.collection('tenants').doc(r.ctx.membership.tenantId).collection('units').doc()
+  const ref = db.collection('orgs').doc(r.ctx.membership.orgId).collection('units').doc()
   const slug = await resolveUnitSlug({
     db,
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     desired: parsed.slug,
     name: parsed.name,
     selfUnitId: null,
@@ -92,7 +92,7 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
   // `units_pii` doc and is merged on read (unit-read.ts). #1036.
   const stored: StoredUnit = {
     id: ref.id,
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     name: parsed.name,
     slug,
     address: parsed.address,
@@ -102,15 +102,15 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     createdAt: now,
     updatedAt: now,
   }
-  await writeUnitPii(r.ctx.membership.tenantId, ref.id, {
+  await writeUnitPii(r.ctx.membership.orgId, ref.id, {
     whatsapp: parsed.whatsapp,
     email: parsed.email,
   })
-  const created = await emitEvent(
-    UnitConfig,
-    `tenants/${r.ctx.membership.tenantId}/units/${ref.id}`,
-    { _tag: 'unit.created', actorId: r.ctx.session.uid, payload: { data: stored } },
-  )
+  const created = await emitEvent(UnitConfig, `orgs/${r.ctx.membership.orgId}/units/${ref.id}`, {
+    _tag: 'unit.created',
+    actorId: r.ctx.session.uid,
+    payload: { data: stored },
+  })
   if (!created.ok) return { ok: false, error: created.error }
   revalidatePath('/units')
   // SPIKE (hours mode): the sidebar's "Agenda" visibility derives from unit
@@ -129,7 +129,7 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
   const db = getAdminFirestore()
   const slug = await resolveUnitSlug({
     db,
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     desired: parsed.slug,
     name: parsed.name,
     selfUnitId: unitId,
@@ -144,27 +144,23 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
   }
 
   // PII goes to the deletable `units_pii` doc, never to the event.
-  await writeUnitPii(r.ctx.membership.tenantId, unitId, {
+  await writeUnitPii(r.ctx.membership.orgId, unitId, {
     whatsapp: parsed.whatsapp,
     email: parsed.email,
   })
-  const updated = await emitEvent(
-    UnitConfig,
-    `tenants/${r.ctx.membership.tenantId}/units/${unitId}`,
-    {
-      _tag: 'unit.updated',
-      actorId: r.ctx.session.uid,
-      payload: {
-        changes: {
-          name: parsed.name,
-          slug,
-          address: parsed.address,
-          businessHours: parsed.businessHours,
-          hoursMode: parsed.hoursMode,
-        },
+  const updated = await emitEvent(UnitConfig, `orgs/${r.ctx.membership.orgId}/units/${unitId}`, {
+    _tag: 'unit.updated',
+    actorId: r.ctx.session.uid,
+    payload: {
+      changes: {
+        name: parsed.name,
+        slug,
+        address: parsed.address,
+        businessHours: parsed.businessHours,
+        hoursMode: parsed.hoursMode,
       },
     },
-  )
+  })
   if (!updated.ok) return { ok: false, error: updated.error }
   revalidatePath('/units')
   // SPIKE (hours mode): the sidebar's "Agenda" visibility derives from unit
@@ -175,7 +171,7 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
 }
 
 // Async availability probe for the Settings UI — returns OK if `slug` is
-// free in the active tenant (ignoring `selfUnitId` so editing keeps the
+// free in the active org (ignoring `selfUnitId` so editing keeps the
 // own slug as "available"). Final check still happens at write time.
 export type SlugCheck =
   | { ok: true; available: true }
@@ -194,8 +190,8 @@ export async function checkUnitSlugAvailability(
     return { ok: true, available: false, reason: 'invalid' }
   }
   const snap = await getAdminFirestore()
-    .collection('tenants')
-    .doc(r.ctx.membership.tenantId)
+    .collection('orgs')
+    .doc(r.ctx.membership.orgId)
     .collection('units')
     .where('slug', '==', candidate)
     .limit(2)
@@ -207,7 +203,7 @@ export async function checkUnitSlugAvailability(
 export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return r
-  const tenantId = r.ctx.membership.tenantId
+  const orgId = r.ctx.membership.orgId
 
   // One-verb "Excluir" (brief 0033, AC-03 — #1070): single destructive verb,
   // hard vs soft decided here. Active-reference guard (AC-01/AC-02): a live
@@ -216,26 +212,21 @@ export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
   // historical (snapshotted) and do not block. With an active reference we
   // soft-delete (archive) — the unit drops from the active list while the
   // history is preserved. With no active reference we hard-delete.
-  if (!(await canDeleteUnit(tenantId, unitId))) {
+  if (!(await canDeleteUnit(orgId, unitId))) {
     return archiveUnit(unitId)
   }
 
   // Event-first: emite `deleted` (preserva stream, não reprojeta) e só então
   // remove o read model.
-  const deleted = await emitEvent(UnitConfig, `tenants/${tenantId}/units/${unitId}`, {
+  const deleted = await emitEvent(UnitConfig, `orgs/${orgId}/units/${unitId}`, {
     _tag: 'unit.deleted',
     actorId: r.ctx.session.uid,
     payload: {},
   })
   if (!deleted.ok) return { ok: false, error: deleted.error }
-  await getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
-    .collection('units')
-    .doc(unitId)
-    .delete()
+  await getAdminFirestore().collection('orgs').doc(orgId).collection('units').doc(unitId).delete()
   // LGPD erasure — drop the PII doc alongside the projection.
-  await deleteUnitPii(tenantId, unitId)
+  await deleteUnitPii(orgId, unitId)
   revalidatePath('/units')
   return { ok: true }
 }
@@ -248,7 +239,7 @@ export async function archiveUnit(unitId: string, archived = true): Promise<Unit
   const r = await requireOwnerCtx()
   if (!r.ok) return r
   const archivedAt = archived ? new Date().toISOString() : null
-  const res = await emitEvent(UnitConfig, `tenants/${r.ctx.membership.tenantId}/units/${unitId}`, {
+  const res = await emitEvent(UnitConfig, `orgs/${r.ctx.membership.orgId}/units/${unitId}`, {
     _tag: 'unit.archived',
     actorId: r.ctx.session.uid,
     payload: { archivedAt },
@@ -272,18 +263,18 @@ const UNIT_REQUIREMENTS = {
   professional: '1 profissional aprovado nesta unidade',
 } as const
 
-// Readiness scoped to a single unit — the requirement set the tenant-wide gate
+// Readiness scoped to a single unit — the requirement set the org-wide gate
 // used to check globally, now evaluated for exactly the unit being published.
 export async function getUnitPublishReadiness(
-  tenantId: string,
+  orgId: string,
   unitId: string,
 ): Promise<UnitPublishReadiness> {
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(tenantId)
+  const orgRef = db.collection('orgs').doc(orgId)
   const [unitSnap, servicesSnap, prosSnap] = await Promise.all([
-    tenantRef.collection('units').withConverter(fsConverter(StoredUnit)).doc(unitId).get(),
-    tenantRef.collection('catalog_items').withConverter(fsConverter(CatalogItem)).get(),
-    tenantRef.collection('professionals').withConverter(fsConverter(StoredProfessional)).get(),
+    orgRef.collection('units').withConverter(fsConverter(StoredUnit)).doc(unitId).get(),
+    orgRef.collection('catalog_items').withConverter(fsConverter(CatalogItem)).get(),
+    orgRef.collection('professionals').withConverter(fsConverter(StoredProfessional)).get(),
   ])
 
   const unit = unitSnap.data()

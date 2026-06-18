@@ -6,8 +6,8 @@ import {
   type Customer,
   getBlockSegmentsForDay,
   getBusinessHoursForDay,
-  getTenantDayBoundsUtc,
-  getTodayInTenantTz,
+  getOrgDayBoundsUtc,
+  getTodayInOrgTz,
   isBusinessHoursConfigured,
   isCatalogService,
   type Service,
@@ -18,11 +18,11 @@ import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { resolveActiveUnit } from '@/shared/tenant/active-unit'
-import { listCustomersForTenant } from '@/shared/tenant/customer-read'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
-import { listProfessionalsForTenant } from '@/shared/tenant/professional-read'
-import { getTenant } from '@/shared/tenant/tenant'
+import { resolveActiveUnit } from '@/shared/org/active-unit'
+import { listCustomersForOrg } from '@/shared/org/customer-read'
+import { getActiveOrgContext } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
+import { listProfessionalsForOrg } from '@/shared/org/professional-read'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -30,10 +30,10 @@ function isValidDateISO(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s)
 }
 
-// Imperative shell for the agenda route: resolves session/tenant/unit, loads the
+// Imperative shell for the agenda route: resolves session/org/unit, loads the
 // day's appointments + supporting catalog/customers, and returns the view-model
 // `AgendaView` consumes. The route component stays a thin caller (page.tsx). All
-// redirects (auth/tenant/capability gating) live here — they run during RSC
+// redirects (auth/org/capability gating) live here — they run during RSC
 // render, so `redirect()` propagates from this helper just as it would inline.
 export async function loadAgendaPage(searchParams: { date?: string }): Promise<AgendaViewProps> {
   if (!isFirebaseConfigured()) redirect('/')
@@ -41,19 +41,19 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
-  const tenant = await getTenant(ctx.membership.tenantId)
-  if (!tenant) redirect('/onboarding')
+  const org = await getOrg(ctx.membership.orgId)
+  if (!org) redirect('/onboarding')
 
   const date =
     searchParams.date && isValidDateISO(searchParams.date)
       ? searchParams.date
-      : getTodayInTenantTz(tenant.timezone)
+      : getTodayInOrgTz(org.timezone)
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(ctx.membership.tenantId)
+  const orgRef = db.collection('orgs').doc(ctx.membership.orgId)
 
   // Active unit comes from the shared context (brief 0029, AC-02): cookie →
   // validate → first accessible / pinned for single-unit members. The old
@@ -61,7 +61,7 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
   // (#1051) which writes the cookie.
   const [{ units, activeUnitId }, allProfessionals] = await Promise.all([
     resolveActiveUnit(ctx.membership),
-    listProfessionalsForTenant(ctx.membership.tenantId),
+    listProfessionalsForOrg(ctx.membership.orgId),
   ])
 
   // SPIKE (hours mode): the agenda is a capability gated on having ≥1 unit in
@@ -75,10 +75,10 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
     ? allProfessionals.filter((p) => p.unitIds.includes(activeUnitId))
     : []
 
-  const dayHours = getBusinessHoursForDay(activeUnit?.businessHours ?? null, date, tenant.timezone)
+  const dayHours = getBusinessHoursForDay(activeUnit?.businessHours ?? null, date, org.timezone)
   const hasBusinessHours = isBusinessHoursConfigured(activeUnit?.businessHours ?? null)
 
-  const { startUtc: dayStart, endUtc: dayEnd } = getTenantDayBoundsUtc(date, tenant.timezone)
+  const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(date, org.timezone)
 
   let appointments: Appointment[] = []
   let customersById = new Map<string, Customer>()
@@ -89,7 +89,7 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
 
   if (activeUnitId) {
     const [apptSnap, blocksSnap, servicesSnap, enrichedCustomers] = await Promise.all([
-      tenantRef
+      orgRef
         .collection('appointments')
         .withConverter(fsConverter(Appointment))
         .where('unitId', '==', activeUnitId)
@@ -97,23 +97,23 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
         .where('startAt', '<=', dayEnd)
         .orderBy('startAt')
         .get(),
-      tenantRef
+      orgRef
         .collection('agenda_blocks')
         .withConverter(fsConverter(AgendaBlock))
         .where('unitId', '==', activeUnitId)
         .get(),
-      tenantRef
+      orgRef
         .collection('catalog_items')
         .withConverter(fsConverter(CatalogItem))
         .orderBy('name')
         .get(),
-      // Não é um `*Snap` — `listCustomersForTenant` já resolve o doc + faz
+      // Não é um `*Snap` — `listCustomersForOrg` já resolve o doc + faz
       // join com `users/` pro PII vir no shape público de `Customer`.
-      listCustomersForTenant(ctx.membership.tenantId),
+      listCustomersForOrg(ctx.membership.orgId),
     ])
     appointments = apptSnap.docs.map((d) => d.data())
     const blocks = blocksSnap.docs.map((d) => d.data())
-    blockSegments = getBlockSegmentsForDay(blocks, date, tenant.timezone)
+    blockSegments = getBlockSegmentsForDay(blocks, date, org.timezone)
     // Unified catalog (brief 0023, #1004): the agenda picker offers kind-service
     // items, adapted to the legacy Service shape consumed by the dialog.
     allServices = servicesSnap.docs
@@ -137,8 +137,8 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
 
   return {
     date,
-    timezone: tenant.timezone,
-    slotMinutes: tenant.slotMinutes,
+    timezone: org.timezone,
+    slotMinutes: org.slotMinutes,
     units,
     activeUnitId,
     professionals,
@@ -150,8 +150,8 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
     blockSegments,
     services: allServices,
     customers: allCustomers,
-    businessName: tenant.name,
-    confirmationTemplate: tenant.whatsappTemplates.confirmation,
+    businessName: org.name,
+    confirmationTemplate: org.whatsappTemplates.confirmation,
     canManage,
   }
 }

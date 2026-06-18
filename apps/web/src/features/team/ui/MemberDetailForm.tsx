@@ -10,7 +10,7 @@ import {
   type CommissionKind,
   type TaxKind,
 } from '@/features/team/core/member-form'
-import { useTenant } from '@/shared/tenant/tenant-context'
+import { useOrg } from '@/shared/org/org-context'
 import {
   Button,
   Label,
@@ -54,7 +54,7 @@ export function MemberDetailForm({
   services?: Service[]
 }) {
   const router = useRouter()
-  const { activeUnitId } = useTenant()
+  const { activeUnitId } = useOrg()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)

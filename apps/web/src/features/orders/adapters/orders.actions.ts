@@ -23,8 +23,8 @@ import { redirect } from 'next/navigation'
 
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent, emitEventGuarded } from '@/shared/effect-bridge'
-import { resolveActiveUnit } from '@/shared/tenant/active-unit'
-import { requireManagerCtx, requireTenantCtx } from '@/shared/tenant/membership'
+import { resolveActiveUnit } from '@/shared/org/active-unit'
+import { requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
 
 import type { OrderMutationResult } from '@/features/orders/core/order-results'
 import {
@@ -35,13 +35,13 @@ import {
 } from './order-write-helpers'
 
 export async function startAttendance(appointmentId: string): Promise<OrderMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
 
-  const apptSnap = await tenantRef
+  const apptSnap = await orgRef
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
     .doc(appointmentId)
@@ -61,7 +61,7 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
 
   // Idempotência: se já existe order aberta pra este agendamento, retorna
   // o ID dela em vez de criar outra. Evita duplo-click virar duas orders.
-  const existing = await tenantRef
+  const existing = await orgRef
     .collection('orders')
     .where('appointmentId', '==', appointmentId)
     .where('status', '==', 'open')
@@ -73,12 +73,12 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
   }
 
   const [serviceSnap, profSnap] = await Promise.all([
-    tenantRef
+    orgRef
       .collection('catalog_items')
       .withConverter(fsConverter(CatalogItem))
       .doc(appointment.serviceId)
       .get(),
-    tenantRef
+    orgRef
       .collection('professionals')
       .withConverter(fsConverter(StoredProfessional))
       .doc(appointment.professionalId)
@@ -108,11 +108,11 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
   }
   const totals = computeOrderTotals([initialItem], 0)
 
-  const ref = tenantRef.collection('orders').doc()
+  const ref = orgRef.collection('orders').doc()
   const now = new Date().toISOString()
   const order: Order = {
     id: ref.id,
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     unitId: appointment.unitId,
     customerId: appointment.customerId,
     appointmentId,
@@ -128,11 +128,11 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
   }
   // Event-first: a comanda nasce de `order.created` carregando o snapshot
   // completo (a projeção escreve o doc — sem `ref.set` paralelo).
-  const created = await emitEvent(
-    OrderConfig,
-    `tenants/${r.ctx.membership.tenantId}/orders/${ref.id}`,
-    { _tag: 'order.created', actorId: r.ctx.session.uid, payload: { data: order } },
-  )
+  const created = await emitEvent(OrderConfig, `orgs/${r.ctx.membership.orgId}/orders/${ref.id}`, {
+    _tag: 'order.created',
+    actorId: r.ctx.session.uid,
+    payload: { data: order },
+  })
   if (!created.ok) return { ok: false, error: created.error }
 
   revalidatePath('/agenda')
@@ -147,7 +147,7 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
 // por membro e o default de vendedor são da fatia seguinte (#1056) — aqui a
 // venda só abre; os itens entram via `addItemToOrder`.
 export async function createOrder(): Promise<OrderMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
   const { activeUnitId } = await resolveActiveUnit(r.ctx.membership)
@@ -156,12 +156,12 @@ export async function createOrder(): Promise<OrderMutationResult> {
   }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const ref = tenantRef.collection('orders').doc()
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const ref = orgRef.collection('orders').doc()
   const now = new Date().toISOString()
   const order: Order = {
     id: ref.id,
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     unitId: activeUnitId,
     // Venda anônima: sem cliente e sem agendamento (AC-01/AC-02).
     customerId: null,
@@ -179,11 +179,11 @@ export async function createOrder(): Promise<OrderMutationResult> {
   // Event-first: a venda nasce de `order.created` carregando o snapshot completo
   // (a projeção escreve o doc — sem `ref.set` paralelo). O snapshot generalizado
   // aceita `appointmentId: null` E `customerId: null` (brief 0030).
-  const created = await emitEvent(
-    OrderConfig,
-    `tenants/${r.ctx.membership.tenantId}/orders/${ref.id}`,
-    { _tag: 'order.created', actorId: r.ctx.session.uid, payload: { data: order } },
-  )
+  const created = await emitEvent(OrderConfig, `orgs/${r.ctx.membership.orgId}/orders/${ref.id}`, {
+    _tag: 'order.created',
+    actorId: r.ctx.session.uid,
+    payload: { data: order },
+  })
   if (!created.ok) return { ok: false, error: created.error }
 
   revalidatePath('/orders')
@@ -194,15 +194,15 @@ export async function addItemToOrder(
   orderId: string,
   formData: FormData,
 ): Promise<OrderMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
   const parsed = parseItemForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const loaded = await loadOpenOrder(tenantRef, orderId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const loaded = await loadOpenOrder(orgRef, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
   // Default esperto da atribuição (brief 0030, AC-04): item sem `attributedUserId`
@@ -211,8 +211,8 @@ export async function addItemToOrder(
   if (!parsed.attributedUserId) parsed.attributedUserId = r.ctx.session.uid
 
   const operateError = await assertMemberCanOperate({
-    tenantRef,
-    tenantId: r.ctx.membership.tenantId,
+    orgRef,
+    orgId: r.ctx.membership.orgId,
     attributedUserId: parsed.attributedUserId,
     kind: parsed.kind,
     orderUnitId: loaded.order.unitId,
@@ -227,10 +227,10 @@ export async function addItemToOrder(
   // re-lê o estado fresco. Descontinuado → rejeita; preço = min(exibido, vigente).
   // É leitura de definição pra guardar/snapshotar o WRITE de UM aggregate (a
   // order) — não é saga cross-aggregate.
-  const catalogPath = `tenants/${r.ctx.membership.tenantId}/catalog_items/${parsed.refId}`
+  const catalogPath = `orgs/${r.ctx.membership.orgId}/catalog_items/${parsed.refId}`
   const added = await emitEventGuarded({
     config: OrderConfig,
-    aggregatePath: `tenants/${r.ctx.membership.tenantId}/orders/${orderId}`,
+    aggregatePath: `orgs/${r.ctx.membership.orgId}/orders/${orderId}`,
     actorId: r.ctx.session.uid,
     tag: 'order.item_added',
     guard: (reader) =>
@@ -257,12 +257,12 @@ export async function removeItemFromOrder(
   orderId: string,
   itemId: string,
 ): Promise<OrderMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const loaded = await loadOpenOrder(tenantRef, orderId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const loaded = await loadOpenOrder(orgRef, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
   const items = loaded.order.items.filter((it) => it.id !== itemId)
@@ -278,7 +278,7 @@ export async function removeItemFromOrder(
 
   const patch = recalcAndPatch(items, loaded.order.discountCents)
   // Event-first: `order.item_removed` carrega o patch recalculado.
-  await emitEvent(OrderConfig, `tenants/${r.ctx.membership.tenantId}/orders/${orderId}`, {
+  await emitEvent(OrderConfig, `orgs/${r.ctx.membership.orgId}/orders/${orderId}`, {
     _tag: 'order.item_removed',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
@@ -298,13 +298,13 @@ export async function updateItemAttribution(
   itemId: string,
   attributedUserId: string,
 ): Promise<OrderMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
   if (!attributedUserId.trim()) return { ok: false, error: 'Membro atribuído é obrigatório' }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const loaded = await loadOpenOrder(tenantRef, orderId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const loaded = await loadOpenOrder(orgRef, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
   const idx = loaded.order.items.findIndex((it) => it.id === itemId)
@@ -312,8 +312,8 @@ export async function updateItemAttribution(
   const target = loaded.order.items[idx]!
 
   const operateError = await assertMemberCanOperate({
-    tenantRef,
-    tenantId: r.ctx.membership.tenantId,
+    orgRef,
+    orgId: r.ctx.membership.orgId,
     attributedUserId,
     kind: target.kind,
     orderUnitId: loaded.order.unitId,
@@ -323,7 +323,7 @@ export async function updateItemAttribution(
   const items = loaded.order.items.map((it, i) => (i === idx ? { ...it, attributedUserId } : it))
   const patch = recalcAndPatch(items, loaded.order.discountCents)
   // Event-first: `order.item_attribution_changed` carrega o patch recalculado.
-  await emitEvent(OrderConfig, `tenants/${r.ctx.membership.tenantId}/orders/${orderId}`, {
+  await emitEvent(OrderConfig, `orgs/${r.ctx.membership.orgId}/orders/${orderId}`, {
     _tag: 'order.item_attribution_changed',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
@@ -338,12 +338,12 @@ export async function updateItemCoverage(
   itemId: string,
   coverage: OrderCoverage,
 ): Promise<OrderMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const loaded = await loadOpenOrder(tenantRef, orderId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const loaded = await loadOpenOrder(orgRef, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
   const idx = loaded.order.items.findIndex((it) => it.id === itemId)
@@ -352,7 +352,7 @@ export async function updateItemCoverage(
 
   let subscriptionId: string | null = null
   if (coverage === 'subscription') {
-    const resolved = await resolveItemCoverageSubscription(tenantRef, loaded.order, target, idx)
+    const resolved = await resolveItemCoverageSubscription(orgRef, loaded.order, target, idx)
     if (typeof resolved === 'string') return { ok: false, error: resolved }
     subscriptionId = resolved.subscriptionId
   }
@@ -361,7 +361,7 @@ export async function updateItemCoverage(
     i === idx ? { ...it, coverage, subscriptionId } : it,
   )
   const patch = recalcAndPatch(items, loaded.order.discountCents)
-  await emitEvent(OrderConfig, `tenants/${r.ctx.membership.tenantId}/orders/${orderId}`, {
+  await emitEvent(OrderConfig, `orgs/${r.ctx.membership.orgId}/orders/${orderId}`, {
     _tag: 'order.item_coverage_changed',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
@@ -375,7 +375,7 @@ export async function updateOrderMeta(
   orderId: string,
   formData: FormData,
 ): Promise<OrderMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
   const discountStr = formString(formData, 'discount').trim()
@@ -384,13 +384,13 @@ export async function updateOrderMeta(
     return { ok: false, error: 'Desconto inválido' }
   }
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const loaded = await loadOpenOrder(tenantRef, orderId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const loaded = await loadOpenOrder(orgRef, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
   const patch = recalcAndPatch(loaded.order.items, discountCents)
   // Event-first: `order.meta_updated` carrega o patch (desconto + totais).
-  await emitEvent(OrderConfig, `tenants/${r.ctx.membership.tenantId}/orders/${orderId}`, {
+  await emitEvent(OrderConfig, `orgs/${r.ctx.membership.orgId}/orders/${orderId}`, {
     _tag: 'order.meta_updated',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
@@ -406,12 +406,12 @@ export async function cancelOrder(orderId: string): Promise<OrderMutationResult>
   if (!r.ok) return { ok: false, error: r.error }
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(r.ctx.membership.tenantId)
-  const loaded = await loadOpenOrder(tenantRef, orderId)
+  const orgRef = db.collection('orgs').doc(r.ctx.membership.orgId)
+  const loaded = await loadOpenOrder(orgRef, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
   // Event-first: `order.cancelled` marca o status (a projeção escreve o doc).
-  await emitEvent(OrderConfig, `tenants/${r.ctx.membership.tenantId}/orders/${orderId}`, {
+  await emitEvent(OrderConfig, `orgs/${r.ctx.membership.orgId}/orders/${orderId}`, {
     _tag: 'order.cancelled',
     actorId: r.ctx.session.uid,
     payload: {},

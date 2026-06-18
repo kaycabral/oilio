@@ -10,7 +10,7 @@ import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
 
-import { deleteProfessionalPii, writeProfessionalPii } from '@/shared/tenant/professional-read'
+import { deleteProfessionalPii, writeProfessionalPii } from '@/shared/org/professional-read'
 
 // Identity (name/whatsapp/email) is NOT parsed here (#1046 / brief 0028
 // AC-04/AC-05): it derives live from `users/{userId}`. The operational edit
@@ -24,7 +24,7 @@ import { deleteProfessionalPii, writeProfessionalPii } from '@/shared/tenant/pro
 // message on the first invalid serviceId. Reads the unified catalog (brief
 // 0023, #1004): serviceIds are FKs into `catalog_items` of kind service.
 export async function validateServiceUnitIntersection(
-  tenantId: string,
+  orgId: string,
   serviceIds: string[],
   proUnitIds: string[],
 ): Promise<string | null> {
@@ -33,8 +33,8 @@ export async function validateServiceUnitIntersection(
   const proUnitSet = new Set(proUnitIds)
   for (const sid of serviceIds) {
     const snap = await db
-      .collection('tenants')
-      .doc(tenantId)
+      .collection('orgs')
+      .doc(orgId)
       .collection('catalog_items')
       .withConverter(fsConverter(CatalogItem))
       .doc(sid)
@@ -58,13 +58,13 @@ export async function validateServiceUnitIntersection(
 // status differs from the current one. Returns an error message on failure,
 // null on success or no-op.
 export async function reconcileApproval({
-  tenantId,
+  orgId,
   professionalId,
   actorId,
   unitIds,
   serviceIds,
 }: {
-  tenantId: string
+  orgId: string
   professionalId: string
   actorId: string
   unitIds: string[]
@@ -72,8 +72,8 @@ export async function reconcileApproval({
 }): Promise<string | null> {
   const db = getAdminFirestore()
   const proRef = db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('professionals')
     .withConverter(fsConverter(StoredProfessional))
     .doc(professionalId)
@@ -99,30 +99,30 @@ export async function reconcileApproval({
   const transition = shouldOperate ? 'professional.activated' : 'professional.suspended'
   const result = await emitEvent(
     ProfessionalConfig,
-    `tenants/${tenantId}/professionals/${professionalId}`,
+    `orgs/${orgId}/professionals/${professionalId}`,
     { _tag: transition, actorId, payload: {} },
   )
   return result.ok ? null : result.error
 }
 
 // Step 2 of a role change — reconcile the professional projection to the new
-// role (≤1 projection per userId per tenant). Promotion materializes or
+// role (≤1 projection per userId per org). Promotion materializes or
 // re-derives approval; demotion suspends (never deletes — history preserved,
 // reversible). Any failure runs `compensateRole` and returns the error message;
 // returns null on success.
 export async function syncProfessionalProjection(args: {
   db: ReturnType<typeof getAdminFirestore>
-  tenantId: string
+  orgId: string
   actorId: string
   targetUserId: string
   willBeProfessional: boolean
   wasProfessional: boolean
   compensateRole: () => Promise<void>
 }): Promise<string | null> {
-  const { db, tenantId, actorId, targetUserId, willBeProfessional, wasProfessional } = args
+  const { db, orgId, actorId, targetUserId, willBeProfessional, wasProfessional } = args
   const proSnap = await db
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('professionals')
     .where('userId', '==', targetUserId)
     .limit(1)
@@ -135,7 +135,7 @@ export async function syncProfessionalProjection(args: {
     // profile is complete — AC-05 reversible).
     const stored = existingPro.data()
     const reErr = await reconcileApproval({
-      tenantId,
+      orgId,
       professionalId: existingPro.id,
       actorId,
       unitIds: stored?.unitIds ?? [],
@@ -154,10 +154,10 @@ export async function syncProfessionalProjection(args: {
     // profile completes), PII doc starts with null taxIdentity. Identity derives
     // live from the User (#1046).
     const now = new Date().toISOString()
-    const proRef = db.collection('tenants').doc(tenantId).collection('professionals').doc()
+    const proRef = db.collection('orgs').doc(orgId).collection('professionals').doc()
     const stored: StoredProfessional = {
       id: proRef.id,
-      tenantId,
+      orgId,
       userId: targetUserId,
       operationalStatus: 'incomplete',
       defaultCommission: null,
@@ -166,16 +166,16 @@ export async function syncProfessionalProjection(args: {
       createdAt: now,
       updatedAt: now,
     }
-    await writeProfessionalPii(tenantId, proRef.id, { taxIdentity: null })
+    await writeProfessionalPii(orgId, proRef.id, { taxIdentity: null })
     const proCreated = await emitEvent(
       ProfessionalConfig,
-      `tenants/${tenantId}/professionals/${proRef.id}`,
+      `orgs/${orgId}/professionals/${proRef.id}`,
       { _tag: 'professional.created', actorId, payload: { data: stored } },
     )
     if (!proCreated.ok) {
       await args.compensateRole()
       await proRef.delete().catch(() => undefined)
-      await deleteProfessionalPii(tenantId, proRef.id)
+      await deleteProfessionalPii(orgId, proRef.id)
       return proCreated.error
     }
     return null
@@ -187,7 +187,7 @@ export async function syncProfessionalProjection(args: {
     // `isOperational` keys only on `approved`. Reversible, history kept.
     const suspended = await emitEvent(
       ProfessionalConfig,
-      `tenants/${tenantId}/professionals/${existingPro.id}`,
+      `orgs/${orgId}/professionals/${existingPro.id}`,
       { _tag: 'professional.suspended', actorId, payload: {} },
     )
     if (!suspended.ok) {

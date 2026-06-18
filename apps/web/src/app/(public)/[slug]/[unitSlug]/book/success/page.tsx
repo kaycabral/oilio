@@ -1,8 +1,8 @@
 import { Appointment, CatalogItem } from '@/domain'
-import { getPublicTenantSummary } from '@/features/self-book/adapters/public-tenant'
+import { getPublicOrgSummary } from '@/features/self-book/adapters/public-org'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
-import { getProfessionalById } from '@/shared/tenant/professional-read'
+import { getProfessionalById } from '@/shared/org/professional-read'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -23,7 +23,7 @@ export default async function WizardSuccessPage({ params, searchParams }: PagePr
   const apptId = typeof sp.appt === 'string' ? sp.appt : null
   if (!apptId) notFound()
 
-  const summary = await getPublicTenantSummary(slug)
+  const summary = await getPublicOrgSummary(slug)
   if (!summary) notFound()
   const unit = summary.units.find((u) => u.slug === unitSlug)
   if (!unit) notFound()
@@ -33,8 +33,8 @@ export default async function WizardSuccessPage({ params, searchParams }: PagePr
   // The page is reachable by anyone with the booking id, which is acceptable
   // since the id is server-generated and not enumerable — same trust model
   // as a magic link.
-  const tenantRef = getAdminFirestore().collection('tenants').doc(summary.tenant.id)
-  const apptSnap = await tenantRef
+  const orgRef = getAdminFirestore().collection('orgs').doc(summary.org.id)
+  const apptSnap = await orgRef
     .collection('appointments')
     .withConverter(fsConverter(Appointment))
     .doc(apptId)
@@ -44,13 +44,13 @@ export default async function WizardSuccessPage({ params, searchParams }: PagePr
   if (appointment.unitId !== unit.id) notFound()
 
   const [serviceSnap, professional] = await Promise.all([
-    tenantRef
+    orgRef
       .collection('catalog_items')
       .withConverter(fsConverter(CatalogItem))
       .doc(appointment.serviceId)
       .get(),
     // PII (name) merged from `professionals_pii` on read (#1036).
-    getProfessionalById(summary.tenant.id, appointment.professionalId),
+    getProfessionalById(summary.org.id, appointment.professionalId),
   ])
   // Unified catalog (brief 0023, #1004): only the name is rendered.
   const service = serviceSnap.data() ?? null
@@ -59,7 +59,7 @@ export default async function WizardSuccessPage({ params, searchParams }: PagePr
   const unitDoc = unit
 
   const fmt = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: summary.tenant.timezone,
+    timeZone: summary.org.timezone,
     weekday: 'long',
     day: '2-digit',
     month: 'long',

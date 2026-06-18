@@ -33,12 +33,12 @@ beforeAll(() => {
   db = getFirestore(app)
 })
 
-function uniqueTenantId(label: string) {
+function uniqueOrgId(label: string) {
   return `t-${label}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 function buildAppointment(
-  tenantId: string,
+  orgId: string,
   id: string,
   startAtIso: string,
   durationMinutes = 30,
@@ -46,7 +46,7 @@ function buildAppointment(
   const startMs = new Date(startAtIso).getTime()
   return {
     id,
-    tenantId,
+    orgId,
     unitId: 'u1',
     professionalId: 'p1',
     customerId: `c-${id}`,
@@ -66,42 +66,42 @@ function buildAppointment(
 }
 
 describe('commitAppointmentBooking', () => {
-  let tenantId: string
+  let orgId: string
 
   beforeEach(() => {
-    tenantId = uniqueTenantId('basic')
+    orgId = uniqueOrgId('basic')
     warnSpy.mockClear()
   })
 
   it('writes a single appointment when there is no contention', async () => {
-    const tenantRef = db.collection('tenants').doc(tenantId)
-    const appt = buildAppointment(tenantId, 'a1', '2026-08-15T13:00:00.000Z')
+    const orgRef = db.collection('orgs').doc(orgId)
+    const appt = buildAppointment(orgId, 'a1', '2026-08-15T13:00:00.000Z')
     const res = await commitAppointmentBooking({
       db,
-      tenantRef,
+      orgRef,
       appointment: appt,
       actorUid: 'staff',
       via: 'internal_panel',
     })
     expect(res).toEqual({ ok: true })
-    const written = await tenantRef.collection('appointments').doc('a1').get()
+    const written = await orgRef.collection('appointments').doc('a1').get()
     expect(written.exists).toBe(true)
   })
 
   it('rejects an overlapping appointment for the same professional', async () => {
-    const tenantRef = db.collection('tenants').doc(tenantId)
+    const orgRef = db.collection('orgs').doc(orgId)
     await commitAppointmentBooking({
       db,
-      tenantRef,
-      appointment: buildAppointment(tenantId, 'first', '2026-08-15T13:00:00.000Z'),
+      orgRef,
+      appointment: buildAppointment(orgId, 'first', '2026-08-15T13:00:00.000Z'),
       actorUid: 'staff',
       via: 'internal_panel',
     })
 
-    const overlap = buildAppointment(tenantId, 'second', '2026-08-15T13:15:00.000Z')
+    const overlap = buildAppointment(orgId, 'second', '2026-08-15T13:15:00.000Z')
     const res = await commitAppointmentBooking({
       db,
-      tenantRef,
+      orgRef,
       appointment: overlap,
       actorUid: 'public:c-second',
       via: 'public_landing',
@@ -120,20 +120,20 @@ describe('commitAppointmentBooking', () => {
   })
 
   it('allows back-to-back appointments (half-open intervals)', async () => {
-    const tenantRef = db.collection('tenants').doc(tenantId)
-    const first = buildAppointment(tenantId, 'a', '2026-08-15T13:00:00.000Z', 30)
+    const orgRef = db.collection('orgs').doc(orgId)
+    const first = buildAppointment(orgId, 'a', '2026-08-15T13:00:00.000Z', 30)
     await commitAppointmentBooking({
       db,
-      tenantRef,
+      orgRef,
       appointment: first,
       actorUid: 'staff',
       via: 'internal_panel',
     })
     // Starts exactly when the previous one ends — should pass.
-    const adjacent = buildAppointment(tenantId, 'b', '2026-08-15T13:30:00.000Z', 30)
+    const adjacent = buildAppointment(orgId, 'b', '2026-08-15T13:30:00.000Z', 30)
     const res = await commitAppointmentBooking({
       db,
-      tenantRef,
+      orgRef,
       appointment: adjacent,
       actorUid: 'staff',
       via: 'internal_panel',
@@ -142,15 +142,15 @@ describe('commitAppointmentBooking', () => {
   })
 
   it('ignores cancelled appointments when probing conflicts', async () => {
-    const tenantRef = db.collection('tenants').doc(tenantId)
-    const cancelled = buildAppointment(tenantId, 'cancelled', '2026-08-15T13:00:00.000Z')
+    const orgRef = db.collection('orgs').doc(orgId)
+    const cancelled = buildAppointment(orgId, 'cancelled', '2026-08-15T13:00:00.000Z')
     cancelled.status = 'cancelled'
-    await tenantRef.collection('appointments').doc('cancelled').set(cancelled)
+    await orgRef.collection('appointments').doc('cancelled').set(cancelled)
 
-    const fresh = buildAppointment(tenantId, 'fresh', '2026-08-15T13:00:00.000Z')
+    const fresh = buildAppointment(orgId, 'fresh', '2026-08-15T13:00:00.000Z')
     const res = await commitAppointmentBooking({
       db,
-      tenantRef,
+      orgRef,
       appointment: fresh,
       actorUid: 'staff',
       via: 'internal_panel',
@@ -159,13 +159,13 @@ describe('commitAppointmentBooking', () => {
   })
 
   it('serializes 10 concurrent writers — exactly one wins, audit logs the rest', async () => {
-    const tenantRef = db.collection('tenants').doc(uniqueTenantId('race'))
+    const orgRef = db.collection('orgs').doc(uniqueOrgId('race'))
     const startAt = '2026-08-15T14:00:00.000Z'
     const writers = Array.from({ length: 10 }, (_, i) =>
       commitAppointmentBooking({
         db,
-        tenantRef,
-        appointment: buildAppointment(tenantRef.id, `race-${i}`, startAt),
+        orgRef,
+        appointment: buildAppointment(orgRef.id, `race-${i}`, startAt),
         actorUid: `public:race-${i}`,
         via: 'public_landing',
       }),
@@ -186,22 +186,22 @@ describe('commitAppointmentBooking', () => {
   }, 30_000)
 
   it('lets two different professionals book the same slot', async () => {
-    const tenantRef = db.collection('tenants').doc(uniqueTenantId('two-pros'))
+    const orgRef = db.collection('orgs').doc(uniqueOrgId('two-pros'))
     const startAt = '2026-08-15T15:00:00.000Z'
-    const apptA = buildAppointment(tenantRef.id, 'a', startAt)
-    const apptB = buildAppointment(tenantRef.id, 'b', startAt)
+    const apptA = buildAppointment(orgRef.id, 'a', startAt)
+    const apptB = buildAppointment(orgRef.id, 'b', startAt)
     apptB.professionalId = 'p2'
     const [resA, resB] = await Promise.all([
       commitAppointmentBooking({
         db,
-        tenantRef,
+        orgRef,
         appointment: apptA,
         actorUid: 'staff',
         via: 'internal_panel',
       }),
       commitAppointmentBooking({
         db,
-        tenantRef,
+        orgRef,
         appointment: apptB,
         actorUid: 'staff',
         via: 'internal_panel',

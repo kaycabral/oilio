@@ -6,14 +6,11 @@ import { dispatchNotificationReactions } from '@/features/notifications/adapters
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
+import { updateCustomerPii, upsertCustomerWithUser } from '@/shared/org/customer-upsert'
+import { getCustomerDeletionImpact, type CustomerDeletionImpact } from '@/shared/org/delete-guard'
+import { AuthzError, requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
 import { assertCustomerIdNotBlocked } from '@/shared/privacy/assert-customer-not-blocked'
-import { eraseCustomerCascadeInTenant } from '@/shared/privacy/erase-customer-cascade'
-import { updateCustomerPii, upsertCustomerWithUser } from '@/shared/tenant/customer-upsert'
-import {
-  getCustomerDeletionImpact,
-  type CustomerDeletionImpact,
-} from '@/shared/tenant/delete-guard'
-import { AuthzError, requireManagerCtx, requireTenantCtx } from '@/shared/tenant/membership'
+import { eraseCustomerCascadeInOrg } from '@/shared/privacy/erase-customer-cascade'
 import { Schema } from 'effect'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -27,13 +24,13 @@ const CustomerUserIdProjection = Schema.Struct({
 })
 
 export async function createCustomer(formData: FormData): Promise<CustomerMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return r
   const parsed = parseCustomerForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const result = await upsertCustomerWithUser({
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     name: parsed.name,
     whatsappRaw: parsed.whatsapp,
     email: parsed.email,
@@ -44,7 +41,7 @@ export async function createCustomer(formData: FormData): Promise<CustomerMutati
   // centralizado). PII vai pro User dentro do helper, não pro evento.
 
   await dispatchNotificationReactions('customer.created', r.ctx.session.uid, {
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     name: parsed.name,
     whatsapp: parsed.whatsapp,
   })
@@ -56,17 +53,17 @@ export async function updateCustomer(
   customerId: string,
   formData: FormData,
 ): Promise<CustomerMutationResult> {
-  const r = await requireTenantCtx()
+  const r = await requireOrgCtx()
   if (!r.ok) return r
   const parsed = parseCustomerForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  const tenantId = r.ctx.membership.tenantId
+  const orgId = r.ctx.membership.orgId
 
   // Write-guard (brief 0032, AC-11): a blocked customer's relationship is
-  // severed — editing them in this tenant is rejected (erro à mostra).
+  // severed — editing them in this org is rejected (erro à mostra).
   try {
-    await assertCustomerIdNotBlocked(tenantId, customerId)
+    await assertCustomerIdNotBlocked(orgId, customerId)
   } catch (e) {
     if (e instanceof AuthzError) {
       return { ok: false, error: 'Cliente bloqueado neste estabelecimento (exclusão LGPD).' }
@@ -76,7 +73,7 @@ export async function updateCustomer(
 
   // Customer identity is PII on the User; the Customer shadow carries no
   // operator-editable free-text fields (brief 0040 — notes/tags removed).
-  const piiResult = await updateCustomerPii(customerId, tenantId, {
+  const piiResult = await updateCustomerPii(customerId, orgId, {
     name: parsed.name,
     whatsappRaw: parsed.whatsapp,
     email: parsed.email,
@@ -97,23 +94,23 @@ export async function getCustomerDeletionImpactAction(
   const r = await requireManagerCtx()
   if (!r.ok) return { error: r.error }
   if (!customerId) return { error: 'Cliente inválido' }
-  return getCustomerDeletionImpact(r.ctx.membership.tenantId, customerId)
+  return getCustomerDeletionImpact(r.ctx.membership.orgId, customerId)
 }
 
 export async function deleteCustomer(customerId: string): Promise<CustomerMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
   if (!customerId) return { ok: false, error: 'Cliente inválido' }
-  const tenantId = r.ctx.membership.tenantId
+  const orgId = r.ctx.membership.orgId
 
   // Operator "Excluir cliente" (brief 0033, AC-07) — operational cleanup, NOT
   // the LGPD erasure (brief 0032 — subject-only, self-service, neutral label).
   // Here the NAME is preserved in history (identifiable). See the canonical map
-  // Ciclo de Vida e Exclusão. The global User stays put (other tenants/self-user
+  // Ciclo de Vida e Exclusão. The global User stays put (other orgs/self-user
   // may reference it); orphan-User cleanup is a future garbage-collect path.
   const customerRef = getAdminFirestore()
-    .collection('tenants')
-    .doc(tenantId)
+    .collection('orgs')
+    .doc(orgId)
     .collection('customers')
     .withConverter(fsConverter(CustomerUserIdProjection))
     .doc(customerId)
@@ -122,7 +119,7 @@ export async function deleteCustomer(customerId: string): Promise<CustomerMutati
   if (!customer) return { ok: false, error: 'Cliente não encontrado' }
   const userId = customer.userId ?? ''
 
-  const impact = await getCustomerDeletionImpact(tenantId, customerId)
+  const impact = await getCustomerDeletionImpact(orgId, customerId)
 
   // The ONLY hard blocker: an open comanda is a fiscal document in progress and
   // can't be orphaned by removing the customer (same rule as the LGPD block
@@ -138,7 +135,7 @@ export async function deleteCustomer(customerId: string): Promise<CustomerMutati
   // the customer, so no history is orphaned. Event-first (`deleted` doesn't
   // reproject), then drop the read model.
   if (!impact.hasFootprint) {
-    const deleted = await emitEvent(CustomerConfig, `tenants/${tenantId}/customers/${customerId}`, {
+    const deleted = await emitEvent(CustomerConfig, `orgs/${orgId}/customers/${customerId}`, {
       _tag: 'customer.deleted',
       actorId: r.ctx.session.uid,
       payload: {},
@@ -155,10 +152,10 @@ export async function deleteCustomer(customerId: string): Promise<CustomerMutati
   // out of active lists/pickers but the NAME stays resolvable in history (the
   // closed orders that reference it keep showing who bought). Cascade is a saga
   // — errors surface (never a silent partial removal).
-  await eraseCustomerCascadeInTenant(tenantId, userId, r.ctx.session.uid)
+  await eraseCustomerCascadeInOrg(orgId, userId, r.ctx.session.uid)
 
   const now = new Date().toISOString()
-  const archived = await emitEvent(CustomerConfig, `tenants/${tenantId}/customers/${customerId}`, {
+  const archived = await emitEvent(CustomerConfig, `orgs/${orgId}/customers/${customerId}`, {
     _tag: 'customer.updated',
     actorId: r.ctx.session.uid,
     payload: { changes: { deactivatedAt: now } },

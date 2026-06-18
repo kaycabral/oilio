@@ -21,7 +21,7 @@ import {
   formatBRL,
   statusLine,
 } from '@/features/orders/core/order-detail-format'
-import type { TenantMember } from '@/shared/tenant/membership'
+import type { OrgMember } from '@/shared/org/membership'
 import { Button, Input } from '@cbrl/design'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -37,10 +37,10 @@ export type OrderDetailProps = {
   customer: Customer | null
   services: Service[]
   products: Product[]
-  // Membros operáveis do tenant (brief 0030, AC-04): a atribuição de item é por
+  // Membros operáveis do org (brief 0030, AC-04): a atribuição de item é por
   // membro (`attributedUserId` = `userId`), não só Professional. Qualquer membro
   // (recepção inclusa) pode ser atribuído/vendedor.
-  members: TenantMember[]
+  members: OrgMember[]
   // `userId` de quem está operando — default de "Vendedor" pra item de produto/
   // venda avulsa (o membro que abriu a venda). Espelha o default do servidor.
   currentUserId: string

@@ -7,8 +7,8 @@ import {
   catalogServiceToService,
   computeAvailabilityForDay,
   getBlockSegmentsForDay,
-  getTenantDayBoundsUtc,
-  getTodayInTenantTz,
+  getOrgDayBoundsUtc,
+  getTodayInOrgTz,
   isCatalogService,
   isInstantWithinTimeScope,
   isOperational,
@@ -17,24 +17,24 @@ import {
   isUnitBookable,
   isValidSlug,
   isValidUnitSlug,
+  type Org,
   professionalsForService,
   type Service,
   StoredProfessional as StoredProfessionalSchema,
   StoredUnit,
-  type Tenant,
 } from '@/domain'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
-import { enrichProfessionals, type StoredProfessional } from '@/shared/tenant/professional-read'
-import { getTenantBySlug } from '@/shared/tenant/tenant'
+import { getOrgBySlug } from '@/shared/org/org'
+import { enrichProfessionals, type StoredProfessional } from '@/shared/org/professional-read'
 import 'server-only'
 
-// Public availability payload for `/{tenantSlug}/{unitSlug}/availability` (#842).
+// Public availability payload for `/{orgSlug}/{unitSlug}/availability` (#842).
 // Returns the slot grid for `date` plus the professionals (id+name only) so
 // the UI can label rows without a second round-trip. PII never leaves the
 // admin SDK boundary.
 export type PublicAvailability = {
-  tenant: Tenant
+  org: Org
   unit: StoredUnit
   service: Service
   date: string
@@ -59,22 +59,19 @@ export async function getPublicAvailability(
   if (!isValidUnitSlug(unitSlug) || isReservedUnitSlug(unitSlug)) return null
   if (!/^\d{4}-\d{2}-\d{2}$/.test(opts.date)) return null
 
-  const tenant = await getTenantBySlug(slug)
-  if (!tenant) return null
+  const org = await getOrgBySlug(slug)
+  if (!org) return null
 
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(tenant.id)
+  const orgRef = db.collection('orgs').doc(org.id)
   const [unitsSnap, servicesSnap, professionalsSnap] = await Promise.all([
-    tenantRef.collection('units').withConverter(fsConverter(StoredUnit)).get(),
-    tenantRef
+    orgRef.collection('units').withConverter(fsConverter(StoredUnit)).get(),
+    orgRef
       .collection('catalog_items')
       .doc(opts.serviceId)
       .withConverter(fsConverter(CatalogItem))
       .get(),
-    tenantRef
-      .collection('professionals')
-      .withConverter(fsConverter(StoredProfessionalSchema))
-      .get(),
+    orgRef.collection('professionals').withConverter(fsConverter(StoredProfessionalSchema)).get(),
   ])
 
   const unit = unitsSnap.docs.map((d) => d.data()).find((u) => u.slug === unitSlug)
@@ -96,7 +93,7 @@ export async function getPublicAvailability(
     ...d.data(),
     id: d.id,
   }))
-  const allProfessionals = await enrichProfessionals(tenant.id, storedPros)
+  const allProfessionals = await enrichProfessionals(org.id, storedPros)
   let candidates = professionalsForService(allProfessionals, service.id, unit.id).filter((p) =>
     isOperational(p.operationalStatus),
   )
@@ -106,7 +103,7 @@ export async function getPublicAvailability(
 
   if (candidates.length === 0) {
     return {
-      tenant,
+      org,
       unit,
       service,
       date: opts.date,
@@ -115,19 +112,19 @@ export async function getPublicAvailability(
     }
   }
 
-  // Day bounds in tenant tz, then read both appointments + blocks for the
+  // Day bounds in org tz, then read both appointments + blocks for the
   // unit on that day. Block query is unit-wide (no startAt filter) since
   // recurring blocks don't have one.
-  const { startUtc: dayStart, endUtc: dayEnd } = getTenantDayBoundsUtc(opts.date, tenant.timezone)
+  const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(opts.date, org.timezone)
   const [apptSnap, blocksSnap] = await Promise.all([
-    tenantRef
+    orgRef
       .collection('appointments')
       .withConverter(fsConverter(Appointment))
       .where('unitId', '==', unit.id)
       .where('startAt', '>=', dayStart)
       .where('startAt', '<=', dayEnd)
       .get(),
-    tenantRef
+    orgRef
       .collection('agenda_blocks')
       .withConverter(fsConverter(AgendaBlock))
       .where('unitId', '==', unit.id)
@@ -135,7 +132,7 @@ export async function getPublicAvailability(
   ])
   const appointments = apptSnap.docs.map((d) => d.data())
   const blocks = blocksSnap.docs.map((d) => d.data())
-  const blockSegments = getBlockSegmentsForDay(blocks, opts.date, tenant.timezone)
+  const blockSegments = getBlockSegmentsForDay(blocks, opts.date, org.timezone)
 
   const rawSlots = computeAvailabilityForDay({
     service,
@@ -145,26 +142,26 @@ export async function getPublicAvailability(
     appointments,
     blockSegments,
     date: opts.date,
-    slotMinutes: tenant.slotMinutes,
-    timezone: tenant.timezone,
+    slotMinutes: org.slotMinutes,
+    timezone: org.timezone,
   })
 
   // Temporal scope filter (brief 0019, Group B — AC-07). Apply per-slot
   // when the customer's resolved scope is non-null. `today` is captured
-  // in the tenant tz so `advanceBookingDays` semantics match the
+  // in the org tz so `advanceBookingDays` semantics match the
   // owner's expectation ("days ahead from today in our local calendar").
   const slots =
     opts.timeScope == null
       ? rawSlots
       : (() => {
-          const today = getTodayInTenantTz(tenant.timezone)
+          const today = getTodayInOrgTz(org.timezone)
           return rawSlots.filter((s) =>
-            isInstantWithinTimeScope(opts.timeScope, s.startAt, tenant.timezone, today),
+            isInstantWithinTimeScope(opts.timeScope, s.startAt, org.timezone, today),
           )
         })()
 
   return {
-    tenant,
+    org,
     unit,
     service,
     date: opts.date,

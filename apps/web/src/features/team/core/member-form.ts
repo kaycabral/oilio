@@ -13,7 +13,7 @@ export const OPERATIONAL_LABELS: Record<Professional['operationalStatus'], strin
   operational: 'Operacional',
 }
 
-// Roles assignable via the UI. `owner` is excluded (tenant-creator identity,
+// Roles assignable via the UI. `owner` is excluded (org-creator identity,
 // never assigned by role-edit — same guard as the invite flow + the action).
 export const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: 'professional', label: 'Profissional' },

@@ -2,7 +2,7 @@
 
 import { type OrderCoverage, type OrderItem, ORDER_COVERAGES, coverageOf } from '@/domain'
 import { attributionLabel, formatBRL } from '@/features/orders/core/order-detail-format'
-import type { TenantMember } from '@/shared/tenant/membership'
+import type { OrgMember } from '@/shared/org/membership'
 import {
   Button,
   Label,
@@ -25,8 +25,8 @@ export function OrderItemRow({
   onChangeCoverage,
 }: {
   item: OrderItem
-  members: TenantMember[]
-  memberByUserId: Record<string, TenantMember>
+  members: OrgMember[]
+  memberByUserId: Record<string, OrgMember>
   editable: boolean
   pending: boolean
   subscriptionCoverage: { remaining: number | null } | null

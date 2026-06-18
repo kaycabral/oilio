@@ -42,7 +42,7 @@ vi.mock('./AppointmentDialog', () => ({
 function buildUnit(id: string, name = `Unit ${id}`): Unit {
   return {
     id,
-    tenantId: 't1',
+    orgId: 't1',
     name,
     slug: `unit-${id}`,
     whatsapp: '5511900000000',
@@ -64,7 +64,7 @@ const baseProps = {
   professionals: [
     {
       id: 'p1',
-      tenantId: 't1',
+      orgId: 't1',
       userId: 'u-pro1',
       name: 'Ana',
       whatsapp: '5511900000000',

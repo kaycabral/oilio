@@ -9,7 +9,7 @@
 //     new booking (AC-14).
 //   - maxConcurrent: counts future scheduled appointments; blocks the N+1th (AC-13).
 
-import { type Appointment, type BookingLimits, getTenantDayBoundsUtc, toTenantTime } from '@/domain'
+import { type Appointment, type BookingLimits, getOrgDayBoundsUtc, toOrgTime } from '@/domain'
 
 export type BookingLimitsCheck =
   | { kind: 'ok' }
@@ -35,19 +35,16 @@ export function evaluateBookingLimits(args: {
   appointments: Appointment[]
   limits: BookingLimits
   proposedStartAt: string
-  tenantTimezone: string
+  orgTimezone: string
   now: Date
 }): BookingLimitsCheck {
-  const { appointments, limits, proposedStartAt, tenantTimezone } = args
+  const { appointments, limits, proposedStartAt, orgTimezone } = args
   const nowIso = args.now.toISOString()
 
-  // maxPerDay (AC-12). Match the day of the proposed slot in tenant tz.
+  // maxPerDay (AC-12). Match the day of the proposed slot in org tz.
   if (typeof limits.maxPerDay === 'number' && limits.maxPerDay > 0) {
-    const { dateISO: proposedDateISO } = toTenantTime(proposedStartAt, tenantTimezone)
-    const { startUtc: dayStart, endUtc: dayEnd } = getTenantDayBoundsUtc(
-      proposedDateISO,
-      tenantTimezone,
-    )
+    const { dateISO: proposedDateISO } = toOrgTime(proposedStartAt, orgTimezone)
+    const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(proposedDateISO, orgTimezone)
     const sameDay = appointments.filter(
       (a) => ACTIVE_STATUSES.includes(a.status) && a.startAt >= dayStart && a.startAt <= dayEnd,
     )

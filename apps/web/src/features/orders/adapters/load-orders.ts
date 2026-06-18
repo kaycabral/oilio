@@ -1,13 +1,13 @@
-import { Order, StoredTenant, type Customer } from '@/domain'
+import { Order, StoredOrg, type Customer } from '@/domain'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState } from '@/shared/list/list-page-state'
-import { resolveActiveUnit } from '@/shared/tenant/active-unit'
-import { listCustomersForTenant } from '@/shared/tenant/customer-read'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
+import { resolveActiveUnit } from '@/shared/org/active-unit'
+import { listCustomersForOrg } from '@/shared/org/customer-read'
+import { getActiveOrgContext } from '@/shared/org/membership'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -26,7 +26,7 @@ export type OrdersPageData =
       customers: Record<string, Customer>
     }
 
-// Imperative shell for the orders list route: resolves session/tenant/active
+// Imperative shell for the orders list route: resolves session/org/active
 // unit, loads the unit-scoped orders for the selected status tab plus the
 // customer map and list-surface state, and returns a discriminated view-model.
 // The route component (page.tsx) stays a thin caller that renders the chrome.
@@ -41,7 +41,7 @@ export async function loadOrdersPage(searchParams: {
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   // Default (no param) is the neutral "all"; the sidebar links to `?status=open`
@@ -50,21 +50,21 @@ export async function loadOrdersPage(searchParams: {
     searchParams.status === 'closed' || searchParams.status === 'open' ? searchParams.status : 'all'
 
   // Comandas are operational (brief 0029, AC-01): scope to the active unit.
-  // When the tenant has no units (activeUnitId === null) there can be no
+  // When the org has no units (activeUnitId === null) there can be no
   // orders, so the list is empty.
   const { activeUnitId } = await resolveActiveUnit(ctx.membership)
   if (!activeUnitId) return { kind: 'no-unit' }
 
-  const tenantRef = getAdminFirestore().collection('tenants').doc(ctx.membership.tenantId)
+  const orgRef = getAdminFirestore().collection('orgs').doc(ctx.membership.orgId)
   // Vertical ajusta a affordance (brief 0030, AC-03): comércio/varejo (não
   // `barbershop`) não trabalha com agenda, então o empty-state aponta direto pra
   // "Nova venda" em vez de sugerir iniciar atendimento na agenda. O termo é
   // sempre neutro ("Venda") em todas as verticais (brief 0030, AC-09).
-  const tenantSnap = await tenantRef.withConverter(fsConverter(StoredTenant)).get()
-  const vertical = tenantSnap.data()?.vertical ?? 'barbershop'
+  const orgSnap = await orgRef.withConverter(fsConverter(StoredOrg)).get()
+  const vertical = orgSnap.data()?.vertical ?? 'barbershop'
   const isAgendaVertical = vertical === 'barbershop'
 
-  let query: FirebaseFirestore.Query = tenantRef.collection('orders')
+  let query: FirebaseFirestore.Query = orgRef.collection('orders')
   query = query.where('unitId', '==', activeUnitId)
   if (filter !== 'all') query = query.where('status', '==', filter)
   // orderBy createdAt desc — order mais recente no topo. Não precisa de
@@ -75,7 +75,7 @@ export async function loadOrdersPage(searchParams: {
   const ordersSnap = await query.withConverter(fsConverter(Order)).get()
   const statusSlice = ordersSnap.docs.map((d) => d.data())
 
-  const allCustomers = await listCustomersForTenant(ctx.membership.tenantId)
+  const allCustomers = await listCustomersForOrg(ctx.membership.orgId)
   const customers: Record<string, Customer> = Object.fromEntries(allCustomers.map((c) => [c.id, c]))
 
   // Customer-name search over the status slice (a walk-in sale has no customer,
@@ -91,7 +91,7 @@ export async function loadOrdersPage(searchParams: {
   const visibleCount = orders.length
   let hasAnyData = visibleCount > 0
   if (!hasAnyData) {
-    const anyOrder = await tenantRef
+    const anyOrder = await orgRef
       .collection('orders')
       .where('unitId', '==', activeUnitId)
       .limit(1)

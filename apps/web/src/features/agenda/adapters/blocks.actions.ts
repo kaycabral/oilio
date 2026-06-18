@@ -6,15 +6,15 @@ import {
   type Weekday,
   AGENDA_BLOCK_KINDS,
   WEEKDAYS,
-  fromTenantTime,
+  fromOrgTime,
   validateHoursRange,
 } from '@/domain'
 import { AgendaBlockConfig } from '@/domain/aggregates'
 import { getAdminFirestore } from '@/shared/db'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
-import { requireManagerCtx } from '@/shared/tenant/membership'
-import { getTenant } from '@/shared/tenant/tenant'
+import { requireManagerCtx } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
 import { revalidatePath } from 'next/cache'
 
 // Agenda-block mutations, shared by the contexts that own the time being
@@ -35,9 +35,9 @@ function isAgendaBlockKind(v: string): v is AgendaBlockKind {
 }
 
 type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never
-type ParsedBlock = DistributiveOmit<AgendaBlock, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>
+type ParsedBlock = DistributiveOmit<AgendaBlock, 'id' | 'orgId' | 'createdAt' | 'updatedAt'>
 
-function parseBlockForm(formData: FormData, tenantTimezone: string): ParsedBlock | string {
+function parseBlockForm(formData: FormData, orgTimezone: string): ParsedBlock | string {
   const kindRaw = formString(formData, 'kind')
   if (!isAgendaBlockKind(kindRaw)) return 'Tipo inválido'
   const unitId = formString(formData, 'unitId').trim()
@@ -86,30 +86,26 @@ function parseBlockForm(formData: FormData, tenantTimezone: string): ParsedBlock
     weekday: null,
     open: null,
     close: null,
-    startAt: fromTenantTime({ date, hour: sh, minute: sm }, tenantTimezone),
-    endAt: fromTenantTime({ date, hour: eh, minute: em }, tenantTimezone),
+    startAt: fromOrgTime({ date, hour: sh, minute: sm }, orgTimezone),
+    endAt: fromOrgTime({ date, hour: eh, minute: em }, orgTimezone),
   }
 }
 
 export async function createBlock(formData: FormData): Promise<BlockMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  const tenant = await getTenant(r.ctx.membership.tenantId)
-  if (!tenant) return { ok: false, error: 'Tenant não encontrado' }
-  const parsed = parseBlockForm(formData, tenant.timezone)
+  const org = await getOrg(r.ctx.membership.orgId)
+  if (!org) return { ok: false, error: 'Org não encontrado' }
+  const parsed = parseBlockForm(formData, org.timezone)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const db = getAdminFirestore()
-  const ref = db
-    .collection('tenants')
-    .doc(r.ctx.membership.tenantId)
-    .collection('agenda_blocks')
-    .doc()
+  const ref = db.collection('orgs').doc(r.ctx.membership.orgId).collection('agenda_blocks').doc()
   const now = new Date().toISOString()
   const block: AgendaBlock = {
     ...parsed,
     id: ref.id,
-    tenantId: r.ctx.membership.tenantId,
+    orgId: r.ctx.membership.orgId,
     createdAt: now,
     updatedAt: now,
   }
@@ -117,7 +113,7 @@ export async function createBlock(formData: FormData): Promise<BlockMutationResu
   // sem `ref.set()` direto paralelo.
   const created = await emitEvent(
     AgendaBlockConfig,
-    `tenants/${r.ctx.membership.tenantId}/agenda_blocks/${ref.id}`,
+    `orgs/${r.ctx.membership.orgId}/agenda_blocks/${ref.id}`,
     { _tag: 'agenda_block.created', actorId: r.ctx.session.uid, payload: { data: block } },
   )
   if (!created.ok) return { ok: false, error: created.error }
@@ -131,16 +127,16 @@ export async function updateBlock(
 ): Promise<BlockMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  const tenant = await getTenant(r.ctx.membership.tenantId)
-  if (!tenant) return { ok: false, error: 'Tenant não encontrado' }
-  const parsed = parseBlockForm(formData, tenant.timezone)
+  const org = await getOrg(r.ctx.membership.orgId)
+  if (!org) return { ok: false, error: 'Org não encontrado' }
+  const parsed = parseBlockForm(formData, org.timezone)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   // Event-first: a projeção da edição vem do `agenda_block.updated` (sem
   // `.update()` direto). `changes` carrega o diff do form parseado.
   const updated = await emitEvent(
     AgendaBlockConfig,
-    `tenants/${r.ctx.membership.tenantId}/agenda_blocks/${blockId}`,
+    `orgs/${r.ctx.membership.orgId}/agenda_blocks/${blockId}`,
     { _tag: 'agenda_block.updated', actorId: r.ctx.session.uid, payload: { changes: parsed } },
   )
   if (!updated.ok) return { ok: false, error: updated.error }
@@ -157,13 +153,13 @@ export async function deleteBlock(blockId: string): Promise<BlockMutationResult>
   // em `.deleted`, então o caller remove o doc. Histórico fica na subcollection.
   const deleted = await emitEvent(
     AgendaBlockConfig,
-    `tenants/${r.ctx.membership.tenantId}/agenda_blocks/${blockId}`,
+    `orgs/${r.ctx.membership.orgId}/agenda_blocks/${blockId}`,
     { _tag: 'agenda_block.deleted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
   await getAdminFirestore()
-    .collection('tenants')
-    .doc(r.ctx.membership.tenantId)
+    .collection('orgs')
+    .doc(r.ctx.membership.orgId)
     .collection('agenda_blocks')
     .doc(blockId)
     .delete()

@@ -53,15 +53,15 @@ describe('generateHourlyNotifications', () => {
     const serviceStart = '2026-06-02T08:00:00Z'
     const durationMinutes = 60
     const { store, layer } = makeStore({
-      'tenants/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
-      'tenants/t1/units/u1': { id: 'u1', tenantId: 't1' },
-      'tenants/t1/orders/o1': {
+      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1/units/u1': { id: 'u1', orgId: 't1' },
+      'orgs/t1/orders/o1': {
         id: 'o1',
-        tenantId: 't1',
+        orgId: 't1',
         status: 'open',
         appointmentId: 'a1',
       },
-      'tenants/t1/appointments/a1': {
+      'orgs/t1/appointments/a1': {
         id: 'a1',
         unitId: 'u1',
         startAt: serviceStart,
@@ -77,7 +77,7 @@ describe('generateHourlyNotifications', () => {
     expect(created).toBe(1)
 
     const notifications = [...store.entries()]
-      .filter(([key]) => key.startsWith('tenants/t1/notifications/'))
+      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
       .filter(([key]) => !key.includes('/events/'))
 
     expect(notifications).toHaveLength(1)
@@ -86,15 +86,15 @@ describe('generateHourlyNotifications', () => {
 
   it('does not create order_stale before threshold', async () => {
     const { layer } = makeStore({
-      'tenants/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
-      'tenants/t1/units/u1': { id: 'u1', tenantId: 't1' },
-      'tenants/t1/orders/o1': {
+      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1/units/u1': { id: 'u1', orgId: 't1' },
+      'orgs/t1/orders/o1': {
         id: 'o1',
-        tenantId: 't1',
+        orgId: 't1',
         status: 'open',
         appointmentId: 'a1',
       },
-      'tenants/t1/appointments/a1': {
+      'orgs/t1/appointments/a1': {
         id: 'a1',
         unitId: 'u1',
         startAt: '2026-06-02T08:00:00Z',

@@ -10,7 +10,7 @@ vi.mock('@/features/copilot/adapters/copilot.actions', () => ({
 
 const goal: Goal = {
   id: 'profit__unit-a__2026-06',
-  tenantId: 't1',
+  orgId: 't1',
   unitId: 'unit-a',
   period: '2026-06',
   type: 'profit',

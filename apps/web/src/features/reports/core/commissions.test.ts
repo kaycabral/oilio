@@ -12,7 +12,7 @@ function makeCommission(partial: {
 }): Commission {
   return {
     id: partial.id,
-    tenantId: 't1',
+    orgId: 't1',
     orderId: partial.orderId,
     orderItemId: `${partial.id}-item`,
     attributedUserId: partial.attributedUserId,
@@ -33,7 +33,7 @@ function makeCommission(partial: {
 function makeOrder(id: string, unitId: string): Order {
   return {
     id,
-    tenantId: 't1',
+    orgId: 't1',
     unitId,
     customerId: null,
     appointmentId: null,

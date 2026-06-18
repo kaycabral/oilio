@@ -5,7 +5,7 @@ import { derivePlanFormDefaults } from './plan-form-defaults'
 function plan(over: Partial<SubscriptionPlan> = {}): SubscriptionPlan {
   return {
     id: 'plan-1',
-    tenantId: 't1',
+    orgId: 't1',
     name: 'Plano Mensal',
     description: null,
     priceCents: 9900,

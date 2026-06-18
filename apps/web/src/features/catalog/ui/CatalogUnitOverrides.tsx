@@ -125,7 +125,7 @@ function UnitOverrideRow({
 }
 
 // Per-unit exception editor (price/duration/commission overrides), collapsible.
-// Only shown when the tenant has >1 unit and the item is in at least one.
+// Only shown when the org has >1 unit and the item is in at least one.
 export function UnitOverridesFieldset({
   units,
   selectedUnitIds,

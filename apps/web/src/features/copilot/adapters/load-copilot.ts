@@ -1,4 +1,4 @@
-import { DEFAULT_TENANT_TIMEZONE, type Goal } from '@/domain'
+import { DEFAULT_ORG_TIMEZONE, type Goal } from '@/domain'
 import { getGoalForPeriod } from '@/features/copilot/adapters/goals.repo'
 import { loadGoalActuals } from '@/features/copilot/adapters/tracking.repo'
 import { currentPeriod } from '@/features/copilot/core/period'
@@ -9,9 +9,9 @@ import {
 } from '@/features/copilot/core/tracking'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { resolveActiveUnit } from '@/shared/tenant/active-unit'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
-import { getTenant } from '@/shared/tenant/tenant'
+import { resolveActiveUnit } from '@/shared/org/active-unit'
+import { getActiveOrgContext } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -34,15 +34,15 @@ export async function loadCopilotPage(): Promise<CopilotPageProps> {
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
-  const tenantId = ctx.membership.tenantId
-  const [tenant, { activeUnitId }] = await Promise.all([
-    getTenant(tenantId),
+  const orgId = ctx.membership.orgId
+  const [org, { activeUnitId }] = await Promise.all([
+    getOrg(orgId),
     resolveActiveUnit(ctx.membership),
   ])
-  const tz = tenant?.timezone ?? DEFAULT_TENANT_TIMEZONE
+  const tz = org?.timezone ?? DEFAULT_ORG_TIMEZONE
   const period = currentPeriod(tz)
   const window = resolveGoalPeriodWindow(period, tz)
 
@@ -53,8 +53,8 @@ export async function loadCopilotPage(): Promise<CopilotPageProps> {
   }
 
   const [goal, actuals] = await Promise.all([
-    getGoalForPeriod(tenantId, 'profit', activeUnitId, period),
-    loadGoalActuals(tenantId, activeUnitId, window),
+    getGoalForPeriod(orgId, 'profit', activeUnitId, period),
+    loadGoalActuals(orgId, activeUnitId, window),
   ])
   const tracking = goal
     ? computeGoalTracking({

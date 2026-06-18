@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   isFirebaseConfigured: vi.fn(() => true),
   getSessionUser: vi.fn(),
-  getActiveTenantContext: vi.fn(),
-  listAccessibleTenants: vi.fn(() => Promise.resolve([])),
-  getTenant: vi.fn(),
+  getActiveOrgContext: vi.fn(),
+  listAccessibleOrgs: vi.fn(() => Promise.resolve([])),
+  getOrg: vi.fn(),
   getAdminFirestore: vi.fn(),
 }))
 
@@ -17,21 +17,21 @@ vi.mock('@/shared/firebase/config', () => ({
   isFirebaseConfigured: mocks.isFirebaseConfigured,
 }))
 
-vi.mock('@/shared/tenant/membership', () => ({
-  getActiveTenantContext: mocks.getActiveTenantContext,
-  listAccessibleTenants: mocks.listAccessibleTenants,
+vi.mock('@/shared/org/membership', () => ({
+  getActiveOrgContext: mocks.getActiveOrgContext,
+  listAccessibleOrgs: mocks.listAccessibleOrgs,
 }))
 
-vi.mock('@/shared/tenant/tenant', () => ({
-  getTenant: mocks.getTenant,
+vi.mock('@/shared/org/org', () => ({
+  getOrg: mocks.getOrg,
 }))
 
 vi.mock('@/shared/db', () => ({
   getAdminFirestore: mocks.getAdminFirestore,
 }))
 
-vi.mock('@/shared/tenant/tenant-context', () => ({
-  TenantProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+vi.mock('@/shared/org/org-context', () => ({
+  OrgProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
 vi.mock('@/components/app-shell', () => ({
@@ -73,12 +73,12 @@ async function captureRedirect(): Promise<string> {
 beforeEach(() => {
   mocks.isFirebaseConfigured.mockReset().mockReturnValue(true)
   mocks.getSessionUser.mockReset()
-  mocks.getActiveTenantContext.mockReset()
-  mocks.getTenant.mockReset()
+  mocks.getActiveOrgContext.mockReset()
+  mocks.getOrg.mockReset()
   mocks.getAdminFirestore.mockReset()
 })
 
-describe('AppLayout — auth and tenant gating', () => {
+describe('AppLayout — auth and org gating', () => {
   it('redirects to / when Firebase is not configured', async () => {
     mocks.isFirebaseConfigured.mockReturnValue(false)
     await expect(captureRedirect()).resolves.toBe('/')
@@ -90,7 +90,7 @@ describe('AppLayout — auth and tenant gating', () => {
     await expect(captureRedirect()).resolves.toBe('/login')
   })
 
-  it('redirects to /onboarding when the user has no active tenant context', async () => {
+  it('redirects to /onboarding when the user has no active org context', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u1',
       email: 'a@b.com',
@@ -98,11 +98,11 @@ describe('AppLayout — auth and tenant gating', () => {
       picture: null,
       emailVerified: true,
     })
-    mocks.getActiveTenantContext.mockResolvedValue(null)
+    mocks.getActiveOrgContext.mockResolvedValue(null)
     await expect(captureRedirect()).resolves.toBe('/onboarding')
   })
 
-  it('renders the app for an incomplete tenant (no global onboarding gate, #986)', async () => {
+  it('renders the app for an incomplete org (no global onboarding gate, #986)', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u1',
       email: 'a@b.com',
@@ -110,7 +110,7 @@ describe('AppLayout — auth and tenant gating', () => {
       picture: null,
       emailVerified: true,
     })
-    mocks.getActiveTenantContext.mockResolvedValue({
+    mocks.getActiveOrgContext.mockResolvedValue({
       user: {
         uid: 'u1',
         displayName: 'A',
@@ -118,9 +118,9 @@ describe('AppLayout — auth and tenant gating', () => {
         avatarUrl: null,
         completionCompleted: true,
       },
-      membership: { tenantId: 't1', userId: 'u1', role: 'owner' },
+      membership: { orgId: 't1', userId: 'u1', role: 'owner' },
     })
-    mocks.getTenant.mockResolvedValue({
+    mocks.getOrg.mockResolvedValue({
       id: 't1',
       name: 'Test',
       selfBookingPublished: false,
@@ -140,7 +140,7 @@ describe('AppLayout — auth and tenant gating', () => {
         }),
       }),
     })
-    // An incomplete tenant no longer bounces to the wizard — the layout
+    // An incomplete org no longer bounces to the wizard — the layout
     // resolves to the app shell so the app is operable from signup.
     await expect(callLayout()).resolves.toBeTruthy()
   })
@@ -153,7 +153,7 @@ describe('AppLayout — auth and tenant gating', () => {
       picture: null,
       emailVerified: true,
     })
-    mocks.getActiveTenantContext.mockResolvedValue({
+    mocks.getActiveOrgContext.mockResolvedValue({
       user: {
         uid: 'u1',
         displayName: 'A',
@@ -161,11 +161,11 @@ describe('AppLayout — auth and tenant gating', () => {
         avatarUrl: null,
         completionCompleted: false,
       },
-      membership: { tenantId: 't1', userId: 'u1', role: 'owner' },
+      membership: { orgId: 't1', userId: 'u1', role: 'owner' },
     })
-    // getTenant must not even be reached when completion fails — the
+    // getOrg must not even be reached when completion fails — the
     // sequence checks user.completionCompleted first.
     await expect(captureRedirect()).resolves.toBe('/onboarding/profile')
-    expect(mocks.getTenant).not.toHaveBeenCalled()
+    expect(mocks.getOrg).not.toHaveBeenCalled()
   })
 })

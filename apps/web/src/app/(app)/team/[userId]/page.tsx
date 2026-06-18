@@ -57,7 +57,7 @@ export default async function MemberDetailPage({
     professionalEdit,
     professionalBlocks,
     professionalUnits,
-    tenantTimezone,
+    orgTimezone,
   } = await loadMemberDetailPage(userId)
 
   return (
@@ -124,7 +124,7 @@ export default async function MemberDetailPage({
             units: professionalUnits,
           }}
           blocks={professionalBlocks}
-          tenantTimezone={tenantTimezone}
+          orgTimezone={orgTimezone}
           canManage={!isReadOnly}
           title="Bloqueios do profissional"
           description="Ausências recorrentes (folga) ou pontuais deste profissional. Bloqueiam só a coluna dele na agenda."

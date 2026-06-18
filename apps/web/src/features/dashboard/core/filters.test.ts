@@ -15,7 +15,7 @@ describe('resolveDashboardFilters', () => {
     expect(f.fromDate).toBe('2026-02-14')
   })
 
-  it('today bounds in tenant tz', () => {
+  it('today bounds in org tz', () => {
     const f = resolveDashboardFilters({ period: 'today' }, SP_TZ, NOW)
     expect(f.fromDate).toBe('2026-03-15')
     expect(f.toDate).toBe('2026-03-15')

@@ -37,7 +37,7 @@ import { recordSaleMovement } from '@/features/cash/adapters/sale-movement'
 import { fsConverter } from '@/shared/db/converter'
 import { emitEvent } from '@/shared/effect-bridge'
 
-import { listTenantMembers } from '@/shared/tenant/membership'
+import { listOrgMembers } from '@/shared/org/membership'
 
 export function genItemId(): string {
   // ID curto suficiente pra colisão ser improvável dentro de uma única
@@ -52,10 +52,10 @@ export function genItemId(): string {
 // order.appointmentId já marca que tem order aberta).
 
 export async function loadOpenOrder(
-  tenantRef: FirebaseFirestore.DocumentReference,
+  orgRef: FirebaseFirestore.DocumentReference,
   orderId: string,
 ): Promise<{ ref: FirebaseFirestore.DocumentReference; order: Order } | string> {
-  const ref = tenantRef.collection('orders').withConverter(fsConverter(Order)).doc(orderId)
+  const ref = orgRef.collection('orders').withConverter(fsConverter(Order)).doc(orderId)
   const snap = await ref.get()
   const order = snap.data()
   if (!order) return 'Venda não encontrada'
@@ -74,7 +74,7 @@ export async function loadOpenOrder(
 // aprovação). O alvo da atribuição agora é o `userId` de QUALQUER membro, então
 // a validação é:
 //
-//   1. Existe membership ativa `{tid}_{userId}` no tenant, com papel operacional
+//   1. Existe membership ativa `{tid}_{userId}` no org, com papel operacional
 //      (não `customer`), e — se a membership for unit-scoped — escopada à
 //      unidade da venda.
 //   2. Item de SERVIÇO mantém a trava mais estrita: SE existe a projeção
@@ -85,14 +85,14 @@ export async function loadOpenOrder(
 // Mantém o comportamento de serviço intacto e destrava produto sem profissional
 // aprovado.
 export async function assertMemberCanOperate({
-  tenantRef,
-  tenantId,
+  orgRef,
+  orgId,
   attributedUserId,
   kind,
   orderUnitId,
 }: {
-  tenantRef: FirebaseFirestore.DocumentReference
-  tenantId: string
+  orgRef: FirebaseFirestore.DocumentReference
+  orgId: string
   attributedUserId: string
   kind: OrderItemKind
   orderUnitId: string
@@ -100,12 +100,12 @@ export async function assertMemberCanOperate({
   if (!attributedUserId) return 'Membro atribuído é obrigatório'
 
   // Membership é top-level (`memberships/{tid}_{userId}`), não subcoleção do
-  // tenant — derivável do path da venda via `membershipDocId`.
-  const db = tenantRef.firestore
+  // org — derivável do path da venda via `membershipDocId`.
+  const db = orgRef.firestore
   const memSnap = await db
     .collection('memberships')
     .withConverter(fsConverter(Membership))
-    .doc(membershipDocId(tenantId, attributedUserId))
+    .doc(membershipDocId(orgId, attributedUserId))
     .get()
   const membership = memSnap.data()
   if (!membership) return 'Membro não encontrado neste negócio'
@@ -120,7 +120,7 @@ export async function assertMemberCanOperate({
   // a projeção existe para esse membro. Sem projeção (ex.: membro que ainda não
   // virou profissional) o serviço fica bloqueado — fluxo de serviço inalterado.
   if (kind === 'service') {
-    const profSnap = await tenantRef
+    const profSnap = await orgRef
       .collection('professionals')
       .withConverter(fsConverter(StoredProfessional))
       .where('userId', '==', attributedUserId)
@@ -146,14 +146,14 @@ export async function assertMemberCanOperate({
 // remaining balance (excluding this item, any kind). Returns the subscription id
 // to attach, or an error message.
 export async function resolveItemCoverageSubscription(
-  tenantRef: FirebaseFirestore.DocumentReference,
+  orgRef: FirebaseFirestore.DocumentReference,
   order: Order,
   target: OrderItem,
   idx: number,
 ): Promise<{ subscriptionId: string } | string> {
   // Venda avulsa anônima (brief 0030, AC-02) não tem cliente → sem assinatura.
   if (!order.customerId) return 'Venda sem cliente não pode consumir assinatura'
-  const subsSnap = await tenantRef
+  const subsSnap = await orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .where('customerId', '==', order.customerId)
@@ -163,7 +163,7 @@ export async function resolveItemCoverageSubscription(
   const sub = subsSnap.docs.map((d) => ({ ...d.data(), id: d.id }))[0]
   if (!sub) return 'Cliente não possui assinatura ativa'
 
-  const itemSnap = await tenantRef
+  const itemSnap = await orgRef
     .collection('catalog_items')
     .withConverter(fsConverter(CatalogItem))
     .doc(target.refId)
@@ -187,17 +187,13 @@ export async function resolveItemCoverageSubscription(
 // precisa estar no snapshot CONGELADO da assinatura (item explícito ou categoria
 // de conveniência). Lê o `categoryId` vivo do catálogo. Retorna erro ou null.
 export async function validateCoveredItems(
-  tenantRef: FirebaseFirestore.DocumentReference,
+  orgRef: FirebaseFirestore.DocumentReference,
   coveredItems: OrderItem[],
   plan: Subscription['plan'],
 ): Promise<string | null> {
   const catalogSnaps = await Promise.all(
     [...new Set(coveredItems.map((it) => it.refId))].map((refId) =>
-      tenantRef
-        .collection('catalog_items')
-        .withConverter(fsConverter(CatalogItem))
-        .doc(refId)
-        .get(),
+      orgRef.collection('catalog_items').withConverter(fsConverter(CatalogItem)).doc(refId).get(),
     ),
   )
   const categoryByRefId = new Map<string, string | null>()
@@ -225,7 +221,7 @@ type ConsumptionPlan = {
 // e resolve o que decrementar (cota + estoque dos produtos cobertos). Retorna o
 // plano de consumo, ou uma mensagem de erro.
 export async function resolveSubscriptionConsumption(
-  tenantRef: FirebaseFirestore.DocumentReference,
+  orgRef: FirebaseFirestore.DocumentReference,
   order: Order,
   sale: boolean,
 ): Promise<ConsumptionPlan | string> {
@@ -234,7 +230,7 @@ export async function resolveSubscriptionConsumption(
   if (coveredQty === 0) return { subscriptionToConsume: null, stockDecrements: [] }
   // Consumo exige cliente — venda avulsa anônima (brief 0030) nunca chega aqui.
   if (!order.customerId) return 'Venda sem cliente não pode consumir assinatura'
-  const subsSnap = await tenantRef
+  const subsSnap = await orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .where('customerId', '==', order.customerId)
@@ -245,7 +241,7 @@ export async function resolveSubscriptionConsumption(
   if (!sub) return 'Cliente não possui assinatura ativa para o consumo marcado'
 
   const coverErr = await validateCoveredItems(
-    tenantRef,
+    orgRef,
     order.items.filter((it) => coverageOf(it) === 'subscription'),
     sub.plan,
   )
@@ -268,8 +264,8 @@ export async function resolveSubscriptionConsumption(
 // `pendente`. Identidade do profissional CONGELADA no doc (brief 0041 AC-11).
 // Comanda 100% coberta (sem paymentMethod) não comissiona.
 export async function buildOrderCommissions(args: {
-  tenantId: string
-  tenantRef: FirebaseFirestore.DocumentReference
+  orgId: string
+  orgRef: FirebaseFirestore.DocumentReference
   orderId: string
   items: OrderItem[]
   paymentMethod: PaymentMethod | null
@@ -277,7 +273,7 @@ export async function buildOrderCommissions(args: {
 }): Promise<Commission[]> {
   if (!args.paymentMethod) return []
   const memberNameByUserId = new Map(
-    (await listTenantMembers(args.tenantId)).map((m) => [m.userId, m.name]),
+    (await listOrgMembers(args.orgId)).map((m) => [m.userId, m.name]),
   )
   const resolveMemberName = (userId: string): string => memberNameByUserId.get(userId) ?? ''
 
@@ -285,10 +281,10 @@ export async function buildOrderCommissions(args: {
   for (const item of args.items) {
     const accrual = accrueCommissionForItem(item, resolveMemberName)
     if (!accrual) continue
-    const commissionRef = args.tenantRef.collection('commissions').doc()
+    const commissionRef = args.orgRef.collection('commissions').doc()
     commissions.push({
       id: commissionRef.id,
-      tenantId: args.tenantId,
+      orgId: args.orgId,
       orderId: args.orderId,
       orderItemId: accrual.orderItemId,
       attributedUserId: accrual.attributedUserId,
@@ -309,13 +305,13 @@ export async function buildOrderCommissions(args: {
 // Produto coberto baixa estoque (brief 0024, AC-05): `catalog_item.updated` com
 // o novo `stock` (event-first). Lê o estoque vivo no fechamento, clamp em 0.
 export async function emitStockDecrements(
-  tenantId: string,
-  tenantRef: FirebaseFirestore.DocumentReference,
+  orgId: string,
+  orgRef: FirebaseFirestore.DocumentReference,
   actorUid: string,
   stockDecrements: { refId: string; quantity: number }[],
 ): Promise<string | null> {
   for (const dec of stockDecrements) {
-    const itemSnap = await tenantRef
+    const itemSnap = await orgRef
       .collection('catalog_items')
       .withConverter(fsConverter(CatalogItem))
       .doc(dec.refId)
@@ -326,7 +322,7 @@ export async function emitStockDecrements(
     const nextStock = Math.max(0, item.stock - dec.quantity)
     const stockUpdated = await emitEvent(
       CatalogItemConfig,
-      `tenants/${tenantId}/catalog_items/${dec.refId}`,
+      `orgs/${orgId}/catalog_items/${dec.refId}`,
       {
         _tag: 'catalog_item.updated',
         actorId: actorUid,
@@ -343,8 +339,8 @@ export async function emitStockDecrements(
 // appointment.completed → order.closed (âncora, por último). Falha antes do
 // order.closed deixa a comanda ABERTA (retento-ável). Retorna erro ou null.
 export async function emitCloseOrderSaga(args: {
-  tenantId: string
-  tenantRef: FirebaseFirestore.DocumentReference
+  orgId: string
+  orgRef: FirebaseFirestore.DocumentReference
   actorUid: string
   orderId: string
   order: Order
@@ -354,13 +350,13 @@ export async function emitCloseOrderSaga(args: {
   consumption: ConsumptionPlan
   commissions: Commission[]
 }): Promise<string | null> {
-  const { tenantId, tenantRef, actorUid, orderId, order, paymentMethod, totals, closedAt } = args
+  const { orgId, orgRef, actorUid, orderId, order, paymentMethod, totals, closedAt } = args
   const { subscriptionToConsume, stockDecrements } = args.consumption
 
   if (subscriptionToConsume) {
     const consumed = await emitEvent(
       SubscriptionConfig,
-      `tenants/${tenantId}/subscriptions/${subscriptionToConsume.id}`,
+      `orgs/${orgId}/subscriptions/${subscriptionToConsume.id}`,
       {
         _tag: 'subscription.usage_incremented',
         actorId: actorUid,
@@ -370,13 +366,13 @@ export async function emitCloseOrderSaga(args: {
     if (!consumed.ok) return consumed.error
   }
 
-  const stockErr = await emitStockDecrements(tenantId, tenantRef, actorUid, stockDecrements)
+  const stockErr = await emitStockDecrements(orgId, orgRef, actorUid, stockDecrements)
   if (stockErr) return stockErr
 
   for (const commission of args.commissions) {
     const created = await emitEvent(
       CommissionConfig,
-      `tenants/${tenantId}/commissions/${commission.id}`,
+      `orgs/${orgId}/commissions/${commission.id}`,
       { _tag: 'commission.created', actorId: actorUid, payload: { data: commission } },
     )
     if (!created.ok) return created.error
@@ -385,7 +381,7 @@ export async function emitCloseOrderSaga(args: {
   // Caixa sem sessão (brief 0015): só a parte vendida vira movimento `sale`.
   if (paymentMethod && totals.totalCents > 0) {
     const saleMovement = await recordSaleMovement({
-      tenantId,
+      orgId,
       unitId: order.unitId,
       orderId,
       amountCents: totals.totalCents,
@@ -398,13 +394,13 @@ export async function emitCloseOrderSaga(args: {
   if (order.appointmentId) {
     const apptDone = await emitEvent(
       AppointmentConfig,
-      `tenants/${tenantId}/appointments/${order.appointmentId}`,
+      `orgs/${orgId}/appointments/${order.appointmentId}`,
       { _tag: 'appointment.completed', actorId: actorUid, payload: {} },
     )
     if (!apptDone.ok) return apptDone.error
   }
 
-  const closed = await emitEvent(OrderConfig, `tenants/${tenantId}/orders/${orderId}`, {
+  const closed = await emitEvent(OrderConfig, `orgs/${orgId}/orders/${orderId}`, {
     _tag: 'order.closed',
     actorId: actorUid,
     payload: {
@@ -431,8 +427,8 @@ export async function emitCloseOrderSaga(args: {
 // close são revertidas (`commission.deleted` + remoção da projeção). A âncora
 // `order.reopened` é emitida pelo chamador, por último.
 export async function emitUndoCompensation(args: {
-  tenantId: string
-  tenantRef: FirebaseFirestore.DocumentReference
+  orgId: string
+  orgRef: FirebaseFirestore.DocumentReference
   actorUid: string
   order: Order
   subscriptionRestore: { id: string; amount: number } | null
@@ -440,29 +436,25 @@ export async function emitUndoCompensation(args: {
   cashReversal: { ref: FirebaseFirestore.DocumentReference; movement: CashMovement } | null
   commissionsSnap: FirebaseFirestore.QuerySnapshot<Commission>
 }): Promise<void> {
-  const { tenantId, tenantRef, actorUid, order, subscriptionRestore, cashReversal } = args
+  const { orgId, orgRef, actorUid, order, subscriptionRestore, cashReversal } = args
 
   if (order.appointmentId) {
-    await emitEvent(AppointmentConfig, `tenants/${tenantId}/appointments/${order.appointmentId}`, {
+    await emitEvent(AppointmentConfig, `orgs/${orgId}/appointments/${order.appointmentId}`, {
       _tag: 'appointment.updated',
       actorId: actorUid,
       payload: { changes: { status: 'scheduled' } },
     })
   }
   if (subscriptionRestore) {
-    await emitEvent(
-      SubscriptionConfig,
-      `tenants/${tenantId}/subscriptions/${subscriptionRestore.id}`,
-      {
-        _tag: 'subscription.usage_incremented',
-        actorId: actorUid,
-        payload: { amount: -subscriptionRestore.amount },
-      },
-    )
+    await emitEvent(SubscriptionConfig, `orgs/${orgId}/subscriptions/${subscriptionRestore.id}`, {
+      _tag: 'subscription.usage_incremented',
+      actorId: actorUid,
+      payload: { amount: -subscriptionRestore.amount },
+    })
   }
 
   for (const restore of args.stockRestores) {
-    const itemSnap = await tenantRef
+    const itemSnap = await orgRef
       .collection('catalog_items')
       .withConverter(fsConverter(CatalogItem))
       .doc(restore.refId)
@@ -470,7 +462,7 @@ export async function emitUndoCompensation(args: {
     const item = itemSnap.data()
     if (!item) continue
     if (!isCatalogProduct(item)) continue
-    await emitEvent(CatalogItemConfig, `tenants/${tenantId}/catalog_items/${restore.refId}`, {
+    await emitEvent(CatalogItemConfig, `orgs/${orgId}/catalog_items/${restore.refId}`, {
       _tag: 'catalog_item.updated',
       actorId: actorUid,
       payload: { changes: { stock: item.stock + restore.quantity } },
@@ -480,7 +472,7 @@ export async function emitUndoCompensation(args: {
   if (cashReversal) {
     await emitEvent(
       CashMovementConfig,
-      `tenants/${tenantId}/cash_movements/${cashReversal.movement.id}`,
+      `orgs/${orgId}/cash_movements/${cashReversal.movement.id}`,
       {
         _tag: 'cash_movement.created',
         actorId: actorUid,
@@ -490,7 +482,7 @@ export async function emitUndoCompensation(args: {
   }
 
   for (const doc of args.commissionsSnap.docs) {
-    await emitEvent(CommissionConfig, `tenants/${tenantId}/commissions/${doc.id}`, {
+    await emitEvent(CommissionConfig, `orgs/${orgId}/commissions/${doc.id}`, {
       _tag: 'commission.deleted',
       actorId: actorUid,
       payload: {},

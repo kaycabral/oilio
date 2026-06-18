@@ -1,13 +1,13 @@
 // Pure datetime helpers for the public self-book flow. The legacy
 // `/{slug}/book` form posts a `datetime-local` value ("yyyy-MM-ddTHH:mm",
 // no timezone) — the browser sends wall-clock digits with no offset.
-// Interpreting those as UTC would be wrong; we treat them as the tenant's
+// Interpreting those as UTC would be wrong; we treat them as the org's
 // local wall clock and resolve the equivalent UTC instant, accounting for
 // DST via `Intl.DateTimeFormat`.
 
-// Converts "yyyy-MM-ddTHH:mm" (no tz), read as the tenant's local time, to
+// Converts "yyyy-MM-ddTHH:mm" (no tz), read as the org's local time, to
 // the equivalent UTC instant. Throws on malformed input.
-export function parseTenantLocalAsUtc(local: string, timezone: string): Date {
+export function parseOrgLocalAsUtc(local: string, timezone: string): Date {
   const m = local.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/)
   if (!m) throw new Error('invalid datetime-local')
   const [, yStr, moStr, dStr, hStr, miStr] = m

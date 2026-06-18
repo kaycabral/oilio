@@ -21,7 +21,7 @@ describe('bucketByLocalDay', () => {
   function makeTestOrder(closedUtc: string, totalCents: number): Order {
     return {
       id: 'o',
-      tenantId: 't',
+      orgId: 't',
       unitId: 'u',
       customerId: null,
       appointmentId: null,
@@ -39,7 +39,7 @@ describe('bucketByLocalDay', () => {
   function sub(createdUtc: string): Subscription {
     return {
       id: 's',
-      tenantId: 't',
+      orgId: 't',
       unitId: 'u',
       customerId: 'c',
       customerUserId: null,

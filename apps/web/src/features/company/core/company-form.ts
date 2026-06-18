@@ -7,8 +7,8 @@ import {
   DEFAULT_CANCELLATION_POLICY,
   MAX_CANCELLATION_NOTICE_MINUTES,
   MIN_CANCELLATION_NOTICE_MINUTES,
-  TENANT_DESCRIPTION_MAX,
-  type TenantBranding,
+  ORG_DESCRIPTION_MAX,
+  type OrgBranding,
   isValidCancellationNoticeMinutes,
   isValidPublicHttpUrl,
   resolveWhatsappTemplates,
@@ -18,7 +18,7 @@ import { formString } from '@/shared/form-data'
 // Each field group parses to its partial update, or an error message (string) —
 // matching the `T | string` convention used by the form parsers in this app.
 export type CancellationUpdate = { cancellationPolicy: CancellationPolicy } | Record<string, never>
-export type BrandingUpdate = { branding: TenantBranding } | Record<string, never>
+export type BrandingUpdate = { branding: OrgBranding } | Record<string, never>
 export type WhatsappUpdate =
   | { whatsappTemplates: ReturnType<typeof resolveWhatsappTemplates> }
   | Record<string, never>
@@ -56,8 +56,8 @@ export function parseBranding(formData: FormData): BrandingUpdate | string {
   if (bannerRaw.length > 0 && !isValidPublicHttpUrl(bannerRaw)) {
     return 'URL do banner inválida (precisa começar com http:// ou https://)'
   }
-  if (descRaw.length > TENANT_DESCRIPTION_MAX) {
-    return `Descrição deve ter no máximo ${TENANT_DESCRIPTION_MAX} caracteres`
+  if (descRaw.length > ORG_DESCRIPTION_MAX) {
+    return `Descrição deve ter no máximo ${ORG_DESCRIPTION_MAX} caracteres`
   }
   return {
     branding: {

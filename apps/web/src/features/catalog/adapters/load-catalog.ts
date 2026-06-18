@@ -15,9 +15,9 @@ import {
   attachCanDelete,
   catalogItemHasActiveReference,
   type WithCanDelete,
-} from '@/shared/tenant/delete-guard'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
-import { listProfessionalsForTenant } from '@/shared/tenant/professional-read'
+} from '@/shared/org/delete-guard'
+import { getActiveOrgContext } from '@/shared/org/membership'
+import { listProfessionalsForOrg } from '@/shared/org/professional-read'
 import { notFound, redirect } from 'next/navigation'
 import 'server-only'
 
@@ -46,7 +46,7 @@ export async function loadCatalogPage(rawParams: {
   if (!isFirebaseConfigured()) redirect('/')
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
@@ -57,14 +57,14 @@ export async function loadCatalogPage(rawParams: {
   const searchQuery = rawParams.q ?? ''
   const searchTerm = searchQuery.trim().toLowerCase()
 
-  const tenantRef = getAdminFirestore().collection('tenants').doc(ctx.membership.tenantId)
+  const orgRef = getAdminFirestore().collection('orgs').doc(ctx.membership.orgId)
   const [itemsSnap, categoriesSnap] = await Promise.all([
-    tenantRef
+    orgRef
       .collection('catalog_items')
       .withConverter(fsConverter(CatalogItem))
       .orderBy('name')
       .get(),
-    tenantRef.collection('categories').withConverter(fsConverter(Category)).orderBy('name').get(),
+    orgRef.collection('categories').withConverter(fsConverter(Category)).orderBy('name').get(),
   ])
 
   // Filtered in-memory (truthy `archivedAt`) so legacy docs without the field
@@ -86,7 +86,7 @@ export async function loadCatalogPage(rawParams: {
     : byKindAndCategory
   // Per-row reference-based flag (brief 0033, AC-03 — #1068 precompute).
   const items = await attachCanDelete(filtered, (id) =>
-    catalogItemHasActiveReference(ctx.membership.tenantId, id),
+    catalogItemHasActiveReference(ctx.membership.orgId, id),
   )
 
   const createKind: CatalogItemKind = kindFilter === 'product' ? 'product' : 'service'
@@ -119,12 +119,12 @@ export type NewCatalogItemPageData = {
 }
 
 async function loadCatalogMasterData(
-  tenantId: string,
+  orgId: string,
 ): Promise<{ units: StoredUnit[]; categories: Category[] }> {
-  const tenantRef = getAdminFirestore().collection('tenants').doc(tenantId)
+  const orgRef = getAdminFirestore().collection('orgs').doc(orgId)
   const [unitsSnap, categoriesSnap] = await Promise.all([
-    tenantRef.collection('units').withConverter(fsConverter(StoredUnit)).orderBy('name').get(),
-    tenantRef.collection('categories').withConverter(fsConverter(Category)).orderBy('name').get(),
+    orgRef.collection('units').withConverter(fsConverter(StoredUnit)).orderBy('name').get(),
+    orgRef.collection('categories').withConverter(fsConverter(Category)).orderBy('name').get(),
   ])
   // Archived master data (brief 0027, AC-06) is hidden from the item-form
   // pickers; existing items keep resolving their frozen ids.
@@ -143,12 +143,12 @@ export async function loadNewCatalogItemPage(rawParams: {
 }): Promise<NewCatalogItemPageData> {
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
   requireManagerSession(ctx.membership.role)
 
   const kind: CatalogItemKind = normalizeCatalogItemKind(rawParams.kind)
-  const { units, categories } = await loadCatalogMasterData(ctx.membership.tenantId)
+  const { units, categories } = await loadCatalogMasterData(ctx.membership.orgId)
   return { kind, units, categories }
 }
 
@@ -156,7 +156,7 @@ export type EditCatalogItemPageData = {
   item: CatalogItem & { id: string }
   units: StoredUnit[]
   categories: Category[]
-  professionals: Awaited<ReturnType<typeof listProfessionalsForTenant>>
+  professionals: Awaited<ReturnType<typeof listProfessionalsForOrg>>
 }
 
 // Imperative shell for the edit route — gate, resolve the item (404), then the
@@ -164,16 +164,16 @@ export type EditCatalogItemPageData = {
 export async function loadEditCatalogItemPage(itemId: string): Promise<EditCatalogItemPageData> {
   const session = await getSessionUser()
   if (!session) redirect('/login')
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
   requireManagerSession(ctx.membership.role)
 
-  const tenantRef = getAdminFirestore().collection('tenants').doc(ctx.membership.tenantId)
+  const orgRef = getAdminFirestore().collection('orgs').doc(ctx.membership.orgId)
   const [snap, unitsSnap, categoriesSnap, professionals] = await Promise.all([
-    tenantRef.collection('catalog_items').withConverter(fsConverter(CatalogItem)).doc(itemId).get(),
-    tenantRef.collection('units').withConverter(fsConverter(StoredUnit)).orderBy('name').get(),
-    tenantRef.collection('categories').withConverter(fsConverter(Category)).orderBy('name').get(),
-    listProfessionalsForTenant(ctx.membership.tenantId),
+    orgRef.collection('catalog_items').withConverter(fsConverter(CatalogItem)).doc(itemId).get(),
+    orgRef.collection('units').withConverter(fsConverter(StoredUnit)).orderBy('name').get(),
+    orgRef.collection('categories').withConverter(fsConverter(Category)).orderBy('name').get(),
+    listProfessionalsForOrg(ctx.membership.orgId),
   ])
   const itemData = snap.data()
   const item = itemData ? { ...itemData, id: snap.id } : undefined

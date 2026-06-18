@@ -1,7 +1,7 @@
 import { type BillingCycle, SubscriptionPlan } from '@/domain'
 import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
-import { listCustomersForTenant } from '@/shared/tenant/customer-read'
+import { listCustomersForOrg } from '@/shared/org/customer-read'
 import 'server-only'
 
 export type CustomerLite = { id: string; name: string }
@@ -16,12 +16,12 @@ export type PlanLite = {
 // Lightweight loaders pra alimentar o form de criar assinatura sem expor
 // uma server action RPC (chamados apenas em server components).
 export async function loadCustomersAndPlans(
-  tenantId: string,
+  orgId: string,
 ): Promise<{ customers: CustomerLite[]; plans: PlanLite[] }> {
-  const tenantRef = getAdminFirestore().collection('tenants').doc(tenantId)
+  const orgRef = getAdminFirestore().collection('orgs').doc(orgId)
   const [customers, plansSnap] = await Promise.all([
-    listCustomersForTenant(tenantId),
-    tenantRef
+    listCustomersForOrg(orgId),
+    orgRef
       .collection('subscription_plans')
       .withConverter(fsConverter(SubscriptionPlan))
       .orderBy('name')

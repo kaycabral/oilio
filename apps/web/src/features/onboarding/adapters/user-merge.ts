@@ -5,9 +5,9 @@ import { Schema } from 'effect'
 import 'server-only'
 
 // Minimal projection for the customer/appointment loops — they only need each
-// doc's `tenantId`. The membership recreate spreads the FULL doc, so that loop
+// doc's `orgId`. The membership recreate spreads the FULL doc, so that loop
 // decodes against the complete `Membership` schema instead.
-const TenantIdProbe = Schema.Struct({ tenantId: Schema.String })
+const OrgIdProbe = Schema.Struct({ orgId: Schema.String })
 
 // Reconciles a "stub" User (created by the recepcionista path with random
 // UUID and `claimedAt: null`) into a freshly-claimed OAuth user when the
@@ -16,17 +16,17 @@ const TenantIdProbe = Schema.Struct({ tenantId: Schema.String })
 // stub doc. Schema decision: [[02-Estrategia-Modelo-Identidade]] (#832).
 //
 // CollectionGroup queries are used here intentionally — the merge is an
-// admin-only identity-reconciliation path that's inherently cross-tenant,
+// admin-only identity-reconciliation path that's inherently cross-org,
 // and the `customerUserId` field on Appointment was denormalized in #832
-// for exactly this kind of lookup. The "no cross-tenant CG queries" rule
+// for exactly this kind of lookup. The "no cross-org CG queries" rule
 // (CLAUDE.md) applies to operational product code, not to this path.
 //
 // Conflict resolution:
 //
-//   - Customer in a tenant where the claimer already has one → the stub's
+//   - Customer in a org where the claimer already has one → the stub's
 //     Customer doc is dropped (the claimer's wins; the stub never had
 //     anything beyond the recepcionista's typed PII).
-//   - Membership in a tenant where the claimer already has one → ditto.
+//   - Membership in a org where the claimer already has one → ditto.
 //   - Appointments are always re-pointed (1-to-1 field update; no conflict).
 //
 // Idempotent on no-op: if the stub has no references, only the audit log
@@ -43,7 +43,7 @@ export type MergeStubUserResult = {
   membershipsRepointed: number
   membershipsDropped: number
   appointmentsRepointed: number
-  tenantsTouched: string[]
+  orgsTouched: string[]
 }
 
 export async function mergeStubUserIntoClaimer(
@@ -56,13 +56,13 @@ export async function mergeStubUserIntoClaimer(
       membershipsRepointed: 0,
       membershipsDropped: 0,
       appointmentsRepointed: 0,
-      tenantsTouched: [],
+      orgsTouched: [],
     }
   }
 
   const db = getAdminFirestore()
   const now = new Date().toISOString()
-  const tenantsTouched = new Set<string>()
+  const orgsTouched = new Set<string>()
 
   let customersRepointed = 0
   let customersDropped = 0
@@ -71,18 +71,18 @@ export async function mergeStubUserIntoClaimer(
   let appointmentsRepointed = 0
 
   // 1. Customers — collectionGroup gives us every Customer shadow that
-  //    points to the stub, across every tenant.
+  //    points to the stub, across every org.
   const stubCustomers = await db
     .collectionGroup('customers')
     .where('userId', '==', input.stubUid)
-    .withConverter(fsConverter(TenantIdProbe))
+    .withConverter(fsConverter(OrgIdProbe))
     .get()
   for (const stubDoc of stubCustomers.docs) {
-    const tenantId = stubDoc.data().tenantId
-    tenantsTouched.add(tenantId)
+    const orgId = stubDoc.data().orgId
+    orgsTouched.add(orgId)
     const claimerExisting = await db
-      .collection('tenants')
-      .doc(tenantId)
+      .collection('orgs')
+      .doc(orgId)
       .collection('customers')
       .where('userId', '==', input.claimerUid)
       .limit(1)
@@ -96,7 +96,7 @@ export async function mergeStubUserIntoClaimer(
     }
   }
 
-  // 2. Memberships — top-level, doc id is `{tenantId}_{userId}` so we
+  // 2. Memberships — top-level, doc id is `{orgId}_{userId}` so we
   //    can't update in place; we recreate at the claimer's id and delete
   //    the stub doc.
   const stubMemberships = await db
@@ -106,10 +106,10 @@ export async function mergeStubUserIntoClaimer(
     .get()
   for (const stubDoc of stubMemberships.docs) {
     const data = stubDoc.data()
-    tenantsTouched.add(data.tenantId)
+    orgsTouched.add(data.orgId)
     const claimerRef = db
       .collection('memberships')
-      .doc(membershipDocId(data.tenantId, input.claimerUid))
+      .doc(membershipDocId(data.orgId, input.claimerUid))
     const claimerExisting = await claimerRef.get()
     if (claimerExisting.exists) {
       await stubDoc.ref.delete()
@@ -121,14 +121,14 @@ export async function mergeStubUserIntoClaimer(
     }
   }
 
-  // 3. Appointments — re-point customerUserId across every tenant.
+  // 3. Appointments — re-point customerUserId across every org.
   const stubAppointments = await db
     .collectionGroup('appointments')
     .where('customerUserId', '==', input.stubUid)
-    .withConverter(fsConverter(TenantIdProbe))
+    .withConverter(fsConverter(OrgIdProbe))
     .get()
   for (const stubDoc of stubAppointments.docs) {
-    tenantsTouched.add(stubDoc.data().tenantId)
+    orgsTouched.add(stubDoc.data().orgId)
     await stubDoc.ref.update({ customerUserId: input.claimerUid, updatedAt: now })
     appointmentsRepointed++
   }
@@ -137,7 +137,7 @@ export async function mergeStubUserIntoClaimer(
   await db.collection('users').doc(input.stubUid).delete()
 
   // Sem audit_logs: `customer`/`membership` são CRUD (ADR 0010), o merge é
-  // operação de manutenção de identidade. O resultado (contagens + tenants
+  // operação de manutenção de identidade. O resultado (contagens + orgs
   // tocados) é o registro do que mudou — devolvido ao chamador.
   return {
     customersRepointed,
@@ -145,6 +145,6 @@ export async function mergeStubUserIntoClaimer(
     membershipsRepointed,
     membershipsDropped,
     appointmentsRepointed,
-    tenantsTouched: Array.from(tenantsTouched),
+    orgsTouched: Array.from(orgsTouched),
   }
 }

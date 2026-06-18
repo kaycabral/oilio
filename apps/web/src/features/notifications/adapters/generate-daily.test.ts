@@ -51,10 +51,10 @@ function makeStore(initial: Record<string, FirestoreDoc> = {}) {
 describe('generateDailyNotifications', () => {
   it('creates birthday notification for matching customer', async () => {
     const { store, layer } = makeStore({
-      'tenants/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
-      'tenants/t1/units/u1': {
+      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1/units/u1': {
         id: 'u1',
-        tenantId: 't1',
+        orgId: 't1',
         businessHours: {
           monday: { open: '08:00', close: '18:00' },
           tuesday: { open: '08:00', close: '18:00' },
@@ -65,8 +65,8 @@ describe('generateDailyNotifications', () => {
           sunday: null,
         },
       },
-      'tenants/t1/customers/c1': { id: 'c1', userId: 'user-1' },
-      'tenants/t1/customers/c2': { id: 'c2', userId: 'user-2' },
+      'orgs/t1/customers/c1': { id: 'c1', userId: 'user-1' },
+      'orgs/t1/customers/c2': { id: 'c2', userId: 'user-2' },
       // birthDate is PII — resolved from the global user doc, not the customer.
       'users/user-1': { birthDate: '1990-06-02' },
       'users/user-2': { birthDate: '1985-12-25' },
@@ -80,7 +80,7 @@ describe('generateDailyNotifications', () => {
     expect(created).toBe(1)
 
     const notifications = [...store.entries()]
-      .filter(([key]) => key.startsWith('tenants/t1/notifications/'))
+      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
       .filter(([key]) => !key.includes('/events/'))
 
     expect(notifications).toHaveLength(1)
@@ -91,10 +91,10 @@ describe('generateDailyNotifications', () => {
 
   it('creates subscription_expiring_tomorrow on D-1', async () => {
     const { store, layer } = makeStore({
-      'tenants/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
-      'tenants/t1/units/u1': {
+      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1/units/u1': {
         id: 'u1',
-        tenantId: 't1',
+        orgId: 't1',
         businessHours: {
           monday: { open: '08:00', close: '18:00' },
           tuesday: { open: '08:00', close: '18:00' },
@@ -105,9 +105,9 @@ describe('generateDailyNotifications', () => {
           sunday: null,
         },
       },
-      'tenants/t1/subscriptions/s1': {
+      'orgs/t1/subscriptions/s1': {
         id: 's1',
-        tenantId: 't1',
+        orgId: 't1',
         customerId: 'c1',
         status: 'active',
         currentPeriod: { startAt: '2026-05-01T03:00:00Z', endAt: '2026-06-03T03:00:00Z' },
@@ -122,7 +122,7 @@ describe('generateDailyNotifications', () => {
     expect(created).toBe(1)
 
     const notifications = [...store.entries()]
-      .filter(([key]) => key.startsWith('tenants/t1/notifications/'))
+      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
       .filter(([key]) => !key.includes('/events/'))
 
     expect(notifications[0]![1]['type']).toBe('subscription_expiring_tomorrow')
@@ -131,10 +131,10 @@ describe('generateDailyNotifications', () => {
 
   it('creates subscription_expired on D+1', async () => {
     const { store, layer } = makeStore({
-      'tenants/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
-      'tenants/t1/units/u1': {
+      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1/units/u1': {
         id: 'u1',
-        tenantId: 't1',
+        orgId: 't1',
         businessHours: {
           monday: { open: '08:00', close: '18:00' },
           tuesday: { open: '08:00', close: '18:00' },
@@ -145,9 +145,9 @@ describe('generateDailyNotifications', () => {
           sunday: null,
         },
       },
-      'tenants/t1/subscriptions/s1': {
+      'orgs/t1/subscriptions/s1': {
         id: 's1',
-        tenantId: 't1',
+        orgId: 't1',
         customerId: 'c1',
         status: 'active',
         currentPeriod: { startAt: '2026-05-01T03:00:00Z', endAt: '2026-06-01T03:00:00Z' },
@@ -162,7 +162,7 @@ describe('generateDailyNotifications', () => {
     expect(created).toBe(1)
 
     const notifications = [...store.entries()]
-      .filter(([key]) => key.startsWith('tenants/t1/notifications/'))
+      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
       .filter(([key]) => !key.includes('/events/'))
 
     expect(notifications[0]![1]['type']).toBe('subscription_expired')
@@ -170,10 +170,10 @@ describe('generateDailyNotifications', () => {
 
   it('creates subscription_overdue_followup on D+7', async () => {
     const { store, layer } = makeStore({
-      'tenants/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
-      'tenants/t1/units/u1': {
+      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1/units/u1': {
         id: 'u1',
-        tenantId: 't1',
+        orgId: 't1',
         businessHours: {
           monday: { open: '08:00', close: '18:00' },
           tuesday: { open: '08:00', close: '18:00' },
@@ -184,9 +184,9 @@ describe('generateDailyNotifications', () => {
           sunday: null,
         },
       },
-      'tenants/t1/subscriptions/s1': {
+      'orgs/t1/subscriptions/s1': {
         id: 's1',
-        tenantId: 't1',
+        orgId: 't1',
         customerId: 'c1',
         status: 'past_due',
         currentPeriod: { startAt: '2026-05-01T03:00:00Z', endAt: '2026-05-26T03:00:00Z' },
@@ -201,7 +201,7 @@ describe('generateDailyNotifications', () => {
     expect(created).toBe(1)
 
     const notifications = [...store.entries()]
-      .filter(([key]) => key.startsWith('tenants/t1/notifications/'))
+      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
       .filter(([key]) => !key.includes('/events/'))
 
     expect(notifications[0]![1]['type']).toBe('subscription_overdue_followup')
@@ -209,10 +209,10 @@ describe('generateDailyNotifications', () => {
 
   it('idempotent — second run does not duplicate', async () => {
     const { store, layer } = makeStore({
-      'tenants/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
-      'tenants/t1/units/u1': {
+      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1/units/u1': {
         id: 'u1',
-        tenantId: 't1',
+        orgId: 't1',
         businessHours: {
           monday: { open: '08:00', close: '18:00' },
           tuesday: { open: '08:00', close: '18:00' },
@@ -223,19 +223,19 @@ describe('generateDailyNotifications', () => {
           sunday: null,
         },
       },
-      'tenants/t1/customers/c1': { id: 'c1', userId: 'user-1' },
+      'orgs/t1/customers/c1': { id: 'c1', userId: 'user-1' },
       'users/user-1': { birthDate: '1990-06-02' },
     })
 
     const now = new Date('2026-06-02T10:15:00.000Z')
     await Effect.runPromise(generateDailyNotifications(now).pipe(Effect.provide(layer)))
     const firstCount = [...store.entries()]
-      .filter(([key]) => key.startsWith('tenants/t1/notifications/'))
+      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
       .filter(([key]) => !key.includes('/events/')).length
 
     await Effect.runPromise(generateDailyNotifications(now).pipe(Effect.provide(layer)))
     const secondCount = [...store.entries()]
-      .filter(([key]) => key.startsWith('tenants/t1/notifications/'))
+      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
       .filter(([key]) => !key.includes('/events/')).length
 
     expect(firstCount).toBe(1)
@@ -244,10 +244,10 @@ describe('generateDailyNotifications', () => {
 
   it('skips unit outside processing window', async () => {
     const { layer } = makeStore({
-      'tenants/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
-      'tenants/t1/units/u1': {
+      'orgs/t1': { id: 't1', timezone: 'America/Sao_Paulo' },
+      'orgs/t1/units/u1': {
         id: 'u1',
-        tenantId: 't1',
+        orgId: 't1',
         businessHours: {
           monday: { open: '08:00', close: '18:00' },
           tuesday: { open: '08:00', close: '18:00' },
@@ -258,7 +258,7 @@ describe('generateDailyNotifications', () => {
           sunday: null,
         },
       },
-      'tenants/t1/customers/c1': { id: 'c1', userId: 'user-1', birthDate: '1990-06-02' },
+      'orgs/t1/customers/c1': { id: 'c1', userId: 'user-1', birthDate: '1990-06-02' },
     })
 
     const now = new Date('2026-06-02T14:00:00.000Z')

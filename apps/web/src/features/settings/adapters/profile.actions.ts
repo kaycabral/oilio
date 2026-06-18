@@ -12,7 +12,7 @@ export type UpdateProfileResult = { ok: true } | { ok: false; error: string }
 // Self-service rectification (brief 0032 / AC-06): the signed-in subject edits
 // their own global `users/{uid}` profile. Identity is by reference everywhere
 // (orders/commissions/agenda read the live name), so a single write reflects
-// across every screen and tenant — no per-record fan-out. An anonymized account
+// across every screen and org — no per-record fan-out. An anonymized account
 // cannot rectify (the PII was irreversibly scrubbed; art. 12).
 export async function updateProfile(formData: FormData): Promise<UpdateProfileResult> {
   const session = await getSessionUser()
@@ -46,7 +46,7 @@ export async function updateProfile(formData: FormData): Promise<UpdateProfileRe
   // fields that changed (never their values). Rectification is global.
   if (fieldsChanged.length > 0) {
     await emitPiiEvent('pii_rectified', {
-      tenantId: user.currentTenantId,
+      orgId: user.currentOrgId,
       subjectRef: session.uid,
       scope: 'account',
       requestedBy: session.uid,

@@ -8,7 +8,7 @@ import { useState, useTransition } from 'react'
 
 export type SubscriptionRowData = {
   subscription: Subscription
-  tenantName: string
+  orgName: string
   canCancel: boolean
   cantCancelReason: CustomerCancelReason | null
 }
@@ -17,13 +17,13 @@ export function SubscriptionRow({ data }: { data: SubscriptionRowData }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [cancelled, setCancelled] = useState(false)
-  const { subscription, tenantName, canCancel, cantCancelReason } = data
+  const { subscription, orgName, canCancel, cantCancelReason } = data
 
   if (cancelled) {
     return (
       <div className="rounded-lg border p-4 text-sm">
         <p className="font-medium">
-          {tenantName} — {subscription.plan.name}
+          {orgName} — {subscription.plan.name}
         </p>
         <p className="text-muted-foreground" role="status">
           Cancelamento solicitado. A assinatura encerra ao fim do ciclo atual.
@@ -36,7 +36,7 @@ export function SubscriptionRow({ data }: { data: SubscriptionRowData }) {
     setError(null)
     startTransition(async () => {
       const result = await cancelOwnSubscription({
-        tenantId: subscription.tenantId,
+        orgId: subscription.orgId,
         subscriptionId: subscription.id,
       })
       if (!result.ok) setError(result.error)
@@ -48,7 +48,7 @@ export function SubscriptionRow({ data }: { data: SubscriptionRowData }) {
 
   return (
     <div className="rounded-lg border p-4">
-      <p className="font-medium">{tenantName}</p>
+      <p className="font-medium">{orgName}</p>
       <p className="text-muted-foreground text-sm">{subscription.plan.name}</p>
       <p className="text-muted-foreground mt-1 text-xs">
         Status: {subscription.status}

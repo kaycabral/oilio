@@ -6,7 +6,7 @@
 
 import { type CommissionRule, type TaxIdentity } from '@/domain'
 import { formString } from '@/shared/form-data'
-import { parseTaxIdentityFromForm } from '@/shared/tenant/tax-identity'
+import { parseTaxIdentityFromForm } from '@/shared/org/tax-identity'
 
 export type ProfessionalPayload = {
   taxIdentity: TaxIdentity | null

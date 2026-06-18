@@ -17,16 +17,16 @@ const StoredMessageTemplate = Schema.Struct({
   lastActorUid: Schema.optional(Schema.String),
 })
 
-function templatesRef(tenantId: string) {
-  return getAdminFirestore().collection('tenants').doc(tenantId).collection('message_templates')
+function templatesRef(orgId: string) {
+  return getAdminFirestore().collection('orgs').doc(orgId).collection('message_templates')
 }
 
 // Lê o template config-doc de um tipo. null quando o owner nunca customizou.
 export async function getMessageTemplate(
-  tenantId: string,
+  orgId: string,
   type: DispatchableNotificationType,
 ): Promise<MessageTemplate | null> {
-  const snap = await templatesRef(tenantId)
+  const snap = await templatesRef(orgId)
     .doc(type)
     .withConverter(fsConverter(StoredMessageTemplate))
     .get()
@@ -34,7 +34,7 @@ export async function getMessageTemplate(
   const d = snap.data() ?? {}
   return {
     id: type,
-    tenantId,
+    orgId,
     type,
     body: d.body ?? DEFAULT_NOTIFICATION_TEMPLATES[type],
     enabled: d.enabled ?? true,
@@ -45,26 +45,26 @@ export async function getMessageTemplate(
 
 // Body efetivo pra render: custom do owner se existe + enabled, senão default.
 export async function resolveTemplateBody(
-  tenantId: string,
+  orgId: string,
   type: DispatchableNotificationType,
 ): Promise<string> {
-  const tpl = await getMessageTemplate(tenantId, type)
+  const tpl = await getMessageTemplate(orgId, type)
   if (tpl && tpl.enabled && tpl.body.trim().length > 0) return tpl.body
   return defaultTemplateBody(type)
 }
 
-// Lista todos os templates dispatchable do tenant (custom ou default) — usado
+// Lista todos os templates dispatchable do org (custom ou default) — usado
 // pela página /settings/notifications.
-export async function listMessageTemplates(tenantId: string): Promise<MessageTemplate[]> {
+export async function listMessageTemplates(orgId: string): Promise<MessageTemplate[]> {
   const docs = await Promise.all(
-    DISPATCHABLE_NOTIFICATION_TYPES.map((type) => getMessageTemplate(tenantId, type)),
+    DISPATCHABLE_NOTIFICATION_TYPES.map((type) => getMessageTemplate(orgId, type)),
   )
   return DISPATCHABLE_NOTIFICATION_TYPES.map((type, i) => {
     const existing = docs[i]
     if (existing) return existing
     return {
       id: type,
-      tenantId,
+      orgId,
       type,
       body: DEFAULT_NOTIFICATION_TEMPLATES[type],
       enabled: true,

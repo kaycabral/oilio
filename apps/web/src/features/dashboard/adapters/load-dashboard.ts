@@ -1,4 +1,4 @@
-import { DEFAULT_TENANT_TIMEZONE, StoredCustomer, StoredUnit } from '@/domain'
+import { DEFAULT_ORG_TIMEZONE, StoredCustomer, StoredUnit } from '@/domain'
 import { loadDashboardKpis } from '@/features/dashboard/adapters/kpis.repo'
 import { loadDashboardPendencies } from '@/features/dashboard/adapters/pendencies.repo'
 import { loadDashboardTrend } from '@/features/dashboard/adapters/trend.repo'
@@ -10,10 +10,10 @@ import { getAdminFirestore } from '@/shared/db'
 import { fsConverter } from '@/shared/db/converter'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { resolveActiveUnit } from '@/shared/tenant/active-unit'
-import { enrichCustomers } from '@/shared/tenant/customer-read'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
-import { getTenant } from '@/shared/tenant/tenant'
+import { resolveActiveUnit } from '@/shared/org/active-unit'
+import { enrichCustomers } from '@/shared/org/customer-read'
+import { getActiveOrgContext } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -39,21 +39,21 @@ export async function loadDashboardPage(params: SearchParams): Promise<Dashboard
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
-  const tenantId = ctx.membership.tenantId
-  const tenantRef = getAdminFirestore().collection('tenants').doc(tenantId)
-  const [tenant, unitsSnap] = await Promise.all([
-    getTenant(tenantId),
-    tenantRef.collection('units').withConverter(fsConverter(StoredUnit)).orderBy('name').get(),
+  const orgId = ctx.membership.orgId
+  const orgRef = getAdminFirestore().collection('orgs').doc(orgId)
+  const [org, unitsSnap] = await Promise.all([
+    getOrg(orgId),
+    orgRef.collection('units').withConverter(fsConverter(StoredUnit)).orderBy('name').get(),
   ])
 
   const units = unitsSnap.docs.map((d) => d.data())
   // Every surface reads only the active unit from the shared context (brief
   // 0044): the cross-unit aggregate ("Todas as unidades") is gone. The top
   // switcher is the single source of unit context; `activeUnitId` is null only
-  // for a tenant with no units yet (operational data is empty in that case).
+  // for a org with no units yet (operational data is empty in that case).
   const { activeUnitId } = await resolveActiveUnit(ctx.membership)
   const filters = resolveDashboardFilters(
     {
@@ -61,18 +61,18 @@ export async function loadDashboardPage(params: SearchParams): Promise<Dashboard
       from: pickFirst(params.from),
       to: pickFirst(params.to),
     },
-    tenant?.timezone ?? DEFAULT_TENANT_TIMEZONE,
+    org?.timezone ?? DEFAULT_ORG_TIMEZONE,
   )
   // KPIs/trend always scope to the active unit.
   const scopedFilters = { ...filters, unitId: activeUnitId }
 
-  const tenantTz = tenant?.timezone ?? DEFAULT_TENANT_TIMEZONE
+  const orgTz = org?.timezone ?? DEFAULT_ORG_TIMEZONE
   // Pendências are operational — always scoped to the active unit.
   const pendenciesUnitId = activeUnitId
   const [kpis, trendPoints, pendencies] = await Promise.all([
-    loadDashboardKpis(tenantId, scopedFilters),
-    loadDashboardTrend(tenantId, tenantTz, scopedFilters),
-    loadDashboardPendencies(tenantId, pendenciesUnitId),
+    loadDashboardKpis(orgId, scopedFilters),
+    loadDashboardTrend(orgId, orgTz, scopedFilters),
+    loadDashboardPendencies(orgId, pendenciesUnitId),
   ])
 
   // Lookup tables so the pendencies panel can display human-readable names
@@ -91,13 +91,13 @@ export async function loadDashboardPage(params: SearchParams): Promise<Dashboard
   if (referencedCustomerIds.length > 0) {
     // `name` is PII (lives on `users/`), so read the stored shadow and resolve
     // names via the canonical enrichment (handles blocked/anonymized labels).
-    const customersSnap = await tenantRef
+    const customersSnap = await orgRef
       .collection('customers')
       .withConverter(fsConverter(StoredCustomer))
       .where('id', 'in', referencedCustomerIds.slice(0, 30))
       .get()
     const enriched = await enrichCustomers(
-      tenantId,
+      orgId,
       customersSnap.docs.map((doc) => doc.data()),
     )
     for (const c of enriched) {

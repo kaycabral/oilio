@@ -10,9 +10,9 @@ import {
   type Service,
   type SlotMinutes,
   type Unit,
-  getTodayInTenantTz,
+  getTodayInOrgTz,
   isValidSlotMinutes,
-  shiftDateInTenantTz,
+  shiftDateInOrgTz,
 } from '@/domain'
 import { updateAgendaSlotMinutes } from '@/features/agenda/adapters/agenda.actions'
 import {
@@ -84,7 +84,7 @@ export function AgendaView({
   canManage,
 }: AgendaViewProps) {
   const router = useRouter()
-  const today = getTodayInTenantTz(timezone)
+  const today = getTodayInOrgTz(timezone)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [slotMinutesPending, startSlotMinutesTransition] = useTransition()
@@ -142,7 +142,7 @@ export function AgendaView({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(shiftDateInTenantTz(date, -1, timezone))}
+            onClick={() => navigate(shiftDateInOrgTz(date, -1, timezone))}
           >
             ←
           </Button>
@@ -157,7 +157,7 @@ export function AgendaView({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(shiftDateInTenantTz(date, 1, timezone))}
+            onClick={() => navigate(shiftDateInOrgTz(date, 1, timezone))}
           >
             →
           </Button>

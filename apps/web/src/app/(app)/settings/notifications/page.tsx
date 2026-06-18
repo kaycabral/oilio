@@ -2,7 +2,7 @@ import { listMessageTemplates } from '@/features/notifications/adapters/message-
 import { NotificationTemplatesForm } from '@/features/settings/ui/NotificationTemplatesForm'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
+import { getActiveOrgContext } from '@/shared/org/membership'
 import { Main } from '@cbrl/design'
 import { redirect } from 'next/navigation'
 
@@ -12,11 +12,11 @@ export default async function NotificationSettingsPage() {
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
-  const templates = await listMessageTemplates(ctx.membership.tenantId)
+  const templates = await listMessageTemplates(ctx.membership.orgId)
 
   return (
     <Main width="narrow" className="space-y-6">

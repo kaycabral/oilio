@@ -8,7 +8,7 @@ import { PlanCoverageBanner } from './PlanCoverageBanner'
 function makeUnit(id: string, name: string): Unit {
   return {
     id,
-    tenantId: 't1',
+    orgId: 't1',
     name,
     slug: id,
     whatsapp: '5511900000000',

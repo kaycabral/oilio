@@ -4,9 +4,9 @@ import {
   DEFAULT_CANCELLATION_POLICY,
   MAX_CANCELLATION_NOTICE_MINUTES,
   MIN_CANCELLATION_NOTICE_MINUTES,
-  TENANT_DESCRIPTION_MAX,
+  ORG_DESCRIPTION_MAX,
   VERTICALS,
-  type Tenant,
+  type Org,
   type Vertical,
 } from '@/domain'
 import { updateCompany } from '@/features/company/adapters/company.actions'
@@ -33,15 +33,15 @@ const VERTICAL_LABELS: Record<Vertical, string> = {
   other: 'Outro',
 }
 
-export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: boolean }) {
+export function CompanyForm({ org, canManage }: { org: Org; canManage: boolean }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [taxKind, setTaxKind] = useState<'none' | 'individual' | 'company'>(
-    tenant.taxIdentity?.kind ?? 'none',
+    org.taxIdentity?.kind ?? 'none',
   )
-  const [cancellationEnabled, setCancellationEnabled] = useState(tenant.cancellationPolicy.enabled)
+  const [cancellationEnabled, setCancellationEnabled] = useState(org.cancellationPolicy.enabled)
   const [cancellationMinNotice, setCancellationMinNotice] = useState<number>(
-    tenant.cancellationPolicy.minNoticeMinutes || DEFAULT_CANCELLATION_POLICY.minNoticeMinutes,
+    org.cancellationPolicy.minNoticeMinutes || DEFAULT_CANCELLATION_POLICY.minNoticeMinutes,
   )
   const { formRef, isValid, refresh } = useFormValidity()
 
@@ -67,7 +67,7 @@ export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: 
           <Label htmlFor="company-name" className="text-sm font-medium">
             Nome
           </Label>
-          <Input id="company-name" name="name" defaultValue={tenant.name} required minLength={2} />
+          <Input id="company-name" name="name" defaultValue={org.name} required minLength={2} />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -77,7 +77,7 @@ export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: 
           <Input
             id="company-slug"
             name="slug"
-            defaultValue={tenant.slug}
+            defaultValue={org.slug}
             required
             minLength={3}
             maxLength={64}
@@ -92,7 +92,7 @@ export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: 
           <Label htmlFor="company-vertical" className="text-sm font-medium">
             Vertical
           </Label>
-          <Select name="vertical" defaultValue={tenant.vertical} required>
+          <Select name="vertical" defaultValue={org.vertical} required>
             <SelectTrigger id="company-vertical">
               <SelectValue />
             </SelectTrigger>
@@ -135,7 +135,7 @@ export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: 
                 <Input
                   id="company-taxId"
                   name="taxId"
-                  defaultValue={tenant.taxIdentity?.taxId ?? ''}
+                  defaultValue={org.taxIdentity?.taxId ?? ''}
                   placeholder={taxKind === 'individual' ? '000.000.000-00' : '00.000.000/0000-00'}
                   required
                 />
@@ -149,7 +149,7 @@ export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: 
                     id="company-legalName"
                     name="legalName"
                     defaultValue={
-                      tenant.taxIdentity?.kind === 'company' ? tenant.taxIdentity.legalName : ''
+                      org.taxIdentity?.kind === 'company' ? org.taxIdentity.legalName : ''
                     }
                     required
                   />
@@ -162,7 +162,7 @@ export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: 
         <fieldset className="border-border rounded-md border p-4">
           <legend className="px-1 text-sm font-medium">Identidade pública</legend>
           <p className="text-muted-foreground pt-2 pb-3 text-xs">
-            Aparece na página pública <code>app/{tenant.slug || 'sua-empresa'}</code>. Logo e banner
+            Aparece na página pública <code>app/{org.slug || 'sua-empresa'}</code>. Logo e banner
             são URLs públicas (https://...) — hospedagem direta vem em iteração futura.
           </p>
           <div className="flex flex-col gap-3">
@@ -174,7 +174,7 @@ export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: 
                 id="company-brandingLogoUrl"
                 name="brandingLogoUrl"
                 type="url"
-                defaultValue={tenant.branding.logoUrl ?? ''}
+                defaultValue={org.branding.logoUrl ?? ''}
                 placeholder="https://..."
                 maxLength={2048}
               />
@@ -187,7 +187,7 @@ export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: 
                 id="company-brandingBannerUrl"
                 name="brandingBannerUrl"
                 type="url"
-                defaultValue={tenant.branding.bannerUrl ?? ''}
+                defaultValue={org.branding.bannerUrl ?? ''}
                 placeholder="https://..."
                 maxLength={2048}
               />
@@ -196,13 +196,13 @@ export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: 
               <span className="text-sm font-medium">Descrição curta</span>
               <Textarea
                 name="brandingDescription"
-                defaultValue={tenant.branding.description ?? ''}
+                defaultValue={org.branding.description ?? ''}
                 rows={3}
-                maxLength={TENANT_DESCRIPTION_MAX}
+                maxLength={ORG_DESCRIPTION_MAX}
                 placeholder="Apresente o estabelecimento em poucas linhas."
               />
               <span className="text-muted-foreground text-xs">
-                Até {TENANT_DESCRIPTION_MAX} caracteres.
+                Até {ORG_DESCRIPTION_MAX} caracteres.
               </span>
             </label>
           </div>
@@ -257,7 +257,7 @@ export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: 
             </div>
           ) : (
             // Preserve the last entered value across disable/re-enable so the
-            // tenant doesn't have to retype after toggling off.
+            // org doesn't have to retype after toggling off.
             <input
               type="hidden"
               name="cancellationPolicyMinNoticeMinutes"
@@ -276,7 +276,7 @@ export function CompanyForm({ tenant, canManage }: { tenant: Tenant; canManage: 
           </p>
           <Textarea
             name="whatsappConfirmation"
-            defaultValue={tenant.whatsappTemplates.confirmation}
+            defaultValue={org.whatsappTemplates.confirmation}
             rows={4}
           />
         </fieldset>

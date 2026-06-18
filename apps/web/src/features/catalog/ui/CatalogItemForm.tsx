@@ -25,7 +25,7 @@ import {
 } from '@/features/catalog/ui/CatalogItemFields'
 import { UnitOverridesFieldset } from '@/features/catalog/ui/CatalogUnitOverrides'
 import { useFormValidity } from '@/hooks/use-form-validity'
-import { useTenant } from '@/shared/tenant/tenant-context'
+import { useOrg } from '@/shared/org/org-context'
 import {
   Button,
   Checkbox,
@@ -77,7 +77,7 @@ export function CatalogItemForm({
   categories: Category[]
 }) {
   const router = useRouter()
-  const { activeUnitId } = useTenant()
+  const { activeUnitId } = useOrg()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [commissionKind, setCommissionKind] = useState<CommissionKind>(

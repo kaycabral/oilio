@@ -21,7 +21,7 @@ beforeAll(() => {
   db = getFirestore(app)
 })
 
-function uniqueTenantId(label: string) {
+function uniqueOrgId(label: string) {
   return `t-${label}-${Math.random().toString(36).slice(2, 8)}`
 }
 
@@ -40,10 +40,10 @@ function buildPlanSnapshot(
   }
 }
 
-async function seedCustomer(tenantId: string, customerId: string, userId: string): Promise<void> {
+async function seedCustomer(orgId: string, customerId: string, userId: string): Promise<void> {
   const customer: Customer = {
     id: customerId,
-    tenantId,
+    orgId,
     userId,
     name: 'Cliente Teste',
     whatsapp: '+5511999999999',
@@ -55,11 +55,11 @@ async function seedCustomer(tenantId: string, customerId: string, userId: string
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
-  await db.collection('tenants').doc(tenantId).collection('customers').doc(customerId).set(customer)
+  await db.collection('orgs').doc(orgId).collection('customers').doc(customerId).set(customer)
 }
 
 async function seedSubscription(
-  tenantId: string,
+  orgId: string,
   customerId: string,
   customerUserId: string,
   plan: SubscriptionPlanSnapshot,
@@ -67,7 +67,7 @@ async function seedSubscription(
   const now = new Date().toISOString()
   const sub: Subscription = {
     id: 'sub-1',
-    tenantId,
+    orgId,
     unitId: 'unit-a',
     customerId,
     customerUserId,
@@ -83,17 +83,17 @@ async function seedSubscription(
     createdAt: now,
     updatedAt: now,
   }
-  await db.collection('tenants').doc(tenantId).collection('subscriptions').doc(sub.id).set(sub)
+  await db.collection('orgs').doc(orgId).collection('subscriptions').doc(sub.id).set(sub)
 }
 
 async function seedAppointment(
-  tenantId: string,
+  orgId: string,
   appt: Pick<Appointment, 'id' | 'customerId' | 'startAt'>,
 ): Promise<void> {
   const startMs = new Date(appt.startAt).getTime()
   const full: Appointment = {
     id: appt.id,
-    tenantId,
+    orgId,
     unitId: 'u1',
     professionalId: 'p1',
     customerId: appt.customerId,
@@ -110,22 +110,22 @@ async function seedAppointment(
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
-  await db.collection('tenants').doc(tenantId).collection('appointments').doc(full.id).set(full)
+  await db.collection('orgs').doc(orgId).collection('appointments').doc(full.id).set(full)
 }
 
 describe('enforceSubscriptionScope', () => {
-  let tenantId: string
+  let orgId: string
 
   beforeEach(() => {
-    tenantId = uniqueTenantId('scope')
+    orgId = uniqueOrgId('scope')
   })
 
   it('passa quando cliente não tem subscription ativa', async () => {
-    await seedCustomer(tenantId, 'c1', 'u-1')
+    await seedCustomer(orgId, 'c1', 'u-1')
     const res = await enforceSubscriptionScope({
       db,
-      tenantId,
-      tenantTimezone: TZ,
+      orgId,
+      orgTimezone: TZ,
       customerId: 'c1',
       unitId: 'u-any',
       startAt: '2026-08-15T13:00:00.000Z',
@@ -134,17 +134,17 @@ describe('enforceSubscriptionScope', () => {
   })
 
   it('bloqueia quando unit fora do unitAllowlist', async () => {
-    await seedCustomer(tenantId, 'c1', 'u-1')
+    await seedCustomer(orgId, 'c1', 'u-1')
     await seedSubscription(
-      tenantId,
+      orgId,
       'c1',
       'u-1',
       buildPlanSnapshot({ unitAllowlist: ['u-permitida'] }),
     )
     const res = await enforceSubscriptionScope({
       db,
-      tenantId,
-      tenantTimezone: TZ,
+      orgId,
+      orgTimezone: TZ,
       customerId: 'c1',
       unitId: 'u-proibida',
       startAt: '2026-08-15T13:00:00.000Z',
@@ -154,17 +154,17 @@ describe('enforceSubscriptionScope', () => {
   })
 
   it('libera quando unit dentro do unitAllowlist', async () => {
-    await seedCustomer(tenantId, 'c1', 'u-1')
+    await seedCustomer(orgId, 'c1', 'u-1')
     await seedSubscription(
-      tenantId,
+      orgId,
       'c1',
       'u-1',
       buildPlanSnapshot({ unitAllowlist: ['u-permitida'] }),
     )
     const res = await enforceSubscriptionScope({
       db,
-      tenantId,
-      tenantTimezone: TZ,
+      orgId,
+      orgTimezone: TZ,
       customerId: 'c1',
       unitId: 'u-permitida',
       startAt: '2026-08-15T13:00:00.000Z',
@@ -173,22 +173,22 @@ describe('enforceSubscriptionScope', () => {
   })
 
   it('bloqueia ao bater maxPerDay', async () => {
-    await seedCustomer(tenantId, 'c1', 'u-1')
+    await seedCustomer(orgId, 'c1', 'u-1')
     await seedSubscription(
-      tenantId,
+      orgId,
       'c1',
       'u-1',
       buildPlanSnapshot({ bookingLimits: { maxPerDay: 1 } }),
     )
-    await seedAppointment(tenantId, {
+    await seedAppointment(orgId, {
       id: 'a-existing',
       customerId: 'c1',
       startAt: '2026-08-15T13:00:00.000Z',
     })
     const res = await enforceSubscriptionScope({
       db,
-      tenantId,
-      tenantTimezone: TZ,
+      orgId,
+      orgTimezone: TZ,
       customerId: 'c1',
       unitId: 'u1',
       startAt: '2026-08-15T18:00:00.000Z',
@@ -198,22 +198,22 @@ describe('enforceSubscriptionScope', () => {
   })
 
   it('exclui o próprio appointment quando excludeAppointmentId é passado (update)', async () => {
-    await seedCustomer(tenantId, 'c1', 'u-1')
+    await seedCustomer(orgId, 'c1', 'u-1')
     await seedSubscription(
-      tenantId,
+      orgId,
       'c1',
       'u-1',
       buildPlanSnapshot({ bookingLimits: { maxPerDay: 1 } }),
     )
-    await seedAppointment(tenantId, {
+    await seedAppointment(orgId, {
       id: 'a-moving',
       customerId: 'c1',
       startAt: '2026-08-15T13:00:00.000Z',
     })
     const res = await enforceSubscriptionScope({
       db,
-      tenantId,
-      tenantTimezone: TZ,
+      orgId,
+      orgTimezone: TZ,
       customerId: 'c1',
       unitId: 'u1',
       startAt: '2026-08-15T18:00:00.000Z',

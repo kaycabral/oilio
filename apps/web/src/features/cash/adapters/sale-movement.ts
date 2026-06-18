@@ -10,7 +10,7 @@ import 'server-only'
 // de `cash_movement.created` (a projeção escreve o doc) — auditoria = stream.
 // Idempotência por orderId é do caller — closeOrder chama uma vez por fechamento.
 export async function recordSaleMovement(params: {
-  tenantId: string
+  orgId: string
   unitId: string
   orderId: string
   amountCents: number
@@ -18,11 +18,11 @@ export async function recordSaleMovement(params: {
   actorUid: string
 }): Promise<{ ok: true; movementId: string } | { ok: false; error: string }> {
   const db = getAdminFirestore()
-  const tenantRef = db.collection('tenants').doc(params.tenantId)
-  const movementId = tenantRef.collection('cash_movements').doc().id
+  const orgRef = db.collection('orgs').doc(params.orgId)
+  const movementId = orgRef.collection('cash_movements').doc().id
   const movement: CashMovement = {
     id: movementId,
-    tenantId: params.tenantId,
+    orgId: params.orgId,
     unitId: params.unitId,
     kind: 'sale',
     direction: 'in',
@@ -36,7 +36,7 @@ export async function recordSaleMovement(params: {
   }
   const created = await emitEvent(
     CashMovementConfig,
-    `tenants/${params.tenantId}/cash_movements/${movementId}`,
+    `orgs/${params.orgId}/cash_movements/${movementId}`,
     { _tag: 'cash_movement.created', actorId: params.actorUid, payload: { data: movement } },
   )
   if (!created.ok) return { ok: false, error: created.error }

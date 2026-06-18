@@ -8,7 +8,7 @@ import {
   formatBRL,
   type CatalogOption,
 } from '@/features/orders/core/order-detail-format'
-import type { TenantMember } from '@/shared/tenant/membership'
+import type { OrgMember } from '@/shared/org/membership'
 import {
   Button,
   Input,
@@ -33,7 +33,7 @@ export function OrderAddItemForm({
 }: {
   orderId: string
   catalogOptions: CatalogOption[]
-  members: TenantMember[]
+  members: OrgMember[]
   // Default esperto da atribuição (brief 0030, AC-04): o `userId` do membro que
   // abriu a venda (o operador). Espelha o default do servidor — todo item
   // adicionado pela UI nasce atribuído ao operador, editável pra outro membro.

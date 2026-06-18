@@ -2,7 +2,7 @@
 
 import { type Commission, type LiquidationStatus, liquidationStatusOf } from '@/domain'
 import { formatBRL } from '@/features/orders/core/order-detail-format'
-import type { TenantMember } from '@/shared/tenant/membership'
+import type { OrgMember } from '@/shared/org/membership'
 
 const LIQUIDATION_LABEL: Record<LiquidationStatus, string> = {
   pendente: 'Pendente',
@@ -19,7 +19,7 @@ export function OrderCommissionsTable({
   memberByUserId,
 }: {
   commissions: Commission[]
-  memberByUserId: Record<string, TenantMember>
+  memberByUserId: Record<string, OrgMember>
 }) {
   const totalCommission = commissions.reduce((acc, c) => acc + c.amountCents, 0)
   return (

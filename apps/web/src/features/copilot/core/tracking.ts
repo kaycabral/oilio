@@ -4,7 +4,7 @@
 // Kept pure + injectable so the degenerate cases (no sales, no commission) are
 // unit-testable without the emulator.
 
-import { getTenantDayBoundsUtc, getTodayInTenantTz } from '@/domain'
+import { getOrgDayBoundsUtc, getTodayInOrgTz } from '@/domain'
 
 export type PartialLabelKind = 'after-commission' | 'revenue-only'
 
@@ -16,7 +16,7 @@ export type GoalPeriodWindow = {
 }
 
 // Resolve the UTC window + elapsed/total days for a `YYYY-MM` period in the
-// tenant timezone. Pure + injectable clock (unit-testable run-rate inputs).
+// org timezone. Pure + injectable clock (unit-testable run-rate inputs).
 export function resolveGoalPeriodWindow(
   period: string,
   tz: string,
@@ -27,10 +27,10 @@ export function resolveGoalPeriodWindow(
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
   const firstDay = `${period}-01`
   const lastDay = `${period}-${String(daysInMonth).padStart(2, '0')}`
-  const { startUtc: fromIso } = getTenantDayBoundsUtc(firstDay, tz)
-  const { endUtc: toIso } = getTenantDayBoundsUtc(lastDay, tz)
+  const { startUtc: fromIso } = getOrgDayBoundsUtc(firstDay, tz)
+  const { endUtc: toIso } = getOrgDayBoundsUtc(lastDay, tz)
 
-  const today = getTodayInTenantTz(tz, now)
+  const today = getTodayInOrgTz(tz, now)
   const todayPeriod = today.slice(0, 7)
   let elapsedDays: number
   if (todayPeriod === period) {

@@ -13,8 +13,8 @@ import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
-import { listInvitesForTenant } from '@/shared/tenant/invite-read'
-import { getActiveTenantContext } from '@/shared/tenant/membership'
+import { listInvitesForOrg } from '@/shared/org/invite-read'
+import { getActiveOrgContext } from '@/shared/org/membership'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -49,7 +49,7 @@ function normalizeViewFilter(value: string | undefined): TeamViewFilter {
 
 // Resolve each member's identity (display name + WhatsApp) from the live `User`
 // doc (brief 0028 #1046), batched by userId. Anonymized accounts (LGPD #1095)
-// resolve to the neutral `‹Role› ‹CODE›` keyed by role; the CUSTOMER per-tenant
+// resolve to the neutral `‹Role› ‹CODE›` keyed by role; the CUSTOMER per-org
 // block is NOT applied — team is the employment relationship, retained
 // identifiable (art. 16). WhatsApp is only mapped when present on the User.
 async function loadMemberIdentities(
@@ -82,7 +82,7 @@ async function loadMemberIdentities(
   return { displayNameByUserId, whatsappByUserId, birthDateByUserId }
 }
 
-// Imperative shell for the team list route: resolves session/tenant, loads the
+// Imperative shell for the team list route: resolves session/org, loads the
 // (non-revoked) memberships + their display names + pending invites, and returns
 // the typed view-model the route renders. page.tsx stays a thin caller.
 export async function loadTeamPage(
@@ -93,7 +93,7 @@ export async function loadTeamPage(
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  const ctx = await getActiveTenantContext(session.uid)
+  const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
 
   const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
@@ -102,22 +102,22 @@ export async function loadTeamPage(
   const viewFilter: TeamViewFilter = canManage ? normalizeViewFilter(rawParams.view) : 'active'
 
   const db = getAdminFirestore()
-  const tenantId = ctx.membership.tenantId
+  const orgId = ctx.membership.orgId
 
   const [membersSnap, invites, profsSnap] = await Promise.all([
     db
       .collection('memberships')
-      .where('tenantId', '==', tenantId)
+      .where('orgId', '==', orgId)
       .withConverter(fsConverter(Membership))
       .get(),
     // PII (invitee email) merged from `invites_pii` on read (#1036).
-    canManage ? listInvitesForTenant(tenantId) : Promise.resolve<Invite[]>([]),
+    canManage ? listInvitesForOrg(orgId) : Promise.resolve<Invite[]>([]),
     // Professional projections carry the DERIVED `operationalStatus` (#1047); we
     // only need the status per userId, so read the projection directly (no PII
     // enrichment — name/whatsapp already come from the User above).
     db
-      .collection('tenants')
-      .doc(tenantId)
+      .collection('orgs')
+      .doc(orgId)
       .collection('professionals')
       .withConverter(fsConverter(StoredProfessional))
       .get(),

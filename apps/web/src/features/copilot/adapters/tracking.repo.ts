@@ -20,13 +20,13 @@ export type GoalActuals = {
 // commission is subtracted. MRR is computed separately as an observation — it
 // is NOT recognized revenue and never enters the realizado.
 export async function loadGoalActuals(
-  tenantId: string,
+  orgId: string,
   unitId: string,
   window: GoalPeriodWindow,
 ): Promise<GoalActuals> {
-  const tenantRef = getAdminFirestore().collection('tenants').doc(tenantId)
+  const orgRef = getAdminFirestore().collection('orgs').doc(orgId)
 
-  const ordersQ = tenantRef
+  const ordersQ = orgRef
     .collection('orders')
     .withConverter(fsConverter(Order))
     .where('status', '==', 'closed')
@@ -36,7 +36,7 @@ export async function loadGoalActuals(
 
   // Recurring recognized revenue: charges settled (paid) within the period,
   // scoped by the unit snapshot captured on the charge (`Charge.unitId`, #1117).
-  const chargesQ = tenantRef
+  const chargesQ = orgRef
     .collection('charges')
     .withConverter(fsConverter(Charge))
     .where('status', '==', 'paid')
@@ -45,7 +45,7 @@ export async function loadGoalActuals(
     .where('unitId', '==', unitId)
 
   // MRR observation: active subscriptions owned by the unit.
-  const subsQ = tenantRef
+  const subsQ = orgRef
     .collection('subscriptions')
     .withConverter(fsConverter(Subscription))
     .where('unitId', '==', unitId)
@@ -53,7 +53,7 @@ export async function loadGoalActuals(
   const [ordersSnap, chargesSnap, commsSnap, subsSnap] = await Promise.all([
     ordersQ.get(),
     chargesQ.get(),
-    tenantRef
+    orgRef
       .collection('commissions')
       .withConverter(fsConverter(Commission))
       .where('createdAt', '>=', window.fromIso)

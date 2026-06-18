@@ -1,18 +1,18 @@
-import { formatBrazilPhone, type Tenant, type Unit } from '@/domain'
+import { formatBrazilPhone, type Org, type Unit } from '@/domain'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 
-// Multi-unit picker for the public tenant landing (#841). Rendered when
-// the tenant has 2+ units. The page falls through to `<UnitCatalog>`
+// Multi-unit picker for the public org landing (#841). Rendered when
+// the org has 2+ units. The page falls through to `<UnitCatalog>`
 // directly when there is exactly one unit.
 export function UnitPicker({
-  tenant,
+  org,
   units,
   slug,
   coverageBanner,
 }: {
-  tenant: Tenant
+  org: Org
   units: Unit[]
   slug: string
   // Brief 0019 Group D — AC-16. Optional banner rendered above the
@@ -20,7 +20,7 @@ export function UnitPicker({
   // owns the data — keeps this component pure.
   coverageBanner?: ReactNode
 }) {
-  const { branding } = tenant
+  const { branding } = org
   const hasBanner = branding.bannerUrl !== null
 
   return (
@@ -30,7 +30,7 @@ export function UnitPicker({
           <div className="bg-muted relative aspect-[16/6] w-full overflow-hidden">
             <Image
               src={branding.bannerUrl!}
-              alt={`Banner de ${tenant.name}`}
+              alt={`Banner de ${org.name}`}
               fill
               priority
               className="object-cover"
@@ -45,7 +45,7 @@ export function UnitPicker({
             <div className="bg-background border-background relative -mt-12 h-24 w-24 shrink-0 overflow-hidden rounded-full border-4 shadow">
               <Image
                 src={branding.logoUrl}
-                alt={`Logo de ${tenant.name}`}
+                alt={`Logo de ${org.name}`}
                 fill
                 className="object-cover"
                 sizes="96px"
@@ -54,7 +54,7 @@ export function UnitPicker({
             </div>
           ) : null}
           <div className="flex-1 space-y-1 pt-2">
-            <h1 className="text-2xl font-semibold">{tenant.name}</h1>
+            <h1 className="text-2xl font-semibold">{org.name}</h1>
             {branding.description ? (
               <p className="text-muted-foreground text-sm">{branding.description}</p>
             ) : null}
