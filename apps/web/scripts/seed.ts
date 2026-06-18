@@ -35,6 +35,7 @@ import type {
   UnitFiscal,
   UnitHoursMode,
   User,
+  Vertical,
 } from '@/domain'
 import {
   accrueCommissionForItem,
@@ -1015,7 +1016,570 @@ async function seed(): Promise<void> {
   await seedOpenOrders()
   await seedAgendaBlocks(today)
   await seedExpenses()
+  await seedIsolationOrgs(today)
   await seedFormalizationOrgs()
+}
+
+// ── Context isolation demo (3 distinct Negócios, same primary owner) ─────────
+// The owner switches between Negócios with the Negócio▾ selector and verifies
+// that data from one never bleeds into another. The barbershop above is Negócio
+// #1 (rich, appointment mode). Here we add #2 (Pizzaria — food, fixed hours,
+// products only) and #3 (Comércio — retail, fixed hours, products only, NO
+// services/agenda). Everything is scoped under each Negócio's own `orgId` so a
+// query that leaks across orgs is immediately visible (distinct client/catalog
+// names per context).
+//
+// Each isolation Negócio is self-contained (own units + Negócio-level customers
+// + catalog + a few closed sales), built against the SAME v2 schemas as the
+// barbershop — Org folder + Unit (fixed agenda, informal fiscal) + catalog_items
+// + customers (with global User + org_link) + event-sourced closed sales.
+
+type IsoUnitSpec = {
+  id: string
+  name: string
+  slug: string
+  whatsapp: string
+  address: Address
+}
+type IsoCustomerSpec = {
+  id: string
+  userId: string
+  name: string
+  whatsapp: string
+  email: string | null
+}
+type IsoProductSpec = {
+  id: string
+  name: string
+  priceCents: number
+  stock: number
+  publicVisible?: boolean
+  active?: boolean
+}
+type IsoSaleSpec = {
+  id: string
+  unitId: string
+  daysAgo: number
+  hour: number
+  customerId: string | null
+  paymentMethod: PaymentMethod
+  lines: Array<{ refId: string; name: string; unitPriceCents: number; quantity: number }>
+}
+type IsolationOrgSpec = {
+  orgId: string
+  name: string
+  slug: string
+  vertical: Vertical
+  description: string
+  categoryId: string
+  categoryName: string
+  units: IsoUnitSpec[]
+  customers: IsoCustomerSpec[]
+  products: IsoProductSpec[]
+  sales: IsoSaleSpec[]
+}
+
+const ISOLATION_ORGS: IsolationOrgSpec[] = [
+  {
+    orgId: 'seed-org-pizzaria',
+    name: 'Pizzaria do Tonho',
+    slug: 'pizzaria-do-tonho',
+    // Food is not a first-class vertical — the catch-all `other` segment.
+    vertical: 'other',
+    description: 'Pizzas na pedra e bebidas geladas — retirada e delivery.',
+    categoryId: 'seed-pz-cat-cardapio',
+    categoryName: 'Cardápio',
+    units: [
+      {
+        id: 'seed-pz-unit-matriz',
+        name: 'Pizzaria — Matriz',
+        slug: 'matriz',
+        whatsapp: '5511977770001',
+        address: {
+          postalCode: '03064-000',
+          state: 'SP',
+          city: 'São Paulo',
+          neighborhood: 'Brás',
+          street: 'Rua Mendes Júnior',
+          number: '210',
+          complement: null,
+        },
+      },
+    ],
+    customers: [
+      {
+        id: 'seed-pz-cust-1',
+        userId: 'seed-pz-user-c1',
+        name: 'Cliente Pizzaria Antônio',
+        whatsapp: '5511966660001',
+        email: 'antonio.pizza@example.com',
+      },
+      {
+        id: 'seed-pz-cust-2',
+        userId: 'seed-pz-user-c2',
+        name: 'Cliente Pizzaria Beatriz',
+        whatsapp: '5511966660002',
+        email: 'beatriz.pizza@example.com',
+      },
+      {
+        id: 'seed-pz-cust-3',
+        userId: 'seed-pz-user-c3',
+        name: 'Cliente Pizzaria Caio',
+        whatsapp: '5511966660003',
+        email: null,
+      },
+      {
+        id: 'seed-pz-cust-4',
+        userId: 'seed-pz-user-c4',
+        name: 'Cliente Pizzaria Daniela',
+        whatsapp: '5511966660004',
+        email: 'daniela.pizza@example.com',
+      },
+      {
+        id: 'seed-pz-cust-5',
+        userId: 'seed-pz-user-c5',
+        name: 'Cliente Pizzaria Eduardo',
+        whatsapp: '5511966660005',
+        email: 'eduardo.pizza@example.com',
+      },
+      {
+        id: 'seed-pz-cust-6',
+        userId: 'seed-pz-user-c6',
+        name: 'Cliente Pizzaria Fernanda',
+        whatsapp: '5511966660006',
+        email: null,
+      },
+    ],
+    products: [
+      { id: 'seed-pz-prod-margherita', name: 'Pizza Margherita', priceCents: 4900, stock: 50 },
+      { id: 'seed-pz-prod-calabresa', name: 'Pizza Calabresa', priceCents: 5200, stock: 50 },
+      { id: 'seed-pz-prod-portuguesa', name: 'Pizza Portuguesa', priceCents: 5500, stock: 40 },
+      { id: 'seed-pz-prod-refri', name: 'Refrigerante 2L', priceCents: 1200, stock: 80 },
+      { id: 'seed-pz-prod-cerveja', name: 'Cerveja Long Neck', priceCents: 900, stock: 120 },
+    ],
+    sales: [
+      {
+        id: 'seed-pz-sale-1',
+        unitId: 'seed-pz-unit-matriz',
+        daysAgo: 1,
+        hour: 20,
+        customerId: 'seed-pz-cust-1',
+        paymentMethod: 'pix',
+        lines: [
+          {
+            refId: 'seed-pz-prod-margherita',
+            name: 'Pizza Margherita',
+            unitPriceCents: 4900,
+            quantity: 1,
+          },
+          {
+            refId: 'seed-pz-prod-refri',
+            name: 'Refrigerante 2L',
+            unitPriceCents: 1200,
+            quantity: 1,
+          },
+        ],
+      },
+      {
+        id: 'seed-pz-sale-2',
+        unitId: 'seed-pz-unit-matriz',
+        daysAgo: 3,
+        hour: 21,
+        customerId: 'seed-pz-cust-3',
+        paymentMethod: 'credit_card',
+        lines: [
+          {
+            refId: 'seed-pz-prod-calabresa',
+            name: 'Pizza Calabresa',
+            unitPriceCents: 5200,
+            quantity: 2,
+          },
+        ],
+      },
+      {
+        id: 'seed-pz-sale-3',
+        unitId: 'seed-pz-unit-matriz',
+        daysAgo: 0,
+        hour: 19,
+        customerId: null,
+        paymentMethod: 'cash',
+        lines: [
+          {
+            refId: 'seed-pz-prod-portuguesa',
+            name: 'Pizza Portuguesa',
+            unitPriceCents: 5500,
+            quantity: 1,
+          },
+          {
+            refId: 'seed-pz-prod-cerveja',
+            name: 'Cerveja Long Neck',
+            unitPriceCents: 900,
+            quantity: 3,
+          },
+        ],
+      },
+      {
+        id: 'seed-pz-sale-4',
+        unitId: 'seed-pz-unit-matriz',
+        daysAgo: 6,
+        hour: 20,
+        customerId: 'seed-pz-cust-5',
+        paymentMethod: 'debit_card',
+        lines: [
+          {
+            refId: 'seed-pz-prod-margherita',
+            name: 'Pizza Margherita',
+            unitPriceCents: 4900,
+            quantity: 2,
+          },
+          {
+            refId: 'seed-pz-prod-refri',
+            name: 'Refrigerante 2L',
+            unitPriceCents: 1200,
+            quantity: 2,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    orgId: 'seed-org-comercio',
+    name: 'Comércio Esquina',
+    slug: 'comercio-esquina',
+    vertical: 'other',
+    description: 'Mercearia de bairro — produtos do dia a dia.',
+    categoryId: 'seed-cm-cat-mercearia',
+    categoryName: 'Mercearia',
+    units: [
+      {
+        id: 'seed-cm-unit-loja',
+        name: 'Comércio — Loja',
+        slug: 'loja',
+        whatsapp: '5511955550001',
+        address: {
+          postalCode: '02011-000',
+          state: 'SP',
+          city: 'São Paulo',
+          neighborhood: 'Santana',
+          street: 'Rua Voluntários da Pátria',
+          number: '1500',
+          complement: null,
+        },
+      },
+    ],
+    customers: [
+      {
+        id: 'seed-cm-cust-1',
+        userId: 'seed-cm-user-c1',
+        name: 'Cliente Comércio Alberto',
+        whatsapp: '5511944440001',
+        email: 'alberto.com@example.com',
+      },
+      {
+        id: 'seed-cm-cust-2',
+        userId: 'seed-cm-user-c2',
+        name: 'Cliente Comércio Bianca',
+        whatsapp: '5511944440002',
+        email: null,
+      },
+      {
+        id: 'seed-cm-cust-3',
+        userId: 'seed-cm-user-c3',
+        name: 'Cliente Comércio Cláudio',
+        whatsapp: '5511944440003',
+        email: 'claudio.com@example.com',
+      },
+      {
+        id: 'seed-cm-cust-4',
+        userId: 'seed-cm-user-c4',
+        name: 'Cliente Comércio Denise',
+        whatsapp: '5511944440004',
+        email: 'denise.com@example.com',
+      },
+      {
+        id: 'seed-cm-cust-5',
+        userId: 'seed-cm-user-c5',
+        name: 'Cliente Comércio Elias',
+        whatsapp: '5511944440005',
+        email: null,
+      },
+    ],
+    products: [
+      { id: 'seed-cm-prod-arroz', name: 'Arroz 5kg', priceCents: 2800, stock: 60 },
+      { id: 'seed-cm-prod-feijao', name: 'Feijão 1kg', priceCents: 900, stock: 90 },
+      { id: 'seed-cm-prod-cafe', name: 'Café 500g', priceCents: 1800, stock: 70 },
+      { id: 'seed-cm-prod-acucar', name: 'Açúcar 1kg', priceCents: 600, stock: 100 },
+      {
+        id: 'seed-cm-prod-detergente',
+        name: 'Detergente',
+        priceCents: 350,
+        stock: 150,
+        active: false,
+      },
+    ],
+    sales: [
+      {
+        id: 'seed-cm-sale-1',
+        unitId: 'seed-cm-unit-loja',
+        daysAgo: 0,
+        hour: 10,
+        customerId: 'seed-cm-cust-1',
+        paymentMethod: 'cash',
+        lines: [
+          { refId: 'seed-cm-prod-arroz', name: 'Arroz 5kg', unitPriceCents: 2800, quantity: 1 },
+          { refId: 'seed-cm-prod-feijao', name: 'Feijão 1kg', unitPriceCents: 900, quantity: 2 },
+        ],
+      },
+      {
+        id: 'seed-cm-sale-2',
+        unitId: 'seed-cm-unit-loja',
+        daysAgo: 2,
+        hour: 11,
+        customerId: 'seed-cm-cust-2',
+        paymentMethod: 'pix',
+        lines: [
+          { refId: 'seed-cm-prod-cafe', name: 'Café 500g', unitPriceCents: 1800, quantity: 3 },
+        ],
+      },
+      {
+        id: 'seed-cm-sale-3',
+        unitId: 'seed-cm-unit-loja',
+        daysAgo: 4,
+        hour: 16,
+        customerId: null,
+        paymentMethod: 'debit_card',
+        lines: [
+          { refId: 'seed-cm-prod-acucar', name: 'Açúcar 1kg', unitPriceCents: 600, quantity: 5 },
+        ],
+      },
+      {
+        id: 'seed-cm-sale-4',
+        unitId: 'seed-cm-unit-loja',
+        daysAgo: 7,
+        hour: 9,
+        customerId: 'seed-cm-cust-4',
+        paymentMethod: 'credit_card',
+        lines: [
+          { refId: 'seed-cm-prod-arroz', name: 'Arroz 5kg', unitPriceCents: 2800, quantity: 2 },
+          { refId: 'seed-cm-prod-cafe', name: 'Café 500g', unitPriceCents: 1800, quantity: 1 },
+        ],
+      },
+    ],
+  },
+]
+
+// Build a Negócio whose units run on FIXED hours (no agenda/self-booking, no
+// services) with a products-only catalog. All docs are scoped under the spec's
+// own `orgId` — the isolation boundary being demonstrated.
+async function seedIsolationOrg(spec: IsolationOrgSpec, today: string): Promise<void> {
+  const batch = db.batch()
+  const ref = (path: string) => db.doc(`orgs/${spec.orgId}/${path}`)
+  const unitIds = spec.units.map((u) => u.id)
+
+  // Org folder — no fiscal, no agenda config (those live on the Unit).
+  batch.set(db.collection('orgs').doc(spec.orgId), {
+    id: spec.orgId,
+    name: spec.name,
+    slug: spec.slug,
+    vertical: spec.vertical,
+    ownerUserId: OWNER.uid,
+    branding: { logoUrl: null, bannerUrl: null, description: spec.description },
+    createdAt: NOW,
+    updatedAt: NOW,
+  } satisfies Org)
+
+  // OWNER membership so the primary owner sees this Negócio in the selector.
+  const mId = membershipDocId(spec.orgId, OWNER.uid)
+  batch.set(db.collection('memberships').doc(mId), {
+    id: mId,
+    orgId: spec.orgId,
+    userId: OWNER.uid,
+    role: 'owner',
+    status: 'active',
+    invitedBy: null,
+    joinedAt: NOW,
+    updatedAt: NOW,
+    unitId: null,
+    permissions: defaultPermissionsForRole('owner'),
+    commissionRate: null,
+  } satisfies Membership)
+
+  // Units — FIXED hours (food/retail context): no slot/policy/self-booking, no
+  // services. `fiscal` informal (no CNPJ).
+  for (const u of spec.units) {
+    batch.set(ref(`units/${u.id}`), {
+      id: u.id,
+      orgId: spec.orgId,
+      name: u.name,
+      slug: u.slug,
+      whatsapp: u.whatsapp,
+      email: null,
+      address: u.address,
+      timezone: ORG_TZ,
+      agenda: { mode: 'fixed', businessHours: BUSINESS_HOURS },
+      archivedAt: null,
+      fiscal: { kind: 'informal' },
+      createdAt: NOW,
+      updatedAt: NOW,
+    } satisfies Unit)
+    batch.set(ref(`units_pii/${u.id}`), { whatsapp: u.whatsapp, email: null } satisfies UnitPii)
+  }
+
+  // One catalog category for the products-only menu.
+  batch.set(ref(`categories/${spec.categoryId}`), {
+    id: spec.categoryId,
+    orgId: spec.orgId,
+    name: spec.categoryName,
+    icon: null,
+    color: null,
+    active: true,
+    archivedAt: null,
+    createdAt: NOW,
+    updatedAt: NOW,
+  } satisfies Category)
+
+  // Products-only catalog (NO services, NO appointment). Mirrors the legacy
+  // `products` collection + the unified `catalog_items` (kind:'product').
+  for (const p of spec.products) {
+    const active = p.active ?? true
+    batch.set(ref(`products/${p.id}`), {
+      id: p.id,
+      orgId: spec.orgId,
+      name: p.name,
+      sku: null,
+      priceCents: p.priceCents,
+      stock: p.stock,
+      active,
+      createdAt: NOW,
+      updatedAt: NOW,
+    } satisfies Product)
+    batch.set(ref(`catalog_items/${p.id}`), {
+      id: p.id,
+      orgId: spec.orgId,
+      kind: 'product',
+      name: p.name,
+      categoryId: spec.categoryId,
+      priceCents: p.priceCents,
+      commission: null,
+      unitIds,
+      unitOverrides: null,
+      publicVisible: p.publicVisible ?? true,
+      priceVisibility: 'visible',
+      active,
+      archivedAt: null,
+      sku: null,
+      stock: p.stock,
+      createdAt: NOW,
+      updatedAt: NOW,
+    } satisfies CatalogProductItem)
+  }
+
+  // Negócio-level customers — global User (PII) + per-org StoredCustomer shadow
+  // + identity org_link. Each customer's shadow lives under THIS orgId (the
+  // isolation being tested: a query under another org must not return them).
+  for (const c of spec.customers) {
+    batch.set(
+      db.collection('users').doc(c.userId),
+      buildUser(c.userId, NOW, {
+        email: c.email,
+        displayName: c.name,
+        whatsapp: c.whatsapp,
+        birthDate: '1990-01-01',
+      }),
+    )
+    batch.set(ref(`customers/${c.id}`), buildStoredCustomer(c.id, spec.orgId, c.userId, NOW))
+    batch.set(db.doc(orgLinkDocPath(c.userId, spec.orgId)), {
+      orgId: spec.orgId,
+      linkedAt: NOW,
+    } satisfies OrgLink)
+  }
+
+  await batch.commit()
+
+  // Closed product sales via the event-first path (order.created → cash sale
+  // movement → order.closed), so the read model matches `closeOrder`. No
+  // commissions (no commissionable seller in this demo) — pure retail.
+  const eventRef = (path: string) => `orgs/${spec.orgId}/${path}`
+  for (const sale of spec.sales) {
+    const date = shiftDateInOrgTz(today, -sale.daysAgo, ORG_TZ)
+    const at = fromOrgTime({ date, hour: sale.hour, minute: 0 }, ORG_TZ)
+    const items: OrderItem[] = sale.lines.map((l, i) => ({
+      id: `${sale.id}-item-${i}`,
+      kind: 'product',
+      refId: l.refId,
+      name: l.name,
+      quantity: l.quantity,
+      unitPriceCents: l.unitPriceCents,
+      commission: null,
+      attributedUserId: OWNER.uid,
+      coverage: 'sale',
+      subscriptionId: null,
+    }))
+    const totals = computeOrderTotals(items, 0)
+    const openOrder: Order = {
+      id: sale.id,
+      orgId: spec.orgId,
+      unitId: sale.unitId,
+      customerId: sale.customerId,
+      appointmentId: null,
+      status: 'open',
+      items,
+      discountCents: 0,
+      closedAt: null,
+      paymentMethod: null,
+      subtotalCents: totals.subtotalCents,
+      totalCents: totals.totalCents,
+      createdAt: at,
+      updatedAt: at,
+    }
+    const created = await emitEvent(OrderConfig, eventRef(`orders/${sale.id}`), {
+      _tag: 'order.created',
+      actorId: OWNER.uid,
+      payload: { data: openOrder },
+    })
+    if (!created.ok) throw new Error(`iso order.created failed for ${sale.id}: ${created.error}`)
+
+    const movementId = `${sale.id}-sale`
+    const movement: CashMovement = {
+      id: movementId,
+      orgId: spec.orgId,
+      unitId: sale.unitId,
+      kind: 'sale',
+      direction: 'in',
+      amountCents: totals.totalCents,
+      paymentMethod: sale.paymentMethod,
+      description: null,
+      orderId: sale.id,
+      expenseCategoryId: null,
+      recordedByUid: OWNER.uid,
+      createdAt: at,
+    }
+    const saleMov = await emitEvent(CashMovementConfig, eventRef(`cash_movements/${movementId}`), {
+      _tag: 'cash_movement.created',
+      actorId: OWNER.uid,
+      payload: { data: movement },
+    })
+    if (!saleMov.ok) throw new Error(`iso sale movement failed for ${sale.id}: ${saleMov.error}`)
+
+    const closed = await emitEvent(OrderConfig, eventRef(`orders/${sale.id}`), {
+      _tag: 'order.closed',
+      actorId: OWNER.uid,
+      payload: {
+        closedAt: at,
+        subtotalCents: totals.subtotalCents,
+        totalCents: totals.totalCents,
+        paymentMethod: sale.paymentMethod,
+      },
+    })
+    if (!closed.ok) throw new Error(`iso order.closed failed for ${sale.id}: ${closed.error}`)
+  }
+}
+
+async function seedIsolationOrgs(today: string): Promise<void> {
+  // Sequenced (not parallel) so event versions stay deterministic per org.
+  for (const spec of ISOLATION_ORGS) {
+    await seedIsolationOrg(spec, today)
+  }
 }
 
 // Formalization manual-testing fixtures (brief 0048 / PRD Identidade v2). The
@@ -2460,6 +3024,21 @@ seed()
     console.log('    · Org informal "Estúdio Informal" → CTA Formalizar em /company')
     console.log('    · Unidade de "Cabral Tecnologia" já formalizada → seção fiscal read-only')
     console.log('    (alterne entre as duas pelo switcher de org)')
+    console.log(line)
+    console.log('  Isolamento de contexto — 3 Negócios distintos do mesmo dono (Zé Owner):')
+    console.log('    1. Barbearia do Zé (barbershop) — agenda/serviços (acima)')
+    for (const spec of ISOLATION_ORGS) {
+      const label =
+        spec.orgId === 'seed-org-pizzaria'
+          ? 'Pizzaria (other — food)'
+          : 'Comércio (other — varejo, sem serviços)'
+      console.log(
+        `    ${spec.orgId === 'seed-org-pizzaria' ? 2 : 3}. ${spec.name} — ${label}: ` +
+          `${spec.units.length} unidade(s) fixed · ${spec.customers.length} clientes · ` +
+          `${spec.products.length} produtos · ${spec.sales.length} vendas`,
+      )
+    }
+    console.log('    (alterne no seletor Negócio▾ e confira que dados não vazam entre eles)')
     console.log(`${line}\n`)
     process.exit(0)
   })
