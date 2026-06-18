@@ -24,7 +24,7 @@ function archiveUnit(orgId: string, unitId: string): void {
       '-fsS',
       '-X',
       'PATCH',
-      `${FS_BASE}/orgs/${orgId}/units/${unitId}?updateMask.fieldPaths=archivedAt`,
+      `${FS_BASE}/organizations/${orgId}/units/${unitId}?updateMask.fieldPaths=archivedAt`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -44,7 +44,7 @@ async function assertNoCrash(authedPage: Page, path: string) {
 }
 
 // PRD Identidade v2 / F5: the old "Empresa" page retired → `/company` now
-// redirects to `/orgs` (the Negócios & Unidades surface; route is the English
+// redirects to `/organizations` (the Negócios & Unidades surface; route is the English
 // domain term, "Negócios" is the label only). Sweep the v2 route.
 const SURFACES = [
   '/agenda',
@@ -56,7 +56,7 @@ const SURFACES = [
   '/team',
   '/plans',
   '/subscriptions',
-  '/orgs',
+  '/organizations',
   '/units',
 ]
 

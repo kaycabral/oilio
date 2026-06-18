@@ -34,7 +34,7 @@ import {
 import { AgendaPage, PublicBookingPage, orgSlug } from '../pages'
 
 function readDoc(orgId: string, path: string): Record<string, FsValue> | null {
-  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/${path}`
+  const url = `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/organizations/${orgId}/${path}`
   const out = execFileSync('curl', ['-fsS', url, '-H', 'Authorization: Bearer owner'], {
     encoding: 'utf8',
   })
@@ -128,7 +128,7 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
         'curl',
         [
           '-fsS',
-          `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${org.orgId}/catalog_items`,
+          `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/organizations/${org.orgId}/catalog_items`,
           '-H',
           'Authorization: Bearer owner',
         ],

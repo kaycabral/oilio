@@ -133,12 +133,12 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     payload: { data: stored },
   })
   if (!created.ok) return { ok: false, error: created.error }
-  revalidatePath('/orgs')
+  revalidatePath('/organizations')
   // SPIKE (hours mode): the sidebar's "Agenda" visibility derives from unit
   // hoursMode (loaded in the shared (app) layout). Revalidate the layout too so
   // the nav reflects a mode change without a manual reload.
   revalidatePath('/', 'layout')
-  redirect('/orgs')
+  redirect('/organizations')
 }
 
 export async function updateUnit(unitId: string, formData: FormData): Promise<UnitMutationResult> {
@@ -194,12 +194,12 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
     },
   })
   if (!updated.ok) return { ok: false, error: updated.error }
-  revalidatePath('/orgs')
+  revalidatePath('/organizations')
   // SPIKE (hours mode): the sidebar's "Agenda" visibility derives from unit
   // hoursMode (loaded in the shared (app) layout). Revalidate the layout too so
   // the nav reflects a mode change without a manual reload.
   revalidatePath('/', 'layout')
-  redirect('/orgs')
+  redirect('/organizations')
 }
 
 // Async availability probe for the Settings UI — returns OK if `slug` is
@@ -259,7 +259,7 @@ export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
   await getAdminFirestore().collection('orgs').doc(orgId).collection('units').doc(unitId).delete()
   // LGPD erasure — drop the PII doc alongside the projection.
   await deleteUnitPii(orgId, unitId)
-  revalidatePath('/orgs')
+  revalidatePath('/organizations')
   return { ok: true }
 }
 
@@ -277,7 +277,7 @@ export async function archiveUnit(unitId: string, archived = true): Promise<Unit
     payload: { archivedAt },
   })
   if (!res.ok) return { ok: false, error: res.error }
-  revalidatePath('/orgs')
+  revalidatePath('/organizations')
   return { ok: true }
 }
 
@@ -358,7 +358,7 @@ export async function publishUnitSelfBooking(unitId: string): Promise<UnitPublis
   })
   if (!published.ok) return { ok: false, error: published.error }
 
-  revalidatePath('/orgs')
+  revalidatePath('/organizations')
   return { ok: true }
 }
 
@@ -374,6 +374,6 @@ export async function unpublishUnitSelfBooking(unitId: string): Promise<UnitPubl
   })
   if (!unpublished.ok) return { ok: false, error: unpublished.error }
 
-  revalidatePath('/orgs')
+  revalidatePath('/organizations')
   return { ok: true }
 }

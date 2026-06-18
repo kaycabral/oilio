@@ -80,7 +80,7 @@ function fsQuery(
 }
 
 function patchSubscriptionPeriod(orgId: string, subId: string, endAt: string): void {
-  const url = `${fsBaseUrl()}/orgs/${orgId}/subscriptions/${subId}?updateMask.fieldPaths=currentPeriod.endAt`
+  const url = `${fsBaseUrl()}/organizations/${orgId}/subscriptions/${subId}?updateMask.fieldPaths=currentPeriod.endAt`
   execFileSync(
     'curl',
     [

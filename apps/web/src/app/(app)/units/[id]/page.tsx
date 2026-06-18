@@ -29,7 +29,7 @@ export default async function EditUnitPage({ params }: { params: Promise<{ id: s
     <Main width="narrow" className="space-y-6">
       <Breadcrumbs
         crumbs={[
-          { label: 'Negócios & Unidades', href: toRoute('/orgs') },
+          { label: 'Negócios & Unidades', href: toRoute('/organizations') },
           { label: unit.name, href: null },
         ]}
       />

@@ -2,7 +2,7 @@ import { loadBusinessPage } from '@/features/company/adapters/load-business'
 import { BusinessManager } from '@/features/company/ui/BusinessManager'
 import { Main } from '@cbrl/design'
 
-// Negócios & Unidades (`/orgs` — the English domain term `Org`; "Negócios" is
+// Negócios & Unidades (`/organizations` — the English domain term `Org`; "Negócios" is
 // the user-facing label only) — the folder-manager surface (PRD Identidade v2,
 // F5) that replaces the old "Empresa" page. Lists the user's Negócios, the active one
 // expanded with its Unidades (name/address/agenda mode/fiscal badge), plus the

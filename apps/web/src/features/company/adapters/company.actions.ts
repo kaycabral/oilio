@@ -53,6 +53,6 @@ export async function updateCompany(formData: FormData): Promise<UpdateCompanyRe
   })
   if (!updated.ok) return { ok: false, error: updated.error }
 
-  revalidatePath('/orgs')
+  revalidatePath('/organizations')
   return { ok: true }
 }

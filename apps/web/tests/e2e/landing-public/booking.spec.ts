@@ -27,7 +27,7 @@ function patchOrgBranding(
       '-fsS',
       '-X',
       'PATCH',
-      `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}?updateMask.fieldPaths=branding`,
+      `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/organizations/${orgId}?updateMask.fieldPaths=branding`,
       '-H',
       'Authorization: Bearer owner',
       '-H',

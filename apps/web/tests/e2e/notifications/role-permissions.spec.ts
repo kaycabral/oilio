@@ -41,7 +41,7 @@ function setCurrentOrg(uid: string, orgId: string): void {
 function seedNotification(orgId: string, unitId: string, type: string): void {
   const notifId = `e2e-notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const now = new Date().toISOString()
-  curlPatch(`${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`, {
+  curlPatch(`${fsBaseUrl()}/organizations/${orgId}/notifications/${notifId}`, {
     fields: {
       id: { stringValue: notifId },
       orgId: { stringValue: orgId },

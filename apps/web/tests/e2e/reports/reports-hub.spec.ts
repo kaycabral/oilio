@@ -37,7 +37,7 @@ function seedSaleMovement(orgId: string, unitId: string, amountCents: number): v
       '-fsS',
       '-X',
       'PATCH',
-      `${fsBaseUrl()}/orgs/${orgId}/cash_movements/${id}`,
+      `${fsBaseUrl()}/organizations/${orgId}/cash_movements/${id}`,
       '-H',
       'Authorization: Bearer owner',
       '-H',

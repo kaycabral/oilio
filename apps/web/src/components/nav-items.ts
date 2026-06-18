@@ -91,9 +91,9 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         // v2 — simplification): one folder hub that hosts BOTH Negócio settings
         // AND the Unidade create/edit/list. The separate "Unidades" nav entry
         // (`/units`) was retired; `/units` now redirects here. Route is the
-        // English domain term `/orgs`; "Negócios" stays only as the label.
-        href: '/orgs',
-        label: 'Negócios & Unidades',
+        // English domain term `/organizations`; "Negócios" stays only as the label.
+        href: '/organizations',
+        label: 'Negócios',
         icon: Building,
         match: 'prefix',
         requires: 'manageOrg',

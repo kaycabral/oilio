@@ -34,7 +34,7 @@ function seedNotification(
       '-fsS',
       '-X',
       'PATCH',
-      `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`,
+      `${fsBaseUrl()}/organizations/${orgId}/notifications/${notifId}`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
@@ -75,7 +75,7 @@ function getNotification(orgId: string, notifId: string): Record<string, FsValue
       '-fsS',
       '-H',
       'Authorization: Bearer owner',
-      `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`,
+      `${fsBaseUrl()}/organizations/${orgId}/notifications/${notifId}`,
     ],
     { encoding: 'utf8' },
   )

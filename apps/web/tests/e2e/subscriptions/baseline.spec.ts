@@ -24,7 +24,7 @@ import type { SeededOrg } from '../helpers/session'
 import { seedCustomer, seedSubscriptionPlan } from '../helpers/session'
 
 function docUrl(orgId: string, collection: string, docId: string): string {
-  return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/orgs/${orgId}/${collection}/${docId}`
+  return `http://${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/organizations/${orgId}/${collection}/${docId}`
 }
 
 function getDoc(orgId: string, collection: string, docId: string): Record<string, FsValue> {

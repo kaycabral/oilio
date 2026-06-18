@@ -22,7 +22,7 @@ function seedNotification(orgId: string, unitId: string, type: string): string {
       '-fsS',
       '-X',
       'PATCH',
-      `${fsBaseUrl()}/orgs/${orgId}/notifications/${notifId}`,
+      `${fsBaseUrl()}/organizations/${orgId}/notifications/${notifId}`,
       '-H',
       'Authorization: Bearer owner',
       '-H',
