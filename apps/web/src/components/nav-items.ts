@@ -88,6 +88,17 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
     label: 'Configuração',
     items: [
       {
+        // Negócios & Unidades — the v2 folder-manager surface (PRD Identidade
+        // v2 / F5) that replaced the old "Empresa" page. `/units` is the
+        // dedicated cross-unit CRUD; this is the folder hub (Negócio settings +
+        // its units + create affordances).
+        href: '/negocios',
+        label: 'Negócios & Unidades',
+        icon: Building,
+        match: 'prefix',
+        requires: 'manageOrg',
+      },
+      {
         href: '/units',
         label: 'Unidades',
         icon: Store,
@@ -98,13 +109,6 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         href: '/team',
         label: 'Equipe',
         icon: ShieldCheck,
-        match: 'prefix',
-        requires: 'manageOrg',
-      },
-      {
-        href: '/company',
-        label: 'Empresa',
-        icon: Building,
         match: 'prefix',
         requires: 'manageOrg',
       },

@@ -25,6 +25,12 @@ describe('getNavSections', () => {
     expect(labels('owner')).toEqual(expect.arrayContaining(['Relatórios', 'Copiloto', 'Equipe']))
   })
 
+  it('surfaces the v2 "Negócios & Unidades" entry and drops the old "Empresa" label', () => {
+    const flat = labels('owner')
+    expect(flat).toContain('Negócios & Unidades')
+    expect(flat).not.toContain('Empresa')
+  })
+
   it('drops the Configuração section + manageOrg items for a receptionist', () => {
     const sections = sectionsFor('receptionist')
     expect(sections.map((s) => s.label)).not.toContain('Configuração')

@@ -34,7 +34,7 @@ export function CompanyForm({ org, canManage }: { org: Org; canManage: boolean }
     startTransition(async () => {
       const res = await updateCompany(formData)
       if (!res.ok) setError(res.error)
-      else toast.success('Empresa atualizada')
+      else toast.success('Negócio atualizado')
     })
   }
 
@@ -55,26 +55,8 @@ export function CompanyForm({ org, canManage }: { org: Org; canManage: boolean }
         </div>
 
         <div className="flex flex-col gap-1">
-          <Label htmlFor="company-slug" className="text-sm font-medium">
-            Slug público
-          </Label>
-          <Input
-            id="company-slug"
-            name="slug"
-            defaultValue={org.slug}
-            required
-            minLength={3}
-            maxLength={64}
-            pattern="[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
-          />
-          <span className="text-muted-foreground text-xs">
-            Identificador na URL pública. Apenas letras minúsculas, dígitos e hífens.
-          </span>
-        </div>
-
-        <div className="flex flex-col gap-1">
           <Label htmlFor="company-vertical" className="text-sm font-medium">
-            Vertical
+            Segmento
           </Label>
           <Select name="vertical" defaultValue={org.vertical} required>
             <SelectTrigger id="company-vertical">
@@ -88,6 +70,26 @@ export function CompanyForm({ org, canManage }: { org: Org; canManage: boolean }
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        {/* Slug público is deferred (PRD Identidade v2) — not surfaced for now.
+            The route/data stay; we just don't expose a slug editor here. */}
+
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="company-website" className="text-sm font-medium">
+            Site
+          </Label>
+          <Input
+            id="company-website"
+            name="website"
+            type="url"
+            defaultValue={org.website ?? ''}
+            placeholder="https://..."
+            maxLength={2048}
+          />
+          <span className="text-muted-foreground text-xs">
+            Site ou domínio da marca (opcional).
+          </span>
         </div>
 
         <fieldset className="border-border rounded-md border p-4">

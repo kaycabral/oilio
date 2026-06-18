@@ -11,6 +11,21 @@ import { formString } from '@/shared/form-data'
 // (PRD Identidade v2 — those are appointment-agenda concerns of the Unit now).
 export type BrandingUpdate = { branding: OrgBranding } | Record<string, never>
 
+// The Negócio's brand site/domain (PRD Identidade v2 — Org ganha `website`).
+// Optional: only updates when the field is present; empty clears it (null). A
+// non-empty value must be a valid public http(s) URL, else a user-facing error.
+export type WebsiteUpdate = { website: string | null } | Record<string, never>
+
+export function parseWebsite(formData: FormData): WebsiteUpdate | string {
+  if (!formData.has('website')) return {}
+  const raw = formString(formData, 'website').trim()
+  if (raw.length === 0) return { website: null }
+  if (!isValidPublicHttpUrl(raw)) {
+    return 'Site inválido (precisa começar com http:// ou https://)'
+  }
+  return { website: raw }
+}
+
 // Branding — só atualiza se ao menos um dos campos veio no submit. Empty string
 // em URL = null (limpa); description vazia = null. URLs inválidas rejeitam com
 // erro pra evitar persistir lixo silenciosamente.

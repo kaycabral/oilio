@@ -11,6 +11,20 @@
 // usado pro CEP (`**/api/postal-code/**`). CNPJ fixture canônico do brief.
 
 import { expect, test } from '../fixtures'
+import { rowAction } from '../helpers/list'
+import { UnitsPage } from '../pages'
+
+// PRD Identidade v2 / F5: the fiscal identity moved Org→Unit. The Formalizar
+// flow + fiscal section now live on the UNIDADE detail (`/units/[id]`), not the
+// old "Empresa" page (retired → `/company` redirects to `/negocios`). Reach the
+// active unit's detail via the units list (⋯ → Editar). `seedOrg` writes
+// `Unidade 1`.
+async function gotoActiveUnitDetail(authedPage: Parameters<typeof rowAction>[0]) {
+  const units = new UnitsPage(authedPage)
+  await units.gotoList()
+  await rowAction(authedPage, /Unidade 1/, 'Editar')
+  await expect(authedPage).toHaveURL(/\/units\/.+/)
+}
 
 const CNPJ_DIGITS = '40148980000199'
 const CNPJ_MASKED = '40.148.980/0001-99'
@@ -47,9 +61,9 @@ test.describe('Formalização fiscal (brief 0048)', () => {
       }),
     )
 
-    await authedPage.goto('/company')
+    await gotoActiveUnitDetail(authedPage)
 
-    // Empty-state: the informal org surfaces the Formalizar CTA.
+    // Empty-state: the informal unit surfaces the Formalizar CTA on its detail.
     await expect(authedPage.getByText('Formalizar unidade')).toBeVisible()
 
     // CNPJ input with mask: typing digits renders the formatted value.
@@ -91,7 +105,7 @@ test.describe('Formalização fiscal (brief 0048)', () => {
       }),
     )
 
-    await authedPage.goto('/company')
+    await gotoActiveUnitDetail(authedPage)
     await authedPage.getByLabel('CNPJ', { exact: true }).fill(CNPJ_DIGITS)
     await authedPage.getByRole('button', { name: 'Consultar CNPJ' }).click()
     await authedPage.getByRole('button', { name: 'Confirmar e formalizar' }).click()

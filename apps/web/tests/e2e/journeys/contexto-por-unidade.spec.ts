@@ -192,8 +192,8 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
   })
 
   // Cenário 4 — navegação por papel.
-  // A receptionist: no Configuração section (Unidades/Equipe/Empresa), no
-  // finance-admin items (Comissões); keeps Operação + Cadastros.
+  // A receptionist: no Configuração section (Negócios & Unidades / Unidades /
+  // Equipe), no finance-admin items (Comissões); keeps Operação + Cadastros.
   test.describe('Cenário 4 — navegação por papel', () => {
     test.use({ orgInput: { unitCount: 1 } })
 
@@ -216,11 +216,12 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
       await expect(nav.getByRole('link', { name: 'Clientes' })).toBeVisible()
       await expect(nav.getByRole('link', { name: 'Catálogo' })).toBeVisible()
 
-      // The whole Configuração section disappears.
+      // The whole Configuração section disappears. PRD Identidade v2 / F5
+      // renamed "Empresa" → "Negócios & Unidades".
       await expect(nav.getByText('Configuração', { exact: true })).toHaveCount(0)
-      await expect(nav.getByRole('link', { name: 'Unidades' })).toHaveCount(0)
+      await expect(nav.getByRole('link', { name: 'Negócios & Unidades' })).toHaveCount(0)
+      await expect(nav.getByRole('link', { name: 'Unidades', exact: true })).toHaveCount(0)
       await expect(nav.getByRole('link', { name: 'Equipe' })).toHaveCount(0)
-      await expect(nav.getByRole('link', { name: 'Empresa' })).toHaveCount(0)
 
       // Finance-admin items inside Operação are hidden (Comissões folded into
       // the Relatórios hub, brief 0031 #1062).

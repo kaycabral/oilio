@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseBranding } from './company-form'
+import { parseBranding, parseWebsite } from './company-form'
 
 // Cancellation-policy + confirmation-template parsing moved out of the Org form
 // (PRD Identidade v2, context 3 — appointment-agenda concerns of the Unit). The
@@ -54,5 +54,25 @@ describe('parseBranding', () => {
   it('rejects an over-long description', () => {
     const result = parseBranding(fd({ brandingDescription: 'x'.repeat(5000) }))
     expect(typeof result).toBe('string')
+  })
+})
+
+describe('parseWebsite', () => {
+  it('returns empty update when the website field is absent', () => {
+    expect(parseWebsite(new FormData())).toEqual({})
+  })
+
+  it('maps an empty website to null (clears it)', () => {
+    expect(parseWebsite(fd({ website: '' }))).toEqual({ website: null })
+  })
+
+  it('keeps a valid https url', () => {
+    expect(parseWebsite(fd({ website: 'https://marca.com' }))).toEqual({
+      website: 'https://marca.com',
+    })
+  })
+
+  it('rejects a non-url website', () => {
+    expect(typeof parseWebsite(fd({ website: 'marca.com' }))).toBe('string')
   })
 })

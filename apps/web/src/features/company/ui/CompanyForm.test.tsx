@@ -14,16 +14,18 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn() },
 }))
 
-// The Org is a pure folder (PRD Identidade v2, context 3): the company form
-// edits only name/slug/vertical/branding. The agenda configs (cancellation
-// policy / confirmation messages / slot / self-booking publish) moved to the
-// per-unit agenda settings, so they're no longer on this form.
+// The Negócio is a pure folder (PRD Identidade v2): the settings form edits only
+// name/segment/website/branding. The public `slug` is deferred (not surfaced);
+// the agenda configs (cancellation policy / confirmation messages / slot /
+// self-booking publish) moved to the per-unit agenda settings, so neither is on
+// this form.
 function buildOrg(overrides: Partial<Org> = {}): Org {
   return {
     id: 't1',
     name: 'Barbearia do João',
     slug: 'barbearia-joao',
     vertical: 'barbershop',
+    website: null,
     ownerUserId: 'u1',
     branding: { logoUrl: null, bannerUrl: null, description: null },
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -37,9 +39,9 @@ beforeEach(() => {
 })
 
 describe('CompanyForm — folder fields (PRD Identidade v2)', () => {
-  it('submits the org folder fields (name/slug/branding)', async () => {
+  it('submits the negócio folder fields (name/segment/website/branding)', async () => {
     updateCompany.mockResolvedValue({ ok: true })
-    render(<CompanyForm org={buildOrg()} canManage />)
+    render(<CompanyForm org={buildOrg({ website: 'https://barbearia.com' })} canManage />)
     const saveButton = screen.getByRole('button', { name: /salvar/i })
     const form = saveButton instanceof HTMLButtonElement ? saveButton.form : null
     expect(form).not.toBeNull()
@@ -47,8 +49,19 @@ describe('CompanyForm — folder fields (PRD Identidade v2)', () => {
     await waitFor(() => expect(updateCompany).toHaveBeenCalledTimes(1))
     const fd = updateCompany.mock.calls[0]![0]
     expect(fd.get('name')).toBe('Barbearia do João')
-    expect(fd.get('slug')).toBe('barbearia-joao')
     expect(fd.get('vertical')).toBe('barbershop')
+    expect(fd.get('website')).toBe('https://barbearia.com')
+  })
+
+  it('surfaces the Segmento label (renamed from Vertical) and the Site field', () => {
+    render(<CompanyForm org={buildOrg()} canManage />)
+    expect(screen.getByText('Segmento')).toBeInTheDocument()
+    expect(screen.getByLabelText('Site')).toBeInTheDocument()
+  })
+
+  it('defers the public slug — no slug editor on the folder form', () => {
+    render(<CompanyForm org={buildOrg()} canManage />)
+    expect(screen.queryByLabelText(/slug público/i)).not.toBeInTheDocument()
   })
 
   it('does NOT render the agenda configs that moved to the unit (cancellation policy)', () => {
