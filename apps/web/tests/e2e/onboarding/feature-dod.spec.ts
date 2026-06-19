@@ -184,6 +184,10 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
       await authedPage.locator('input[name="number"]').fill('123')
       await checkStable(authedPage.locator('#bh_monday'))
       await authedPage.getByRole('button', { name: 'Salvar' }).click()
+      // `updateUnit` termina com `redirect('/organizations')` — esperar a
+      // navegação é o sinal determinístico de que o save persistiu (web-first,
+      // não um estado de loading transitório). Só então relê a página da unidade.
+      await authedPage.waitForURL('**/organizations')
 
       // Card por-unidade vira o estado "No ar".
       await authedPage.goto(`/units/${unitId}`)

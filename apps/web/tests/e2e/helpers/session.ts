@@ -2214,8 +2214,15 @@ export async function enterUnitsAfterCreate(page: Page): Promise<void> {
   // the post-create navigation settle, then navigate to `/organizations`
   // ourselves and, if the interstitial shows, pin the first offered unit via the
   // cookie (more robust than the picker's async transition) and retry.
-  // Let the post-create redirect fully settle before we navigate — racing it
-  // with our own goto() makes the interstitial hop intermittent (flaky).
+  // The create dialog opens OVER /organizations, so the URL doesn't change on
+  // submit — waiting for a URL would resolve instantly against the starting
+  // route and race our goto() against the still-pending Server Action (the
+  // `useTransition` save), aborting the create. The deterministic "save
+  // persisted" signal is the dialog closing (the action's redirect tears it
+  // down). Wait for that BEFORE navigating.
+  await expect(page.getByRole('dialog')).toBeHidden({ timeout: 10000 })
+  // Then let the post-create redirect fully settle before we navigate — racing
+  // it with our own goto() makes the interstitial hop intermittent (flaky).
   await page.waitForURL(/\/(organizations|units|select-unit|agenda)$/, { timeout: 10000 })
   await page.goto('/organizations')
   if (/\/select-unit$/.test(new URL(page.url()).pathname)) {
