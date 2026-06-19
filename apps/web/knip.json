@@ -1,8 +1,8 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["eslint.config.mjs", "vitest.integration.config.ts"],
+  "entry": ["eslint.config.mjs", "vitest.integration.config.ts", "vitest.stryker.config.ts"],
   "ignoreDependencies": ["tailwindcss", "eslint-config-next"],
-  "ignoreBinaries": ["pkill", "eslint", "type-coverage", "stryker"],
+  "ignoreBinaries": ["pkill", "eslint", "type-coverage"],
   "rules": {
     "exports": "off",
     "types": "off",
