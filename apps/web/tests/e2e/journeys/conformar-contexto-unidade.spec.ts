@@ -206,7 +206,7 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
       // --- Editing a professional's units keeps the existing selection ---
       // The seeded professional is linked to BOTH units. The active-unit default
       // must NOT collapse that down to just the active unit.
-      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
+      const proUid = `e2e-prof-user-${org.professionalIds[0]}`
       const pros = new ProfessionalsPage(authedPage)
       await pros.gotoByUserId(proUid)
       const unitsGroup = authedPage.getByRole('group', { name: 'Unidades', exact: true })
@@ -275,24 +275,29 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
       authedPage,
     }) => {
       // --- Owner (cross-unit): manages the set, creates a 2nd unit ---
+      // `/units` folded into the Negócios & Unidades surface (`/organizations`);
+      // creation is the inline "+ Nova unidade" dialog there (PRD Identidade v2).
       await authedPage.goto('/units')
-      await expect(authedPage).toHaveURL(/\/units$/)
-      await expect(authedPage.getByRole('heading', { name: 'Unidades' })).toBeVisible()
+      await expect(authedPage).toHaveURL(/\/organizations(\/|\?|$)/)
+      await expect(authedPage.getByRole('heading', { name: 'Negócios' })).toBeVisible()
 
-      await authedPage.getByRole('link', { name: 'Nova unidade' }).click()
-      await expect(authedPage).toHaveURL(/\/units\/new$/)
-      await authedPage.getByRole('textbox', { name: 'Nome' }).fill('Filial Centro Velho')
-      await expect(authedPage.getByRole('textbox', { name: 'Slug público' })).toHaveValue(
+      await authedPage.getByRole('button', { name: '+ Nova unidade' }).click()
+      // O diálogo abre SOBRE a listagem (que já tem "Unidade 1"): escopa todos os
+      // locators de criação ao dialog pra evitar strict-mode violations.
+      const dialog = authedPage.getByRole('dialog')
+      await expect(dialog).toBeVisible()
+      await dialog.getByRole('textbox', { name: 'Nome' }).fill('Filial Centro Velho')
+      await expect(dialog.getByRole('textbox', { name: 'Slug público' })).toHaveValue(
         'filial-centro-velho',
       )
-      await expect(authedPage.getByText(/disponível/i)).toBeVisible()
-      await authedPage.getByRole('textbox', { name: 'WhatsApp' }).fill('11955554444')
-      await authedPage.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
-      await expect(authedPage.getByText(/São Paulo\/SP/)).toBeVisible()
-      await authedPage.getByRole('textbox', { name: 'Número' }).fill('200')
+      await expect(dialog.getByText(/disponível/i)).toBeVisible()
+      await dialog.getByRole('textbox', { name: 'WhatsApp' }).fill('11955554444')
+      await dialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
+      await expect(dialog.getByText(/São Paulo\/SP/)).toBeVisible()
+      await dialog.getByRole('textbox', { name: 'Número' }).fill('200')
       // v2: horário de funcionamento é obrigatório — habilita um dia.
-      await enableUnitBusinessHours(authedPage)
-      await authedPage.getByRole('button', { name: 'Criar' }).click()
+      await enableUnitBusinessHours(dialog)
+      await dialog.getByRole('button', { name: 'Criar' }).click()
 
       // Now multi-unit with no chosen unit → the interstitial proves the create.
       await expect(authedPage).toHaveURL(/\/select-unit$/)
@@ -300,7 +305,7 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
       await authedPage.getByRole('button', { name: 'Unidade 1' }).click()
       await expect(authedPage).toHaveURL(/\/agenda$/)
       await authedPage.goto('/units')
-      await expect(authedPage).toHaveURL(/\/units$/)
+      await expect(authedPage).toHaveURL(/\/organizations(\/|\?|$)/)
       // The migrated `UnitsList` lists units by name (no slug column).
       await expect(listItem(authedPage, /Filial Centro Velho/)).toBeVisible()
 

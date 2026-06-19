@@ -4,9 +4,9 @@ import { setMembershipRole } from './helpers/session'
 
 // Brief 0029 (#1052) — AC-08: the sidebar nav is filtered by role via
 // `canManageOrg`. A receptionist must not see the Configuração section
-// (Negócios & Unidades / Unidades / Equipe) nor the financeiro-admin items
+// (Negócios / Unidades / Equipe) nor the financeiro-admin items
 // (Relatórios); owner/manager see everything. PRD Identidade v2 / F5 renamed
-// the old "Empresa" item to "Negócios & Unidades". Brief 0031 (#1062)
+// the old "Empresa" item to "Negócios". Brief 0031 (#1062)
 // folded the cash report + commissions into the `/reports` hub, so the nav
 // item is now "Relatórios" (no standalone "Caixa"/"Comissões").
 //
@@ -33,10 +33,10 @@ test.describe('Navegação filtrada por papel (AC-08)', () => {
     // The old standalone Caixa/Comissões items are gone (brief 0031).
     await expect(nav.getByRole('link', { name: 'Caixa' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Comissões' })).toHaveCount(0)
-    // Configuração items are visible. `Unidades` is exact so it doesn't also
-    // match the "Negócios & Unidades" folder-manager entry.
-    await expect(nav.getByRole('link', { name: 'Negócios & Unidades' })).toBeVisible()
-    await expect(nav.getByRole('link', { name: 'Unidades', exact: true })).toBeVisible()
+    // Configuração items are visible. The standalone "Unidades" entry was folded
+    // into the single "Negócios" folder-manager (PRD Identidade v2); there is no
+    // separate "Unidades" nav item anymore (see nav-items.test.ts).
+    await expect(nav.getByRole('link', { name: 'Negócios' })).toBeVisible()
     await expect(nav.getByRole('link', { name: 'Equipe' })).toBeVisible()
   })
 
@@ -58,7 +58,7 @@ test.describe('Navegação filtrada por papel (AC-08)', () => {
 
     // The whole Configuração section disappears.
     await expect(nav.getByText('Configuração', { exact: true })).toHaveCount(0)
-    await expect(nav.getByRole('link', { name: 'Negócios & Unidades' })).toHaveCount(0)
+    await expect(nav.getByRole('link', { name: 'Negócios', exact: true })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Unidades', exact: true })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Equipe' })).toHaveCount(0)
 

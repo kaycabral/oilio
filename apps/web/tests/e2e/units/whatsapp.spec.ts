@@ -32,17 +32,20 @@ test.describe('Unidades — WhatsApp', () => {
     }) => {
       const units = new UnitsPage(authedPage)
       await units.gotoNew()
-      await authedPage.getByRole('textbox', { name: 'Nome' }).fill('Filial Centro')
-      await authedPage.getByRole('textbox', { name: 'WhatsApp' }).fill('11955554444')
-      await authedPage.getByRole('textbox', { name: 'Email' }).fill('centro@e2e.test')
-      await authedPage.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
+      // Diálogo de criação sobre /organizations: escopa os locators ao dialog
+      // (o hint de endereço e os labels também existem na página de fundo).
+      const dialog = authedPage.getByRole('dialog')
+      await dialog.getByRole('textbox', { name: 'Nome' }).fill('Filial Centro')
+      await dialog.getByRole('textbox', { name: 'WhatsApp' }).fill('11955554444')
+      await dialog.getByRole('textbox', { name: 'Email' }).fill('centro@e2e.test')
+      await dialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
       // BrasilAPI lookup populates the rest of the address — wait for the
       // hint paragraph to appear so the auto-filled fields are present.
-      await expect(authedPage.getByText(/São Paulo\/SP/)).toBeVisible()
-      await authedPage.getByRole('textbox', { name: 'Número' }).fill('200')
+      await expect(dialog.getByText(/São Paulo\/SP/)).toBeVisible()
+      await dialog.getByRole('textbox', { name: 'Número' }).fill('200')
       // v2: horário de funcionamento é obrigatório — habilita um dia.
-      await enableUnitBusinessHours(authedPage)
-      await authedPage.getByRole('button', { name: 'Criar' }).click()
+      await enableUnitBusinessHours(dialog)
+      await dialog.getByRole('button', { name: 'Criar' }).click()
 
       // Creating this 2nd unit crosses into multi-unit: the post-create redirect
       // lands on the `/select-unit` interstitial (brief 0029 AC-04). Pick a unit,
@@ -69,19 +72,23 @@ test.describe('Unidades — WhatsApp', () => {
       // moved from a server-side "WhatsApp inválido" error to a client-side gate.
       const units = new UnitsPage(authedPage)
       await units.gotoNew()
-      await authedPage.getByRole('textbox', { name: 'Nome' }).fill('Filial Bad WA')
-      const whatsapp = authedPage.getByRole('textbox', { name: 'WhatsApp' })
+      // Escopa a criação ao dialog (sobre /organizations); a asserção final
+      // confirma que o diálogo segue aberto (submit não disparou).
+      const dialog = authedPage.getByRole('dialog')
+      await dialog.getByRole('textbox', { name: 'Nome' }).fill('Filial Bad WA')
+      const whatsapp = dialog.getByRole('textbox', { name: 'WhatsApp' })
       await whatsapp.fill('abc')
-      await authedPage.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
-      await expect(authedPage.getByText(/São Paulo\/SP/)).toBeVisible()
-      await authedPage.getByRole('textbox', { name: 'Número' }).fill('200')
+      await dialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
+      await expect(dialog.getByText(/São Paulo\/SP/)).toBeVisible()
+      await dialog.getByRole('textbox', { name: 'Número' }).fill('200')
 
       // The mask rejected "abc" — the field is empty…
       await expect(whatsapp).toHaveValue('')
       // …so the required field is invalid and "Criar" stays disabled.
-      await expect(authedPage.getByRole('button', { name: 'Criar' })).toBeDisabled()
-      // No submission happened — still on /units/new.
-      await expect(authedPage).toHaveURL(/\/units\/new$/)
+      await expect(dialog.getByRole('button', { name: 'Criar' })).toBeDisabled()
+      // No submission happened — the inline create dialog is still open (v2 folded
+      // `/units/new` into the "+ Nova unidade" dialog on /organizations).
+      await expect(authedPage.getByRole('dialog')).toBeVisible()
     })
   })
 })

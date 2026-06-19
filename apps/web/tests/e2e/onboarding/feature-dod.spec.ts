@@ -29,7 +29,9 @@ import { PublicBookingPage, orgSlug } from '../pages'
 // redireciona pra `/orders` e o nav esconde o item — asserido à parte no Cenário 1.
 const INTERNAL_ROUTES = [
   '/dashboard',
-  '/units',
+  // Unidades live under the Negócios & Unidades surface now (`/units` is a
+  // redirect to `/organizations` — PRD Identidade v2).
+  '/organizations',
   '/catalog',
   '/team',
   '/customers',
@@ -107,7 +109,7 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
       authedPage,
       page,
     }) => {
-      await authedPage.goto(`/units/${org.unitIds[0]!}`)
+      await authedPage.goto(`/units/${org.unitIds[0]}`)
 
       // O card por-unidade renderiza e lista o que falta (agenda ainda não no ar).
       await expect(authedPage.getByText('Agendamento público desta unidade')).toBeVisible()

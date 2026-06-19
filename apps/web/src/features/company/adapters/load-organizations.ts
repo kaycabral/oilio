@@ -1,4 +1,4 @@
-import type { Org, Unit } from '@/domain'
+import { operatesCrossUnit, type Org, type Unit } from '@/domain'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import {
@@ -13,7 +13,7 @@ import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
-export type BusinessPageData = {
+export type OrganizationsPageData = {
   // The active Negócio (folder) — expanded with its units below.
   org: Org
   // Units of the ACTIVE org only, each with a precomputed `canDelete` flag
@@ -31,13 +31,13 @@ export type BusinessPageData = {
   canDelete: boolean
 }
 
-// Imperative shell for the Negócios & Unidades surface (PRD Identidade v2 —
+// Imperative shell for the Negócios surface (PRD Identidade v2 —
 // simplification): the SINGLE management surface that hosts both Negócio and
 // Unidade CRUD (replaces the old "Empresa" page AND the separate "/units"
 // listing). Resolves the active Negócio + its Unidades (with per-row delete
 // flags), plus the list of all the user's Negócios for the folder view. Stays
 // inside the multi-org invariant — only the active org's units are read here.
-export async function loadBusinessPage(): Promise<BusinessPageData> {
+export async function loadOrganizationsPage(): Promise<OrganizationsPageData> {
   if (!isFirebaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
@@ -45,6 +45,14 @@ export async function loadBusinessPage(): Promise<BusinessPageData> {
 
   const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
+
+  // Negócios is a cross-unit management surface: a member bound to a
+  // single Unidade (manager/receptionist with membership.unitId set) administers
+  // only their own Unidade, not the Negócio's unit set — send them to /agenda.
+  // This gate moved here with the route fold-in (it used to live on the old
+  // `/units` listing via load-units); without it a unit-bound manager could
+  // reach the folder manager. Role/permission granularity to be revisited.
+  if (!operatesCrossUnit(ctx.membership)) redirect('/agenda')
 
   const org = await getOrg(ctx.membership.orgId)
   if (!org) redirect('/onboarding')

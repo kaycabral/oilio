@@ -3,7 +3,7 @@ import type { WithCanDelete } from '@/shared/org/delete-guard'
 import type { OrgContextValue, OrgOption } from '@/shared/org/org-context'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { BusinessManager } from './BusinessManager'
+import { OrganizationsManager } from './OrganizationsManager'
 
 // The folder-manager pulls the active-org switcher off useOrg and renders the
 // CompanyForm (folder settings) + NewOrgDialog (create) + the inline unit CRUD
@@ -81,10 +81,10 @@ function buildUnit(overrides: Partial<Unit> = {}): WithCanDelete<Unit> {
   }
 }
 
-describe('BusinessManager — Negócios & Unidades surface (PRD Identidade v2, F5)', () => {
-  it('collapses to a simple card for a single Negócio with a single Unidade', () => {
+describe('OrganizationsManager — Negócios surface (PRD Identidade v2, F5)', () => {
+  it('renders the single fixed "Negócios" heading and the org card (single Negócio)', () => {
     render(
-      <BusinessManager
+      <OrganizationsManager
         org={buildOrg()}
         units={[buildUnit()]}
         orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}
@@ -92,28 +92,34 @@ describe('BusinessManager — Negócios & Unidades surface (PRD Identidade v2, F
         canDelete
       />,
     )
-    // Collapsed heading is "Negócio", not the full hierarchy title.
-    expect(screen.getByRole('heading', { name: 'Negócio' })).toBeInTheDocument()
-    expect(screen.queryByText('Negócios & Unidades')).not.toBeInTheDocument()
+    // The heading is always "Negócios" (no collapsed/expanded variants).
+    expect(screen.getByRole('heading', { name: 'Negócios' })).toBeInTheDocument()
+    // With a single Negócio there is no "Outros negócios" section.
     expect(screen.queryByText('Outros negócios')).not.toBeInTheDocument()
   })
 
-  it('shows the full folder hierarchy when there are multiple Negócios', () => {
+  it('lists the other Negócios when the user belongs to multiple', () => {
     const orgs: OrgOption[] = [
       { id: 't1', name: 'Barbearia do Bairro' },
       { id: 't2', name: 'Lava Rápido' },
     ]
     render(
-      <BusinessManager org={buildOrg()} units={[buildUnit()]} orgs={orgs} canManage canDelete />,
+      <OrganizationsManager
+        org={buildOrg()}
+        units={[buildUnit()]}
+        orgs={orgs}
+        canManage
+        canDelete
+      />,
     )
-    expect(screen.getByRole('heading', { name: 'Negócios & Unidades' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Negócios' })).toBeInTheDocument()
     expect(screen.getByText('Outros negócios')).toBeInTheDocument()
     expect(screen.getByText('Lava Rápido')).toBeInTheDocument()
   })
 
   it('lists the unit with its agenda mode + fiscal badge', () => {
     render(
-      <BusinessManager
+      <OrganizationsManager
         org={buildOrg()}
         units={[buildUnit({ name: 'Unidade Centro' })]}
         orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}
@@ -147,7 +153,7 @@ describe('BusinessManager — Negócios & Unidades surface (PRD Identidade v2, F
       },
     })
     render(
-      <BusinessManager
+      <OrganizationsManager
         org={buildOrg()}
         units={[formalized]}
         orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}
@@ -160,7 +166,7 @@ describe('BusinessManager — Negócios & Unidades surface (PRD Identidade v2, F
 
   it('exposes the create affordances to a manager (both inline dialogs)', () => {
     render(
-      <BusinessManager
+      <OrganizationsManager
         org={buildOrg()}
         units={[buildUnit()]}
         orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}
@@ -175,7 +181,7 @@ describe('BusinessManager — Negócios & Unidades surface (PRD Identidade v2, F
 
   it('hides the create affordances when the member cannot manage', () => {
     render(
-      <BusinessManager
+      <OrganizationsManager
         org={buildOrg()}
         units={[buildUnit()]}
         orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}

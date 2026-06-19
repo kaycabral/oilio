@@ -1,6 +1,6 @@
 'use client'
 
-import { defaultFirstUnitHours, defaultFirstUnitName } from '@/features/units/core/unit-defaults'
+import { defaultFirstUnitHours } from '@/features/units/core/unit-defaults'
 import { UnitForm } from '@/features/units/ui/UnitForm'
 import {
   Button,
@@ -13,13 +13,14 @@ import {
 } from '@cbrl/design'
 import { useState } from 'react'
 
-// "+ Nova unidade" — creates a Unidade inline from the Negócios & Unidades
+// "+ Nova unidade" — creates a Unidade inline from the Negócios
 // surface (PRD Identidade v2 — simplification): a normal dialog hosting the
-// reusable `UnitForm`, NOT a separate page. The form is seeded with sensible
-// defaults (unit name = Negócio name, a Mon–Sat operating week) so the owner
-// only confirms address + WhatsApp. `createUnit` redirects to `/organizations` on
-// success, which closes the dialog via navigation.
-export function UnitFormDialog({ orgName }: { orgName: string }) {
+// reusable `UnitForm`, NOT a separate page. Only the operating week is seeded
+// (a Mon–Sat default); the owner names the unit themselves (a Negócio can hold
+// several units, so defaulting the name to the Negócio name was misleading).
+// `createUnit` redirects to `/organizations` on success, which closes the
+// dialog via navigation.
+export function UnitFormDialog() {
   const [open, setOpen] = useState(false)
 
   return (
@@ -32,12 +33,7 @@ export function UnitFormDialog({ orgName }: { orgName: string }) {
           <DialogTitle>Nova unidade</DialogTitle>
           <DialogDescription>Onde você atende. Você pode editar depois.</DialogDescription>
         </DialogHeader>
-        <UnitForm
-          defaults={{
-            name: defaultFirstUnitName(orgName),
-            businessHours: defaultFirstUnitHours(),
-          }}
-        />
+        <UnitForm defaults={{ businessHours: defaultFirstUnitHours() }} />
       </DialogContent>
     </Dialog>
   )

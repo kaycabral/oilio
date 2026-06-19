@@ -15,7 +15,8 @@ import { enterUnitsAfterCreate, seedUnit } from '../helpers/session'
 
 // Seeding/creating a 2nd unit crosses the org into multi-unit: with no
 // chosen unit the next `(app)` navigation hits the `/select-unit` interstitial
-// (brief 0029 AC-04). Dismiss it by picking a unit, then land on `/units`.
+// (brief 0029 AC-04). Dismiss it by picking a unit, then land on the Negócios &
+// Unidades surface (`/organizations`) where Unidades now live.
 async function dismissUnitInterstitialIfPresent(page: Page): Promise<void> {
   await enterUnitsAfterCreate(page)
 }
@@ -58,33 +59,50 @@ test.describe('Units — baseline (#17)', () => {
     const name = `Unidade Baseline ${ts}`
     const edited = `${name} Editada`
 
-    // Criar — preenche o slug PRIMEIRO (seta slugTouched + dispara o input event
-    // que o useFormValidity escuta); assim o effect de auto-derivar-do-nome não
-    // sobrescreve, e a validade do form recalcula com todos os campos presentes.
-    await authedPage.goto('/units/new')
-    await fillStable(authedPage.locator('input[name="slug"]'), `un-${ts.slice(-9)}`)
-    await authedPage.locator('input[name="name"]').fill(name)
-    await authedPage.locator('input[name="whatsapp"]').fill(`11${ts.slice(-9)}`)
-    await authedPage.locator('input[name="postalCode"]').fill('01310100')
-    // Lookup popula o endereço e revela o campo número (required).
-    await authedPage.locator('input[name="number"]').fill('123')
+    // Criar — v2 dobrou `/units/new` no diálogo "+ Nova unidade" sobre
+    // /organizations. O diálogo abre SOBRE a listagem (que já tem unidades), então
+    // TODOS os locators de criação são escopados ao dialog pra evitar strict-mode
+    // violations com elementos da página de fundo. Preenche o slug PRIMEIRO (seta
+    // slugTouched + dispara o input event que o useFormValidity escuta); assim o
+    // effect de auto-derivar-do-nome não sobrescreve, e a validade do form
+    // recalcula com todos os campos presentes.
+    await authedPage.goto('/organizations')
+    await authedPage.getByRole('button', { name: '+ Nova unidade' }).click()
+    const createDialog = authedPage.getByRole('dialog')
+    await fillStable(
+      createDialog.getByRole('textbox', { name: 'Slug público' }),
+      `un-${ts.slice(-9)}`,
+    )
+    await createDialog.getByRole('textbox', { name: 'Nome' }).fill(name)
+    await createDialog.getByRole('textbox', { name: 'WhatsApp' }).fill(`11${ts.slice(-9)}`)
+    await createDialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
+    // The CEP lookup is async — wait for it to populate the address (hint shows
+    // city/state) before filling the revealed `number`, else the form is still
+    // invalid and "Criar" stays disabled.
+    await expect(createDialog.getByText(/São Paulo\/SP/)).toBeVisible()
+    await createDialog.getByRole('textbox', { name: 'Número' }).fill('123')
     // v2: horário de funcionamento é obrigatório — habilita um dia (form vem
     // com todos os dias OFF) pra liberar o submit.
-    await enableUnitBusinessHours(authedPage)
-    await authedPage.getByRole('button', { name: 'Criar' }).click()
+    await enableUnitBusinessHours(createDialog)
+    await createDialog.getByRole('button', { name: 'Criar' }).click()
     // Creating this 2nd unit (the seed already has one) crosses into multi-unit:
     // the post-create redirect hits the `/select-unit` interstitial — pick a
     // unit, then go back to the listing to verify the unit was created.
     await dismissUnitInterstitialIfPresent(authedPage)
-    await expect(authedPage).toHaveURL(/\/units$/)
+    await expect(authedPage).toHaveURL(/\/organizations(\/|\?|$)/)
     await expect(authedPage.getByText(name, { exact: true })).toBeVisible({ timeout: 5000 })
 
-    // Editar
+    // Editar — usa getByRole (label acessível) pra disparar o onChange do React
+    // e manter o form válido, igual o fluxo de criação (senão "Salvar" trava).
     await rowAction(authedPage, new RegExp(ts), 'Editar')
     await expect(authedPage).toHaveURL(/\/units\/.+/)
-    await authedPage.locator('input[name="name"]').fill(edited)
+    await authedPage.getByRole('textbox', { name: 'Nome' }).fill(edited)
     await authedPage.getByRole('button', { name: 'Salvar' }).click()
-    await expect(authedPage).toHaveURL(/\/units$/)
+    // The save redirect on a 2-unit org with no chosen unit hits the
+    // `/select-unit` interstitial first (brief 0029 AC-04) — same as create.
+    // Dismiss it before asserting we land on the Negócios surface.
+    await dismissUnitInterstitialIfPresent(authedPage)
+    await expect(authedPage).toHaveURL(/\/organizations(\/|\?|$)/)
     await expect(authedPage.getByText(edited, { exact: true })).toBeVisible({ timeout: 5000 })
 
     // Excluir — shared AlertDialog (brief 0033, AC-05/AC-10): unit is high impact,
@@ -111,7 +129,7 @@ test.describe('Units — baseline (#17)', () => {
     // `/select-unit` interstitial (0029 AC-04). Dismiss it, then list units.
     await authedPage.goto('/units')
     await dismissUnitInterstitialIfPresent(authedPage)
-    await expect(authedPage.getByRole('heading', { name: 'Unidades' })).toBeVisible()
+    await expect(authedPage.getByRole('heading', { name: 'Negócios' })).toBeVisible()
     await expect(authedPage.getByText('Unidade Legada')).toBeVisible()
 
     await rowAction(authedPage, /Unidade Legada/, 'Excluir')
@@ -164,18 +182,28 @@ test.describe('Units — baseline (#17)', () => {
     )
     const ts = Date.now().toString()
     const name = `Unidade Livre ${ts}`
-    await authedPage.goto('/units/new')
-    await fillStable(authedPage.locator('input[name="slug"]'), `liv-${ts.slice(-9)}`)
-    await authedPage.locator('input[name="name"]').fill(name)
-    await authedPage.locator('input[name="whatsapp"]').fill(`11${ts.slice(-9)}`)
-    await authedPage.locator('input[name="postalCode"]').fill('01310100')
-    await authedPage.locator('input[name="number"]').fill('123')
+    // v2: criação é o diálogo "+ Nova unidade" sobre /organizations. Escopa
+    // todos os locators ao dialog (a listagem de fundo casaria o strict mode).
+    await authedPage.goto('/organizations')
+    await authedPage.getByRole('button', { name: '+ Nova unidade' }).click()
+    const createDialog = authedPage.getByRole('dialog')
+    await fillStable(
+      createDialog.getByRole('textbox', { name: 'Slug público' }),
+      `liv-${ts.slice(-9)}`,
+    )
+    await createDialog.getByRole('textbox', { name: 'Nome' }).fill(name)
+    await createDialog.getByRole('textbox', { name: 'WhatsApp' }).fill(`11${ts.slice(-9)}`)
+    await createDialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
+    // Wait for the async CEP lookup to populate the address before the revealed
+    // `number` — else the form stays invalid and "Criar" disabled.
+    await expect(createDialog.getByText(/São Paulo\/SP/)).toBeVisible()
+    await createDialog.getByRole('textbox', { name: 'Número' }).fill('123')
     // v2: habilita um dia de horário (obrigatório) pra liberar o submit.
-    await enableUnitBusinessHours(authedPage)
-    await authedPage.getByRole('button', { name: 'Criar' }).click()
+    await enableUnitBusinessHours(createDialog)
+    await createDialog.getByRole('button', { name: 'Criar' }).click()
     // 2nd unit → post-create `/select-unit` interstitial; dismiss + relist.
     await dismissUnitInterstitialIfPresent(authedPage)
-    await expect(authedPage).toHaveURL(/\/units$/)
+    await expect(authedPage).toHaveURL(/\/organizations(\/|\?|$)/)
     await expect(authedPage.getByText(name, { exact: true })).toBeVisible({ timeout: 5000 })
 
     await rowAction(authedPage, new RegExp(ts), 'Excluir')

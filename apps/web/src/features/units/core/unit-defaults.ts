@@ -1,7 +1,6 @@
-// Functional core: prefilled defaults for the guided first-unit form (PRD
-// Identidade v2 / brief 0046). The first-unit empty-state reduces friction by
-// pre-filling everything it can deduce — the owner effectively only confirms
-// the address + WhatsApp. Pure: no I/O, no React.
+// Functional core: prefilled defaults for the new-unit form (PRD Identidade v2 /
+// brief 0046). Only the operating week is seeded — the owner names the unit and
+// confirms the address + WhatsApp. Pure: no I/O, no React.
 
 import { type BusinessHours, EMPTY_BUSINESS_HOURS } from '@/domain'
 
@@ -21,12 +20,4 @@ export function defaultFirstUnitHours(): BusinessHours {
     saturday: [...weekday],
     sunday: null,
   }
-}
-
-// The unit name defaults to the Negócio (Org) name — the owner can rename it,
-// but a single-unit business rarely needs a distinct unit name, so prefilling
-// removes a field. Trimmed; empty org name yields an empty default (the form's
-// own `required`/minLength still gates submission).
-export function defaultFirstUnitName(orgName: string): string {
-  return orgName.trim()
 }

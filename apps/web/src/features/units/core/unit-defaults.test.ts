@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultFirstUnitHours, defaultFirstUnitName } from './unit-defaults'
+import { defaultFirstUnitHours } from './unit-defaults'
 
 describe('defaultFirstUnitHours', () => {
   it('opens Monday–Saturday 09:00–18:00 and closes Sunday', () => {
@@ -22,15 +22,5 @@ describe('defaultFirstUnitHours', () => {
     const b = defaultFirstUnitHours()
     expect(a).not.toBe(b)
     expect(a.monday).not.toBe(b.monday)
-  })
-})
-
-describe('defaultFirstUnitName', () => {
-  it('defaults the unit name to the trimmed org name', () => {
-    expect(defaultFirstUnitName('  Barbearia do Bairro  ')).toBe('Barbearia do Bairro')
-  })
-
-  it('yields empty string for a blank org name', () => {
-    expect(defaultFirstUnitName('   ')).toBe('')
   })
 })

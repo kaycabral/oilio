@@ -49,13 +49,13 @@ function formatAddress(unit: Unit): string {
   return `${street}${number ? `, ${number}` : ''} — ${city}/${state}`
 }
 
-// Folder-manager for the Negócios & Unidades surface (PRD Identidade v2, F5).
+// Folder-manager for the Negócios surface (PRD Identidade v2, F5).
 // Replaces the old "Empresa" page. The ACTIVE Negócio is expanded with its
 // Unidades; other Negócios render as switchable rows (the multi-org invariant
 // forbids reading their units here — switching makes one active, then it
 // expands). For a single Negócio with a single Unidade it collapses to one
 // simple card — no hierarchy shoved at users who don't need it.
-export function BusinessManager({
+export function OrganizationsManager({
   org,
   units,
   orgs,
@@ -70,27 +70,20 @@ export function BusinessManager({
 }) {
   const { setActiveOrg } = useOrg()
   const otherOrgs = orgs.filter((o) => o.id !== org.id)
-  const collapsed = orgs.length <= 1 && units.length <= 1
 
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">{collapsed ? 'Negócio' : 'Negócios & Unidades'}</h1>
+        <h1 className="text-2xl font-semibold">Negócios</h1>
         {canManage ? (
           <div className="flex items-center gap-2">
-            <UnitFormDialog orgName={org.name} />
+            <UnitFormDialog />
             <NewOrgDialog />
           </div>
         ) : null}
       </header>
 
-      <ActiveOrgCard
-        org={org}
-        units={units}
-        canManage={canManage}
-        canDelete={canDelete}
-        showHeader={!collapsed}
-      />
+      <ActiveOrgCard org={org} units={units} canManage={canManage} canDelete={canDelete} />
 
       {otherOrgs.length > 0 ? (
         <section className="space-y-2">
@@ -109,27 +102,23 @@ function ActiveOrgCard({
   units,
   canManage,
   canDelete,
-  showHeader,
 }: {
   org: Org
   units: WithCanDelete<Unit>[]
   canManage: boolean
   canDelete: boolean
-  showHeader: boolean
 }) {
   const [editing, setEditing] = useState(false)
 
   return (
     <Card>
-      {showHeader ? (
-        <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Building2 className="text-muted-foreground size-4" aria-hidden />
-            {org.name}
-          </CardTitle>
-          <Badge variant="secondary">{VERTICAL_LABELS[org.vertical]}</Badge>
-        </CardHeader>
-      ) : null}
+      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Building2 className="text-muted-foreground size-4" aria-hidden />
+          {org.name}
+        </CardTitle>
+        <Badge variant="secondary">{VERTICAL_LABELS[org.vertical]}</Badge>
+      </CardHeader>
       <CardContent className="space-y-4 pt-6">
         {canManage ? (
           <Collapsible open={editing} onOpenChange={setEditing}>

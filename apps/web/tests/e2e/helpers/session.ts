@@ -25,9 +25,10 @@ const API_KEY = 'fake-api-key'
 let cachedAdminApp: App | undefined
 function adminApp(): App {
   if (cachedAdminApp) return cachedAdminApp
-  const existing = getApps()[0]
-  cachedAdminApp = existing ?? initializeApp({ projectId: PROJECT_ID })
-  return cachedAdminApp
+  const existing: App | undefined = getApps()[0]
+  const created: App = existing ?? initializeApp({ projectId: PROJECT_ID })
+  cachedAdminApp = created
+  return created
 }
 
 export type SeedOrgInput = {
@@ -2203,17 +2204,20 @@ export async function setActiveUnitCookie(
 // `/units` — but if the create crossed the org into 2+ units with no chosen
 // unit, the layout bounces to the `/select-unit` interstitial first (brief 0029
 // AC-04). Wait for the post-create navigation to settle, pick a unit if the
-// interstitial showed, and leave the browser on the `/units` listing so the
-// caller can assert the created unit is there.
+// interstitial showed, and leave the browser on the `/organizations` surface
+// (Negócios & Unidades) so the caller can assert the created unit is there.
 export async function enterUnitsAfterCreate(page: Page): Promise<void> {
-  // The create action redirects to `/units`, but the `(app)` layout then bounces
-  // a now-multi-unit org with no chosen unit to `/select-unit`. That transient
-  // `/units` hop means we can't trust the immediate post-create URL — first let
-  // the post-create navigation settle, then navigate to `/units` ourselves and,
-  // if the interstitial shows, pin the first offered unit via the cookie (more
-  // robust than the picker's async transition) and retry.
-  await page.waitForURL(/\/(units|select-unit|agenda)$/, { timeout: 10000 })
-  await page.goto('/units')
+  // The create action redirects to `/organizations` (the Negócios & Unidades
+  // surface that absorbed the old `/units` list), but the `(app)` layout then
+  // bounces a now-multi-unit org with no chosen unit to `/select-unit`. That
+  // transient hop means we can't trust the immediate post-create URL — first let
+  // the post-create navigation settle, then navigate to `/organizations`
+  // ourselves and, if the interstitial shows, pin the first offered unit via the
+  // cookie (more robust than the picker's async transition) and retry.
+  // Let the post-create redirect fully settle before we navigate — racing it
+  // with our own goto() makes the interstitial hop intermittent (flaky).
+  await page.waitForURL(/\/(organizations|units|select-unit|agenda)$/, { timeout: 10000 })
+  await page.goto('/organizations')
   if (/\/select-unit$/.test(new URL(page.url()).pathname)) {
     // The interstitial renders one submit button per unit; each carries its
     // unit id in the form `value` attribute (stable, accessible-query-safe).
@@ -2222,7 +2226,11 @@ export async function enterUnitsAfterCreate(page: Page): Promise<void> {
       .first()
       .getAttribute('value')
     if (unitId) await setActiveUnitCookie(page.context(), unitId, page.url())
-    await page.goto('/units')
+    await page.goto('/organizations')
   }
-  await expect(page).toHaveURL(/\/units$/)
+  await expect(page).toHaveURL(/\/organizations(\/|\?|$)/)
+  // Wait for the Negócios surface to actually render (its heading is the stable
+  // landmark) before returning — the caller asserts list contents right after,
+  // and a not-yet-rendered list is the flake source. Web-first, no networkidle.
+  await expect(page.getByRole('heading', { name: 'Negócios', level: 1 })).toBeVisible()
 }

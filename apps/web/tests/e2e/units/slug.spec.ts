@@ -28,20 +28,24 @@ test.describe('Unidades — slug público', () => {
     test('/units/new auto-deriva slug do nome e persiste', async ({ authedPage }) => {
       const units = new UnitsPage(authedPage)
       await units.gotoNew()
-      await authedPage.getByRole('textbox', { name: 'Nome' }).fill('Filial Centro Velho')
+      // O diálogo de criação abre SOBRE /organizations (que já lista a unidade
+      // seedada). Escopa todos os locators ao dialog — o hint de endereço
+      // (/São Paulo\/SP/) e os labels do form aparecem no fundo E no dialog.
+      const dialog = authedPage.getByRole('dialog')
+      await dialog.getByRole('textbox', { name: 'Nome' }).fill('Filial Centro Velho')
       // Slug field auto-fills from name; should land available.
-      await expect(authedPage.getByRole('textbox', { name: 'Slug público' })).toHaveValue(
+      await expect(dialog.getByRole('textbox', { name: 'Slug público' })).toHaveValue(
         'filial-centro-velho',
       )
-      await expect(authedPage.getByText(/disponível/i)).toBeVisible()
+      await expect(dialog.getByText(/disponível/i)).toBeVisible()
 
-      await authedPage.getByRole('textbox', { name: 'WhatsApp' }).fill('11955554444')
-      await authedPage.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
-      await expect(authedPage.getByText(/São Paulo\/SP/)).toBeVisible()
-      await authedPage.getByRole('textbox', { name: 'Número' }).fill('200')
+      await dialog.getByRole('textbox', { name: 'WhatsApp' }).fill('11955554444')
+      await dialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
+      await expect(dialog.getByText(/São Paulo\/SP/)).toBeVisible()
+      await dialog.getByRole('textbox', { name: 'Número' }).fill('200')
       // v2: horário de funcionamento é obrigatório — habilita um dia.
-      await enableUnitBusinessHours(authedPage)
-      await authedPage.getByRole('button', { name: 'Criar' }).click()
+      await enableUnitBusinessHours(dialog)
+      await dialog.getByRole('button', { name: 'Criar' }).click()
 
       // Creating this 2nd unit crosses into multi-unit: the post-create redirect
       // lands on the `/select-unit` interstitial (brief 0029 AC-04). Pick a unit,
