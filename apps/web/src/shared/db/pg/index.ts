@@ -7,5 +7,5 @@
  * migration runner, and integration tests — all server-side.
  */
 export { runEventStoreMigrations } from './migrate'
-export { closeEventStoreDb, getEventStoreDb } from './pool'
+export { closeEventStoreDb, getEventStoreDb, initEventStore } from './pool'
 export * as eventStoreSchema from './schema'

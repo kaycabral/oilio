@@ -19,6 +19,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@cbrl/db": "workspace:*",
     "@cbrl/env": "workspace:*",
     "drizzle-orm": "catalog:",
     "pg": "catalog:"

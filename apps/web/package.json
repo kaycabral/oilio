@@ -29,9 +29,11 @@
     "mutation": "stryker run"
   },
   "dependencies": {
+    "@cbrl/db": "workspace:*",
     "@cbrl/design": "workspace:*",
     "@cbrl/env": "workspace:*",
     "@cbrl/product": "workspace:*",
+    "@google-cloud/cloud-sql-connector": "catalog:",
     "@types/qrcode": "^1.5.6",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",

@@ -1,47 +1,58 @@
-import { requireEnv } from '@cbrl/env'
+import { createManagedPool, createManagedPoolSync, type ManagedPool } from '@cbrl/db'
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
-import { Pool } from 'pg'
 import * as schema from '../schema'
 
 /**
  * Postgres connection for the sovereign product base.
  *
- * Lazy + small: the pool is created on first use (not at import) so importing the
- * package — e.g. just the pure GTIN validator — never opens a socket. `max: 5`
- * keeps a serverless instance from exhausting Cloud SQL connections; a pooler
- * (PgBouncer / Cloud SQL) goes in front when instance count grows, at which point
- * prepared statements must be disabled (transaction-mode pooling). Connection
- * target is `DATABASE_URL` via `@cbrl/env` — fail-fast, no silent default.
+ * Shares the `@cbrl/db` connection policy with the oilio event store (same Cloud
+ * SQL instance, 1 instance / 2 logical DBs): IAM auth in production (passwordless,
+ * the connector dials the private IP over the VPC), plain connection string
+ * (`DATABASE_URL`) locally/CI/tests.
+ *
+ * Two init paths so the IAM connector's async-ness never leaks into callers:
+ * production opens the pool once at boot via `initProductDb()` (fail-fast); tests
+ * /local lazily build the sync password-mode pool on first use. See the oilio
+ * `pool.ts` for the full rationale.
  */
 
-let pool: Pool | undefined
+const ENV_CONFIG = {
+  connectionStringEnvVar: 'DATABASE_URL',
+  iamAuthEnvVar: 'PRODUCT_USE_IAM_AUTH',
+  instanceEnvVar: 'PRODUCT_CLOUDSQL_INSTANCE',
+  iamUserEnvVar: 'PRODUCT_IAM_DB_USER',
+  database: 'produtos',
+} as const
+
+let managed: ManagedPool | undefined
 let db: NodePgDatabase<typeof schema> | undefined
 
-function getPool(): Pool {
-  if (pool === undefined) {
-    pool = new Pool({
-      connectionString: requireEnv('DATABASE_URL'),
-      max: 5,
-      // 10 min idle before a connection is released
-      idleTimeoutMillis: 600_000,
-    })
-  }
-  return pool
+function adopt(m: ManagedPool): ManagedPool {
+  managed = m
+  db = drizzle(m.pool, { schema })
+  return m
 }
 
-/** Lazily-created Drizzle client bound to the product schema. */
+/** Open the product-base pool at boot (required in IAM mode). Idempotent. */
+export async function initProductDb(): Promise<void> {
+  if (managed === undefined) adopt(await createManagedPool(ENV_CONFIG))
+}
+
+function ensureManaged(): ManagedPool {
+  return managed ?? adopt(createManagedPoolSync(ENV_CONFIG))
+}
+
+/** Drizzle client bound to the product schema. */
 export function getDb(): NodePgDatabase<typeof schema> {
-  if (db === undefined) {
-    db = drizzle(getPool(), { schema })
-  }
-  return db
+  ensureManaged()
+  return db ?? drizzle(ensureManaged().pool, { schema })
 }
 
 /** Close the pool (tests / graceful shutdown). No-op if never opened. */
 export async function closeDb(): Promise<void> {
-  if (pool !== undefined) {
-    await pool.end()
-    pool = undefined
+  if (managed !== undefined) {
+    await managed.close()
+    managed = undefined
     db = undefined
   }
 }
