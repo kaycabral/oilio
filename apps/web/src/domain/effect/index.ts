@@ -11,6 +11,15 @@ export {
 } from './errors'
 
 export {
+  aggregateRef,
+  aggregateRefEquals,
+  collectionRef,
+  type AggregateRef,
+  type AggregateType,
+  type CollectionRef,
+} from './aggregate-ref'
+
+export {
   LoggerService,
   PersistencePort,
   SecurityContext,

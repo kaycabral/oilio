@@ -1,5 +1,6 @@
 import { Data, Effect, Schema } from 'effect'
 
+import type { AggregateRef, AggregateType } from './aggregate-ref'
 import type { FirestoreDoc, TransactionContext } from './services'
 import { PersistencePort } from './services'
 
@@ -68,7 +69,11 @@ export type AggregateConfig<
   // `decodeUnknownEither`/`decodeEvent`, never encoded through `config.schema`.
   Encoded = Event,
 > = {
-  readonly type: string
+  // The aggregate's canonical type — a CLOSED union (D6, ADR 0013), not a free
+  // string. It is the projector-registry key, the `events.aggregate_type`
+  // column, and the source `aggregateRef(config, …)` derives the ref `type`
+  // from. A new aggregate adds its literal to `AggregateType`.
+  readonly type: AggregateType
   readonly initialState: State
   // The reducer receives the DECODED, schema-validated event (a discriminated
   // union on `_tag`) — no `payload as T` cast in product code. `meta` carries
@@ -140,7 +145,7 @@ export function appendEventToTx<
   Encoded = Event,
 >(
   config: AggregateConfig<State, Event, Encoded>,
-  aggregatePath: string,
+  ref: AggregateRef,
   input: EventInput<Event['_tag']>,
   tx: TransactionContext,
 ) {
@@ -158,7 +163,7 @@ export function appendEventToTx<
       )
     }
 
-    const projectionDoc = yield* tx.getDoc(aggregatePath)
+    const projectionDoc = yield* tx.getDoc(ref)
 
     const envelope: EventEnvelope<Event['_tag']> = {
       _tag: input._tag,
@@ -169,18 +174,22 @@ export function appendEventToTx<
       payload: input.payload,
     }
 
-    const eventId = `v${String(envelope.version).padStart(6, '0')}`
-    yield* tx.setDoc(`${aggregatePath}/events/${eventId}`, envelope)
+    // Append the event row by typed ref (D6): `aggregate_id` = `ref.id`, no
+    // `${path}/events/v…` string. A real backend provides `appendEvent`; the
+    // in-memory test contexts that don't are write-free replay fixtures.
+    if (tx.appendEvent) {
+      yield* tx.appendEvent(ref, envelope.version, envelope)
+    }
 
     const currentState = rehydrateState(config.initialState, projectionDoc)
     const newState = config.reducer(currentState, decodeResult.right, envelope)
 
     // Eventos `.deleted` são hard-delete: o caller remove a projeção via
-    // `.doc().delete()`. NÃO reprojetar — senão o `setDoc` "ressuscita" o
-    // doc com o estado do reducer e o delete nunca cola. O evento já foi
-    // gravado acima (histórico preservado na subcollection `events`).
+    // `tx.deleteDoc`. NÃO reprojetar — senão o `setDoc` "ressuscita" o doc com o
+    // estado do reducer e o delete nunca cola. O evento já foi gravado acima
+    // (histórico preservado na tabela `events`).
     if (!input._tag.endsWith('.deleted')) {
-      yield* tx.setDoc(aggregatePath, newState)
+      yield* tx.setDoc(ref, newState)
     }
 
     return envelope
@@ -193,13 +202,13 @@ export function appendEvent<
   Encoded = Event,
 >(
   config: AggregateConfig<State, Event, Encoded>,
-  aggregatePath: string,
+  ref: AggregateRef,
   input: EventInput<Event['_tag']>,
 ) {
   return Effect.gen(function* () {
     const persistence = yield* PersistencePort
     return yield* persistence.runTransaction((tx: TransactionContext) =>
-      appendEventToTx(config, aggregatePath, input, tx),
+      appendEventToTx(config, ref, input, tx),
     )
   })
 }
@@ -251,14 +260,14 @@ export function appendDeleteToTx<
   Encoded = Event,
 >(
   config: AggregateConfig<State, Event, Encoded>,
-  aggregatePath: string,
+  ref: AggregateRef,
   input: EventInput<Event['_tag']>,
   tx: TransactionContext,
 ) {
   return Effect.gen(function* () {
-    yield* appendEventToTx(config, aggregatePath, input, tx)
+    yield* appendEventToTx(config, ref, input, tx)
     if (tx.deleteDoc) {
-      yield* tx.deleteDoc(aggregatePath)
+      yield* tx.deleteDoc(ref)
     }
   })
 }
@@ -298,12 +307,14 @@ export function runSaga(steps: readonly SagaStep[]) {
 // either the resolved `payload` (snapshotted from the committed definition
 // state) or a `GuardRejectedError` (e.g. discontinued). `EventValidationError`
 // (schema) still applies after the payload is resolved.
-// Typed transactional reader handed to the guard. `getDoc(path, schema)` decodes
+// Typed transactional reader handed to the guard. `getDoc(ref, schema)` decodes
 // the untyped `FirestoreDoc` against `schema` (or returns `null`) — schema-
-// validated, so no cast and product code stays cast-free.
+// validated, so no cast and product code stays cast-free. The `ref` identifies
+// the DEFINITION aggregate being read to guard the write (e.g. the catalog-item
+// or subscription-plan), by typed identity (D6).
 export type GuardReader = {
   readonly getDoc: <Def>(
-    path: string,
+    ref: AggregateRef,
     schema: Schema.Schema<Def>,
   ) => Effect.Effect<Def | null, never, never>
 }
@@ -324,7 +335,7 @@ export type GuardedAppend<
   Event extends { readonly _tag: string },
 > = {
   readonly config: AggregateConfig<State, Event>
-  readonly aggregatePath: string
+  readonly ref: AggregateRef
   readonly actorId: string
   readonly tag: Event['_tag']
   readonly guard: (reader: GuardReader) => Effect.Effect<GuardResult, never, never>
@@ -348,7 +359,7 @@ export function appendEventGuardedToTx<
   State extends { readonly _version: number },
   Event extends { readonly _tag: string },
 >(
-  { config, aggregatePath, actorId, tag, guard }: GuardedAppend<State, Event>,
+  { config, ref, actorId, tag, guard }: GuardedAppend<State, Event>,
   tx: TransactionContext,
 ): Effect.Effect<GuardedOutcome<Event['_tag']>, never, never> {
   return Effect.gen(function* () {
@@ -359,8 +370,8 @@ export function appendEventGuardedToTx<
     // no concurrency to serialize there).
     const lockedGetDoc = tx.getDocForUpdate ?? tx.getDoc
     const reader: GuardReader = {
-      getDoc: <Def>(path: string, schema: Schema.Schema<Def>) =>
-        lockedGetDoc(path).pipe(
+      getDoc: <Def>(defRef: AggregateRef, schema: Schema.Schema<Def>) =>
+        lockedGetDoc(defRef).pipe(
           Effect.map((d) => (d === null ? null : Schema.decodeUnknownSync(schema)(d))),
         ),
     }
@@ -377,7 +388,7 @@ export function appendEventGuardedToTx<
       return { _tag: 'invalid' as const }
     }
 
-    const projectionDoc = yield* tx.getDoc(aggregatePath)
+    const projectionDoc = yield* tx.getDoc(ref)
 
     const envelope: EventEnvelope<Event['_tag']> = {
       _tag: tag,
@@ -388,12 +399,13 @@ export function appendEventGuardedToTx<
       payload: guarded.payload,
     }
 
-    const eventId = `v${String(envelope.version).padStart(6, '0')}`
-    yield* tx.setDoc(`${aggregatePath}/events/${eventId}`, envelope)
+    if (tx.appendEvent) {
+      yield* tx.appendEvent(ref, envelope.version, envelope)
+    }
 
     const currentState = rehydrateState(config.initialState, projectionDoc)
     const newState = config.reducer(currentState, decodeResult.right, envelope)
-    yield* tx.setDoc(aggregatePath, newState)
+    yield* tx.setDoc(ref, newState)
 
     return { _tag: 'ok' as const, envelope }
   })
@@ -433,7 +445,8 @@ export function appendEventGuarded<
 // e sem ler o store — pra ser embutido numa transação que o caller já controla
 // (ex.: o guard transacional anti-double-book do booking, que faz range-query e
 // não cabe no `TransactionContext` enxuto do effect-layer). O caller grava o
-// `envelope` em `events/${eventId}` e a `projection` no doc do aggregate, na sua
+// `envelope` (via `tx.appendEvent(ref, envelope.version, envelope)`) e a
+// `projection` no doc do aggregate (via `tx.setDoc(ref, projection)`), na sua
 // própria transação — mantendo event-first (evento é a fonte; projeção derivada)
 // sem o dual-write de escrever o doc operacional direto.
 //
@@ -448,7 +461,6 @@ export function buildInitialEvent<
   input: EventInput<Event['_tag']>,
 ): {
   readonly envelope: EventEnvelope<Event['_tag']>
-  readonly eventId: string
   readonly projection: State
 } {
   const decodeResult = Schema.decodeUnknownEither(config.schema)({
@@ -470,9 +482,8 @@ export function buildInitialEvent<
     schemaVersion: config.currentSchemaVersion,
     payload: input.payload,
   }
-  const eventId = `v${String(envelope.version).padStart(6, '0')}`
   const projection = config.reducer(config.initialState, decodeResult.right, envelope)
-  return { envelope, eventId, projection }
+  return { envelope, projection }
 }
 
 // ---------------------------------------------------------------------------
@@ -483,13 +494,11 @@ export function replayAggregate<
   State extends { readonly _version: number },
   Event extends { readonly _tag: string },
   Encoded = Event,
->(config: AggregateConfig<State, Event, Encoded>, aggregatePath: string) {
+>(config: AggregateConfig<State, Event, Encoded>, ref: AggregateRef) {
   return Effect.gen(function* () {
     const persistence = yield* PersistencePort
 
-    const eventDocs = yield* persistence.getDocs(`${aggregatePath}/events`, [
-      { kind: 'orderBy', field: 'version', direction: 'asc' },
-    ])
+    const eventDocs = yield* persistence.getEvents(ref)
 
     let state = config.initialState
     for (const doc of eventDocs) {
