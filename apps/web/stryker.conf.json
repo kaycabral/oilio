@@ -1,0 +1,34 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the whole pure-TS domain (@oilio/shared) \u2014 utils, domain aggregates (reducers + replay), event-store, value objects, type validators. A surviving mutant = a behaviour no unit test pins. This package is where mutation pays off: pure logic, no Next/emulator, ~91% line coverage and a fast unit suite. The web is intentionally NOT mutated \u2014 its real net is the integration/e2e suite (Stryker reruns the unit suite per mutant; web unit coverage is ~14%, so mutating it would just yield no-coverage mutants).",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.config.ts"
+  },
+  "_perf_comment": "Tuned for the 1-vCPU saas-linux-small CI runner, where the job was timing out in the initial dry run (the full vitest config booted jsdom + the React setup + 98 non-domain test files: ~270s of `environment` startup per test-runner). Levers, by impact: (1) a dedicated `vitest.stryker.config.ts` runs ONLY the pure-domain suite under `environment: node` (env startup 273s -> 13ms locally); (2) `ignoreStatic` skips full-reload static mutants; (3) `incremental` re-tests only changed files on subsequent nightlies; (4) `concurrency` pinned to the runner's real CPU quota (1 vCPU -> 2 processes; oversubscribing thrashes). coverageAnalysis stays `perTest` (fastest mode).",
+  "coverageAnalysis": "perTest",
+  "ignoreStatic": true,
+  "incremental": true,
+  "incrementalFile": "reports/stryker-incremental.json",
+  "concurrency": 2,
+  "dryRunTimeoutMinutes": 10,
+  "mutate": [
+    "src/domain/**/*.ts",
+    "!src/domain/**/*.test.ts",
+    "!src/domain/**/*.integration.test.ts",
+    "!src/domain/**/index.ts",
+    "!src/domain/**/*.d.ts"
+  ],
+  "reporters": ["clear-text", "progress", "json"],
+  "jsonReporter": {
+    "fileName": "reports/mutation/mutation.json"
+  },
+  "_thresholds_comment": "Whole-domain score (NOT cherry-picked) = 87.13% measured 2026-06-19 on the full 3524-mutant run (2264 killed / 230 survived / 4 timeout / 105 no-cov / 0 errors). This is UP from the ~77.4% pre-`ignoreStatic` plateau: `ignoreStatic: true` (added for CI perf) drops static mutants \u2014 the INITIAL_* / load-time-evaluated equivalents that no test could ever kill \u2014 from the DENOMINATOR. The rise is honest (the real surviving population is unchanged), not maquiagem. break = regression floor just below the measured score (85, ~2pp under 87.13 to absorb v8 run-to-run noise); ratchet UP as survivors are killed. Never set break above the real score to make it look good.",
+  "thresholds": {
+    "high": 90,
+    "low": 75,
+    "break": 85
+  },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true
+}

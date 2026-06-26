@@ -1,0 +1,88 @@
+#!/usr/bin/env node
+// Ephemeral-Postgres runner for the sovereign-base integration suites.
+//
+// Brings up the Postgres service (docker/postgres.compose.yaml), waits for it to
+// be healthy, runs the Postgres-backed integration suites against the real
+// database with DATABASE_URL injected, then tears the service down — pass or
+// fail. Mirrors the `db:exec` pattern the Firestore apps use, but for Postgres.
+// Each suite applies migrations itself, so this only owns the container lifecycle
+// + the connection string.
+//
+// Suites (both against the same ephemeral Postgres):
+//   • @cbrl/product test:integration   — the base engine (A1 + A2 lookup/contrib).
+//   • @oilio/web   test:integration:pg — the oilio registration gate (A2, 0050).
+//
+// Usage:  node scripts/product-it.mjs            (run both suites)
+//         node scripts/product-it.mjs --keep-up  (leave Postgres running after)
+
+import { spawnSync } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+const root = path.resolve(here, '..')
+const compose = path.join(root, 'docker', 'postgres.compose.yaml')
+
+const POSTGRES_USER = 'postgres'
+const POSTGRES_PASSWORD = 'postgres'
+const POSTGRES_DB = 'produtos'
+const POSTGRES_PORT = '5432'
+const DATABASE_URL = `postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}`
+
+const keepUp = process.argv.includes('--keep-up')
+
+const composeEnv = {
+  ...process.env,
+  POSTGRES_USER,
+  POSTGRES_PASSWORD,
+  POSTGRES_DB,
+  POSTGRES_PORT,
+}
+
+function run(cmd, args, opts = {}) {
+  const res = spawnSync(cmd, args, { stdio: 'inherit', ...opts })
+  if (res.error) throw res.error
+  return res.status ?? 1
+}
+
+function composeDown() {
+  run('docker', ['compose', '-f', compose, 'down', '-v'], { env: composeEnv })
+}
+
+console.log('▸ subindo Postgres efêmero (docker/postgres.compose.yaml)…')
+// `--wait` blocks until the healthcheck (pg_isready) passes.
+const upStatus = run('docker', ['compose', '-f', compose, 'up', '-d', '--wait'], {
+  env: composeEnv,
+})
+if (upStatus !== 0) {
+  console.error('✕ Postgres não subiu.')
+  composeDown()
+  process.exit(upStatus)
+}
+
+let testStatus = 1
+try {
+  const suiteEnv = { ...process.env, DATABASE_URL }
+  console.log('▸ rodando @cbrl/product integration contra Postgres real…')
+  const productStatus = run('pnpm', ['--filter', '@cbrl/product', 'run', 'test:integration'], {
+    cwd: root,
+    env: suiteEnv,
+  })
+  console.log('▸ rodando @oilio/web gate (test:integration:pg) contra Postgres real…')
+  const oilioStatus = run('pnpm', ['--filter', '@oilio/web', 'run', 'test:integration:pg'], {
+    cwd: root,
+    env: suiteEnv,
+  })
+  // Non-zero if either suite failed; both run so a failure in one still reports
+  // the other's result.
+  testStatus = productStatus !== 0 ? productStatus : oilioStatus
+} finally {
+  if (keepUp) {
+    console.log(`▸ --keep-up: Postgres segue no ar em ${DATABASE_URL}`)
+  } else {
+    console.log('▸ derrubando Postgres efêmero…')
+    composeDown()
+  }
+}
+
+process.exit(testStatus)

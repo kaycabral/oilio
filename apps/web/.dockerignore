@@ -1,0 +1,15 @@
+# Context is the repo root. Keep the build lean + deterministic — turbo prune
+# re-derives the workspace, so node_modules/build outputs must never leak in.
+**/node_modules
+**/.next
+**/.turbo
+**/coverage
+**/test-results
+**/playwright-report
+**/reports
+.git
+.gitlab
+.github
+**/*.log
+**/.env*
+public
