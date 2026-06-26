@@ -226,7 +226,7 @@ CREATE TABLE "events" (
 	"org_id" text,
 	"envelope" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "events_aggregate_id_version_key" UNIQUE("aggregate_id","version"),
+	CONSTRAINT "events_aggregate_id_version_key" UNIQUE("aggregate_type","org_id","aggregate_id","version"),
 	CONSTRAINT "events_version_positive" CHECK ("events"."version" > 0)
 );
 --> statement-breakpoint
@@ -701,7 +701,7 @@ CREATE INDEX "charges_org_id_status_idx" ON "charges" USING btree ("org_id","sta
 CREATE INDEX "commissions_org_id_attributed_user_idx" ON "commissions" USING btree ("org_id","attributed_user_id");--> statement-breakpoint
 CREATE INDEX "commissions_org_id_order_idx" ON "commissions" USING btree ("org_id","order_id");--> statement-breakpoint
 CREATE INDEX "customers_org_id_user_id_idx" ON "customers" USING btree ("org_id","user_id");--> statement-breakpoint
-CREATE INDEX "events_aggregate_id_version_idx" ON "events" USING btree ("aggregate_id","version");--> statement-breakpoint
+CREATE INDEX "events_aggregate_id_version_idx" ON "events" USING btree ("aggregate_type","org_id","aggregate_id","version");--> statement-breakpoint
 CREATE INDEX "events_org_id_idx" ON "events" USING btree ("org_id","aggregate_type","version");--> statement-breakpoint
 CREATE INDEX "goals_org_id_unit_id_idx" ON "goals" USING btree ("org_id","unit_id");--> statement-breakpoint
 CREATE INDEX "invites_org_id_status_idx" ON "invites" USING btree ("org_id","status");--> statement-breakpoint

@@ -1,5 +1,5 @@
 {
-  "id": "48a0669a-d299-4f1d-b2c3-8194f92d931f",
+  "id": "cf983d2f-c2e9-43bd-9385-68336ecc18dc",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1574,6 +1574,18 @@
           "name": "events_aggregate_id_version_idx",
           "columns": [
             {
+              "expression": "aggregate_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "aggregate_id",
               "isExpression": false,
               "asc": true,
@@ -1625,7 +1637,7 @@
         "events_aggregate_id_version_key": {
           "name": "events_aggregate_id_version_key",
           "nullsNotDistinct": false,
-          "columns": ["aggregate_id", "version"]
+          "columns": ["aggregate_type", "org_id", "aggregate_id", "version"]
         }
       },
       "policies": {},

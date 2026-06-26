@@ -11,8 +11,13 @@ import { bigint, check, index, jsonb, pgTable, text, timestamp, unique } from 'd
  *
  * Invariants enforced by the DATABASE (not application code), proven by
  * integration tests against real Postgres:
- *   - `UNIQUE(aggregate_id, version)` — optimistic concurrency: two appends
- *     racing for the same version, the second is refused by the DB.
+ *   - `UNIQUE(aggregate_type, org_id, aggregate_id, version)` — optimistic
+ *     concurrency: two appends racing for the same version, the second is
+ *     refused by the DB. The key is COMPOSITE because `aggregate_id` is the bare
+ *     instance id (D6, ADR 0013) — no longer the globally-unique path string —
+ *     so it identifies a stream only together with its `(aggregate_type, org_id)`
+ *     siblings. A bare `(aggregate_id, version)` collides across orgs / aggregate
+ *     types that legitimately reuse an id.
  *   - `version` is a positive monotonic integer per aggregate (CHECK > 0).
  *   - `envelope` is the JSONB body (`_tag`/timestamp/actorId/schemaVersion/
  *     payload) — the SAME shape the Firestore layer persists, so reducers and
@@ -50,15 +55,29 @@ export const events = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    // Optimistic concurrency: one row per (aggregate, version). A concurrent
-    // append for an already-written version is refused by the DB, not the app.
-    unique('events_aggregate_id_version_key').on(table.aggregateId, table.version),
+    // Optimistic concurrency: one row per (aggregate stream, version). The
+    // stream is `(aggregate_type, org_id, aggregate_id)` because `aggregate_id`
+    // is the bare instance id (D6) — bare `(aggregate_id, version)` would collide
+    // across orgs / aggregate types reusing an id. A concurrent append for an
+    // already-written version is refused by the DB, not the app.
+    unique('events_aggregate_id_version_key').on(
+      table.aggregateType,
+      table.orgId,
+      table.aggregateId,
+      table.version,
+    ),
     // Version is 1-based and monotonic — the DB rejects a non-positive version
     // even if application code slips.
     check('events_version_positive', sql`${table.version} > 0`),
     // Replay reads a single aggregate's stream in version order — this index
-    // backs `WHERE aggregate_id = $1 ORDER BY version`.
-    index('events_aggregate_id_version_idx').on(table.aggregateId, table.version),
+    // backs `WHERE aggregate_type = $1 AND org_id = $2 AND aggregate_id = $3
+    // ORDER BY version` (the composite stream identity, D6).
+    index('events_aggregate_id_version_idx').on(
+      table.aggregateType,
+      table.orgId,
+      table.aggregateId,
+      table.version,
+    ),
     // Leading-`org_id` index PREPARED for RLS (feature C) and org-scoped reads.
     index('events_org_id_idx').on(table.orgId, table.aggregateType, table.version),
   ],
