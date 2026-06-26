@@ -91,30 +91,15 @@ export function roleDescription(role: Role): string {
       return 'Tem agenda própria e gerencia os próprios atendimentos.'
     case 'receptionist':
       return 'Agenda e cancela atendimentos e gerencia clientes — sem acesso a finanças.'
-    case 'customer':
-      return 'Sem acesso operacional — existe só para aparecer no escopo do negócio.'
   }
-}
-
-const ALL_FALSE: MembershipPermissions = {
-  canHaveAgenda: false,
-  canManageOwnAgenda: false,
-  canCreateAppointment: false,
-  canCancelAppointment: false,
-  canManageCustomers: false,
-  canManageProfessionals: false,
-  canManageCatalog: false,
-  canViewFinancials: false,
-  canManagePlans: false,
-  canManageSubscriptions: false,
 }
 
 // Default permission set per role. Owner gets everything; manager mirrors
 // owner minus financial-sensitive bits (kept open here for V0 simplicity
 // but easy to tighten); professional gets agenda + appointments;
-// receptionist gets customer + appointment ops; customer gets nothing
-// (a customer membership exists so the user shows up in the org's
-// scope — capability checks are not driven by customer memberships).
+// receptionist gets customer + appointment ops. There is no `customer` role —
+// a person who is a client of the org lives in the `customers` table, never as a
+// membership (brief 0068 D4 / AC-04: the vestigial role was removed).
 export function defaultPermissionsForRole(role: Role): MembershipPermissions {
   switch (role) {
     case 'owner':
@@ -169,7 +154,5 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canManagePlans: false,
         canManageSubscriptions: false,
       }
-    case 'customer':
-      return ALL_FALSE
   }
 }

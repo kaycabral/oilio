@@ -22,7 +22,6 @@ const ROLE_LABELS: Record<Role, string> = {
   manager: 'Gerente',
   professional: 'Profissional',
   receptionist: 'Recepção',
-  customer: 'Cliente',
 }
 
 export function InviteForm() {

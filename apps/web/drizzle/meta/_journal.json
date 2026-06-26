@@ -155,6 +155,13 @@
       "when": 1782420200000,
       "tag": "0021_professional_drop_operational_status",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1782420300000,
+      "tag": "0022_drop_customer_role",
+      "breakpoints": true
     }
   ]
 }

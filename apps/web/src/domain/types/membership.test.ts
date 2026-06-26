@@ -95,18 +95,6 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canManagePlans: false,
     canManageSubscriptions: false,
   },
-  customer: {
-    canHaveAgenda: false,
-    canManageOwnAgenda: false,
-    canCreateAppointment: false,
-    canCancelAppointment: false,
-    canManageCustomers: false,
-    canManageProfessionals: false,
-    canManageCatalog: false,
-    canViewFinancials: false,
-    canManagePlans: false,
-    canManageSubscriptions: false,
-  },
 }
 
 describe('defaultPermissionsForRole', () => {
@@ -142,7 +130,6 @@ describe('roleDescription', () => {
     manager: 'Gerencia equipe, serviços, planos e vê finanças — quase tudo, menos ser o dono.',
     professional: 'Tem agenda própria e gerencia os próprios atendimentos.',
     receptionist: 'Agenda e cancela atendimentos e gerencia clientes — sem acesso a finanças.',
-    customer: 'Sem acesso operacional — existe só para aparecer no escopo do negócio.',
   }
 
   for (const role of ROLES) {
@@ -176,9 +163,5 @@ describe('operatesCrossUnit', () => {
 
   it('is false for a professional (cannot manage org)', () => {
     expect(operatesCrossUnit(makeMembership('professional', null))).toBe(false)
-  })
-
-  it('is false for a customer (cannot manage org)', () => {
-    expect(operatesCrossUnit(makeMembership('customer', null))).toBe(false)
   })
 })

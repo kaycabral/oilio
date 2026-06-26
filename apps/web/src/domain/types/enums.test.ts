@@ -15,7 +15,7 @@ describe('enum value lists', () => {
   // blanked entry (StringLiteral mutant) would slip past the value-loops in
   // other suites, which pass vacuously over an empty list.
   it('ROLES holds every role in order', () => {
-    expect(ROLES).toEqual(['owner', 'manager', 'professional', 'receptionist', 'customer'])
+    expect(ROLES).toEqual(['owner', 'manager', 'professional', 'receptionist'])
   })
 
   it('VERTICALS holds every vertical in order', () => {
@@ -47,7 +47,6 @@ describe('canManageOrg / canInviteMembers', () => {
     manager: true,
     professional: false,
     receptionist: false,
-    customer: false,
   }
 
   for (const role of ROLES) {
