@@ -71,13 +71,17 @@ O split é correto (ver Context), mas carrega dívida interna:
 
 O formato `orgs/{orgId}/x/{id}` é resíduo Firestore declarado ("a legacy of the Firestore origin", `postgres-layer.ts:42`) e, na maioria das tabelas org-scoped, **redundante com `(org_id, id)`** que já são colunas. Mas hoje carrega 3 funções: (a) chave de roteamento do `PersistencePort` path-based (deriva tipo e org via `.split('/')`); (b) vira `events.aggregate_id`, base do `UNIQUE(aggregate_id, version)`; (c) o RLS deriva o org do path no write path, evitando threading de orgId.
 
-**Decisão:** relacionalizar **de dentro pra fora**, não dropar a coluna primeiro:
+**Decisão:** a identidade do aggregate vira um **tipo de domínio de primeira classe** e o path desaparece de toda a superfície:
 
-1. Trocar o contrato do `PersistencePort` de "vocabulário de path" por `{type, orgId, id}` **tipado** (ADR 0012 deixou a porta como seam exatamente pra isso).
-2. `events.aggregate_id` vira composto / a unicidade vira `UNIQUE(aggregate_type, org_id, aggregate_id, version)`.
-3. Só então `(org_id, id)` vira PK das projeções e `aggregate_path` é removido.
+1. **`AggregateRef { type, orgId, id }` como tipo nominal.** O `PersistencePort` fala `AggregateRef` (não `path: string`) em `load`/`append`; os reads de coleção falam `{ type, orgId }`. O `type` é uma **union fechada** derivada do registry — não `string` — então um type inexistente **não compila**. O ref é construído por `aggregateRef(config, orgId, id)`, derivando o `type` de `config.type` (que já existe, `event-store.ts:71`): impossível dessincronizar identidade e config, impossível digitar o type errado.
+2. **`events.aggregate_id` = `id` puro** (não o path concatenado); `aggregate_type` e `org_id` são colunas tipadas ao lado. A unicidade vira `UNIQUE(aggregate_type, org_id, aggregate_id, version)`. Nenhuma string de path existe em lugar nenhum — nem interna ao `postgres-layer`.
+3. **Mapa `type → tabela` explícito no registry.** Hoje `config.type` é singular (`'subscription'`) e a tabela é plural (`subscriptions`); a ponte é o `aggregateTypeOf(path)` extraindo o segmento plural da string. Com o path morto, o registry mapeia `config.type → tabela/projector` de forma explícita e tipada. `aggregateTypeOf`, `orgIdOf`, e os regex `EVENT_PATH`/`EVENTS_COLLECTION` são **deletados**.
+4. **`(org_id, id)` vira PK** das 24 projeções org-scoped; `aggregate_path` é removido. `projections` (genérica), `message_templates` (`(org_id, type)`) e `orgs` (`UNIQUE(org_id)`) mantêm chaves próprias. As FKs compostas `(org_id, ref) → (org_id, id)` (D2) continuam válidas. `version` das projeções → `last_event_version` (carona; `events.version` inalterado).
+5. **RLS deriva `org_id` do `SecurityContext` tipado** — o `ref.orgId` já é explícito no write path; o fallback `orgIdOf(path)` é removido. O caso especial `memberships/{orgId}_{userId}` (e o bug do `lastIndexOf('_')`, que quebra se `orgId` contém `_`) deixa de existir: membership vira `aggregateRef(MembershipConfig, orgId, id)` como qualquer outro aggregate.
 
-É um épico multi-PR, fundação dos demais — por isso **último**, depois que D1–D3 já pagaram o risco concreto.
+Por que **tipo nominal derivado do config** e não objeto-literal `{type,orgId,id}` cru nos call-sites: as três invariantes que hoje vivem na disciplina de concatenar a string certa — (a) o type bate com a tabela, (b) o org isola o tenant, (c) a chave de evento é única — viram **garantias do compilador + do schema**. Cada um dos ~433 call-sites vira uma troca _compile-checked_ (errar não compila) em vez de concatenação livre: risco menor **e** modelo superior.
+
+**Estratégia de entrega — drop & recreate** (revisão do faseamento "de dentro pra fora"): como o cutover #1202 nunca conectou Postgres em prod de verdade (sem dado vivo), o épico **não** carrega coexistência de chaves nem backfill. O schema Drizzle é reescrito já com a forma final, o histórico de migrations é regenerado do zero (squash), e o banco é recriado limpo. Materializado no brief 0069 (#1228 + 5 sub-issues). Sai do "por último/futuro" para **agora**, enquanto a janela sem dado vivo é barata.
 
 ## Consequences
 

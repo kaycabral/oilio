@@ -6,6 +6,7 @@ import {
   PersistencePort,
   runSaga,
   type AggregateConfig,
+  type AggregateRef,
   type EventInput,
   type GuardedAppend,
   type SagaStep,
@@ -20,11 +21,11 @@ export async function emitEvent<
   Encoded = Event,
 >(
   config: AggregateConfig<State, Event, Encoded>,
-  aggregatePath: string,
+  ref: AggregateRef,
   input: EventInput<Event['_tag']>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   return Effect.runPromise(
-    appendEvent(config, aggregatePath, input).pipe(
+    appendEvent(config, ref, input).pipe(
       Effect.map(() => ({ ok: true as const })),
       Effect.catchTag('EventValidationError', (e) =>
         Effect.succeed({ ok: false as const, error: e.message }),
@@ -119,7 +120,7 @@ export async function commitGuardedThenAppend<
 >(
   guarded: GuardedAppend<GState, GEvent>,
   nextConfig: AggregateConfig<NState, NEvent, NEncoded>,
-  nextPath: string,
+  nextRef: AggregateRef,
   buildNext: (resolvedPayload: Record<string, unknown>) => EventInput<NEvent['_tag']>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   return Effect.runPromise(
@@ -131,7 +132,7 @@ export async function commitGuardedThenAppend<
           if (guardedOutcome._tag !== 'ok') return guardedOutcome
           yield* appendEventToTx(
             nextConfig,
-            nextPath,
+            nextRef,
             buildNext(guardedOutcome.envelope.payload),
             tx,
           )
