@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { Commission, liquidationStatusOf } from '@/domain/types/commission'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -28,10 +28,9 @@ const decodeCommission = Schema.decodeUnknownSync(Commission)
  * two writers can never drift. Mirrors the `INSERT` placeholders 1:1.
  */
 export const COMMISSION_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
-  'version',
+  'last_event_version',
   'order_id',
   'order_item_id',
   'attributed_user_id',
@@ -49,23 +48,24 @@ export const COMMISSION_COLUMNS = [
 ] as const
 
 /**
- * Map a decoded `Commission` (+ its aggregate path and projection version) onto
+ * Map a decoded `Commission` (+ its aggregate ref and projection version) onto
  * the ordered `commissions` column VALUES — the inverse of `rowToDoc`, shared by
  * the runtime projector and the E2E seed so the two never diverge. Order matches
- * `COMMISSION_COLUMNS` exactly. The optional liquidation triple is normalized:
- * status defaults to `pendente` (legacy tolerance), and `paid_at`/`payment_proof`
- * are NULL unless present — keeping the paid-IFF-pago CHECK satisfiable.
+ * `COMMISSION_COLUMNS` exactly. Identity (`org_id`/`id`) is written from the ref
+ * (D6, ADR 0013), not parsed from a path. The optional liquidation triple is
+ * normalized: status defaults to `pendente` (legacy tolerance), and
+ * `paid_at`/`payment_proof` are NULL unless present — keeping the paid-IFF-pago
+ * CHECK satisfiable.
  */
 export function commissionColumnValues(
   c: Commission,
-  aggregatePath: string,
+  ref: AggregateRef,
   version: number,
 ): unknown[] {
   const status = liquidationStatusOf(c)
   return [
-    aggregatePath,
-    c.orgId,
-    c.id,
+    ref.orgId,
+    ref.id,
     version,
     c.orderId,
     c.orderItemId,
@@ -85,13 +85,13 @@ export function commissionColumnValues(
 }
 
 const PLACEHOLDERS = COMMISSION_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = COMMISSION_COLUMNS.filter((col) => col !== 'aggregate_path')
+const CONFLICT_SET = COMMISSION_COLUMNS.filter((col) => col !== 'org_id' && col !== 'id')
   .map((col) => `${col} = EXCLUDED.${col}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO commissions (${COMMISSION_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -99,20 +99,16 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const c = decodeCommission(state)
-  await client.query(UPSERT, commissionColumnValues(c, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, commissionColumnValues(c, ref, stateVersion(state)))
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type CommissionRow = {
   org_id: string
   id: string
-  version: string | number
+  last_event_version: string | number
   order_id: string
   order_item_id: string
   attributed_user_id: string
@@ -130,14 +126,15 @@ export type CommissionRow = {
 }
 
 // Reconstructs the reducer's projected doc from the typed row (inverse of
-// `upsert`); `_version` is re-attached so the event store versions/replays
-// correctly. `bigint` columns come back as strings from `pg` — coerced to number
-// to match the domain shape. The optional liquidation triple is re-attached only
-// when meaningful so a pending commission round-trips to the same shape (the
-// domain refinement rejects `paidAt` on a pending commission).
+// `upsert`); `_version` is re-attached from `last_event_version` so the event
+// store versions/replays correctly. `bigint` columns come back as strings from
+// `pg` — coerced to number to match the domain shape. The optional liquidation
+// triple is re-attached only when meaningful so a pending commission round-trips
+// to the same shape (the domain refinement rejects `paidAt` on a pending
+// commission).
 export function rowToDoc(row: CommissionRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     orderId: row.order_id,
@@ -159,26 +156,26 @@ export function rowToDoc(row: CommissionRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<CommissionRow>(
-    'SELECT * FROM commissions WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT * FROM commissions WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM commissions WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM commissions WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
 export const commissionProjector: TypedProjector = { read, upsert, delete: remove }
 
 /**
- * `aggregate_type` for commissions = the aggregate-type segment of the event-store
- * path (`orgs/{orgId}/commissions/{id}` → `commissions`). The Postgres Layer
- * derives the same tag with `aggregateTypeOf`, so registration and routing agree.
+ * The typed `AggregateType` for commissions = `CommissionConfig.type` (singular,
+ * D6/ADR 0013). The Postgres Layer routes to this projector by the ref's typed
+ * `type`, so registration and routing agree.
  */
-export const COMMISSION_AGGREGATE_TYPE = 'commissions'
+export const COMMISSION_AGGREGATE_TYPE = 'commission'
 
 registerTypedProjector(COMMISSION_AGGREGATE_TYPE, commissionProjector)

@@ -1,5 +1,5 @@
 import { CatalogItemConfig } from '@/domain/aggregates/catalog-item/config'
-import { appendEvent, replayAggregate } from '@/domain/effect'
+import { aggregateRef, appendEvent, replayAggregate } from '@/domain/effect'
 import type { CatalogServiceItem } from '@/domain/types/catalog-item'
 import { Effect } from 'effect'
 import { Client } from 'pg'
@@ -26,7 +26,7 @@ const APP_ROLE = 'oilio_ciu_app'
 const APP_PASSWORD = 'ciu_test'
 let appUrl: string
 
-const pathOf = (id: string) => `orgs/${ORG}/catalog_items/${id}`
+const refOf = (id: string) => aggregateRef(CatalogItemConfig, ORG, id)
 
 function item(overrides: Partial<CatalogServiceItem> = {}): CatalogServiceItem {
   return {
@@ -57,27 +57,27 @@ function pool() {
 
 async function seedOrg(): Promise<void> {
   await pool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ('orgs/'||$1,$1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id) DO NOTHING`,
     [ORG],
   )
 }
 
 async function seedUnit(id: string): Promise<void> {
   await pool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/units/'||$2,$1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
   )
 }
 
 async function seedCategory(id: string): Promise<void> {
   await pool().query(
-    `INSERT INTO categories (aggregate_path, org_id, id, version, name, icon, color, active, archived_at, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/categories/'||$2,$1,$2,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO categories (org_id, id, last_event_version, name, icon, color, active, archived_at, created_at, updated_at)
+     VALUES ($1,$2,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
   )
 }
@@ -91,7 +91,7 @@ async function seedParents(): Promise<void> {
 
 const create = (it: CatalogServiceItem) =>
   Effect.runPromise(
-    appendEvent(CatalogItemConfig, pathOf(it.id), {
+    appendEvent(CatalogItemConfig, refOf(it.id), {
       _tag: 'catalog_item.created',
       actorId: 'test',
       payload: { data: it },
@@ -100,7 +100,7 @@ const create = (it: CatalogServiceItem) =>
 
 const update = (changes: Partial<CatalogServiceItem>) =>
   Effect.runPromise(
-    appendEvent(CatalogItemConfig, pathOf(ITEM), {
+    appendEvent(CatalogItemConfig, refOf(ITEM), {
       _tag: 'catalog_item.updated',
       actorId: 'test',
       payload: { changes },
@@ -109,7 +109,7 @@ const update = (changes: Partial<CatalogServiceItem>) =>
 
 const replay = () =>
   Effect.runPromise(
-    replayAggregate(CatalogItemConfig, pathOf(ITEM)).pipe(Effect.provide(PostgresPersistenceLayer)),
+    replayAggregate(CatalogItemConfig, refOf(ITEM)).pipe(Effect.provide(PostgresPersistenceLayer)),
   )
 
 async function unitIds(): Promise<string[]> {
@@ -183,7 +183,7 @@ describe('Postgres join projection — catalog-item ↔ unit (brief 0068 D3)', (
   it('deleting the catalog item cascades its join rows away', async () => {
     await create(item())
     expect(await unitIds()).toHaveLength(2)
-    await pool().query('DELETE FROM catalog_items WHERE aggregate_path = $1', [pathOf(ITEM)])
+    await pool().query('DELETE FROM catalog_items WHERE org_id = $1 AND id = $2', [ORG, ITEM])
     expect(await unitIds()).toEqual([])
   })
 

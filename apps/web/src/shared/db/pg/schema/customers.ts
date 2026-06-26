@@ -5,9 +5,9 @@ import {
   foreignKey,
   index,
   pgTable,
+  primaryKey,
   text,
   timestamp,
-  unique,
 } from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 
@@ -20,7 +20,7 @@ import { orgs } from './orgs'
  * shape). Only the operational fields persist: the `userId` link and the two
  * distinct non-active markers.
  *
- * Keyed by `aggregate_path` (`orgs/{orgId}/customers/{id}`). FK
+ * Keyed by composite PK (org_id, id). FK
  * `org_id → orgs.org_id`; `org_id` is the leading index column (RLS performance).
  *
  * Invariants enforced HERE (proven by integration against real Postgres):
@@ -34,14 +34,12 @@ import { orgs } from './orgs'
 export const customers = pgTable(
   'customers',
   {
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org scope ────────────────────────────────────────────────
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     // FK into `users/{userId}` (global) — required, no PII-only customers. PII
@@ -59,6 +57,8 @@ export const customers = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),
   },
   (table) => [
+    // Natural composite PK — the target of cross-aggregate composite FKs.
+    primaryKey({ columns: [table.orgId, table.id], name: 'customers_pkey' }),
     // No PII-only customers (non-empty userId).
     check('customers_user_id_nonempty', sql`char_length(btrim(${table.userId})) > 0`),
     // Every customer belongs to a real org.
@@ -67,8 +67,6 @@ export const customers = pgTable(
       columns: [table.orgId],
       foreignColumns: [orgs.orgId],
     }),
-    // Composite (org_id, id) UNIQUE — the target of cross-aggregate composite FKs.
-    unique('customers_org_id_id_uq').on(table.orgId, table.id),
     // `org_id`-leading index: the RLS policy + list reads (`listCustomersForOrg`).
     index('customers_org_id_user_id_idx').on(table.orgId, table.userId),
   ],

@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm'
-import { bigint, check, foreignKey, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import {
+  bigint,
+  check,
+  foreignKey,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core'
 import { orders } from './orders'
 import { orgs } from './orgs'
 
@@ -9,9 +18,9 @@ import { orgs } from './orgs'
  * contexts moved off the generic `projections` JSONB store onto a typed table
  * whose invariants the DATABASE enforces (the iniciativa's primary metric).
  *
- * Keyed by `aggregate_path` (`orgs/{orgId}/commissions/{id}`) so it lines up 1:1
- * with the event stream's `aggregate_id` and the generic projection key — the
- * typed projector and the generic fallback share the routing seam. The
+ * Keyed by composite PK (org_id, id) so it lines up 1:1 with the event stream's
+ * `aggregate_id` and the generic projection key — the typed projector and the
+ * generic fallback share the routing seam. The
  * projection upsert runs in the SAME ACID transaction as the event append
  * (inherited from feature A), now over a typed table: a rollback leaves zero
  * rows in both.
@@ -36,17 +45,12 @@ import { orgs } from './orgs'
 export const commissions = pgTable(
   'commissions',
   {
-    // Projection key = the Firestore-style aggregate path
-    // (`orgs/{orgId}/commissions/{id}`). Matches `events.aggregate_id` and the
-    // generic `projections.aggregate_path` so the routing seam is uniform.
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org scope ────────────────────────────────────────────────
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Provenance (which order/item generated this commission) ──────────────
     orderId: text('order_id').notNull(),
@@ -80,6 +84,8 @@ export const commissions = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull(),
   },
   (table) => [
+    // Composite (org_id, id) PRIMARY KEY — the natural key.
+    primaryKey({ columns: [table.orgId, table.id], name: 'commissions_pkey' }),
     // The liquidation enum, refused at the DB.
     check(
       'commissions_liquidation_status_check',

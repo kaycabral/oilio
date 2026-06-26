@@ -24,7 +24,8 @@ export class GuardRejectedError extends Data.TaggedError('GuardRejectedError')<{
 
 export class ReplayInconsistencyError extends Data.TaggedError('ReplayInconsistencyError')<{
   readonly aggregateType: string
-  readonly aggregatePath: string
+  readonly orgId: string
+  readonly aggregateId: string
   readonly expectedVersion: number
   readonly actualVersion: number
 }> {}

@@ -67,9 +67,7 @@ export async function listInvitesForOrg(orgId: string): Promise<Invite[]> {
 export async function getInviteById(orgId: string, inviteId: string): Promise<Invite | null> {
   const rows = await readUnderRls<InviteRow>(orgId, (client) =>
     client
-      .query<InviteRow>('SELECT * FROM invites WHERE aggregate_path = $1', [
-        `orgs/${orgId}/invites/${inviteId}`,
-      ])
+      .query<InviteRow>('SELECT * FROM invites WHERE org_id = $1 AND id = $2', [orgId, inviteId])
       .then((res) => res.rows),
   )
   const row = rows[0]

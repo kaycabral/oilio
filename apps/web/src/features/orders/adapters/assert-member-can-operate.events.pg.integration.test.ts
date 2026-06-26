@@ -12,7 +12,7 @@
 
 import { defaultPermissionsForRole } from '@/domain'
 import { ProfessionalConfig } from '@/domain/aggregates'
-import { appendEvent } from '@/domain/effect'
+import { aggregateRef, appendEvent } from '@/domain/effect'
 import type { StoredProfessional } from '@/domain/types/professional'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
@@ -40,27 +40,27 @@ function pool() {
 
 async function seedOrg(orgId: string): Promise<void> {
   await pool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ('orgs/'||$1,$1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,$2,$2)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,$2,$2)
+     ON CONFLICT (org_id) DO NOTHING`,
     [orgId, TS],
   )
 }
 
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await pool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/units/'||$2,$1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$3,$3)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, unitId, TS],
   )
 }
 
 async function seedService(orgId: string, serviceId: string): Promise<void> {
   await pool().query(
-    `INSERT INTO catalog_items (aggregate_path, org_id, id, version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/catalog_items/'||$2,$1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,$3,$3)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
+     VALUES ($1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, serviceId, TS],
   )
 }
@@ -68,16 +68,9 @@ async function seedService(orgId: string, serviceId: string): Promise<void> {
 async function seedMembership(orgId: string, userId: string): Promise<void> {
   const membershipId = `${orgId}_${userId}`
   await pool().query(
-    `INSERT INTO memberships (aggregate_path, org_id, id, user_id, version, role, status, rls_unit_scope, invited_by, joined_at, permissions, updated_at)
-     VALUES ($1,$2,$3,$4,1,'professional','active',NULL,NULL,$5,$6::jsonb,$5)`,
-    [
-      `memberships/${membershipId}`,
-      orgId,
-      membershipId,
-      userId,
-      TS,
-      JSON.stringify(defaultPermissionsForRole('professional')),
-    ],
+    `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, rls_unit_scope, invited_by, joined_at, permissions, updated_at)
+     VALUES ($1,$2,$3,1,'professional','active',NULL,NULL,$4,$5::jsonb,$4)`,
+    [orgId, membershipId, userId, TS, JSON.stringify(defaultPermissionsForRole('professional'))],
   )
 }
 
@@ -109,7 +102,7 @@ async function seedProfessional(
     updatedAt: TS,
   }
   await Effect.runPromise(
-    appendEvent(ProfessionalConfig, `orgs/${orgId}/professionals/${proId}`, {
+    appendEvent(ProfessionalConfig, aggregateRef(ProfessionalConfig, orgId, proId), {
       _tag: 'professional.created',
       actorId: 'test',
       payload: { data: pro },

@@ -7,7 +7,9 @@
 // Roda contra emulators (auth only; dados em Postgres pós-cutover) + dev server
 // (E2E_DEV=1).
 
+import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import type { NotificationState, NotificationType } from '@/domain/aggregates/notification/types'
+import { aggregateRef } from '@/domain/effect'
 import {
   NOTIFICATION_COLUMNS,
   notificationColumnValues,
@@ -59,7 +61,7 @@ async function seedNotification(
     snoozedUntil: null,
     _version: 1,
   }
-  const aggregatePath = `orgs/${orgId}/notifications/${notifId}`
+  const ref = aggregateRef(NotificationConfig, orgId, notifId)
   const { Client } = await import('pg')
   const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
   await client.connect()
@@ -69,9 +71,9 @@ async function seedNotification(
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
        VALUES ($1, $2, 1, $3, $4)`,
       [
-        'notifications',
-        aggregatePath,
-        orgId,
+        ref.type,
+        ref.id,
+        ref.orgId,
         {
           _tag: 'notification.created',
           version: 1,
@@ -82,7 +84,7 @@ async function seedNotification(
         },
       ],
     )
-    const values = notificationColumnValues(doc, aggregatePath, 1)
+    const values = notificationColumnValues(doc, ref, 1)
     const placeholders = NOTIFICATION_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO notifications (${NOTIFICATION_COLUMNS.join(', ')}) VALUES (${placeholders})`,
@@ -153,7 +155,7 @@ test.describe.serial('Brief 0018 — Definition of Done (Feature-level)', () => 
 
     const notif = await pgReadProjection(
       'notifications',
-      `orgs/${org.orgId}/notifications/${birthdayNotif}`,
+      aggregateRef(NotificationConfig, org.orgId, birthdayNotif),
     )
     expect(notif?.dispatched_at).toBeTruthy()
   })

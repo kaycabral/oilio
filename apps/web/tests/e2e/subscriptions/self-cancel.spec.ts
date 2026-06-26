@@ -7,6 +7,8 @@
 // `recordAudit('subscription.cancel')` — o registro canônico é o evento
 // `subscription.cancel_scheduled` no event store do aggregate.
 
+import { SubscriptionConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { pgReadEventStream, seedCustomer, seedSubscription } from '../helpers/session'
@@ -17,7 +19,7 @@ const EventEnvelopeSchema = Schema.Struct({ _tag: Schema.optional(Schema.String)
 const decodeEventStream = Schema.decodeUnknownSync(Schema.Array(EventEnvelopeSchema))
 
 async function listEventTags(orgId: string, subscriptionId: string): Promise<string[]> {
-  const stream = await pgReadEventStream(`orgs/${orgId}/subscriptions/${subscriptionId}`)
+  const stream = await pgReadEventStream(aggregateRef(SubscriptionConfig, orgId, subscriptionId))
   return decodeEventStream(stream).map((e) => e._tag ?? '')
 }
 

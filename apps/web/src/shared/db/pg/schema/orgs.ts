@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm'
-import { bigint, check, index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import {
+  bigint,
+  check,
+  index,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core'
 
 /**
  * Typed relational projection for the `org` bounded context (migration feature C,
@@ -9,8 +18,8 @@ import { bigint, check, index, jsonb, pgTable, text, timestamp } from 'drizzle-o
  * `projections` JSONB store, plugged via the typed-projector registry the pilot
  * (feature B) extracted — without reopening the `PersistencePort`.
  *
- * Keyed by `aggregate_path` (`orgs/{id}` — the org is top-level, not org-scoped
- * under another org) so it lines up 1:1 with the event stream's `aggregate_id`.
+ * Keyed by composite PK (org_id, id) — the org is top-level, not org-scoped
+ * under another org, so it lines up 1:1 with the event stream's `aggregate_id`.
  * `org_id` equals the bare `id` here (the org IS its own scope) and is the
  * leading index column — the RLS performance requirement (feature C, AC-01): the
  * org policy filters `org_id = current_setting('app.current_org')`.
@@ -29,22 +38,19 @@ import { bigint, check, index, jsonb, pgTable, text, timestamp } from 'drizzle-o
 export const orgs = pgTable(
   'orgs',
   {
-    // Projection key = the Firestore-style aggregate path (`orgs/{id}`).
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org scope ────────────────────────────────────────────────
     // `org_id` leading column for the RLS policy + index. For an org row it
     // equals `id` (the org is its own scope), kept explicit so every typed table
-    // shares the same `org_id` filter shape under RLS. UNIQUE (inline constraint,
-    // present before the `units.org_id` FK ALTER) — one org row per org, and the
-    // org policy filters a single row.
-    orgId: text('org_id').notNull().unique(),
+    // shares the same `org_id` filter shape under RLS. `org_id` is the
+    // single-column PRIMARY KEY — one org row per org, and the org policy filters
+    // a single row.
+    orgId: text('org_id').notNull(),
     id: text('id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`) — the event store
     // reads it to compute the next event version on append and to rehydrate on
     // replay.
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     name: text('name').notNull(),
@@ -61,6 +67,8 @@ export const orgs = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),
   },
   (table) => [
+    // Natural composite PK — the org is its own scope, so org_id == id here.
+    primaryKey({ columns: [table.orgId], name: 'orgs_pkey' }),
     // The segment enum, as a CHECK.
     check(
       'orgs_vertical_check',

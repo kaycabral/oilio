@@ -12,6 +12,7 @@ import {
   SubscriptionConfig,
 } from '@/domain/aggregates'
 import {
+  aggregateRef,
   appendDeleteToTx,
   appendEventToTx,
   type SagaStep,
@@ -76,7 +77,7 @@ export function buildUndoCloseSteps(args: {
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
         AppointmentConfig,
-        `orgs/${orgId}/appointments/${appointmentId}`,
+        aggregateRef(AppointmentConfig, orgId, appointmentId),
         {
           _tag: 'appointment.updated',
           actorId: actorUid,
@@ -92,7 +93,7 @@ export function buildUndoCloseSteps(args: {
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
         SubscriptionConfig,
-        `orgs/${orgId}/subscriptions/${restore.id}`,
+        aggregateRef(SubscriptionConfig, orgId, restore.id),
         {
           _tag: 'subscription.usage_incremented',
           actorId: actorUid,
@@ -107,7 +108,7 @@ export function buildUndoCloseSteps(args: {
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
         CatalogItemConfig,
-        `orgs/${orgId}/catalog_items/${target.refId}`,
+        aggregateRef(CatalogItemConfig, orgId, target.refId),
         {
           _tag: 'catalog_item.updated',
           actorId: actorUid,
@@ -123,7 +124,7 @@ export function buildUndoCloseSteps(args: {
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
         CashMovementConfig,
-        `orgs/${orgId}/cash_movements/${movement.id}`,
+        aggregateRef(CashMovementConfig, orgId, movement.id),
         {
           _tag: 'cash_movement.created',
           actorId: actorUid,
@@ -138,7 +139,7 @@ export function buildUndoCloseSteps(args: {
     steps.push((tx: TransactionContext) =>
       appendDeleteToTx(
         CommissionConfig,
-        `orgs/${orgId}/commissions/${commissionId}`,
+        aggregateRef(CommissionConfig, orgId, commissionId),
         {
           _tag: 'commission.deleted',
           actorId: actorUid,
@@ -152,7 +153,7 @@ export function buildUndoCloseSteps(args: {
   steps.push((tx: TransactionContext) =>
     appendEventToTx(
       OrderConfig,
-      `orgs/${orgId}/orders/${orderId}`,
+      aggregateRef(OrderConfig, orgId, orderId),
       {
         _tag: 'order.reopened',
         actorId: actorUid,

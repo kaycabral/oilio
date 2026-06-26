@@ -1,6 +1,6 @@
 import { CatalogItemConfig } from '@/domain/aggregates'
 import type { EventValidationError } from '@/domain/effect'
-import { appendEvent, PersistencePort } from '@/domain/effect'
+import { aggregateRef, appendEvent, collectionRef, PersistencePort } from '@/domain/effect'
 import { listAllOrgIds } from '@/shared/db/pg/public-org-directory'
 import { resolveGate } from '@/shared/product'
 import { Effect, Option, Schema } from 'effect'
@@ -44,7 +44,7 @@ export function reconcilePendingProducts(
     for (const orgId of orgIds) {
       if (!orgId) continue
 
-      const pendingDocs = yield* persistence.getDocs(`orgs/${orgId}/catalog_items`, [
+      const pendingDocs = yield* persistence.getDocs(collectionRef(CatalogItemConfig, orgId), [
         { kind: 'where', field: 'reconciliationPending', op: '==', value: true },
       ])
 
@@ -111,7 +111,7 @@ function clearMarker(
   gtin14: string | null,
   now: Date,
 ): Effect.Effect<void, EventValidationError, PersistencePort> {
-  return appendEvent(CatalogItemConfig, `orgs/${orgId}/catalog_items/${itemId}`, {
+  return appendEvent(CatalogItemConfig, aggregateRef(CatalogItemConfig, orgId, itemId), {
     _tag: 'catalog_item.updated',
     actorId: 'system:cron-reconcile',
     payload: {

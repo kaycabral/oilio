@@ -19,6 +19,7 @@ import {
   type Subscription,
 } from '@/domain'
 import { CatalogItemConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { newId } from '@/shared/db/pg/new-id'
@@ -271,7 +272,7 @@ export async function emitStockDecrements(
     const nextStock = Math.max(0, item.stock - dec.quantity)
     const stockUpdated = await emitEvent(
       CatalogItemConfig,
-      `orgs/${orgId}/catalog_items/${dec.refId}`,
+      aggregateRef(CatalogItemConfig, orgId, dec.refId),
       {
         _tag: 'catalog_item.updated',
         actorId: actorUid,

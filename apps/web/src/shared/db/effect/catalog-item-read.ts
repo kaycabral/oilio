@@ -66,8 +66,9 @@ export async function getCatalogItemById(
 ): Promise<CatalogItem | null> {
   const rows = await readUnderRls<CatalogItemRow>(orgId, (client) =>
     client
-      .query<CatalogItemRow>('SELECT * FROM catalog_items WHERE aggregate_path = $1', [
-        `orgs/${orgId}/catalog_items/${itemId}`,
+      .query<CatalogItemRow>('SELECT * FROM catalog_items WHERE org_id = $1 AND id = $2', [
+        orgId,
+        itemId,
       ])
       .then((res) => res.rows),
   )

@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm'
-import { bigint, check, foreignKey, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import {
+  bigint,
+  check,
+  foreignKey,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core'
 import { orders } from './orders'
 import { orgs } from './orgs'
 import { units } from './units'
@@ -30,16 +39,13 @@ import { units } from './units'
 export const cashMovements = pgTable(
   'cash_movements',
   {
-    // Projection key = `orgs/{orgId}/cash_movements/{id}`.
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org/unit scope ───────────────────────────────────────────
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
     unitId: text('unit_id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Discriminant + sign ─────────────────────────────────────────────────
     kind: text('kind').notNull(),
@@ -60,6 +66,8 @@ export const cashMovements = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull(),
   },
   (table) => [
+    // Composite (org_id, id) PRIMARY KEY — the natural key.
+    primaryKey({ columns: [table.orgId, table.id], name: 'cash_movements_pkey' }),
     // The discriminant, refused at the DB.
     check(
       'cash_movements_kind_check',

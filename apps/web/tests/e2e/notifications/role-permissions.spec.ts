@@ -4,7 +4,9 @@
 // - AC-18: receptionist NÃO vê cash_register_open/payment_failure no sininho
 // - AC-20: /settings/notifications é read-only pra receptionist
 
+import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import { NotificationState } from '@/domain/aggregates/notification/types'
+import { aggregateRef } from '@/domain/effect'
 import {
   NOTIFICATION_COLUMNS,
   notificationColumnValues,
@@ -31,7 +33,7 @@ const decodeNotificationType = Schema.decodeUnknownSync(NotificationState.fields
 async function seedNotification(orgId: string, unitId: string, type: string): Promise<void> {
   const notifId = `e2e-notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const now = new Date().toISOString()
-  const aggregatePath = `orgs/${orgId}/notifications/${notifId}`
+  const ref = aggregateRef(NotificationConfig, orgId, notifId)
   const doc: NotificationState = {
     id: notifId,
     orgId,
@@ -62,9 +64,9 @@ async function seedNotification(orgId: string, unitId: string, type: string): Pr
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
        VALUES ($1, $2, 1, $3, $4)`,
       [
-        'notifications',
-        aggregatePath,
-        orgId,
+        ref.type,
+        ref.id,
+        ref.orgId,
         {
           _tag: 'notification.created',
           version: 1,
@@ -78,7 +80,7 @@ async function seedNotification(orgId: string, unitId: string, type: string): Pr
     const placeholders = NOTIFICATION_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO notifications (${NOTIFICATION_COLUMNS.join(', ')}) VALUES (${placeholders})`,
-      [...notificationColumnValues(doc, aggregatePath, 1)],
+      [...notificationColumnValues(doc, ref, 1)],
     )
     await client.query('COMMIT')
   } catch (err) {

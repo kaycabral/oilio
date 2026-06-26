@@ -12,6 +12,8 @@
 //   - Cenário 2 [critical]: MRR reflete só a unidade ativa
 //   - Cenário 3 [critical]: replay reconstrói o unitId (event-first)
 
+import { SubscriptionConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import type { Page } from '@playwright/test'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
@@ -39,7 +41,7 @@ const decodeEvent = Schema.decodeUnknownSync(EventEnvelope)
 // The projection's `unit_id` is the only source of `unitId` — the projection is
 // rebuilt from the `subscription.created` event payload (event-first).
 async function createdEventUnitId(orgId: string, subId: string): Promise<string | undefined> {
-  const stream = await pgReadEventStream(`orgs/${orgId}/subscriptions/${subId}`)
+  const stream = await pgReadEventStream(aggregateRef(SubscriptionConfig, orgId, subId))
   for (const raw of stream) {
     const event = decodeEvent(raw)
     if (event._tag !== 'subscription.created') continue
@@ -51,7 +53,10 @@ async function createdEventUnitId(orgId: string, subId: string): Promise<string 
 // Reads the persisted subscription projection's `unit_id` (snake_case Postgres
 // column), or undefined when the row/column is absent.
 async function projectedUnitId(orgId: string, subId: string): Promise<string | undefined> {
-  const row = await pgReadProjection('subscriptions', `orgs/${orgId}/subscriptions/${subId}`)
+  const row = await pgReadProjection(
+    'subscriptions',
+    aggregateRef(SubscriptionConfig, orgId, subId),
+  )
   const unitId = row?.unit_id
   return typeof unitId === 'string' ? unitId : undefined
 }

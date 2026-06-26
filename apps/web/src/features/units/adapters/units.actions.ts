@@ -9,6 +9,7 @@ import {
   type StoredUnit,
 } from '@/domain'
 import { UnitConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import {
   computeUnitPublishReadiness,
   unitHasAddressAndHours,
@@ -125,11 +126,15 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     whatsapp: parsed.whatsapp,
     email: parsed.email,
   })
-  const created = await emitEvent(UnitConfig, `orgs/${r.ctx.membership.orgId}/units/${unitId}`, {
-    _tag: 'unit.created',
-    actorId: r.ctx.session.uid,
-    payload: { data: stored },
-  })
+  const created = await emitEvent(
+    UnitConfig,
+    aggregateRef(UnitConfig, r.ctx.membership.orgId, unitId),
+    {
+      _tag: 'unit.created',
+      actorId: r.ctx.session.uid,
+      payload: { data: stored },
+    },
+  )
   if (!created.ok) return { ok: false, error: created.error }
   revalidatePath('/organizations')
   // SPIKE (hours mode): the sidebar's "Agenda" visibility derives from unit
@@ -171,24 +176,28 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
     whatsapp: parsed.whatsapp,
     email: parsed.email,
   })
-  const updated = await emitEvent(UnitConfig, `orgs/${r.ctx.membership.orgId}/units/${unitId}`, {
-    _tag: 'unit.updated',
-    actorId: r.ctx.session.uid,
-    payload: {
-      changes: {
-        name: parsed.name,
-        slug,
-        address: parsed.address,
-        timezone: inferTimezoneFromAddress(parsed.address.state, parsed.address.city),
-        agenda: assembleAgenda(
-          parsed.hoursMode,
-          parsed.businessHours,
-          existing.agenda,
-          parsed.hoursMode === 'appointment' ? parseAppointmentConfig(formData) : null,
-        ),
+  const updated = await emitEvent(
+    UnitConfig,
+    aggregateRef(UnitConfig, r.ctx.membership.orgId, unitId),
+    {
+      _tag: 'unit.updated',
+      actorId: r.ctx.session.uid,
+      payload: {
+        changes: {
+          name: parsed.name,
+          slug,
+          address: parsed.address,
+          timezone: inferTimezoneFromAddress(parsed.address.state, parsed.address.city),
+          agenda: assembleAgenda(
+            parsed.hoursMode,
+            parsed.businessHours,
+            existing.agenda,
+            parsed.hoursMode === 'appointment' ? parseAppointmentConfig(formData) : null,
+          ),
+        },
       },
     },
-  })
+  )
   if (!updated.ok) return { ok: false, error: updated.error }
   revalidatePath('/organizations')
   // SPIKE (hours mode): the sidebar's "Agenda" visibility derives from unit
@@ -242,7 +251,7 @@ export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
 
   // Event-first: emite `deleted` (preserva stream, não reprojeta) e só então
   // remove o read model.
-  const deleted = await emitEvent(UnitConfig, `orgs/${orgId}/units/${unitId}`, {
+  const deleted = await emitEvent(UnitConfig, aggregateRef(UnitConfig, orgId, unitId), {
     _tag: 'unit.deleted',
     actorId: r.ctx.session.uid,
     payload: {},
@@ -255,7 +264,7 @@ export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
   // cash_movements/agenda_blocks) is the DB's last-line guard: convert its 23503
   // into a friendly result instead of a raw 500.
   try {
-    await deletePostgresProjection(`orgs/${orgId}/units/${unitId}`)
+    await deletePostgresProjection(aggregateRef(UnitConfig, orgId, unitId))
   } catch (err) {
     if (isForeignKeyViolation(err)) {
       return {
@@ -280,11 +289,15 @@ export async function archiveUnit(unitId: string, archived = true): Promise<Unit
   const r = await requireOwnerCtx()
   if (!r.ok) return r
   const archivedAt = archived ? new Date().toISOString() : null
-  const res = await emitEvent(UnitConfig, `orgs/${r.ctx.membership.orgId}/units/${unitId}`, {
-    _tag: 'unit.archived',
-    actorId: r.ctx.session.uid,
-    payload: { archivedAt },
-  })
+  const res = await emitEvent(
+    UnitConfig,
+    aggregateRef(UnitConfig, r.ctx.membership.orgId, unitId),
+    {
+      _tag: 'unit.archived',
+      actorId: r.ctx.session.uid,
+      payload: { archivedAt },
+    },
+  )
   if (!res.ok) return { ok: false, error: res.error }
   revalidatePath('/organizations')
   return { ok: true }
@@ -356,7 +369,7 @@ export async function publishUnitSelfBooking(unitId: string): Promise<UnitPublis
   // Event-first: the publication state is a dedicated domain event; the reducer
   // projects `agenda.selfBookingPublished`. Auditoria = stream (actorId no
   // evento) — sem recordAudit.
-  const published = await emitEvent(UnitConfig, `orgs/${orgId}/units/${unitId}`, {
+  const published = await emitEvent(UnitConfig, aggregateRef(UnitConfig, orgId, unitId), {
     _tag: 'unit.self_booking_published',
     actorId: r.ctx.session.uid,
     payload: {},
@@ -372,7 +385,7 @@ export async function unpublishUnitSelfBooking(unitId: string): Promise<UnitPubl
   if (!r.ok) return r
   const orgId = r.ctx.membership.orgId
 
-  const unpublished = await emitEvent(UnitConfig, `orgs/${orgId}/units/${unitId}`, {
+  const unpublished = await emitEvent(UnitConfig, aggregateRef(UnitConfig, orgId, unitId), {
     _tag: 'unit.self_booking_unpublished',
     actorId: r.ctx.session.uid,
     payload: {},

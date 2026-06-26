@@ -6,6 +6,7 @@ import {
   MembershipConfig,
 } from '@/domain/aggregates'
 import {
+  aggregateRef,
   appendDeleteToTx,
   appendEventToTx,
   type SagaStep,
@@ -187,7 +188,7 @@ export function buildOffboardSteps(
   steps.push((tx: TransactionContext) =>
     appendEventToTx(
       MembershipConfig,
-      `memberships/${resolved.membershipId}`,
+      aggregateRef(MembershipConfig, orgId, resolved.membershipId),
       {
         _tag: 'membership.updated',
         actorId,
@@ -206,7 +207,7 @@ export function buildOffboardSteps(
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
         AppointmentConfig,
-        `orgs/${orgId}/appointments/${cancel.id}`,
+        aggregateRef(AppointmentConfig, orgId, cancel.id),
         {
           _tag: 'appointment.cancelled',
           actorId,
@@ -225,7 +226,7 @@ export function buildOffboardSteps(
     steps.push((tx: TransactionContext) =>
       appendDeleteToTx(
         AgendaBlockConfig,
-        `orgs/${orgId}/agenda_blocks/${blockId}`,
+        aggregateRef(AgendaBlockConfig, orgId, blockId),
         {
           _tag: 'agenda_block.deleted',
           actorId,
@@ -240,7 +241,7 @@ export function buildOffboardSteps(
     steps.push((tx: TransactionContext) =>
       appendDeleteToTx(
         InviteConfig,
-        `orgs/${orgId}/invites/${inviteId}`,
+        aggregateRef(InviteConfig, orgId, inviteId),
         {
           _tag: 'invite.deleted',
           actorId,

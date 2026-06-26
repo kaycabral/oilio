@@ -10,6 +10,7 @@ import {
   normalizeServicePriceVisibility,
 } from '@/domain'
 import { CatalogItemConfig, ProfessionalConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import {
   parseCommissionFromForm,
   parseUnitOverrides,
@@ -184,7 +185,7 @@ export async function createCatalogItem(formData: FormData): Promise<CatalogItem
     createdAt: now,
     updatedAt: now,
   } as CatalogItem
-  const created = await emitEvent(CatalogItemConfig, `orgs/${orgId}/catalog_items/${id}`, {
+  const created = await emitEvent(CatalogItemConfig, aggregateRef(CatalogItemConfig, orgId, id), {
     _tag: 'catalog_item.created',
     actorId: r.ctx.session.uid,
     payload: { data: item },
@@ -213,7 +214,7 @@ export async function updateCatalogItem(
 
   const updated = await emitEvent(
     CatalogItemConfig,
-    `orgs/${orgId}/catalog_items/${catalogItemId}`,
+    aggregateRef(CatalogItemConfig, orgId, catalogItemId),
     {
       _tag: 'catalog_item.updated',
       actorId: r.ctx.session.uid,
@@ -245,7 +246,7 @@ export async function deleteCatalogItem(catalogItemId: string): Promise<CatalogI
 
   const deleted = await emitEvent(
     CatalogItemConfig,
-    `orgs/${orgId}/catalog_items/${catalogItemId}`,
+    aggregateRef(CatalogItemConfig, orgId, catalogItemId),
     { _tag: 'catalog_item.deleted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
@@ -257,7 +258,7 @@ export async function deleteCatalogItem(catalogItemId: string): Promise<CatalogI
   // `service_id` references this item) is the DB's last-line guard: convert its
   // 23503 into a friendly result instead of a raw 500.
   try {
-    await deleteOrgProjectionDoc(orgId, 'catalog_items', catalogItemId)
+    await deleteOrgProjectionDoc(aggregateRef(CatalogItemConfig, orgId, catalogItemId))
   } catch (err) {
     if (isForeignKeyViolation(err)) {
       return {
@@ -285,7 +286,7 @@ export async function archiveCatalogItem(
   const archivedAt = archived ? new Date().toISOString() : null
   const res = await emitEvent(
     CatalogItemConfig,
-    `orgs/${r.ctx.membership.orgId}/catalog_items/${catalogItemId}`,
+    aggregateRef(CatalogItemConfig, r.ctx.membership.orgId, catalogItemId),
     { _tag: 'catalog_item.archived', actorId: r.ctx.session.uid, payload: { archivedAt } },
   )
   if (!res.ok) return { ok: false, error: res.error }
@@ -368,11 +369,15 @@ export async function setServiceProfessionals(
   // Event-first: o vínculo pro↔serviço é estado do PROFISSIONAL — cada
   // profissional afetado emite `professional.updated`.
   for (const u of updates) {
-    const res = await emitEvent(ProfessionalConfig, `orgs/${orgId}/professionals/${u.proId}`, {
-      _tag: 'professional.updated',
-      actorId: r.ctx.session.uid,
-      payload: { changes: { catalogServiceIds: u.nextCatalogServiceIds } },
-    })
+    const res = await emitEvent(
+      ProfessionalConfig,
+      aggregateRef(ProfessionalConfig, orgId, u.proId),
+      {
+        _tag: 'professional.updated',
+        actorId: r.ctx.session.uid,
+        payload: { changes: { catalogServiceIds: u.nextCatalogServiceIds } },
+      },
+    )
     if (!res.ok) return { ok: false, error: res.error }
   }
   revalidatePath(`/catalog/${serviceId}`)

@@ -1,4 +1,4 @@
-import { foreignKey, index, pgTable, text } from 'drizzle-orm/pg-core'
+import { foreignKey, index, pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 
 /**
@@ -12,8 +12,7 @@ import { orgs } from './orgs'
  * `whatsapp` is NOT NULL (a unit always has a contact number); `email` is
  * nullable (`UnitPii.email: string | null`).
  *
- * Keyed by `aggregate_path` (`orgs/{orgId}/units_pii/{id}`), org-scoped. Org RLS
- * (org-only).
+ * Keyed by composite PK (org_id, id), org-scoped. Org RLS (org-only).
  *
  * Invariants enforced HERE:
  *   - `org_id` NOT NULL leading column; FK `org_id → orgs.org_id`.
@@ -21,13 +20,13 @@ import { orgs } from './orgs'
 export const unitsPii = pgTable(
   'units_pii',
   {
-    aggregatePath: text('aggregate_path').primaryKey(),
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
     whatsapp: text('whatsapp').notNull(),
     email: text('email'),
   },
   (table) => [
+    primaryKey({ columns: [table.orgId, table.id], name: 'units_pii_pkey' }),
     foreignKey({
       name: 'units_pii_org_id_fk',
       columns: [table.orgId],

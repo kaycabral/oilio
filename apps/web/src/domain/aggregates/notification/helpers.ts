@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 
 import { Effect } from 'effect'
 
+import { aggregateRef, collectionRef } from '@/domain/effect'
 import {
   appendEvent,
   type EventEnvelope,
@@ -19,7 +20,7 @@ export function notificationExists(
 ): Effect.Effect<boolean, never, PersistencePort> {
   return Effect.gen(function* () {
     const persistence = yield* PersistencePort
-    const docs = yield* persistence.getDocs(`orgs/${orgId}/notifications`, [
+    const docs = yield* persistence.getDocs(collectionRef(NotificationConfig, orgId), [
       { kind: 'where', field: 'type', op: '==', value: type },
       { kind: 'where', field: 'eventKey', op: '==', value: eventKey },
       { kind: 'where', field: 'unitId', op: '==', value: unitId },
@@ -53,7 +54,7 @@ export function createNotification(
     const notificationId = crypto.randomUUID()
     const envelope = yield* appendEvent(
       NotificationConfig,
-      `orgs/${input.orgId}/notifications/${notificationId}`,
+      aggregateRef(NotificationConfig, input.orgId, notificationId),
       {
         _tag: 'notification.created',
         actorId: input.actorId,

@@ -1,5 +1,9 @@
 import { Effect, Schema } from 'effect'
 
+import { AgendaBlockConfig } from '@/domain/aggregates/agenda-block/config'
+import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
+import { ProfessionalConfig } from '@/domain/aggregates/professional/config'
+import { aggregateRef, collectionRef } from '@/domain/effect/aggregate-ref'
 import { AgendaBlock } from '../types/agenda-block'
 import { getBlockSegmentsForDay } from '../utils/agenda-blocks'
 import { findAppointmentConflicts, type AppointmentInterval } from '../utils/appointment-overlap'
@@ -29,7 +33,7 @@ export function checkAppointmentAvailability(input: {
     const persistence = yield* PersistencePort
 
     const professionalDoc = yield* persistence.getDoc(
-      `orgs/${input.orgId}/professionals/${input.professionalId}`,
+      aggregateRef(ProfessionalConfig, input.orgId, input.professionalId),
     )
     if (!professionalDoc) {
       return yield* Effect.fail(
@@ -37,13 +41,16 @@ export function checkAppointmentAvailability(input: {
       )
     }
 
-    const appointmentDocs = yield* persistence.getDocs(`orgs/${input.orgId}/appointments`, [
-      { kind: 'where', field: 'unitId', op: '==', value: input.unitId },
-      { kind: 'where', field: 'professionalId', op: '==', value: input.professionalId },
-    ])
+    const appointmentDocs = yield* persistence.getDocs(
+      collectionRef(AppointmentConfig, input.orgId),
+      [
+        { kind: 'where', field: 'unitId', op: '==', value: input.unitId },
+        { kind: 'where', field: 'professionalId', op: '==', value: input.professionalId },
+      ],
+    )
     const existing = appointmentDocs.map((d) => Schema.decodeUnknownSync(AppointmentForOverlap)(d))
 
-    const blockDocs = yield* persistence.getDocs(`orgs/${input.orgId}/agendaBlocks`)
+    const blockDocs = yield* persistence.getDocs(collectionRef(AgendaBlockConfig, input.orgId))
     // Raw blocks (recurring/one-off) resolved to concrete day segments — the
     // shape `findAppointmentConflicts` expects (previously a raw-doc cast).
     const blocks = blockDocs.map((d) => Schema.decodeUnknownSync(AgendaBlock)(d))

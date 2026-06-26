@@ -11,6 +11,8 @@
 // Nome distinto de `orders/feature-dod.spec.ts` (DoD do brief 0002 #944).
 // Roda contra emulator + build de produção (modo canônico do playwright.config).
 
+import { SubscriptionConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import type { Page } from '@playwright/test'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
@@ -38,7 +40,10 @@ const decodeCurrentPeriod = Schema.decodeUnknownSync(CurrentPeriodSchema)
 // projection (post-cutover). `current_period` is JSONB → decode the nested
 // counter; absent/null period → 0 (mirrors the old emulator read).
 async function readConsumed(orgId: string, subId: string): Promise<number> {
-  const row = await pgReadProjection('subscriptions', `orgs/${orgId}/subscriptions/${subId}`)
+  const row = await pgReadProjection(
+    'subscriptions',
+    aggregateRef(SubscriptionConfig, orgId, subId),
+  )
   if (!row) throw new Error(`readConsumed: subscription ${subId} not found`)
   return decodeCurrentPeriod(row.current_period).consumed ?? 0
 }

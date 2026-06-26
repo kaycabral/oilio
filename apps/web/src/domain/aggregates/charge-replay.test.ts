@@ -3,51 +3,18 @@
 // gateway. created (snapshot scheduled) → failed (recovering) → succeeded
 // (paid) → replay == projeção, campo a campo.
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
 import { ChargeConfig } from './charge/config'
-
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
 
 describe('Charge — replay reconstrói o doc completo (event-first, gateway-gated)', () => {
   it('created (scheduled) → failed (recovering) → succeeded (paid) → replay == projeção', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/charges/ch1'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(ChargeConfig, 't1', 'ch1')
     const data = {
       id: 'ch1',
       orgId: 't1',
@@ -70,12 +37,12 @@ describe('Charge — replay reconstrói o doc completo (event-first, gateway-gat
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(ChargeConfig, path, {
+        yield* appendEvent(ChargeConfig, ref, {
           _tag: 'charge.created',
           actorId: 'system',
           payload: { data },
         })
-        yield* appendEvent(ChargeConfig, path, {
+        yield* appendEvent(ChargeConfig, ref, {
           _tag: 'charge.failed',
           actorId: 'system:webhook',
           payload: {
@@ -87,7 +54,7 @@ describe('Charge — replay reconstrói o doc completo (event-first, gateway-gat
             },
           },
         })
-        yield* appendEvent(ChargeConfig, path, {
+        yield* appendEvent(ChargeConfig, ref, {
           _tag: 'charge.succeeded',
           actorId: 'system:webhook',
           payload: {
@@ -103,9 +70,9 @@ describe('Charge — replay reconstrói o doc completo (event-first, gateway-gat
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(ChargeConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(ChargeConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed).toEqual(projection)

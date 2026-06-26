@@ -18,6 +18,7 @@ import {
   isOperational,
 } from '@/domain'
 import { AppointmentConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 
 import { type SlotInput } from '@/features/agenda/core/appointment-form'
 
@@ -160,8 +161,8 @@ export async function persistAppointmentUpdate(args: {
     changes.commissionSnapshot = resolved.commission
   }
 
-  const aggPath = `orgs/${orgId}/appointments/${appointmentId}`
-  const edited = await emitEvent(AppointmentConfig, aggPath, {
+  const apptRef = aggregateRef(AppointmentConfig, orgId, appointmentId)
+  const edited = await emitEvent(AppointmentConfig, apptRef, {
     _tag: 'appointment.updated',
     actorId: actorUid,
     payload: { changes },
@@ -169,7 +170,7 @@ export async function persistAppointmentUpdate(args: {
   if (!edited.ok) return { ok: false, error: edited.error }
   if (isReschedule) {
     const rescheduledBy: AppointmentActorRole = 'staff'
-    const resched = await emitEvent(AppointmentConfig, aggPath, {
+    const resched = await emitEvent(AppointmentConfig, apptRef, {
       _tag: 'appointment.rescheduled',
       actorId: actorUid,
       payload: {

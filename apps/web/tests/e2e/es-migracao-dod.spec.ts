@@ -1,3 +1,5 @@
+import { AppointmentConfig, ProfessionalConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
 import { expect, test } from './fixtures'
 import { listItem, rowAction } from './helpers/list'
@@ -81,12 +83,12 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       const proRows = await pgListByOrg('professionals', org.orgId)
       expect(proRows).toHaveLength(1)
       const proId = requireString(proRows[0]?.id)
-      const aggregatePath = `orgs/${org.orgId}/professionals/${proId}`
+      const proRef = aggregateRef(ProfessionalConfig, org.orgId, proId)
 
       // O stream de eventos do aggregate. O primeiro evento é
       // `professional.created` (v1) — payload.data é o snapshot operacional.
       // PII não pode aparecer em nenhum lugar do envelope.
-      const stream = await pgReadEventStream(aggregatePath)
+      const stream = await pgReadEventStream(proRef)
       expect(stream.length).toBeGreaterThanOrEqual(1)
       expect(decodeEventTag(stream[0])._tag).toBe('professional.created')
 
@@ -111,10 +113,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       // profissional-específica (tax_identity), nunca a identidade pessoal.
       // A tabela sidecar (aggregate_path, org_id, id, tax_identity) não tem
       // sequer coluna pra name/whatsapp/email — o contrato é estrutural.
-      const piiRow = await pgReadProjection(
-        'professionals_pii',
-        `orgs/${org.orgId}/professionals_pii/${proId}`,
-      )
+      const piiRow = await pgReadProjection('professionals_pii', proRef)
       expect(piiRow).not.toBeNull()
       expect(piiRow?.name).toBeUndefined()
       expect(piiRow?.whatsapp).toBeUndefined()
@@ -181,7 +180,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       // `service_price_cents_snapshot` (bigint → string no driver pg).
       const drifted = await pgReadProjection(
         'appointments',
-        `orgs/${org.orgId}/appointments/${appointmentId}`,
+        aggregateRef(AppointmentConfig, org.orgId, appointmentId),
       )
       expect(drifted?.service_price_cents_snapshot).toBe('99900')
 

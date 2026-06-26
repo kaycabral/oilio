@@ -1,4 +1,7 @@
 import type { AppointmentStatus, ChargeStatus, SubscriptionStatus } from '@/domain'
+import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
+import { ChargeConfig } from '@/domain/aggregates/charge/config'
+import { aggregateRef } from '@/domain/effect'
 import {
   APPOINTMENT_COLUMNS,
   appointmentColumnValues,
@@ -40,9 +43,8 @@ function uniqueId(prefix: string): string {
   return `${prefix}-${Date.now()}-${seq}`
 }
 
-const subPath = (orgId: string, id: string) => `orgs/${orgId}/subscriptions/${id}`
-const chargePath = (orgId: string, id: string) => `orgs/${orgId}/charges/${id}`
-const apptPath = (orgId: string, id: string) => `orgs/${orgId}/appointments/${id}`
+const chargeRef = (orgId: string, id: string) => aggregateRef(ChargeConfig, orgId, id)
+const apptRef = (orgId: string, id: string) => aggregateRef(AppointmentConfig, orgId, id)
 
 async function insertRow(
   table: string,
@@ -62,46 +64,46 @@ async function insertRow(
 // NOTHING`.
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,$3,$3)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}`, orgId, TS],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,$2,$2)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, TS],
   )
 }
 
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'Unit','unit-'||$3,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$4,$4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/units/${unitId}`, orgId, unitId, TS],
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, unitId, TS],
   )
 }
 
 async function seedCustomer(orgId: string, customerId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO customers (aggregate_path, org_id, id, version, user_id, archived_at, deactivated_at, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'user-'||$3,NULL,NULL,$4,$4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/customers/${customerId}`, orgId, customerId, TS],
+    `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
+     VALUES ($1,$2,1,'user-'||$2,NULL,NULL,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, customerId, TS],
   )
 }
 
 async function seedProfessional(orgId: string, professionalId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO professionals (aggregate_path, org_id, id, version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'user-'||$3,NULL,'[]'::jsonb,'[]'::jsonb,$4,$4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/professionals/${professionalId}`, orgId, professionalId, TS],
+    `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+     VALUES ($1,$2,1,'user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, professionalId, TS],
   )
 }
 
 async function seedService(orgId: string, serviceId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO catalog_items (aggregate_path, org_id, id, version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,$4,$4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/catalog_items/${serviceId}`, orgId, serviceId, TS],
+    `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
+     VALUES ($1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, serviceId, TS],
   )
 }
 
@@ -122,11 +124,7 @@ async function seedSubscription(
   await seedOrg(orgId)
   await seedUnit(orgId, 'unit')
   await seedCustomer(orgId, customerId)
-  await insertRow(
-    'subscriptions',
-    SUBSCRIPTION_COLUMNS,
-    subscriptionColumnValues(sub, subPath(orgId, id), 1),
-  )
+  await insertRow('subscriptions', SUBSCRIPTION_COLUMNS, subscriptionColumnValues(sub, 1))
   return id
 }
 
@@ -142,7 +140,7 @@ async function seedCharge(
   // (seedSubscription ran first).
   await seedOrg(orgId)
   await seedCustomer(orgId, charge.customerId)
-  await insertRow('charges', CHARGE_COLUMNS, chargeColumnValues(charge, chargePath(orgId, id), 1))
+  await insertRow('charges', CHARGE_COLUMNS, chargeColumnValues(charge, chargeRef(orgId, id), 1))
   return id
 }
 
@@ -171,7 +169,7 @@ async function seedAppointment(
   await insertRow(
     'appointments',
     APPOINTMENT_COLUMNS,
-    appointmentColumnValues(appt, apptPath(orgId, id), 1),
+    appointmentColumnValues(appt, apptRef(orgId, id), 1),
   )
   return id
 }

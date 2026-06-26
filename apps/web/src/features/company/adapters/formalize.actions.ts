@@ -1,6 +1,7 @@
 'use server'
 
 import { UnitConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { parseFormalizationFromForm } from '@/features/company/core/formalize'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
@@ -46,7 +47,7 @@ export async function formalizeUnit(formData: FormData): Promise<FormalizeResult
   const formalizedAt = new Date().toISOString()
 
   // Step 1: unit.formalized (non-PII corporate data only).
-  const formalized = await emitEvent(UnitConfig, `orgs/${orgId}/units/${unitId}`, {
+  const formalized = await emitEvent(UnitConfig, aggregateRef(UnitConfig, orgId, unitId), {
     _tag: 'unit.formalized',
     actorId,
     payload: {

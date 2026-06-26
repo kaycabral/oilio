@@ -6,6 +6,7 @@ import {
   index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
 } from 'drizzle-orm/pg-core'
@@ -18,8 +19,7 @@ import { units } from './units'
  * feature D, brief 0060, Grupo C) — a recurring or one-off block in a unit's
  * agenda.
  *
- * Keyed by `aggregate_path` (`orgs/{orgId}/agenda_blocks/{id}` — org-scoped
- * collection, like the Firestore layout). FK `org_id → orgs.org_id`; `org_id` is
+ * Keyed by composite PK (org_id, id). FK `org_id → orgs.org_id`; `org_id` is
  * the leading index column (RLS performance). `unit_id` is a NOT NULL column —
  * a block always lives within a unit's agenda — and is the RLS unit predicate
  * (brief 0060, Grupo C: agenda-block gets unit-scoped RLS).
@@ -40,8 +40,6 @@ import { units } from './units'
 export const agendaBlocks = pgTable(
   'agenda_blocks',
   {
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org/unit scope ───────────────────────────────────────────
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
@@ -49,7 +47,7 @@ export const agendaBlocks = pgTable(
     unitId: text('unit_id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     // The union discriminant — the body lives in the `block` JSONB.
@@ -67,6 +65,8 @@ export const agendaBlocks = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),
   },
   (table) => [
+    // Composite (org_id, id) PRIMARY KEY — the natural key.
+    primaryKey({ columns: [table.orgId, table.id], name: 'agenda_blocks_pkey' }),
     // The kind discriminant, refused at the DB.
     check('agenda_blocks_kind_check', sql`${table.kind} IN ('recurring', 'one_off')`),
     // A block always belongs to a unit (non-empty unitId).

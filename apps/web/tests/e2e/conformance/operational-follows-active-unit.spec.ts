@@ -12,7 +12,9 @@
 // post-cutover). Seeds via the session helpers + a local Postgres notification
 // seed (no session.ts helper exists for the notification aggregate yet).
 
+import { NotificationConfig } from '@/domain/aggregates'
 import type { NotificationState, NotificationType } from '@/domain/aggregates/notification/types'
+import { aggregateRef } from '@/domain/effect'
 import {
   NOTIFICATION_COLUMNS,
   notificationColumnValues,
@@ -78,7 +80,7 @@ async function seedNotification(
     snoozedUntil: null,
     _version: 1,
   }
-  const aggregatePath = `orgs/${orgId}/notifications/${notifId}`
+  const ref = aggregateRef(NotificationConfig, orgId, notifId)
   const { Client } = await import('pg')
   const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
   await client.connect()
@@ -89,7 +91,7 @@ async function seedNotification(
        VALUES ($1, $2, 1, $3, $4)`,
       [
         'notifications',
-        aggregatePath,
+        ref.id,
         orgId,
         {
           _tag: 'notification.created',
@@ -101,7 +103,7 @@ async function seedNotification(
         },
       ],
     )
-    const values = notificationColumnValues(doc, aggregatePath, 1)
+    const values = notificationColumnValues(doc, ref, 1)
     const placeholders = NOTIFICATION_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO notifications (${NOTIFICATION_COLUMNS.join(', ')}) VALUES (${placeholders})`,

@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { Appointment } from '@/domain/types/appointment'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -18,11 +18,10 @@ const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 
 /** Ordered `appointments` column list — single source of truth for upsert + seed. */
 export const APPOINTMENT_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
   'unit_id',
-  'version',
+  'last_event_version',
   'professional_id',
   'customer_id',
   'service_id',
@@ -66,15 +65,14 @@ function pickTracking(a: Appointment): Record<string, unknown> {
 /** Map a decoded `Appointment` onto the ordered column VALUES (inverse of `rowToDoc`). */
 export function appointmentColumnValues(
   a: Appointment,
-  aggregatePath: string,
-  version: number,
+  ref: AggregateRef,
+  lastEventVersion: number,
 ): unknown[] {
   return [
-    aggregatePath,
-    a.orgId,
-    a.id,
+    ref.orgId,
+    ref.id,
     a.unitId,
-    version,
+    lastEventVersion,
     a.professionalId,
     a.customerId,
     a.serviceId,
@@ -94,13 +92,13 @@ export function appointmentColumnValues(
 }
 
 const PLACEHOLDERS = APPOINTMENT_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = APPOINTMENT_COLUMNS.filter((col) => col !== 'aggregate_path')
+const CONFLICT_SET = APPOINTMENT_COLUMNS.filter((col) => col !== 'org_id' && col !== 'id')
   .map((col) => `${col} = EXCLUDED.${col}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO appointments (${APPOINTMENT_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -108,20 +106,16 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const a = decodeAppointment(state)
-  await client.query(UPSERT, appointmentColumnValues(a, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, appointmentColumnValues(a, ref, stateVersion(state)))
 }
 
 export type AppointmentRow = {
   org_id: string
   id: string
   unit_id: string
-  version: string | number
+  last_event_version: string | number
   professional_id: string
   customer_id: string
   service_id: string
@@ -160,7 +154,7 @@ function trackingFromRow(blob: unknown): Record<string, unknown> {
 export function rowToDoc(row: AppointmentRow): FirestoreDoc {
   const tracking = trackingFromRow(row.tracking)
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     unitId: row.unit_id,
@@ -188,21 +182,21 @@ export function rowToDoc(row: AppointmentRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<AppointmentRow>(
-    'SELECT * FROM appointments WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT * FROM appointments WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM appointments WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM appointments WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
 export const appointmentProjector: TypedProjector = { read, upsert, delete: remove }
 
-export const APPOINTMENT_AGGREGATE_TYPE = 'appointments'
+export const APPOINTMENT_AGGREGATE_TYPE = 'appointment'
 
 registerTypedProjector(APPOINTMENT_AGGREGATE_TYPE, appointmentProjector)

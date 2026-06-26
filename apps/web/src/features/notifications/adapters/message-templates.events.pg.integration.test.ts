@@ -16,7 +16,7 @@
 
 import { DEFAULT_NOTIFICATION_TEMPLATES } from '@/domain'
 import { NotificationConfig } from '@/domain/aggregates'
-import { appendEvent } from '@/domain/effect'
+import { aggregateRef, appendEvent } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
@@ -32,9 +32,9 @@ function uniqueOrgId(label: string): string {
 
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${orgId}`, orgId],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [orgId],
   )
 }
 
@@ -122,12 +122,12 @@ describe('dispatchNotificationWhatsapp (AC-14) — Postgres', () => {
       buildUser(uid, '2026-06-01T10:00:00Z', { displayName: 'Maria', whatsapp: '11999998888' }),
     )
     await getEventStorePool().query(
-      `INSERT INTO customers (aggregate_path, org_id, id, version, user_id, archived_at, deactivated_at, created_at, updated_at)
-       VALUES ($1,$2,$3,1,$4,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-      [`orgs/${orgId}/customers/${customerId}`, orgId, customerId, uid],
+      `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
+       VALUES ($1,$2,1,$3,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+      [orgId, customerId, uid],
     )
     await Effect.runPromise(
-      appendEvent(NotificationConfig, `orgs/${orgId}/notifications/${notifId}`, {
+      appendEvent(NotificationConfig, aggregateRef(NotificationConfig, orgId, notifId), {
         _tag: 'notification.created',
         actorId: 'test',
         payload: {
@@ -162,8 +162,9 @@ describe('dispatchNotificationWhatsapp (AC-14) — Postgres', () => {
     const res = await getEventStorePool().query<{
       dispatched_at: string | null
       dispatch: { dispatchedChannel: string | null; dispatchedBody: string | null } | null
-    }>('SELECT dispatched_at, dispatch FROM notifications WHERE aggregate_path = $1', [
-      `orgs/${orgId}/notifications/${notifId}`,
+    }>('SELECT dispatched_at, dispatch FROM notifications WHERE org_id = $1 AND id = $2', [
+      orgId,
+      notifId,
     ])
     const row = res.rows[0]
     expect(row?.dispatched_at).toBeTruthy()
@@ -178,7 +179,7 @@ describe('dispatchNotificationWhatsapp (AC-14) — Postgres', () => {
     await seedOrg(orgId)
     const notifId = `n-${Math.random().toString(36).slice(2, 8)}`
     await Effect.runPromise(
-      appendEvent(NotificationConfig, `orgs/${orgId}/notifications/${notifId}`, {
+      appendEvent(NotificationConfig, aggregateRef(NotificationConfig, orgId, notifId), {
         _tag: 'notification.created',
         actorId: 'test',
         payload: {

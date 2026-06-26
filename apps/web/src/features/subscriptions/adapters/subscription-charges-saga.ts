@@ -1,5 +1,5 @@
 import { ChargeConfig, SubscriptionConfig } from '@/domain/aggregates'
-import { appendEventToTx, type SagaStep } from '@/domain/effect'
+import { aggregateRef, appendEventToTx, type SagaStep } from '@/domain/effect'
 import type { Charge } from '@/domain/types/charge'
 import type { SubscriptionStatus } from '@/domain/types/subscription'
 import type { ChargeAfterFailure } from '@/features/subscriptions/core/charge-failure'
@@ -13,9 +13,9 @@ import type { ChargeAfterFailure } from '@/features/subscriptions/core/charge-fa
  * by the in-memory-tx unit test and the `*.events.pg.integration.test.ts` suite.
  */
 
-const chargePath = (orgId: string, chargeId: string) => `orgs/${orgId}/charges/${chargeId}`
-const subscriptionPath = (orgId: string, subscriptionId: string) =>
-  `orgs/${orgId}/subscriptions/${subscriptionId}`
+const chargeRef = (orgId: string, chargeId: string) => aggregateRef(ChargeConfig, orgId, chargeId)
+const subscriptionRef = (orgId: string, subscriptionId: string) =>
+  aggregateRef(SubscriptionConfig, orgId, subscriptionId)
 
 interface MarkPaidInput {
   orgId: string
@@ -33,7 +33,7 @@ export function buildMarkPaidSteps(input: MarkPaidInput): SagaStep[] {
   const chargeSucceeded: SagaStep = (tx) =>
     appendEventToTx(
       ChargeConfig,
-      chargePath(input.orgId, input.chargeId),
+      chargeRef(input.orgId, input.chargeId),
       {
         _tag: 'charge.succeeded',
         actorId: input.actorId,
@@ -54,7 +54,7 @@ export function buildMarkPaidSteps(input: MarkPaidInput): SagaStep[] {
   const settleSubscription: SagaStep = (tx) =>
     appendEventToTx(
       SubscriptionConfig,
-      subscriptionPath(input.orgId, input.subscriptionId),
+      subscriptionRef(input.orgId, input.subscriptionId),
       { _tag: 'subscription.charge_settled', actorId: input.actorId, payload: {} },
       tx,
     )
@@ -78,7 +78,7 @@ export function buildMarkFailedSteps(input: MarkFailedInput): SagaStep[] {
   const chargeFailed: SagaStep = (tx) =>
     appendEventToTx(
       ChargeConfig,
-      chargePath(input.orgId, input.chargeId),
+      chargeRef(input.orgId, input.chargeId),
       {
         _tag: 'charge.failed',
         actorId: input.actorId,
@@ -98,7 +98,7 @@ export function buildMarkFailedSteps(input: MarkFailedInput): SagaStep[] {
   const subFailed: SagaStep = (tx) =>
     appendEventToTx(
       SubscriptionConfig,
-      subscriptionPath(input.orgId, input.subscriptionId),
+      subscriptionRef(input.orgId, input.subscriptionId),
       {
         _tag: 'subscription.charge_failed',
         actorId: input.actorId,
@@ -124,14 +124,14 @@ export function buildRenewSteps(input: RenewInput): SagaStep[] {
   const chargeCreated: SagaStep = (tx) =>
     appendEventToTx(
       ChargeConfig,
-      chargePath(input.orgId, input.charge.id),
+      chargeRef(input.orgId, input.charge.id),
       { _tag: 'charge.created', actorId: input.actorId, payload: { data: input.charge } },
       tx,
     )
   const renewed: SagaStep = (tx) =>
     appendEventToTx(
       SubscriptionConfig,
-      subscriptionPath(input.orgId, input.subscriptionId),
+      subscriptionRef(input.orgId, input.subscriptionId),
       {
         _tag: 'subscription.renewed',
         actorId: input.actorId,

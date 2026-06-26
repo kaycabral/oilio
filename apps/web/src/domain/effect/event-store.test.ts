@@ -1,6 +1,8 @@
-import { Effect, Layer, Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from './aggregate-ref'
 import {
   appendEvent,
   appendEventGuarded,
@@ -11,11 +13,10 @@ import {
   type EventEnvelope,
   type GuardResult,
 } from './event-store'
-import type { FirestoreDoc } from './services'
-import { PersistencePort } from './services'
 
 // ---------------------------------------------------------------------------
-// Test aggregate: Counter
+// Test aggregate: Counter (modeled on a real `AggregateType` — `goal` — so the
+// typed ref/config contract holds; the domain logic is a synthetic counter).
 // ---------------------------------------------------------------------------
 
 type CounterState = { readonly count: number; readonly _version: number }
@@ -27,7 +28,7 @@ const CounterEvent = Schema.Union(
 type CounterEvent = typeof CounterEvent.Type
 
 const CounterConfig: AggregateConfig<CounterState, CounterEvent> = {
-  type: 'counter',
+  type: 'goal',
   initialState: { count: 0, _version: 0 },
   reducer: (state, event, meta) => {
     switch (event._tag) {
@@ -44,44 +45,7 @@ const CounterConfig: AggregateConfig<CounterState, CounterEvent> = {
   currentSchemaVersion: 1,
 }
 
-// ---------------------------------------------------------------------------
-// Test Firestore layer (in-memory)
-// ---------------------------------------------------------------------------
-
-function makeStore(initial: Record<string, FirestoreDoc> = {}) {
-  const store = new Map(Object.entries(initial))
-
-  const layer = Layer.succeed(PersistencePort, {
-    getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-    getDocs: (collectionPath: string) =>
-      Effect.succeed(
-        [...store.entries()]
-          .filter(([key]) => key.startsWith(collectionPath + '/'))
-          .map(([, doc]) => doc)
-          .sort(
-            (a, b) =>
-              (typeof a['version'] === 'number' ? a['version'] : 0) -
-              (typeof b['version'] === 'number' ? b['version'] : 0),
-          ),
-      ),
-    setDoc: (path: string, data: FirestoreDoc) =>
-      Effect.sync(() => {
-        store.set(path, { ...store.get(path), ...data })
-      }),
-    runTransaction: (fn) =>
-      fn({
-        getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-        setDoc: (path, data) =>
-          Effect.sync(() => {
-            store.set(path, { ...store.get(path), ...data })
-          }),
-      }),
-  })
-
-  return { store, layer }
-}
-
-const PATH = 'orgs/t1/counters/c1'
+const ref = aggregateRef(CounterConfig, 't1', 'c1')
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -90,44 +54,45 @@ const PATH = 'orgs/t1/counters/c1'
 describe('Event Store', () => {
   describe('appendEvent', () => {
     it('AC-01: appends event to subcollection and updates projection atomically', async () => {
-      const { store, layer } = makeStore()
+      const { store, events, layer } = makeReplayStore()
 
       await Effect.runPromise(
-        appendEvent(CounterConfig, PATH, {
+        appendEvent(CounterConfig, ref, {
           _tag: 'Incremented',
           actorId: 'user-1',
           payload: { amount: 5 },
         }).pipe(Effect.provide(layer)),
       )
 
-      const event = store.get(`${PATH}/events/v000001`)
+      const log = events.get(docKey(ref))!
+      const event = log[0]
       expect(event).toBeDefined()
       expect(event!['_tag']).toBe('Incremented')
       expect(event!['version']).toBe(1)
       expect(event!['actorId']).toBe('user-1')
       expect(event!['schemaVersion']).toBe(1)
 
-      const projection = store.get(PATH)
+      const projection = store.get(docKey(ref))
       expect(projection).toBeDefined()
       expect(projection!['count']).toBe(5)
       expect(projection!['_version']).toBe(1)
     })
 
     it('AC-01: sequential appends increment version correctly', async () => {
-      const { store, layer } = makeStore()
+      const { store, events, layer } = makeReplayStore()
 
       const program = Effect.gen(function* () {
-        yield* appendEvent(CounterConfig, PATH, {
+        yield* appendEvent(CounterConfig, ref, {
           _tag: 'Incremented',
           actorId: 'user-1',
           payload: { amount: 3 },
         })
-        yield* appendEvent(CounterConfig, PATH, {
+        yield* appendEvent(CounterConfig, ref, {
           _tag: 'Incremented',
           actorId: 'user-1',
           payload: { amount: 7 },
         })
-        yield* appendEvent(CounterConfig, PATH, {
+        yield* appendEvent(CounterConfig, ref, {
           _tag: 'Reset',
           actorId: 'user-2',
           payload: {},
@@ -136,20 +101,19 @@ describe('Event Store', () => {
 
       await Effect.runPromise(program.pipe(Effect.provide(layer)))
 
-      expect(store.get(`${PATH}/events/v000001`)).toBeDefined()
-      expect(store.get(`${PATH}/events/v000002`)).toBeDefined()
-      expect(store.get(`${PATH}/events/v000003`)).toBeDefined()
+      const log = events.get(docKey(ref)) ?? []
+      expect(log.map((e) => e['version'])).toEqual([1, 2, 3])
 
-      const projection = store.get(PATH)
+      const projection = store.get(docKey(ref))
       expect(projection!['count']).toBe(0)
       expect(projection!['_version']).toBe(3)
     })
 
     it('AC-04: rejects malformed event with EventValidationError', async () => {
-      const { layer } = makeStore()
+      const { layer } = makeReplayStore()
 
       const result = await Effect.runPromise(
-        appendEvent(CounterConfig, PATH, {
+        appendEvent(CounterConfig, ref, {
           _tag: 'Incremented',
           actorId: 'user-1',
           payload: { amount: 'not-a-number' },
@@ -161,14 +125,14 @@ describe('Event Store', () => {
         ),
       )
 
-      expect(result).toEqual({ caught: true, aggregateType: 'counter' })
+      expect(result).toEqual({ caught: true, aggregateType: 'goal' })
     })
 
     it('AC-04: malformed event does not write anything to store', async () => {
-      const { store, layer } = makeStore()
+      const { store, events, layer } = makeReplayStore()
 
       await Effect.runPromise(
-        appendEvent(CounterConfig, PATH, {
+        appendEvent(CounterConfig, ref, {
           _tag: 'Incremented',
           actorId: 'user-1',
           payload: { amount: 'bad' },
@@ -179,6 +143,7 @@ describe('Event Store', () => {
       )
 
       expect(store.size).toBe(0)
+      expect(events.size).toBe(0)
     })
   })
 
@@ -186,12 +151,12 @@ describe('Event Store', () => {
     const guardReturning = (result: GuardResult) => () => Effect.succeed(result)
 
     it('ok: snapshots the guard payload into the event + projection', async () => {
-      const { store, layer } = makeStore()
+      const { store, events, layer } = makeReplayStore()
 
       const envelope = await Effect.runPromise(
         appendEventGuarded({
           config: CounterConfig,
-          aggregatePath: PATH,
+          ref,
           actorId: 'user-1',
           tag: 'Incremented',
           guard: guardReturning({ _tag: 'ok', payload: { amount: 5 } }),
@@ -199,17 +164,17 @@ describe('Event Store', () => {
       )
 
       expect(envelope.version).toBe(1)
-      expect(store.get(`${PATH}/events/v000001`)).toMatchObject({ _tag: 'Incremented', version: 1 })
-      expect(store.get(PATH)).toMatchObject({ count: 5, _version: 1 })
+      expect(events.get(docKey(ref))![0]).toMatchObject({ _tag: 'Incremented', version: 1 })
+      expect(store.get(docKey(ref))).toMatchObject({ count: 5, _version: 1 })
     })
 
     it('reject: fails with GuardRejectedError and writes nothing', async () => {
-      const { store, layer } = makeStore()
+      const { store, events, layer } = makeReplayStore()
 
       const result = await Effect.runPromise(
         appendEventGuarded({
           config: CounterConfig,
-          aggregatePath: PATH,
+          ref,
           actorId: 'user-1',
           tag: 'Incremented',
           guard: guardReturning({ _tag: 'reject', message: 'blocked' }),
@@ -223,15 +188,16 @@ describe('Event Store', () => {
 
       expect(result).toEqual({ caught: true, message: 'blocked' })
       expect(store.size).toBe(0)
+      expect(events.size).toBe(0)
     })
 
     it('invalid: fails with EventValidationError when the payload fails the schema', async () => {
-      const { store, layer } = makeStore()
+      const { store, events, layer } = makeReplayStore()
 
       const result = await Effect.runPromise(
         appendEventGuarded({
           config: CounterConfig,
-          aggregatePath: PATH,
+          ref,
           actorId: 'user-1',
           tag: 'Incremented',
           guard: guardReturning({ _tag: 'ok', payload: { amount: 'not-a-number' } }),
@@ -243,21 +209,21 @@ describe('Event Store', () => {
         ),
       )
 
-      expect(result).toEqual({ caught: true, aggregateType: 'counter' })
+      expect(result).toEqual({ caught: true, aggregateType: 'goal' })
       expect(store.size).toBe(0)
+      expect(events.size).toBe(0)
     })
   })
 
   describe('buildInitialEvent', () => {
-    it('returns the v1 envelope, eventId and projection for a valid first event', () => {
-      const { envelope, eventId, projection } = buildInitialEvent(CounterConfig, {
+    it('returns the v1 envelope and projection for a valid first event', () => {
+      const { envelope, projection } = buildInitialEvent(CounterConfig, {
         _tag: 'Incremented',
         actorId: 'user-1',
         payload: { amount: 4 },
       })
 
       expect(envelope.version).toBe(1)
-      expect(eventId).toBe('v000001')
       expect(projection).toEqual({ count: 4, _version: 1 })
     })
 
@@ -274,26 +240,26 @@ describe('Event Store', () => {
 
   describe('replayAggregate', () => {
     it('AC-02: replay reconstructs state identical to projection', async () => {
-      const { store, layer } = makeStore()
+      const { store, layer } = makeReplayStore()
 
       await Effect.runPromise(
         Effect.gen(function* () {
-          yield* appendEvent(CounterConfig, PATH, {
+          yield* appendEvent(CounterConfig, ref, {
             _tag: 'Incremented',
             actorId: 'u1',
             payload: { amount: 10 },
           })
-          yield* appendEvent(CounterConfig, PATH, {
+          yield* appendEvent(CounterConfig, ref, {
             _tag: 'Incremented',
             actorId: 'u1',
             payload: { amount: 5 },
           })
-          yield* appendEvent(CounterConfig, PATH, {
+          yield* appendEvent(CounterConfig, ref, {
             _tag: 'Reset',
             actorId: 'u2',
             payload: {},
           })
-          yield* appendEvent(CounterConfig, PATH, {
+          yield* appendEvent(CounterConfig, ref, {
             _tag: 'Incremented',
             actorId: 'u1',
             payload: { amount: 3 },
@@ -301,9 +267,9 @@ describe('Event Store', () => {
         }).pipe(Effect.provide(layer)),
       )
 
-      const projection = store.get(PATH)!
+      const projection = store.get(docKey(ref))!
       const replayed = await Effect.runPromise(
-        replayAggregate(CounterConfig, PATH).pipe(Effect.provide(layer)),
+        replayAggregate(CounterConfig, ref).pipe(Effect.provide(layer)),
       )
 
       expect(replayed.count).toBe(projection['count'])
@@ -312,10 +278,10 @@ describe('Event Store', () => {
     })
 
     it('AC-02: replay of empty aggregate returns initial state', async () => {
-      const { layer } = makeStore()
+      const { layer } = makeReplayStore()
 
       const replayed = await Effect.runPromise(
-        replayAggregate(CounterConfig, PATH).pipe(Effect.provide(layer)),
+        replayAggregate(CounterConfig, ref).pipe(Effect.provide(layer)),
       )
 
       expect(replayed).toEqual({ count: 0, _version: 0 })
@@ -339,35 +305,37 @@ describe('Event Store', () => {
         },
       }
 
-      const { store, layer } = makeStore()
+      const { events, layer } = makeReplayStore()
 
-      store.set(`${PATH}/events/v000001`, {
-        _tag: 'Incremented',
-        version: 1,
-        timestamp: '2026-06-01T10:00:00Z',
-        actorId: 'u1',
-        schemaVersion: 1,
-        payload: { amount: 10 },
-      })
-      store.set(`${PATH}/events/v000002`, {
-        _tag: 'Reset',
-        version: 2,
-        timestamp: '2026-06-01T11:00:00Z',
-        actorId: 'u2',
-        schemaVersion: 1,
-        payload: {},
-      })
-      store.set(`${PATH}/events/v000003`, {
-        _tag: 'Incremented',
-        version: 3,
-        timestamp: '2026-06-01T12:00:00Z',
-        actorId: 'u1',
-        schemaVersion: 2,
-        payload: { amount: 7 },
-      })
+      events.set(docKey(ref), [
+        {
+          _tag: 'Incremented',
+          version: 1,
+          timestamp: '2026-06-01T10:00:00Z',
+          actorId: 'u1',
+          schemaVersion: 1,
+          payload: { amount: 10 },
+        },
+        {
+          _tag: 'Reset',
+          version: 2,
+          timestamp: '2026-06-01T11:00:00Z',
+          actorId: 'u2',
+          schemaVersion: 1,
+          payload: {},
+        },
+        {
+          _tag: 'Incremented',
+          version: 3,
+          timestamp: '2026-06-01T12:00:00Z',
+          actorId: 'u1',
+          schemaVersion: 2,
+          payload: { amount: 7 },
+        },
+      ])
 
       const replayed = await Effect.runPromise(
-        replayAggregate(configV2, PATH).pipe(Effect.provide(layer)),
+        replayAggregate(configV2, ref).pipe(Effect.provide(layer)),
       )
 
       expect(replayed).toEqual({ count: 7, _version: 3 })
@@ -391,19 +359,21 @@ describe('Event Store', () => {
         },
       }
 
-      const { store, layer } = makeStore()
+      const { events, layer } = makeReplayStore()
 
-      store.set(`${PATH}/events/v000001`, {
-        _tag: 'Incremented',
-        version: 1,
-        timestamp: '2026-06-01T10:00:00Z',
-        actorId: 'u1',
-        schemaVersion: 1,
-        payload: { amount: 5 },
-      })
+      events.set(docKey(ref), [
+        {
+          _tag: 'Incremented',
+          version: 1,
+          timestamp: '2026-06-01T10:00:00Z',
+          actorId: 'u1',
+          schemaVersion: 1,
+          payload: { amount: 5 },
+        },
+      ])
 
       const replayed = await Effect.runPromise(
-        replayAggregate(configV3, PATH).pipe(Effect.provide(layer)),
+        replayAggregate(configV3, ref).pipe(Effect.provide(layer)),
       )
 
       expect(replayed).toEqual({ count: 5, _version: 1 })

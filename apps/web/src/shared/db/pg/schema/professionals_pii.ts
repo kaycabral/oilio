@@ -1,4 +1,4 @@
-import { foreignKey, index, jsonb, pgTable, text } from 'drizzle-orm/pg-core'
+import { foreignKey, index, jsonb, pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 
 /**
@@ -10,7 +10,7 @@ import { orgs } from './orgs'
  * table (#1046). Only `taxIdentity` (which can diverge per org and is severable
  * for LGPD per-org anonymization, brief 0032) lives in this deletable sidecar.
  *
- * Keyed by `aggregate_path` (`orgs/{orgId}/professionals_pii/{id}`), org-scoped.
+ * Keyed by composite PK `(org_id, id)`, org-scoped.
  * Org RLS (org-only). Deleting the row erases the professional PII while the
  * `professionals` projection and its event history stay intact.
  *
@@ -23,12 +23,13 @@ import { orgs } from './orgs'
 export const professionalsPii = pgTable(
   'professionals_pii',
   {
-    aggregatePath: text('aggregate_path').primaryKey(),
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
     taxIdentity: jsonb('tax_identity'),
   },
   (table) => [
+    // Composite (org_id, id) PRIMARY KEY — the natural key.
+    primaryKey({ columns: [table.orgId, table.id], name: 'professionals_pii_pkey' }),
     foreignKey({
       name: 'professionals_pii_org_id_fk',
       columns: [table.orgId],

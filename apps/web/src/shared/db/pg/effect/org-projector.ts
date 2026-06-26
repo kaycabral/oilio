@@ -1,4 +1,5 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import { OrgConfig } from '@/domain/aggregates/org/config'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { StoredOrg } from '@/domain/types/org'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -29,10 +30,9 @@ const decodeOrg = Schema.decodeUnknownSync(StoredOrg)
  * never drift). Mirrors the `INSERT` placeholders 1:1.
  */
 export const ORG_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
-  'version',
+  'last_event_version',
   'name',
   'slug',
   'vertical',
@@ -44,17 +44,17 @@ export const ORG_COLUMNS = [
 ] as const
 
 /**
- * Map a decoded `StoredOrg` (+ aggregate path and projection version) onto the
- * ordered `orgs` column VALUES — the inverse of `rowToDoc`, shared by the runtime
- * projector and the E2E seed. Order matches `ORG_COLUMNS` exactly.
+ * Map a decoded `StoredOrg` (+ projection version) onto the ordered `orgs` column
+ * VALUES — the inverse of `rowToDoc`, shared by the runtime projector and the E2E
+ * seed. Order matches `ORG_COLUMNS` exactly. `org_id`/`id` come from the org's own
+ * `id` (the org IS its own scope).
  */
-export function orgColumnValues(org: StoredOrg, aggregatePath: string, version: number): unknown[] {
+export function orgColumnValues(org: StoredOrg, lastEventVersion: number): unknown[] {
   return [
-    aggregatePath,
     // org_id = the org's own id (it IS its own scope)
     org.id,
     org.id,
-    version,
+    lastEventVersion,
     org.name,
     org.slug,
     org.vertical,
@@ -67,13 +67,13 @@ export function orgColumnValues(org: StoredOrg, aggregatePath: string, version: 
 }
 
 const PLACEHOLDERS = ORG_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = ORG_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = ORG_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO orgs (${ORG_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -117,13 +117,9 @@ export function publicOrgDirectoryValues(org: StoredOrg): unknown[] {
   ]
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const org = decodeOrg(state)
-  await client.query(UPSERT, orgColumnValues(org, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, orgColumnValues(org, stateVersion(state)))
   // Mirror the public fields into the public directory (same tx).
   await client.query(PUBLIC_DIRECTORY_UPSERT, publicOrgDirectoryValues(org))
 }
@@ -132,7 +128,7 @@ async function upsert(
 export type OrgRow = {
   org_id: string
   id: string
-  version: string | number
+  last_event_version: string | number
   name: string
   slug: string
   vertical: string
@@ -149,7 +145,7 @@ export type OrgRow = {
 // present so an org without it round-trips to the same shape.
 export function rowToDoc(row: OrgRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     name: row.name,
     slug: row.slug,
@@ -162,33 +158,34 @@ export function rowToDoc(row: OrgRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
-  const res = await client.query<OrgRow>('SELECT * FROM orgs WHERE aggregate_path = $1', [
-    aggregatePath,
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+  const res = await client.query<OrgRow>('SELECT * FROM orgs WHERE org_id = $1 AND id = $2', [
+    ref.orgId,
+    ref.id,
   ])
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM orgs WHERE aggregate_path = $1', [aggregatePath])
-  // The aggregate path is `orgs/{id}`; the directory is keyed by that bare id.
-  const orgId = aggregatePath.split('/')[1] ?? ''
-  await client.query('DELETE FROM public_org_directory WHERE org_id = $1', [orgId])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM orgs WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
+  // The org IS its own scope, so the public directory (keyed by the bare org id)
+  // is dropped by the same id the ref carries.
+  await client.query('DELETE FROM public_org_directory WHERE org_id = $1', [ref.orgId])
 }
 
 // No `list`: `orgs` is under FORCE ROW LEVEL SECURITY (per-org), so a
 // platform-wide tenant sweep can't read it under a NOBYPASSRLS runtime role. The
 // crons enumerate tenants from the PUBLIC `public_org_directory` (no RLS, by
 // contract) instead — see `listAllOrgIds`. The org projection is only ever read
-// by aggregate path (`read`), always under an org's RLS context.
+// by aggregate ref (`read`), always under an org's RLS context.
 export const orgProjector: TypedProjector = { read, upsert, delete: remove }
 
 /**
- * `aggregate_type` for orgs = the aggregate-type segment of the event-store path
- * (`orgs/{id}` → `orgs`). The Postgres Layer derives the same tag with
- * `aggregateTypeOf`, so registration and routing agree.
+ * `aggregate_type` for orgs = the typed `AggregateType` literal (`config.type`,
+ * singular `org`) — D6 (ADR 0013). The Postgres Layer routes by the ref's `type`,
+ * so registration and routing agree on this literal.
  */
-export const ORG_AGGREGATE_TYPE = 'orgs'
+export const ORG_AGGREGATE_TYPE = OrgConfig.type
 
 registerTypedProjector(ORG_AGGREGATE_TYPE, orgProjector)

@@ -1,4 +1,5 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import { SubscriptionPlanConfig } from '@/domain/aggregates/subscription-plan/config'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { SubscriptionPlan } from '@/domain/types/subscription-plan'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -25,10 +26,9 @@ const decodeSubscriptionPlan = Schema.decodeUnknownSync(SubscriptionPlan)
  * the `INSERT` placeholders 1:1.
  */
 export const SUBSCRIPTION_PLAN_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
-  'version',
+  'last_event_version',
   'name',
   'description',
   'price_cents',
@@ -48,14 +48,12 @@ export const SUBSCRIPTION_PLAN_COLUMNS = [
 
 export function subscriptionPlanColumnValues(
   plan: SubscriptionPlan,
-  aggregatePath: string,
-  version: number,
+  lastEventVersion: number,
 ): unknown[] {
   return [
-    aggregatePath,
     plan.orgId,
     plan.id,
-    version,
+    lastEventVersion,
     plan.name,
     plan.description,
     plan.priceCents,
@@ -77,13 +75,13 @@ export function subscriptionPlanColumnValues(
 }
 
 const PLACEHOLDERS = SUBSCRIPTION_PLAN_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = SUBSCRIPTION_PLAN_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = SUBSCRIPTION_PLAN_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO subscription_plans (${SUBSCRIPTION_PLAN_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 // ── Derived join tables (brief 0068 D3): plan ↔ item / category / unit-allowlist ─
@@ -128,13 +126,9 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const plan = decodeSubscriptionPlan(state)
-  await client.query(UPSERT, subscriptionPlanColumnValues(plan, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, subscriptionPlanColumnValues(plan, stateVersion(state)))
   // Mirror the N:N arrays into the join tables (same tx). Delete-then-insert so a
   // shrunk array leaves no orphans and replay is idempotent.
   await client.query(PLAN_INCLUDED_ITEMS_DELETE, [plan.orgId, plan.id])
@@ -158,7 +152,7 @@ async function upsert(
 export type SubscriptionPlanRow = {
   org_id: string
   id: string
-  version: string | number
+  last_event_version: string | number
   name: string
   description: string | null
   price_cents: string | number
@@ -182,7 +176,7 @@ export type SubscriptionPlanRow = {
 // `unitAllowlist`/`allowedTimeScope`/`bookingLimits`). `_version` is re-attached.
 export function rowToDoc(row: SubscriptionPlanRow): FirestoreDoc {
   const base = {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     name: row.name,
@@ -205,10 +199,10 @@ export function rowToDoc(row: SubscriptionPlanRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<SubscriptionPlanRow>(
-    'SELECT * FROM subscription_plans WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT * FROM subscription_plans WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
@@ -217,29 +211,26 @@ async function read(client: PoolClient, aggregatePath: string): Promise<Firestor
 // Locked read for the price/availability guard (brief 0033 AC-08): `FOR UPDATE`
 // holds the plan row until the guarded append's tx ends, so a concurrent
 // reprice/discontinuation can't let two appends snapshot a stale plan price.
-async function readForUpdate(
-  client: PoolClient,
-  aggregatePath: string,
-): Promise<FirestoreDoc | null> {
+async function readForUpdate(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<SubscriptionPlanRow>(
-    'SELECT * FROM subscription_plans WHERE aggregate_path = $1 FOR UPDATE',
-    [aggregatePath],
+    'SELECT * FROM subscription_plans WHERE org_id = $1 AND id = $2 FOR UPDATE',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
   // Drop the join rows explicitly (the parent FK is ON DELETE cascade, so this is
-  // defensive + mirrors `professional-projector`'s join cleanup). Path is
-  // `orgs/{orgId}/subscription_plans/{id}`.
-  const parts = aggregatePath.split('/')
-  const orgId = parts[1] ?? ''
-  const id = parts[3] ?? ''
-  await client.query(PLAN_INCLUDED_ITEMS_DELETE, [orgId, id])
-  await client.query(PLAN_INCLUDED_CATEGORIES_DELETE, [orgId, id])
-  await client.query(PLAN_UNIT_ALLOWLIST_DELETE, [orgId, id])
-  await client.query('DELETE FROM subscription_plans WHERE aggregate_path = $1', [aggregatePath])
+  // defensive + mirrors `professional-projector`'s join cleanup). The ref carries
+  // the org + id directly.
+  await client.query(PLAN_INCLUDED_ITEMS_DELETE, [ref.orgId, ref.id])
+  await client.query(PLAN_INCLUDED_CATEGORIES_DELETE, [ref.orgId, ref.id])
+  await client.query(PLAN_UNIT_ALLOWLIST_DELETE, [ref.orgId, ref.id])
+  await client.query('DELETE FROM subscription_plans WHERE org_id = $1 AND id = $2', [
+    ref.orgId,
+    ref.id,
+  ])
 }
 
 export const subscriptionPlanProjector: TypedProjector = {
@@ -249,6 +240,12 @@ export const subscriptionPlanProjector: TypedProjector = {
   delete: remove,
 }
 
-export const SUBSCRIPTION_PLAN_AGGREGATE_TYPE = 'subscription_plans'
+/**
+ * `aggregate_type` for subscription plans = the typed `AggregateType` literal
+ * (`config.type`, singular `subscription_plan`) — D6 (ADR 0013). The Postgres
+ * Layer routes by the ref's `type`, so registration and routing agree on this
+ * literal.
+ */
+export const SUBSCRIPTION_PLAN_AGGREGATE_TYPE = SubscriptionPlanConfig.type
 
 registerTypedProjector(SUBSCRIPTION_PLAN_AGGREGATE_TYPE, subscriptionPlanProjector)

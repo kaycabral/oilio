@@ -21,8 +21,9 @@ async function readUserIdRow(
 ): Promise<UserIdRow | undefined> {
   const rows = await readUnderRls<UserIdRow>(orgId, (client) =>
     client
-      .query<UserIdRow>(`SELECT user_id FROM ${collection} WHERE aggregate_path = $1`, [
-        `orgs/${orgId}/${collection}/${id}`,
+      .query<UserIdRow>(`SELECT user_id FROM ${collection} WHERE org_id = $1 AND id = $2`, [
+        orgId,
+        id,
       ])
       .then((res) => res.rows),
   )

@@ -4,7 +4,9 @@
 // - AC-16: "marcar como lida" remove do popover (order_stale — sem ação WA)
 // - AC-17: "adiar" oculta do popover
 
+import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import type { NotificationState, NotificationType } from '@/domain/aggregates/notification/types'
+import { aggregateRef } from '@/domain/effect'
 import {
   NOTIFICATION_COLUMNS,
   notificationColumnValues,
@@ -24,7 +26,7 @@ async function seedNotification(
 ): Promise<string> {
   const notifId = `e2e-notif-${Date.now()}-${randomBytes(4).toString('hex')}`
   const now = new Date().toISOString()
-  const aggregatePath = `orgs/${orgId}/notifications/${notifId}`
+  const ref = aggregateRef(NotificationConfig, orgId, notifId)
   const doc: NotificationState = {
     id: notifId,
     orgId,
@@ -54,9 +56,9 @@ async function seedNotification(
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
        VALUES ($1, $2, 1, $3, $4)`,
       [
-        'notifications',
-        aggregatePath,
-        orgId,
+        ref.type,
+        ref.id,
+        ref.orgId,
         {
           _tag: 'notification.created',
           version: 1,
@@ -70,7 +72,7 @@ async function seedNotification(
     const placeholders = NOTIFICATION_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO notifications (${NOTIFICATION_COLUMNS.join(', ')}) VALUES (${placeholders})`,
-      [...notificationColumnValues(doc, aggregatePath, 1)],
+      [...notificationColumnValues(doc, ref, 1)],
     )
     await client.query('COMMIT')
   } catch (err) {

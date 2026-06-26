@@ -6,9 +6,9 @@ import {
   foreignKey,
   index,
   pgTable,
+  primaryKey,
   text,
   timestamp,
-  unique,
 } from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 
@@ -18,7 +18,7 @@ import { orgs } from './orgs'
  * (`CatalogItem.categoryId` and `SubscriptionPlan.includedCategoryIds` are FKs
  * into it).
  *
- * Keyed by `aggregate_path` (`orgs/{orgId}/categories/{id}`). FK
+ * Keyed by composite PK `(org_id, id)`. FK
  * `org_id → orgs.org_id`; `org_id` is the leading index column (RLS performance).
  *
  * No PII — the typed projection decodes against the full `Category` domain shape.
@@ -34,14 +34,12 @@ import { orgs } from './orgs'
 export const categories = pgTable(
   'categories',
   {
-    aggregatePath: text('aggregate_path').primaryKey(),
-
-    // ── Identity + org scope ────────────────────────────────────────────────
+    // ── Identity + org scope (composite PRIMARY KEY) ────────────────────────
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     name: text('name').notNull(),
@@ -66,8 +64,9 @@ export const categories = pgTable(
       columns: [table.orgId],
       foreignColumns: [orgs.orgId],
     }),
-    // Composite (org_id, id) UNIQUE — the target of cross-aggregate composite FKs.
-    unique('categories_org_id_id_uq').on(table.orgId, table.id),
+    // Composite (org_id, id) PRIMARY KEY — the natural key + target of
+    // cross-aggregate composite FKs.
+    primaryKey({ columns: [table.orgId, table.id], name: 'categories_pkey' }),
     // `org_id`-leading index: the RLS policy + list reads (ordered by name).
     index('categories_org_id_name_idx').on(table.orgId, table.name),
   ],

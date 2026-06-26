@@ -142,8 +142,9 @@ async function loadSubscriptionByIdForDetail(
 ): Promise<Subscription | null> {
   const rows = await readUnderRls<SubscriptionRow>(orgId, (client) =>
     client
-      .query<SubscriptionRow>('SELECT * FROM subscriptions WHERE aggregate_path = $1', [
-        `orgs/${orgId}/subscriptions/${id}`,
+      .query<SubscriptionRow>('SELECT * FROM subscriptions WHERE org_id = $1 AND id = $2', [
+        orgId,
+        id,
       ])
       .then((res) => res.rows),
   )

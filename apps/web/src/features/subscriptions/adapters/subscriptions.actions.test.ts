@@ -74,7 +74,7 @@ function subscriptionRow({
     org_id: 'org-1',
     id: 'sub-1',
     unit_id: 'u1',
-    version: 1,
+    last_event_version: 1,
     customer_id: 'c1',
     customer_user_id: 'user-9',
     status,

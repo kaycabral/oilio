@@ -6,6 +6,7 @@ import {
   canCustomerCancelSubscription,
 } from '@/domain'
 import { SubscriptionConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import {
   rowToDoc as subscriptionRowToDoc,
   type SubscriptionRow,
@@ -26,8 +27,9 @@ async function loadSubscriptionById(
 ): Promise<Subscription | null> {
   const rows = await readUnderRls<SubscriptionRow>(orgId, (client) =>
     client
-      .query<SubscriptionRow>('SELECT * FROM subscriptions WHERE aggregate_path = $1', [
-        `orgs/${orgId}/subscriptions/${subscriptionId}`,
+      .query<SubscriptionRow>('SELECT * FROM subscriptions WHERE org_id = $1 AND id = $2', [
+        orgId,
+        subscriptionId,
       ])
       .then((res) => res.rows),
   )
@@ -69,7 +71,7 @@ export async function cancelOwnSubscription(input: {
   // (erradicação ES, #1029).
   const scheduled = await emitEvent(
     SubscriptionConfig,
-    `orgs/${input.orgId}/subscriptions/${input.subscriptionId}`,
+    aggregateRef(SubscriptionConfig, input.orgId, input.subscriptionId),
     {
       _tag: 'subscription.cancel_scheduled',
       actorId: session.uid,

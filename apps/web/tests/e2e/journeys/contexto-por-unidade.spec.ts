@@ -26,6 +26,8 @@
 // post-cutover) to assert the stitched invariants.
 
 import { membershipDocId } from '@/domain'
+import { MembershipConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { type Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { twoUnits } from '../helpers/rest-json'
@@ -61,7 +63,7 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
       // is `rls_unit_scope` post-D4 (renamed from `unit_id`, brief 0068).
       const membership = await pgReadProjection(
         'memberships',
-        `memberships/${membershipDocId(org.orgId, org.uid)}`,
+        aggregateRef(MembershipConfig, org.orgId, membershipDocId(org.orgId, org.uid)),
       )
       expect(membership).not.toBeNull()
       expect(membership?.rls_unit_scope).toBeNull()

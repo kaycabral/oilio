@@ -7,7 +7,8 @@ import {
   type OrderCoverage,
   type OrderItem,
 } from '@/domain'
-import { OrderConfig } from '@/domain/aggregates'
+import { CatalogItemConfig, OrderConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import {
   parseItemForm,
   recalcAndPatch,
@@ -107,7 +108,7 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
   }
   // Event-first: a comanda nasce de `order.created` carregando o snapshot
   // completo (a projeção escreve o doc — sem `ref.set` paralelo).
-  const created = await emitEvent(OrderConfig, `orgs/${orgId}/orders/${orderId}`, {
+  const created = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.created',
     actorId: r.ctx.session.uid,
     payload: { data: order },
@@ -157,7 +158,7 @@ export async function createOrder(): Promise<OrderMutationResult> {
   // Event-first: a venda nasce de `order.created` carregando o snapshot completo
   // (a projeção escreve o doc — sem `ref.set` paralelo). O snapshot generalizado
   // aceita `appointmentId: null` E `customerId: null` (brief 0030).
-  const created = await emitEvent(OrderConfig, `orgs/${orgId}/orders/${orderId}`, {
+  const created = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.created',
     actorId: r.ctx.session.uid,
     payload: { data: order },
@@ -203,15 +204,15 @@ export async function addItemToOrder(
   // re-lê o estado fresco. Descontinuado → rejeita; preço = min(exibido, vigente).
   // É leitura de definição pra guardar/snapshotar o WRITE de UM aggregate (a
   // order) — não é saga cross-aggregate.
-  const catalogPath = `orgs/${orgId}/catalog_items/${parsed.refId}`
+  const catalogRef = aggregateRef(CatalogItemConfig, orgId, parsed.refId)
   const added = await emitEventGuarded({
     config: OrderConfig,
-    aggregatePath: `orgs/${orgId}/orders/${orderId}`,
+    ref: aggregateRef(OrderConfig, orgId, orderId),
     actorId: r.ctx.session.uid,
     tag: 'order.item_added',
     guard: (reader) =>
       Effect.gen(function* () {
-        const item = yield* reader.getDoc(catalogPath, CatalogItem)
+        const item = yield* reader.getDoc(catalogRef, CatalogItem)
         const itemBase = snapshotCatalogItem(item, parsed, loaded.order.unitId)
         if (typeof itemBase === 'string') {
           return { _tag: 'reject' as const, message: itemBase }
@@ -253,7 +254,7 @@ export async function removeItemFromOrder(
 
   const patch = recalcAndPatch(items, loaded.order.discountCents)
   // Event-first: `order.item_removed` carrega o patch recalculado.
-  await emitEvent(OrderConfig, `orgs/${orgId}/orders/${orderId}`, {
+  await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.item_removed',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
@@ -296,7 +297,7 @@ export async function updateItemAttribution(
   const items = loaded.order.items.map((it, i) => (i === idx ? { ...it, attributedUserId } : it))
   const patch = recalcAndPatch(items, loaded.order.discountCents)
   // Event-first: `order.item_attribution_changed` carrega o patch recalculado.
-  await emitEvent(OrderConfig, `orgs/${orgId}/orders/${orderId}`, {
+  await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.item_attribution_changed',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
@@ -333,7 +334,7 @@ export async function updateItemCoverage(
     i === idx ? { ...it, coverage, subscriptionId } : it,
   )
   const patch = recalcAndPatch(items, loaded.order.discountCents)
-  await emitEvent(OrderConfig, `orgs/${orgId}/orders/${orderId}`, {
+  await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.item_coverage_changed',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
@@ -361,7 +362,7 @@ export async function updateOrderMeta(
 
   const patch = recalcAndPatch(loaded.order.items, discountCents)
   // Event-first: `order.meta_updated` carrega o patch (desconto + totais).
-  await emitEvent(OrderConfig, `orgs/${orgId}/orders/${orderId}`, {
+  await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.meta_updated',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
@@ -381,7 +382,7 @@ export async function cancelOrder(orderId: string): Promise<OrderMutationResult>
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
   // Event-first: `order.cancelled` marca o status (a projeção escreve o doc).
-  await emitEvent(OrderConfig, `orgs/${orgId}/orders/${orderId}`, {
+  await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.cancelled',
     actorId: r.ctx.session.uid,
     payload: {},

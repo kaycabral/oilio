@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { Charge } from '@/domain/types/charge'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -16,11 +16,10 @@ const decodeCharge = Schema.decodeUnknownSync(Charge)
 
 /** Ordered `charges` column list — single source of truth for upsert + seed. */
 export const CHARGE_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
   'unit_id',
-  'version',
+  'last_event_version',
   'subscription_id',
   'customer_id',
   'amount_cents',
@@ -38,11 +37,10 @@ export const CHARGE_COLUMNS = [
 ] as const
 
 /** Map a decoded `Charge` onto the ordered column VALUES (inverse of `rowToDoc`). */
-export function chargeColumnValues(c: Charge, aggregatePath: string, version: number): unknown[] {
+export function chargeColumnValues(c: Charge, ref: AggregateRef, version: number): unknown[] {
   return [
-    aggregatePath,
-    c.orgId,
-    c.id,
+    ref.orgId,
+    ref.id,
     c.unitId,
     version,
     c.subscriptionId,
@@ -63,13 +61,13 @@ export function chargeColumnValues(c: Charge, aggregatePath: string, version: nu
 }
 
 const PLACEHOLDERS = CHARGE_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = CHARGE_COLUMNS.filter((col) => col !== 'aggregate_path')
+const CONFLICT_SET = CHARGE_COLUMNS.filter((col) => col !== 'org_id' && col !== 'id')
   .map((col) => `${col} = EXCLUDED.${col}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO charges (${CHARGE_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -77,20 +75,16 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const c = decodeCharge(state)
-  await client.query(UPSERT, chargeColumnValues(c, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, chargeColumnValues(c, ref, stateVersion(state)))
 }
 
 export type ChargeRow = {
   org_id: string
   id: string
   unit_id: string
-  version: string | number
+  last_event_version: string | number
   subscription_id: string
   customer_id: string
   amount_cents: string | number
@@ -109,7 +103,7 @@ export type ChargeRow = {
 
 export function rowToDoc(row: ChargeRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     unitId: row.unit_id,
@@ -133,20 +127,21 @@ export function rowToDoc(row: ChargeRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
-  const res = await client.query<ChargeRow>('SELECT * FROM charges WHERE aggregate_path = $1', [
-    aggregatePath,
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+  const res = await client.query<ChargeRow>('SELECT * FROM charges WHERE org_id = $1 AND id = $2', [
+    ref.orgId,
+    ref.id,
   ])
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM charges WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM charges WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
 export const chargeProjector: TypedProjector = { read, upsert, delete: remove }
 
-export const CHARGE_AGGREGATE_TYPE = 'charges'
+export const CHARGE_AGGREGATE_TYPE = 'charge'
 
 registerTypedProjector(CHARGE_AGGREGATE_TYPE, chargeProjector)

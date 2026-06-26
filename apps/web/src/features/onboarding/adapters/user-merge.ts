@@ -1,6 +1,11 @@
 import { Membership, membershipDocId } from '@/domain'
 import { AppointmentConfig, CustomerConfig, MembershipConfig } from '@/domain/aggregates'
-import { appendDeleteToTx, appendEventToTx, type TransactionContext } from '@/domain/effect'
+import {
+  aggregateRef,
+  appendDeleteToTx,
+  appendEventToTx,
+  type TransactionContext,
+} from '@/domain/effect'
 import {
   rowToDoc as membershipRowToDoc,
   type MembershipRow,
@@ -217,14 +222,16 @@ async function listAppointmentIdsByCustomer(orgId: string, userId: string): Prom
 }
 
 // Whether the claimer already holds a membership in the org — reads the
-// membership projection under org RLS by its `{orgId}_{userId}` aggregate path.
+// membership projection under org RLS by its composite `(org_id, id)` key, where
+// `id` is the `{orgId}_{userId}` membership doc id.
 async function claimerHasMembership(orgId: string, userId: string): Promise<boolean> {
-  const rows = await readUnderRls<{ aggregate_path: string }>(orgId, (client) =>
+  const rows = await readUnderRls<{ id: string }>(orgId, (client) =>
     client
       .query<{
-        aggregate_path: string
-      }>('SELECT aggregate_path FROM memberships WHERE aggregate_path = $1 LIMIT 1', [
-        `memberships/${membershipDocId(orgId, userId)}`,
+        id: string
+      }>('SELECT id FROM memberships WHERE org_id = $1 AND id = $2 LIMIT 1', [
+        orgId,
+        membershipDocId(orgId, userId),
       ])
       .then((res) => res.rows),
   )
@@ -238,7 +245,7 @@ async function repointCustomer(
   customerId: string,
   claimerUid: string,
 ): Promise<void> {
-  const res = await emitEvent(CustomerConfig, `orgs/${orgId}/customers/${customerId}`, {
+  const res = await emitEvent(CustomerConfig, aggregateRef(CustomerConfig, orgId, customerId), {
     _tag: 'customer.updated',
     actorId: claimerUid,
     payload: { changes: { userId: claimerUid } },
@@ -247,12 +254,11 @@ async function repointCustomer(
 }
 
 async function dropCustomer(orgId: string, customerId: string, claimerUid: string): Promise<void> {
-  const path = `orgs/${orgId}/customers/${customerId}`
   const res = await commitSaga([
     (tx: TransactionContext) =>
       appendDeleteToTx(
         CustomerConfig,
-        path,
+        aggregateRef(CustomerConfig, orgId, customerId),
         { _tag: 'customer.deleted', actorId: claimerUid, payload: {} },
         tx,
       ),
@@ -265,21 +271,24 @@ async function repointAppointment(
   appointmentId: string,
   claimerUid: string,
 ): Promise<void> {
-  const res = await emitEvent(AppointmentConfig, `orgs/${orgId}/appointments/${appointmentId}`, {
-    _tag: 'appointment.updated',
-    actorId: claimerUid,
-    payload: { changes: { customerUserId: claimerUid } },
-  })
+  const res = await emitEvent(
+    AppointmentConfig,
+    aggregateRef(AppointmentConfig, orgId, appointmentId),
+    {
+      _tag: 'appointment.updated',
+      actorId: claimerUid,
+      payload: { changes: { customerUserId: claimerUid } },
+    },
+  )
   if (!res.ok) throw new Error(`Failed to repoint appointment ${appointmentId}: ${res.error}`)
 }
 
 async function dropMembership(orgId: string, stubId: string, claimerUid: string): Promise<void> {
-  const path = `memberships/${stubId}`
   const res = await commitSaga([
     (tx: TransactionContext) =>
       appendDeleteToTx(
         MembershipConfig,
-        path,
+        aggregateRef(MembershipConfig, orgId, stubId),
         { _tag: 'membership.deleted', actorId: claimerUid, payload: {} },
         tx,
       ),
@@ -302,14 +311,14 @@ async function repointMembership(stub: Membership, claimerUid: string): Promise<
     (tx: TransactionContext) =>
       appendEventToTx(
         MembershipConfig,
-        `memberships/${claimerId}`,
+        aggregateRef(MembershipConfig, stub.orgId, claimerId),
         { _tag: 'membership.created', actorId: claimerUid, payload: { data: claimerMembership } },
         tx,
       ),
     (tx: TransactionContext) =>
       appendDeleteToTx(
         MembershipConfig,
-        `memberships/${stub.id}`,
+        aggregateRef(MembershipConfig, stub.orgId, stub.id),
         { _tag: 'membership.deleted', actorId: claimerUid, payload: {} },
         tx,
       ),

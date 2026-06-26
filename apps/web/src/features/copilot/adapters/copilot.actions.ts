@@ -2,6 +2,7 @@
 
 import { GOAL_TARGET_MIN_CENTS, goalDocId, isValidGoalPeriod, type Goal } from '@/domain'
 import { GoalConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
 import { requireManagerCtx } from '@/shared/org/membership'
@@ -50,7 +51,7 @@ export async function defineGoal(formData: FormData): Promise<GoalMutationResult
     updatedAt: now,
   }
 
-  const created = await emitEvent(GoalConfig, `orgs/${orgId}/goals/${id}`, {
+  const created = await emitEvent(GoalConfig, aggregateRef(GoalConfig, orgId, id), {
     _tag: 'goal.defined',
     actorId: r.ctx.session.uid,
     payload: { data: goal },
@@ -71,7 +72,7 @@ export async function updateGoal(goalId: string, formData: FormData): Promise<Go
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const orgId = r.ctx.membership.orgId
-  const updated = await emitEvent(GoalConfig, `orgs/${orgId}/goals/${goalId}`, {
+  const updated = await emitEvent(GoalConfig, aggregateRef(GoalConfig, orgId, goalId), {
     _tag: 'goal.updated',
     actorId: r.ctx.session.uid,
     payload: { changes: { targetCents: parsed.targetCents } },

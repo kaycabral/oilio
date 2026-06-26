@@ -9,7 +9,7 @@ import {
   type Role,
 } from '@/domain'
 import { MembershipConfig, OrgConfig } from '@/domain/aggregates'
-import { appendEventToTx, type TransactionContext } from '@/domain/effect'
+import { aggregateRef, appendEventToTx, type TransactionContext } from '@/domain/effect'
 import { parseOrgForm } from '@/features/onboarding/core/org-form'
 import { newId } from '@/shared/db/pg/new-id'
 import { getPublicOrgDocBySlug } from '@/shared/db/pg/public-org-directory'
@@ -86,7 +86,7 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
     (tx: TransactionContext) =>
       appendEventToTx(
         OrgConfig,
-        `orgs/${orgId}`,
+        aggregateRef(OrgConfig, orgId, orgId),
         {
           _tag: 'org.created',
           actorId: session.uid,
@@ -97,7 +97,7 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
     (tx: TransactionContext) =>
       appendEventToTx(
         MembershipConfig,
-        `memberships/${membership.id}`,
+        aggregateRef(MembershipConfig, orgId, membership.id),
         {
           _tag: 'membership.created',
           actorId: session.uid,

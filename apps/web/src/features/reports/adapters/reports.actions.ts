@@ -2,6 +2,7 @@
 
 import { Commission, liquidationStatusOf } from '@/domain'
 import { CommissionConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import {
   type CommissionRow,
   rowToDoc as commissionRowToDoc,
@@ -42,8 +43,9 @@ async function loadMemberCommissionsInWindow(
 async function getCommissionById(orgId: string, commissionId: string): Promise<Commission | null> {
   const rows = await readUnderRls<CommissionRow>(orgId, (client) =>
     client
-      .query<CommissionRow>('SELECT * FROM commissions WHERE aggregate_path = $1', [
-        `orgs/${orgId}/commissions/${commissionId}`,
+      .query<CommissionRow>('SELECT * FROM commissions WHERE org_id = $1 AND id = $2', [
+        orgId,
+        commissionId,
       ])
       .then((res) => res.rows),
   )
@@ -97,7 +99,7 @@ export async function markCommissionsPaid(formData: FormData): Promise<MarkPaidR
   for (const commission of pending) {
     const updated = await emitEvent(
       CommissionConfig,
-      `orgs/${r.ctx.membership.orgId}/commissions/${commission.id}`,
+      aggregateRef(CommissionConfig, r.ctx.membership.orgId, commission.id),
       {
         _tag: 'commission.updated',
         actorId: r.ctx.session.uid,
@@ -138,7 +140,7 @@ export async function markCommissionPaid(formData: FormData): Promise<MarkPaidRe
 
   const updated = await emitEvent(
     CommissionConfig,
-    `orgs/${r.ctx.membership.orgId}/commissions/${commissionId}`,
+    aggregateRef(CommissionConfig, r.ctx.membership.orgId, commissionId),
     {
       _tag: 'commission.updated',
       actorId: r.ctx.session.uid,

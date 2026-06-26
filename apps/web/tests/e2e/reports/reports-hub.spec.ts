@@ -10,6 +10,8 @@
 // Roda contra emulator + build de produção (modo canônico do playwright.config).
 
 import type { CashMovement } from '@/domain'
+import { CashMovementConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import {
   CASH_MOVEMENT_COLUMNS,
   cashMovementColumnValues,
@@ -59,7 +61,7 @@ async function seedSaleMovement(orgId: string, unitId: string, amountCents: numb
     recordedByUid: 'system',
     createdAt: now,
   }
-  const aggregatePath = `orgs/${orgId}/cash_movements/${id}`
+  const ref = aggregateRef(CashMovementConfig, orgId, id)
   const { Client } = await import('pg')
   const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
   await client.connect()
@@ -69,9 +71,9 @@ async function seedSaleMovement(orgId: string, unitId: string, amountCents: numb
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
        VALUES ($1, $2, 1, $3, $4)`,
       [
-        'cash_movements',
-        aggregatePath,
-        orgId,
+        ref.type,
+        ref.id,
+        ref.orgId,
         {
           _tag: 'cash_movement.created',
           version: 1,
@@ -82,7 +84,7 @@ async function seedSaleMovement(orgId: string, unitId: string, amountCents: numb
         },
       ],
     )
-    const values = cashMovementColumnValues(doc, aggregatePath, 1)
+    const values = cashMovementColumnValues(doc, ref, 1)
     const placeholders = CASH_MOVEMENT_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO cash_movements (${CASH_MOVEMENT_COLUMNS.join(', ')}) VALUES (${placeholders})`,

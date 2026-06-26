@@ -22,10 +22,6 @@ type MessageTemplateRow = {
   updated_at: string
 }
 
-function aggregatePath(orgId: string, type: string): string {
-  return `orgs/${orgId}/message_templates/${type}`
-}
-
 // Maps a row to the domain `MessageTemplate`, narrowing `type` through the
 // dispatchable guard (the DB CHECK guarantees it, but the guard keeps the type
 // honest without an assertion). Returns null for a row whose type is not
@@ -52,8 +48,8 @@ export async function getMessageTemplate(
   const rows = await readUnderRls<MessageTemplateRow>(orgId, (client) =>
     client
       .query<MessageTemplateRow>(
-        'SELECT type, body, enabled, last_actor_uid, updated_at FROM message_templates WHERE aggregate_path = $1',
-        [aggregatePath(orgId, type)],
+        'SELECT type, body, enabled, last_actor_uid, updated_at FROM message_templates WHERE org_id = $1 AND type = $2',
+        [orgId, type],
       )
       .then((res) => res.rows),
   )
@@ -120,14 +116,14 @@ export async function upsertMessageTemplate(input: {
     await client.query('BEGIN')
     await client.query('SELECT set_config($1, $2, true)', ['app.current_org', orgId])
     await client.query(
-      `INSERT INTO message_templates (aggregate_path, org_id, type, body, enabled, last_actor_uid, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (aggregate_path) DO UPDATE SET
+      `INSERT INTO message_templates (org_id, type, body, enabled, last_actor_uid, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (org_id, type) DO UPDATE SET
          body = EXCLUDED.body,
          enabled = EXCLUDED.enabled,
          last_actor_uid = EXCLUDED.last_actor_uid,
          updated_at = EXCLUDED.updated_at`,
-      [aggregatePath(orgId, type), orgId, type, body, enabled, lastActorUid, updatedAt],
+      [orgId, type, body, enabled, lastActorUid, updatedAt],
     )
     await client.query('COMMIT')
   } catch (err) {

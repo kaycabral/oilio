@@ -2,52 +2,19 @@
 // (event-first: onboarding/aceite emitem `membership.created`, sem write-only).
 // created (snapshot) → updated (changes) → replay == projeção, campo a campo.
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
 import { defaultPermissionsForRole } from '../types/membership'
 import { MembershipConfig } from './membership/config'
 
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
-
 describe('Membership — replay reconstrói o doc completo (event-first)', () => {
   it('created (snapshot completo) → updated (role) → replay == projeção', async () => {
-    const { store, layer } = makeStore()
-    const path = 'memberships/t1_user-1'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(MembershipConfig, 't1', 't1_user-1')
     const data = {
       id: 't1_user-1',
       orgId: 't1',
@@ -63,12 +30,12 @@ describe('Membership — replay reconstrói o doc completo (event-first)', () =>
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(MembershipConfig, path, {
+        yield* appendEvent(MembershipConfig, ref, {
           _tag: 'membership.created',
           actorId: 'actor-1',
           payload: { data },
         })
-        yield* appendEvent(MembershipConfig, path, {
+        yield* appendEvent(MembershipConfig, ref, {
           _tag: 'membership.updated',
           actorId: 'actor-1',
           payload: {
@@ -78,9 +45,9 @@ describe('Membership — replay reconstrói o doc completo (event-first)', () =>
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(MembershipConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(MembershipConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed).toEqual(projection)
@@ -94,8 +61,8 @@ describe('Membership — replay reconstrói o doc completo (event-first)', () =>
   // reconstructs the terminal status from the stream alone (event-first proof:
   // the severance lives in the immutable event, not a bare doc write).
   it('created → updated (status revoked) → replay projeta status terminal', async () => {
-    const { store, layer } = makeStore()
-    const path = 'memberships/t1_user-2'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(MembershipConfig, 't1', 't1_user-2')
     const data = {
       id: 't1_user-2',
       orgId: 't1',
@@ -111,12 +78,12 @@ describe('Membership — replay reconstrói o doc completo (event-first)', () =>
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(MembershipConfig, path, {
+        yield* appendEvent(MembershipConfig, ref, {
           _tag: 'membership.created',
           actorId: 'actor-1',
           payload: { data },
         })
-        yield* appendEvent(MembershipConfig, path, {
+        yield* appendEvent(MembershipConfig, ref, {
           _tag: 'membership.updated',
           actorId: 'actor-1',
           payload: { changes: { status: 'revoked' } },
@@ -124,9 +91,9 @@ describe('Membership — replay reconstrói o doc completo (event-first)', () =>
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(MembershipConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(MembershipConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed).toEqual(projection)
@@ -144,8 +111,8 @@ describe('Membership — replay reconstrói o doc completo (event-first)', () =>
   // Seeds a raw legacy event doc directly (bypassing `appendEvent`, which writes
   // the new shape) to reproduce a historical stream.
   it('replay of a legacy `unitId` + `commissionRate` payload is normalized and tolerated', async () => {
-    const { store, layer } = makeStore()
-    const path = 'memberships/t1_user-legacy'
+    const { events, layer } = makeReplayStore()
+    const ref = aggregateRef(MembershipConfig, 't1', 't1_user-legacy')
     const legacyEventDoc = {
       _tag: 'membership.created',
       version: 1,
@@ -170,10 +137,10 @@ describe('Membership — replay reconstrói o doc completo (event-first)', () =>
         },
       },
     }
-    store.set(`${path}/events/v000001`, legacyEventDoc)
+    events.set(docKey(ref), [legacyEventDoc])
 
     const replayed = await Effect.runPromise(
-      replayAggregate(MembershipConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(MembershipConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed.rlsUnitScope).toBe('unit-legacy')

@@ -1,4 +1,5 @@
 import { NotificationConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { computeSnoozeUntil, type SnoozeOption } from '@/features/notifications/core/snooze'
 import { emitEvent } from '@/shared/effect-bridge'
 
@@ -12,7 +13,7 @@ export async function markNotificationRead(
 ): Promise<MarkResult> {
   const result = await emitEvent(
     NotificationConfig,
-    `orgs/${orgId}/notifications/${notificationId}`,
+    aggregateRef(NotificationConfig, orgId, notificationId),
     { _tag: 'notification.read', actorId: actorUid, payload: {} },
   )
   return result.ok ? { ok: true } : { ok: false, error: result.error }
@@ -38,7 +39,7 @@ export async function snoozeNotification({
   const snoozedUntil = computeSnoozeUntil(option, now, tz)
   const result = await emitEvent(
     NotificationConfig,
-    `orgs/${orgId}/notifications/${notificationId}`,
+    aggregateRef(NotificationConfig, orgId, notificationId),
     { _tag: 'notification.snoozed', actorId: actorUid, payload: { snoozedUntil } },
   )
   return result.ok ? { ok: true } : { ok: false, error: result.error }

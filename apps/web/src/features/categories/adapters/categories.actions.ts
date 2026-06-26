@@ -2,6 +2,7 @@
 
 import { type Category } from '@/domain'
 import { CategoryConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { parseCategoryForm } from '@/features/categories/core/category-form'
 import {
   countActiveCatalogItemsInCategory,
@@ -39,7 +40,7 @@ export async function createCategory(formData: FormData): Promise<CategoryMutati
     createdAt: now,
     updatedAt: now,
   }
-  const created = await emitEvent(CategoryConfig, `orgs/${orgId}/categories/${id}`, {
+  const created = await emitEvent(CategoryConfig, aggregateRef(CategoryConfig, orgId, id), {
     _tag: 'category.created',
     actorId: r.ctx.session.uid,
     payload: { data: category },
@@ -59,7 +60,7 @@ export async function updateCategory(
   const parsed = parseCategoryForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  const updated = await emitEvent(CategoryConfig, `orgs/${orgId}/categories/${categoryId}`, {
+  const updated = await emitEvent(CategoryConfig, aggregateRef(CategoryConfig, orgId, categoryId), {
     _tag: 'category.updated',
     actorId: r.ctx.session.uid,
     payload: { changes: { ...parsed } },
@@ -117,13 +118,13 @@ export async function deleteCategory(categoryId: string): Promise<CategoryMutati
     return archiveCategory(categoryId)
   }
 
-  const deleted = await emitEvent(CategoryConfig, `orgs/${orgId}/categories/${categoryId}`, {
+  const deleted = await emitEvent(CategoryConfig, aggregateRef(CategoryConfig, orgId, categoryId), {
     _tag: 'category.deleted',
     actorId: r.ctx.session.uid,
     payload: {},
   })
   if (!deleted.ok) return { ok: false, error: deleted.error }
-  await deleteOrgProjectionDoc(orgId, 'categories', categoryId)
+  await deleteOrgProjectionDoc(aggregateRef(CategoryConfig, orgId, categoryId))
   revalidatePath('/categories')
   revalidatePath('/catalog')
   return { ok: true }
@@ -143,7 +144,7 @@ export async function archiveCategory(
   const archivedAt = archived ? new Date().toISOString() : null
   const res = await emitEvent(
     CategoryConfig,
-    `orgs/${r.ctx.membership.orgId}/categories/${categoryId}`,
+    aggregateRef(CategoryConfig, r.ctx.membership.orgId, categoryId),
     { _tag: 'category.archived', actorId: r.ctx.session.uid, payload: { archivedAt } },
   )
   if (!res.ok) return { ok: false, error: res.error }

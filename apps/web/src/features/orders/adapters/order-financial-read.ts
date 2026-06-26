@@ -40,9 +40,7 @@ export async function loadOpenOrdersForOrg(orgId: string): Promise<Order[]> {
 export async function loadOrderById(orgId: string, orderId: string): Promise<Order | null> {
   const rows = await readUnderRls<OrderRow>(orgId, (client) =>
     client
-      .query<OrderRow>('SELECT * FROM orders WHERE aggregate_path = $1', [
-        `orgs/${orgId}/orders/${orderId}`,
-      ])
+      .query<OrderRow>('SELECT * FROM orders WHERE org_id = $1 AND id = $2', [orgId, orderId])
       .then((res) => res.rows),
   )
   const row = rows[0]

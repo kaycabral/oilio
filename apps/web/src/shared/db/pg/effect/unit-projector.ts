@@ -1,4 +1,5 @@
-import type { FirestoreDoc, QueryConstraint } from '@/domain/effect'
+import { UnitConfig } from '@/domain/aggregates/unit/config'
+import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
 import { StoredUnit } from '@/domain/types/unit'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -30,10 +31,9 @@ const decodeUnit = Schema.decodeUnknownSync(StoredUnit)
  * upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1.
  */
 export const UNIT_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
-  'version',
+  'last_event_version',
   'name',
   'slug',
   'timezone',
@@ -49,25 +49,21 @@ export const UNIT_COLUMNS = [
 ] as const
 
 /**
- * Map a decoded `StoredUnit` (+ aggregate path and projection version) onto the
- * ordered `units` column VALUES — the inverse of `rowToDoc`, shared by the
- * runtime projector and the E2E seed. Order matches `UNIT_COLUMNS` exactly. The
- * union discriminants (`agenda.mode`, `fiscal.kind`) are lifted to columns; the
- * full bodies ride in JSONB. `public_visible` mirrors the unit's bookable state
- * (derived: appointment mode + published) — kept nullable for forward-compat.
+ * Map a decoded `StoredUnit` (+ projection version) onto the ordered `units`
+ * column VALUES — the inverse of `rowToDoc`, shared by the runtime projector and
+ * the E2E seed. Order matches `UNIT_COLUMNS` exactly; `org_id`/`id` come straight
+ * off the unit. The union discriminants (`agenda.mode`, `fiscal.kind`) are lifted
+ * to columns; the full bodies ride in JSONB. `public_visible` mirrors the unit's
+ * bookable state (derived: appointment mode + published) — kept nullable for
+ * forward-compat.
  */
-export function unitColumnValues(
-  unit: StoredUnit,
-  aggregatePath: string,
-  version: number,
-): unknown[] {
+export function unitColumnValues(unit: StoredUnit, lastEventVersion: number): unknown[] {
   const publicVisible =
     unit.agenda.mode === 'appointment' ? unit.agenda.selfBookingPublished : false
   return [
-    aggregatePath,
     unit.orgId,
     unit.id,
-    version,
+    lastEventVersion,
     unit.name,
     unit.slug,
     unit.timezone,
@@ -84,13 +80,13 @@ export function unitColumnValues(
 }
 
 const PLACEHOLDERS = UNIT_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = UNIT_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = UNIT_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO units (${UNIT_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -98,13 +94,9 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const unit = decodeUnit(state)
-  await client.query(UPSERT, unitColumnValues(unit, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, unitColumnValues(unit, stateVersion(state)))
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
@@ -114,7 +106,7 @@ async function upsert(
 export type UnitRow = {
   org_id: string
   id: string
-  version: string | number
+  last_event_version: string | number
   name: string
   slug: string
   timezone: string
@@ -134,7 +126,7 @@ export type UnitRow = {
 // CHECK + queryability, not for reconstruction. `_version` is re-attached.
 export function rowToDoc(row: UnitRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     name: row.name,
@@ -149,29 +141,30 @@ export function rowToDoc(row: UnitRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
-  const res = await client.query<UnitRow>('SELECT * FROM units WHERE aggregate_path = $1', [
-    aggregatePath,
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+  const res = await client.query<UnitRow>('SELECT * FROM units WHERE org_id = $1 AND id = $2', [
+    ref.orgId,
+    ref.id,
   ])
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM units WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM units WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-// Org-scoped collection scan (`orgs/{orgId}/units`): the domain reads the whole
-// unit list (no constraints) to fan a notification out per establishment.
+// Org-scoped collection scan (a {@link CollectionRef} for `unit`): the domain
+// reads the whole unit list (no constraints) to fan a notification out per
+// establishment.
 async function list(
   client: PoolClient,
-  collectionPath: string,
+  ref: CollectionRef,
   constraints: readonly QueryConstraint[],
 ): Promise<FirestoreDoc[]> {
-  const orgId = collectionPath.split('/')[1] ?? ''
   const tail = buildCollectionQueryTail(constraints, UNIT_COLUMNS, 2, true)
   const res = await client.query<UnitRow>(`SELECT * FROM units WHERE org_id = $1${tail.sql}`, [
-    orgId,
+    ref.orgId,
     ...tail.params,
   ])
   return res.rows.map(rowToDoc)
@@ -180,10 +173,10 @@ async function list(
 export const unitProjector: TypedProjector = { read, upsert, delete: remove, list }
 
 /**
- * `aggregate_type` for units = the aggregate-type segment of the event-store path
- * (`orgs/{orgId}/units/{id}` → `units`). The Postgres Layer derives the same tag
- * with `aggregateTypeOf`, so registration and routing agree.
+ * `aggregate_type` for units = the typed `AggregateType` literal (`config.type`,
+ * singular `unit`) — D6 (ADR 0013). The Postgres Layer routes by the ref's
+ * `type`, so registration and routing agree on this literal.
  */
-export const UNIT_AGGREGATE_TYPE = 'units'
+export const UNIT_AGGREGATE_TYPE = UnitConfig.type
 
 registerTypedProjector(UNIT_AGGREGATE_TYPE, unitProjector)

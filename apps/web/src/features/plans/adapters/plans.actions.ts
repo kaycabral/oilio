@@ -2,6 +2,7 @@
 
 import { type SubscriptionPlan } from '@/domain'
 import { SubscriptionPlanConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { findDanglingCoverageRef, parsePlanForm } from '@/features/plans/core/plan-form'
 import { listCatalogItemIds } from '@/shared/db/effect/catalog-item-read'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
@@ -73,7 +74,7 @@ export async function createPlan(formData: FormData): Promise<PlanMutationResult
   }
   const created = await emitEvent(
     SubscriptionPlanConfig,
-    `orgs/${r.ctx.membership.orgId}/subscription_plans/${id}`,
+    aggregateRef(SubscriptionPlanConfig, r.ctx.membership.orgId, id),
     { _tag: 'subscription_plan.created', actorId: r.ctx.session.uid, payload: { data: plan } },
   )
   if (!created.ok) return { ok: false, error: created.error }
@@ -100,7 +101,7 @@ export async function updatePlan(planId: string, formData: FormData): Promise<Pl
   // leitores (mesma semântica do antigo `FieldValue.delete()`).
   const updated = await emitEvent(
     SubscriptionPlanConfig,
-    `orgs/${r.ctx.membership.orgId}/subscription_plans/${planId}`,
+    aggregateRef(SubscriptionPlanConfig, r.ctx.membership.orgId, planId),
     {
       _tag: 'subscription_plan.updated',
       actorId: r.ctx.session.uid,
@@ -138,11 +139,11 @@ export async function deletePlan(planId: string): Promise<PlanMutationResult> {
 
   const deleted = await emitEvent(
     SubscriptionPlanConfig,
-    `orgs/${orgId}/subscription_plans/${planId}`,
+    aggregateRef(SubscriptionPlanConfig, orgId, planId),
     { _tag: 'subscription_plan.deleted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
-  await deleteOrgProjectionDoc(orgId, 'subscription_plans', planId)
+  await deleteOrgProjectionDoc(aggregateRef(SubscriptionPlanConfig, orgId, planId))
   revalidatePath('/plans')
   return { ok: true }
 }
@@ -157,7 +158,7 @@ export async function archivePlan(planId: string, archived = true): Promise<Plan
   const archivedAt = archived ? new Date().toISOString() : null
   const res = await emitEvent(
     SubscriptionPlanConfig,
-    `orgs/${r.ctx.membership.orgId}/subscription_plans/${planId}`,
+    aggregateRef(SubscriptionPlanConfig, r.ctx.membership.orgId, planId),
     { _tag: 'subscription_plan.archived', actorId: r.ctx.session.uid, payload: { archivedAt } },
   )
   if (!res.ok) return { ok: false, error: res.error }

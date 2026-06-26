@@ -16,6 +16,8 @@
 // straight from Postgres (post-cutover event store) to assert the invariant.
 
 import { defaultPermissionsForRole, membershipDocId, MembershipPermissions, Role } from '@/domain'
+import { MembershipConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { chooseOption } from '../helpers/select'
@@ -34,9 +36,13 @@ import { ProfessionalsPage } from '../pages'
 // snake_case-free here (`role` is a CHECK enum, `permissions` is JSONB decoded
 // back into the typed `MembershipPermissions` shape).
 async function readMembershipProjection(
+  orgId: string,
   membershipId: string,
 ): Promise<{ role: typeof Role.Type; permissions: MembershipPermissions } | null> {
-  const row = await pgReadProjection('memberships', `memberships/${membershipId}`)
+  const row = await pgReadProjection(
+    'memberships',
+    aggregateRef(MembershipConfig, orgId, membershipId),
+  )
   if (!row) return null
   return {
     role: Schema.decodeUnknownSync(Role)(row.role),
@@ -84,7 +90,10 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       await expect(authedPage.getByRole('combobox', { name: 'Papel' })).toHaveText('Profissional')
 
       // AC-06: permissions re-derived to the professional default.
-      const membership = await readMembershipProjection(membershipDocId(org.orgId, member.uid))
+      const membership = await readMembershipProjection(
+        org.orgId,
+        membershipDocId(org.orgId, member.uid),
+      )
       expect(membership?.role).toBe('professional')
       expect(membership?.permissions).toEqual(defaultPermissionsForRole('professional'))
 
@@ -148,14 +157,18 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       // orphan-operable member survives. Poll the role, not a status flip.
       await expect
         .poll(
-          async () => (await readMembershipProjection(membershipDocId(org.orgId, proUid)))?.role,
+          async () =>
+            (await readMembershipProjection(org.orgId, membershipDocId(org.orgId, proUid)))?.role,
         )
         .toBe('receptionist')
       const after = await readProfessionalByUserId(org.orgId, proUid)
       expect(after).not.toBeNull()
 
       // AC-06: permissions re-derived to the receptionist default.
-      const membership = await readMembershipProjection(membershipDocId(org.orgId, proUid))
+      const membership = await readMembershipProjection(
+        org.orgId,
+        membershipDocId(org.orgId, proUid),
+      )
       expect(membership?.role).toBe('receptionist')
       expect(membership?.permissions).toEqual(defaultPermissionsForRole('receptionist'))
     })

@@ -29,8 +29,9 @@ export async function getUserDoc(uid: string): Promise<User | null> {
 export async function getMembership(orgId: string, uid: string): Promise<Membership | null> {
   const rows = await readUnderRls<MembershipRow>(orgId, (client) =>
     client
-      .query<MembershipRow>('SELECT * FROM memberships WHERE aggregate_path = $1', [
-        `memberships/${membershipDocId(orgId, uid)}`,
+      .query<MembershipRow>('SELECT * FROM memberships WHERE org_id = $1 AND id = $2', [
+        orgId,
+        membershipDocId(orgId, uid),
       ])
       .then((res) => res.rows),
   )

@@ -6,9 +6,9 @@ import {
   index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
-  unique,
 } from 'drizzle-orm/pg-core'
 import { appointments } from './appointments'
 import { customers } from './customers'
@@ -43,16 +43,13 @@ import { units } from './units'
 export const orders = pgTable(
   'orders',
   {
-    // Projection key = `orgs/{orgId}/orders/{id}`.
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org/unit scope ───────────────────────────────────────────
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
     unitId: text('unit_id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── References (PII by id-ref; ADR 0010 D2) ─────────────────────────────
     // `customer_id` may be null (anonymous walk-in sale). `appointment_id` links
@@ -114,8 +111,9 @@ export const orders = pgTable(
       columns: [table.orgId],
       foreignColumns: [orgs.orgId],
     }).onDelete('cascade'),
-    // Composite (org_id, id) UNIQUE — the target of cross-aggregate composite FKs.
-    unique('orders_org_id_id_uq').on(table.orgId, table.id),
+    // Composite (org_id, id) PRIMARY KEY — the natural key + target of
+    // cross-aggregate composite FKs.
+    primaryKey({ columns: [table.orgId, table.id], name: 'orders_pkey' }),
     // Cross-aggregate composite FKs (org-scoped).
     foreignKey({
       name: 'orders_unit_id_fk',

@@ -1,4 +1,6 @@
-import type { FirestoreDoc, SagaStep, TransactionContext } from '@/domain/effect'
+import { ChargeConfig, SubscriptionConfig } from '@/domain/aggregates'
+import { aggregateRef, type FirestoreDoc, runSaga, type SagaStep } from '@/domain/effect'
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
 import type { Charge } from '@/domain/types/charge'
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
@@ -13,25 +15,17 @@ import {
 // land and covering the closure branches. The real ACID/rollback behavior lives
 // in `charge-subscription-saga-acid.events.pg.integration.test.ts` (#1200).
 async function runSteps(steps: SagaStep[]): Promise<Map<string, FirestoreDoc>> {
-  const store = new Map<string, FirestoreDoc>()
-  const tx: TransactionContext = {
-    getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-    setDoc: (path, data) =>
-      Effect.sync(() => {
-        store.set(path, { ...store.get(path), ...data })
-      }),
-    deleteDoc: (path) =>
-      Effect.sync(() => {
-        store.delete(path)
-      }),
-  }
-  for (const step of steps) await Effect.runPromise(step(tx))
+  const { store, layer } = makeReplayStore()
+  await Effect.runPromise(runSaga(steps).pipe(Effect.provide(layer)))
   return store
 }
 
 const ORG = 't1'
 const SUB = 'sub1'
 const CHARGE = 'ch1'
+
+const chargeKey = (id: string) => docKey(aggregateRef(ChargeConfig, ORG, id))
+const subKey = (id: string) => docKey(aggregateRef(SubscriptionConfig, ORG, id))
 
 const renewCharge: Charge = {
   id: 'ch2',
@@ -75,11 +69,11 @@ describe('buildMarkPaidSteps', () => {
 
   it('the built steps write charge.paid + the settle, incrementing attempts', async () => {
     const store = await runSteps(buildMarkPaidSteps({ ...base, attempts: 1, settle: true }))
-    expect(store.get(`orgs/${ORG}/charges/${CHARGE}`)).toMatchObject({
+    expect(store.get(chargeKey(CHARGE))).toMatchObject({
       status: 'paid',
       attempts: 2,
     })
-    expect(store.get(`orgs/${ORG}/subscriptions/${SUB}`)).toBeDefined()
+    expect(store.get(subKey(SUB))).toBeDefined()
   })
 })
 
@@ -102,23 +96,23 @@ describe('buildMarkFailedSteps', () => {
 
   it('the built steps write the failure to both aggregates', async () => {
     const store = await runSteps(buildMarkFailedSteps(base))
-    expect(store.get(`orgs/${ORG}/charges/${CHARGE}`)).toMatchObject({
+    expect(store.get(chargeKey(CHARGE))).toMatchObject({
       failureReason: 'card_declined',
       attempts: 3,
     })
-    expect(store.get(`orgs/${ORG}/subscriptions/${SUB}`)).toBeDefined()
+    expect(store.get(subKey(SUB))).toBeDefined()
   })
 
   it('falls back to manual_mark when no reason is given', async () => {
     const store = await runSteps(buildMarkFailedSteps({ ...base, failureReason: null }))
-    expect(store.get(`orgs/${ORG}/charges/${CHARGE}`)).toMatchObject({ failureReason: null })
+    expect(store.get(chargeKey(CHARGE))).toMatchObject({ failureReason: null })
   })
 
   it('below threshold writes a recovering charge (not the invalid past_due) (#1201)', async () => {
     const store = await runSteps(
       buildMarkFailedSteps({ ...base, nextChargeStatus: 'recovering', nextChargeAttempts: 1 }),
     )
-    expect(store.get(`orgs/${ORG}/charges/${CHARGE}`)).toMatchObject({
+    expect(store.get(chargeKey(CHARGE))).toMatchObject({
       status: 'recovering',
       attempts: 1,
     })
@@ -142,7 +136,7 @@ describe('buildRenewSteps', () => {
 
   it('the built steps create the next charge and renew the period', async () => {
     const store = await runSteps(buildRenewSteps(input))
-    expect(store.get(`orgs/${ORG}/charges/ch2`)).toMatchObject({ status: 'scheduled' })
-    expect(store.get(`orgs/${ORG}/subscriptions/${SUB}`)).toBeDefined()
+    expect(store.get(chargeKey('ch2'))).toMatchObject({ status: 'scheduled' })
+    expect(store.get(subKey(SUB))).toBeDefined()
   })
 })

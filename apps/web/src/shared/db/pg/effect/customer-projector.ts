@@ -1,4 +1,4 @@
-import type { FirestoreDoc, QueryConstraint } from '@/domain/effect'
+import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
 import { StoredCustomer } from '@/domain/types/customer'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -23,10 +23,9 @@ const decodeCustomer = Schema.decodeUnknownSync(StoredCustomer)
 /** The ordered `customers` column list — single source of truth for the runtime
  * upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1. */
 export const CUSTOMER_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
-  'version',
+  'last_event_version',
   'user_id',
   'archived_at',
   'deactivated_at',
@@ -36,14 +35,13 @@ export const CUSTOMER_COLUMNS = [
 
 export function customerColumnValues(
   customer: StoredCustomer,
-  aggregatePath: string,
-  version: number,
+  ref: AggregateRef,
+  lastEventVersion: number,
 ): unknown[] {
   return [
-    aggregatePath,
-    customer.orgId,
-    customer.id,
-    version,
+    ref.orgId,
+    ref.id,
+    lastEventVersion,
     customer.userId,
     customer.archivedAt,
     customer.deactivatedAt,
@@ -53,13 +51,13 @@ export function customerColumnValues(
 }
 
 const PLACEHOLDERS = CUSTOMER_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = CUSTOMER_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = CUSTOMER_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO customers (${CUSTOMER_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -67,20 +65,16 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const customer = decodeCustomer(state)
-  await client.query(UPSERT, customerColumnValues(customer, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, customerColumnValues(customer, ref, stateVersion(state)))
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type CustomerRow = {
   org_id: string
   id: string
-  version: string | number
+  last_event_version: string | number
   user_id: string
   archived_at: string | null
   deactivated_at: string | null
@@ -93,7 +87,7 @@ export type CustomerRow = {
 // at read time).
 export function rowToDoc(row: CustomerRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     userId: row.user_id,
@@ -104,36 +98,37 @@ export function rowToDoc(row: CustomerRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
-  const res = await client.query<CustomerRow>('SELECT * FROM customers WHERE aggregate_path = $1', [
-    aggregatePath,
-  ])
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+  const res = await client.query<CustomerRow>(
+    'SELECT * FROM customers WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
+  )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM customers WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM customers WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-// Org-scoped collection scan (`orgs/{orgId}/customers`): the birthday cron sweeps
-// the org's customers (no constraints) and joins each to its `users/{uid}` PII doc.
+// Org-scoped collection scan (the `customer` collection for an org): the birthday
+// cron sweeps the org's customers (no constraints) and joins each to its
+// `users/{uid}` PII doc.
 async function list(
   client: PoolClient,
-  collectionPath: string,
+  ref: CollectionRef,
   constraints: readonly QueryConstraint[],
 ): Promise<FirestoreDoc[]> {
-  const orgId = collectionPath.split('/')[1] ?? ''
   const tail = buildCollectionQueryTail(constraints, CUSTOMER_COLUMNS, 2, true)
   const res = await client.query<CustomerRow>(
     `SELECT * FROM customers WHERE org_id = $1${tail.sql}`,
-    [orgId, ...tail.params],
+    [ref.orgId, ...tail.params],
   )
   return res.rows.map(rowToDoc)
 }
 
 export const customerProjector: TypedProjector = { read, upsert, delete: remove, list }
 
-export const CUSTOMER_AGGREGATE_TYPE = 'customers'
+export const CUSTOMER_AGGREGATE_TYPE = 'customer'
 
 registerTypedProjector(CUSTOMER_AGGREGATE_TYPE, customerProjector)

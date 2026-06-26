@@ -1,4 +1,4 @@
-import { foreignKey, index, jsonb, pgTable, text } from 'drizzle-orm/pg-core'
+import { foreignKey, index, jsonb, pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 
 /**
@@ -14,8 +14,8 @@ import { orgs } from './orgs'
  * `tax_identity` is JSONB (the PF/PJ discriminated union), nullable — a unit may
  * be informal (no fiscal identity recorded).
  *
- * Keyed by `aggregate_path` (`orgs/{orgId}/units/{id}/private/taxIdentity`),
- * org-scoped. Org RLS (org-only). Deleting the row erases the fiscal PII while
+ * Keyed by composite PK (org_id, id), org-scoped. Org RLS (org-only). Deleting
+ * the row erases the fiscal PII while
  * the `units` projection + event history stay intact.
  *
  * Invariants enforced HERE:
@@ -24,12 +24,12 @@ import { orgs } from './orgs'
 export const unitTaxIdentity = pgTable(
   'unit_tax_identity',
   {
-    aggregatePath: text('aggregate_path').primaryKey(),
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
     taxIdentity: jsonb('tax_identity'),
   },
   (table) => [
+    primaryKey({ columns: [table.orgId, table.id], name: 'unit_tax_identity_pkey' }),
     foreignKey({
       name: 'unit_tax_identity_org_id_fk',
       columns: [table.orgId],

@@ -1,4 +1,8 @@
 import type { StoredProfessional } from '@/domain'
+import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
+import { InviteConfig } from '@/domain/aggregates/invite/config'
+import { ProfessionalConfig } from '@/domain/aggregates/professional/config'
+import { aggregateRef } from '@/domain/effect'
 import {
   PROFESSIONAL_COLUMNS,
   professionalColumnValues,
@@ -31,7 +35,7 @@ import {
 //
 // Post-cutover (#1202) the read-backs assert against Postgres: the global
 // `users` table (keyed by `uid`, snake_case columns), the deletable per-org PII
-// sidecars (`professionals_pii` / `invites_pii`, keyed by aggregate_path) and the
+// sidecars (`professionals_pii` / `invites_pii`, keyed by `(org_id, id)`) and the
 // typed `appointments` projection (`customer_user_id`).
 
 // Reads the global `users` row (snake_case columns) — null when absent. Replaces
@@ -64,7 +68,6 @@ async function seedProfessionalPiiFor(
     createdAt: now,
     updatedAt: now,
   }
-  const aggregatePath = `orgs/${orgId}/professionals/${pid}`
   const { Client } = await import('pg')
   const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
   await client.connect()
@@ -74,7 +77,7 @@ async function seedProfessionalPiiFor(
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
        VALUES ('professionals', $1, 1, $2, $3)`,
       [
-        aggregatePath,
+        pid,
         orgId,
         {
           _tag: 'professional.created',
@@ -89,7 +92,7 @@ async function seedProfessionalPiiFor(
     const placeholders = PROFESSIONAL_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO professionals (${PROFESSIONAL_COLUMNS.join(', ')}) VALUES (${placeholders})`,
-      [...professionalColumnValues(doc, aggregatePath, 1)],
+      [...professionalColumnValues(doc, 1)],
     )
     await client.query('COMMIT')
   } catch (err) {
@@ -115,9 +118,10 @@ async function setInviteAcceptedBy(orgId: string, inviteId: string, userId: stri
   const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
   await client.connect()
   try {
-    await client.query(`UPDATE invites SET accepted_by_uid = $1 WHERE aggregate_path = $2`, [
+    await client.query(`UPDATE invites SET accepted_by_uid = $1 WHERE org_id = $2 AND id = $3`, [
       userId,
-      `orgs/${orgId}/invites/${inviteId}`,
+      orgId,
+      inviteId,
     ])
   } finally {
     await client.end()
@@ -182,11 +186,11 @@ test.describe('account-level PII anonymization', () => {
     expect(
       await pgProjectionExists(
         'professionals_pii',
-        `orgs/${subject.orgId}/professionals_pii/e2e-prof-${subject.uid}`,
+        aggregateRef(ProfessionalConfig, subject.orgId, `e2e-prof-${subject.uid}`),
       ),
     ).toBe(true)
     expect(
-      await pgProjectionExists('invites_pii', `orgs/${subject.orgId}/invites_pii/${inviteId}`),
+      await pgProjectionExists('invites_pii', aggregateRef(InviteConfig, subject.orgId, inviteId)),
     ).toBe(true)
 
     await signInAndAttachSession(context, subject.email, subject.password)
@@ -210,17 +214,17 @@ test.describe('account-level PII anonymization', () => {
     expect(
       await pgProjectionExists(
         'professionals_pii',
-        `orgs/${subject.orgId}/professionals_pii/e2e-prof-${subject.uid}`,
+        aggregateRef(ProfessionalConfig, subject.orgId, `e2e-prof-${subject.uid}`),
       ),
     ).toBe(false)
     expect(
-      await pgProjectionExists('invites_pii', `orgs/${subject.orgId}/invites_pii/${inviteId}`),
+      await pgProjectionExists('invites_pii', aggregateRef(InviteConfig, subject.orgId, inviteId)),
     ).toBe(false)
 
     // AC-04: the record keeps its `userId` pointer (retention).
     const record = await pgReadProjection(
       'appointments',
-      `orgs/${subject.orgId}/appointments/${recordId}`,
+      aggregateRef(AppointmentConfig, subject.orgId, recordId),
     )
     expect(record?.customer_user_id).toEqual(subject.uid)
 

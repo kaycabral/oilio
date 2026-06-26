@@ -25,9 +25,9 @@ function uniqueOrgId(label: string): string {
 
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${orgId}`, orgId],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [orgId],
   )
 }
 
@@ -44,10 +44,9 @@ type SeedOpts = {
 // shape proven separately in the RLS isolation suites).
 async function seed(orgId: string, id: string, opts: SeedOpts): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO notifications (aggregate_path, org_id, id, unit_id, version, type, source, event_key, customer_id, appointment_id, subscription_id, read_at, dispatched_at, valid_until, snoozed_until, payload, dispatch, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,1,$5,'cron',$6,NULL,NULL,NULL,$7,$8,NULL,NULL,'{}'::jsonb,NULL,$9,'2026-01-01T00:00:00Z')`,
+    `INSERT INTO notifications (org_id, id, unit_id, last_event_version, type, source, event_key, customer_id, appointment_id, subscription_id, read_at, dispatched_at, valid_until, snoozed_until, payload, dispatch, created_at, updated_at)
+     VALUES ($1,$2,$3,1,$4,'cron',$5,NULL,NULL,NULL,$6,$7,NULL,NULL,'{}'::jsonb,NULL,$8,'2026-01-01T00:00:00Z')`,
     [
-      `orgs/${orgId}/notifications/${id}`,
       orgId,
       id,
       opts.unitId,

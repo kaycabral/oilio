@@ -1,6 +1,6 @@
 import type { Appointment } from '@/domain'
 import { AppointmentConfig } from '@/domain/aggregates'
-import { appendEvent } from '@/domain/effect'
+import { aggregateRef, appendEvent } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { logger } from '@/shared/lib'
 import { Cause, Effect } from 'effect'
@@ -87,12 +87,12 @@ export async function commitAppointmentBooking({
   actorUid,
   via,
 }: BookingCommitInput): Promise<BookingCommitResult> {
-  const aggregatePath = `orgs/${orgId}/appointments/${appointment.id}`
+  const ref = aggregateRef(AppointmentConfig, orgId, appointment.id)
   // Event-first: the appointment doc is the projection of `appointment.created`,
   // written in the same tx as the event append. The GiST exclusion constraint
   // fires on the projection INSERT when the slot overlaps a live booking.
   const result = await Effect.runPromise(
-    appendEvent(AppointmentConfig, aggregatePath, {
+    appendEvent(AppointmentConfig, ref, {
       _tag: 'appointment.created',
       actorId: actorUid,
       payload: { data: appointment },

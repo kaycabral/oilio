@@ -198,8 +198,9 @@ export async function getProfessionalById(
 ): Promise<Professional | null> {
   const rows = await readUnderRls<ProfessionalRow>(orgId, (client) =>
     client
-      .query<ProfessionalRow>('SELECT * FROM professionals WHERE aggregate_path = $1', [
-        `orgs/${orgId}/professionals/${professionalId}`,
+      .query<ProfessionalRow>('SELECT * FROM professionals WHERE org_id = $1 AND id = $2', [
+        orgId,
+        professionalId,
       ])
       .then((res) => res.rows),
   )
@@ -223,9 +224,7 @@ export async function getProfessionalUserId(
     client
       .query<{
         user_id: string | null
-      }>('SELECT user_id FROM professionals WHERE aggregate_path = $1', [
-        `orgs/${orgId}/professionals/${professionalId}`,
-      ])
+      }>('SELECT user_id FROM professionals WHERE org_id = $1 AND id = $2', [orgId, professionalId])
       .then((res) => res.rows),
   )
   return rows[0]?.user_id ?? null

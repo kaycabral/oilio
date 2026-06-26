@@ -19,9 +19,7 @@ export async function getGoalForPeriod(
     orgId,
     (client) =>
       client
-        .query<GoalRow>('SELECT * FROM goals WHERE aggregate_path = $1', [
-          `orgs/${orgId}/goals/${id}`,
-        ])
+        .query<GoalRow>('SELECT * FROM goals WHERE org_id = $1 AND id = $2', [orgId, id])
         .then((res) => res.rows),
     unitId,
   )

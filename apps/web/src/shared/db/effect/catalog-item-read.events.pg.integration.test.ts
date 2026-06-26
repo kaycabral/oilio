@@ -1,5 +1,5 @@
 import { CatalogItemConfig } from '@/domain/aggregates/catalog-item/config'
-import { appendEvent } from '@/domain/effect'
+import { aggregateRef, appendEvent } from '@/domain/effect'
 import type { CatalogProductItem, CatalogServiceItem } from '@/domain/types/catalog-item'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
@@ -21,7 +21,7 @@ import {
 // path the actions use), so the rows are projected by the typed projector.
 
 const ORG = 'org-read'
-const pathOf = (id: string) => `orgs/${ORG}/catalog_items/${id}`
+const refOf = (id: string) => aggregateRef(CatalogItemConfig, ORG, id)
 
 function service(id: string, overrides: Partial<CatalogServiceItem> = {}): CatalogServiceItem {
   return {
@@ -75,18 +75,18 @@ function product(id: string, overrides: Partial<CatalogProductItem> = {}): Catal
 // the superuser pool with ON CONFLICT so repeated category ids are idempotent.
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ('orgs/'||$1,$1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id) DO NOTHING`,
     [orgId],
   )
 }
 
 async function seedCategory(orgId: string, categoryId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO categories (aggregate_path, org_id, id, version, name, icon, color, active, archived_at, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/categories/'||$2,$1,$2,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO categories (org_id, id, last_event_version, name, icon, color, active, archived_at, created_at, updated_at)
+     VALUES ($1,$2,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, categoryId],
   )
 }
@@ -99,7 +99,7 @@ const create = async (item: CatalogServiceItem | CatalogProductItem) => {
   // tx, so seed the parent units first.
   for (const unitId of item.unitIds) await seedUnit(ORG, unitId)
   return Effect.runPromise(
-    appendEvent(CatalogItemConfig, pathOf(item.id), {
+    appendEvent(CatalogItemConfig, refOf(item.id), {
       _tag: 'catalog_item.created',
       actorId: 'test',
       payload: { data: item },
@@ -110,9 +110,9 @@ const create = async (item: CatalogServiceItem | CatalogProductItem) => {
 // Parent units the `catalog_item_units` join (brief 0068 D3) references.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/units/'||$2,$1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, unitId],
   )
 }

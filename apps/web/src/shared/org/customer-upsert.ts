@@ -22,6 +22,7 @@
 
 import { normalizeBrazilPhone, StoredCustomer, type User } from '@/domain'
 import { CustomerConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { rowToDoc, type CustomerRow } from '@/shared/db/pg/effect/customer-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { findUserByWhatsapp, getUserById, patchUser, putUser } from '@/shared/db/pg/users-store'
@@ -158,11 +159,15 @@ export async function upsertCustomerWithUser(
     updatedAt: now,
   }
   // Event-first: the projection writes the Customer doc (no parallel direct write).
-  const created = await emitEvent(CustomerConfig, `orgs/${input.orgId}/customers/${customerId}`, {
-    _tag: 'customer.created',
-    actorId: userId,
-    payload: { data: customer },
-  })
+  const created = await emitEvent(
+    CustomerConfig,
+    aggregateRef(CustomerConfig, input.orgId, customerId),
+    {
+      _tag: 'customer.created',
+      actorId: userId,
+      payload: { data: customer },
+    },
+  )
   if (!created.ok) return { ok: false, error: created.error }
   // Saga step (brief 0032 / #1097, AC-10): identity-layer reverse index so the
   // subject can later discover this establishment without a cross-org query.
@@ -197,7 +202,7 @@ export async function ensureSelfSignupCustomer(
     createdAt: now,
     updatedAt: now,
   }
-  const ev = await emitEvent(CustomerConfig, `orgs/${orgId}/customers/${customerId}`, {
+  const ev = await emitEvent(CustomerConfig, aggregateRef(CustomerConfig, orgId, customerId), {
     _tag: 'customer.created',
     actorId: userId,
     payload: { data: customer },
@@ -225,8 +230,9 @@ export async function updateCustomerPii(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const rows = await readUnderRls<CustomerRow>(orgId, (client) =>
     client
-      .query<CustomerRow>('SELECT * FROM customers WHERE aggregate_path = $1', [
-        `orgs/${orgId}/customers/${customerId}`,
+      .query<CustomerRow>('SELECT * FROM customers WHERE org_id = $1 AND id = $2', [
+        orgId,
+        customerId,
       ])
       .then((res) => res.rows),
   )

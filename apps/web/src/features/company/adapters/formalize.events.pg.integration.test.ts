@@ -8,7 +8,7 @@ import {
   type StoredUnit,
 } from '@/domain'
 import { UnitConfig } from '@/domain/aggregates'
-import { appendEvent, replayAggregate } from '@/domain/effect'
+import { aggregateRef, appendEvent, replayAggregate } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { getUnitTaxIdentity, writeUnitTaxIdentity } from '@/shared/org/unit-read'
@@ -46,7 +46,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 const ORG = 'org-formalize'
 const UNIT = 'unit-1'
 const CNPJ = '40148980000199'
-const unitPath = `orgs/${ORG}/units/${UNIT}`
+const unitRef = aggregateRef(UnitConfig, ORG, UNIT)
 
 const profile: CompanyProfile = {
   taxId: CNPJ,
@@ -65,9 +65,9 @@ const run = <A, E>(eff: Effect.Effect<A, E, never>) => Effect.runPromise(eff)
 
 async function seedOrg(): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug','barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${ORG}`, ORG],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug','barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [ORG],
   )
 }
 
@@ -91,7 +91,7 @@ function informalUnit(): StoredUnit {
 
 async function createInformalUnit(): Promise<void> {
   await run(
-    appendEvent(UnitConfig, unitPath, {
+    appendEvent(UnitConfig, unitRef, {
       _tag: 'unit.created',
       actorId: 'owner',
       payload: { data: informalUnit() },
@@ -103,7 +103,7 @@ async function createInformalUnit(): Promise<void> {
 async function formalize(): Promise<{ ok: true } | { ok: false; error: string }> {
   const formalizedAt = new Date().toISOString()
   const emitted = await Effect.runPromise(
-    appendEvent(UnitConfig, unitPath, {
+    appendEvent(UnitConfig, unitRef, {
       _tag: 'unit.formalized',
       actorId: 'owner',
       payload: { taxId: CNPJ, companyProfile: profile, formalizedAt },
@@ -144,7 +144,7 @@ describe('formalizeUnit — Postgres (brief 0048 / 0062 cutover)', () => {
 
     // Replay reconstructs the company-stage fiscal from events alone.
     const replayed = await run(
-      replayAggregate(UnitConfig, unitPath).pipe(Effect.provide(PostgresPersistenceLayer)),
+      replayAggregate(UnitConfig, unitRef).pipe(Effect.provide(PostgresPersistenceLayer)),
     )
     expect(replayed.fiscal.kind).toBe('company')
     if (replayed.fiscal.kind !== 'company') throw new Error('expected company')
@@ -158,8 +158,8 @@ describe('formalizeUnit — Postgres (brief 0048 / 0062 cutover)', () => {
     // The typed `units` projection reflects the company fiscal (read back from
     // the JSONB body / discriminant column the projector wrote).
     const row = await getEventStorePool().query<{ fiscal_kind: string; fiscal: { kind: string } }>(
-      'SELECT fiscal_kind, fiscal FROM units WHERE aggregate_path = $1',
-      [unitPath],
+      'SELECT fiscal_kind, fiscal FROM units WHERE org_id = $1 AND id = $2',
+      [ORG, UNIT],
     )
     expect(row.rows[0]?.fiscal_kind).toBe('company')
     expect(row.rows[0]?.fiscal.kind).toBe('company')
@@ -175,8 +175,8 @@ describe('formalizeUnit — Postgres (brief 0048 / 0062 cutover)', () => {
   it('the unit.formalized event carries NO razão social / nome fantasia (ADR 0010)', async () => {
     await formalize()
     const events = await getEventStorePool().query<{ envelope: unknown }>(
-      `SELECT envelope FROM events WHERE aggregate_id = $1 AND envelope->>'_tag' = 'unit.formalized'`,
-      [unitPath],
+      `SELECT envelope FROM events WHERE aggregate_id = $1 AND org_id = $2 AND envelope->>'_tag' = 'unit.formalized'`,
+      [UNIT, ORG],
     )
     expect(events.rows).toHaveLength(1)
     expect(JSON.stringify(events.rows[0]?.envelope)).not.toMatch(
@@ -191,14 +191,14 @@ describe('formalizeUnit — Postgres (brief 0048 / 0062 cutover)', () => {
     // The production guard reads the projection's fiscal stage and rejects a
     // re-formalization. Reproduce that read here: the unit is now `company`.
     const current = await run(
-      replayAggregate(UnitConfig, unitPath).pipe(Effect.provide(PostgresPersistenceLayer)),
+      replayAggregate(UnitConfig, unitRef).pipe(Effect.provide(PostgresPersistenceLayer)),
     )
     expect(current.fiscal.kind).toBe('company')
     // Guard: a company unit can't be re-formalized — the action returns an error
     // WITHOUT a second emission (no v3 event appended).
     const beforeCount = await getEventStorePool().query<{ n: number }>(
-      'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
-      [unitPath],
+      'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1 AND org_id = $2',
+      [UNIT, ORG],
     )
     // unit.created (v1) + unit.formalized (v2) — no v3 from a re-formalization.
     expect(beforeCount.rows[0]?.n).toBe(2)

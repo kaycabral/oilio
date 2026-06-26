@@ -7,51 +7,18 @@
 // aggregate é reconstruível só pelos eventos (replay == projeção), e que a
 // quantidade coberta (qualquer kind) decrementa a cota e o estoque corretos.
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
 import { isCatalogProduct } from '../types/catalog-item'
 import type { SubscriptionPlanSnapshot } from '../types/subscription'
 import { coveredItemQuantity, coveredProducts } from '../utils/order'
 import { isItemCoveredBySubscription } from '../utils/subscription-coverage'
 import { CatalogItemConfig } from './catalog-item/config'
 import { SubscriptionConfig } from './subscription/config'
-
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
 
 const PLAN: SubscriptionPlanSnapshot = {
   planId: 'plan-1',
@@ -112,13 +79,13 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
   })
 
   it('subscription: usage_incremented (cota = soma de itens cobertos) → replay == projeção', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/subscriptions/sub-1'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(SubscriptionConfig, 't1', 'sub-1')
     const amount = coveredItemQuantity([COVERED_SERVICE, COVERED_PRODUCT])
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(SubscriptionConfig, path, {
+        yield* appendEvent(SubscriptionConfig, ref, {
           _tag: 'subscription.created',
           actorId: 'staff-1',
           payload: {
@@ -135,12 +102,12 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
             pastDueThreshold: 2,
           },
         })
-        yield* appendEvent(SubscriptionConfig, path, {
+        yield* appendEvent(SubscriptionConfig, ref, {
           _tag: 'subscription.charge_settled',
           actorId: 'staff-1',
           payload: {},
         })
-        yield* appendEvent(SubscriptionConfig, path, {
+        yield* appendEvent(SubscriptionConfig, ref, {
           _tag: 'subscription.usage_incremented',
           actorId: 'staff-1',
           payload: { amount },
@@ -148,9 +115,9 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(SubscriptionConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(SubscriptionConfig, ref).pipe(Effect.provide(layer)),
     )
     expect(replayed).toEqual(projection)
     expect(replayed.currentPeriod).toMatchObject({ consumed: 3 })
@@ -158,13 +125,13 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
   })
 
   it('catalog_item (produto): updated baixa estoque → replay == projeção', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/catalog_items/prod-pomada'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(CatalogItemConfig, 't1', 'prod-pomada')
     const dec = coveredProducts([COVERED_PRODUCT])[0]!
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(CatalogItemConfig, path, {
+        yield* appendEvent(CatalogItemConfig, ref, {
           _tag: 'catalog_item.created',
           actorId: 'staff-1',
           payload: {
@@ -191,7 +158,7 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
           },
         })
         // Decremento no fechamento da comanda (10 − 2 = 8).
-        yield* appendEvent(CatalogItemConfig, path, {
+        yield* appendEvent(CatalogItemConfig, ref, {
           _tag: 'catalog_item.updated',
           actorId: 'staff-1',
           payload: { changes: { stock: 10 - dec.quantity } },
@@ -199,9 +166,9 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(CatalogItemConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(CatalogItemConfig, ref).pipe(Effect.provide(layer)),
     )
     expect(replayed).toEqual(projection)
     expect(isCatalogProduct(replayed)).toBe(true)

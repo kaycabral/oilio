@@ -33,17 +33,17 @@ let appUrl: string
 
 async function seedOrg(id: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${id}`, id],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [id],
   )
 }
 
 async function seedUnit(orgId: string, id: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'U','slug-'||$3,'America/Sao_Paulo','fixed','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${orgId}/units/${id}`, orgId, id],
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'U','slug-'||$2,'America/Sao_Paulo','fixed','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [orgId, id],
   )
 }
 
@@ -110,9 +110,9 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
       // The WITH CHECK clause refuses a row whose org_id != current_org.
       await expect(
         a.query(
-          `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-           VALUES ($1,$2,'u',1,'U','u','America/Sao_Paulo','fixed','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-          [`orgs/${ORG_B}/units/u`, ORG_B],
+          `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+           VALUES ($1,'u',1,'U','u','America/Sao_Paulo','fixed','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+          [ORG_B],
         ),
         // 42501 = insufficient_privilege (RLS WITH CHECK violation)
       ).rejects.toMatchObject({ code: '42501' })
@@ -170,8 +170,9 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
     const noCtx = new Client({ connectionString: appUrl })
     await noCtx.connect()
     try {
-      const res = await noCtx.query('DELETE FROM units WHERE aggregate_path = $1', [
-        `orgs/${ORG_A}/units/${UNIT_A1}`,
+      const res = await noCtx.query('DELETE FROM units WHERE org_id = $1 AND id = $2', [
+        ORG_A,
+        UNIT_A1,
       ])
       expect(res.rowCount).toBe(0)
     } finally {
@@ -184,9 +185,7 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
     // the row is actually removed.
     const a = await appClient(ORG_A)
     try {
-      const res = await a.query('DELETE FROM units WHERE aggregate_path = $1', [
-        `orgs/${ORG_A}/units/${UNIT_A1}`,
-      ])
+      const res = await a.query('DELETE FROM units WHERE org_id = $1 AND id = $2', [ORG_A, UNIT_A1])
       expect(res.rowCount).toBe(1)
     } finally {
       await a.end()
@@ -202,9 +201,9 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
       [ORG_B, 'svc-b'],
     ] as const) {
       await pool.query(
-        `INSERT INTO catalog_items (aggregate_path, org_id, id, version, kind, name, price_cents, price_visibility, active, duration_minutes, unit_ids, public_visible, created_at, updated_at)
-         VALUES ($1,$2,$3,1,'service','S',100,'visible',true,30,'[]'::jsonb,true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [`orgs/${org}/catalog_items/${id}`, org, id],
+        `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, price_cents, price_visibility, active, duration_minutes, unit_ids, public_visible, created_at, updated_at)
+         VALUES ($1,$2,1,'service','S',100,'visible',true,30,'[]'::jsonb,true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        [org, id],
       )
     }
 

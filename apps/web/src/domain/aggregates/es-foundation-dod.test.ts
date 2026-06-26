@@ -1,48 +1,16 @@
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
+import type { PersistencePort } from '../effect/services'
 import { buildReactor, type EventReaction } from './_shared/reactions'
 import { OrderConfig } from './order/config'
 import { SubscriptionConfig } from './subscription/config'
 
-function makeStore(initial: Record<string, FirestoreDoc> = {}) {
-  const store = new Map(Object.entries(initial))
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
-
-const SUB_PATH = 'orgs/t1/subscriptions/s1'
-const ORDER_PATH = 'orgs/t1/orders/o1'
+const SUB_REF = aggregateRef(SubscriptionConfig, 't1', 's1')
+const ORDER_REF = aggregateRef(OrderConfig, 't1', 'o1')
 
 // Snapshot completo de criação — o evento `created` é a fonte única do estado.
 const CREATED_PAYLOAD = {
@@ -69,31 +37,31 @@ const CREATED_PAYLOAD = {
 
 describe('Feature 0020 — Definition of Done', () => {
   it('Scenario 1: Subscription lifecycle completo via eventos', async () => {
-    const { store, layer } = makeStore()
+    const { store, events: eventLog, layer } = makeReplayStore()
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+        yield* appendEvent(SubscriptionConfig, SUB_REF, {
           _tag: 'subscription.created',
           actorId: 'owner-1',
           payload: CREATED_PAYLOAD,
         })
-        yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+        yield* appendEvent(SubscriptionConfig, SUB_REF, {
           _tag: 'subscription.charge_settled',
           actorId: 'system',
           payload: {},
         })
-        yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+        yield* appendEvent(SubscriptionConfig, SUB_REF, {
           _tag: 'subscription.charge_failed',
           actorId: 'gateway',
           payload: { reason: 'card_declined', status: 'past_due' },
         })
-        yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+        yield* appendEvent(SubscriptionConfig, SUB_REF, {
           _tag: 'subscription.charge_failed',
           actorId: 'gateway',
           payload: { reason: 'card_declined', status: 'past_due' },
         })
-        yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+        yield* appendEvent(SubscriptionConfig, SUB_REF, {
           _tag: 'subscription.cancelled_for_non_payment',
           actorId: 'system',
           payload: { failedChargeCount: 2 },
@@ -101,31 +69,35 @@ describe('Feature 0020 — Definition of Done', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    const events = [...store.entries()]
-      .filter(([key]) => key.startsWith(`${SUB_PATH}/events/`))
-      .sort(([a], [b]) => a.localeCompare(b))
+    const events = (eventLog.get(docKey(SUB_REF)) ?? [])
+      .slice()
+      .sort(
+        (a, b) =>
+          (typeof a['version'] === 'number' ? a['version'] : 0) -
+          (typeof b['version'] === 'number' ? b['version'] : 0),
+      )
 
     expect(events).toHaveLength(5)
-    expect(events[0]![1]['_tag']).toBe('subscription.created')
-    expect(events[4]![1]['_tag']).toBe('subscription.cancelled_for_non_payment')
+    expect(events[0]!['_tag']).toBe('subscription.created')
+    expect(events[4]!['_tag']).toBe('subscription.cancelled_for_non_payment')
 
     for (let i = 0; i < events.length; i++) {
-      expect(events[i]![1]['version']).toBe(i + 1)
+      expect(events[i]!['version']).toBe(i + 1)
     }
 
-    const projection = store.get(SUB_PATH)!
+    const projection = store.get(docKey(SUB_REF))!
     expect(projection['status']).toBe('cancelled_for_non_payment')
     expect(projection['_version']).toBe(5)
   })
 
   it('Scenario 2: Order close com cascatas via eventos', async () => {
-    const { store, layer } = makeStore()
+    const { store, layer } = makeReplayStore()
 
     const orderClosedReaction: EventReaction<PersistencePort, never> = {
       trigger: 'order.closed',
       handle: (env) =>
         Effect.gen(function* () {
-          yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+          yield* appendEvent(SubscriptionConfig, SUB_REF, {
             _tag: 'subscription.usage_incremented',
             actorId: env.actorId,
             payload: { amount: 1 },
@@ -136,18 +108,18 @@ describe('Feature 0020 — Definition of Done', () => {
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+        yield* appendEvent(SubscriptionConfig, SUB_REF, {
           _tag: 'subscription.created',
           actorId: 'owner',
           payload: CREATED_PAYLOAD,
         })
-        yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+        yield* appendEvent(SubscriptionConfig, SUB_REF, {
           _tag: 'subscription.charge_settled',
           actorId: 'system',
           payload: {},
         })
 
-        yield* appendEvent(OrderConfig, ORDER_PATH, {
+        yield* appendEvent(OrderConfig, ORDER_REF, {
           _tag: 'order.created',
           actorId: 'staff-1',
           payload: {
@@ -170,17 +142,17 @@ describe('Feature 0020 — Definition of Done', () => {
             },
           },
         })
-        yield* appendEvent(OrderConfig, ORDER_PATH, {
+        yield* appendEvent(OrderConfig, ORDER_REF, {
           _tag: 'order.item_added',
           actorId: 'staff-1',
           payload: { changes: { subtotalCents: 5000, totalCents: 5000 } },
         })
-        yield* appendEvent(OrderConfig, ORDER_PATH, {
+        yield* appendEvent(OrderConfig, ORDER_REF, {
           _tag: 'order.item_added',
           actorId: 'staff-1',
           payload: { changes: { subtotalCents: 8000, totalCents: 8000 } },
         })
-        const closeEnvelope = yield* appendEvent(OrderConfig, ORDER_PATH, {
+        const closeEnvelope = yield* appendEvent(OrderConfig, ORDER_REF, {
           _tag: 'order.closed',
           actorId: 'staff-1',
           payload: {
@@ -195,11 +167,11 @@ describe('Feature 0020 — Definition of Done', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    const orderProjection = store.get(ORDER_PATH)!
+    const orderProjection = store.get(docKey(ORDER_REF))!
     expect(orderProjection['status']).toBe('closed')
     expect(orderProjection['totalCents']).toBe(8000)
 
-    const subProjection = store.get(SUB_PATH)!
+    const subProjection = store.get(docKey(SUB_REF))!
     const currentPeriod = subProjection['currentPeriod']
     const consumed =
       typeof currentPeriod === 'object' && currentPeriod !== null && 'consumed' in currentPeriod
@@ -209,26 +181,26 @@ describe('Feature 0020 — Definition of Done', () => {
   })
 
   it('Scenario 3: Replay reconstrói o estado COMPLETO idêntico à projeção', async () => {
-    const { store, layer } = makeStore()
+    const { store, layer } = makeReplayStore()
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+        yield* appendEvent(SubscriptionConfig, SUB_REF, {
           _tag: 'subscription.created',
           actorId: 'owner',
           payload: CREATED_PAYLOAD,
         })
-        yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+        yield* appendEvent(SubscriptionConfig, SUB_REF, {
           _tag: 'subscription.charge_settled',
           actorId: 'system',
           payload: {},
         })
-        yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+        yield* appendEvent(SubscriptionConfig, SUB_REF, {
           _tag: 'subscription.usage_incremented',
           actorId: 'staff',
           payload: { amount: 3 },
         })
-        yield* appendEvent(SubscriptionConfig, SUB_PATH, {
+        yield* appendEvent(SubscriptionConfig, SUB_REF, {
           _tag: 'subscription.cancel_scheduled',
           actorId: 'owner',
           payload: { cancelledBy: 'owner', cancellationReason: 'mudou de cidade' },
@@ -236,9 +208,9 @@ describe('Feature 0020 — Definition of Done', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(SUB_PATH)!
+    const projection = store.get(docKey(SUB_REF))!
     const replayed = await Effect.runPromise(
-      replayAggregate(SubscriptionConfig, SUB_PATH).pipe(Effect.provide(layer)),
+      replayAggregate(SubscriptionConfig, SUB_REF).pipe(Effect.provide(layer)),
     )
 
     // Replay == projeção, campo a campo (não só status/version): a prova de
@@ -251,10 +223,10 @@ describe('Feature 0020 — Definition of Done', () => {
   })
 
   it('Scenario 4: Typed errors propagam sem throw', async () => {
-    const { layer } = makeStore()
+    const { layer } = makeReplayStore()
 
     const result = await Effect.runPromise(
-      appendEvent(SubscriptionConfig, SUB_PATH, {
+      appendEvent(SubscriptionConfig, SUB_REF, {
         _tag: 'subscription.created' as const,
         actorId: 'owner',
         payload: { ...CREATED_PAYLOAD, customerId: 123 },

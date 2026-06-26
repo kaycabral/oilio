@@ -18,27 +18,27 @@ const ORG = 't1'
 // but still checked at commit when non-null).
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ('orgs/'||$1,$1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id) DO NOTHING`,
     [orgId],
   )
 }
 
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/units/'||$2,$1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, unitId],
   )
 }
 
 async function seedOrder(orgId: string, orderId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orders (aggregate_path, org_id, id, unit_id, version, customer_id, appointment_id, status, closed_at, payment_method, discount_cents, subtotal_cents, total_cents, items, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/orders/'||$2,$1,$2,$3,1,NULL,NULL,'open',NULL,NULL,0,0,0,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO orders (org_id, id, unit_id, last_event_version, customer_id, appointment_id, status, closed_at, payment_method, discount_cents, subtotal_cents, total_cents, items, created_at, updated_at)
+     VALUES ($1,$2,$3,1,NULL,NULL,'open',NULL,NULL,0,0,0,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, orderId, unitId],
   )
 }
@@ -75,8 +75,8 @@ describe('recordSaleMovement — Postgres', () => {
       amount_cents: string
       order_id: string
     }>(
-      'SELECT kind, direction, amount_cents, order_id FROM cash_movements WHERE aggregate_path = $1',
-      [`orgs/${ORG}/cash_movements/${movementId}`],
+      'SELECT kind, direction, amount_cents, order_id FROM cash_movements WHERE org_id = $1 AND id = $2',
+      [ORG, movementId],
     )
     expect(rows).toHaveLength(1)
     expect(rows[0]?.kind).toBe('sale')

@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm'
-import { bigint, check, foreignKey, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import {
+  bigint,
+  check,
+  foreignKey,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core'
 import { customers } from './customers'
 import { orgs } from './orgs'
 import { subscriptions } from './subscriptions'
@@ -32,16 +41,13 @@ import { subscriptions } from './subscriptions'
 export const charges = pgTable(
   'charges',
   {
-    // Projection key = `orgs/{orgId}/charges/{id}`.
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org/unit scope ───────────────────────────────────────────
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
     unitId: text('unit_id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── References (PII by id-ref; ADR 0010 D2) ─────────────────────────────
     subscriptionId: text('subscription_id').notNull(),
@@ -76,6 +82,8 @@ export const charges = pgTable(
     // No negative money / attempts.
     check('charges_amount_cents_nonneg', sql`${table.amountCents} >= 0`),
     check('charges_attempts_nonneg', sql`${table.attempts} >= 0`),
+    // Composite (org_id, id) PRIMARY KEY — the target of cross-aggregate composite FKs.
+    primaryKey({ columns: [table.orgId, table.id], name: 'charges_pkey' }),
     // Every charge belongs to a real org.
     foreignKey({
       name: 'charges_org_id_fk',

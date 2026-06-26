@@ -21,6 +21,8 @@
 //     (thrown error) é coberto pelo unit da server action; o CRUD visual entra
 //     no E2E de #1005.
 
+import { CategoryConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { expect, test } from '../fixtures'
 import {
   pgListByOrg,
@@ -47,7 +49,7 @@ test.describe('Category — baseline (#1003)', () => {
   test('projeção ausente: leitura não falha (retorna null)', async ({ org }) => {
     const exists = await pgProjectionExists(
       'categories',
-      `orgs/${org.orgId}/categories/inexistente`,
+      aggregateRef(CategoryConfig, org.orgId, 'inexistente'),
     )
     // Doc ausente → não existe projeção. O gate de acesso (RLS) é provado nos
     // specs de isolamento; aqui o ponto é que a leitura não quebra.
@@ -61,7 +63,7 @@ test.describe('Category — baseline (#1003)', () => {
       color: '#3366ff',
       active: true,
     })
-    const row = await pgReadProjection('categories', `orgs/${org.orgId}/categories/${id}`)
+    const row = await pgReadProjection('categories', aggregateRef(CategoryConfig, org.orgId, id))
     expect(row).not.toBeNull()
     expect(row?.name).toBe('Cabelo')
     expect(row?.icon).toBe('scissors')
@@ -76,7 +78,7 @@ test.describe('Category — baseline (#1003)', () => {
       color: null,
       active: false,
     })
-    const row = await pgReadProjection('categories', `orgs/${org.orgId}/categories/${id}`)
+    const row = await pgReadProjection('categories', aggregateRef(CategoryConfig, org.orgId, id))
     expect(row).not.toBeNull()
     expect(row?.icon).toBeNull()
     expect(row?.color).toBeNull()

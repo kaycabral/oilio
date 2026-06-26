@@ -1,5 +1,5 @@
 import { CatalogItemConfig } from '@/domain/aggregates/catalog-item/config'
-import { appendEvent, replayAggregate } from '@/domain/effect'
+import { aggregateRef, appendEvent, replayAggregate } from '@/domain/effect'
 import type {
   CatalogItem,
   CatalogProductItem,
@@ -21,7 +21,7 @@ import { PostgresPersistenceLayer, deletePostgresProjection } from './postgres-l
 // database (docker locally, services:postgres in CI).
 
 const ORG = 'org-cat'
-const pathOf = (id: string) => `orgs/${ORG}/catalog_items/${id}`
+const refOf = (id: string) => aggregateRef(CatalogItemConfig, ORG, id)
 
 function service(id: string, overrides: Partial<CatalogServiceItem> = {}): CatalogServiceItem {
   return {
@@ -75,18 +75,18 @@ function product(id: string, overrides: Partial<CatalogProductItem> = {}): Catal
 // with ON CONFLICT so repeated ids are idempotent.
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ('orgs/'||$1,$1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id) DO NOTHING`,
     [orgId],
   )
 }
 
 async function seedCategory(orgId: string, categoryId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO categories (aggregate_path, org_id, id, version, name, icon, color, active, archived_at, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/categories/'||$2,$1,$2,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO categories (org_id, id, last_event_version, name, icon, color, active, archived_at, created_at, updated_at)
+     VALUES ($1,$2,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, categoryId],
   )
 }
@@ -96,9 +96,9 @@ async function seedCategory(orgId: string, categoryId: string): Promise<void> {
 // so the parent units must be seeded first.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/units/'||$2,$1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, unitId],
   )
 }
@@ -108,7 +108,7 @@ const create = async (item: CatalogItem) => {
   if (item.categoryId !== null) await seedCategory(ORG, item.categoryId)
   for (const unitId of item.unitIds) await seedUnit(ORG, unitId)
   return Effect.runPromise(
-    appendEvent(CatalogItemConfig, pathOf(item.id), {
+    appendEvent(CatalogItemConfig, refOf(item.id), {
       _tag: 'catalog_item.created',
       actorId: 'test',
       payload: { data: item },
@@ -118,7 +118,7 @@ const create = async (item: CatalogItem) => {
 
 const update = (id: string, changes: Record<string, unknown>) =>
   Effect.runPromise(
-    appendEvent(CatalogItemConfig, pathOf(id), {
+    appendEvent(CatalogItemConfig, refOf(id), {
       _tag: 'catalog_item.updated',
       actorId: 'test',
       payload: { changes },
@@ -127,7 +127,7 @@ const update = (id: string, changes: Record<string, unknown>) =>
 
 const replay = (id: string) =>
   Effect.runPromise(
-    replayAggregate(CatalogItemConfig, pathOf(id)).pipe(Effect.provide(PostgresPersistenceLayer)),
+    replayAggregate(CatalogItemConfig, refOf(id)).pipe(Effect.provide(PostgresPersistenceLayer)),
   )
 
 type TypedRow = {
@@ -142,17 +142,18 @@ type TypedRow = {
 
 async function typedRow(id: string): Promise<TypedRow | undefined> {
   const pool = getEventStorePool()
-  const res = await pool.query<TypedRow>('SELECT * FROM catalog_items WHERE aggregate_path = $1', [
-    pathOf(id),
-  ])
+  const res = await pool.query<TypedRow>(
+    'SELECT * FROM catalog_items WHERE org_id = $1 AND id = $2',
+    [ORG, id],
+  )
   return res.rows[0]
 }
 
 async function genericProjectionCount(id: string): Promise<number> {
   const pool = getEventStorePool()
   const res = await pool.query<{ n: number }>(
-    'SELECT count(*)::int AS n FROM projections WHERE aggregate_path = $1',
-    [pathOf(id)],
+    'SELECT count(*)::int AS n FROM projections WHERE org_id = $1 AND id = $2',
+    [ORG, id],
   )
   return res.rows[0]?.n ?? 0
 }
@@ -188,7 +189,7 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
     const pool = getEventStorePool()
     const events = await pool.query<{ n: number }>(
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
-      [pathOf('svc1')],
+      ['svc1'],
     )
     expect(events.rows[0]?.n).toBe(1)
   })
@@ -220,7 +221,7 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
     const pool = getEventStorePool()
     const events = await pool.query<{ n: number }>(
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
-      [pathOf('svc-blank')],
+      ['svc-blank'],
     )
     expect(events.rows[0]?.n).toBe(0)
   })
@@ -237,10 +238,10 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
     await expect(
       pool.query(
         `INSERT INTO catalog_items
-           (aggregate_path, org_id, id, version, kind, name, price_cents, price_visibility,
+           (org_id, id, last_event_version, kind, name, price_cents, price_visibility,
             active, duration_minutes, stock, unit_ids, public_visible, created_at, updated_at)
-         VALUES ($1,$2,$3,1,'service','X',100,'visible',true,30,5,'[]'::jsonb,true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [pathOf('bad'), ORG, 'bad'],
+         VALUES ($1,$2,1,'service','X',100,'visible',true,30,5,'[]'::jsonb,true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        [ORG, 'bad'],
       ),
       // 23514 = Postgres check_violation.
     ).rejects.toMatchObject({ code: '23514' })
@@ -253,19 +254,19 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
     // The `*.deleted` event is appended (history), the projection write is
     // skipped by the event store, and the backend-aware delete drops the row.
     await Effect.runPromise(
-      appendEvent(CatalogItemConfig, pathOf('svc-del'), {
+      appendEvent(CatalogItemConfig, refOf('svc-del'), {
         _tag: 'catalog_item.deleted',
         actorId: 'test',
         payload: {},
       }).pipe(Effect.provide(PostgresPersistenceLayer)),
     )
-    await deletePostgresProjection(pathOf('svc-del'))
+    await deletePostgresProjection(refOf('svc-del'))
 
     expect(await typedRow('svc-del')).toBeUndefined()
     const pool = getEventStorePool()
     const events = await pool.query<{ n: number }>(
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
-      [pathOf('svc-del')],
+      ['svc-del'],
     )
     // created + deleted both kept in the append-only log.
     expect(events.rows[0]?.n).toBe(2)

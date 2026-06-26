@@ -32,6 +32,15 @@
 // streams straight from Postgres (the event store, post-cutover #1202).
 
 import { anonymizedLabel, buildUserAnonymizationScrub, membershipDocId } from '@/domain'
+import {
+  AgendaBlockConfig,
+  AppointmentConfig,
+  CommissionConfig,
+  InviteConfig,
+  MembershipConfig,
+  ProfessionalConfig,
+} from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { patchUser } from '@/shared/db/pg/users-store'
 import { expect, test } from '../fixtures'
 import {
@@ -62,33 +71,39 @@ import { ProfessionalsPage, PublicBookingPage, orgSlug } from '../pages'
 async function professionalPiiExists(orgId: string, professionalId: string): Promise<boolean> {
   return pgProjectionExists(
     'professionals_pii',
-    `orgs/${orgId}/professionals_pii/${professionalId}`,
+    aggregateRef(ProfessionalConfig, orgId, professionalId),
   )
 }
 
 // True when the invite projection still exists (the AC-09 cleanup DELETES it →
 // the row is gone).
 async function inviteStillExists(orgId: string, inviteId: string): Promise<boolean> {
-  return pgProjectionExists('invites', `orgs/${orgId}/invites/${inviteId}`)
+  return pgProjectionExists('invites', aggregateRef(InviteConfig, orgId, inviteId))
 }
 
 // Reads the membership projection `status` (or null when absent).
-async function readMembershipStatus(membershipId: string): Promise<string | null> {
-  const row = await pgReadProjection('memberships', `memberships/${membershipId}`)
+async function readMembershipStatus(orgId: string, membershipId: string): Promise<string | null> {
+  const row = await pgReadProjection(
+    'memberships',
+    aggregateRef(MembershipConfig, orgId, membershipId),
+  )
   const status = row?.status
   return typeof status === 'string' ? status : null
 }
 
 // Reads the appointment projection `status` (or null when absent).
 async function readAppointmentStatus(orgId: string, appointmentId: string): Promise<string | null> {
-  const row = await pgReadProjection('appointments', `orgs/${orgId}/appointments/${appointmentId}`)
+  const row = await pgReadProjection(
+    'appointments',
+    aggregateRef(AppointmentConfig, orgId, appointmentId),
+  )
   const status = row?.status
   return typeof status === 'string' ? status : null
 }
 
 // True when the appointment projection still exists (cancelled-but-retained).
 async function appointmentExists(orgId: string, appointmentId: string): Promise<boolean> {
-  return pgProjectionExists('appointments', `orgs/${orgId}/appointments/${appointmentId}`)
+  return pgProjectionExists('appointments', aggregateRef(AppointmentConfig, orgId, appointmentId))
 }
 
 // Reads the commission projection `liquidation_status` (snake_case column) — or
@@ -97,7 +112,10 @@ async function readCommissionLiquidationStatus(
   orgId: string,
   commissionId: string,
 ): Promise<string | null> {
-  const row = await pgReadProjection('commissions', `orgs/${orgId}/commissions/${commissionId}`)
+  const row = await pgReadProjection(
+    'commissions',
+    aggregateRef(CommissionConfig, orgId, commissionId),
+  )
   const status = row?.liquidation_status
   return typeof status === 'string' ? status : null
 }
@@ -105,7 +123,7 @@ async function readCommissionLiquidationStatus(
 // True when the agenda-block projection still exists (offboarding cleanup
 // assertion, brief 0041 AC-07).
 async function blockExists(orgId: string, blockId: string): Promise<boolean> {
-  return pgProjectionExists('agenda_blocks', `orgs/${orgId}/agenda_blocks/${blockId}`)
+  return pgProjectionExists('agenda_blocks', aggregateRef(AgendaBlockConfig, orgId, blockId))
 }
 
 // Anonymizes the GLOBAL `users/{uid}` row in place (mirror of #1093's
@@ -260,7 +278,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     })
 
     // Baseline: active, approved, PII present, on the team, on public booking.
-    expect(await readMembershipStatus(membershipId)).toBe('active')
+    expect(await readMembershipStatus(org.orgId, membershipId)).toBe('active')
     expect(await professionalPiiExists(org.orgId, proId)).toBe(true)
 
     const pros = new ProfessionalsPage(authedPage)
@@ -272,7 +290,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
 
     // Membership terminal `revoked` (AC-10 — loses access).
-    await expect.poll(() => readMembershipStatus(membershipId)).toBe('revoked')
+    await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
 
     // Projection RETAINED (not deleted) + PII RETAINED (art. 16). Under #1226
     // AC-02 operability is severed by the REVOKED membership above (every
@@ -362,7 +380,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
 
     // Refused with a clear message — and NOTHING was mutated (saga never started).
     await expect(authedPage.getByText(/comanda aberta/i)).toBeVisible()
-    expect(await readMembershipStatus(membershipId)).toBe('active')
+    expect(await readMembershipStatus(org.orgId, membershipId)).toBe('active')
     expect(await readAppointmentStatus(org.orgId, apptId)).toBe('scheduled')
     // The veto is the OPEN comanda, not the pending commission: the commission
     // is left pending + identifiable (proves the AC-06 reescopo boundary).
@@ -398,7 +416,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     const pros = new ProfessionalsPage(authedPage)
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
-    await expect.poll(() => readMembershipStatus(membershipId)).toBe('revoked')
+    await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
 
     // Even revoked, the professional commission stays IDENTIFIABLE (real name).
     await authedPage.goto('/reports')

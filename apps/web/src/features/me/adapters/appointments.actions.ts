@@ -8,6 +8,7 @@ import {
   normalizeCancellationPolicy,
 } from '@/domain'
 import { AppointmentConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { formatNoticeWindow } from '@/features/me/core/cancel-notice'
 import {
   type AppointmentRow,
@@ -123,7 +124,7 @@ export async function cancelOwnAppointment(input: {
   // sem `apptRef.update()` paralelo.
   const cancelled = await emitEvent(
     AppointmentConfig,
-    `orgs/${input.orgId}/appointments/${input.appointmentId}`,
+    aggregateRef(AppointmentConfig, input.orgId, input.appointmentId),
     {
       _tag: 'appointment.cancelled',
       actorId: session.uid,

@@ -1,10 +1,11 @@
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { aggregateRef } from '@/domain/effect/aggregate-ref'
 import type { EventEnvelope, EventMeta } from '@/domain/effect/event-store'
 import { appendEvent, type EventValidationError } from '@/domain/effect/event-store'
-import type { FirestoreDoc } from '@/domain/effect/services'
-import { PersistencePort } from '@/domain/effect/services'
+import type { PersistencePort } from '@/domain/effect/services'
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
 import type { Order } from '@/domain/types/order'
 import { buildReactor, type EventReaction } from '../_shared/reactions'
 import { SubscriptionConfig } from '../subscription/config'
@@ -160,55 +161,34 @@ describe('Order reducer', () => {
 
 describe('AC-10: cross-aggregate event reaction', () => {
   it('order.closed triggers subscription.usage_incremented via reactor', async () => {
-    const emitted: { tag: string; path: string }[] = []
+    const subscriptionRef = aggregateRef(SubscriptionConfig, 't1', 's1')
+    const emitted: { tag: string; id: string }[] = []
 
     const orderClosedReaction: EventReaction<PersistencePort, EventValidationError> = {
       trigger: 'order.closed',
       handle: (env) =>
         Effect.gen(function* () {
-          const subscriptionPath = `orgs/t1/subscriptions/s1`
-          yield* appendEvent(SubscriptionConfig, subscriptionPath, {
+          yield* appendEvent(SubscriptionConfig, subscriptionRef, {
             _tag: 'subscription.usage_incremented',
             actorId: env.actorId,
             payload: { amount: 1 },
           })
-          emitted.push({ tag: 'subscription.usage_incremented', path: subscriptionPath })
+          emitted.push({ tag: 'subscription.usage_incremented', id: subscriptionRef.id })
         }),
     }
 
     const reactor = buildReactor([orderClosedReaction])
 
-    const store = new Map<string, FirestoreDoc>()
-    store.set('orgs/t1/subscriptions/s1', {
-      _version: 5,
-      status: 'active',
-      currentPeriod: {
-        startAt: '2026-06-01T00:00:00.000Z',
-        endAt: '2026-07-01T00:00:00.000Z',
-        consumed: 3,
+    const { store, layer } = makeReplayStore({
+      [docKey(subscriptionRef)]: {
+        _version: 5,
+        status: 'active',
+        currentPeriod: {
+          startAt: '2026-06-01T00:00:00.000Z',
+          endAt: '2026-07-01T00:00:00.000Z',
+          consumed: 3,
+        },
       },
-    })
-
-    const layer = Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
     })
 
     const orderClosedEnvelope: EventEnvelope = {
@@ -227,11 +207,9 @@ describe('AC-10: cross-aggregate event reaction', () => {
 
     await Effect.runPromise(reactor(orderClosedEnvelope).pipe(Effect.provide(layer)))
 
-    expect(emitted).toEqual([
-      { tag: 'subscription.usage_incremented', path: 'orgs/t1/subscriptions/s1' },
-    ])
+    expect(emitted).toEqual([{ tag: 'subscription.usage_incremented', id: 's1' }])
 
-    const subProjection = store.get('orgs/t1/subscriptions/s1')
+    const subProjection = store.get(docKey(subscriptionRef))
     const currentPeriod = subProjection?.['currentPeriod']
     const consumed =
       typeof currentPeriod === 'object' && currentPeriod !== null && 'consumed' in currentPeriod

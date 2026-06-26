@@ -21,6 +21,8 @@
 // invariants.
 
 import { defaultPermissionsForRole, membershipDocId, roleDescription } from '@/domain'
+import { MembershipConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { expect, test } from '../fixtures'
 import { listItem, rowAction } from '../helpers/list'
 import { chooseOption } from '../helpers/select'
@@ -133,7 +135,7 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       // Permissions re-derived to the professional default (AC-06).
       const membership = await pgReadProjection(
         'memberships',
-        `memberships/${membershipDocId(org.orgId, member.uid)}`,
+        aggregateRef(MembershipConfig, org.orgId, membershipDocId(org.orgId, member.uid)),
       )
       expect(membership?.role).toBe('professional')
       expect(membership?.permissions).toEqual(defaultPermissionsForRole('professional'))
@@ -201,7 +203,7 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
             (
               await pgReadProjection(
                 'memberships',
-                `memberships/${membershipDocId(org.orgId, proUid)}`,
+                aggregateRef(MembershipConfig, org.orgId, membershipDocId(org.orgId, proUid)),
               )
             )?.role,
         )
@@ -211,7 +213,7 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       // Permissions re-derived to the receptionist default (AC-06).
       const membership = await pgReadProjection(
         'memberships',
-        `memberships/${membershipDocId(org.orgId, proUid)}`,
+        aggregateRef(MembershipConfig, org.orgId, membershipDocId(org.orgId, proUid)),
       )
       expect(membership?.role).toBe('receptionist')
       expect(membership?.permissions).toEqual(defaultPermissionsForRole('receptionist'))

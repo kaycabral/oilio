@@ -6,6 +6,7 @@ import {
   index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
 } from 'drizzle-orm/pg-core'
@@ -17,9 +18,8 @@ import { units } from './units'
  * feature C, brief 0059) — the user↔org join carrying role, status, granular
  * permissions and single-unit RLS scope.
  *
- * Keyed by `aggregate_path` (`memberships/{orgId}_{userId}` — membership is
- * TOP-LEVEL, not org-scoped under `orgs/`, mirroring the Firestore layout where
- * only `users` and `memberships` are top-level collections). `org_id` is still
+ * Keyed by composite PK (org_id, id) — `id` is the membership composite doc id
+ * (`{orgId}_{userId}`). `org_id` is still
  * the leading index column (RLS performance requirement, feature C AC-01): the
  * org policy filters `org_id = current_setting('app.current_org')` and the unit
  * policy reads `rls_unit_scope` for the single-unit-locked scope.
@@ -41,10 +41,6 @@ import { units } from './units'
 export const memberships = pgTable(
   'memberships',
   {
-    // Projection key = the Firestore-style aggregate path
-    // (`memberships/{orgId}_{userId}`).
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org scope ────────────────────────────────────────────────
     // `org_id` leading column for the RLS policy + index. `id` is the bare doc
     // id (`{orgId}_{userId}`, the membership composite key).
@@ -53,7 +49,7 @@ export const memberships = pgTable(
     userId: text('user_id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     role: text('role').notNull(),
@@ -71,6 +67,8 @@ export const memberships = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),
   },
   (table) => [
+    // Natural composite PK — `id` is the `{orgId}_{userId}` membership key.
+    primaryKey({ columns: [table.orgId, table.id], name: 'memberships_pkey' }),
     // The role enum, as a CHECK.
     check(
       'memberships_role_check',

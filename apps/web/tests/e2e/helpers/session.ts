@@ -150,7 +150,26 @@ import {
   type UnitPii,
   type User,
 } from '@/domain'
-import { deriveOperationalStatus } from '@/domain/aggregates'
+import {
+  AgendaBlockConfig,
+  AppointmentConfig,
+  CatalogItemConfig,
+  CategoryConfig,
+  ChargeConfig,
+  CommissionConfig,
+  CustomerConfig,
+  deriveOperationalStatus,
+  GoalConfig,
+  InviteConfig,
+  MembershipConfig,
+  OrderConfig,
+  OrgConfig,
+  ProfessionalConfig,
+  SubscriptionConfig,
+  SubscriptionPlanConfig,
+  UnitConfig,
+} from '@/domain/aggregates'
+import { aggregateRef, type AggregateRef } from '@/domain/effect'
 import {
   AGENDA_BLOCK_COLUMNS,
   agendaBlockColumnValues,
@@ -517,8 +536,18 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
 // Patches the membership `role` (brief 0029, AC-08). Lets a spec demote the
 // seeded owner to e.g. `receptionist` so the role-filtered nav can be
 // asserted. Uses an updateMask so only `role` is patched.
+// The `memberships` PK is composite `(org_id, id)` (D6), but the membership `id`
+// (`${orgId}_${userId}`) is globally unique on its own — so a read keyed only by
+// `id` (the caller doesn't carry the orgId) is unambiguous. Returns the typed row
+// or null.
+async function readMembershipRowById(membershipId: string): Promise<MembershipRow | null> {
+  const rows = await pgQueryProjection('memberships', 'id', membershipId)
+  const row = rows[0]
+  return row ? Schema.decodeUnknownSync(MembershipRowSchema)(row) : null
+}
+
 async function readMembershipDoc(membershipId: string): Promise<Membership> {
-  const row = await readProjectionRow<MembershipRow>('memberships', `memberships/${membershipId}`)
+  const row = await readMembershipRowById(membershipId)
   if (!row) throw new Error(`setMembership*: membership ${membershipId} not found`)
   return Schema.decodeUnknownSync(MembershipSchema)(membershipRowToDoc(row))
 }
@@ -526,16 +555,14 @@ async function readMembershipDoc(membershipId: string): Promise<Membership> {
 export async function setMembershipRole(membershipId: string, role: string): Promise<void> {
   const current = await readMembershipDoc(membershipId)
   const next: Membership = { ...current, role: Schema.decodeUnknownSync(RoleSchema)(role) }
-  const aggregatePath = `memberships/${membershipId}`
+  const ref = aggregateRef(MembershipConfig, next.orgId, membershipId)
   await mutateProjectionPostgres({
-    aggregateType: 'memberships',
-    aggregatePath,
-    orgId: next.orgId,
+    ref,
     updatedTag: 'membership.updated',
     data: next,
     updatedAt: new Date().toISOString(),
     columns: MEMBERSHIP_COLUMNS,
-    valuesAt: (v) => membershipColumnValues(next, aggregatePath, v),
+    valuesAt: (v) => membershipColumnValues(next, ref, v),
     table: 'memberships',
   })
 }
@@ -549,20 +576,18 @@ export async function setSubscriptionStatus(
   subscriptionId: string,
   status: 'pending' | 'active' | 'past_due' | 'suspended' | 'cancelled',
 ): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/subscriptions/${subscriptionId}`
-  const row = await readProjectionRow<SubscriptionRow>('subscriptions', aggregatePath)
+  const ref = aggregateRef(SubscriptionConfig, orgId, subscriptionId)
+  const row = await readProjectionRow<SubscriptionRow>('subscriptions', ref)
   if (!row) throw new Error(`setSubscriptionStatus: subscription ${subscriptionId} not found`)
   const current = Schema.decodeUnknownSync(SubscriptionSchema)(subscriptionRowToDoc(row))
   const next: Subscription = { ...current, status }
   await mutateProjectionPostgres({
-    aggregateType: 'subscriptions',
-    aggregatePath,
-    orgId,
+    ref,
     updatedTag: 'subscription.updated',
     data: next,
     updatedAt: new Date().toISOString(),
     columns: SUBSCRIPTION_COLUMNS,
-    valuesAt: (v) => subscriptionColumnValues(next, aggregatePath, v),
+    valuesAt: (v) => subscriptionColumnValues(next, v),
     table: 'subscriptions',
   })
 }
@@ -573,16 +598,14 @@ export async function setMembershipUnitId(
 ): Promise<void> {
   const current = await readMembershipDoc(membershipId)
   const next: Membership = { ...current, rlsUnitScope: unitId }
-  const aggregatePath = `memberships/${membershipId}`
+  const ref = aggregateRef(MembershipConfig, next.orgId, membershipId)
   await mutateProjectionPostgres({
-    aggregateType: 'memberships',
-    aggregatePath,
-    orgId: next.orgId,
+    ref,
     updatedTag: 'membership.updated',
     data: next,
     updatedAt: new Date().toISOString(),
     columns: MEMBERSHIP_COLUMNS,
-    valuesAt: (v) => membershipColumnValues(next, aggregatePath, v),
+    valuesAt: (v) => membershipColumnValues(next, ref, v),
     table: 'memberships',
   })
 }
@@ -784,7 +807,7 @@ export type SeedAppointmentInput = {
 // event store, post-cutover). Used by the seeds (appointment/subscription) to
 // denormalize `customerUserId` for the cross-org /me queries.
 async function readCustomerUserId(orgId: string, customerId: string): Promise<string> {
-  const row = await pgReadProjection('customers', `orgs/${orgId}/customers/${customerId}`)
+  const row = await pgReadProjection('customers', aggregateRef(CustomerConfig, orgId, customerId))
   const uid = row?.user_id
   if (typeof uid !== 'string' || !uid) {
     throw new Error(`seedAppointment: customer ${customerId} has no userId`)
@@ -854,7 +877,7 @@ async function readProfessionalUserId(
 ): Promise<string | null> {
   const row = await pgReadProjection(
     'professionals',
-    `orgs/${orgId}/professionals/${professionalId}`,
+    aggregateRef(ProfessionalConfig, orgId, professionalId),
   )
   const uid = row?.user_id
   return typeof uid === 'string' && uid ? uid : null
@@ -883,12 +906,31 @@ const TimestamptzRowCell = Schema.transform(
 const ProfessionalRowSchema = Schema.Struct({
   org_id: Schema.String,
   id: Schema.String,
-  version: Schema.Union(Schema.String, Schema.Number),
+  last_event_version: Schema.Union(Schema.String, Schema.Number),
   user_id: Schema.String,
   default_commission: Schema.Unknown,
   unit_ids: Schema.Unknown,
   catalog_service_ids: Schema.Unknown,
   created_at: TimestamptzRowCell,
+  updated_at: TimestamptzRowCell,
+})
+
+// Row Schema for the `memberships` projection — decodes a raw `pgQueryProjection`
+// record into the typed `MembershipRow` WITHOUT an unsafe cast (the `id`-only read
+// uses `pgQueryProjection`, whose rows are `unknown`-valued). Mirrors the
+// projector's `MembershipRow` shape; the projection version column is
+// `last_event_version` (D6).
+const MembershipRowSchema = Schema.Struct({
+  org_id: Schema.String,
+  id: Schema.String,
+  user_id: Schema.String,
+  last_event_version: Schema.Union(Schema.String, Schema.Number),
+  role: Schema.String,
+  status: Schema.String,
+  rls_unit_scope: Schema.Union(Schema.String, Schema.Null),
+  invited_by: Schema.Union(Schema.String, Schema.Null),
+  joined_at: TimestamptzRowCell,
+  permissions: Schema.Unknown,
   updated_at: TimestamptzRowCell,
 })
 
@@ -934,8 +976,13 @@ export async function readProfessionalByUserId(
 // Seeds a minimal one (org-scoped, synthetic linked user) when absent. No-op
 // when the row already exists, so callers passing a real id are untouched.
 async function ensureProfessionalExists(orgId: string, professionalId: string): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/professionals/${professionalId}`
-  if (await pgProjectionExists('professionals', aggregatePath)) return
+  if (
+    await pgProjectionExists(
+      'professionals',
+      aggregateRef(ProfessionalConfig, orgId, professionalId),
+    )
+  )
+    return
   const now = new Date().toISOString()
   const doc: StoredProfessional = {
     id: professionalId,
@@ -955,8 +1002,8 @@ async function ensureProfessionalExists(orgId: string, professionalId: string): 
 // D2), so a spec referencing a placeholder service needs a real parent row.
 // Seeds a minimal one when absent; no-op when it already exists.
 async function ensureServiceExists(orgId: string, serviceId: string): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/catalog_items/${serviceId}`
-  if (await pgProjectionExists('catalog_items', aggregatePath)) return
+  if (await pgProjectionExists('catalog_items', aggregateRef(CatalogItemConfig, orgId, serviceId)))
+    return
   const now = new Date().toISOString()
   const doc: CatalogServiceItem = {
     id: serviceId,
@@ -1011,16 +1058,14 @@ export async function seedAppointment(input: SeedAppointmentInput): Promise<stri
     createdAt: now,
     updatedAt: now,
   }
-  const aggregatePath = `orgs/${input.orgId}/appointments/${id}`
+  const ref = aggregateRef(AppointmentConfig, input.orgId, id)
   await seedIdentityPostgres({
-    aggregateType: 'appointments',
-    aggregatePath,
-    orgId: input.orgId,
+    ref,
     createdTag: 'appointment.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: APPOINTMENT_COLUMNS,
-    values: appointmentColumnValues(doc, aggregatePath, 1),
+    values: appointmentColumnValues(doc, ref, 1),
     table: 'appointments',
   })
   return id
@@ -1271,16 +1316,14 @@ export async function seedSubscription(
     createdAt: now,
     updatedAt: now,
   }
-  const aggregatePath = `orgs/${orgId}/subscriptions/${subId}`
+  const ref = aggregateRef(SubscriptionConfig, orgId, subId)
   await seedIdentityPostgres({
-    aggregateType: 'subscriptions',
-    aggregatePath,
-    orgId,
+    ref,
     createdTag: 'subscription.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: SUBSCRIPTION_COLUMNS,
-    values: subscriptionColumnValues(doc, aggregatePath, 1),
+    values: subscriptionColumnValues(doc, 1),
     table: 'subscriptions',
   })
   return subId
@@ -1325,16 +1368,14 @@ export async function seedPaidCharge(
     createdAt: now,
     updatedAt: now,
   }
-  const aggregatePath = `orgs/${orgId}/charges/${chargeId}`
+  const ref = aggregateRef(ChargeConfig, orgId, chargeId)
   await seedIdentityPostgres({
-    aggregateType: 'charges',
-    aggregatePath,
-    orgId,
+    ref,
     createdTag: 'charge.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: CHARGE_COLUMNS,
-    values: chargeColumnValues(doc, aggregatePath, 1),
+    values: chargeColumnValues(doc, ref, 1),
     table: 'charges',
   })
   return chargeId
@@ -1409,20 +1450,18 @@ export async function linkProfessionalToServices(
   professionalId: string,
   catalogServiceIds: string[],
 ): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/professionals/${professionalId}`
-  const row = await readProjectionRow<ProfessionalRow>('professionals', aggregatePath)
+  const ref = aggregateRef(ProfessionalConfig, orgId, professionalId)
+  const row = await readProjectionRow<ProfessionalRow>('professionals', ref)
   if (!row) throw new Error(`linkProfessionalToServices: professional ${professionalId} not found`)
   const current = Schema.decodeUnknownSync(StoredProfessionalSchema)(professionalRowToDoc(row))
   const next: StoredProfessional = { ...current, catalogServiceIds: [...catalogServiceIds] }
   await mutateProjectionPostgres({
-    aggregateType: 'professionals',
-    aggregatePath,
-    orgId,
+    ref,
     updatedTag: 'professional.updated',
     data: next,
     updatedAt: new Date().toISOString(),
     columns: PROFESSIONAL_COLUMNS,
-    valuesAt: (v) => professionalColumnValues(next, aggregatePath, v),
+    valuesAt: (v) => professionalColumnValues(next, v),
     table: 'professionals',
     // Re-mirror the service N:N into `professional_services` in the same tx, as
     // the production projector does (brief 0068 D3): the public availability path
@@ -1581,9 +1620,8 @@ export async function seedCategory(
 // FK on INSERT — the parent must exist first, then be removed.
 export async function deleteCategory(orgId: string, categoryId: string): Promise<void> {
   await withEventStoreClient(async (q) => {
-    await q(`DELETE FROM categories WHERE aggregate_path = $1`, [
-      `orgs/${orgId}/categories/${categoryId}`,
-    ])
+    // Composite PK `(org_id, id)` (D6) — `aggregate_path` no longer exists.
+    await q(`DELETE FROM categories WHERE org_id = $1 AND id = $2`, [orgId, categoryId])
   })
 }
 
@@ -1679,7 +1717,7 @@ export async function readCatalogItem(
 ): Promise<CatalogItem | null> {
   const row = await readProjectionRow<CatalogItemRow>(
     'catalog_items',
-    `orgs/${orgId}/catalog_items/${catalogItemId}`,
+    aggregateRef(CatalogItemConfig, orgId, catalogItemId),
   )
   if (!row) return null
   return Schema.decodeUnknownSync(CatalogItemSchema)(catalogItemRowToDoc(row))
@@ -1702,8 +1740,8 @@ export async function patchAppointmentSnapshot(
     commissionSnapshot: { kind: 'percentage' | 'fixed'; value: number } | null
   },
 ): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/appointments/${appointmentId}`
-  const row = await readProjectionRow<AppointmentRow>('appointments', aggregatePath)
+  const ref = aggregateRef(AppointmentConfig, orgId, appointmentId)
+  const row = await readProjectionRow<AppointmentRow>('appointments', ref)
   if (!row) throw new Error(`patchAppointmentSnapshot: appointment ${appointmentId} not found`)
   const current = Schema.decodeUnknownSync(AppointmentSchema)(appointmentRowToDoc(row))
   const next: Appointment = {
@@ -1712,14 +1750,12 @@ export async function patchAppointmentSnapshot(
     commissionSnapshot: snapshot.commissionSnapshot,
   }
   await mutateProjectionPostgres({
-    aggregateType: 'appointments',
-    aggregatePath,
-    orgId,
+    ref,
     updatedTag: 'appointment.updated',
     data: next,
     updatedAt: new Date().toISOString(),
     columns: APPOINTMENT_COLUMNS,
-    valuesAt: (v) => appointmentColumnValues(next, aggregatePath, v),
+    valuesAt: (v) => appointmentColumnValues(next, ref, v),
     table: 'appointments',
   })
 }
@@ -1734,7 +1770,7 @@ export async function readAppointment(
 ): Promise<Appointment | null> {
   const row = await readProjectionRow<AppointmentRow>(
     'appointments',
-    `orgs/${orgId}/appointments/${appointmentId}`,
+    aggregateRef(AppointmentConfig, orgId, appointmentId),
   )
   if (!row) return null
   return Schema.decodeUnknownSync(AppointmentSchema)(appointmentRowToDoc(row))
@@ -1750,7 +1786,7 @@ export async function listAppointmentIds(orgId: string): Promise<string[]> {
 // True when the agenda-block projection still exists (offboarding cleanup
 // assertion, brief 0041 AC-07).
 export async function blockExists(orgId: string, blockId: string): Promise<boolean> {
-  return pgProjectionExists('agenda_blocks', `orgs/${orgId}/agenda_blocks/${blockId}`)
+  return pgProjectionExists('agenda_blocks', aggregateRef(AgendaBlockConfig, orgId, blockId))
 }
 
 // Seeds an OPEN order/comanda with a single service item attributed to
@@ -1799,16 +1835,14 @@ export async function seedOpenOrder(input: {
     createdAt,
     updatedAt: createdAt,
   }
-  const aggregatePath = `orgs/${input.orgId}/orders/${id}`
+  const ref = aggregateRef(OrderConfig, input.orgId, id)
   await seedIdentityPostgres({
-    aggregateType: 'orders',
-    aggregatePath,
-    orgId: input.orgId,
+    ref,
     createdTag: 'order.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: ORDER_COLUMNS,
-    values: orderColumnValues(doc, aggregatePath, 1),
+    values: orderColumnValues(doc, ref, 1),
     table: 'orders',
   })
   return id
@@ -1872,16 +1906,14 @@ export async function seedClosedOrder(input: {
     createdAt: now,
     updatedAt: now,
   }
-  const aggregatePath = `orgs/${input.orgId}/orders/${id}`
+  const ref = aggregateRef(OrderConfig, input.orgId, id)
   await seedIdentityPostgres({
-    aggregateType: 'orders',
-    aggregatePath,
-    orgId: input.orgId,
+    ref,
     createdTag: 'order.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: ORDER_COLUMNS,
-    values: orderColumnValues(doc, aggregatePath, 1),
+    values: orderColumnValues(doc, ref, 1),
     table: 'orders',
   })
   return id
@@ -1934,16 +1966,14 @@ export async function seedCommission(input: {
     paymentProof: null,
     createdAt: now,
   }
-  const aggregatePath = `orgs/${input.orgId}/commissions/${id}`
+  const ref = aggregateRef(CommissionConfig, input.orgId, id)
   await seedIdentityPostgres({
-    aggregateType: 'commissions',
-    aggregatePath,
-    orgId: input.orgId,
+    ref,
     createdTag: 'commission.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: COMMISSION_COLUMNS,
-    values: commissionColumnValues(doc, aggregatePath, 1),
+    values: commissionColumnValues(doc, ref, 1),
     table: 'commissions',
   })
   return id
@@ -2096,7 +2126,10 @@ export async function seedInvite(
 
 // Reads an invite's `status` off its Postgres projection; null when absent.
 export async function readInviteStatus(orgId: string, inviteId: string): Promise<string | null> {
-  const row = await readProjectionRow<InviteRow>('invites', `orgs/${orgId}/invites/${inviteId}`)
+  const row = await readProjectionRow<InviteRow>(
+    'invites',
+    aggregateRef(InviteConfig, orgId, inviteId),
+  )
   return row ? row.status : null
 }
 
@@ -2104,7 +2137,10 @@ export async function readInvite(
   orgId: string,
   inviteId: string,
 ): Promise<{ status: string; acceptedByUid: string | null; acceptedAt: string | null } | null> {
-  const row = await readProjectionRow<InviteRow>('invites', `orgs/${orgId}/invites/${inviteId}`)
+  const row = await readProjectionRow<InviteRow>(
+    'invites',
+    aggregateRef(InviteConfig, orgId, inviteId),
+  )
   if (!row) return null
   return {
     status: row.status,
@@ -2125,7 +2161,9 @@ export type ReadMembershipResult = {
 }
 
 export async function readMembership(membershipId: string): Promise<ReadMembershipResult | null> {
-  const row = await readProjectionRow<MembershipRow>('memberships', `memberships/${membershipId}`)
+  // Read keyed by `id` alone — the membership id is globally unique (it embeds the
+  // orgId), so the composite-PK read is unambiguous without the caller's orgId.
+  const row = await readMembershipRowById(membershipId)
   if (!row) return null
   // `membershipRowToDoc` re-projects the typed row to the domain doc (decodes
   // permissions jsonb). Decode through the domain schema so the shape matches
@@ -2300,15 +2338,17 @@ async function seedCatalogItemPostgres(orgId: string, id: string, doc: CatalogIt
   const { Client } = await import('pg')
   const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
   await client.connect()
-  const aggregatePath = `orgs/${orgId}/catalog_items/${id}`
+  const ref = aggregateRef(CatalogItemConfig, orgId, id)
   try {
     await client.query('BEGIN')
+    // `aggregate_id` = bare id; `aggregate_type` (singular) + `org_id` are siblings (D6).
     await client.query(
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
-       VALUES ('catalog_items', $1, 1, $2, $3)`,
+       VALUES ($1, $2, 1, $3, $4)`,
       [
-        aggregatePath,
-        orgId,
+        ref.type,
+        ref.id,
+        ref.orgId,
         {
           _tag: 'catalog_item.created',
           version: 1,
@@ -2324,7 +2364,7 @@ async function seedCatalogItemPostgres(orgId: string, id: string, doc: CatalogIt
     const placeholders = CATALOG_ITEM_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO catalog_items (${CATALOG_ITEM_COLUMNS.join(', ')}) VALUES (${placeholders})`,
-      catalogItemColumnValues(doc, aggregatePath, 1),
+      catalogItemColumnValues(doc, 1),
     )
     await client.query('COMMIT')
   } catch (err) {
@@ -2351,9 +2391,7 @@ async function seedCatalogItemDoc(orgId: string, id: string, doc: CatalogItem): 
 
 // Generic one-tx seed of an identity projection (event + typed row) into Postgres.
 async function seedIdentityPostgres(args: {
-  aggregateType: string
-  aggregatePath: string
-  orgId: string
+  ref: AggregateRef
   createdTag: string
   data: unknown
   createdAt: string
@@ -2371,13 +2409,16 @@ async function seedIdentityPostgres(args: {
   await client.connect()
   try {
     await client.query('BEGIN')
+    // `aggregate_id` is the bare aggregate id (D6); `aggregate_type` (singular,
+    // from the config) + `org_id` are sibling columns → the event uniqueness is
+    // `UNIQUE(aggregate_type, org_id, aggregate_id, version)`.
     await client.query(
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
        VALUES ($1, $2, 1, $3, $4)`,
       [
-        args.aggregateType,
-        args.aggregatePath,
-        args.orgId,
+        args.ref.type,
+        args.ref.id,
+        args.ref.orgId,
         {
           _tag: args.createdTag,
           version: 1,
@@ -2410,11 +2451,9 @@ async function seedIdentityPostgres(args: {
 // plus a re-projection of the aggregate to its new state — never a column poke.
 // We re-project the WHOLE row (the same `*ColumnValues` the runtime projector
 // writes) under `ON CONFLICT ... DO UPDATE`, so a mutated fixture can't drift
-// from production. `version` is read from the projection row and bumped.
+// from production. `last_event_version` is read from the projection row + bumped.
 async function mutateProjectionPostgres(args: {
-  aggregateType: string
-  aggregatePath: string
-  orgId: string
+  ref: AggregateRef
   updatedTag: string
   data: unknown
   updatedAt: string
@@ -2432,19 +2471,21 @@ async function mutateProjectionPostgres(args: {
   await client.connect()
   try {
     await client.query('BEGIN')
-    const cur = await client.query<{ version: number }>(
-      `SELECT version FROM ${args.table} WHERE aggregate_path = $1`,
-      [args.aggregatePath],
+    // Projection PK is composite `(org_id, id)`; the projection version column is
+    // `last_event_version` (D6). Read + bump it for the appended event.
+    const cur = await client.query<{ last_event_version: number }>(
+      `SELECT last_event_version FROM ${args.table} WHERE org_id = $1 AND id = $2`,
+      [args.ref.orgId, args.ref.id],
     )
-    const nextVersion = (cur.rows[0]?.version ?? 1) + 1
+    const nextVersion = (cur.rows[0]?.last_event_version ?? 1) + 1
     await client.query(
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
        VALUES ($1, $2, $3, $4, $5)`,
       [
-        args.aggregateType,
-        args.aggregatePath,
+        args.ref.type,
+        args.ref.id,
         nextVersion,
-        args.orgId,
+        args.ref.orgId,
         {
           _tag: args.updatedTag,
           version: nextVersion,
@@ -2460,7 +2501,7 @@ async function mutateProjectionPostgres(args: {
     const placeholders = args.columns.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO ${args.table} (${args.columns.join(', ')}) VALUES (${placeholders})
-       ON CONFLICT (aggregate_path) DO UPDATE SET ${assignments}`,
+       ON CONFLICT (org_id, id) DO UPDATE SET ${assignments}`,
       [...values],
     )
     for (const w of args.extraWrites ?? []) {
@@ -2495,21 +2536,25 @@ async function withEventStoreClient<T>(
   }
 }
 
-// Read one projection row by aggregate path; null when absent.
+// Read one projection row by aggregate ref (composite PK `(org_id, id)`, D6);
+// null when absent.
 export async function pgReadProjection(
   table: string,
-  aggregatePath: string,
+  ref: AggregateRef,
 ): Promise<Record<string, unknown> | null> {
   return withEventStoreClient(async (q) => {
-    const res = await q(`SELECT * FROM ${table} WHERE aggregate_path = $1`, [aggregatePath])
+    const res = await q(`SELECT * FROM ${table} WHERE org_id = $1 AND id = $2`, [ref.orgId, ref.id])
     return res.rows[0] ?? null
   })
 }
 
-// Existence probe by aggregate path.
-export async function pgProjectionExists(table: string, aggregatePath: string): Promise<boolean> {
+// Existence probe by aggregate ref (composite PK `(org_id, id)`, D6).
+export async function pgProjectionExists(table: string, ref: AggregateRef): Promise<boolean> {
   return withEventStoreClient(async (q) => {
-    const res = await q(`SELECT 1 FROM ${table} WHERE aggregate_path = $1 LIMIT 1`, [aggregatePath])
+    const res = await q(`SELECT 1 FROM ${table} WHERE org_id = $1 AND id = $2 LIMIT 1`, [
+      ref.orgId,
+      ref.id,
+    ])
     return res.rows.length > 0
   })
 }
@@ -2552,12 +2597,16 @@ export async function pgListByOrg(
 }
 
 // The aggregate's full event stream, ordered by version — the replay-assert
-// surface (the stream is the proof). Returns the decoded `envelope` JSONB.
-export async function pgReadEventStream(aggregatePath: string): Promise<unknown[]> {
+// surface (the stream is the proof). Returns the decoded `envelope` JSONB. Scoped
+// by the composite event identity (`aggregate_type`, `org_id`, `aggregate_id`),
+// the bare id (D6) — `aggregate_path` no longer exists.
+export async function pgReadEventStream(ref: AggregateRef): Promise<unknown[]> {
   return withEventStoreClient(async (q) => {
     const res = await q(
-      `SELECT envelope FROM events WHERE aggregate_id = $1 ORDER BY version ASC`,
-      [aggregatePath],
+      `SELECT envelope FROM events
+       WHERE aggregate_type = $1 AND org_id = $2 AND aggregate_id = $3
+       ORDER BY version ASC`,
+      [ref.type, ref.orgId, ref.id],
     )
     return res.rows.map((r) => r.envelope)
   })
@@ -2569,14 +2618,15 @@ export async function pgReadEventStream(aggregatePath: string): Promise<unknown[
 // passes it through `rowToDoc` + the domain schema for a fully typed doc.
 async function readProjectionRow<Row extends Record<string, unknown>>(
   table: string,
-  aggregatePath: string,
+  ref: AggregateRef,
 ): Promise<Row | null> {
   const { Client } = await import('pg')
   const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
   await client.connect()
   try {
-    const res = await client.query<Row>(`SELECT * FROM ${table} WHERE aggregate_path = $1`, [
-      aggregatePath,
+    const res = await client.query<Row>(`SELECT * FROM ${table} WHERE org_id = $1 AND id = $2`, [
+      ref.orgId,
+      ref.id,
     ])
     return res.rows[0] ?? null
   } finally {
@@ -2593,16 +2643,14 @@ async function putUserDoc(user: User): Promise<void> {
 
 // Write an Org projection (Postgres event store).
 async function seedOrgDoc(orgId: string, doc: StoredOrg): Promise<void> {
-  const aggregatePath = `orgs/${orgId}`
+  const ref = aggregateRef(OrgConfig, orgId, orgId)
   await seedIdentityPostgres({
-    aggregateType: 'orgs',
-    aggregatePath,
-    orgId,
+    ref,
     createdTag: 'org.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: ORG_COLUMNS,
-    values: orgColumnValues(doc, aggregatePath, 1),
+    values: orgColumnValues(doc, 1),
     table: 'orgs',
     // The runtime org projector ALSO mirrors the public fields into
     // `public_org_directory` in the same tx — the public `/{slug}/{unit}` route
@@ -2616,32 +2664,27 @@ async function seedOrgDoc(orgId: string, doc: StoredOrg): Promise<void> {
 // Write a Unit projection (StoredUnit — PII-omitted). The units_pii sidecar is
 // written separately by the caller.
 async function seedUnitDoc(orgId: string, unitId: string, doc: StoredUnit): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/units/${unitId}`
   await seedIdentityPostgres({
-    aggregateType: 'units',
-    aggregatePath,
-    orgId,
+    ref: aggregateRef(UnitConfig, orgId, unitId),
     createdTag: 'unit.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: UNIT_COLUMNS,
-    values: unitColumnValues(doc, aggregatePath, 1),
+    values: unitColumnValues(doc, 1),
     table: 'units',
   })
 }
 
 // Write a Membership projection.
 async function seedMembershipDoc(membership: Membership): Promise<void> {
-  const aggregatePath = `memberships/${membership.id}`
+  const ref = aggregateRef(MembershipConfig, membership.orgId, membership.id)
   await seedIdentityPostgres({
-    aggregateType: 'memberships',
-    aggregatePath,
-    orgId: membership.orgId,
+    ref,
     createdTag: 'membership.created',
     data: membership,
     createdAt: membership.joinedAt,
     columns: MEMBERSHIP_COLUMNS,
-    values: membershipColumnValues(membership, aggregatePath, 1),
+    values: membershipColumnValues(membership, ref, 1),
     table: 'memberships',
   })
 }
@@ -2656,16 +2699,13 @@ async function seedMembershipDoc(membership: Membership): Promise<void> {
 // shape the `*ColumnValues` helper decodes.
 
 async function seedProfessionalDoc(orgId: string, doc: StoredProfessional): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/professionals/${doc.id}`
   await seedIdentityPostgres({
-    aggregateType: 'professionals',
-    aggregatePath,
-    orgId,
+    ref: aggregateRef(ProfessionalConfig, orgId, doc.id),
     createdTag: 'professional.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: PROFESSIONAL_COLUMNS,
-    values: professionalColumnValues(doc, aggregatePath, 1),
+    values: professionalColumnValues(doc, 1),
     table: 'professionals',
     // Mirror the N:N arrays into the join tables in the same tx, exactly as the
     // production projector does (brief 0068 D3) — the public availability path
@@ -2681,91 +2721,76 @@ async function seedProfessionalDoc(orgId: string, doc: StoredProfessional): Prom
 }
 
 async function seedCustomerDoc(orgId: string, doc: StoredCustomer): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/customers/${doc.id}`
+  const ref = aggregateRef(CustomerConfig, orgId, doc.id)
   await seedIdentityPostgres({
-    aggregateType: 'customers',
-    aggregatePath,
-    orgId,
+    ref,
     createdTag: 'customer.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: CUSTOMER_COLUMNS,
-    values: customerColumnValues(doc, aggregatePath, 1),
+    values: customerColumnValues(doc, ref, 1),
     table: 'customers',
   })
 }
 
 async function seedInviteDoc(orgId: string, doc: StoredInvite): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/invites/${doc.id}`
+  const ref = aggregateRef(InviteConfig, orgId, doc.id)
   await seedIdentityPostgres({
-    aggregateType: 'invites',
-    aggregatePath,
-    orgId,
+    ref,
     createdTag: 'invite.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: INVITE_COLUMNS,
-    values: inviteColumnValues(doc, aggregatePath, 1),
+    values: inviteColumnValues(doc, ref, 1),
     table: 'invites',
   })
 }
 
 async function seedCategoryDoc(orgId: string, doc: Category): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/categories/${doc.id}`
   await seedIdentityPostgres({
-    aggregateType: 'categories',
-    aggregatePath,
-    orgId,
+    ref: aggregateRef(CategoryConfig, orgId, doc.id),
     createdTag: 'category.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: CATEGORY_COLUMNS,
-    values: categoryColumnValues(doc, aggregatePath, 1),
+    values: categoryColumnValues(doc, 1),
     table: 'categories',
   })
 }
 
 async function seedSubscriptionPlanDoc(orgId: string, doc: SubscriptionPlan): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/subscription_plans/${doc.id}`
   await seedIdentityPostgres({
-    aggregateType: 'subscription_plans',
-    aggregatePath,
-    orgId,
+    ref: aggregateRef(SubscriptionPlanConfig, orgId, doc.id),
     createdTag: 'subscription_plan.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: SUBSCRIPTION_PLAN_COLUMNS,
-    values: subscriptionPlanColumnValues(doc, aggregatePath, 1),
+    values: subscriptionPlanColumnValues(doc, 1),
     table: 'subscription_plans',
   })
 }
 
 async function seedAgendaBlockDoc(orgId: string, doc: AgendaBlock): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/agenda_blocks/${doc.id}`
   await seedIdentityPostgres({
-    aggregateType: 'agenda_blocks',
-    aggregatePath,
-    orgId,
+    ref: aggregateRef(AgendaBlockConfig, orgId, doc.id),
     createdTag: 'agenda_block.created',
     data: doc,
     createdAt: doc.createdAt,
     columns: AGENDA_BLOCK_COLUMNS,
-    values: agendaBlockColumnValues(doc, aggregatePath, 1),
+    values: agendaBlockColumnValues(doc, 1),
     table: 'agenda_blocks',
   })
 }
 
 async function seedGoalDoc(orgId: string, doc: Goal): Promise<void> {
-  const aggregatePath = `orgs/${orgId}/goals/${doc.id}`
+  const ref = aggregateRef(GoalConfig, orgId, doc.id)
   await seedIdentityPostgres({
-    aggregateType: 'goals',
-    aggregatePath,
-    orgId,
+    ref,
     createdTag: 'goal.defined',
     data: doc,
     createdAt: doc.createdAt,
     columns: GOAL_COLUMNS,
-    values: goalColumnValues(doc, aggregatePath, 1),
+    values: goalColumnValues(doc, ref, 1),
     table: 'goals',
   })
 }

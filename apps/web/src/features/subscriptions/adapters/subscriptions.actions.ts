@@ -3,16 +3,16 @@
 import { revalidatePath } from 'next/cache'
 
 import {
-  type Charge,
-  Subscription,
-  SubscriptionPlan,
   buildPlanSnapshot,
+  type Charge,
   computeBillingPeriod,
   lawfulPriceCents as computeLawfulPrice,
+  Subscription,
+  SubscriptionPlan,
 } from '@/domain'
 
-import { ChargeConfig, SubscriptionConfig } from '@/domain/aggregates'
-import type { GuardReader } from '@/domain/effect'
+import { ChargeConfig, SubscriptionConfig, SubscriptionPlanConfig } from '@/domain/aggregates'
+import { aggregateRef, type GuardReader } from '@/domain/effect'
 import {
   type SubscriptionRow,
   rowToDoc as subscriptionRowToDoc,
@@ -34,8 +34,9 @@ const decodeSubscription = Schema.decodeUnknownSync(Subscription)
 async function getSubscriptionById(orgId: string, id: string): Promise<Subscription | null> {
   const rows = await readUnderRls<SubscriptionRow>(orgId, (client) =>
     client
-      .query<SubscriptionRow>('SELECT * FROM subscriptions WHERE aggregate_path = $1', [
-        `orgs/${orgId}/subscriptions/${id}`,
+      .query<SubscriptionRow>('SELECT * FROM subscriptions WHERE org_id = $1 AND id = $2', [
+        orgId,
+        id,
       ])
       .then((res) => res.rows),
   )
@@ -118,7 +119,7 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
 
   const subId = newId()
   const chargeId = newId()
-  const planPath = `orgs/${orgId}/subscription_plans/${parsed.planId}`
+  const planRef = aggregateRef(SubscriptionPlanConfig, orgId, parsed.planId)
 
   // Guard transacional de descontinuação + preço (brief 0033 AC-08/AC-09): o
   // read do plano (ativo + preço) acontece DENTRO da transação que appenda
@@ -126,17 +127,17 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
   // rejeita; preço snapshotado = min(exibido, vigente). Leitura de definição pra
   // guardar/snapshotar o WRITE de UM aggregate (a assinatura). O preço apurado é
   // capturado pra a cobrança herdar o MESMO valor legal do snapshot.
-  const subPath = `orgs/${orgId}/subscriptions/${subId}`
-  const chargePath = `orgs/${orgId}/charges/${chargeId}`
+  const subRef = aggregateRef(SubscriptionConfig, orgId, subId)
+  const chargeRef = aggregateRef(ChargeConfig, orgId, chargeId)
 
   const guardedSub = {
     config: SubscriptionConfig,
-    aggregatePath: subPath,
+    ref: subRef,
     actorId: r.ctx.session.uid,
     tag: 'subscription.created' as const,
     guard: (reader: GuardReader) =>
       Effect.gen(function* () {
-        const livePlan = yield* reader.getDoc(planPath, SubscriptionPlan)
+        const livePlan = yield* reader.getDoc(planRef, SubscriptionPlan)
         if (!livePlan) {
           return { _tag: 'reject' as const, message: 'Plano não encontrado' }
         }
@@ -209,16 +210,11 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
   // Subscription + charge as ONE ACID transaction — the subscription is never
   // orphaned of its charge on the failure path (brief 0061 § Grupo B / AC-02).
   // The guard resolves the price in-tx; the charge inherits it.
-  const outcome = await commitGuardedThenAppend(
-    guardedSub,
-    ChargeConfig,
-    chargePath,
-    (payload) => ({
-      _tag: 'charge.created',
-      actorId: r.ctx.session.uid,
-      payload: { data: buildCharge(lawfulFrom(payload)) },
-    }),
-  )
+  const outcome = await commitGuardedThenAppend(guardedSub, ChargeConfig, chargeRef, (payload) => ({
+    _tag: 'charge.created',
+    actorId: r.ctx.session.uid,
+    payload: { data: buildCharge(lawfulFrom(payload)) },
+  }))
   if (!outcome.ok) return { ok: false, error: outcome.error }
   revalidatePath('/subscriptions')
   return { ok: true, subscriptionId: subId }
@@ -244,7 +240,7 @@ export async function cancelSubscription(
   // Auditoria vem do stream — sem `recordAudit` paralelo (AC-07).
   const scheduled = await emitEvent(
     SubscriptionConfig,
-    `orgs/${orgId}/subscriptions/${subscriptionId}`,
+    aggregateRef(SubscriptionConfig, orgId, subscriptionId),
     {
       _tag: 'subscription.cancel_scheduled',
       actorId: r.ctx.session.uid,
@@ -303,7 +299,7 @@ export async function changeSubscriptionPlan(
 
   const changed = await emitEvent(
     SubscriptionConfig,
-    `orgs/${orgId}/subscriptions/${subscriptionId}`,
+    aggregateRef(SubscriptionConfig, orgId, subscriptionId),
     {
       _tag: 'subscription.plan_changed',
       actorId: r.ctx.session.uid,
@@ -332,7 +328,7 @@ export async function reactivateSubscription(
 
   const reactivated = await emitEvent(
     SubscriptionConfig,
-    `orgs/${orgId}/subscriptions/${subscriptionId}`,
+    aggregateRef(SubscriptionConfig, orgId, subscriptionId),
     { _tag: 'subscription.reactivated', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!reactivated.ok) return { ok: false, error: reactivated.error }

@@ -7,7 +7,12 @@ import {
   membershipDocId,
 } from '@/domain'
 import { InviteConfig, MembershipConfig, ProfessionalConfig } from '@/domain/aggregates'
-import { appendEventToTx, type SagaStep, type TransactionContext } from '@/domain/effect'
+import {
+  aggregateRef,
+  appendEventToTx,
+  type SagaStep,
+  type TransactionContext,
+} from '@/domain/effect'
 import { verifyInviteToken } from '@/features/invites/adapters/invite-token'
 import { newId } from '@/shared/db/pg/new-id'
 import { patchUser } from '@/shared/db/pg/users-store'
@@ -44,7 +49,7 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
   if (invite.status !== 'pending') return { ok: false, error: 'Invite already used' }
   if (new Date(invite.expiresAt).getTime() < Date.now()) {
     // Event-first: a projeção do convite expirado vem do evento.
-    await emitEvent(InviteConfig, `orgs/${orgId}/invites/${inviteId}`, {
+    await emitEvent(InviteConfig, aggregateRef(InviteConfig, orgId, inviteId), {
       _tag: 'invite.updated',
       actorId: session.uid,
       payload: { changes: { status: 'expired' } },
@@ -134,7 +139,7 @@ async function acceptInviteSaga(args: AcceptInviteSagaArgs): Promise<AcceptInvit
     (tx: TransactionContext) =>
       appendEventToTx(
         MembershipConfig,
-        `memberships/${membershipId}`,
+        aggregateRef(MembershipConfig, membership.orgId, membershipId),
         {
           _tag: 'membership.created',
           actorId: actorUid,
@@ -147,7 +152,7 @@ async function acceptInviteSaga(args: AcceptInviteSagaArgs): Promise<AcceptInvit
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
         ProfessionalConfig,
-        `orgs/${orgId}/professionals/${proId}`,
+        aggregateRef(ProfessionalConfig, orgId, proId),
         {
           _tag: 'professional.created',
           actorId: actorUid,
@@ -160,7 +165,7 @@ async function acceptInviteSaga(args: AcceptInviteSagaArgs): Promise<AcceptInvit
   steps.push((tx: TransactionContext) =>
     appendEventToTx(
       InviteConfig,
-      `orgs/${orgId}/invites/${inviteId}`,
+      aggregateRef(InviteConfig, orgId, inviteId),
       {
         _tag: 'invite.updated',
         actorId: actorUid,

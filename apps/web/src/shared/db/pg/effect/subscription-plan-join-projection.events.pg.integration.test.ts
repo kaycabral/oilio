@@ -1,5 +1,5 @@
 import { SubscriptionPlanConfig } from '@/domain/aggregates/subscription-plan/config'
-import { appendEvent, replayAggregate } from '@/domain/effect'
+import { aggregateRef, appendEvent, replayAggregate } from '@/domain/effect'
 import type { SubscriptionPlan } from '@/domain/types/subscription-plan'
 import { Effect } from 'effect'
 import { Client } from 'pg'
@@ -32,7 +32,7 @@ const APP_ROLE = 'oilio_spj_app'
 const APP_PASSWORD = 'spj_test'
 let appUrl: string
 
-const pathOf = (id: string) => `orgs/${ORG}/subscription_plans/${id}`
+const refOf = (id: string) => aggregateRef(SubscriptionPlanConfig, ORG, id)
 
 function plan(overrides: Partial<SubscriptionPlan> = {}): SubscriptionPlan {
   return {
@@ -60,36 +60,36 @@ function pool() {
 
 async function seedOrg(): Promise<void> {
   await pool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ('orgs/'||$1,$1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG],
   )
 }
 
 async function seedUnit(id: string): Promise<void> {
   await pool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/units/'||$2,$1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
   )
 }
 
 async function seedCategory(id: string): Promise<void> {
   await pool().query(
-    `INSERT INTO categories (aggregate_path, org_id, id, version, name, icon, color, active, archived_at, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/categories/'||$2,$1,$2,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO categories (org_id, id, last_event_version, name, icon, color, active, archived_at, created_at, updated_at)
+     VALUES ($1,$2,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
   )
 }
 
 async function seedItem(id: string): Promise<void> {
   await pool().query(
-    `INSERT INTO catalog_items (aggregate_path, org_id, id, version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/catalog_items/'||$2,$1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
+     VALUES ($1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
   )
 }
@@ -106,7 +106,7 @@ async function seedParents(): Promise<void> {
 
 const create = (p: SubscriptionPlan) =>
   Effect.runPromise(
-    appendEvent(SubscriptionPlanConfig, pathOf(p.id), {
+    appendEvent(SubscriptionPlanConfig, refOf(p.id), {
       _tag: 'subscription_plan.created',
       actorId: 'test',
       payload: { data: p },
@@ -115,7 +115,7 @@ const create = (p: SubscriptionPlan) =>
 
 const update = (changes: Partial<SubscriptionPlan>) =>
   Effect.runPromise(
-    appendEvent(SubscriptionPlanConfig, pathOf(PLAN), {
+    appendEvent(SubscriptionPlanConfig, refOf(PLAN), {
       _tag: 'subscription_plan.updated',
       actorId: 'test',
       payload: { changes },
@@ -124,7 +124,7 @@ const update = (changes: Partial<SubscriptionPlan>) =>
 
 const replay = () =>
   Effect.runPromise(
-    replayAggregate(SubscriptionPlanConfig, pathOf(PLAN)).pipe(
+    replayAggregate(SubscriptionPlanConfig, refOf(PLAN)).pipe(
       Effect.provide(PostgresPersistenceLayer),
     ),
   )
@@ -241,7 +241,7 @@ describe('Postgres join projection — subscription-plan ↔ item/category/allow
   it('deleting the plan cascades its join rows away', async () => {
     await create(plan())
     expect(await itemIds()).toHaveLength(2)
-    await pool().query('DELETE FROM subscription_plans WHERE aggregate_path = $1', [pathOf(PLAN)])
+    await pool().query('DELETE FROM subscription_plans WHERE org_id = $1 AND id = $2', [ORG, PLAN])
     expect(await itemIds()).toEqual([])
     expect(await categoryIds()).toEqual([])
     expect(await allowlistUnitIds()).toEqual([])

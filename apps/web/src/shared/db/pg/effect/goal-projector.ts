@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { Goal } from '@/domain/types/goal'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -12,6 +12,10 @@ import { registerTypedProjector, type TypedProjector } from './typed-projections
  * the flat scalars (type/period/target_cents + unit scope) onto columns the DB
  * constrains. No unions, no PII. The DB enforces the invariants (type enum,
  * positive target) — a violation rolls back event + projection together.
+ *
+ * D6 (ADR 0013): the typed identity is an {@link AggregateRef} (org_id, id), not a
+ * path string; the row is keyed by the composite PK `(org_id, id)` and the
+ * projection version lives in `last_event_version`.
  */
 
 const decodeGoal = Schema.decodeUnknownSync(Goal)
@@ -19,11 +23,10 @@ const decodeGoal = Schema.decodeUnknownSync(Goal)
 /** The ordered `goals` column list — single source of truth for the runtime
  * upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1. */
 export const GOAL_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
   'unit_id',
-  'version',
+  'last_event_version',
   'period',
   'type',
   'target_cents',
@@ -31,11 +34,10 @@ export const GOAL_COLUMNS = [
   'updated_at',
 ] as const
 
-export function goalColumnValues(goal: Goal, aggregatePath: string, version: number): unknown[] {
+export function goalColumnValues(goal: Goal, ref: AggregateRef, version: number): unknown[] {
   return [
-    aggregatePath,
-    goal.orgId,
-    goal.id,
+    ref.orgId,
+    ref.id,
     goal.unitId,
     version,
     goal.period,
@@ -47,13 +49,13 @@ export function goalColumnValues(goal: Goal, aggregatePath: string, version: num
 }
 
 const PLACEHOLDERS = GOAL_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = GOAL_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = GOAL_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO goals (${GOAL_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -61,13 +63,9 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const goal = decodeGoal(state)
-  await client.query(UPSERT, goalColumnValues(goal, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, goalColumnValues(goal, ref, stateVersion(state)))
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
@@ -75,7 +73,7 @@ export type GoalRow = {
   org_id: string
   id: string
   unit_id: string
-  version: string | number
+  last_event_version: string | number
   period: string
   type: 'profit'
   target_cents: string | number
@@ -85,7 +83,7 @@ export type GoalRow = {
 
 export function rowToDoc(row: GoalRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     unitId: row.unit_id,
@@ -97,20 +95,21 @@ export function rowToDoc(row: GoalRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
-  const res = await client.query<GoalRow>('SELECT * FROM goals WHERE aggregate_path = $1', [
-    aggregatePath,
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+  const res = await client.query<GoalRow>('SELECT * FROM goals WHERE org_id = $1 AND id = $2', [
+    ref.orgId,
+    ref.id,
   ])
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM goals WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM goals WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
 export const goalProjector: TypedProjector = { read, upsert, delete: remove }
 
-export const GOAL_AGGREGATE_TYPE = 'goals'
+export const GOAL_AGGREGATE_TYPE = 'goal'
 
 registerTypedProjector(GOAL_AGGREGATE_TYPE, goalProjector)

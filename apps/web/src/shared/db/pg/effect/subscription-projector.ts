@@ -1,4 +1,4 @@
-import type { FirestoreDoc, QueryConstraint } from '@/domain/effect'
+import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
 import { Subscription } from '@/domain/types/subscription'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -19,11 +19,10 @@ const decodeSubscription = Schema.decodeUnknownSync(Subscription)
 
 /** Ordered `subscriptions` column list — single source of truth for upsert + seed. */
 export const SUBSCRIPTION_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
   'unit_id',
-  'version',
+  'last_event_version',
   'customer_id',
   'customer_user_id',
   'status',
@@ -45,13 +44,8 @@ export const SUBSCRIPTION_COLUMNS = [
  * `rowToDoc`). `billing_cycle` is lifted from the plan snapshot to its column;
  * `plan` and `current_period` are stringified for their JSONB columns.
  */
-export function subscriptionColumnValues(
-  s: Subscription,
-  aggregatePath: string,
-  version: number,
-): unknown[] {
+export function subscriptionColumnValues(s: Subscription, version: number): unknown[] {
   return [
-    aggregatePath,
     s.orgId,
     s.id,
     s.unitId,
@@ -74,13 +68,13 @@ export function subscriptionColumnValues(
 }
 
 const PLACEHOLDERS = SUBSCRIPTION_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = SUBSCRIPTION_COLUMNS.filter((col) => col !== 'aggregate_path')
+const CONFLICT_SET = SUBSCRIPTION_COLUMNS.filter((col) => col !== 'org_id' && col !== 'id')
   .map((col) => `${col} = EXCLUDED.${col}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO subscriptions (${SUBSCRIPTION_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -88,20 +82,16 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const s = decodeSubscription(state)
-  await client.query(UPSERT, subscriptionColumnValues(s, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, subscriptionColumnValues(s, stateVersion(state)))
 }
 
 export type SubscriptionRow = {
   org_id: string
   id: string
   unit_id: string
-  version: string | number
+  last_event_version: string | number
   customer_id: string
   customer_user_id: string | null
   status: string
@@ -123,7 +113,7 @@ export type SubscriptionRow = {
 // round-trips whole; the column is a derived discriminant for querying only.
 export function rowToDoc(row: SubscriptionRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     unitId: row.unit_id,
@@ -148,37 +138,36 @@ export function rowToDoc(row: SubscriptionRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<SubscriptionRow>(
-    'SELECT * FROM subscriptions WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT * FROM subscriptions WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM subscriptions WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM subscriptions WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-// Org-scoped collection scan (`orgs/{orgId}/subscriptions`): the daily cron reads
-// the active/past_due subscriptions (`where status in [...]`) to emit expiry touches.
+// Org-scoped collection scan: the daily cron reads the active/past_due
+// subscriptions (`where status in [...]`) to emit expiry touches.
 async function list(
   client: PoolClient,
-  collectionPath: string,
+  ref: CollectionRef,
   constraints: readonly QueryConstraint[],
 ): Promise<FirestoreDoc[]> {
-  const orgId = collectionPath.split('/')[1] ?? ''
   const tail = buildCollectionQueryTail(constraints, SUBSCRIPTION_COLUMNS, 2, true)
   const res = await client.query<SubscriptionRow>(
     `SELECT * FROM subscriptions WHERE org_id = $1${tail.sql}`,
-    [orgId, ...tail.params],
+    [ref.orgId, ...tail.params],
   )
   return res.rows.map(rowToDoc)
 }
 
 export const subscriptionProjector: TypedProjector = { read, upsert, delete: remove, list }
 
-export const SUBSCRIPTION_AGGREGATE_TYPE = 'subscriptions'
+export const SUBSCRIPTION_AGGREGATE_TYPE = 'subscription'
 
 registerTypedProjector(SUBSCRIPTION_AGGREGATE_TYPE, subscriptionProjector)

@@ -1,3 +1,5 @@
+import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
+import { aggregateRef } from '@/domain/effect'
 import { Client } from 'pg'
 import { expect, test } from '../fixtures'
 import {
@@ -46,18 +48,19 @@ async function pgUpdate(sql: string, params: unknown[]): Promise<void> {
 // WITH a `cancelled_at` timestamp. The Subscription schema enforces
 // `cancelledAt` present iff cancelled, so flipping status alone would write an
 // illegal row that the strict-decoding read rejects.
-async function cancelSubscription(aggregatePath: string, now: string): Promise<void> {
+async function cancelSubscription(orgId: string, id: string, now: string): Promise<void> {
   await pgUpdate(
-    `UPDATE subscriptions SET status = 'cancelled', cancelled_at = $2 WHERE aggregate_path = $1`,
-    [aggregatePath, now],
+    `UPDATE subscriptions SET status = 'cancelled', cancelled_at = $3 WHERE org_id = $1 AND id = $2`,
+    [orgId, id, now],
   )
 }
 
 // Flips an appointment's `status` — what the cascade's event-first cancel
 // projects onto a future scheduled booking.
-async function setAppointmentStatus(aggregatePath: string, status: string): Promise<void> {
-  await pgUpdate(`UPDATE appointments SET status = $2 WHERE aggregate_path = $1`, [
-    aggregatePath,
+async function setAppointmentStatus(orgId: string, id: string, status: string): Promise<void> {
+  await pgUpdate(`UPDATE appointments SET status = $3 WHERE org_id = $1 AND id = $2`, [
+    orgId,
+    id,
     status,
   ])
 }
@@ -114,8 +117,8 @@ test.describe('CUSTOMER erasure cascade', { tag: '@critical' }, () => {
     // Erasure cascade OUTPUT — the status transitions the saga projects:
     // active subscription → cancelled; future scheduled appointment → cancelled;
     // the past (completed) appointment is LEFT untouched.
-    await cancelSubscription(`orgs/${owner.orgId}/subscriptions/${subId}`, new Date().toISOString())
-    await setAppointmentStatus(`orgs/${owner.orgId}/appointments/${futureAppt}`, 'cancelled')
+    await cancelSubscription(owner.orgId, subId, new Date().toISOString())
+    await setAppointmentStatus(owner.orgId, futureAppt, 'cancelled')
 
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()
@@ -140,7 +143,7 @@ test.describe('CUSTOMER erasure cascade', { tag: '@critical' }, () => {
     // retention: erasure stops the future, never destroys the fiscal past.
     const retained = await pgReadProjection(
       'appointments',
-      `orgs/${owner.orgId}/appointments/${pastAppt}`,
+      aggregateRef(AppointmentConfig, owner.orgId, pastAppt),
     )
     expect(retained).not.toBeNull()
     expect(retained?.status).toBe('completed')

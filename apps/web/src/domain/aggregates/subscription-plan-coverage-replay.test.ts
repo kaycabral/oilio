@@ -10,56 +10,23 @@
 // `CatalogItem` kind — a package IS a plan's coverage (a set of granular
 // items), enforced by `CATALOG_ITEM_KINDS` being exactly {service, product}.
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
 import { CATALOG_ITEM_KINDS } from '@/domain/types/catalog-item'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
 import { SubscriptionPlanConfig } from './subscription-plan/config'
-
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
 
 describe('SubscriptionPlan coverage — replay reconstructs items + categories (event-first)', () => {
   it('AC-01/AC-02 — created carries coverage; a coverage-change event mutates it; replay == projection', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/subscription_plans/plan-cov'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(SubscriptionPlanConfig, 't1', 'plan-cov')
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(SubscriptionPlanConfig, path, {
+        yield* appendEvent(SubscriptionPlanConfig, ref, {
           _tag: 'subscription_plan.created',
           actorId: 'owner-1',
           payload: {
@@ -85,7 +52,7 @@ describe('SubscriptionPlan coverage — replay reconstructs items + categories (
         })
         // Coverage-change: drop a category, add a third item. Flows through a
         // domain event (never a direct write).
-        yield* appendEvent(SubscriptionPlanConfig, path, {
+        yield* appendEvent(SubscriptionPlanConfig, ref, {
           _tag: 'subscription_plan.updated',
           actorId: 'owner-1',
           payload: {
@@ -98,9 +65,9 @@ describe('SubscriptionPlan coverage — replay reconstructs items + categories (
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(SubscriptionPlanConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(SubscriptionPlanConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed).toEqual(projection)
