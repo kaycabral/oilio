@@ -195,8 +195,8 @@ describe('changeSubscriptionPlan', () => {
     expect(mocks.emitEvent).toHaveBeenCalledTimes(1)
     const call = mocks.emitEvent.mock.calls[0]
     if (!call) throw new Error('emitEvent not called')
-    const [, path, event] = call
-    expect(path).toBe('orgs/org-1/subscriptions/sub-1')
+    const [, ref, event] = call
+    expect(ref).toEqual({ type: 'subscription', orgId: 'org-1', id: 'sub-1' })
     expect(event._tag).toBe('subscription.plan_changed')
     const payload = event.payload
     expect(payload.planId).toBe('plan-b')
