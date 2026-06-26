@@ -23,7 +23,7 @@ export {
 } from './schema'
 
 // Data-source Port + Postgres adapter + connection.
-export { PostgresProductSource, closeDb, getDb, runMigrations } from './db'
+export { PostgresProductSource, closeDb, getDb, initProductDb, runMigrations } from './db'
 export type { ProductSource } from './port/source'
 
 // Domain engine: GTIN lookup (hit/miss/invalid) over a `ProductSource`.
