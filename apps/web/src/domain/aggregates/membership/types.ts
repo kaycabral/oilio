@@ -9,12 +9,16 @@ export const INITIAL_MEMBERSHIP_STATE: MembershipState = {
   id: '',
   orgId: '',
   userId: '',
-  role: 'customer',
+  // Pre-first-event sentinel only: `membership.created` replaces the whole state
+  // (reducer does `{...base, ...event.data}`), so this role is never read as a
+  // real grant. `receptionist` is the lowest-privilege real role — brief 0068 D4
+  // / AC-04 removed the vestigial `customer` role.
+  role: 'receptionist',
   status: 'active',
   invitedBy: null,
   joinedAt: '',
   updatedAt: '',
   rlsUnitScope: null,
-  permissions: defaultPermissionsForRole('customer'),
+  permissions: defaultPermissionsForRole('receptionist'),
   _version: 0,
 }

@@ -139,7 +139,6 @@ describe('ROLE_SUBJECT_NOUN', () => {
       manager: 'Gerente',
       professional: 'Profissional',
       receptionist: 'Recepção',
-      customer: 'Cliente',
     })
   })
 })

@@ -51,7 +51,6 @@ export const ROLE_SUBJECT_NOUN: Record<Role, string> = {
   manager: 'Gerente',
   professional: 'Profissional',
   receptionist: 'Recepção',
-  customer: 'Cliente',
 }
 
 // Builds the neutral display label `‹Role› ‹CODE›` (ex.: "Cliente 7K2A") for an

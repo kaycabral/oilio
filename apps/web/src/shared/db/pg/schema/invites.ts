@@ -51,7 +51,7 @@ export const invites = pgTable(
     // The role enum, refused at the DB.
     check(
       'invites_role_check',
-      sql`${table.role} IN ('owner', 'manager', 'professional', 'receptionist', 'customer')`,
+      sql`${table.role} IN ('owner', 'manager', 'professional', 'receptionist')`,
     ),
     // The status enum, refused at the DB.
     check(

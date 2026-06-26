@@ -121,7 +121,7 @@ async function seedMembership(orgId: string, userId: string): Promise<void> {
     appendEvent(MembershipConfig, `memberships/${membershipDocId(orgId, userId)}`, {
       _tag: 'membership.created',
       actorId: 'seed',
-      payload: { data: buildMembership(orgId, userId, TS, { role: 'customer' }) },
+      payload: { data: buildMembership(orgId, userId, TS, { role: 'receptionist' }) },
     }).pipe(Effect.provide(PostgresPersistenceLayer)),
   )
 }

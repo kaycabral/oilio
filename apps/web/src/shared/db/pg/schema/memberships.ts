@@ -74,7 +74,7 @@ export const memberships = pgTable(
     // The role enum, as a CHECK.
     check(
       'memberships_role_check',
-      sql`${table.role} IN ('owner', 'manager', 'professional', 'receptionist', 'customer')`,
+      sql`${table.role} IN ('owner', 'manager', 'professional', 'receptionist')`,
     ),
     // The status enum, as a CHECK.
     check(

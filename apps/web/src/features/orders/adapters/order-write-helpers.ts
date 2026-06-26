@@ -92,7 +92,8 @@ export async function assertMemberCanOperate({
   const membership = await getMembership(orgId, attributedUserId)
   if (!membership) return 'Membro não encontrado neste negócio'
   if (membership.status !== 'active') return 'Membro não está ativo neste negócio'
-  if (membership.role === 'customer') return 'Cliente não pode ser atribuído a um item'
+  // No `customer` role to exclude anymore (brief 0068 D4 / AC-04): a client is a
+  // `customers` row, never a membership, so any active member is assignable.
   // Membership unit-scoped (recepção de uma unidade) só opera na própria unidade.
   if (membership.rlsUnitScope && membership.rlsUnitScope !== orderUnitId) {
     return 'Membro não opera nesta unidade'

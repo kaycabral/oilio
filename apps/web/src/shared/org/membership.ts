@@ -101,9 +101,10 @@ export async function listMembershipsForOrg(orgId: string): Promise<Membership[]
 }
 
 export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
-  const memberships = (await listActiveOrgMemberships(orgId)).filter(
-    (m) => m.role !== 'customer' && Boolean(m.userId),
-  )
+  // Every active membership with a linked user is a team member: there is no
+  // `customer` role anymore (brief 0068 D4 / AC-04) — a client of the org lives
+  // in the `customers` table, never as a membership.
+  const memberships = (await listActiveOrgMemberships(orgId)).filter((m) => Boolean(m.userId))
   // Hydrate member names LIVE from the global `users` table (batch).
   const userByUserId = await getUsersByIds(memberships.map((m) => m.userId))
   return memberships

@@ -1,15 +1,9 @@
 import { Schema } from 'effect'
 
-export const Role = Schema.Literal('owner', 'manager', 'professional', 'receptionist', 'customer')
+export const Role = Schema.Literal('owner', 'manager', 'professional', 'receptionist')
 export type Role = typeof Role.Type
 
-export const ROLES: readonly Role[] = [
-  'owner',
-  'manager',
-  'professional',
-  'receptionist',
-  'customer',
-]
+export const ROLES: readonly Role[] = ['owner', 'manager', 'professional', 'receptionist']
 
 export const Vertical = Schema.Literal('barbershop', 'auto_wash', 'auto_detailing', 'other')
 export type Vertical = typeof Vertical.Type
