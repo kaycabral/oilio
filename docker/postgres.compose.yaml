@@ -1,0 +1,36 @@
+# Ephemeral Postgres for the sovereign product base (@cbrl/product, brief 0049).
+#
+# This is the FIRST Postgres in the monorepo. It backs two flows, both against a
+# real database (the brief's point is to prove NATIVE constraints, never a mock):
+#   • dev    — `pnpm product:db:up` brings it up so you can run migrations / poke
+#              the schema locally.
+#   • integration — `pnpm --filter @cbrl/product test:integration:docker` brings
+#              it up, applies migrations, runs the integration suite, tears down.
+#
+# It is ephemeral on purpose: no named volume, so a `down -v` (or just a fresh
+# `up`) starts from an empty database. The product base is pre-prod — recreating
+# `produtos` from migrations is the expected reset, not a data-loss event.
+#
+# CI does NOT use this file — GitLab CI attaches Postgres via `services:` on the
+# job (see .gitlab-ci.yml `integration:product`). This file is the local mirror
+# of that service.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-produtos}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    # Capped like the test battery (memory: heavy tests via capped docker) so a
+    # runaway query can't swap-thrash the host. Postgres is light; 1 GB is plenty.
+    mem_limit: 1g
+    memswap_limit: 1g
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 2s

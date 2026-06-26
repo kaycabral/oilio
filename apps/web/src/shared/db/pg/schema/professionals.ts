@@ -1,0 +1,85 @@
+import { sql } from 'drizzle-orm'
+import {
+  bigint,
+  check,
+  foreignKey,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+} from 'drizzle-orm/pg-core'
+import { orgs } from './orgs'
+
+/**
+ * Typed relational projection for the `professional` bounded context (migration
+ * feature D, brief 0060, Grupo A) — the operational projection of a
+ * `Membership(role=professional)` + `User`, born from the invite-acceptance saga.
+ *
+ * Keyed by `aggregate_path` (`orgs/{orgId}/professionals/{id}`). FK
+ * `org_id → orgs.org_id`; `org_id` is the leading index column (RLS performance).
+ *
+ * PII (name/whatsapp/email read LIVE from the global `users/{userId}` doc, and
+ * `taxIdentity` in the deletable `professionals_pii/{id}` sidecar) does NOT enter
+ * this typed table — it stays in the sidecars (LGPD contract, ADR 0010), exactly
+ * as the Firestore layer keeps it. The typed projection decodes against
+ * `StoredProfessional` (the PII-omitted shape).
+ *
+ * Invariants enforced HERE (proven by integration against real Postgres):
+ *   - `user_id` NOT NULL and non-empty — a Professional is never a standalone
+ *     entity with a null link (#1045 / brief 0028 AC-01).
+ *   - FK `org_id → orgs.org_id`; `org_id` NOT NULL leading column.
+ *
+ * `operational_status` is NOT stored (brief 0068 D4 / #1226 AC-02) — it is
+ * derived on read from real facts (whatsapp present ∧ ≥1 unit ∧ ≥1 service).
+ *
+ * Composite/structural state (`default_commission`, `unit_ids`,
+ * `catalog_service_ids`) lives in JSONB — faithful to the reduced state without
+ * inventing relational shape this context doesn't need.
+ */
+export const professionals = pgTable(
+  'professionals',
+  {
+    aggregatePath: text('aggregate_path').primaryKey(),
+
+    // ── Identity + org scope ────────────────────────────────────────────────
+    orgId: text('org_id').notNull(),
+    id: text('id').notNull(),
+
+    // Monotonic projection version (the reducer's `_version`).
+    version: bigint('version', { mode: 'number' }).notNull(),
+
+    // ── Primary-metric invariants (enforced by the DB) ──────────────────────
+    // FK into `users/{userId}` (global) — non-null (#1045). PII (name/whatsapp/
+    // email) read live from there; `taxIdentity` from `professionals_pii`.
+    userId: text('user_id').notNull(),
+
+    // ── Composite / structural state (JSONB; not primary-metric invariants) ──
+    defaultCommission: jsonb('default_commission'),
+    unitIds: jsonb('unit_ids').notNull(),
+    catalogServiceIds: jsonb('catalog_service_ids').notNull(),
+
+    // timestamptz (brief 0068 D1) — mode:'string', rowToDoc normaliza pra ISO
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),
+  },
+  (table) => [
+    // A Professional is never linked to nothing (non-empty userId).
+    check('professionals_user_id_nonempty', sql`char_length(btrim(${table.userId})) > 0`),
+    // Every professional belongs to a real org.
+    foreignKey({
+      name: 'professionals_org_id_fk',
+      columns: [table.orgId],
+      foreignColumns: [orgs.orgId],
+    }),
+    // Composite (org_id, id) UNIQUE — the target of cross-aggregate composite FKs.
+    unique('professionals_org_id_id_uq').on(table.orgId, table.id),
+    // `org_id`-leading indexes: the RLS policy + list reads
+    // (`listProfessionalsForOrg`) + the per-user lookup (`getProfessionalByUserId`).
+    index('professionals_org_id_user_id_idx').on(table.orgId, table.userId),
+  ],
+)
+
+export type StoredProfessionalRow = typeof professionals.$inferSelect
+export type NewProfessionalRow = typeof professionals.$inferInsert

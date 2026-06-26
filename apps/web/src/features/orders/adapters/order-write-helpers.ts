@@ -1,0 +1,283 @@
+// Internal write/saga helpers for the order actions — extracted from the
+// 'use server' module to stay under the module-size gate. Not server actions;
+// imperative-shell helpers the close/item actions compose.
+
+import {
+  accrueCommissionForItem,
+  type Commission,
+  coverageOf,
+  coveredItemQuantity,
+  coveredProducts,
+  isCatalogProduct,
+  isItemCoveredBySubscription,
+  isOperational,
+  type LiquidationStatus,
+  type Order,
+  type OrderItem,
+  type OrderItemKind,
+  type PaymentMethod,
+  type Subscription,
+} from '@/domain'
+import { CatalogItemConfig } from '@/domain/aggregates'
+
+import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
+import { newId } from '@/shared/db/pg/new-id'
+import { emitEvent } from '@/shared/effect-bridge'
+
+import { getMembership, listOrgMembers } from '@/shared/org/membership'
+import { getProfessionalByUserId } from '@/shared/org/professional-read'
+import { loadActiveSubscriptionForCustomer, loadOrderById } from './order-financial-read'
+
+export function genItemId(): string {
+  // ID curto suficiente pra colisão ser improvável dentro de uma única
+  // order (≤ ~50 items na prática). Não precisa ser UUID — Firestore.id
+  // só importa para o documento da order, items são embarcados.
+  return Math.random().toString(36).slice(2, 12)
+}
+
+// Coleção `appointments` permite só os statuses do tipo Appointment.
+// `completed` é o destino final quando a order fecha; antes disso o
+// agendamento fica `scheduled` (não tem estado "em andamento" — o link via
+// order.appointmentId já marca que tem order aberta).
+
+// Reads the order from the typed Postgres projection under RLS. The item-edit
+// call-sites only ever needed the order doc (they write via the path-based
+// `emitEvent`), so the helper takes the `orgId` directly.
+export async function loadOpenOrder(
+  orgId: string,
+  orderId: string,
+): Promise<{ order: Order } | string> {
+  const order = await loadOrderById(orgId, orderId)
+  if (!order) return 'Venda não encontrada'
+  if (order.status !== 'open') return 'Venda já foi fechada ou cancelada'
+  return { order }
+}
+
+// Snapshot puro do item a partir do doc JÁ LIDO (dentro da transação do guard,
+// brief 0033 AC-08). Separa a leitura (transacional, no caller) da resolução
+// (pura) pra a checagem de descontinuação + o snapshot de preço/comissão
+// rodarem atômicos com o write. `archivedAt` set = descontinuado → rejeita
+// (AC-08). Preço = `min(exibido, vigente)` (AC-09): nunca cobra mais que o
+// exibido ao operador; quando o exibido não veio, cobra o vigente.
+// AC-05 (brief 0030): "membro pode operar" generaliza o antigo
+// `assertExecutorApproved` (que carregava um Professional por doc id e exigia
+// aprovação). O alvo da atribuição agora é o `userId` de QUALQUER membro, então
+// a validação é:
+//
+//   1. Existe membership ativa `{tid}_{userId}` no org, com papel operacional
+//      (não `customer`), e — se a membership for unit-scoped — escopada à
+//      unidade da venda.
+//   2. Item de SERVIÇO mantém a trava mais estrita: SE existe a projeção
+//      `Professional` para esse `userId`, ela precisa estar aprovada (preserva o
+//      fluxo de serviço atual). Produto/venda avulsa NÃO exige Professional —
+//      basta ser membro ativo (é o que destrava o varejo: recepção vende balcão).
+//
+// Mantém o comportamento de serviço intacto e destrava produto sem profissional
+// aprovado.
+export async function assertMemberCanOperate({
+  orgId,
+  attributedUserId,
+  kind,
+  orderUnitId,
+}: {
+  orgId: string
+  attributedUserId: string
+  kind: OrderItemKind
+  orderUnitId: string
+}): Promise<string | null> {
+  if (!attributedUserId) return 'Membro atribuído é obrigatório'
+
+  // Membership é top-level (`memberships/{tid}_{userId}`), resolvida por
+  // (orgId, userId) na projeção tipada sob RLS.
+  const membership = await getMembership(orgId, attributedUserId)
+  if (!membership) return 'Membro não encontrado neste negócio'
+  if (membership.status !== 'active') return 'Membro não está ativo neste negócio'
+  if (membership.role === 'customer') return 'Cliente não pode ser atribuído a um item'
+  // Membership unit-scoped (recepção de uma unidade) só opera na própria unidade.
+  if (membership.rlsUnitScope && membership.rlsUnitScope !== orderUnitId) {
+    return 'Membro não opera nesta unidade'
+  }
+
+  // Trava de serviço (AC-05): só serviço exige Professional aprovado, e só quando
+  // a projeção existe para esse membro. Sem projeção (ex.: membro que ainda não
+  // virou profissional) o serviço fica bloqueado — fluxo de serviço inalterado.
+  if (kind === 'service') {
+    const professional = await getProfessionalByUserId(orgId, attributedUserId)
+    if (!professional) return 'Serviço exige um profissional — membro sem cadastro de profissional'
+    if (!isOperational(professional.operationalStatus)) {
+      return `Profissional não operacional (status: ${professional.operationalStatus})`
+    }
+  }
+
+  return null
+}
+
+// Cobertura por item (brief 0021 AC-03): marca um item como `sale` (venda) ou
+// `subscription` (consumo do plano do cliente). Brief 0024: consumo cobre
+// QUALQUER kind (serviço ou produto) desde que o item esteja no snapshot
+// congelado da assinatura (`includedItemIds` + categoria expandida) e haja saldo.
+// Recalcula totais (coberto sai do total a pagar) — event-first.
+// Resolve a single item's subscription coverage at marking time (brief 0024,
+// AC-04): the item must be in the frozen snapshot and the plan must have
+// remaining balance (excluding this item, any kind). Returns the subscription id
+// to attach, or an error message.
+export async function resolveItemCoverageSubscription(
+  orgId: string,
+  order: Order,
+  target: OrderItem,
+  idx: number,
+): Promise<{ subscriptionId: string } | string> {
+  // Venda avulsa anônima (brief 0030, AC-02) não tem cliente → sem assinatura.
+  if (!order.customerId) return 'Venda sem cliente não pode consumir assinatura'
+  const sub = await loadActiveSubscriptionForCustomer(orgId, order.customerId)
+  if (!sub) return 'Cliente não possui assinatura ativa'
+
+  const catalogItem = await getCatalogItemById(orgId, target.refId)
+  if (!catalogItem) return 'Item não encontrado no catálogo'
+  if (!isItemCoveredBySubscription(sub.plan, catalogItem)) {
+    return 'Item não está coberto pelo plano do cliente'
+  }
+
+  // Saldo restante = limite − consumido − já coberto nesta comanda (exceto este).
+  if (sub.plan.usageLimit.kind === 'count') {
+    const alreadyCovered = coveredItemQuantity(order.items.filter((_, i) => i !== idx))
+    const remaining = sub.plan.usageLimit.quantity - sub.currentPeriod.consumed - alreadyCovered
+    if (remaining < target.quantity) return 'Assinatura sem saldo restante para cobrir este item'
+  }
+  return { subscriptionId: sub.id }
+}
+
+// Resolução de cobertura no consumo (brief 0024, AC-04): cada item coberto
+// precisa estar no snapshot CONGELADO da assinatura (item explícito ou categoria
+// de conveniência). Lê o `categoryId` vivo do catálogo. Retorna erro ou null.
+export async function validateCoveredItems(
+  orgId: string,
+  coveredItems: OrderItem[],
+  plan: Subscription['plan'],
+): Promise<string | null> {
+  const catalogItems = await Promise.all(
+    [...new Set(coveredItems.map((it) => it.refId))].map((refId) =>
+      getCatalogItemById(orgId, refId),
+    ),
+  )
+  const categoryByRefId = new Map<string, string | null>()
+  for (const item of catalogItems) {
+    if (!item) continue
+    categoryByRefId.set(item.id, item.categoryId)
+  }
+  for (const it of coveredItems) {
+    const categoryId = categoryByRefId.get(it.refId)
+    if (categoryId === undefined) return `Item coberto "${it.name}" não está mais no catálogo`
+    if (!isItemCoveredBySubscription(plan, { id: it.refId, categoryId })) {
+      return `Item "${it.name}" não está coberto pelo plano do cliente`
+    }
+  }
+  return null
+}
+
+export type ConsumptionPlan = {
+  subscriptionToConsume: { id: string; amount: number } | null
+  stockDecrements: { refId: string; quantity: number }[]
+}
+
+// Consumo de assinatura por item (brief 0024, Grupo B): valida cobertura + saldo
+// e resolve o que decrementar (cota + estoque dos produtos cobertos). Retorna o
+// plano de consumo, ou uma mensagem de erro.
+export async function resolveSubscriptionConsumption(
+  orgId: string,
+  order: Order,
+  sale: boolean,
+): Promise<ConsumptionPlan | string> {
+  const coveredQty = coveredItemQuantity(order.items)
+  if (!sale && coveredQty === 0) return 'Venda sem itens de venda nem consumo de assinatura'
+  if (coveredQty === 0) return { subscriptionToConsume: null, stockDecrements: [] }
+  // Consumo exige cliente — venda avulsa anônima (brief 0030) nunca chega aqui.
+  if (!order.customerId) return 'Venda sem cliente não pode consumir assinatura'
+  const sub = await loadActiveSubscriptionForCustomer(orgId, order.customerId)
+  if (!sub) return 'Cliente não possui assinatura ativa para o consumo marcado'
+
+  const coverErr = await validateCoveredItems(
+    orgId,
+    order.items.filter((it) => coverageOf(it) === 'subscription'),
+    sub.plan,
+  )
+  if (coverErr) return coverErr
+
+  if (sub.plan.usageLimit.kind === 'count') {
+    const remaining = sub.plan.usageLimit.quantity - sub.currentPeriod.consumed
+    if (remaining < coveredQty) {
+      return `Saldo insuficiente: ${remaining} restante(s) no ciclo, consumo requer ${coveredQty}`
+    }
+  }
+  return {
+    subscriptionToConsume: { id: sub.id, amount: coveredQty },
+    // Produtos cobertos baixam estoque/COGS (AC-05); serviços cobertos não.
+    stockDecrements: coveredProducts(order.items),
+  }
+}
+
+// Apura comissões no fechamento (brief 0022 #998): toda comissão nasce
+// `pendente`. Identidade do profissional CONGELADA no doc (brief 0041 AC-11).
+// Comanda 100% coberta (sem paymentMethod) não comissiona.
+export async function buildOrderCommissions(args: {
+  orgId: string
+  orderId: string
+  items: OrderItem[]
+  paymentMethod: PaymentMethod | null
+  closedAt: string
+}): Promise<Commission[]> {
+  if (!args.paymentMethod) return []
+  const memberNameByUserId = new Map(
+    (await listOrgMembers(args.orgId)).map((m) => [m.userId, m.name]),
+  )
+  const resolveMemberName = (userId: string): string => memberNameByUserId.get(userId) ?? ''
+
+  const commissions: Commission[] = []
+  for (const item of args.items) {
+    const accrual = accrueCommissionForItem(item, resolveMemberName)
+    if (!accrual) continue
+    commissions.push({
+      id: newId(),
+      orgId: args.orgId,
+      orderId: args.orderId,
+      orderItemId: accrual.orderItemId,
+      attributedUserId: accrual.attributedUserId,
+      attributedMemberName: accrual.attributedMemberName,
+      itemKind: accrual.itemKind,
+      itemName: accrual.itemName,
+      itemTotalCents: accrual.itemTotalCents,
+      commissionKind: accrual.commissionKind,
+      commissionValue: accrual.commissionValue,
+      amountCents: accrual.amountCents,
+      liquidationStatus: 'pendente' satisfies LiquidationStatus,
+      createdAt: args.closedAt,
+    })
+  }
+  return commissions
+}
+
+// Produto coberto baixa estoque (brief 0024, AC-05): `catalog_item.updated` com
+// o novo `stock` (event-first). Lê o estoque vivo no fechamento, clamp em 0.
+export async function emitStockDecrements(
+  orgId: string,
+  actorUid: string,
+  stockDecrements: { refId: string; quantity: number }[],
+): Promise<string | null> {
+  for (const dec of stockDecrements) {
+    const item = await getCatalogItemById(orgId, dec.refId)
+    if (!item) continue
+    if (!isCatalogProduct(item)) continue
+    const nextStock = Math.max(0, item.stock - dec.quantity)
+    const stockUpdated = await emitEvent(
+      CatalogItemConfig,
+      `orgs/${orgId}/catalog_items/${dec.refId}`,
+      {
+        _tag: 'catalog_item.updated',
+        actorId: actorUid,
+        payload: { changes: { stock: nextStock } },
+      },
+    )
+    if (!stockUpdated.ok) return stockUpdated.error
+  }
+  return null
+}

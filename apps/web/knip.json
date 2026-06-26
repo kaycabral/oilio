@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "eslint.config.mjs",
+    "vitest.stryker.config.ts",
+    "scripts/migrate-event-store.mjs",
+    "drizzle.config.ts"
+  ],
+  "ignoreDependencies": ["tailwindcss", "eslint-config-next"],
+  "ignoreBinaries": ["pkill", "eslint", "type-coverage"],
+  "drizzle": false,
+  "rules": {
+    "exports": "off",
+    "types": "off",
+    "nsExports": "off",
+    "nsTypes": "off",
+    "enumMembers": "off",
+    "duplicates": "off"
+  }
+}
