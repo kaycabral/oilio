@@ -51,7 +51,7 @@ async function seedOrg(orgId: string): Promise<void> {
   await pool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,$2,$2)
-     ON CONFLICT (org_id, id) DO NOTHING`,
+     ON CONFLICT (org_id) DO NOTHING`,
     [orgId, TS],
   )
 }

@@ -75,7 +75,7 @@ async function patchOrgBranding(
     const placeholders = ORG_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO orgs (${ORG_COLUMNS.join(', ')}) VALUES (${placeholders})
-       ON CONFLICT (org_id, id) DO UPDATE SET ${assignments}`,
+       ON CONFLICT (org_id) DO UPDATE SET ${assignments}`,
       [...values],
     )
 
