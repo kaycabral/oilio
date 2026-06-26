@@ -11,6 +11,8 @@
 //
 // Drives the REAL order UI; asserts via Postgres projection reads + UI.
 
+import { CatalogItemConfig, SubscriptionConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import type { Page } from '@playwright/test'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
@@ -32,13 +34,19 @@ import { AgendaPage } from '../pages'
 const CurrentPeriodConsumed = Schema.decodeUnknownSync(Schema.Struct({ consumed: Schema.Number }))
 
 async function readConsumed(orgId: string, subId: string): Promise<number> {
-  const row = await pgReadProjection('subscriptions', `orgs/${orgId}/subscriptions/${subId}`)
+  const row = await pgReadProjection(
+    'subscriptions',
+    aggregateRef(SubscriptionConfig, orgId, subId),
+  )
   if (!row) throw new Error(`readConsumed: subscription ${subId} not found`)
   return CurrentPeriodConsumed(row.current_period).consumed
 }
 
 async function readStock(orgId: string, itemId: string): Promise<number> {
-  const row = await pgReadProjection('catalog_items', `orgs/${orgId}/catalog_items/${itemId}`)
+  const row = await pgReadProjection(
+    'catalog_items',
+    aggregateRef(CatalogItemConfig, orgId, itemId),
+  )
   if (!row) throw new Error(`readStock: catalog item ${itemId} not found`)
   return Number(row.stock ?? 0)
 }

@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { StoredInvite } from '@/domain/types/invite'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -22,10 +22,9 @@ const decodeInvite = Schema.decodeUnknownSync(StoredInvite)
 /** The ordered `invites` column list — single source of truth for the runtime
  * upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1. */
 export const INVITE_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
-  'version',
+  'last_event_version',
   'role',
   'token_hash',
   'expires_at',
@@ -39,13 +38,12 @@ export const INVITE_COLUMNS = [
 
 export function inviteColumnValues(
   invite: StoredInvite,
-  aggregatePath: string,
+  ref: AggregateRef,
   version: number,
 ): unknown[] {
   return [
-    aggregatePath,
-    invite.orgId,
-    invite.id,
+    ref.orgId,
+    ref.id,
     version,
     invite.role,
     invite.tokenHash,
@@ -60,13 +58,13 @@ export function inviteColumnValues(
 }
 
 const PLACEHOLDERS = INVITE_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = INVITE_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = INVITE_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO invites (${INVITE_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -74,20 +72,16 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const invite = decodeInvite(state)
-  await client.query(UPSERT, inviteColumnValues(invite, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, inviteColumnValues(invite, ref, stateVersion(state)))
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type InviteRow = {
   org_id: string
   id: string
-  version: string | number
+  last_event_version: string | number
   role: string
   token_hash: string
   expires_at: string
@@ -104,7 +98,7 @@ export type InviteRow = {
 // `invites_pii/` at read time).
 export function rowToDoc(row: InviteRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     role: row.role,
@@ -119,20 +113,21 @@ export function rowToDoc(row: InviteRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
-  const res = await client.query<InviteRow>('SELECT * FROM invites WHERE aggregate_path = $1', [
-    aggregatePath,
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+  const res = await client.query<InviteRow>('SELECT * FROM invites WHERE org_id = $1 AND id = $2', [
+    ref.orgId,
+    ref.id,
   ])
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM invites WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM invites WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
 export const inviteProjector: TypedProjector = { read, upsert, delete: remove }
 
-export const INVITE_AGGREGATE_TYPE = 'invites'
+export const INVITE_AGGREGATE_TYPE = 'invite'
 
 registerTypedProjector(INVITE_AGGREGATE_TYPE, inviteProjector)

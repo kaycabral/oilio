@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { CashMovement } from '@/domain/types/cash-movement'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -24,13 +24,13 @@ const decodeCashMovement = Schema.decodeUnknownSync(CashMovement)
 /**
  * The ordered `cash_movements` column list — single source of truth for the
  * upsert placeholders and the E2E seed. Mirrors the `INSERT` placeholders 1:1.
+ * The natural key `(org_id, id)` leads the list (D6 composite PK, ADR 0013).
  */
 export const CASH_MOVEMENT_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
   'unit_id',
-  'version',
+  'last_event_version',
   'kind',
   'direction',
   'amount_cents',
@@ -43,22 +43,22 @@ export const CASH_MOVEMENT_COLUMNS = [
 ] as const
 
 /**
- * Map a decoded `CashMovement` (+ aggregate path and version) onto the ordered
- * column VALUES — the inverse of `rowToDoc`, shared by the runtime projector and
- * the E2E seed. Order matches `CASH_MOVEMENT_COLUMNS`. The union's non-present
- * links are already `null` on the decoded value, so they pass straight through;
+ * Map a decoded `CashMovement` (+ its ref and projection version) onto the
+ * ordered column VALUES — the inverse of `rowToDoc`, shared by the runtime
+ * projector and the E2E seed. Order matches `CASH_MOVEMENT_COLUMNS`. The
+ * `org_id`/`id` natural key comes off the ref (D6, ADR 0013); the union's
+ * non-present links are already `null`, so they pass straight through;
  * `payment_method` exists only on `sale`/`sale_reversal`.
  */
 export function cashMovementColumnValues(
   m: CashMovement,
-  aggregatePath: string,
+  ref: AggregateRef,
   version: number,
 ): unknown[] {
   const paymentMethod = m.kind === 'sale' || m.kind === 'sale_reversal' ? m.paymentMethod : null
   return [
-    aggregatePath,
-    m.orgId,
-    m.id,
+    ref.orgId,
+    ref.id,
     m.unitId,
     version,
     m.kind,
@@ -74,13 +74,13 @@ export function cashMovementColumnValues(
 }
 
 const PLACEHOLDERS = CASH_MOVEMENT_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = CASH_MOVEMENT_COLUMNS.filter((col) => col !== 'aggregate_path')
+const CONFLICT_SET = CASH_MOVEMENT_COLUMNS.filter((col) => col !== 'org_id' && col !== 'id')
   .map((col) => `${col} = EXCLUDED.${col}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO cash_movements (${CASH_MOVEMENT_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -88,13 +88,9 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const m = decodeCashMovement(state)
-  await client.query(UPSERT, cashMovementColumnValues(m, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, cashMovementColumnValues(m, ref, stateVersion(state)))
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
@@ -102,7 +98,7 @@ export type CashMovementRow = {
   org_id: string
   id: string
   unit_id: string
-  version: string | number
+  last_event_version: string | number
   kind: 'sale' | 'sale_reversal' | 'sangria' | 'suprimento' | 'despesa'
   direction: 'in' | 'out'
   amount_cents: string | number
@@ -121,7 +117,7 @@ export type CashMovementRow = {
 // `payment_method`, the other kinds keep it `null` (matching the union member).
 export function rowToDoc(row: CashMovementRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     unitId: row.unit_id,
@@ -139,25 +135,28 @@ export function rowToDoc(row: CashMovementRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<CashMovementRow>(
-    'SELECT * FROM cash_movements WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT * FROM cash_movements WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM cash_movements WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM cash_movements WHERE org_id = $1 AND id = $2', [
+    ref.orgId,
+    ref.id,
+  ])
 }
 
 export const cashMovementProjector: TypedProjector = { read, upsert, delete: remove }
 
 /**
- * `aggregate_type` for cash movements = the aggregate-type segment of the event-store
- * path (`orgs/{orgId}/cash_movements/{id}` → `cash_movements`).
+ * The typed `AggregateType` for cash movements (`config.type`, singular) — the
+ * key the router looks the projector up by (D6, ADR 0013), not the table name.
  */
-export const CASH_MOVEMENT_AGGREGATE_TYPE = 'cash_movements'
+export const CASH_MOVEMENT_AGGREGATE_TYPE = 'cash_movement'
 
 registerTypedProjector(CASH_MOVEMENT_AGGREGATE_TYPE, cashMovementProjector)

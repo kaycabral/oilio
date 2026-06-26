@@ -10,6 +10,7 @@ import {
   validateHoursRange,
 } from '@/domain'
 import { AgendaBlockConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
@@ -117,7 +118,7 @@ export async function createBlock(formData: FormData): Promise<BlockMutationResu
   // sem `ref.set()` direto paralelo.
   const created = await emitEvent(
     AgendaBlockConfig,
-    `orgs/${r.ctx.membership.orgId}/agenda_blocks/${blockId}`,
+    aggregateRef(AgendaBlockConfig, r.ctx.membership.orgId, blockId),
     { _tag: 'agenda_block.created', actorId: r.ctx.session.uid, payload: { data: block } },
   )
   if (!created.ok) return { ok: false, error: created.error }
@@ -141,7 +142,7 @@ export async function updateBlock(
   // `.update()` direto). `changes` carrega o diff do form parseado.
   const updated = await emitEvent(
     AgendaBlockConfig,
-    `orgs/${r.ctx.membership.orgId}/agenda_blocks/${blockId}`,
+    aggregateRef(AgendaBlockConfig, r.ctx.membership.orgId, blockId),
     { _tag: 'agenda_block.updated', actorId: r.ctx.session.uid, payload: { changes: parsed } },
   )
   if (!updated.ok) return { ok: false, error: updated.error }
@@ -158,14 +159,14 @@ export async function deleteBlock(blockId: string): Promise<BlockMutationResult>
   // em `.deleted`, então o caller remove o doc. Histórico fica na subcollection.
   const deleted = await emitEvent(
     AgendaBlockConfig,
-    `orgs/${r.ctx.membership.orgId}/agenda_blocks/${blockId}`,
+    aggregateRef(AgendaBlockConfig, r.ctx.membership.orgId, blockId),
     { _tag: 'agenda_block.deleted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
   // Backend-aware hard-delete (brief 0060, Grupo C): Postgres drops the typed
   // `agenda_blocks` row, Firestore deletes the doc — the event store skips the
   // projection write on `.deleted`, so the read-model removal is explicit.
-  await deleteOrgProjectionDoc(r.ctx.membership.orgId, 'agenda_blocks', blockId)
+  await deleteOrgProjectionDoc(aggregateRef(AgendaBlockConfig, r.ctx.membership.orgId, blockId))
   revalidatePath('/agenda')
   return { ok: true }
 }

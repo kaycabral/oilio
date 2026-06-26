@@ -1,3 +1,5 @@
+import { SubscriptionConfig } from '@/domain/aggregates/subscription/config'
+import { aggregateRef } from '@/domain/effect'
 import type { Page } from '@playwright/test'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
@@ -30,7 +32,10 @@ const SubscriptionRowSchema = Schema.Struct({
 const decodeSubscriptionRow = Schema.decodeUnknownSync(SubscriptionRowSchema)
 
 async function readConsumed(orgId: string, subId: string): Promise<number> {
-  const row = await pgReadProjection('subscriptions', `orgs/${orgId}/subscriptions/${subId}`)
+  const row = await pgReadProjection(
+    'subscriptions',
+    aggregateRef(SubscriptionConfig, orgId, subId),
+  )
   expect(row).not.toBeNull()
   return decodeSubscriptionRow(row).current_period.consumed
 }

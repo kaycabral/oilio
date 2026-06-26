@@ -10,6 +10,8 @@
 // Reflete o reescopo de UX 2026-06-01 (tela única, seletor inline, sem rota por
 // kind, comanda com um "Adicionar item"). Roda contra emulator + build.
 
+import { SubscriptionPlanConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { addCatalogItemToOrder } from '../helpers/orders'
@@ -132,7 +134,7 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
     })
     const plan = await pgReadProjection(
       'subscription_plans',
-      `orgs/${org.orgId}/subscription_plans/${planId}`,
+      aggregateRef(SubscriptionPlanConfig, org.orgId, planId),
     )
     const included = IncludedCategoryIds(plan?.included_category_ids)
     expect(included).toContain(categoryId)

@@ -29,9 +29,9 @@ function uniqueId(prefix: string): string {
 
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${orgId}`, orgId],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [orgId],
   )
 }
 
@@ -40,9 +40,9 @@ async function seedOrg(orgId: string): Promise<void> {
 async function seedCustomerShadow(orgId: string, userId: string): Promise<string> {
   const id = uniqueId('cust')
   await getEventStorePool().query(
-    `INSERT INTO customers (aggregate_path, org_id, id, version, user_id, archived_at, deactivated_at, created_at, updated_at)
-     VALUES ($1,$2,$3,1,$4,NULL,NULL,$5,$5)`,
-    [`orgs/${orgId}/customers/${id}`, orgId, id, userId, TS],
+    `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
+     VALUES ($1,$2,1,$3,NULL,NULL,$4,$4)`,
+    [orgId, id, userId, TS],
   )
   return id
 }

@@ -60,7 +60,7 @@ import { AgendaPage } from '../pages'
 // One JSONB order item — only `attributedUserId` matters for the asserts.
 const OrderItemRow = Schema.Struct({ attributedUserId: Schema.String })
 const OrderRow = Schema.Struct({
-  aggregate_path: Schema.String,
+  id: Schema.String,
   status: Schema.String,
   customer_id: Schema.NullOr(Schema.String),
   appointment_id: Schema.NullOr(Schema.String),
@@ -88,7 +88,7 @@ async function readOrders(orgId: string): Promise<ReadOrder[]> {
   return rows.map((raw) => {
     const row = decodeOrderRow(raw)
     return {
-      id: row.aggregate_path.split('/').pop() ?? '',
+      id: row.id,
       status: row.status,
       customerId: row.customer_id,
       appointmentId: row.appointment_id,

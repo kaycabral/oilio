@@ -1,3 +1,4 @@
+import type { AggregateRef } from '@/domain/effect'
 import { deletePostgresProjection } from '@/shared/db/pg/effect/postgres-layer'
 import 'server-only'
 
@@ -12,13 +13,9 @@ import 'server-only'
  * concern, and the port (the event-store seam) must not reopen for it (brief
  * 0058, AC-03).
  *
- * `aggregatePath` is the path (`orgs/{orgId}/{collection}/{id}`) — the same key
- * the typed projector and the generic store use.
+ * `ref` is the typed aggregate identity (`aggregateRef(Config, orgId, id)`, D6)
+ * — the same key the typed projector and the generic store use.
  */
-export async function deleteOrgProjectionDoc(
-  orgId: string,
-  collection: string,
-  docId: string,
-): Promise<void> {
-  await deletePostgresProjection(`orgs/${orgId}/${collection}/${docId}`)
+export async function deleteOrgProjectionDoc(ref: AggregateRef): Promise<void> {
+  await deletePostgresProjection(ref)
 }

@@ -1,5 +1,6 @@
+import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import { NotificationState } from '@/domain/aggregates/notification/types'
-import type { FirestoreDoc, QueryConstraint } from '@/domain/effect'
+import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { buildCollectionQueryTail } from './collection-query'
@@ -25,11 +26,10 @@ const decodeNotificationState = Schema.decodeUnknownSync(NotificationState)
 /** The ordered `notifications` column list — single source of truth for the
  * runtime upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1. */
 export const NOTIFICATION_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
   'unit_id',
-  'version',
+  'last_event_version',
   'type',
   'source',
   'event_key',
@@ -55,7 +55,7 @@ function asState(state: FirestoreDoc): NotificationState {
 
 export function notificationColumnValues(
   state: FirestoreDoc,
-  aggregatePath: string,
+  ref: AggregateRef,
   version: number,
 ): unknown[] {
   const n = asState(state)
@@ -65,9 +65,8 @@ export function notificationColumnValues(
       ? null
       : { dispatchedChannel: n.dispatchedChannel, dispatchedBody: n.dispatchedBody }
   return [
-    aggregatePath,
-    n.orgId,
-    n.id,
+    ref.orgId,
+    ref.id,
     n.unitId,
     version,
     n.type,
@@ -88,13 +87,13 @@ export function notificationColumnValues(
 }
 
 const PLACEHOLDERS = NOTIFICATION_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = NOTIFICATION_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = NOTIFICATION_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO notifications (${NOTIFICATION_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -102,12 +101,8 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
-  await client.query(UPSERT, notificationColumnValues(state, aggregatePath, stateVersion(state)))
+async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
+  await client.query(UPSERT, notificationColumnValues(state, ref, stateVersion(state)))
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
@@ -115,7 +110,7 @@ export type NotificationRow = {
   org_id: string
   id: string
   unit_id: string
-  version: string | number
+  last_event_version: string | number
   type: string
   source: string
   event_key: string
@@ -134,7 +129,7 @@ export type NotificationRow = {
 
 export function rowToDoc(row: NotificationRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     unitId: row.unit_id,
@@ -155,38 +150,37 @@ export function rowToDoc(row: NotificationRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<NotificationRow>(
-    'SELECT * FROM notifications WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT * FROM notifications WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM notifications WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM notifications WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-// Org-scoped collection scan (`orgs/{orgId}/notifications`): filters on the path's
-// org under RLS, then translates the domain constraints (`where type/eventKey/unitId
+// Org-scoped collection scan (the `notification` {@link CollectionRef}): filters on
+// `ref.orgId` under RLS, then translates the domain constraints (`where type/eventKey/unitId
 // ==`, `where subscriptionId ==`, `where dispatchedAt == null`, `limit`) to SQL.
 async function list(
   client: PoolClient,
-  collectionPath: string,
+  ref: CollectionRef,
   constraints: readonly QueryConstraint[],
 ): Promise<FirestoreDoc[]> {
-  const orgId = collectionPath.split('/')[1] ?? ''
   const tail = buildCollectionQueryTail(constraints, NOTIFICATION_COLUMNS, 2, true)
   const res = await client.query<NotificationRow>(
     `SELECT * FROM notifications WHERE org_id = $1${tail.sql}`,
-    [orgId, ...tail.params],
+    [ref.orgId, ...tail.params],
   )
   return res.rows.map(rowToDoc)
 }
 
 export const notificationProjector: TypedProjector = { read, upsert, delete: remove, list }
 
-export const NOTIFICATION_AGGREGATE_TYPE = 'notifications'
+export const NOTIFICATION_AGGREGATE_TYPE = NotificationConfig.type
 
 registerTypedProjector(NOTIFICATION_AGGREGATE_TYPE, notificationProjector)

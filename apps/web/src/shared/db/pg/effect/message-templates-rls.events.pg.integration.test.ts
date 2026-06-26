@@ -25,17 +25,17 @@ let appUrl: string
 
 async function seedOrg(id: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${id}`, id],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [id],
   )
 }
 
 async function seedTemplate(orgId: string, type: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO message_templates (aggregate_path, org_id, type, body, enabled, last_actor_uid, updated_at)
-     VALUES ($1,$2,$3,'Olá!',true,'owner','2026-01-01T00:00:00Z')`,
-    [`orgs/${orgId}/message_templates/${type}`, orgId, type],
+    `INSERT INTO message_templates (org_id, type, body, enabled, last_actor_uid, updated_at)
+     VALUES ($1,$2,'Olá!',true,'owner','2026-01-01T00:00:00Z')`,
+    [orgId, type],
   )
 }
 
@@ -96,9 +96,9 @@ describe('Postgres RLS isolation — message_templates (brief 0062, AC-03)', () 
     try {
       await expect(
         a.query(
-          `INSERT INTO message_templates (aggregate_path, org_id, type, body, enabled, updated_at)
-           VALUES ($1,$2,'birthday','x',true,'2026-01-01T00:00:00Z')`,
-          [`orgs/${ORG_B}/message_templates/birthday`, ORG_B],
+          `INSERT INTO message_templates (org_id, type, body, enabled, updated_at)
+           VALUES ($1,'birthday','x',true,'2026-01-01T00:00:00Z')`,
+          [ORG_B],
         ),
         // 42501 = insufficient_privilege (RLS WITH CHECK violation)
       ).rejects.toMatchObject({ code: '42501' })

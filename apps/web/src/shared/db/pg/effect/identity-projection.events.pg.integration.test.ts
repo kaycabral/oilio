@@ -1,7 +1,7 @@
 import { MembershipConfig } from '@/domain/aggregates/membership/config'
 import { OrgConfig } from '@/domain/aggregates/org/config'
 import { UnitConfig } from '@/domain/aggregates/unit/config'
-import { appendEvent, replayAggregate } from '@/domain/effect'
+import { aggregateRef, appendEvent, replayAggregate } from '@/domain/effect'
 import { defaultPermissionsForRole, type Membership } from '@/domain/types/membership'
 import { DEFAULT_ORG_BRANDING, type StoredOrg } from '@/domain/types/org'
 import { EMPTY_ADDRESS, type StoredUnit } from '@/domain/types/unit'
@@ -27,9 +27,9 @@ import { deletePostgresProjection, PostgresPersistenceLayer } from './postgres-l
  */
 
 const ORG = 'org-id'
-const orgPath = (id: string) => `orgs/${id}`
-const unitPath = (orgId: string, id: string) => `orgs/${orgId}/units/${id}`
-const membershipPath = (id: string) => `memberships/${id}`
+const orgRef = (id: string) => aggregateRef(OrgConfig, id, id)
+const unitRef = (orgId: string, id: string) => aggregateRef(UnitConfig, orgId, id)
+const membershipRef = (orgId: string, id: string) => aggregateRef(MembershipConfig, orgId, id)
 
 function org(id: string, overrides: Partial<StoredOrg> = {}): StoredOrg {
   return {
@@ -96,7 +96,7 @@ function membership(
 
 const createOrg = (data: StoredOrg) =>
   Effect.runPromise(
-    appendEvent(OrgConfig, orgPath(data.id), {
+    appendEvent(OrgConfig, orgRef(data.id), {
       _tag: 'org.created',
       actorId: 'test',
       payload: { data },
@@ -105,7 +105,7 @@ const createOrg = (data: StoredOrg) =>
 
 const createUnit = (data: StoredUnit) =>
   Effect.runPromise(
-    appendEvent(UnitConfig, unitPath(data.orgId, data.id), {
+    appendEvent(UnitConfig, unitRef(data.orgId, data.id), {
       _tag: 'unit.created',
       actorId: 'test',
       payload: { data },
@@ -114,23 +114,23 @@ const createUnit = (data: StoredUnit) =>
 
 const createMembership = (data: Membership) =>
   Effect.runPromise(
-    appendEvent(MembershipConfig, membershipPath(data.id), {
+    appendEvent(MembershipConfig, membershipRef(data.orgId, data.id), {
       _tag: 'membership.created',
       actorId: 'test',
       payload: { data },
     }).pipe(Effect.provide(PostgresPersistenceLayer)),
   )
 
-async function rowCount(table: string, aggregatePath: string): Promise<number> {
+async function rowCount(table: string, orgId: string, id: string): Promise<number> {
   const res = await getEventStorePool().query<{ n: number }>(
-    `SELECT count(*)::int AS n FROM ${table} WHERE aggregate_path = $1`,
-    [aggregatePath],
+    `SELECT count(*)::int AS n FROM ${table} WHERE org_id = $1 AND id = $2`,
+    [orgId, id],
   )
   return res.rows[0]?.n ?? 0
 }
 
-async function genericCount(aggregatePath: string): Promise<number> {
-  return rowCount('projections', aggregatePath)
+async function genericCount(orgId: string, id: string): Promise<number> {
+  return rowCount('projections', orgId, id)
 }
 
 describe('Postgres typed projections — identity (brief 0059)', () => {
@@ -149,14 +149,14 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
     await createUnit(unit(ORG, 'u1'))
     await createMembership(membership(ORG, 'user-1'))
 
-    expect(await rowCount('orgs', orgPath(ORG))).toBe(1)
-    expect(await rowCount('units', unitPath(ORG, 'u1'))).toBe(1)
-    expect(await rowCount('memberships', membershipPath(`${ORG}_user-1`))).toBe(1)
+    expect(await rowCount('orgs', ORG, ORG)).toBe(1)
+    expect(await rowCount('units', ORG, 'u1')).toBe(1)
+    expect(await rowCount('memberships', ORG, `${ORG}_user-1`)).toBe(1)
 
     // None used the generic JSONB store.
-    expect(await genericCount(orgPath(ORG))).toBe(0)
-    expect(await genericCount(unitPath(ORG, 'u1'))).toBe(0)
-    expect(await genericCount(membershipPath(`${ORG}_user-1`))).toBe(0)
+    expect(await genericCount(ORG, ORG)).toBe(0)
+    expect(await genericCount(ORG, 'u1')).toBe(0)
+    expect(await genericCount(ORG, `${ORG}_user-1`)).toBe(0)
   })
 
   it('AC-01: replay reconstructs identical state for each aggregate (union bodies round-trip)', async () => {
@@ -191,13 +191,13 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
     )
 
     const replayedOrg = await Effect.runPromise(
-      replayAggregate(OrgConfig, orgPath(ORG)).pipe(Effect.provide(PostgresPersistenceLayer)),
+      replayAggregate(OrgConfig, orgRef(ORG)).pipe(Effect.provide(PostgresPersistenceLayer)),
     )
     expect(replayedOrg.vertical).toBe('barbershop')
     expect(replayedOrg._version).toBe(1)
 
     const replayedUnit = await Effect.runPromise(
-      replayAggregate(UnitConfig, unitPath(ORG, 'u-appt')).pipe(
+      replayAggregate(UnitConfig, unitRef(ORG, 'u-appt')).pipe(
         Effect.provide(PostgresPersistenceLayer),
       ),
     )
@@ -208,7 +208,7 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
     }
 
     const replayedMembership = await Effect.runPromise(
-      replayAggregate(MembershipConfig, membershipPath(`${ORG}_user-1`)).pipe(
+      replayAggregate(MembershipConfig, membershipRef(ORG, `${ORG}_user-1`)).pipe(
         Effect.provide(PostgresPersistenceLayer),
       ),
     )
@@ -221,9 +221,9 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
     // independently: write a raw row with a bad vertical.
     await expect(
       getEventStorePool().query(
-        `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-         VALUES ($1,$2,$2,1,'X','x','telepathy','u','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [orgPath('bad'), 'bad'],
+        `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+         VALUES ($1,$1,1,'X','x','telepathy','u','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        ['bad'],
       ),
       // 23514 = check_violation
     ).rejects.toMatchObject({ code: '23514' })
@@ -232,9 +232,9 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
   it('AC-01: the DATABASE refuses a membership with an invalid role (enum CHECK)', async () => {
     await expect(
       getEventStorePool().query(
-        `INSERT INTO memberships (aggregate_path, org_id, id, user_id, version, role, status, joined_at, permissions, updated_at)
-         VALUES ($1,$2,$1,'u',1,'wizard','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')`,
-        [membershipPath('bad'), ORG],
+        `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
+         VALUES ($1,'bad','u',1,'wizard','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')`,
+        [ORG],
       ),
     ).rejects.toMatchObject({ code: '23514' })
   })
@@ -242,9 +242,8 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
   it('AC-01: the DATABASE refuses a unit whose org_id has no org (FK)', async () => {
     await expect(
       getEventStorePool().query(
-        `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-         VALUES ($1,'ghost-org','u',1,'C','c','America/Sao_Paulo','fixed','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [unitPath('ghost-org', 'u')],
+        `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+         VALUES ('ghost-org','u',1,'C','c','America/Sao_Paulo','fixed','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
       ),
       // 23503 = foreign_key_violation
     ).rejects.toMatchObject({ code: '23503' })
@@ -252,21 +251,21 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
 
   it('AC-05: a hard-delete drops the typed org row (event history preserved)', async () => {
     await createOrg(org(ORG))
-    expect(await rowCount('orgs', orgPath(ORG))).toBe(1)
+    expect(await rowCount('orgs', ORG, ORG)).toBe(1)
 
     await Effect.runPromise(
-      appendEvent(OrgConfig, orgPath(ORG), {
+      appendEvent(OrgConfig, orgRef(ORG), {
         _tag: 'org.deleted',
         actorId: 'test',
         payload: {},
       }).pipe(Effect.provide(PostgresPersistenceLayer)),
     )
-    await deletePostgresProjection(orgPath(ORG))
+    await deletePostgresProjection(orgRef(ORG))
 
-    expect(await rowCount('orgs', orgPath(ORG))).toBe(0)
+    expect(await rowCount('orgs', ORG, ORG)).toBe(0)
     const events = await getEventStorePool().query<{ n: number }>(
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
-      [orgPath(ORG)],
+      [ORG],
     )
     // created + deleted both in the log
     expect(events.rows[0]?.n).toBe(2)

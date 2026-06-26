@@ -1,5 +1,6 @@
 import { Effect, Schema } from 'effect'
 
+import { aggregateRef, collectionRef } from '@/domain/effect'
 import {
   appendEvent,
   type EventEnvelope,
@@ -7,6 +8,7 @@ import {
 } from '@/domain/effect/event-store'
 import { PersistencePort } from '@/domain/effect/services'
 import type { EventReaction } from '../_shared/reactions'
+import { UnitConfig } from '../unit/config'
 import { NotificationConfig } from './config'
 import { createNotification } from './helpers'
 import type { NotificationType } from './types'
@@ -43,7 +45,7 @@ function createNotificationForUnits(
 ): Effect.Effect<void, EventValidationError, PersistencePort> {
   return Effect.gen(function* () {
     const persistence = yield* PersistencePort
-    const unitDocs = yield* persistence.getDocs(`orgs/${orgId}/units`)
+    const unitDocs = yield* persistence.getDocs(collectionRef(UnitConfig, orgId))
 
     for (const unitDoc of unitDocs) {
       const idValue = unitDoc['id']
@@ -109,7 +111,7 @@ export const subscriptionActivatedReaction: EventReaction<PersistencePort, Event
     const p = Schema.decodeUnknownSync(SubscriptionActivatedPayload)(envelope.payload)
     return Effect.gen(function* () {
       const persistence = yield* PersistencePort
-      const notifications = yield* persistence.getDocs(`orgs/${p.orgId}/notifications`, [
+      const notifications = yield* persistence.getDocs(collectionRef(NotificationConfig, p.orgId), [
         { kind: 'where', field: 'subscriptionId', op: '==', value: p.subscriptionId },
         { kind: 'where', field: 'dispatchedAt', op: '==', value: null },
       ])
@@ -120,7 +122,7 @@ export const subscriptionActivatedReaction: EventReaction<PersistencePort, Event
         if (typeof notifId !== 'string' || !notifId || typeof notifType !== 'string') continue
         if (!SUBSCRIPTION_EXPIRY_TYPES.some((t) => t === notifType)) continue
 
-        yield* appendEvent(NotificationConfig, `orgs/${p.orgId}/notifications/${notifId}`, {
+        yield* appendEvent(NotificationConfig, aggregateRef(NotificationConfig, p.orgId, notifId), {
           _tag: 'notification.expired',
           actorId: envelope.actorId,
           payload: {},

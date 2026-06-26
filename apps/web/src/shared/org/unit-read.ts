@@ -79,9 +79,7 @@ export async function listStoredUnitsForOrg(orgId: string): Promise<StoredUnit[]
 export async function getUnitById(orgId: string, unitId: string): Promise<Unit | null> {
   const rows = await readUnderRls<UnitRow>(orgId, (client) =>
     client
-      .query<UnitRow>('SELECT * FROM units WHERE aggregate_path = $1', [
-        `orgs/${orgId}/units/${unitId}`,
-      ])
+      .query<UnitRow>('SELECT * FROM units WHERE org_id = $1 AND id = $2', [orgId, unitId])
       .then((res) => res.rows),
   )
   const row = rows[0]

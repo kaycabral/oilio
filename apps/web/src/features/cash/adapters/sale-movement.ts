@@ -1,5 +1,6 @@
 import type { CashMovement, PaymentMethod } from '@/domain'
 import { CashMovementConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
 import 'server-only'
@@ -8,7 +9,7 @@ import 'server-only'
 // persisting it — shared by `recordSaleMovement` (the standalone Firestore path)
 // and the ACID close-order saga (brief 0061 § Grupo A), so both construct the
 // SAME shape. The id is a backend-agnostic UUID (`newId`) — the Postgres path
-// stores it under the same `orgs/{orgId}/cash_movements/{id}` path.
+// stores it under the cash_movement aggregate ref `{orgId, id}`.
 export function buildSaleMovement(params: {
   orgId: string
   unitId: string
@@ -50,7 +51,7 @@ export async function recordSaleMovement(params: {
   const movement = buildSaleMovement(params)
   const created = await emitEvent(
     CashMovementConfig,
-    `orgs/${params.orgId}/cash_movements/${movement.id}`,
+    aggregateRef(CashMovementConfig, params.orgId, movement.id),
     { _tag: 'cash_movement.created', actorId: params.actorUid, payload: { data: movement } },
   )
   if (!created.ok) return { ok: false, error: created.error }

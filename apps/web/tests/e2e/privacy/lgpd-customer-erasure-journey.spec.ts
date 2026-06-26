@@ -1,4 +1,7 @@
 import { anonymizedSubjectCode, isAnonymized } from '@/domain'
+import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
+import { CustomerConfig } from '@/domain/aggregates/customer/config'
+import { aggregateRef } from '@/domain/effect'
 import { expect, test } from '../fixtures'
 import {
   blockedSubjectMarkerExists,
@@ -82,8 +85,8 @@ async function archiveCustomerForUser(orgId: string, customerId: string): Promis
   try {
     await client.query(
       `UPDATE customers SET archived_at = $3, updated_at = $3
-         WHERE org_id = $1 AND aggregate_path = $2`,
-      [orgId, `orgs/${orgId}/customers/${customerId}`, now],
+         WHERE org_id = $1 AND id = $2`,
+      [orgId, customerId, now],
     )
   } finally {
     await client.end()
@@ -148,7 +151,7 @@ test.describe(
       // because the account is anonymized, without touching the record itself.
       const custDoc = await pgReadProjection(
         'customers',
-        `orgs/${subject.orgId}/customers/${customerId}`,
+        aggregateRef(CustomerConfig, subject.orgId, customerId),
       )
       expect(asStr(custDoc?.user_id)).toEqual(subject.uid)
     })
@@ -394,7 +397,7 @@ test.describe(
       // Past appointment retained (de-identified, not deleted) — AC-04.
       const retained = await pgReadProjection(
         'appointments',
-        `orgs/${subject.orgId}/appointments/${pastAppt}`,
+        aggregateRef(AppointmentConfig, subject.orgId, pastAppt),
       )
       expect(retained).not.toBeNull()
       expect(asStr(retained?.status)).toBe('completed')

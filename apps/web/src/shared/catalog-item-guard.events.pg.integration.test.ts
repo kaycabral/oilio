@@ -1,11 +1,20 @@
 import { CatalogItem, type CatalogServiceItem } from '@/domain'
 import { CatalogItemConfig } from '@/domain/aggregates'
-import { appendEvent, type AggregateConfig, type GuardReader } from '@/domain/effect'
+import {
+  aggregateRef,
+  appendEvent,
+  type AggregateConfig,
+  type AggregateRef,
+  type FirestoreDoc,
+  type GuardReader,
+} from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
+import { registerTypedProjector } from '@/shared/db/pg/effect/typed-projections'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { emitEventGuarded } from '@/shared/effect-bridge'
 import { Effect, Schema } from 'effect'
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import type { PoolClient } from 'pg'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 /**
  * Atomic use-time guard (brief 0033 AC-08/AC-09) against REAL Postgres — the
@@ -50,8 +59,16 @@ const TicketEventSchema = Schema.Struct({
 })
 type TicketEvent = Schema.Schema.Type<typeof TicketEventSchema>
 
+// Modeled on a real `AggregateType` (`goal`) so the typed ref/config contract
+// holds (the `type` union is closed post-D6); the domain is a synthetic ticket.
+// The aggregate is routed to the GENERIC `projections` store by the test
+// projector registered in `beforeAll` — keeping the test on the GUARD mechanism
+// (#1112), the price-bearing snapshot, exactly as the old synthetic-aggregate
+// test did.
+const TICKET_TYPE = 'goal' as const
+
 const TicketConfig: AggregateConfig<TicketState, TicketEvent> = {
-  type: 'tickets',
+  type: TICKET_TYPE,
   initialState: { _version: 0, priceCents: 0, defId: '' },
   reducer: (_state, event, meta) => ({
     _version: meta.version,
@@ -62,13 +79,56 @@ const TicketConfig: AggregateConfig<TicketState, TicketEvent> = {
   currentSchemaVersion: 1,
 }
 
+// Route the synthetic ticket aggregate to the generic `projections` JSONB store
+// (the fallback an org-neutral aggregate gets) so its reduced state lands where
+// `ticketPrice` reads it — the typed `goal` projector would otherwise capture
+// the write into the `goals` table.
+async function readGenericProjection(
+  client: PoolClient,
+  ref: AggregateRef,
+): Promise<FirestoreDoc | null> {
+  const res = await client.query<{ state: FirestoreDoc }>(
+    'SELECT state FROM projections WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
+  )
+  return res.rows[0]?.state ?? null
+}
+
+function registerGenericTicketProjector(): void {
+  registerTypedProjector(TICKET_TYPE, {
+    read: readGenericProjection,
+    readForUpdate: async (client, ref) => {
+      const res = await client.query<{ state: FirestoreDoc }>(
+        'SELECT state FROM projections WHERE org_id = $1 AND id = $2 FOR UPDATE',
+        [ref.orgId, ref.id],
+      )
+      return res.rows[0]?.state ?? null
+    },
+    upsert: async (client, ref, state) => {
+      await client.query(
+        `INSERT INTO projections (org_id, id, state, updated_at)
+         VALUES ($1, $2, $3, now())
+         ON CONFLICT (org_id, id)
+         DO UPDATE SET state = EXCLUDED.state, updated_at = now()`,
+        [ref.orgId, ref.id, state],
+      )
+    },
+    delete: async (client, ref) => {
+      await client.query('DELETE FROM projections WHERE org_id = $1 AND id = $2', [
+        ref.orgId,
+        ref.id,
+      ])
+    },
+  })
+}
+
 const run = <A, E>(eff: Effect.Effect<A, E, never>) => Effect.runPromise(eff)
 
 async function seedOrg(): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug','barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${ORG}`, ORG],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug','barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [ORG],
   )
 }
 
@@ -98,8 +158,8 @@ function serviceDef(
   }
 }
 
-const defPath = (id: string) => `orgs/${ORG}/catalog_items/${id}`
-const ticketPath = (id: string) => `orgs/${ORG}/tickets/${id}`
+const defRef = (id: string) => aggregateRef(CatalogItemConfig, ORG, id)
+const ticketRef = (id: string) => aggregateRef(TicketConfig, ORG, id)
 
 async function createDef(
   id: string,
@@ -107,7 +167,7 @@ async function createDef(
   opts: { active?: boolean; archived?: boolean } = {},
 ): Promise<void> {
   await run(
-    appendEvent(CatalogItemConfig, defPath(id), {
+    appendEvent(CatalogItemConfig, defRef(id), {
       _tag: 'catalog_item.created',
       actorId: 'test',
       payload: { data: serviceDef(id, priceCents, opts) },
@@ -117,7 +177,7 @@ async function createDef(
 
 async function reprice(id: string, priceCents: number): Promise<void> {
   await run(
-    appendEvent(CatalogItemConfig, defPath(id), {
+    appendEvent(CatalogItemConfig, defRef(id), {
       _tag: 'catalog_item.updated',
       actorId: 'test',
       payload: { changes: { priceCents } },
@@ -127,7 +187,7 @@ async function reprice(id: string, priceCents: number): Promise<void> {
 
 async function archive(id: string): Promise<void> {
   await run(
-    appendEvent(CatalogItemConfig, defPath(id), {
+    appendEvent(CatalogItemConfig, defRef(id), {
       _tag: 'catalog_item.archived',
       actorId: 'test',
       payload: { archivedAt: new Date().toISOString() },
@@ -140,12 +200,12 @@ async function archive(id: string): Promise<void> {
 function runGuard(defId: string, ticketId: string, displayed: number | null) {
   return emitEventGuarded<TicketState, TicketEvent>({
     config: TicketConfig,
-    aggregatePath: ticketPath(ticketId),
+    ref: ticketRef(ticketId),
     actorId: 'tester',
     tag: 'ticket.created',
     guard: (reader: GuardReader) =>
       Effect.gen(function* () {
-        const item = yield* reader.getDoc(defPath(defId), CatalogItem)
+        const item = yield* reader.getDoc(defRef(defId), CatalogItem)
         if (!item) return { _tag: 'reject' as const, message: 'definição não encontrada' }
         if (!item.active || item.archivedAt) {
           return { _tag: 'reject' as const, message: 'descontinuado' }
@@ -159,13 +219,17 @@ function runGuard(defId: string, ticketId: string, displayed: number | null) {
 
 async function ticketPrice(ticketId: string): Promise<number | null> {
   const res = await getEventStorePool().query<{ state: { priceCents: number } }>(
-    'SELECT state FROM projections WHERE aggregate_path = $1',
-    [ticketPath(ticketId)],
+    'SELECT state FROM projections WHERE org_id = $1 AND id = $2',
+    [ORG, ticketId],
   )
   return res.rows[0]?.state.priceCents ?? null
 }
 
 describe('emitEventGuarded — atomic discontinuation + lawful price on Postgres (AC-08/AC-09)', () => {
+  beforeAll(() => {
+    registerGenericTicketProjector()
+  })
+
   beforeEach(async () => {
     await getEventStorePool().query('TRUNCATE events, projections, catalog_items, orgs CASCADE')
     await seedOrg()

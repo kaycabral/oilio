@@ -4,6 +4,7 @@ import {
   type NotificationTemplateVars,
 } from '@/domain'
 import { NotificationConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { emitEvent } from '@/shared/effect-bridge'
 import { getCustomerById } from '@/shared/org/customer-read'
 import { getNotificationById } from '@/shared/org/notification-read'
@@ -64,7 +65,7 @@ export async function dispatchNotificationWhatsapp(
   // Snapshot: body NÃO-renderizado (chave de variante) + canal.
   const result = await emitEvent(
     NotificationConfig,
-    `orgs/${orgId}/notifications/${notificationId}`,
+    aggregateRef(NotificationConfig, orgId, notificationId),
     {
       _tag: 'notification.dispatched',
       actorId: actorUid,

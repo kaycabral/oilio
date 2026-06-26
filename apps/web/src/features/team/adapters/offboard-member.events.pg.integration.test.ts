@@ -1,4 +1,6 @@
 import { type AgendaBlock, type Role, defaultPermissionsForRole, membershipDocId } from '@/domain'
+import { AppointmentConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import {
   AGENDA_BLOCK_COLUMNS,
   agendaBlockColumnValues,
@@ -45,9 +47,9 @@ function uniqueId(prefix: string): string {
 
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${orgId}`, orgId],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [orgId],
   )
 }
 
@@ -57,45 +59,37 @@ async function seedOrg(orgId: string): Promise<void> {
 // same parent, so each is `ON CONFLICT DO NOTHING`.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'Unit','unit-'||$3,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$4,$4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/units/${unitId}`, orgId, unitId, TS],
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, unitId, TS],
   )
 }
 
 async function seedCustomer(orgId: string, customerId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO customers (aggregate_path, org_id, id, version, user_id, archived_at, deactivated_at, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'user-'||$3,NULL,NULL,$4,$4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/customers/${customerId}`, orgId, customerId, TS],
+    `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
+     VALUES ($1,$2,1,'user-'||$2,NULL,NULL,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, customerId, TS],
   )
 }
 
 async function seedService(orgId: string, serviceId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO catalog_items (aggregate_path, org_id, id, version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,$4,$4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/catalog_items/${serviceId}`, orgId, serviceId, TS],
+    `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
+     VALUES ($1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, serviceId, TS],
   )
 }
 
 async function seedMembership(orgId: string, userId: string, role: Role): Promise<string> {
   const id = membershipDocId(orgId, userId)
   await getEventStorePool().query(
-    `INSERT INTO memberships (aggregate_path, org_id, id, user_id, version, role, status, rls_unit_scope, invited_by, joined_at, permissions, updated_at)
-     VALUES ($1,$2,$3,$4,1,$5,'active',NULL,NULL,$6,$7::jsonb,$6)`,
-    [
-      `memberships/${id}`,
-      orgId,
-      id,
-      userId,
-      role,
-      TS,
-      JSON.stringify(defaultPermissionsForRole(role)),
-    ],
+    `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, rls_unit_scope, invited_by, joined_at, permissions, updated_at)
+     VALUES ($1,$2,$3,1,$4,'active',NULL,NULL,$5,$6::jsonb,$5)`,
+    [orgId, id, userId, role, TS, JSON.stringify(defaultPermissionsForRole(role))],
   )
   return id
 }
@@ -119,21 +113,13 @@ async function seedProfessional(
   const catalogServiceIds = serviceId ? [serviceId] : []
   if (serviceId) await seedService(orgId, serviceId)
   await getEventStorePool().query(
-    `INSERT INTO professionals (aggregate_path, org_id, id, version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-     VALUES ($1,$2,$3,1,$4,NULL,$5::jsonb,$6::jsonb,$7,$7)`,
-    [
-      `orgs/${orgId}/professionals/${id}`,
-      orgId,
-      id,
-      userId,
-      JSON.stringify(unitIds),
-      JSON.stringify(catalogServiceIds),
-      TS,
-    ],
+    `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+     VALUES ($1,$2,1,$3,NULL,$4::jsonb,$5::jsonb,$6,$6)`,
+    [orgId, id, userId, JSON.stringify(unitIds), JSON.stringify(catalogServiceIds), TS],
   )
   await getEventStorePool().query(
-    `INSERT INTO professionals_pii (aggregate_path, org_id, id, tax_identity) VALUES ($1,$2,$3,NULL)`,
-    [`orgs/${orgId}/professionals/${id}`, orgId, id],
+    `INSERT INTO professionals_pii (org_id, id, tax_identity) VALUES ($1,$2,NULL)`,
+    [orgId, id],
   )
   // Seeding professionals directly (not via the projector) must mirror the
   // `professional_units` / `professional_services` join rows the projector now
@@ -179,7 +165,7 @@ async function seedAppointment(
   const placeholders = APPOINTMENT_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
   await getEventStorePool().query(
     `INSERT INTO appointments (${APPOINTMENT_COLUMNS.join(', ')}) VALUES (${placeholders})`,
-    appointmentColumnValues(appt, `orgs/${orgId}/appointments/${id}`, 1),
+    appointmentColumnValues(appt, aggregateRef(AppointmentConfig, orgId, id), 1),
   )
   return id
 }
@@ -206,7 +192,7 @@ async function seedAgendaBlock(orgId: string, professionalId: string | null): Pr
   const placeholders = AGENDA_BLOCK_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
   await getEventStorePool().query(
     `INSERT INTO agenda_blocks (${AGENDA_BLOCK_COLUMNS.join(', ')}) VALUES (${placeholders})`,
-    agendaBlockColumnValues(block, `orgs/${orgId}/agenda_blocks/${id}`, 1),
+    agendaBlockColumnValues(block, 1),
   )
   return id
 }
@@ -236,9 +222,9 @@ async function seedOpenOrder(
   await seedUnit(orgId, 'unit-1')
   await seedCustomer(orgId, 'cust-1')
   await getEventStorePool().query(
-    `INSERT INTO orders (aggregate_path, org_id, id, unit_id, version, customer_id, appointment_id, status, closed_at, payment_method, discount_cents, subtotal_cents, total_cents, items, created_at, updated_at)
-     VALUES ($1,$2,$3,'unit-1',1,'cust-1',NULL,$4,$5,$6,0,1000,1000,$7::jsonb,$8,$8)`,
-    [`orgs/${orgId}/orders/${id}`, orgId, id, status, closedAt, paymentMethod, items, TS],
+    `INSERT INTO orders (org_id, id, unit_id, last_event_version, customer_id, appointment_id, status, closed_at, payment_method, discount_cents, subtotal_cents, total_cents, items, created_at, updated_at)
+     VALUES ($1,$2,'unit-1',1,'cust-1',NULL,$3,$4,$5,0,1000,1000,$6::jsonb,$7,$7)`,
+    [orgId, id, status, closedAt, paymentMethod, items, TS],
   )
 }
 
@@ -254,10 +240,9 @@ async function seedInvite(
   const id = uniqueId('inv')
   const accepted = status === 'accepted'
   await getEventStorePool().query(
-    `INSERT INTO invites (aggregate_path, org_id, id, version, role, token_hash, expires_at, status, invited_by, accepted_by_uid, accepted_at, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'professional','hash',$4,$5,'owner-1',$6,$7,$8,$8)`,
+    `INSERT INTO invites (org_id, id, last_event_version, role, token_hash, expires_at, status, invited_by, accepted_by_uid, accepted_at, created_at, updated_at)
+     VALUES ($1,$2,1,'professional','hash',$3,$4,'owner-1',$5,$6,$7,$7)`,
     [
-      `orgs/${orgId}/invites/${id}`,
       orgId,
       id,
       new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString(),
@@ -279,10 +264,10 @@ async function statusOf(table: string, orgId: string, id: string): Promise<strin
   return res.rows[0]?.status
 }
 
-async function membershipStatus(membershipId: string): Promise<string | undefined> {
+async function membershipStatus(orgId: string, membershipId: string): Promise<string | undefined> {
   const res = await getEventStorePool().query<{ status: string }>(
-    'SELECT status FROM memberships WHERE aggregate_path = $1',
-    [`memberships/${membershipId}`],
+    'SELECT status FROM memberships WHERE org_id = $1 AND id = $2',
+    [orgId, membershipId],
   )
   return res.rows[0]?.status
 }
@@ -303,15 +288,16 @@ async function piiExists(table: string, orgId: string, id: string): Promise<bool
   return (res.rowCount ?? 0) > 0
 }
 
-async function countRevokedEvents(membershipId: string): Promise<number> {
+async function countRevokedEvents(orgId: string, membershipId: string): Promise<number> {
   // The saga emits `membership.updated` with `payload.changes.status = 'revoked'`.
   // The event data lives in the `envelope` JSONB (`_tag` + `payload`).
   const res = await getEventStorePool().query<{ n: number }>(
     `SELECT count(*)::int AS n FROM events
-       WHERE aggregate_id = $1
+       WHERE org_id = $1
+         AND aggregate_id = $2
          AND envelope->>'_tag' = 'membership.updated'
          AND envelope #>> '{payload,changes,status}' = 'revoked'`,
-    [`memberships/${membershipId}`],
+    [orgId, membershipId],
   )
   return res.rows[0]?.n ?? 0
 }
@@ -341,8 +327,8 @@ describe('offboardMemberInOrg — core (Postgres)', () => {
     // Operability is severed by the REVOKED membership (every operational read
     // keys on an active membership) — not by a professional event (#1226 AC-02:
     // `operationalStatus` is derived on read, no `professional.suspended`).
-    expect(await membershipStatus(membershipId)).toBe('revoked')
-    expect(await countRevokedEvents(membershipId)).toBe(1)
+    expect(await membershipStatus(orgId, membershipId)).toBe('revoked')
+    expect(await countRevokedEvents(orgId, membershipId)).toBe(1)
     // Professional projection RETAINED (not deleted), reversible.
     expect(await rowExists('professionals', orgId, proId)).toBe(true)
     // RETENTION (art. 16): the vínculo PII is RETAINED.
@@ -360,8 +346,8 @@ describe('offboardMemberInOrg — core (Postgres)', () => {
     expect((await offboardMemberInOrg(orgId, userId, actorId)).ok).toBe(true)
     expect((await offboardMemberInOrg(orgId, userId, actorId)).ok).toBe(true)
 
-    expect(await membershipStatus(membershipId)).toBe('revoked')
-    expect(await countRevokedEvents(membershipId)).toBe(1)
+    expect(await membershipStatus(orgId, membershipId)).toBe('revoked')
+    expect(await countRevokedEvents(orgId, membershipId)).toBe(1)
     expect(await piiExists('professionals_pii', orgId, proId)).toBe(true)
   })
 
@@ -374,7 +360,7 @@ describe('offboardMemberInOrg — core (Postgres)', () => {
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
     expect(res.ok).toBe(false)
-    expect(await membershipStatus(membershipId)).toBe('active')
+    expect(await membershipStatus(orgId, membershipId)).toBe('active')
   })
 
   it('offboards a non-professional member (no projection to deactivate)', async () => {
@@ -386,7 +372,7 @@ describe('offboardMemberInOrg — core (Postgres)', () => {
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
     expect(res.ok).toBe(true)
-    expect(await membershipStatus(membershipId)).toBe('revoked')
+    expect(await membershipStatus(orgId, membershipId)).toBe('revoked')
   })
 })
 
@@ -450,7 +436,7 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
     if (!res.ok) expect(res.error).toMatch(/comanda aberta/i)
 
     // Veto runs BEFORE any mutation: membership intact, appointment untouched.
-    expect(await membershipStatus(membershipId)).toBe('active')
+    expect(await membershipStatus(orgId, membershipId)).toBe('active')
     expect(await statusOf('appointments', orgId, futureAppt)).toBe('scheduled')
   })
 
@@ -465,7 +451,7 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
     expect(res.ok).toBe(true)
-    expect(await membershipStatus(membershipId)).toBe('revoked')
+    expect(await membershipStatus(orgId, membershipId)).toBe('revoked')
   })
 
   it('AC-05: an open comanda attributed to ANOTHER member does NOT block', async () => {
@@ -480,7 +466,7 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
     expect(res.ok).toBe(true)
-    expect(await membershipStatus(membershipId)).toBe('revoked')
+    expect(await membershipStatus(orgId, membershipId)).toBe('revoked')
   })
 
   it('idempotent re-run: cascade is safe to repeat (no throw, blocks already gone)', async () => {

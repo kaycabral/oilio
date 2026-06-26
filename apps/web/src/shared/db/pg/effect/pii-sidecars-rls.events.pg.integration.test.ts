@@ -31,43 +31,42 @@ type PiiSidecar = (typeof PII_SIDECARS)[number]
 
 async function seedOrg(id: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${id}`, id],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [id],
   )
 }
 
 // Seed one minimal valid row per sidecar (over the superuser pool, bypassing RLS).
 async function seedRow(table: PiiSidecar, orgId: string, id: string): Promise<void> {
   const pool = getEventStorePool()
-  const path = `orgs/${orgId}/${table}/${id}`
   switch (table) {
     case 'invites_pii':
       await pool.query(
-        `INSERT INTO invites_pii (aggregate_path, org_id, id, email)
-         VALUES ($1,$2,$3,'invitee@example.com')`,
-        [path, orgId, id],
+        `INSERT INTO invites_pii (org_id, id, email)
+         VALUES ($1,$2,'invitee@example.com')`,
+        [orgId, id],
       )
       return
     case 'professionals_pii':
       await pool.query(
-        `INSERT INTO professionals_pii (aggregate_path, org_id, id, tax_identity)
-         VALUES ($1,$2,$3,'{"kind":"individual","taxId":"12345678900"}'::jsonb)`,
-        [path, orgId, id],
+        `INSERT INTO professionals_pii (org_id, id, tax_identity)
+         VALUES ($1,$2,'{"kind":"individual","taxId":"12345678900"}'::jsonb)`,
+        [orgId, id],
       )
       return
     case 'units_pii':
       await pool.query(
-        `INSERT INTO units_pii (aggregate_path, org_id, id, whatsapp, email)
-         VALUES ($1,$2,$3,'5511999990000',NULL)`,
-        [path, orgId, id],
+        `INSERT INTO units_pii (org_id, id, whatsapp, email)
+         VALUES ($1,$2,'5511999990000',NULL)`,
+        [orgId, id],
       )
       return
     case 'unit_tax_identity':
       await pool.query(
-        `INSERT INTO unit_tax_identity (aggregate_path, org_id, id, tax_identity)
-         VALUES ($1,$2,$3,'{"kind":"company","taxId":"40148980000199","legalName":"ACME"}'::jsonb)`,
-        [path, orgId, id],
+        `INSERT INTO unit_tax_identity (org_id, id, tax_identity)
+         VALUES ($1,$2,'{"kind":"company","taxId":"40148980000199","legalName":"ACME"}'::jsonb)`,
+        [orgId, id],
       )
       return
   }
@@ -80,27 +79,26 @@ function foreignInsert(
   orgId: string,
   id: string,
 ): { sql: string; params: unknown[] } {
-  const path = `orgs/${orgId}/${table}/${id}`
   switch (table) {
     case 'invites_pii':
       return {
-        sql: `INSERT INTO invites_pii (aggregate_path, org_id, id, email) VALUES ($1,$2,$3,'e@example.com')`,
-        params: [path, orgId, id],
+        sql: `INSERT INTO invites_pii (org_id, id, email) VALUES ($1,$2,'e@example.com')`,
+        params: [orgId, id],
       }
     case 'professionals_pii':
       return {
-        sql: `INSERT INTO professionals_pii (aggregate_path, org_id, id, tax_identity) VALUES ($1,$2,$3,NULL)`,
-        params: [path, orgId, id],
+        sql: `INSERT INTO professionals_pii (org_id, id, tax_identity) VALUES ($1,$2,NULL)`,
+        params: [orgId, id],
       }
     case 'units_pii':
       return {
-        sql: `INSERT INTO units_pii (aggregate_path, org_id, id, whatsapp, email) VALUES ($1,$2,$3,'5511000000000',NULL)`,
-        params: [path, orgId, id],
+        sql: `INSERT INTO units_pii (org_id, id, whatsapp, email) VALUES ($1,$2,'5511000000000',NULL)`,
+        params: [orgId, id],
       }
     case 'unit_tax_identity':
       return {
-        sql: `INSERT INTO unit_tax_identity (aggregate_path, org_id, id, tax_identity) VALUES ($1,$2,$3,NULL)`,
-        params: [path, orgId, id],
+        sql: `INSERT INTO unit_tax_identity (org_id, id, tax_identity) VALUES ($1,$2,NULL)`,
+        params: [orgId, id],
       }
   }
 }

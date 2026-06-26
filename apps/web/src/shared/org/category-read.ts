@@ -22,8 +22,9 @@ export async function listCategoriesForOrg(orgId: string): Promise<Category[]> {
 export async function getCategoryById(orgId: string, categoryId: string): Promise<Category | null> {
   const rows = await readUnderRls<CategoryRow>(orgId, (client) =>
     client
-      .query<CategoryRow>('SELECT * FROM categories WHERE aggregate_path = $1', [
-        `orgs/${orgId}/categories/${categoryId}`,
+      .query<CategoryRow>('SELECT * FROM categories WHERE org_id = $1 AND id = $2', [
+        orgId,
+        categoryId,
       ])
       .then((res) => res.rows),
   )

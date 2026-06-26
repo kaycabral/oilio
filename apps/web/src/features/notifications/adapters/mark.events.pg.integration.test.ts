@@ -16,7 +16,7 @@
 // verified with a direct row read over the superuser pool.
 
 import { NotificationConfig } from '@/domain/aggregates'
-import { appendEvent } from '@/domain/effect'
+import { aggregateRef, appendEvent } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { fetchUnreadNotificationsForUnit } from '@/shared/org/notification-read'
@@ -32,9 +32,9 @@ function uniqueOrgId(label: string): string {
 
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${orgId}`, orgId],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [orgId],
   )
 }
 
@@ -43,7 +43,7 @@ async function seedOrg(orgId: string): Promise<void> {
 // the read/snooze events to fold over.
 async function seedNotif(orgId: string, id: string, type = 'order_stale'): Promise<void> {
   await Effect.runPromise(
-    appendEvent(NotificationConfig, `orgs/${orgId}/notifications/${id}`, {
+    appendEvent(NotificationConfig, aggregateRef(NotificationConfig, orgId, id), {
       _tag: 'notification.created',
       actorId: 'test',
       payload: {
@@ -68,8 +68,8 @@ async function readNotifColumn(
   column: 'read_at' | 'snoozed_until',
 ): Promise<string | null> {
   const res = await getEventStorePool().query<{ value: Date | string | null }>(
-    `SELECT ${column} AS value FROM notifications WHERE aggregate_path = $1`,
-    [`orgs/${orgId}/notifications/${id}`],
+    `SELECT ${column} AS value FROM notifications WHERE org_id = $1 AND id = $2`,
+    [orgId, id],
   )
   // `*_at` columns are `timestamptz` (brief 0068 D1): the pg driver returns a
   // `Date`, not the stored ISO string. Normalize to ISO at this raw-read

@@ -6,46 +6,13 @@
 // Brief 0030 (AC-04): a atribuição de item é por MEMBRO (`attributedUserId`,
 // guarda o `userId` do membro) e o evento de troca é `order.item_attribution_changed`.
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
 import { OrderConfig } from './order/config'
-
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
 
 // Serviço de agendamento → atribuído ao `userId` do profissional do appointment.
 const itemA = {
@@ -73,8 +40,8 @@ const itemB = {
 
 describe('Order — replay reconstrói o doc completo (event-first)', () => {
   it('created → item_added → attribution → meta → item_removed → cancelled → replay == projeção', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/orders/o1'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(OrderConfig, 't1', 'o1')
     const data = {
       id: 'o1',
       orgId: 't1',
@@ -95,19 +62,19 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(OrderConfig, path, {
+        yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.created',
           actorId: 'staff-1',
           payload: { data },
         })
-        yield* appendEvent(OrderConfig, path, {
+        yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.item_added',
           actorId: 'staff-1',
           payload: { changes: { items: [itemA, itemB], subtotalCents: 8000, totalCents: 8000 } },
         })
         // Re-atribui o produto a outro membro (brief 0030, AC-04) — guarda o
         // `userId`, não um doc id de Professional.
-        yield* appendEvent(OrderConfig, path, {
+        yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.item_attribution_changed',
           actorId: 'staff-1',
           payload: {
@@ -118,17 +85,17 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
             },
           },
         })
-        yield* appendEvent(OrderConfig, path, {
+        yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.meta_updated',
           actorId: 'staff-1',
           payload: { changes: { discountCents: 1000, totalCents: 7000, notes: 'cliente fiel' } },
         })
-        yield* appendEvent(OrderConfig, path, {
+        yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.item_removed',
           actorId: 'staff-1',
           payload: { changes: { items: [itemA], subtotalCents: 5000, totalCents: 4000 } },
         })
-        yield* appendEvent(OrderConfig, path, {
+        yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.cancelled',
           actorId: 'staff-1',
           payload: {},
@@ -136,9 +103,9 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(OrderConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(OrderConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed).toEqual(projection)
@@ -154,8 +121,8 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
   })
 
   it('item_coverage_changed projeta cobertura por item (brief 0021)', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/orders/o2'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(OrderConfig, 't1', 'o2')
     const data = {
       id: 'o2',
       orgId: 't1',
@@ -176,13 +143,13 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(OrderConfig, path, {
+        yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.created',
           actorId: 'staff-1',
           payload: { data },
         })
         // itemA marcado como consumo de assinatura → some do total a pagar.
-        yield* appendEvent(OrderConfig, path, {
+        yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.item_coverage_changed',
           actorId: 'staff-1',
           payload: {
@@ -196,9 +163,9 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(OrderConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(OrderConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed).toEqual(projection)

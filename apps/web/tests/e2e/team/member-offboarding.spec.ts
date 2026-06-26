@@ -20,6 +20,15 @@
 // transition.
 
 import { membershipDocId } from '@/domain'
+import {
+  AgendaBlockConfig,
+  AppointmentConfig,
+  CommissionConfig,
+  InviteConfig,
+  MembershipConfig,
+  ProfessionalConfig,
+} from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import {
@@ -53,8 +62,8 @@ const decodeMembershipStatusEvent = Schema.decodeUnknownSync(MembershipStatusEve
 // Lists the `status` values carried by `membership.updated` events on a
 // membership's stream (event-first proof: the severance lives in the immutable
 // stream, not a bare doc write). Mirrors `member-deactivate.spec`.
-async function listMembershipStatusEvents(membershipId: string): Promise<string[]> {
-  const stream = await pgReadEventStream(`memberships/${membershipId}`)
+async function listMembershipStatusEvents(orgId: string, membershipId: string): Promise<string[]> {
+  const stream = await pgReadEventStream(aggregateRef(MembershipConfig, orgId, membershipId))
   return stream
     .map((e) => decodeMembershipStatusEvent(e))
     .filter((e) => e._tag === 'membership.updated')
@@ -68,31 +77,37 @@ async function listMembershipStatusEvents(membershipId: string): Promise<string[
 async function professionalPiiExists(orgId: string, professionalId: string): Promise<boolean> {
   return pgProjectionExists(
     'professionals_pii',
-    `orgs/${orgId}/professionals_pii/${professionalId}`,
+    aggregateRef(ProfessionalConfig, orgId, professionalId),
   )
 }
 
 // Reads the membership `status` off its Postgres projection; null when absent.
-async function readMembershipStatus(membershipId: string): Promise<string | null> {
-  const row = await pgReadProjection('memberships', `memberships/${membershipId}`)
+async function readMembershipStatus(orgId: string, membershipId: string): Promise<string | null> {
+  const row = await pgReadProjection(
+    'memberships',
+    aggregateRef(MembershipConfig, orgId, membershipId),
+  )
   return typeof row?.status === 'string' ? row.status : null
 }
 
 // Reads an appointment `status` off its Postgres projection; null when absent.
 async function readAppointmentStatus(orgId: string, appointmentId: string): Promise<string | null> {
-  const row = await pgReadProjection('appointments', `orgs/${orgId}/appointments/${appointmentId}`)
+  const row = await pgReadProjection(
+    'appointments',
+    aggregateRef(AppointmentConfig, orgId, appointmentId),
+  )
   return typeof row?.status === 'string' ? row.status : null
 }
 
 // True when the agenda-block projection still exists (offboarding cleanup
 // assertion, brief 0041 AC-07).
 async function blockExists(orgId: string, blockId: string): Promise<boolean> {
-  return pgProjectionExists('agenda_blocks', `orgs/${orgId}/agenda_blocks/${blockId}`)
+  return pgProjectionExists('agenda_blocks', aggregateRef(AgendaBlockConfig, orgId, blockId))
 }
 
 // True when the invite projection still exists (AC-09 cleanup assertion).
 async function inviteExists(orgId: string, inviteId: string): Promise<boolean> {
-  return pgProjectionExists('invites', `orgs/${orgId}/invites/${inviteId}`)
+  return pgProjectionExists('invites', aggregateRef(InviteConfig, orgId, inviteId))
 }
 
 test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, () => {
@@ -108,12 +123,12 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
 
     // Baseline: active membership, an approved projection, PII present, no
     // status-change event yet.
-    expect(await readMembershipStatus(membershipId)).toBe('active')
+    expect(await readMembershipStatus(org.orgId, membershipId)).toBe('active')
     expect((await readProfessionalByUserId(org.orgId, proUserId))?.operationalStatus).toBe(
       'operational',
     )
     expect(await professionalPiiExists(org.orgId, proId)).toBe(true)
-    expect(await listMembershipStatusEvents(membershipId)).toEqual([])
+    expect(await listMembershipStatusEvents(org.orgId, membershipId)).toEqual([])
 
     // The member shows on the active team list before removal.
     const pros = new ProfessionalsPage(authedPage)
@@ -125,9 +140,9 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
 
     // AC-10: membership goes terminal `revoked` (loses access).
-    await expect.poll(() => readMembershipStatus(membershipId)).toBe('revoked')
+    await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
     // Event-first: the transition is recorded as a membership.updated event.
-    expect(await listMembershipStatusEvents(membershipId)).toContain('revoked')
+    expect(await listMembershipStatusEvents(org.orgId, membershipId)).toContain('revoked')
 
     // Professional projection RETAINED (not deleted), reversible (#1226 AC-02):
     // operability is severed by the REVOKED membership above — every operational
@@ -136,7 +151,7 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
     // profile facts (whatsapp ∧ units ∧ services), so it stays `operational` on
     // the retained projection; the revoked membership is what takes the member
     // off the agenda (proven by the active-team-list assertion below).
-    await expect.poll(() => readMembershipStatus(membershipId)).toBe('revoked')
+    await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
     expect(await readProfessionalByUserId(org.orgId, proUserId)).not.toBeNull()
 
     // RETENTION (art. 16): the vínculo PII is RETAINED — not scrubbed.
@@ -149,7 +164,7 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
     // AC-04 idempotency: re-running the removal is a safe no-op — no throw, no
     // duplicate status event. The action short-circuits on already-revoked, so
     // the detail still renders and the stream keeps exactly one `revoked`.
-    const beforeCount = (await listMembershipStatusEvents(membershipId)).filter(
+    const beforeCount = (await listMembershipStatusEvents(org.orgId, membershipId)).filter(
       (s) => s === 'revoked',
     ).length
     expect(beforeCount).toBe(1)
@@ -210,7 +225,7 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
 
     // Veto surfaces a clear error AND nothing was mutated.
     await expect(authedPage.getByText(/comanda aberta/i)).toBeVisible()
-    expect(await readMembershipStatus(membershipId)).toBe('active')
+    expect(await readMembershipStatus(org.orgId, membershipId)).toBe('active')
     expect(await readAppointmentStatus(org.orgId, apptId)).toBe('scheduled')
   })
 
@@ -265,13 +280,16 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
     const pros = new ProfessionalsPage(authedPage)
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
-    await expect.poll(() => readMembershipStatus(membershipId)).toBe('revoked')
+    await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
 
     // AC-02: future appointment CANCELLED but RETAINED (doc still exists,
     // grid renders it struck-through — not removed).
     await expect.poll(() => readAppointmentStatus(org.orgId, futureAppt)).toBe('cancelled')
     expect(
-      await pgReadProjection('appointments', `orgs/${org.orgId}/appointments/${futureAppt}`),
+      await pgReadProjection(
+        'appointments',
+        aggregateRef(AppointmentConfig, org.orgId, futureAppt),
+      ),
     ).not.toBeNull()
     // Past appointment LEFT untouched.
     expect(await readAppointmentStatus(org.orgId, pastAppt)).toBe('scheduled')
@@ -333,13 +351,13 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
 
     // No veto: the removal goes through despite the pending commission (the
     // "acerto entre as partes" is settled off-system).
-    await expect.poll(() => readMembershipStatus(membershipId)).toBe('revoked')
+    await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
 
     // The pending commission is LEFT untouched: still pending, still attributed
     // to the removed member's real userId (resolves to the real name in reports).
     const commission = await pgReadProjection(
       'commissions',
-      `orgs/${org.orgId}/commissions/${pendingCommission}`,
+      aggregateRef(CommissionConfig, org.orgId, pendingCommission),
     )
     expect(commission?.liquidation_status).toBe('pendente')
     expect(commission?.attributed_user_id).toBe(proUserId)
@@ -366,7 +384,7 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     // professional).
     await expect(authedPage.getByText(/sem profissional/i)).toBeVisible()
     // And the member IS removed (membership terminal `revoked`).
-    await expect.poll(() => readMembershipStatus(membershipId)).toBe('revoked')
+    await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
   })
 
   test('AC-09: invite pendente do membro (por email) é limpo na remoção', async ({
@@ -397,7 +415,7 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     const pros = new ProfessionalsPage(authedPage)
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
-    await expect.poll(() => readMembershipStatus(membershipId)).toBe('revoked')
+    await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
 
     // The member's pending invite is gone; another member's invite is left.
     await expect.poll(() => inviteExists(org.orgId, inviteId)).toBe(false)

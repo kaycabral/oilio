@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm'
-import { bigint, check, foreignKey, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import {
+  bigint,
+  check,
+  foreignKey,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 import { units } from './units'
 
@@ -8,8 +17,8 @@ import { units } from './units'
  * D, brief 0060, Grupo C) — a monthly profit target per unit (Copiloto de Gestão,
  * brief 0042).
  *
- * Keyed by `aggregate_path` (`orgs/{orgId}/goals/{id}` — org-scoped collection;
- * the doc id is the deterministic `{type}__{unitId}__{period}`). FK
+ * Keyed by composite PK (org_id, id); the doc id is the deterministic
+ * `{type}__{unitId}__{period}`. FK
  * `org_id → orgs.org_id`; `org_id` is the leading index column (RLS performance).
  * `unit_id` is NOT NULL (a goal is always per-unit) and is the RLS unit predicate.
  *
@@ -26,8 +35,6 @@ import { units } from './units'
 export const goals = pgTable(
   'goals',
   {
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org/unit scope ───────────────────────────────────────────
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
@@ -35,7 +42,7 @@ export const goals = pgTable(
     unitId: text('unit_id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     // Measurement period as `YYYY-MM`.
@@ -48,6 +55,8 @@ export const goals = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),
   },
   (table) => [
+    // Composite (org_id, id) PRIMARY KEY — the natural key.
+    primaryKey({ columns: [table.orgId, table.id], name: 'goals_pkey' }),
     // The goal-type enum, refused at the DB.
     check('goals_type_check', sql`${table.type} IN ('profit')`),
     // A zero/negative goal is meaningless (GOAL_TARGET_MIN_CENTS = 1).

@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { SubscriptionConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { dispatchNotificationReactions } from '@/features/notifications/adapters/reactor-dispatch'
 import {
   buildMarkFailedSteps,
@@ -37,9 +38,7 @@ const decodeSubscription = Schema.decodeUnknownSync(Subscription)
 async function getChargeById(orgId: string, chargeId: string): Promise<Charge | null> {
   const rows = await readUnderRls<ChargeRow>(orgId, (client) =>
     client
-      .query<ChargeRow>('SELECT * FROM charges WHERE aggregate_path = $1', [
-        `orgs/${orgId}/charges/${chargeId}`,
-      ])
+      .query<ChargeRow>('SELECT * FROM charges WHERE org_id = $1 AND id = $2', [orgId, chargeId])
       .then((res) => res.rows),
   )
   const row = rows[0]
@@ -50,8 +49,9 @@ async function getChargeById(orgId: string, chargeId: string): Promise<Charge | 
 async function getSubscriptionById(orgId: string, id: string): Promise<Subscription | null> {
   const rows = await readUnderRls<SubscriptionRow>(orgId, (client) =>
     client
-      .query<SubscriptionRow>('SELECT * FROM subscriptions WHERE aggregate_path = $1', [
-        `orgs/${orgId}/subscriptions/${id}`,
+      .query<SubscriptionRow>('SELECT * FROM subscriptions WHERE org_id = $1 AND id = $2', [
+        orgId,
+        id,
       ])
       .then((res) => res.rows),
   )
@@ -176,7 +176,7 @@ export async function renewSubscription(subscriptionId: string): Promise<ChargeM
   if (sub.cancelAtPeriodEnd) {
     const cancelled = await emitEvent(
       SubscriptionConfig,
-      `orgs/${r.ctx.membership.orgId}/subscriptions/${subscriptionId}`,
+      aggregateRef(SubscriptionConfig, r.ctx.membership.orgId, subscriptionId),
       {
         _tag: 'subscription.cancelled',
         actorId: r.ctx.session.uid,
@@ -257,7 +257,7 @@ export async function deleteSubscription(subscriptionId: string): Promise<Charge
   // reprojeta — convenção `.deleted`) e só então remove o read model.
   const deleted = await emitEvent(
     SubscriptionConfig,
-    `orgs/${orgId}/subscriptions/${subscriptionId}`,
+    aggregateRef(SubscriptionConfig, orgId, subscriptionId),
     {
       _tag: 'subscription.deleted',
       actorId: r.ctx.session.uid,
@@ -269,7 +269,7 @@ export async function deleteSubscription(subscriptionId: string): Promise<Charge
   // this subscription) is the DB's last-line guard: convert its 23503 into a
   // friendly result instead of a raw 500.
   try {
-    await deleteOrgProjectionDoc(orgId, 'subscriptions', subscriptionId)
+    await deleteOrgProjectionDoc(aggregateRef(SubscriptionConfig, orgId, subscriptionId))
   } catch (err) {
     if (isForeignKeyViolation(err)) {
       return {

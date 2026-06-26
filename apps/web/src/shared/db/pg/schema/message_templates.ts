@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm'
-import { boolean, check, foreignKey, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  check,
+  foreignKey,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 
 /**
@@ -9,9 +18,9 @@ import { orgs } from './orgs'
  *
  * NOT a domain aggregate and NOT event-sourced — it is a config doc, written
  * directly (`.set`) exactly as the Firestore `orgs/{orgId}/message_templates/{type}`
- * doc was. Keyed by `aggregate_path` (`orgs/{orgId}/message_templates/{type}`) so
- * a point read is a single-row lookup; `(org_id, type)` is unique by construction
- * (one template per type per org).
+ * doc was. Keyed by composite PK `(org_id, type)` so a point read is a single-row
+ * lookup; `(org_id, type)` is unique by construction (one template per type per
+ * org).
  *
  * Org-scoped Row-Level Security (org-only, like every other org projection): the
  * RLS policy filters `org_id = current_setting('app.current_org')`, so reads go
@@ -25,8 +34,6 @@ import { orgs } from './orgs'
 export const messageTemplates = pgTable(
   'message_templates',
   {
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org scope ────────────────────────────────────────────────
     orgId: text('org_id').notNull(),
     // The dispatchable notification type (the doc id) — `id` mirrors it.
@@ -44,6 +51,8 @@ export const messageTemplates = pgTable(
   (table) => [
     // A template always targets a real notification type (non-empty).
     check('message_templates_type_nonempty', sql`char_length(btrim(${table.type})) > 0`),
+    // Composite (org_id, type) PRIMARY KEY — one template per type per org.
+    primaryKey({ columns: [table.orgId, table.type], name: 'message_templates_pkey' }),
     // Every template belongs to a real org.
     foreignKey({
       name: 'message_templates_org_id_fk',

@@ -1,4 +1,5 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import { ProfessionalConfig } from '@/domain/aggregates/professional/config'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { StoredProfessional } from '@/domain/types/professional'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -26,10 +27,9 @@ const decodeProfessional = Schema.decodeUnknownSync(StoredProfessional)
  * the `INSERT` placeholders 1:1.
  */
 export const PROFESSIONAL_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
-  'version',
+  'last_event_version',
   'user_id',
   'default_commission',
   'unit_ids',
@@ -40,14 +40,12 @@ export const PROFESSIONAL_COLUMNS = [
 
 export function professionalColumnValues(
   professional: StoredProfessional,
-  aggregatePath: string,
-  version: number,
+  lastEventVersion: number,
 ): unknown[] {
   return [
-    aggregatePath,
     professional.orgId,
     professional.id,
-    version,
+    lastEventVersion,
     professional.userId,
     professional.defaultCommission,
     JSON.stringify(professional.unitIds),
@@ -58,13 +56,13 @@ export function professionalColumnValues(
 }
 
 const PLACEHOLDERS = PROFESSIONAL_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = PROFESSIONAL_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = PROFESSIONAL_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO professionals (${PROFESSIONAL_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 // ── Derived join tables (brief 0068 D3): professional ↔ unit / service ─────────
@@ -100,16 +98,9 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const professional = decodeProfessional(state)
-  await client.query(
-    UPSERT,
-    professionalColumnValues(professional, aggregatePath, stateVersion(state)),
-  )
+  await client.query(UPSERT, professionalColumnValues(professional, stateVersion(state)))
   // Mirror the N:N arrays into the join tables (same tx). Delete-then-insert so a
   // shrunk array leaves no orphans and replay is idempotent.
   await client.query(PROFESSIONAL_UNITS_DELETE, [professional.orgId, professional.id])
@@ -126,7 +117,7 @@ async function upsert(
 export type ProfessionalRow = {
   org_id: string
   id: string
-  version: string | number
+  last_event_version: string | number
   user_id: string
   default_commission: unknown
   unit_ids: unknown
@@ -140,7 +131,7 @@ export type ProfessionalRow = {
 // correctly. PII is NOT present (the read path merges it from the sidecars).
 export function rowToDoc(row: ProfessionalRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     userId: row.user_id,
@@ -152,29 +143,31 @@ export function rowToDoc(row: ProfessionalRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<ProfessionalRow>(
-    'SELECT * FROM professionals WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT * FROM professionals WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
   // Drop the join rows explicitly (the parent FK is ON DELETE cascade, so this is
-  // defensive + mirrors `org-projector`'s directory cleanup). Path is
-  // `orgs/{orgId}/professionals/{id}`.
-  const parts = aggregatePath.split('/')
-  const orgId = parts[1] ?? ''
-  const id = parts[3] ?? ''
-  await client.query(PROFESSIONAL_UNITS_DELETE, [orgId, id])
-  await client.query(PROFESSIONAL_SERVICES_DELETE, [orgId, id])
-  await client.query('DELETE FROM professionals WHERE aggregate_path = $1', [aggregatePath])
+  // defensive + mirrors `org-projector`'s directory cleanup). The ref carries the
+  // org + id directly.
+  await client.query(PROFESSIONAL_UNITS_DELETE, [ref.orgId, ref.id])
+  await client.query(PROFESSIONAL_SERVICES_DELETE, [ref.orgId, ref.id])
+  await client.query('DELETE FROM professionals WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
 export const professionalProjector: TypedProjector = { read, upsert, delete: remove }
 
-export const PROFESSIONAL_AGGREGATE_TYPE = 'professionals'
+/**
+ * `aggregate_type` for professionals = the typed `AggregateType` literal
+ * (`config.type`, singular `professional`) — D6 (ADR 0013). The Postgres Layer
+ * routes by the ref's `type`, so registration and routing agree on this literal.
+ */
+export const PROFESSIONAL_AGGREGATE_TYPE = ProfessionalConfig.type
 
 registerTypedProjector(PROFESSIONAL_AGGREGATE_TYPE, professionalProjector)

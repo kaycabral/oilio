@@ -107,8 +107,9 @@ export async function listActiveCustomersForOrg(orgId: string): Promise<Customer
 export async function getCustomerById(orgId: string, customerId: string): Promise<Customer | null> {
   const rows = await readUnderRls<CustomerRow>(orgId, (client) =>
     client
-      .query<CustomerRow>('SELECT * FROM customers WHERE aggregate_path = $1', [
-        `orgs/${orgId}/customers/${customerId}`,
+      .query<CustomerRow>('SELECT * FROM customers WHERE org_id = $1 AND id = $2', [
+        orgId,
+        customerId,
       ])
       .then((res) => res.rows),
   )
@@ -129,9 +130,7 @@ export async function getCustomerUserId(orgId: string, customerId: string): Prom
     client
       .query<{
         user_id: string | null
-      }>('SELECT user_id FROM customers WHERE aggregate_path = $1', [
-        `orgs/${orgId}/customers/${customerId}`,
-      ])
+      }>('SELECT user_id FROM customers WHERE org_id = $1 AND id = $2', [orgId, customerId])
       .then((res) => res.rows),
   )
   return rows[0]?.user_id ?? null

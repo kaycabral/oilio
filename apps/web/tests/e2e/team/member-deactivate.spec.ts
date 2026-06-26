@@ -15,6 +15,8 @@
 // gate is asserted in the rules integration test (AC-10).
 
 import { membershipDocId } from '@/domain'
+import { MembershipConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import {
@@ -45,8 +47,8 @@ const decodeMembershipStatusEvent = Schema.decodeUnknownSync(MembershipStatusEve
 // Lists the `membership.updated` events on a membership's event stream that
 // carry a `status` change, returning the projected status values (event-first
 // proof: the transition lives in the immutable stream, not a bare doc write).
-async function listMembershipStatusEvents(membershipId: string): Promise<string[]> {
-  const stream = await pgReadEventStream(`memberships/${membershipId}`)
+async function listMembershipStatusEvents(orgId: string, membershipId: string): Promise<string[]> {
+  const stream = await pgReadEventStream(aggregateRef(MembershipConfig, orgId, membershipId))
   return stream
     .map((e) => decodeMembershipStatusEvent(e))
     .filter((e) => e._tag === 'membership.updated')
@@ -55,9 +57,12 @@ async function listMembershipStatusEvents(membershipId: string): Promise<string[
 }
 
 // Reads the membership projection's `status` straight from Postgres (the
-// memberships table is top-level — aggregate_path `memberships/{id}`).
-async function readMembershipStatus(membershipId: string): Promise<string | null> {
-  const row = await pgReadProjection('memberships', `memberships/${membershipId}`)
+// memberships table is top-level — keyed by PK (org_id, id)).
+async function readMembershipStatus(orgId: string, membershipId: string): Promise<string | null> {
+  const row = await pgReadProjection(
+    'memberships',
+    aggregateRef(MembershipConfig, orgId, membershipId),
+  )
   return typeof row?.status === 'string' ? row.status : null
 }
 
@@ -73,8 +78,8 @@ test.describe('Equipe — desativar/reativar membro (#1053)', { tag: '@critical'
     const membershipId = membershipDocId(org.orgId, member.uid)
 
     // Baseline: active membership, no status-change event yet.
-    expect(await readMembershipStatus(membershipId)).toBe('active')
-    expect(await listMembershipStatusEvents(membershipId)).toEqual([])
+    expect(await readMembershipStatus(org.orgId, membershipId)).toBe('active')
+    expect(await listMembershipStatusEvents(org.orgId, membershipId)).toEqual([])
 
     const pros = new ProfessionalsPage(authedPage)
     await pros.gotoByUserId(member.uid)
@@ -88,11 +93,11 @@ test.describe('Equipe — desativar/reativar membro (#1053)', { tag: '@critical'
     // Deactivate → membership.status flips to suspended (the member can't
     // operate; rules-level gate asserted in the integration test).
     await toggle.click()
-    await expect.poll(() => readMembershipStatus(membershipId)).toBe('suspended')
+    await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('suspended')
 
     // Event-sourced: the transition is recorded as a membership.updated event
     // carrying `status`.
-    expect(await listMembershipStatusEvents(membershipId)).toContain('suspended')
+    expect(await listMembershipStatusEvents(org.orgId, membershipId)).toContain('suspended')
 
     // A fresh render reflects the suspended state and now offers "Reativar".
     await pros.gotoByUserId(member.uid)
@@ -104,8 +109,11 @@ test.describe('Equipe — desativar/reativar membro (#1053)', { tag: '@critical'
 
     // Reactivate → back to active, recorded as a second status event.
     await reToggle.click()
-    await expect.poll(() => readMembershipStatus(membershipId)).toBe('active')
-    expect(await listMembershipStatusEvents(membershipId)).toEqual(['suspended', 'active'])
+    await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('active')
+    expect(await listMembershipStatusEvents(org.orgId, membershipId)).toEqual([
+      'suspended',
+      'active',
+    ])
   })
 
   test('owner não tem toggle de desativação (identidade imutável)', async ({ org, authedPage }) => {

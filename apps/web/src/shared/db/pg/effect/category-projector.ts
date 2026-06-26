@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { Category } from '@/domain/types/category'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -21,13 +21,13 @@ const decodeCategory = Schema.decodeUnknownSync(Category)
 /**
  * The ordered `categories` column list — single source of truth for the runtime
  * upsert and the E2E seed (so the two writers can never drift). Mirrors the
- * `INSERT` placeholders 1:1.
+ * `INSERT` placeholders 1:1. Keyed by the composite `(org_id, id)` PK (D6, ADR
+ * 0013); `last_event_version` is the projection's monotonic version column.
  */
 export const CATEGORY_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
-  'version',
+  'last_event_version',
   'name',
   'icon',
   'color',
@@ -37,13 +37,8 @@ export const CATEGORY_COLUMNS = [
   'updated_at',
 ] as const
 
-export function categoryColumnValues(
-  category: Category,
-  aggregatePath: string,
-  version: number,
-): unknown[] {
+export function categoryColumnValues(category: Category, version: number): unknown[] {
   return [
-    aggregatePath,
     category.orgId,
     category.id,
     version,
@@ -58,13 +53,13 @@ export function categoryColumnValues(
 }
 
 const PLACEHOLDERS = CATEGORY_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = CATEGORY_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = CATEGORY_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO categories (${CATEGORY_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -72,20 +67,16 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const category = decodeCategory(state)
-  await client.query(UPSERT, categoryColumnValues(category, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, categoryColumnValues(category, stateVersion(state)))
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type CategoryRow = {
   org_id: string
   id: string
-  version: string | number
+  last_event_version: string | number
   name: string
   icon: string | null
   color: string | null
@@ -100,7 +91,7 @@ export type CategoryRow = {
 // correctly.
 export function rowToDoc(row: CategoryRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     name: row.name,
@@ -118,21 +109,21 @@ export function rowToDoc(row: CategoryRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<CategoryRow>(
-    'SELECT * FROM categories WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT * FROM categories WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM categories WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM categories WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
 export const categoryProjector: TypedProjector = { read, upsert, delete: remove }
 
-export const CATEGORY_AGGREGATE_TYPE = 'categories'
+export const CATEGORY_AGGREGATE_TYPE = 'category'
 
 registerTypedProjector(CATEGORY_AGGREGATE_TYPE, categoryProjector)

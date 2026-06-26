@@ -18,7 +18,12 @@ import {
   OrderConfig,
   SubscriptionConfig,
 } from '@/domain/aggregates'
-import { appendEventToTx, type SagaStep, type TransactionContext } from '@/domain/effect'
+import {
+  aggregateRef,
+  appendEventToTx,
+  type SagaStep,
+  type TransactionContext,
+} from '@/domain/effect'
 
 import { buildSaleMovement } from '@/features/cash/adapters/sale-movement'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
@@ -73,7 +78,7 @@ export function buildCloseOrderSteps(args: {
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
         SubscriptionConfig,
-        `orgs/${orgId}/subscriptions/${sub.id}`,
+        aggregateRef(SubscriptionConfig, orgId, sub.id),
         {
           _tag: 'subscription.usage_incremented',
           actorId: actorUid,
@@ -88,7 +93,7 @@ export function buildCloseOrderSteps(args: {
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
         CatalogItemConfig,
-        `orgs/${orgId}/catalog_items/${target.refId}`,
+        aggregateRef(CatalogItemConfig, orgId, target.refId),
         {
           _tag: 'catalog_item.updated',
           actorId: actorUid,
@@ -103,7 +108,7 @@ export function buildCloseOrderSteps(args: {
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
         CommissionConfig,
-        `orgs/${orgId}/commissions/${commission.id}`,
+        aggregateRef(CommissionConfig, orgId, commission.id),
         {
           _tag: 'commission.created',
           actorId: actorUid,
@@ -119,7 +124,7 @@ export function buildCloseOrderSteps(args: {
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
         CashMovementConfig,
-        `orgs/${orgId}/cash_movements/${movement.id}`,
+        aggregateRef(CashMovementConfig, orgId, movement.id),
         {
           _tag: 'cash_movement.created',
           actorId: actorUid,
@@ -135,7 +140,7 @@ export function buildCloseOrderSteps(args: {
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
         AppointmentConfig,
-        `orgs/${orgId}/appointments/${appointmentId}`,
+        aggregateRef(AppointmentConfig, orgId, appointmentId),
         {
           _tag: 'appointment.completed',
           actorId: actorUid,
@@ -149,7 +154,7 @@ export function buildCloseOrderSteps(args: {
   steps.push((tx: TransactionContext) =>
     appendEventToTx(
       OrderConfig,
-      `orgs/${orgId}/orders/${orderId}`,
+      aggregateRef(OrderConfig, orgId, orderId),
       {
         _tag: 'order.closed',
         actorId: actorUid,

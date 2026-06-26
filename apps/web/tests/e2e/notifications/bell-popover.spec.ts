@@ -5,7 +5,9 @@
 // - AC-03: popover renderiza items com icon + label + tempo relativo
 // - AC-04: sininho com 0 não-lidas → badge oculto + empty state no popover
 
+import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import type { NotificationState } from '@/domain/aggregates/notification/types'
+import { aggregateRef } from '@/domain/effect'
 import {
   NOTIFICATION_COLUMNS,
   notificationColumnValues,
@@ -25,7 +27,7 @@ async function seedNotification(
   const notifId = `e2e-notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const now = new Date().toISOString()
 
-  const aggregatePath = `orgs/${orgId}/notifications/${notifId}`
+  const ref = aggregateRef(NotificationConfig, orgId, notifId)
   const doc: NotificationState = {
     id: notifId,
     orgId,
@@ -57,7 +59,7 @@ async function seedNotification(
        VALUES ($1, $2, 1, $3, $4)`,
       [
         'notifications',
-        aggregatePath,
+        notifId,
         orgId,
         {
           _tag: 'notification.created',
@@ -69,7 +71,7 @@ async function seedNotification(
         },
       ],
     )
-    const values = notificationColumnValues(doc, aggregatePath, 1)
+    const values = notificationColumnValues(doc, ref, 1)
     const placeholders = NOTIFICATION_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO notifications (${NOTIFICATION_COLUMNS.join(', ')}) VALUES (${placeholders})`,

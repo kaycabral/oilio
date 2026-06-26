@@ -1,3 +1,5 @@
+import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
+import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
 import { expect, test } from './fixtures'
 import {
@@ -73,7 +75,7 @@ test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () =>
     // `tracking` JSONB blob (decoded leniently).
     const apptRow = await pgReadProjection(
       'appointments',
-      `orgs/${seed.orgId}/appointments/${apptId}`,
+      aggregateRef(AppointmentConfig, seed.orgId, apptId),
     )
     expect(apptRow).not.toBeNull()
     expect(apptRow?.status).toBe('cancelled')

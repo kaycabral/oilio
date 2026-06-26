@@ -31,7 +31,12 @@ import {
 import { deleteProfessionalPii, writeProfessionalPii } from '@/shared/org/professional-read'
 import { revalidatePath } from 'next/cache'
 
-import { appendEventToTx, type SagaStep, type TransactionContext } from '@/domain/effect'
+import {
+  aggregateRef,
+  appendEventToTx,
+  type SagaStep,
+  type TransactionContext,
+} from '@/domain/effect'
 import { commitSaga } from '@/shared/effect-bridge'
 
 import {
@@ -89,7 +94,7 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
   await writeInvitePii(ctx.membership.orgId, inviteId, { email })
   const created = await emitEvent(
     InviteConfig,
-    `orgs/${ctx.membership.orgId}/invites/${stored.id}`,
+    aggregateRef(InviteConfig, ctx.membership.orgId, stored.id),
     { _tag: 'invite.created', actorId: session.uid, payload: { data: stored } },
   )
   if (!created.ok) return { ok: false, error: created.error }
@@ -140,7 +145,7 @@ export async function updateProfessional(
   await writeProfessionalPii(r.ctx.membership.orgId, professionalId, { taxIdentity })
   const updated = await emitEvent(
     ProfessionalConfig,
-    `orgs/${r.ctx.membership.orgId}/professionals/${professionalId}`,
+    aggregateRef(ProfessionalConfig, r.ctx.membership.orgId, professionalId),
     {
       _tag: 'professional.updated',
       actorId: r.ctx.session.uid,
@@ -172,7 +177,7 @@ export async function deleteProfessional(
   }
   const deleted = await emitEvent(
     ProfessionalConfig,
-    `orgs/${r.ctx.membership.orgId}/professionals/${professionalId}`,
+    aggregateRef(ProfessionalConfig, r.ctx.membership.orgId, professionalId),
     { _tag: 'professional.deleted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
@@ -183,7 +188,9 @@ export async function deleteProfessional(
   // referencing this professional) is the DB's last-line guard: convert its
   // 23503 into a friendly result instead of a raw 500.
   try {
-    await deleteOrgProjectionDoc(r.ctx.membership.orgId, 'professionals', professionalId)
+    await deleteOrgProjectionDoc(
+      aggregateRef(ProfessionalConfig, r.ctx.membership.orgId, professionalId),
+    )
   } catch (err) {
     if (isForeignKeyViolation(err)) {
       return {
@@ -275,7 +282,7 @@ export async function changeMemberRole(
     (tx: TransactionContext) =>
       appendEventToTx(
         MembershipConfig,
-        `memberships/${membershipId}`,
+        aggregateRef(MembershipConfig, orgId, membershipId),
         {
           _tag: 'membership.updated',
           actorId,
@@ -288,7 +295,12 @@ export async function changeMemberRole(
   ]
   if (proStep.kind !== 'none') {
     steps.push((tx: TransactionContext) =>
-      appendEventToTx(ProfessionalConfig, proStep.path, proStep.input, tx),
+      appendEventToTx(
+        ProfessionalConfig,
+        aggregateRef(ProfessionalConfig, orgId, proStep.proId),
+        proStep.input,
+        tx,
+      ),
     )
   }
   const outcome = await commitSaga(steps)
@@ -346,11 +358,15 @@ export async function setMemberStatus(
 
   // Event-first: `membership.updated` with ONLY `status` (the reducer projects
   // it; replay reconstructs from the stream alone). Role/permissions untouched.
-  const updated = await emitEvent(MembershipConfig, `memberships/${membershipId}`, {
-    _tag: 'membership.updated',
-    actorId,
-    payload: { changes: { status } },
-  })
+  const updated = await emitEvent(
+    MembershipConfig,
+    aggregateRef(MembershipConfig, orgId, membershipId),
+    {
+      _tag: 'membership.updated',
+      actorId,
+      payload: { changes: { status } },
+    },
+  )
   if (!updated.ok) return { ok: false, error: updated.error }
 
   revalidatePath('/team')

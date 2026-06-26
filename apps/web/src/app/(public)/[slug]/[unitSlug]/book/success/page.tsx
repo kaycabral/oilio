@@ -21,8 +21,9 @@ const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 async function getAppointmentById(orgId: string, apptId: string): Promise<Appointment | null> {
   const rows = await readUnderRls<AppointmentRow>(orgId, (client) =>
     client
-      .query<AppointmentRow>('SELECT * FROM appointments WHERE aggregate_path = $1', [
-        `orgs/${orgId}/appointments/${apptId}`,
+      .query<AppointmentRow>('SELECT * FROM appointments WHERE org_id = $1 AND id = $2', [
+        orgId,
+        apptId,
       ])
       .then((res) => res.rows),
   )

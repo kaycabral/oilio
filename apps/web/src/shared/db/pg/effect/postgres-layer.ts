@@ -1,4 +1,6 @@
 import type {
+  AggregateRef,
+  CollectionRef,
   FirestoreDoc,
   PersistenceOps,
   QueryConstraint,
@@ -39,67 +41,36 @@ import './unit-projector'
  * Postgres-backed `PersistencePort` for the relational event store (brief 0057,
  * ADR 0012) — the sole backend after the cutover (#1202).
  *
- * The event store talks to the port in a path vocabulary (a legacy of the
- * Firestore origin, kept as the neutral key shape):
- *   - projection doc:  `getDoc(aggregatePath)` / `setDoc(aggregatePath, state)`
- *   - event write:     `setDoc('{aggregatePath}/events/v000001', envelope)`
- *   - stream read:     `getDocs('{aggregatePath}/events', [orderBy version])`
+ * D6 (ADR 0013): the port speaks typed identity (`AggregateRef`/`CollectionRef`),
+ * not a Firestore path string:
+ *   - projection:  `getDoc(ref)` / `setDoc(ref, state)`
+ *   - event write: `tx.appendEvent(ref, version, envelope)`
+ *   - stream read: `getEvents(ref)` (replay)
+ *   - collection:  `getDocs({type, orgId}, constraints)`
  *
- * This layer translates that vocabulary to the relational schema: events land in
- * `events` (UNIQUE(aggregate_id, version) → optimistic concurrency enforced by
- * the DB), the projection lands in `projections` (keyed by the aggregate path),
- * and BOTH happen in the SAME pg transaction — a rollback leaves zero rows in
- * both. Reducers/aggregates/envelope are unchanged: this is purely the substrate.
+ * Events land in `events` (`aggregate_id` = `ref.id`, with `(aggregate_type,
+ * org_id)` siblings → `UNIQUE(aggregate_type, org_id, aggregate_id, version)`
+ * enforces optimistic concurrency in the DB); the projection lands in its typed
+ * table (PK `(org_id, id)`) or the generic `projections` store; BOTH happen in
+ * the SAME pg transaction — a rollback leaves zero rows in both. Reducers /
+ * aggregates / envelope are unchanged: this is purely the substrate. The org/type
+ * are explicit ref data — never re-parsed out of a string (no `orgIdOf`).
  */
-
-const EVENT_PATH = /^(?<aggregatePath>.+)\/events\/v(?<version>\d+)$/
-const EVENTS_COLLECTION = /^(?<aggregatePath>.+)\/events$/
-
-// `aggregate_type` is the aggregate-type segment of the path — the
-// second-to-last segment (e.g. `orgs/{org}/orders/{id}` → `orders`,
-// `product_events/{id}` → `product_events`). `aggregate_id` is the full
-// aggregate path (globally unique).
-function aggregateTypeOf(aggregatePath: string): string {
-  const segments = aggregatePath.split('/')
-  return segments.length >= 2 ? segments[segments.length - 2]! : aggregatePath
-}
-
-// The org an aggregate path belongs to — the source of `app.current_org` on the
-// RLS write path (feature C). Two shapes carry the org:
-//   - `orgs/{orgId}/…` (and `orgs/{orgId}`) → the second segment.
-//   - `memberships/{orgId}_{userId}` (TOP-LEVEL — memberships resolve the
-//     user↔org link) → the org is the doc-id prefix before the `_{userId}`
-//     suffix. The membership table is under RLS too, so without this a membership
-//     tx runs with NO `app.current_org` and fail-closes (the read returns the
-//     INITIAL state → an empty `user_id` write → CHECK refusal). Split on the
-//     LAST `_`, not the first: a Firebase uid is `[A-Za-z0-9]` (no underscore),
-//     while an org id may contain `_`, so the last `_` is always the id↔uid
-//     boundary.
-// Everything else (cross-org/system aggregates) → null.
-function orgIdOf(aggregatePath: string): string | null {
-  const segments = aggregatePath.split('/')
-  if (segments[0] === 'orgs' && segments[1]) return segments[1]
-  if (segments[0] === 'memberships' && segments[1]) {
-    const lastUnderscore = segments[1].lastIndexOf('_')
-    return lastUnderscore > 0 ? segments[1].slice(0, lastUnderscore) : null
-  }
-  return null
-}
 
 // Reads an aggregate's projection: from its TYPED table when a projector is
 // registered (so the event store sees the same state it wrote — versioning on
 // append and rehydration on replay), else from the generic `projections` store.
 async function getProjectionDoc(
   client: PoolClient,
-  aggregatePath: string,
+  ref: AggregateRef,
 ): Promise<FirestoreDoc | null> {
-  const typed = typedProjectorFor(aggregateTypeOf(aggregatePath))
+  const typed = typedProjectorFor(ref.type)
   if (typed) {
-    return typed.read(client, aggregatePath)
+    return typed.read(client, ref)
   }
   const res = await client.query<{ state: FirestoreDoc }>(
-    'SELECT state FROM projections WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT state FROM projections WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   return res.rows[0]?.state ?? null
 }
@@ -112,61 +83,69 @@ async function getProjectionDoc(
 // to a locked read of the generic `projections` row.
 async function getProjectionDocForUpdate(
   client: PoolClient,
-  aggregatePath: string,
+  ref: AggregateRef,
 ): Promise<FirestoreDoc | null> {
-  const typed = typedProjectorFor(aggregateTypeOf(aggregatePath))
+  const typed = typedProjectorFor(ref.type)
   if (typed?.readForUpdate) {
-    return typed.readForUpdate(client, aggregatePath)
+    return typed.readForUpdate(client, ref)
   }
   const res = await client.query<{ state: FirestoreDoc }>(
-    'SELECT state FROM projections WHERE aggregate_path = $1 FOR UPDATE',
-    [aggregatePath],
+    'SELECT state FROM projections WHERE org_id = $1 AND id = $2 FOR UPDATE',
+    [ref.orgId, ref.id],
   )
   return res.rows[0]?.state ?? null
 }
 
-// Read a COLLECTION the pure domain/cron passes to `getDocs` (e.g.
-// `orgs/{orgId}/notifications`) — NOT an event stream. Resolves the typed
-// projector by the collection's LAST segment (= the table's `aggregate_type`),
-// then runs its `list` (constraint→SQL translation owned by the projector),
-// scoped to the path's org under RLS via `readUnderRls`. An unsupported
-// collection — or one without an org context — THROWS (loud), never a silent
-// empty result. Platform-wide tenant enumeration does NOT come through here: the
-// crons read the PUBLIC `public_org_directory` (no RLS, by contract) and then
-// issue these org-scoped reads, so this path is always under an org's RLS.
+// Read an aggregate-type COLLECTION within an org the pure domain/cron passes to
+// `getDocs` (a `CollectionRef`) — resolves the typed projector by `ref.type` and
+// runs its `list` (constraint→SQL translation owned by the projector), scoped to
+// `ref.orgId` under RLS via `readUnderRls`. An unsupported collection THROWS
+// (loud), never a silent empty result. Platform-wide tenant enumeration does NOT
+// come through here: the crons read the PUBLIC `public_org_directory` (no RLS, by
+// contract) and then issue these org-scoped reads, so this is always under RLS.
 async function readCollection(
-  collectionPath: string,
+  ref: CollectionRef,
   constraints: readonly QueryConstraint[],
 ): Promise<readonly FirestoreDoc[]> {
-  const segments = collectionPath.split('/')
-  const collection = segments[segments.length - 1]!
-  const projector = typedProjectorFor(collection)
+  const projector = typedProjectorFor(ref.type)
   if (!projector?.list) {
-    throw new Error(`Unsupported collection read for "${collectionPath}" (no typed list projector)`)
+    throw new Error(`Unsupported collection read for "${ref.type}" (no typed list projector)`)
   }
   const list = projector.list
-  const orgId = segments[0] === 'orgs' && segments.length > 1 ? segments[1]! : null
-  if (orgId === null) {
-    throw new Error(
-      `Collection read "${collectionPath}" has no org context (RLS would fail closed)`,
-    )
-  }
-  return readUnderRls(orgId, (client) => list(client, collectionPath, constraints))
+  return readUnderRls(ref.orgId, (client) => list(client, ref, constraints))
+}
+
+// Reads an aggregate's full event stream (version order) for replay.
+async function readEventStream(
+  client: PoolClient,
+  ref: AggregateRef,
+): Promise<readonly FirestoreDoc[]> {
+  // The `envelope` JSONB is annotated (not asserted) as `FirestoreDoc` at this
+  // single driver boundary; callers decode it against the schema (no cast in
+  // product code). Scoped by the composite event identity (D6).
+  const res = await client.query<{ envelope: FirestoreDoc }>(
+    `SELECT envelope FROM events
+     WHERE aggregate_type = $1 AND org_id = $2 AND aggregate_id = $3
+     ORDER BY version ASC`,
+    [ref.type, ref.orgId, ref.id],
+  )
+  return res.rows.map((row) => row.envelope)
 }
 
 async function writeEvent(
   client: PoolClient,
-  aggregatePath: string,
+  ref: AggregateRef,
   version: number,
   envelope: FirestoreDoc,
 ): Promise<void> {
-  // The DB enforces optimistic concurrency: a duplicate (aggregate_id, version)
-  // raises 23505 (unique_violation), which surfaces as a failed transaction —
-  // the second concurrent append is refused by the DB, not the app.
+  // The DB enforces optimistic concurrency: a duplicate (aggregate_type, org_id,
+  // aggregate_id, version) raises 23505 (unique_violation), which surfaces as a
+  // failed transaction — the second concurrent append is refused by the DB, not
+  // the app. `aggregate_id` is the bare aggregate id (D6); type/org are siblings.
   await client.query(
     `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
      VALUES ($1, $2, $3, $4, $5)`,
-    [aggregateTypeOf(aggregatePath), aggregatePath, version, orgIdOf(aggregatePath), envelope],
+    [ref.type, ref.id, version, ref.orgId, envelope],
   )
 }
 
@@ -176,22 +155,22 @@ async function writeEvent(
 // the same `client`, so the projection commits or rolls back with its event.
 async function upsertProjection(
   client: PoolClient,
-  aggregatePath: string,
+  ref: AggregateRef,
   state: FirestoreDoc,
 ): Promise<void> {
-  const typed = typedProjectorFor(aggregateTypeOf(aggregatePath))
+  const typed = typedProjectorFor(ref.type)
   if (typed) {
-    await typed.upsert(client, aggregatePath, state)
+    await typed.upsert(client, ref, state)
     return
   }
   // Merge-on-write mirrors Firestore's `set(..., {merge:true})`: the event store
   // writes the full reduced state, so a plain upsert of `state` is faithful.
   await client.query(
-    `INSERT INTO projections (aggregate_path, state, updated_at)
-     VALUES ($1, $2, now())
-     ON CONFLICT (aggregate_path)
+    `INSERT INTO projections (org_id, id, state, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (org_id, id)
      DO UPDATE SET state = EXCLUDED.state, updated_at = now()`,
-    [aggregatePath, state],
+    [ref.orgId, ref.id, state],
   )
 }
 
@@ -201,77 +180,47 @@ async function upsertProjection(
  * the projection write for `*.deleted` events (the caller hard-deletes), so the
  * row removal is driven by the backend-aware delete helper, which calls this.
  */
-export async function deleteProjectionRow(
-  client: PoolClient,
-  aggregatePath: string,
-): Promise<void> {
-  const typed = typedProjectorFor(aggregateTypeOf(aggregatePath))
+export async function deleteProjectionRow(client: PoolClient, ref: AggregateRef): Promise<void> {
+  const typed = typedProjectorFor(ref.type)
   if (typed) {
-    await typed.delete(client, aggregatePath)
+    await typed.delete(client, ref)
     return
   }
-  await client.query('DELETE FROM projections WHERE aggregate_path = $1', [aggregatePath])
-}
-
-// Routes a `setDoc(path, data)` to the right table by the path shape: an
-// `…/events/vNNN` path is an event append; anything else is a projection write.
-async function routeSetDoc(client: PoolClient, path: string, data: FirestoreDoc): Promise<void> {
-  const eventMatch = EVENT_PATH.exec(path)
-  if (eventMatch?.groups) {
-    const { aggregatePath, version } = eventMatch.groups
-    await writeEvent(client, aggregatePath!, Number(version), data)
-    return
-  }
-  await upsertProjection(client, path, data)
+  await client.query('DELETE FROM projections WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
 const postgresOps: PersistenceOps = {
-  getDoc: (path: string) =>
+  getDoc: (ref: AggregateRef) =>
     Effect.promise(async () => {
       const pool = getEventStorePool()
       const client = await pool.connect()
       try {
-        return await getProjectionDoc(client, path)
+        return await getProjectionDoc(client, ref)
       } finally {
         client.release()
       }
     }),
 
-  getDocs: (collectionPath: string, constraints?: readonly QueryConstraint[]) =>
+  getDocs: (ref: CollectionRef, constraints?: readonly QueryConstraint[]) =>
+    Effect.promise(async () => readCollection(ref, constraints ?? [])),
+
+  getEvents: (ref: AggregateRef) =>
     Effect.promise(async () => {
-      const eventsMatch = EVENTS_COLLECTION.exec(collectionPath)
-      if (!eventsMatch?.groups) {
-        // Not an event stream → a general COLLECTION read (notifications, units,
-        // customers, subscriptions, catalog_items, top-level orgs) the pure
-        // domain/cron passes. Translate it to the typed table's SQL under RLS.
-        return readCollection(collectionPath, constraints ?? [])
-      }
-      const aggregatePath = eventsMatch.groups.aggregatePath!
       const pool = getEventStorePool()
       const client = await pool.connect()
       try {
-        // Replay reads the aggregate's stream in version order — the constraint
-        // the event store always passes (`orderBy version asc`) is the ONLY read
-        // shape, so it is applied unconditionally (backed by the events index).
-        // The `envelope` JSONB is annotated (not asserted) as `FirestoreDoc` at
-        // this single driver boundary — the same pattern the Firestore layer
-        // uses; callers decode it against the schema (no cast in product code).
-        const res = await client.query<{ envelope: FirestoreDoc }>(
-          'SELECT envelope FROM events WHERE aggregate_id = $1 ORDER BY version ASC',
-          [aggregatePath],
-        )
-        return res.rows.map((row) => row.envelope)
+        return await readEventStream(client, ref)
       } finally {
         client.release()
       }
     }),
 
-  setDoc: (path: string, data: FirestoreDoc) =>
+  setDoc: (ref: AggregateRef, data: FirestoreDoc) =>
     Effect.promise(async () => {
       const pool = getEventStorePool()
       const client = await pool.connect()
       try {
-        await routeSetDoc(client, path, data)
+        await upsertProjection(client, ref, data)
       } finally {
         client.release()
       }
@@ -280,30 +229,28 @@ const postgresOps: PersistenceOps = {
   runTransaction: <A, E>(fn: (tx: TransactionContext) => Effect.Effect<A, E, never>) =>
     // Read the OPTIONAL `SecurityContext` (brief 0059): present at the request
     // edge, absent in low-level tooling. It supplies `app.current_unit` (and an
-    // explicit org override); `app.current_org` otherwise derives from the
-    // aggregate path being touched — a pure function of the write target, so the
-    // ~100 `emitEvent` call-sites thread NOTHING (hybrid design).
+    // explicit org override); `app.current_org` otherwise comes from the
+    // `AggregateRef.orgId` of the doc being touched (D6) — explicit typed data on
+    // the ref, so the ~433 write call-sites thread NOTHING via the path.
     Effect.serviceOption(SecurityContext).pipe(
       Effect.flatMap((ctx) =>
         Effect.promise(async () => {
           const security = Option.getOrNull(ctx)
           const pool = getEventStorePool()
           const client = await pool.connect()
-          // Set the per-transaction RLS GUCs exactly once, on the first path the
+          // Set the per-transaction RLS GUCs exactly once, on the first ref the
           // tx touches (read or write). `SET LOCAL` is tx-scoped — it never leaks
-          // back to the pooled connection. `app.current_org` derives from the
-          // path (or the explicit context override); `app.current_unit` from the
+          // back to the pooled connection. `app.current_org` comes from the ref
+          // (or the explicit context override); `app.current_unit` from the
           // context (empty string = org-wide, the permissive unit predicate).
-          // Latch only once the org GUC is actually set — if the first touched
-          // path resolves to a null org (a system/probe aggregate), keep trying on
-          // later touches so an org-scoped write further in the tx still gets its
-          // scope. The context override (when provided) wins and is org-stable.
+          // Latch only once the org GUC is actually set — the context override
+          // (when provided) wins and is org-stable.
           let rlsSet = false
-          const ensureRls = async (path: string): Promise<void> => {
+          const ensureRls = async (orgId: string | null): Promise<void> => {
             if (rlsSet) return
-            const orgId = security?.orgId ?? orgIdOf(path)
-            await setRlsGucs(client, orgId, security?.unitId ?? '')
-            if (orgId !== null) rlsSet = true
+            const resolvedOrg = security?.orgId ?? orgId
+            await setRlsGucs(client, resolvedOrg, security?.unitId ?? '')
+            if (resolvedOrg !== null) rlsSet = true
           }
           try {
             await client.query('BEGIN')
@@ -312,30 +259,37 @@ const postgresOps: PersistenceOps = {
             // RLS (the GUCs are set on the first touch, before any row is read or
             // written).
             const txCtx: TransactionContext = {
-              getDoc: (p: string) =>
+              getDoc: (ref: AggregateRef) =>
                 Effect.promise(async () => {
-                  await ensureRls(p)
-                  return getProjectionDoc(client, p)
+                  await ensureRls(ref.orgId)
+                  return getProjectionDoc(client, ref)
                 }),
               // Locked read for the guarded-append definition read (AC-08) — see
               // `getProjectionDocForUpdate`. Same client/tx, so the FOR UPDATE
               // lock is held until this tx commits/rolls back.
-              getDocForUpdate: (p: string) =>
+              getDocForUpdate: (ref: AggregateRef) =>
                 Effect.promise(async () => {
-                  await ensureRls(p)
-                  return getProjectionDocForUpdate(client, p)
+                  await ensureRls(ref.orgId)
+                  return getProjectionDocForUpdate(client, ref)
                 }),
-              setDoc: (p: string, d: FirestoreDoc) =>
+              setDoc: (ref: AggregateRef, d: FirestoreDoc) =>
                 Effect.promise(async () => {
-                  await ensureRls(p)
-                  return routeSetDoc(client, p, d)
+                  await ensureRls(ref.orgId)
+                  return upsertProjection(client, ref, d)
+                }),
+              // Appends one event row on the SAME client (D6) — `aggregate_id` =
+              // `ref.id`, type/org as siblings. Commits/rolls back with the tx.
+              appendEvent: (ref: AggregateRef, version: number, envelope: FirestoreDoc) =>
+                Effect.promise(async () => {
+                  await ensureRls(ref.orgId)
+                  return writeEvent(client, ref, version, envelope)
                 }),
               // Drops the projection row on the SAME client — commits/rolls back
               // with the rest of the tx. Used by the undo-close ACID saga.
-              deleteDoc: (p: string) =>
+              deleteDoc: (ref: AggregateRef) =>
                 Effect.promise(async () => {
-                  await ensureRls(p)
-                  return deleteProjectionRow(client, p)
+                  await ensureRls(ref.orgId)
+                  return deleteProjectionRow(client, ref)
                 }),
             }
             const result = await Effect.runPromise(fn(txCtx))
@@ -386,19 +340,19 @@ export const PostgresLayerLive = PostgresPersistenceLayer
  * OUTSIDE `PersistencePort` so the port contract (the event-store seam) doesn't
  * reopen for a read-model concern (brief 0058, AC-03).
  *
- * Runs in a transaction with the RLS GUC set from the aggregate path (feature C):
- * the typed tables are under FORCE RLS, so a DELETE on a bare connection with no
+ * Runs in a transaction with the RLS GUC set from `ref.orgId` (feature C): the
+ * typed tables are under FORCE RLS, so a DELETE on a bare connection with no
  * `app.current_org` matches ZERO rows under the non-superuser runtime role —
- * silently orphaning the projection. Deriving the org from the path (like
- * `runTransaction`) scopes the DELETE so it actually removes the row.
+ * silently orphaning the projection. The ref's org scopes the DELETE so it
+ * actually removes the row.
  */
-export async function deletePostgresProjection(aggregatePath: string): Promise<void> {
+export async function deletePostgresProjection(ref: AggregateRef): Promise<void> {
   const pool = getEventStorePool()
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    await setRlsGucs(client, orgIdOf(aggregatePath), '')
-    await deleteProjectionRow(client, aggregatePath)
+    await setRlsGucs(client, ref.orgId, '')
+    await deleteProjectionRow(client, ref)
     await client.query('COMMIT')
   } catch (err) {
     await client.query('ROLLBACK')

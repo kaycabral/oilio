@@ -18,6 +18,8 @@
 // Postgres (`pgReadProjection`) — Postgres é o backend único pós-cutover, sem
 // gate de flag.
 
+import { CatalogItemConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { pgReadProjection, seedCatalogItem, seedCategory } from '../helpers/session'
@@ -55,9 +57,9 @@ test.describe('CatalogItem — baseline (#1002)', () => {
   test('coleção vazia: projeção ausente lê como null', async ({ org }) => {
     const row = await pgReadProjection(
       'catalog_items',
-      `orgs/${org.orgId}/catalog_items/inexistente`,
+      aggregateRef(CatalogItemConfig, org.orgId, 'inexistente'),
     )
-    // Projeção ausente → null (nenhuma linha pra esse aggregate_path). O ponto
+    // Projeção ausente → null (nenhuma linha pra esse aggregate). O ponto
     // é que a leitura do membro não falha — só não encontra o item.
     expect(row).toBeNull()
   })
@@ -88,7 +90,7 @@ test.describe('CatalogItem — baseline (#1002)', () => {
 
     const svcRow = await pgReadProjection(
       'catalog_items',
-      `orgs/${org.orgId}/catalog_items/${serviceId}`,
+      aggregateRef(CatalogItemConfig, org.orgId, serviceId),
     )
     const svc = decodeService(svcRow)
     expect(svc.kind).toBe('service')
@@ -97,7 +99,7 @@ test.describe('CatalogItem — baseline (#1002)', () => {
 
     const prodRow = await pgReadProjection(
       'catalog_items',
-      `orgs/${org.orgId}/catalog_items/${productId}`,
+      aggregateRef(CatalogItemConfig, org.orgId, productId),
     )
     const prod = decodeProduct(prodRow)
     expect(prod.kind).toBe('product')
@@ -117,7 +119,10 @@ test.describe('CatalogItem — baseline (#1002)', () => {
       unitIds: org.unitIds,
       active: false,
     })
-    const row = await pgReadProjection('catalog_items', `orgs/${org.orgId}/catalog_items/${id}`)
+    const row = await pgReadProjection(
+      'catalog_items',
+      aggregateRef(CatalogItemConfig, org.orgId, id),
+    )
     const degenerate = decodeDegenerate(row)
     expect(degenerate.category_id).toBeNull()
     expect(degenerate.commission).toBeNull()

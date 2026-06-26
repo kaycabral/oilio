@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { Membership } from '@/domain/types/membership'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -24,11 +24,10 @@ const decodeMembership = Schema.decodeUnknownSync(Membership)
  * runtime upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1.
  */
 export const MEMBERSHIP_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
   'user_id',
-  'version',
+  'last_event_version',
   'role',
   'status',
   'rls_unit_scope',
@@ -39,21 +38,20 @@ export const MEMBERSHIP_COLUMNS = [
 ] as const
 
 /**
- * Map a decoded `Membership` (+ aggregate path and projection version) onto the
+ * Map a decoded `Membership` (+ aggregate ref and projection version) onto the
  * ordered `memberships` column VALUES — the inverse of `rowToDoc`, shared by the
  * runtime projector and the E2E seed. Order matches `MEMBERSHIP_COLUMNS` exactly.
  */
 export function membershipColumnValues(
   membership: Membership,
-  aggregatePath: string,
-  version: number,
+  ref: AggregateRef,
+  lastEventVersion: number,
 ): unknown[] {
   return [
-    aggregatePath,
-    membership.orgId,
-    membership.id,
+    ref.orgId,
+    ref.id,
     membership.userId,
-    version,
+    lastEventVersion,
     membership.role,
     membership.status,
     membership.rlsUnitScope,
@@ -65,13 +63,13 @@ export function membershipColumnValues(
 }
 
 const PLACEHOLDERS = MEMBERSHIP_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = MEMBERSHIP_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = MEMBERSHIP_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO memberships (${MEMBERSHIP_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -79,13 +77,9 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const membership = decodeMembership(state)
-  await client.query(UPSERT, membershipColumnValues(membership, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, membershipColumnValues(membership, ref, stateVersion(state)))
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
@@ -93,7 +87,7 @@ export type MembershipRow = {
   org_id: string
   id: string
   user_id: string
-  version: string | number
+  last_event_version: string | number
   role: string
   status: string
   rls_unit_scope: string | null
@@ -107,7 +101,7 @@ export type MembershipRow = {
 // `upsert`). `_version` (a `bigint` column) is re-attached coerced to number.
 export function rowToDoc(row: MembershipRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     userId: row.user_id,
@@ -121,26 +115,26 @@ export function rowToDoc(row: MembershipRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<MembershipRow>(
-    'SELECT * FROM memberships WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT * FROM memberships WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM memberships WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM memberships WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
 export const membershipProjector: TypedProjector = { read, upsert, delete: remove }
 
 /**
- * `aggregate_type` for memberships = the aggregate-type segment of the event-store path
- * (`memberships/{orgId}_{userId}` → `memberships`). The Postgres Layer derives the
- * same tag with `aggregateTypeOf`, so registration and routing agree.
+ * `aggregate_type` for memberships = the membership aggregate's `config.type`
+ * (`MembershipConfig.type`, singular). The router looks the projector up by the
+ * ref's typed `type` (D6, ADR 0013), so registration and routing agree.
  */
-export const MEMBERSHIP_AGGREGATE_TYPE = 'memberships'
+export const MEMBERSHIP_AGGREGATE_TYPE = 'membership'
 
 registerTypedProjector(MEMBERSHIP_AGGREGATE_TYPE, membershipProjector)

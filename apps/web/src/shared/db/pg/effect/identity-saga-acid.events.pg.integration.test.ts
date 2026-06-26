@@ -1,6 +1,6 @@
 import { MembershipConfig } from '@/domain/aggregates/membership/config'
 import { OrgConfig } from '@/domain/aggregates/org/config'
-import { appendEventToTx, runSaga, type SagaStep } from '@/domain/effect'
+import { aggregateRef, appendEventToTx, runSaga, type SagaStep } from '@/domain/effect'
 import { defaultPermissionsForRole, type Membership } from '@/domain/types/membership'
 import { DEFAULT_ORG_BRANDING, type StoredOrg } from '@/domain/types/org'
 import { Effect } from 'effect'
@@ -58,14 +58,14 @@ function membership(orgId: string, userId: string): Membership {
   }
 }
 
-const orgPath = (id: string) => `orgs/${id}`
-const membershipPath = (id: string) => `memberships/${id}`
+const orgRef = (id: string) => aggregateRef(OrgConfig, id, id)
+const membershipRef = (orgId: string, id: string) => aggregateRef(MembershipConfig, orgId, id)
 
 function orgStep(data: StoredOrg): SagaStep {
   return (tx) =>
     appendEventToTx(
       OrgConfig,
-      orgPath(data.id),
+      orgRef(data.id),
       {
         _tag: 'org.created',
         actorId: 'test',
@@ -78,7 +78,7 @@ function membershipStep(data: Membership): SagaStep {
   return (tx) =>
     appendEventToTx(
       MembershipConfig,
-      membershipPath(data.id),
+      membershipRef(data.orgId, data.id),
       {
         _tag: 'membership.created',
         actorId: 'test',
@@ -89,21 +89,21 @@ function membershipStep(data: Membership): SagaStep {
 }
 
 async function readOrg(id: string): Promise<number> {
-  const res = await getEventStorePool().query('SELECT 1 FROM orgs WHERE aggregate_path = $1', [
-    orgPath(id),
+  const res = await getEventStorePool().query('SELECT 1 FROM orgs WHERE org_id = $1 AND id = $1', [
+    id,
   ])
   return res.rowCount ?? 0
 }
-async function readMembership(id: string): Promise<number> {
+async function readMembership(orgId: string, id: string): Promise<number> {
   const res = await getEventStorePool().query(
-    'SELECT 1 FROM memberships WHERE aggregate_path = $1',
-    [membershipPath(id)],
+    'SELECT 1 FROM memberships WHERE org_id = $1 AND id = $2',
+    [orgId, id],
   )
   return res.rowCount ?? 0
 }
-async function countEvents(aggregatePath: string): Promise<number> {
+async function countEvents(aggregateId: string): Promise<number> {
   const res = await getEventStorePool().query('SELECT 1 FROM events WHERE aggregate_id = $1', [
-    aggregatePath,
+    aggregateId,
   ])
   return res.rowCount ?? 0
 }
@@ -123,10 +123,10 @@ describe('identity saga — ACID rollback (Postgres)', () => {
       ),
     )
     expect(await readOrg(ORG)).toBe(1)
-    expect(await readMembership(`${ORG}_${USER}`)).toBe(1)
+    expect(await readMembership(ORG, `${ORG}_${USER}`)).toBe(1)
     // Both event streams persisted too.
-    expect(await countEvents(orgPath(ORG))).toBe(1)
-    expect(await countEvents(membershipPath(`${ORG}_${USER}`))).toBe(1)
+    expect(await countEvents(ORG)).toBe(1)
+    expect(await countEvents(`${ORG}_${USER}`)).toBe(1)
   })
 
   it('rolls back the WHOLE cascade when a later step violates a DB CHECK', async () => {
@@ -141,8 +141,8 @@ describe('identity saga — ACID rollback (Postgres)', () => {
 
     // The org step committed NOTHING — the failed membership rolled it back too.
     expect(await readOrg(ORG)).toBe(0)
-    expect(await readMembership(`${ORG}_`)).toBe(0)
+    expect(await readMembership(ORG, `${ORG}_`)).toBe(0)
     // And no event row leaked for either aggregate.
-    expect(await countEvents(orgPath(ORG))).toBe(0)
+    expect(await countEvents(ORG)).toBe(0)
   })
 })

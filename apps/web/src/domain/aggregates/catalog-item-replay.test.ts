@@ -4,63 +4,31 @@
 // campo é escrito fora de eventos (event-first) e que ambos os kinds
 // reconstroem corretamente a partir do stream.
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
 import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
 import { CatalogItemConfig } from './catalog-item/config'
-
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
 
 async function checkReplay(
   id: string,
   data: Record<string, unknown>,
   changes: Record<string, unknown>,
 ): Promise<FirestoreDoc> {
-  const { store, layer } = makeStore()
-  const path = `orgs/t1/catalog_items/${id}`
+  const { store, layer } = makeReplayStore()
+  const ref = aggregateRef(CatalogItemConfig, 't1', id)
 
   await Effect.runPromise(
     Effect.gen(function* () {
-      yield* appendEvent(CatalogItemConfig, path, {
+      yield* appendEvent(CatalogItemConfig, ref, {
         _tag: 'catalog_item.created',
         actorId: 'actor-1',
         payload: { data },
       })
-      yield* appendEvent(CatalogItemConfig, path, {
+      yield* appendEvent(CatalogItemConfig, ref, {
         _tag: 'catalog_item.updated',
         actorId: 'actor-1',
         payload: { changes },
@@ -68,9 +36,9 @@ async function checkReplay(
     }).pipe(Effect.provide(layer)),
   )
 
-  const projection = store.get(path)!
+  const projection = store.get(docKey(ref))!
   const replayed = await Effect.runPromise(
-    replayAggregate(CatalogItemConfig, path).pipe(Effect.provide(layer)),
+    replayAggregate(CatalogItemConfig, ref).pipe(Effect.provide(layer)),
   )
 
   expect(replayed).toEqual(projection)
@@ -171,11 +139,11 @@ describe('CatalogItem — replay reconstrói o doc completo (event-first)', () =
   })
 
   it('delete não ressuscita a projeção (hard-delete via caller)', async () => {
-    const { layer } = makeStore()
-    const path = 'orgs/t1/catalog_items/svc-del'
+    const { layer } = makeReplayStore()
+    const ref = aggregateRef(CatalogItemConfig, 't1', 'svc-del')
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(CatalogItemConfig, path, {
+        yield* appendEvent(CatalogItemConfig, ref, {
           _tag: 'catalog_item.created',
           actorId: 'actor-1',
           payload: {
@@ -200,7 +168,7 @@ describe('CatalogItem — replay reconstrói o doc completo (event-first)', () =
             },
           },
         })
-        yield* appendEvent(CatalogItemConfig, path, {
+        yield* appendEvent(CatalogItemConfig, ref, {
           _tag: 'catalog_item.deleted',
           actorId: 'actor-1',
           payload: {},
@@ -210,7 +178,7 @@ describe('CatalogItem — replay reconstrói o doc completo (event-first)', () =
     // Replay from the stream still yields the last state (event log is the
     // source of truth); the projection doc removal is the caller's hard-delete.
     const replayed = await Effect.runPromise(
-      replayAggregate(CatalogItemConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(CatalogItemConfig, ref).pipe(Effect.provide(layer)),
     )
     expect(replayed._version).toBe(2)
     expect(replayed.name).toBe('Temp')

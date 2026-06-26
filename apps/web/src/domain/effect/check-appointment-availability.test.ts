@@ -1,35 +1,20 @@
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { AgendaBlockConfig } from '@/domain/aggregates/agenda-block/config'
+import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
+import { ProfessionalConfig } from '@/domain/aggregates/professional/config'
+import { aggregateRef } from '@/domain/effect/aggregate-ref'
+import { docKey, makeTestFirestoreLayer } from '@/domain/effect/test-layers'
+
 import { checkAppointmentAvailability } from './check-appointment-availability'
-import type { FirestoreDoc } from './services'
-import { PersistencePort } from './services'
 
-function makeTestFirestoreLayer(docs: Record<string, FirestoreDoc>) {
-  const store = new Map(Object.entries(docs))
-
-  return Layer.succeed(PersistencePort, {
-    getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-    getDocs: (collectionPath: string) =>
-      Effect.succeed(
-        [...store.entries()]
-          .filter(([key]) => key.startsWith(collectionPath + '/'))
-          .map(([, doc]) => doc),
-      ),
-    setDoc: (path: string, data: FirestoreDoc) =>
-      Effect.sync(() => {
-        store.set(path, { ...store.get(path), ...data })
-      }),
-    runTransaction: (fn) =>
-      fn({
-        getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-        setDoc: (path, data) =>
-          Effect.sync(() => {
-            store.set(path, { ...store.get(path), ...data })
-          }),
-      }),
-  })
-}
+const professionalKey = (orgId: string, id: string) =>
+  docKey(aggregateRef(ProfessionalConfig, orgId, id))
+const appointmentKey = (orgId: string, id: string) =>
+  docKey(aggregateRef(AppointmentConfig, orgId, id))
+const agendaBlockKey = (orgId: string, id: string) =>
+  docKey(aggregateRef(AgendaBlockConfig, orgId, id))
 
 const BASE_INPUT = {
   orgId: 't1',
@@ -43,7 +28,7 @@ const BASE_INPUT = {
 describe('checkAppointmentAvailability', () => {
   it('AC-06: resolves via PersistencePort layer — no direct singleton import', async () => {
     const layer = makeTestFirestoreLayer({
-      'orgs/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
+      [professionalKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
     })
 
     const result = await Effect.runPromise(
@@ -55,8 +40,8 @@ describe('checkAppointmentAvailability', () => {
 
   it('AC-05: returns AppointmentConflictError when slot is occupied', async () => {
     const layer = makeTestFirestoreLayer({
-      'orgs/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
-      'orgs/t1/appointments/apt-99': {
+      [professionalKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
+      [appointmentKey('t1', 'apt-99')]: {
         id: 'apt-99',
         unitId: 'u1',
         professionalId: 'prof-1',
@@ -107,12 +92,12 @@ describe('checkAppointmentAvailability', () => {
 
   it('AC-07: same production code works with different test layer data', async () => {
     const emptyLayer = makeTestFirestoreLayer({
-      'orgs/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
+      [professionalKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
     })
 
     const busyLayer = makeTestFirestoreLayer({
-      'orgs/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
-      'orgs/t1/appointments/apt-1': {
+      [professionalKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
+      [appointmentKey('t1', 'apt-1')]: {
         id: 'apt-1',
         unitId: 'u1',
         professionalId: 'prof-1',
@@ -137,8 +122,8 @@ describe('checkAppointmentAvailability', () => {
 
   it('AC-05: a one-off agenda block over the slot makes it unavailable', async () => {
     const layer = makeTestFirestoreLayer({
-      'orgs/t1/professionals/prof-1': { id: 'prof-1', name: 'João' },
-      'orgs/t1/agendaBlocks/blk-1': {
+      [professionalKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
+      [agendaBlockKey('t1', 'blk-1')]: {
         id: 'blk-1',
         orgId: 't1',
         unitId: 'u1',

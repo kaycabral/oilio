@@ -18,7 +18,7 @@
 
 import { membershipDocId } from '@/domain'
 import { AppointmentConfig, CustomerConfig, MembershipConfig } from '@/domain/aggregates'
-import { appendEvent } from '@/domain/effect'
+import { aggregateRef, appendEvent } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
@@ -46,10 +46,10 @@ function uid(prefix: string): string {
 // projection writes don't trip `customers_org_id_fk`.
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1, $2, $2, 1, 'Org', $3, 'barbershop', 'owner', '{}'::jsonb, $4, $4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}`, orgId, `slug-${orgId}`, TS],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1, $1, 1, 'Org', $2, 'barbershop', 'owner', '{}'::jsonb, $3, $3)
+     ON CONFLICT (org_id) DO NOTHING`,
+    [orgId, `slug-${orgId}`, TS],
   )
 }
 
@@ -74,7 +74,7 @@ async function seedClaimerUser(claimerUid: string): Promise<void> {
 async function seedCustomer(orgId: string, customerId: string, userId: string): Promise<void> {
   await seedOrg(orgId)
   await Effect.runPromise(
-    appendEvent(CustomerConfig, `orgs/${orgId}/customers/${customerId}`, {
+    appendEvent(CustomerConfig, aggregateRef(CustomerConfig, orgId, customerId), {
       _tag: 'customer.created',
       actorId: 'seed',
       payload: { data: buildStoredCustomer(customerId, orgId, userId, TS) },
@@ -90,27 +90,27 @@ async function seedCustomer(orgId: string, customerId: string, userId: string): 
 // null, so no unit FK there.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/units/'||$2,$1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$3,$3)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, unitId, TS],
   )
 }
 
 async function seedProfessional(orgId: string, professionalId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO professionals (aggregate_path, org_id, id, version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/professionals/'||$2,$1,$2,1,'user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,$3,$3)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+     VALUES ($1,$2,1,'user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, professionalId, TS],
   )
 }
 
 async function seedService(orgId: string, serviceId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO catalog_items (aggregate_path, org_id, id, version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/catalog_items/'||$2,$1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,$3,$3)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
+     VALUES ($1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, serviceId, TS],
   )
 }
@@ -118,11 +118,15 @@ async function seedService(orgId: string, serviceId: string): Promise<void> {
 async function seedMembership(orgId: string, userId: string): Promise<void> {
   await seedOrg(orgId)
   await Effect.runPromise(
-    appendEvent(MembershipConfig, `memberships/${membershipDocId(orgId, userId)}`, {
-      _tag: 'membership.created',
-      actorId: 'seed',
-      payload: { data: buildMembership(orgId, userId, TS, { role: 'receptionist' }) },
-    }).pipe(Effect.provide(PostgresPersistenceLayer)),
+    appendEvent(
+      MembershipConfig,
+      aggregateRef(MembershipConfig, orgId, membershipDocId(orgId, userId)),
+      {
+        _tag: 'membership.created',
+        actorId: 'seed',
+        payload: { data: buildMembership(orgId, userId, TS, { role: 'receptionist' }) },
+      },
+    ).pipe(Effect.provide(PostgresPersistenceLayer)),
   )
 }
 
@@ -138,7 +142,7 @@ async function seedAppointment(
   await seedProfessional(orgId, 'pro')
   await seedService(orgId, 'svc')
   await Effect.runPromise(
-    appendEvent(AppointmentConfig, `orgs/${orgId}/appointments/${apptId}`, {
+    appendEvent(AppointmentConfig, aggregateRef(AppointmentConfig, orgId, apptId), {
       _tag: 'appointment.created',
       actorId: 'seed',
       payload: { data: buildAppointment(apptId, orgId, TS, { customerId, customerUserId }) },
@@ -150,24 +154,24 @@ async function seedAppointment(
 
 async function customerUserIdOf(orgId: string, customerId: string): Promise<string | null> {
   const res = await getEventStorePool().query<{ user_id: string }>(
-    'SELECT user_id FROM customers WHERE aggregate_path = $1',
-    [`orgs/${orgId}/customers/${customerId}`],
+    'SELECT user_id FROM customers WHERE org_id = $1 AND id = $2',
+    [orgId, customerId],
   )
   return res.rows[0]?.user_id ?? null
 }
 
 async function appointmentCustomerUserIdOf(orgId: string, apptId: string): Promise<string | null> {
   const res = await getEventStorePool().query<{ customer_user_id: string }>(
-    'SELECT customer_user_id FROM appointments WHERE aggregate_path = $1',
-    [`orgs/${orgId}/appointments/${apptId}`],
+    'SELECT customer_user_id FROM appointments WHERE org_id = $1 AND id = $2',
+    [orgId, apptId],
   )
   return res.rows[0]?.customer_user_id ?? null
 }
 
 async function membershipExists(orgId: string, userId: string): Promise<boolean> {
   const res = await getEventStorePool().query<{ n: number }>(
-    'SELECT count(*)::int AS n FROM memberships WHERE aggregate_path = $1',
-    [`memberships/${membershipDocId(orgId, userId)}`],
+    'SELECT count(*)::int AS n FROM memberships WHERE org_id = $1 AND id = $2',
+    [orgId, membershipDocId(orgId, userId)],
   )
   return (res.rows[0]?.n ?? 0) > 0
 }

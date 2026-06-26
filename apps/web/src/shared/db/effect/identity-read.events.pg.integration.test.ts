@@ -1,6 +1,6 @@
 import { MembershipConfig } from '@/domain/aggregates/membership/config'
 import { OrgConfig } from '@/domain/aggregates/org/config'
-import { appendEvent } from '@/domain/effect'
+import { aggregateRef, appendEvent } from '@/domain/effect'
 import { defaultPermissionsForRole, type Membership } from '@/domain/types/membership'
 import { DEFAULT_ORG_BRANDING, type StoredOrg } from '@/domain/types/org'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
@@ -67,16 +67,16 @@ function membership(
 // tripping `memberships_rls_unit_scope_fk`.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/units/'||$2,$1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, unitId],
   )
 }
 
 const createOrg = (data: StoredOrg) =>
   Effect.runPromise(
-    appendEvent(OrgConfig, `orgs/${data.id}`, {
+    appendEvent(OrgConfig, aggregateRef(OrgConfig, data.id, data.id), {
       _tag: 'org.created',
       actorId: 'test',
       payload: { data },
@@ -85,7 +85,7 @@ const createOrg = (data: StoredOrg) =>
 
 const createMembership = (data: Membership) =>
   Effect.runPromise(
-    appendEvent(MembershipConfig, `memberships/${data.id}`, {
+    appendEvent(MembershipConfig, aggregateRef(MembershipConfig, data.orgId, data.id), {
       _tag: 'membership.created',
       actorId: 'test',
       payload: { data },
@@ -147,7 +147,7 @@ describe('Identity reads — Postgres (brief 0059, AC-04)', () => {
     await createOrg(org(ORG))
     await createMembership(membership(ORG, 'user-9'))
     await Effect.runPromise(
-      appendEvent(MembershipConfig, `memberships/${ORG}_user-9`, {
+      appendEvent(MembershipConfig, aggregateRef(MembershipConfig, ORG, `${ORG}_user-9`), {
         _tag: 'membership.updated',
         actorId: 'test',
         payload: { changes: { role: 'manager' } },

@@ -13,47 +13,14 @@
 // Also exercises the pure derivation rule (the read-layer gate) so the
 // "operational when accepted ∧ whatsapp ∧ ≥1 unit ∧ ≥1 service" rule stays pinned.
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
 import { ProfessionalConfig } from './professional/config'
 import { deriveOperationalStatus } from './professional/derive-operational'
-
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
 
 // A legacy `professional.created` payload — note it still carries the now-dropped
 // `operationalStatus` key (a historical stream). Decode must tolerate it as an
@@ -72,29 +39,29 @@ const LEGACY_CREATED_DATA = {
 
 describe('Professional operational — legacy activate/suspend events replay as no-ops (#1226 AC-02)', () => {
   it('created → updated → activated → suspended replays cleanly with the transitions as no-ops', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/professionals/pro1'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(ProfessionalConfig, 't1', 'pro1')
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(ProfessionalConfig, path, {
+        yield* appendEvent(ProfessionalConfig, ref, {
           _tag: 'professional.created',
           actorId: 'actor-1',
           payload: { data: LEGACY_CREATED_DATA },
         })
-        yield* appendEvent(ProfessionalConfig, path, {
+        yield* appendEvent(ProfessionalConfig, ref, {
           _tag: 'professional.updated',
           actorId: 'actor-1',
           payload: { changes: { unitIds: ['u1'], catalogServiceIds: ['s1'] } },
         })
         // Legacy transition events — no longer emitted, but historical streams
         // have them. The reducer must accept + ignore them.
-        yield* appendEvent(ProfessionalConfig, path, {
+        yield* appendEvent(ProfessionalConfig, ref, {
           _tag: 'professional.activated',
           actorId: 'actor-1',
           payload: {},
         })
-        yield* appendEvent(ProfessionalConfig, path, {
+        yield* appendEvent(ProfessionalConfig, ref, {
           _tag: 'professional.suspended',
           actorId: 'actor-1',
           payload: {},
@@ -103,12 +70,12 @@ describe('Professional operational — legacy activate/suspend events replay as 
     )
 
     const replayed = await Effect.runPromise(
-      replayAggregate(ProfessionalConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(ProfessionalConfig, ref).pipe(Effect.provide(layer)),
     )
 
     // Replay matches the projection and reconstructs the real state from the
     // stream alone — the transition events did not break decoding.
-    expect(replayed).toEqual(store.get(path))
+    expect(replayed).toEqual(store.get(docKey(ref)))
     expect(replayed._version).toBe(4)
     // The transitions are no-ops: the operational fields come only from
     // created/updated, untouched by activated/suspended.
@@ -121,17 +88,17 @@ describe('Professional operational — legacy activate/suspend events replay as 
   })
 
   it('a legacy created event with the dropped operationalStatus key still decodes', async () => {
-    const { layer } = makeStore()
-    const path = 'orgs/t1/professionals/pro2'
+    const { layer } = makeReplayStore()
+    const ref = aggregateRef(ProfessionalConfig, 't1', 'pro2')
     await Effect.runPromise(
-      appendEvent(ProfessionalConfig, path, {
+      appendEvent(ProfessionalConfig, ref, {
         _tag: 'professional.created',
         actorId: 'actor-1',
         payload: { data: { ...LEGACY_CREATED_DATA, id: 'pro2' } },
       }).pipe(Effect.provide(layer)),
     )
     const replayed = await Effect.runPromise(
-      replayAggregate(ProfessionalConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(ProfessionalConfig, ref).pipe(Effect.provide(layer)),
     )
     expect(replayed.id).toBe('pro2')
     expect('operationalStatus' in replayed).toBe(false)

@@ -1,4 +1,4 @@
-import type { FirestoreDoc, QueryConstraint } from '@/domain/effect'
+import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
 import { Order } from '@/domain/types/order'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -24,14 +24,15 @@ const decodeOrder = Schema.decodeUnknownSync(Order)
 
 /**
  * The ordered `orders` column list — single source of truth for the upsert
- * placeholders and the E2E seed. Mirrors the `INSERT` placeholders 1:1.
+ * placeholders and the E2E seed. Mirrors the `INSERT` placeholders 1:1. The
+ * composite `(org_id, id)` natural key leads (D6, ADR 0013); `last_event_version`
+ * is the reducer's `_version` projection column (events.version is unchanged).
  */
 export const ORDER_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
   'unit_id',
-  'version',
+  'last_event_version',
   'customer_id',
   'appointment_id',
   'status',
@@ -46,17 +47,16 @@ export const ORDER_COLUMNS = [
 ] as const
 
 /**
- * Map a decoded `Order` (+ aggregate path and version) onto the ordered column
+ * Map a decoded `Order` (+ aggregate ref and version) onto the ordered column
  * VALUES — the inverse of `rowToDoc`, shared by the runtime projector and the
- * E2E seed. Order matches `ORDER_COLUMNS`. `items` is `JSON.stringify`'d for the
- * JSONB column; `closedAt`/`paymentMethod` are null on a non-closed order (the
- * union guarantees it, and the DB CHECK refuses otherwise).
+ * E2E seed. Order matches `ORDER_COLUMNS`; `org_id`/`id` come from the ref. `items`
+ * is `JSON.stringify`'d for the JSONB column; `closedAt`/`paymentMethod` are null
+ * on a non-closed order (the union guarantees it, and the DB CHECK refuses otherwise).
  */
-export function orderColumnValues(order: Order, aggregatePath: string, version: number): unknown[] {
+export function orderColumnValues(order: Order, ref: AggregateRef, version: number): unknown[] {
   return [
-    aggregatePath,
-    order.orgId,
-    order.id,
+    ref.orgId,
+    ref.id,
     order.unitId,
     version,
     order.customerId,
@@ -74,13 +74,13 @@ export function orderColumnValues(order: Order, aggregatePath: string, version: 
 }
 
 const PLACEHOLDERS = ORDER_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = ORDER_COLUMNS.filter((col) => col !== 'aggregate_path')
+const CONFLICT_SET = ORDER_COLUMNS.filter((col) => col !== 'org_id' && col !== 'id')
   .map((col) => `${col} = EXCLUDED.${col}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO orders (${ORDER_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -88,13 +88,9 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const order = decodeOrder(state)
-  await client.query(UPSERT, orderColumnValues(order, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, orderColumnValues(order, ref, stateVersion(state)))
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
@@ -102,7 +98,7 @@ export type OrderRow = {
   org_id: string
   id: string
   unit_id: string
-  version: string | number
+  last_event_version: string | number
   customer_id: string | null
   appointment_id: string | null
   status: 'open' | 'closed' | 'cancelled'
@@ -117,14 +113,15 @@ export type OrderRow = {
 }
 
 // Reconstructs the reducer's projected doc from the typed row (inverse of
-// `upsert`); `_version` re-attached so the event store versions/replays
-// correctly. `bigint` columns come back as strings from `pg` — coerced to number.
-// `items` is JSONB → already parsed by `pg`. The status-discriminated fields
-// (`closedAt`/`paymentMethod`) round-trip per the union member (a non-closed
-// order keeps them `null`, matching the open/cancelled branch).
+// `upsert`); `_version` re-attached from `last_event_version` so the event store
+// versions/replays correctly. `bigint` columns come back as strings from `pg` —
+// coerced to number. `items` is JSONB → already parsed by `pg`. The
+// status-discriminated fields (`closedAt`/`paymentMethod`) round-trip per the
+// union member (a non-closed order keeps them `null`, matching the
+// open/cancelled branch).
 export function rowToDoc(row: OrderRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     unitId: row.unit_id,
@@ -144,29 +141,29 @@ export function rowToDoc(row: OrderRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
-  const res = await client.query<OrderRow>('SELECT * FROM orders WHERE aggregate_path = $1', [
-    aggregatePath,
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+  const res = await client.query<OrderRow>('SELECT * FROM orders WHERE org_id = $1 AND id = $2', [
+    ref.orgId,
+    ref.id,
   ])
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM orders WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM orders WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-// Org-scoped collection scan (`orgs/{orgId}/orders`): the hourly cron reads the
-// open orders (`where status == 'open'`) to flag stale ones.
+// Org-scoped collection scan (the `order` collection within an org): the hourly
+// cron reads the open orders (`where status == 'open'`) to flag stale ones.
 async function list(
   client: PoolClient,
-  collectionPath: string,
+  ref: CollectionRef,
   constraints: readonly QueryConstraint[],
 ): Promise<FirestoreDoc[]> {
-  const orgId = collectionPath.split('/')[1] ?? ''
   const tail = buildCollectionQueryTail(constraints, ORDER_COLUMNS, 2, true)
   const res = await client.query<OrderRow>(`SELECT * FROM orders WHERE org_id = $1${tail.sql}`, [
-    orgId,
+    ref.orgId,
     ...tail.params,
   ])
   return res.rows.map(rowToDoc)
@@ -175,9 +172,9 @@ async function list(
 export const orderProjector: TypedProjector = { read, upsert, delete: remove, list }
 
 /**
- * `aggregate_type` for orders = the aggregate-type segment of the event-store path
- * (`orgs/{orgId}/orders/{id}` → `orders`).
+ * The typed `AggregateType` for orders = the `order` config type (D6, ADR 0013):
+ * the registry routes by the ref's typed `type`, not by a path/table-name segment.
  */
-export const ORDER_AGGREGATE_TYPE = 'orders'
+export const ORDER_AGGREGATE_TYPE = 'order'
 
 registerTypedProjector(ORDER_AGGREGATE_TYPE, orderProjector)

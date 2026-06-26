@@ -3,52 +3,19 @@
 // para cada aggregate, a sequência de eventos → `replayAggregate` == projeção,
 // campo a campo (deep-equal).
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
 import { AgendaBlockConfig } from './agenda-block/config'
 import { AppointmentConfig } from './appointment/config'
 
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
-
 describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
   it('appointment — created → updated → rescheduled → cancelled', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/appointments/a1'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(AppointmentConfig, 't1', 'a1')
     const data = {
       id: 'a1',
       orgId: 't1',
@@ -69,17 +36,17 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(AppointmentConfig, path, {
+        yield* appendEvent(AppointmentConfig, ref, {
           _tag: 'appointment.created',
           actorId: 'actor-1',
           payload: { data },
         })
-        yield* appendEvent(AppointmentConfig, path, {
+        yield* appendEvent(AppointmentConfig, ref, {
           _tag: 'appointment.updated',
           actorId: 'actor-1',
           payload: { changes: { professionalId: 'pro2', notes: 'VIP' } },
         })
-        yield* appendEvent(AppointmentConfig, path, {
+        yield* appendEvent(AppointmentConfig, ref, {
           _tag: 'appointment.rescheduled',
           actorId: 'actor-1',
           payload: {
@@ -90,7 +57,7 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
             noticeMinutes: 240,
           },
         })
-        yield* appendEvent(AppointmentConfig, path, {
+        yield* appendEvent(AppointmentConfig, ref, {
           _tag: 'appointment.cancelled',
           actorId: 'actor-1',
           payload: {
@@ -102,9 +69,9 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(AppointmentConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(AppointmentConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed).toEqual(projection)
@@ -117,8 +84,8 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
   })
 
   it('appointment — no_show → no_show_reverted volta pra scheduled', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/appointments/a2'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(AppointmentConfig, 't1', 'a2')
     const data = {
       id: 'a2',
       orgId: 't1',
@@ -139,17 +106,17 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(AppointmentConfig, path, {
+        yield* appendEvent(AppointmentConfig, ref, {
           _tag: 'appointment.created',
           actorId: 'actor-1',
           payload: { data },
         })
-        yield* appendEvent(AppointmentConfig, path, {
+        yield* appendEvent(AppointmentConfig, ref, {
           _tag: 'appointment.no_show',
           actorId: 'actor-1',
           payload: { markedAt: '2026-06-01T13:05:00.000Z', markedBy: 'actor-1' },
         })
-        yield* appendEvent(AppointmentConfig, path, {
+        yield* appendEvent(AppointmentConfig, ref, {
           _tag: 'appointment.no_show_reverted',
           actorId: 'actor-1',
           payload: {},
@@ -157,9 +124,9 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(AppointmentConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(AppointmentConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed).toEqual(projection)
@@ -168,8 +135,8 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
   })
 
   it('agenda_block — created → updated (one_off)', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/agenda_blocks/b1'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(AgendaBlockConfig, 't1', 'b1')
     const data = {
       id: 'b1',
       orgId: 't1',
@@ -188,12 +155,12 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(AgendaBlockConfig, path, {
+        yield* appendEvent(AgendaBlockConfig, ref, {
           _tag: 'agenda_block.created',
           actorId: 'actor-1',
           payload: { data },
         })
-        yield* appendEvent(AgendaBlockConfig, path, {
+        yield* appendEvent(AgendaBlockConfig, ref, {
           _tag: 'agenda_block.updated',
           actorId: 'actor-1',
           payload: { changes: { reason: 'Médico' } },
@@ -201,9 +168,9 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(AgendaBlockConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(AgendaBlockConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed).toEqual(projection)

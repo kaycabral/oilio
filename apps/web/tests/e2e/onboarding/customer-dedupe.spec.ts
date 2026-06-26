@@ -1,3 +1,5 @@
+import { CustomerConfig } from '@/domain/aggregates/customer/config'
+import { aggregateRef } from '@/domain/effect'
 import { randomBytes } from 'node:crypto'
 import { expect, test } from '../fixtures'
 import { fillBirthDate } from '../helpers/forms'
@@ -45,7 +47,7 @@ async function seedStubCustomer(
 // Reads the `user_id` FK off the per-org Customer projection in Postgres
 // (snake_case column). Returns null when the customer row is absent.
 async function readCustomerUserId(orgId: string, customerId: string): Promise<string | null> {
-  const row = await pgReadProjection('customers', `orgs/${orgId}/customers/${customerId}`)
+  const row = await pgReadProjection('customers', aggregateRef(CustomerConfig, orgId, customerId))
   if (!row) return null
   return typeof row.user_id === 'string' ? row.user_id : null
 }

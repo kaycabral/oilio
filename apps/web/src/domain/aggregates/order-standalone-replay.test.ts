@@ -7,46 +7,13 @@
 // reconstrução pura do event store — o store em memória aqui é o próprio
 // substrato de eventos, não um mock de regra.
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { aggregateRef } from '@/domain/effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '@/domain/effect/event-store'
-import type { FirestoreDoc } from '@/domain/effect/services'
-import { PersistencePort } from '@/domain/effect/services'
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
 import { OrderConfig } from './order/config'
-
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
 
 const STANDALONE_ITEM = {
   id: 'i1',
@@ -64,8 +31,8 @@ const STANDALONE_ITEM = {
 
 describe('Order — venda avulsa sem cliente reconstrói do event store (brief 0030)', () => {
   it('created(appointmentId:null, customerId:null) → item_added → closed: replay == projeção', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/orders/o-standalone'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(OrderConfig, 't1', 'o-standalone')
 
     const snapshot = {
       id: 'o-standalone',
@@ -87,19 +54,19 @@ describe('Order — venda avulsa sem cliente reconstrói do event store (brief 0
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(OrderConfig, path, {
+        yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.created',
           actorId: 'user-1',
           payload: { data: snapshot },
         })
-        yield* appendEvent(OrderConfig, path, {
+        yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.item_added',
           actorId: 'user-1',
           payload: {
             changes: { items: [STANDALONE_ITEM], subtotalCents: 7000, totalCents: 7000 },
           },
         })
-        yield* appendEvent(OrderConfig, path, {
+        yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.closed',
           actorId: 'user-1',
           payload: {
@@ -112,9 +79,9 @@ describe('Order — venda avulsa sem cliente reconstrói do event store (brief 0
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(OrderConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(OrderConfig, ref).pipe(Effect.provide(layer)),
     )
 
     // Estado é projeção descartável: replay reconstrói o doc inteiro.

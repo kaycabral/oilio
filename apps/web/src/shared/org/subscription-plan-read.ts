@@ -32,9 +32,10 @@ export async function getSubscriptionPlanById(
 ): Promise<SubscriptionPlan | null> {
   const rows = await readUnderRls<SubscriptionPlanRow>(orgId, (client) =>
     client
-      .query<SubscriptionPlanRow>('SELECT * FROM subscription_plans WHERE aggregate_path = $1', [
-        `orgs/${orgId}/subscription_plans/${planId}`,
-      ])
+      .query<SubscriptionPlanRow>(
+        'SELECT * FROM subscription_plans WHERE org_id = $1 AND id = $2',
+        [orgId, planId],
+      )
       .then((res) => res.rows),
   )
   const row = rows[0]

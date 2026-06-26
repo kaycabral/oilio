@@ -30,14 +30,14 @@ async function patchOrgBranding(
   orgId: string,
   branding: { logoUrl?: string; bannerUrl?: string; description?: string },
 ): Promise<void> {
-  const aggregatePath = `orgs/${orgId}`
   const { Client } = await import('pg')
   const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
   await client.connect()
   try {
     await client.query('BEGIN')
-    const cur = await client.query<OrgRow>('SELECT * FROM orgs WHERE aggregate_path = $1', [
-      aggregatePath,
+    const cur = await client.query<OrgRow>('SELECT * FROM orgs WHERE org_id = $1 AND id = $2', [
+      orgId,
+      orgId,
     ])
     const row = cur.rows[0]
     if (!row) throw new Error(`patchOrgBranding: org ${orgId} not found`)
@@ -49,14 +49,14 @@ async function patchOrgBranding(
     }
     const updatedAt = new Date().toISOString()
     const next: StoredOrg = { ...current, branding: nextBranding, updatedAt }
-    const nextVersion = Number(row.version) + 1
+    const nextVersion = Number(row.last_event_version) + 1
 
     await client.query(
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
        VALUES ($1, $2, $3, $4, $5)`,
       [
         'orgs',
-        aggregatePath,
+        orgId,
         nextVersion,
         orgId,
         {
@@ -70,12 +70,12 @@ async function patchOrgBranding(
       ],
     )
 
-    const values = orgColumnValues(next, aggregatePath, nextVersion)
+    const values = orgColumnValues(next, nextVersion)
     const assignments = ORG_COLUMNS.map((col, i) => `${col} = $${i + 1}`).join(', ')
     const placeholders = ORG_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO orgs (${ORG_COLUMNS.join(', ')}) VALUES (${placeholders})
-       ON CONFLICT (aggregate_path) DO UPDATE SET ${assignments}`,
+       ON CONFLICT (org_id, id) DO UPDATE SET ${assignments}`,
       [...values],
     )
 

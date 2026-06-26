@@ -1,3 +1,9 @@
+import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
+import { CashMovementConfig } from '@/domain/aggregates/cash-movement/config'
+import { ChargeConfig } from '@/domain/aggregates/charge/config'
+import { CommissionConfig } from '@/domain/aggregates/commission/config'
+import { OrderConfig } from '@/domain/aggregates/order/config'
+import { aggregateRef } from '@/domain/effect'
 import type { Appointment } from '@/domain/types/appointment'
 import type { CashMovement } from '@/domain/types/cash-movement'
 import type { Charge } from '@/domain/types/charge'
@@ -104,13 +110,13 @@ describe('order projector — pure mapping', () => {
   }
 
   function orderRow(version: number): OrderRow {
-    const v = orderColumnValues(order, 'orgs/org-1/orders/ord-1', version)
+    const v = orderColumnValues(order, aggregateRef(OrderConfig, 'org-1', 'ord-1'), version)
     const at = (c: string): unknown => valueAt(ORDER_COLUMNS, v, c)
     return {
       org_id: order.orgId,
       id: order.id,
       unit_id: order.unitId,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       customer_id: order.customerId,
       appointment_id: order.appointmentId,
       status: order.status,
@@ -126,7 +132,7 @@ describe('order projector — pure mapping', () => {
   }
 
   it('columnValues has one value per column; closed carries payment + closedAt', () => {
-    const v = orderColumnValues(order, 'orgs/org-1/orders/ord-1', 3)
+    const v = orderColumnValues(order, aggregateRef(OrderConfig, 'org-1', 'ord-1'), 3)
     expect(v).toHaveLength(ORDER_COLUMNS.length)
     expect(v[ORDER_COLUMNS.indexOf('status')]).toBe('closed')
     expect(v[ORDER_COLUMNS.indexOf('payment_method')]).toBe('pix')
@@ -153,7 +159,7 @@ describe('order projector — pure mapping', () => {
       closedAt: null,
       paymentMethod: null,
     }
-    const v = orderColumnValues(open, 'orgs/org-1/orders/ord-1', 1)
+    const v = orderColumnValues(open, aggregateRef(OrderConfig, 'org-1', 'ord-1'), 1)
     expect(v[ORDER_COLUMNS.indexOf('payment_method')]).toBeNull()
     expect(v[ORDER_COLUMNS.indexOf('closed_at')]).toBeNull()
   })
@@ -178,12 +184,16 @@ describe('commission projector — pure mapping', () => {
   }
 
   function commissionRow(version: number, overrides: Partial<CommissionRow> = {}): CommissionRow {
-    const v = commissionColumnValues(commission, 'orgs/org-1/commissions/com-1', version)
+    const v = commissionColumnValues(
+      commission,
+      aggregateRef(CommissionConfig, 'org-1', 'com-1'),
+      version,
+    )
     const at = (c: string): unknown => valueAt(COMMISSION_COLUMNS, v, c)
     return {
       org_id: commission.orgId,
       id: commission.id,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       order_id: commission.orderId,
       order_item_id: commission.orderItemId,
       attributed_user_id: commission.attributedUserId,
@@ -203,7 +213,11 @@ describe('commission projector — pure mapping', () => {
   }
 
   it('a pending commission normalizes status + null paid_at', () => {
-    const v = commissionColumnValues(commission, 'orgs/org-1/commissions/com-1', 1)
+    const v = commissionColumnValues(
+      commission,
+      aggregateRef(CommissionConfig, 'org-1', 'com-1'),
+      1,
+    )
     expect(v).toHaveLength(COMMISSION_COLUMNS.length)
     expect(v[COMMISSION_COLUMNS.indexOf('liquidation_status')]).toBe('pendente')
     expect(v[COMMISSION_COLUMNS.indexOf('paid_at')]).toBeNull()
@@ -215,7 +229,7 @@ describe('commission projector — pure mapping', () => {
       liquidationStatus: 'pago',
       paidAt: '2026-06-02T00:00:00.000Z',
     }
-    const v = commissionColumnValues(paid, 'orgs/org-1/commissions/com-1', 2)
+    const v = commissionColumnValues(paid, aggregateRef(CommissionConfig, 'org-1', 'com-1'), 2)
     expect(v[COMMISSION_COLUMNS.indexOf('liquidation_status')]).toBe('pago')
     expect(v[COMMISSION_COLUMNS.indexOf('paid_at')]).toBe('2026-06-02T00:00:00.000Z')
   })
@@ -235,7 +249,11 @@ describe('commission projector — pure mapping', () => {
     // liquidationStatusOf returns "pago" but the optional paidAt is absent — the
     // column-values guard yields null rather than undefined.
     const paidNoDate = { ...commission, liquidationStatus: 'pago' as const, paidAt: undefined }
-    const v = commissionColumnValues(paidNoDate, 'orgs/org-1/commissions/com-1', 1)
+    const v = commissionColumnValues(
+      paidNoDate,
+      aggregateRef(CommissionConfig, 'org-1', 'com-1'),
+      1,
+    )
     expect(v[COMMISSION_COLUMNS.indexOf('liquidation_status')]).toBe('pago')
     expect(v[COMMISSION_COLUMNS.indexOf('paid_at')]).toBeNull()
   })
@@ -258,13 +276,17 @@ describe('cash-movement projector — pure mapping', () => {
   }
 
   function saleRow(version: number): CashMovementRow {
-    const v = cashMovementColumnValues(sale, 'orgs/org-1/cash_movements/cm-1', version)
+    const v = cashMovementColumnValues(
+      sale,
+      aggregateRef(CashMovementConfig, 'org-1', 'cm-1'),
+      version,
+    )
     const at = (c: string): unknown => valueAt(CASH_MOVEMENT_COLUMNS, v, c)
     return {
       org_id: sale.orgId,
       id: sale.id,
       unit_id: sale.unitId,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       kind: sale.kind,
       direction: sale.direction,
       amount_cents: asPgBigint(at('amount_cents')),
@@ -278,7 +300,7 @@ describe('cash-movement projector — pure mapping', () => {
   }
 
   it('a sale carries orderId + paymentMethod; no expenseCategoryId', () => {
-    const v = cashMovementColumnValues(sale, 'orgs/org-1/cash_movements/cm-1', 1)
+    const v = cashMovementColumnValues(sale, aggregateRef(CashMovementConfig, 'org-1', 'cm-1'), 1)
     expect(v).toHaveLength(CASH_MOVEMENT_COLUMNS.length)
     expect(v[CASH_MOVEMENT_COLUMNS.indexOf('kind')]).toBe('sale')
     expect(v[CASH_MOVEMENT_COLUMNS.indexOf('order_id')]).toBe('ord-1')
@@ -300,7 +322,11 @@ describe('cash-movement projector — pure mapping', () => {
       recordedByUid: 'user-1',
       createdAt: '2026-06-01T12:00:00.000Z',
     }
-    const v = cashMovementColumnValues(sangria, 'orgs/org-1/cash_movements/cm-2', 1)
+    const v = cashMovementColumnValues(
+      sangria,
+      aggregateRef(CashMovementConfig, 'org-1', 'cm-2'),
+      1,
+    )
     expect(v[CASH_MOVEMENT_COLUMNS.indexOf('order_id')]).toBeNull()
     expect(v[CASH_MOVEMENT_COLUMNS.indexOf('payment_method')]).toBeNull()
   })
@@ -332,7 +358,11 @@ describe('cash-movement projector — pure mapping', () => {
       recordedByUid: 'user-1',
       createdAt: '2026-06-01T12:00:00.000Z',
     }
-    const v = cashMovementColumnValues(despesa, 'orgs/org-1/cash_movements/cm-3', 1)
+    const v = cashMovementColumnValues(
+      despesa,
+      aggregateRef(CashMovementConfig, 'org-1', 'cm-3'),
+      1,
+    )
     expect(v[CASH_MOVEMENT_COLUMNS.indexOf('payment_method')]).toBeNull()
     expect(v[CASH_MOVEMENT_COLUMNS.indexOf('expense_category_id')]).toBe('cat-1')
   })
@@ -344,7 +374,11 @@ describe('cash-movement projector — pure mapping', () => {
       kind: 'sale_reversal',
       direction: 'out',
     }
-    const v = cashMovementColumnValues(reversal, 'orgs/org-1/cash_movements/cm-4', 1)
+    const v = cashMovementColumnValues(
+      reversal,
+      aggregateRef(CashMovementConfig, 'org-1', 'cm-4'),
+      1,
+    )
     expect(v[CASH_MOVEMENT_COLUMNS.indexOf('kind')]).toBe('sale_reversal')
     expect(v[CASH_MOVEMENT_COLUMNS.indexOf('payment_method')]).toBe('pix')
   })
@@ -372,13 +406,13 @@ describe('charge projector — pure mapping', () => {
   }
 
   function chargeRow(version: number): ChargeRow {
-    const v = chargeColumnValues(charge, 'orgs/org-1/charges/chg-1', version)
+    const v = chargeColumnValues(charge, aggregateRef(ChargeConfig, 'org-1', 'chg-1'), version)
     const at = (c: string): unknown => valueAt(CHARGE_COLUMNS, v, c)
     return {
       org_id: charge.orgId,
       id: charge.id,
       unit_id: charge.unitId,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       subscription_id: charge.subscriptionId,
       customer_id: charge.customerId,
       amount_cents: asPgBigint(at('amount_cents')),
@@ -397,7 +431,7 @@ describe('charge projector — pure mapping', () => {
   }
 
   it('columnValues has one value per column; status scheduled', () => {
-    const v = chargeColumnValues(charge, 'orgs/org-1/charges/chg-1', 1)
+    const v = chargeColumnValues(charge, aggregateRef(ChargeConfig, 'org-1', 'chg-1'), 1)
     expect(v).toHaveLength(CHARGE_COLUMNS.length)
     expect(v[CHARGE_COLUMNS.indexOf('status')]).toBe('scheduled')
     expect(v[CHARGE_COLUMNS.indexOf('subscription_id')]).toBe('sub-1')
@@ -422,7 +456,7 @@ describe('charge projector — pure mapping', () => {
       attempts: 1,
       paidAt: '2026-06-02T00:00:00.000Z',
     }
-    const v = chargeColumnValues(paid, 'orgs/org-1/charges/chg-1', 3)
+    const v = chargeColumnValues(paid, aggregateRef(ChargeConfig, 'org-1', 'chg-1'), 3)
     expect(v[CHARGE_COLUMNS.indexOf('status')]).toBe('paid')
     expect(v[CHARGE_COLUMNS.indexOf('paid_at')]).toBe('2026-06-02T00:00:00.000Z')
 
@@ -433,7 +467,7 @@ describe('charge projector — pure mapping', () => {
       failedAt: '2026-06-02T00:00:00.000Z',
       failureReason: 'card_declined',
     }
-    const fv = chargeColumnValues(failed, 'orgs/org-1/charges/chg-1', 4)
+    const fv = chargeColumnValues(failed, aggregateRef(ChargeConfig, 'org-1', 'chg-1'), 4)
     expect(fv[CHARGE_COLUMNS.indexOf('failure_reason')]).toBe('card_declined')
   })
 })
@@ -471,13 +505,13 @@ describe('subscription projector — pure mapping', () => {
   }
 
   function subscriptionRow(version: number): SubscriptionRow {
-    const v = subscriptionColumnValues(subscription, 'orgs/org-1/subscriptions/sub-1', version)
+    const v = subscriptionColumnValues(subscription, version)
     const at = (c: string): unknown => valueAt(SUBSCRIPTION_COLUMNS, v, c)
     return {
       org_id: subscription.orgId,
       id: subscription.id,
       unit_id: subscription.unitId,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       customer_id: subscription.customerId,
       customer_user_id: subscription.customerUserId,
       status: subscription.status,
@@ -496,7 +530,7 @@ describe('subscription projector — pure mapping', () => {
   }
 
   it('billing_cycle is lifted from the plan snapshot to its column', () => {
-    const v = subscriptionColumnValues(subscription, 'orgs/org-1/subscriptions/sub-1', 1)
+    const v = subscriptionColumnValues(subscription, 1)
     expect(v).toHaveLength(SUBSCRIPTION_COLUMNS.length)
     expect(v[SUBSCRIPTION_COLUMNS.indexOf('billing_cycle')]).toBe('monthly')
     expect(v[SUBSCRIPTION_COLUMNS.indexOf('status')]).toBe('active')
@@ -547,13 +581,17 @@ describe('appointment projector — pure mapping', () => {
           cancelledNoticeMinutes: 120,
         }
       : appointment
-    const v = appointmentColumnValues(source, 'orgs/org-1/appointments/apt-1', version)
+    const v = appointmentColumnValues(
+      source,
+      aggregateRef(AppointmentConfig, 'org-1', 'apt-1'),
+      version,
+    )
     const at = (c: string): unknown => valueAt(APPOINTMENT_COLUMNS, v, c)
     return {
       org_id: source.orgId,
       id: source.id,
       unit_id: source.unitId,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       professional_id: source.professionalId,
       customer_id: source.customerId,
       service_id: source.serviceId,
@@ -573,7 +611,11 @@ describe('appointment projector — pure mapping', () => {
   }
 
   it('columnValues has one value per column; unit_id is a real column (RLS)', () => {
-    const v = appointmentColumnValues(appointment, 'orgs/org-1/appointments/apt-1', 1)
+    const v = appointmentColumnValues(
+      appointment,
+      aggregateRef(AppointmentConfig, 'org-1', 'apt-1'),
+      1,
+    )
     expect(v).toHaveLength(APPOINTMENT_COLUMNS.length)
     expect(v[APPOINTMENT_COLUMNS.indexOf('unit_id')]).toBe('unit-1')
     expect(v[APPOINTMENT_COLUMNS.indexOf('status')]).toBe('scheduled')

@@ -41,9 +41,9 @@ function buildPlanSnapshot(
 
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${orgId}`, orgId],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [orgId],
   )
 }
 
@@ -52,36 +52,36 @@ async function seedOrg(orgId: string): Promise<void> {
 // 'p1' and service 's1'. Seeded over the superuser pool in beforeEach.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/units/'||$2,$1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, unitId],
   )
 }
 
 async function seedProfessional(orgId: string, professionalId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO professionals (aggregate_path, org_id, id, version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/professionals/'||$2,$1,$2,1,'user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+     VALUES ($1,$2,1,'user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, professionalId],
   )
 }
 
 async function seedService(orgId: string, serviceId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO catalog_items (aggregate_path, org_id, id, version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/catalog_items/'||$2,$1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
+     VALUES ($1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, serviceId],
   )
 }
 
 async function seedCustomer(orgId: string, customerId: string, userId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO customers (aggregate_path, org_id, id, version, user_id, archived_at, deactivated_at, created_at, updated_at)
-     VALUES ($1,$2,$3,1,$4,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [`orgs/${orgId}/customers/${customerId}`, orgId, customerId, userId],
+    `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
+     VALUES ($1,$2,1,$3,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [orgId, customerId, userId],
   )
 }
 
@@ -94,10 +94,9 @@ async function seedSubscription(
   const now = new Date().toISOString()
   const currentPeriod = { startAt: now, endAt: '2099-01-01T00:00:00.000Z', consumed: 0 }
   await getEventStorePool().query(
-    `INSERT INTO subscriptions (aggregate_path, org_id, id, unit_id, version, customer_id, customer_user_id, status, billing_cycle, cancel_at_period_end, next_charge_date, past_due_cycles, past_due_threshold, cancellation_reason, cancelled_at, plan, current_period, created_at, updated_at)
-     VALUES ($1,$2,$3,'unit-a',1,$4,$5,'active',$6,false,NULL,0,2,NULL,NULL,$7::jsonb,$8::jsonb,$9,$9)`,
+    `INSERT INTO subscriptions (org_id, id, unit_id, last_event_version, customer_id, customer_user_id, status, billing_cycle, cancel_at_period_end, next_charge_date, past_due_cycles, past_due_threshold, cancellation_reason, cancelled_at, plan, current_period, created_at, updated_at)
+     VALUES ($1,$2,'unit-a',1,$3,$4,'active',$5,false,NULL,0,2,NULL,NULL,$6::jsonb,$7::jsonb,$8,$8)`,
     [
-      `orgs/${orgId}/subscriptions/sub-1`,
       orgId,
       'sub-1',
       customerId,
@@ -118,18 +117,9 @@ async function seedAppointment(
   const startMs = new Date(appt.startAt).getTime()
   const endAt = new Date(startMs + 30 * 60_000).toISOString()
   await getEventStorePool().query(
-    `INSERT INTO appointments (aggregate_path, org_id, id, unit_id, version, professional_id, customer_id, service_id, customer_user_id, professional_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
-     VALUES ($1,$2,$3,'u1',1,'p1',$4,'s1',$5,NULL,$6,$7,'scheduled',5000,30,NULL,NULL,NULL,$8,$8)`,
-    [
-      `orgs/${orgId}/appointments/${appt.id}`,
-      orgId,
-      appt.id,
-      appt.customerId,
-      CUSTOMER_USER_ID,
-      appt.startAt,
-      endAt,
-      now,
-    ],
+    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, professional_id, customer_id, service_id, customer_user_id, professional_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
+     VALUES ($1,$2,'u1',1,'p1',$3,'s1',$4,NULL,$5,$6,'scheduled',5000,30,NULL,NULL,NULL,$7,$7)`,
+    [orgId, appt.id, appt.customerId, CUSTOMER_USER_ID, appt.startAt, endAt, now],
   )
 }
 

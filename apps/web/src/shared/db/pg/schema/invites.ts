@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm'
-import { bigint, check, foreignKey, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import {
+  bigint,
+  check,
+  foreignKey,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 
 /**
@@ -7,7 +16,7 @@ import { orgs } from './orgs'
  * D, brief 0060, Grupo A) — a pending/accepted/expired/revoked invitation to join
  * a org with a role.
  *
- * Keyed by `aggregate_path` (`orgs/{orgId}/invites/{id}`). FK
+ * Keyed by composite PK (org_id, id). FK
  * `org_id → orgs.org_id`; `org_id` is the leading index column (RLS performance).
  *
  * PII (`email`) does NOT enter this typed table — it lives in the deletable
@@ -25,14 +34,12 @@ import { orgs } from './orgs'
 export const invites = pgTable(
   'invites',
   {
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org scope ────────────────────────────────────────────────
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     role: text('role').notNull(),
@@ -48,6 +55,8 @@ export const invites = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),
   },
   (table) => [
+    // Natural composite PK.
+    primaryKey({ columns: [table.orgId, table.id], name: 'invites_pkey' }),
     // The role enum, refused at the DB.
     check(
       'invites_role_check',

@@ -21,7 +21,8 @@
 // same verified-email session the app sees from real OAuth).
 
 import { formatBrazilPhone, membershipDocId } from '@/domain'
-import { deriveOperationalStatus } from '@/domain/aggregates'
+import { deriveOperationalStatus, MembershipConfig, ProfessionalConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import type { BrowserContext, Page } from '@playwright/test'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
@@ -36,7 +37,7 @@ import {
   seedService,
   signInAndAttachSession,
 } from '../helpers/session'
-import { ProfessionalsPage, PublicBookingPage, orgSlug } from '../pages'
+import { orgSlug, ProfessionalsPage, PublicBookingPage } from '../pages'
 
 // ── Postgres read-back decoders ───────────────────────────────────────────────
 // Post-cutover the event store is Postgres (snake_case rows). These lenient
@@ -227,7 +228,7 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       // Membership nasceu com role professional (1º passo da saga).
       const m = await pgReadProjection(
         'memberships',
-        `memberships/${membershipDocId(org.orgId, maria.uid)}`,
+        aggregateRef(MembershipConfig, org.orgId, membershipDocId(org.orgId, maria.uid)),
       )
       expect(m).not.toBeNull()
       expect(m?.role).toBe('professional')
@@ -389,7 +390,7 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       // Membership role=professional + Professional materializado com userId não-nulo.
       const m = await pgReadProjection(
         'memberships',
-        `memberships/${membershipDocId(org.orgId, invitee.uid)}`,
+        aggregateRef(MembershipConfig, org.orgId, membershipDocId(org.orgId, invitee.uid)),
       )
       expect(m?.role).toBe('professional')
       const pros = await listProfessionals(org.orgId)
@@ -402,7 +403,9 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       // PII (name/whatsapp/email) NUNCA entra no envelope (ADR 0010); a identidade
       // vive só em users/{userId} (lida ao vivo). operationalStatus NÃO é hardcoded:
       // o created nasce `incomplete` e a transição é por evento derivado.
-      const eventStream = await pgReadEventStream(`orgs/${org.orgId}/professionals/${proId}`)
+      const eventStream = await pgReadEventStream(
+        aggregateRef(ProfessionalConfig, org.orgId, proId),
+      )
       const created = eventStream[0]
       expect(decodeEventEnvelope(created)._tag).toBe('professional.created')
       const envelopeJson = JSON.stringify(created)

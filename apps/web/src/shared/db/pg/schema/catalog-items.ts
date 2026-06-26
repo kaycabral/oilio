@@ -7,9 +7,9 @@ import {
   index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
-  unique,
 } from 'drizzle-orm/pg-core'
 import { categories } from './categories'
 
@@ -26,10 +26,10 @@ import { categories } from './categories'
  * rollback leaves zero rows in both (the ACID invariant inherited from A, now
  * over a typed table).
  *
- * Keyed by `aggregate_path` (the SAME string the Firestore layer uses as the doc
- * path, `orgs/{orgId}/catalog_items/{id}`) so it lines up 1:1 with the event
- * stream's `aggregate_id` and the generic projection key — the typed projector
- * and the generic fallback share the routing seam.
+ * Keyed by composite PK `(org_id, id)` (the natural key; `id` is the bare doc id
+ * that lines up 1:1 with the event stream's `aggregate_id` and the generic
+ * projection key) — the typed projector and the generic fallback share the
+ * routing seam.
  *
  * Invariants enforced HERE (proven by integration against real Postgres):
  *   - `kind ∈ {service, product}` — the discriminant, refused at the DB.
@@ -53,14 +53,10 @@ import { categories } from './categories'
 export const catalogItems = pgTable(
   'catalog_items',
   {
-    // Projection key = the Firestore-style aggregate path
-    // (`orgs/{orgId}/catalog_items/{id}`). Matches `events.aggregate_id` and the
-    // generic `projections.aggregate_path` so the routing seam is uniform.
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org scope ────────────────────────────────────────────────
     // `org_id` leading column — every item is org-scoped (prepared for RLS,
-    // feature C). `id` is the bare doc id (last path segment) for convenience.
+    // feature C). `id` is the bare doc id (last path segment). Together they form
+    // the composite PRIMARY KEY (the natural key; matches `events.aggregate_id`).
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
 
@@ -68,7 +64,7 @@ export const catalogItems = pgTable(
     // reads this to compute the next event version on append and to rehydrate on
     // replay — the typed table is the projection, so it must carry the version
     // the generic `projections.state._version` carried.
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     kind: text('kind').notNull(),
@@ -135,8 +131,9 @@ export const catalogItems = pgTable(
         AND ${table.stock} IS NOT NULL
       )`,
     ),
-    // Composite (org_id, id) UNIQUE — the target of cross-aggregate composite FKs.
-    unique('catalog_items_org_id_id_uq').on(table.orgId, table.id),
+    // Composite (org_id, id) PRIMARY KEY — the natural key + target of
+    // cross-aggregate composite FKs.
+    primaryKey({ columns: [table.orgId, table.id], name: 'catalog_items_pkey' }),
     // Cross-aggregate composite FK (org-scoped).
     foreignKey({
       name: 'catalog_items_category_id_fk',

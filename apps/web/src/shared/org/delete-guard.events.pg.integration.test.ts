@@ -1,4 +1,6 @@
 import type { MembershipStatus, SubscriptionStatus } from '@/domain'
+import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
+import { aggregateRef } from '@/domain/effect'
 import {
   APPOINTMENT_COLUMNS,
   appointmentColumnValues,
@@ -96,11 +98,7 @@ async function seedSubscription(
   await seedOrg(orgId)
   await seedUnit(orgId, 'unit')
   await seedCustomer(orgId, customerId)
-  await insertRow(
-    'subscriptions',
-    SUBSCRIPTION_COLUMNS,
-    subscriptionColumnValues(sub, `orgs/${orgId}/subscriptions/${id}`, 1),
-  )
+  await insertRow('subscriptions', SUBSCRIPTION_COLUMNS, subscriptionColumnValues(sub, 1))
 }
 
 // Appointment with a ZERO-WIDTH interval (endAt == startAt) so the anti-double-
@@ -138,7 +136,7 @@ async function seedAppointment(
   await insertRow(
     'appointments',
     APPOINTMENT_COLUMNS,
-    appointmentColumnValues(appt, `orgs/${orgId}/appointments/${id}`, 1),
+    appointmentColumnValues(appt, aggregateRef(AppointmentConfig, orgId, id), 1),
   )
 }
 
@@ -170,19 +168,9 @@ async function seedOrder(
   await seedUnit(orgId, 'unit')
   await seedCustomer(orgId, customerId)
   await getEventStorePool().query(
-    `INSERT INTO orders (aggregate_path, org_id, id, unit_id, version, customer_id, appointment_id, status, closed_at, payment_method, discount_cents, subtotal_cents, total_cents, items, created_at, updated_at)
-     VALUES ($1,$2,$3,'unit',1,$4,NULL,$5,$6,$7,0,0,0,$8::jsonb,$9,$9)`,
-    [
-      `orgs/${orgId}/orders/${id}`,
-      orgId,
-      id,
-      customerId,
-      opts.status,
-      closedAt,
-      paymentMethod,
-      items,
-      TS,
-    ],
+    `INSERT INTO orders (org_id, id, unit_id, last_event_version, customer_id, appointment_id, status, closed_at, payment_method, discount_cents, subtotal_cents, total_cents, items, created_at, updated_at)
+     VALUES ($1,$2,'unit',1,$3,NULL,$4,$5,$6,0,0,0,$7::jsonb,$8,$8)`,
+    [orgId, id, customerId, opts.status, closedAt, paymentMethod, items, TS],
   )
 }
 
@@ -193,10 +181,10 @@ async function seedOrder(
 // the same org.
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org X',$3,'other',$4,'{}'::jsonb,$5,$5)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}`, orgId, `slug-${orgId}`, uid('owner'), TS],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org X',$2,'other',$3,'{}'::jsonb,$4,$4)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, `slug-${orgId}`, uid('owner'), TS],
   )
 }
 
@@ -206,28 +194,28 @@ async function seedOrg(orgId: string): Promise<void> {
 // service, so each is `ON CONFLICT DO NOTHING`.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'Unit','unit-'||$3,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$4,$4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/units/${unitId}`, orgId, unitId, TS],
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, unitId, TS],
   )
 }
 
 async function seedCustomer(orgId: string, customerId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO customers (aggregate_path, org_id, id, version, user_id, archived_at, deactivated_at, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'user-'||$3,NULL,NULL,$4,$4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/customers/${customerId}`, orgId, customerId, TS],
+    `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
+     VALUES ($1,$2,1,'user-'||$2,NULL,NULL,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, customerId, TS],
   )
 }
 
 async function seedService(orgId: string, serviceId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO catalog_items (aggregate_path, org_id, id, version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,$4,$4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/catalog_items/${serviceId}`, orgId, serviceId, TS],
+    `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
+     VALUES ($1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, serviceId, TS],
   )
 }
 
@@ -236,10 +224,10 @@ async function seedService(orgId: string, serviceId: string): Promise<void> {
 // its id for the canDeleteProfessional cases).
 async function seedProfessionalRow(orgId: string, professionalId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO professionals (aggregate_path, org_id, id, version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'user-'||$3,NULL,'[]'::jsonb,'[]'::jsonb,$4,$4)
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/professionals/${professionalId}`, orgId, professionalId, TS],
+    `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+     VALUES ($1,$2,1,'user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,$3,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, professionalId, TS],
   )
 }
 
@@ -253,25 +241,18 @@ async function seedProfessional(
   const id = uid('pro')
   const unitIds = opts.unitIds ?? []
   await getEventStorePool().query(
-    `INSERT INTO professionals (aggregate_path, org_id, id, version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-     VALUES ($1,$2,$3,1,$4,NULL,$5::jsonb,'[]'::jsonb,$6,$6)`,
-    [
-      `orgs/${orgId}/professionals/${id}`,
-      orgId,
-      id,
-      opts.userId ?? uid('u'),
-      JSON.stringify(unitIds),
-      TS,
-    ],
+    `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+     VALUES ($1,$2,1,$3,NULL,$4::jsonb,'[]'::jsonb,$5,$5)`,
+    [orgId, id, opts.userId ?? uid('u'), JSON.stringify(unitIds), TS],
   )
   // Seeding professionals directly (not via the projector) must also populate the
   // `professional_units` join table — `canDeleteUnit` now reads it (brief 0068 D3).
   // The unit row is required by the join's composite FK to units(org_id, id).
   for (const unitId of unitIds) {
     await getEventStorePool().query(
-      `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-       VALUES ('orgs/'||$1||'/units/'||$2,$1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$3,$3)
-       ON CONFLICT (aggregate_path) DO NOTHING`,
+      `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+       VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$3,$3)
+       ON CONFLICT (org_id, id) DO NOTHING`,
       [orgId, unitId, TS],
     )
     await getEventStorePool().query(
@@ -290,9 +271,9 @@ async function seedMembership(
 ): Promise<void> {
   const m = buildMembership(orgId, userId, TS, { status })
   await getEventStorePool().query(
-    `INSERT INTO memberships (aggregate_path, org_id, id, user_id, version, role, status, rls_unit_scope, invited_by, joined_at, permissions, updated_at)
-     VALUES ($1,$2,$3,$4,1,$5,$6,NULL,NULL,$7,$8::jsonb,$7)`,
-    [`memberships/${m.id}`, orgId, m.id, userId, m.role, status, TS, JSON.stringify(m.permissions)],
+    `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, rls_unit_scope, invited_by, joined_at, permissions, updated_at)
+     VALUES ($1,$2,$3,1,$4,$5,NULL,NULL,$6,$7::jsonb,$6)`,
+    [orgId, m.id, userId, m.role, status, TS, JSON.stringify(m.permissions)],
   )
 }
 

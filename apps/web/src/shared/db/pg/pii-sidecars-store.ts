@@ -18,14 +18,6 @@ const decodeTaxIdentity = Schema.decodeUnknownSync(Schema.NullOr(TaxIdentity))
  * while the projection + event history stay intact (ADR 0010 / LGPD).
  */
 
-function invitePiiPath(orgId: string, id: string): string {
-  return `orgs/${orgId}/invites_pii/${id}`
-}
-
-function professionalPiiPath(orgId: string, id: string): string {
-  return `orgs/${orgId}/professionals_pii/${id}`
-}
-
 // ── invites_pii ──────────────────────────────────────────────────────────────
 
 export async function getInvitePiiByIds(
@@ -33,13 +25,12 @@ export async function getInvitePiiByIds(
   ids: readonly string[],
 ): Promise<Map<string, InvitePii>> {
   if (ids.length === 0) return new Map()
-  const paths = ids.map((id) => invitePiiPath(orgId, id))
   const rows = await readUnderRls<{ id: string; email: string }>(orgId, (client) =>
     client
       .query<{
         id: string
         email: string
-      }>('SELECT id, email FROM invites_pii WHERE aggregate_path = ANY($1)', [paths])
+      }>('SELECT id, email FROM invites_pii WHERE org_id = $1 AND id = ANY($2)', [orgId, [...ids]])
       .then((res) => res.rows),
   )
   return new Map(rows.map((r) => [r.id, { email: r.email }] as const))
@@ -52,17 +43,17 @@ export async function upsertInvitePii(input: {
 }): Promise<void> {
   await writeUnderOrg(input.orgId, (client) =>
     client.query(
-      `INSERT INTO invites_pii (aggregate_path, org_id, id, email)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (aggregate_path) DO UPDATE SET email = EXCLUDED.email`,
-      [invitePiiPath(input.orgId, input.id), input.orgId, input.id, input.email],
+      `INSERT INTO invites_pii (org_id, id, email)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (org_id, id) DO UPDATE SET email = EXCLUDED.email`,
+      [input.orgId, input.id, input.email],
     ),
   )
 }
 
 export async function deleteInvitePii(orgId: string, id: string): Promise<void> {
   await writeUnderOrg(orgId, (client) =>
-    client.query('DELETE FROM invites_pii WHERE aggregate_path = $1', [invitePiiPath(orgId, id)]),
+    client.query('DELETE FROM invites_pii WHERE org_id = $1 AND id = $2', [orgId, id]),
   )
 }
 
@@ -73,13 +64,15 @@ export async function getProfessionalPiiByIds(
   ids: readonly string[],
 ): Promise<Map<string, ProfessionalPii>> {
   if (ids.length === 0) return new Map()
-  const paths = ids.map((id) => professionalPiiPath(orgId, id))
   const rows = await readUnderRls<{ id: string; tax_identity: unknown }>(orgId, (client) =>
     client
       .query<{
         id: string
         tax_identity: unknown
-      }>('SELECT id, tax_identity FROM professionals_pii WHERE aggregate_path = ANY($1)', [paths])
+      }>('SELECT id, tax_identity FROM professionals_pii WHERE org_id = $1 AND id = ANY($2)', [
+        orgId,
+        [...ids],
+      ])
       .then((res) => res.rows),
   )
   return new Map(
@@ -94,11 +87,10 @@ export async function upsertProfessionalPii(input: {
 }): Promise<void> {
   await writeUnderOrg(input.orgId, (client) =>
     client.query(
-      `INSERT INTO professionals_pii (aggregate_path, org_id, id, tax_identity)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (aggregate_path) DO UPDATE SET tax_identity = EXCLUDED.tax_identity`,
+      `INSERT INTO professionals_pii (org_id, id, tax_identity)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (org_id, id) DO UPDATE SET tax_identity = EXCLUDED.tax_identity`,
       [
-        professionalPiiPath(input.orgId, input.id),
         input.orgId,
         input.id,
         input.taxIdentity === null ? null : JSON.stringify(input.taxIdentity),
@@ -109,9 +101,7 @@ export async function upsertProfessionalPii(input: {
 
 export async function deleteProfessionalPii(orgId: string, id: string): Promise<void> {
   await writeUnderOrg(orgId, (client) =>
-    client.query('DELETE FROM professionals_pii WHERE aggregate_path = $1', [
-      professionalPiiPath(orgId, id),
-    ]),
+    client.query('DELETE FROM professionals_pii WHERE org_id = $1 AND id = $2', [orgId, id]),
   )
 }
 

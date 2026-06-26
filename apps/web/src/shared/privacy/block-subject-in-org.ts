@@ -1,4 +1,5 @@
 import { CustomerConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { emitEvent } from '@/shared/effect-bridge'
 import { eraseCustomerCascadeInOrg } from '@/shared/privacy/erase-customer-cascade'
@@ -98,7 +99,7 @@ async function archiveCustomerShadows(orgId: string, userId: string): Promise<nu
   let archived = 0
   for (const { id } of customerIds) {
     const now = new Date().toISOString()
-    const res = await emitEvent(CustomerConfig, `orgs/${orgId}/customers/${id}`, {
+    const res = await emitEvent(CustomerConfig, aggregateRef(CustomerConfig, orgId, id), {
       _tag: 'customer.updated',
       actorId: userId,
       payload: { changes: { archivedAt: now } },

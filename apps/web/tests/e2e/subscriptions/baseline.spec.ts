@@ -8,6 +8,8 @@
 // createSubscription precisa de cliente + plano ATIVO no mesmo org, então
 // ambos são semeados via REST antes do fluxo de UI.
 
+import { SubscriptionConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { expect, test } from '../fixtures'
 import { rowAction } from '../helpers/list'
 import { chooseOptionByIndex } from '../helpers/select'
@@ -107,7 +109,7 @@ test.describe('Subscriptions — baseline (#17)', { tag: '@critical' }, () => {
     // Subscription persistida carrega o unitId da unidade ativa (AC-01).
     const subRow = await pgReadProjection(
       'subscriptions',
-      `orgs/${org.orgId}/subscriptions/${subscriptionId}`,
+      aggregateRef(SubscriptionConfig, org.orgId, subscriptionId),
     )
     expect(stringColumn(subRow, 'unit_id')).toBe(activeUnitId)
 

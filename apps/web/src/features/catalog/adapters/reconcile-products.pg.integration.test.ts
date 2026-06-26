@@ -1,6 +1,13 @@
 import { CatalogItemConfig } from '@/domain/aggregates'
-import type { FirestoreDoc, PersistenceOps, QueryConstraint } from '@/domain/effect'
-import { appendEvent, PersistencePort } from '@/domain/effect'
+import type {
+  AggregateRef,
+  CollectionRef,
+  FirestoreDoc,
+  PersistenceOps,
+  QueryConstraint,
+} from '@/domain/effect'
+import { aggregateRef, appendEvent, PersistencePort } from '@/domain/effect'
+import { docKey } from '@/domain/effect/test-layers'
 import {
   PUBLIC_DIRECTORY_UPSERT,
   publicOrgDirectoryValues,
@@ -25,8 +32,10 @@ const ORG = 'org-1'
 const GTIN14 = '07891000100103'
 
 // In-memory PersistencePort that honors the `reconciliationPending == true`
-// where-filter the generator relies on (the replay-test store ignores
-// constraints; reconciliation needs the filter to be real).
+// where-filter the generator relies on (the shared replay-test store ignores
+// constraints; reconciliation needs the filter to be real). Ref-keyed (D6) via
+// `docKey`; the projection carries its own `id` (the reducer writes it from the
+// event payload), so the collection read needs no path-derived id injection.
 function makeStore() {
   const store = new Map<string, FirestoreDoc>()
   const matches = (doc: FirestoreDoc, constraints: readonly QueryConstraint[]): boolean =>
@@ -34,30 +43,31 @@ function makeStore() {
       if (c.kind !== 'where' || c.op !== '==') return true
       return doc[c.field] === c.value
     })
-  // Mirror the live layer: a collection query returns only DIRECT children, with
-  // the doc `id` injected from the path key.
-  const isDirectChild = (key: string, collectionPath: string): boolean =>
-    key.startsWith(collectionPath + '/') && !key.slice(collectionPath.length + 1).includes('/')
+  const collectionKey = (ref: CollectionRef): string => `${ref.type}/${ref.orgId}/`
   const ops: PersistenceOps = {
-    getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-    getDocs: (collectionPath: string, constraints: readonly QueryConstraint[] = []) =>
+    getDoc: (ref: AggregateRef) => Effect.succeed(store.get(docKey(ref)) ?? null),
+    getDocs: (ref: CollectionRef, constraints: readonly QueryConstraint[] = []) =>
       Effect.succeed(
         [...store.entries()]
-          .filter(([key]) => isDirectChild(key, collectionPath))
-          .map(([key, doc]) => ({ id: key.slice(key.lastIndexOf('/') + 1), ...doc }))
+          .filter(([key]) => key.startsWith(collectionKey(ref)))
+          .map(([, doc]) => doc)
           .filter((doc) => matches(doc, constraints)),
       ),
-    setDoc: (path: string, data: FirestoreDoc) =>
+    getEvents: () => Effect.succeed([]),
+    setDoc: (ref: AggregateRef, data: FirestoreDoc) =>
       Effect.sync(() => {
-        store.set(path, { ...store.get(path), ...data })
+        const key = docKey(ref)
+        store.set(key, { ...store.get(key), ...data })
       }),
     runTransaction: (fn) =>
       fn({
-        getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-        setDoc: (path, data) =>
+        getDoc: (ref) => Effect.succeed(store.get(docKey(ref)) ?? null),
+        setDoc: (ref, data) =>
           Effect.sync(() => {
-            store.set(path, { ...store.get(path), ...data })
+            const key = docKey(ref)
+            store.set(key, { ...store.get(key), ...data })
           }),
+        appendEvent: () => Effect.void,
       }),
   }
   // The reconciliation sweep reads and appends via the single PersistencePort —
@@ -73,8 +83,7 @@ function makeStore() {
 // event-store DB), NOT from the in-memory store — so the row must exist in real
 // Postgres for `reconcilePendingProducts` to visit this org. The in-memory store
 // still backs the org's catalog items.
-async function seedOrg(store: Map<string, FirestoreDoc>, orgId: string): Promise<void> {
-  store.set(`orgs/${orgId}`, {})
+async function seedOrg(orgId: string): Promise<void> {
   // Reuse the projector's own directory upsert + values (single source of truth)
   // so this fixture can't drift from production when the directory schema evolves.
   const now = NOW.toISOString()
@@ -102,7 +111,7 @@ function seedPendingItem(
   gtin14: string | null,
 ): Promise<void> {
   return Effect.runPromise(
-    appendEvent(CatalogItemConfig, `orgs/${ORG}/catalog_items/${id}`, {
+    appendEvent(CatalogItemConfig, aggregateRef(CatalogItemConfig, ORG, id), {
       _tag: 'catalog_item.created',
       actorId: 'actor-1',
       payload: {
@@ -150,7 +159,7 @@ beforeEach(async () => {
 describe('reconcilePendingProducts — against real Postgres', () => {
   it('auto-contributes a deferred GTIN and clears the marker (AC-08)', async () => {
     const { store, layer } = makeStore()
-    await seedOrg(store, ORG)
+    await seedOrg(ORG)
     await seedPendingItem(layer, 'item-1', GTIN14)
 
     const reconciled = await Effect.runPromise(
@@ -164,7 +173,7 @@ describe('reconcilePendingProducts — against real Postgres', () => {
     expect(rows[0]!.gtin14).toBe(GTIN14)
 
     // The marker is cleared on the item.
-    const doc = store.get(`orgs/${ORG}/catalog_items/item-1`)
+    const doc = store.get(docKey(aggregateRef(CatalogItemConfig, ORG, 'item-1')))
     expect(doc?.reconciliationPending).toBe(false)
     expect(doc?.gtin14).toBe(GTIN14)
   })
@@ -176,7 +185,7 @@ describe('reconcilePendingProducts — against real Postgres', () => {
       source: 'official',
     })
     const { store, layer } = makeStore()
-    await seedOrg(store, ORG)
+    await seedOrg(ORG)
     await seedPendingItem(layer, 'item-1', GTIN14)
 
     const reconciled = await Effect.runPromise(
@@ -185,12 +194,14 @@ describe('reconcilePendingProducts — against real Postgres', () => {
     expect(reconciled).toBe(1)
     // No duplicate row — referenced, not re-inserted.
     expect(await getDb().select().from(product)).toHaveLength(1)
-    expect(store.get(`orgs/${ORG}/catalog_items/item-1`)?.reconciliationPending).toBe(false)
+    expect(
+      store.get(docKey(aggregateRef(CatalogItemConfig, ORG, 'item-1')))?.reconciliationPending,
+    ).toBe(false)
   })
 
   it('re-running does not duplicate and finds nothing new (idempotent sweep)', async () => {
     const { store, layer } = makeStore()
-    await seedOrg(store, ORG)
+    await seedOrg(ORG)
     await seedPendingItem(layer, 'item-1', GTIN14)
 
     const first = await Effect.runPromise(reconcilePendingProducts(NOW).pipe(Effect.provide(layer)))
@@ -206,7 +217,7 @@ describe('reconcilePendingProducts — against real Postgres', () => {
 
   it('reconciles each pending item independently (per-item, multi-item)', async () => {
     const { store, layer } = makeStore()
-    await seedOrg(store, ORG)
+    await seedOrg(ORG)
     await seedPendingItem(layer, 'item-1', GTIN14)
     await seedPendingItem(layer, 'item-2', '7894900011517')
 
@@ -215,20 +226,26 @@ describe('reconcilePendingProducts — against real Postgres', () => {
     )
     expect(reconciled).toBe(2)
     expect(await getDb().select().from(product)).toHaveLength(2)
-    expect(store.get(`orgs/${ORG}/catalog_items/item-1`)?.reconciliationPending).toBe(false)
-    expect(store.get(`orgs/${ORG}/catalog_items/item-2`)?.reconciliationPending).toBe(false)
+    expect(
+      store.get(docKey(aggregateRef(CatalogItemConfig, ORG, 'item-1')))?.reconciliationPending,
+    ).toBe(false)
+    expect(
+      store.get(docKey(aggregateRef(CatalogItemConfig, ORG, 'item-2')))?.reconciliationPending,
+    ).toBe(false)
   })
 
   it('clears a malformed pending marker that has no GTIN (no orphan loop)', async () => {
     const { store, layer } = makeStore()
-    await seedOrg(store, ORG)
+    await seedOrg(ORG)
     await seedPendingItem(layer, 'item-1', null)
 
     const reconciled = await Effect.runPromise(
       reconcilePendingProducts(NOW).pipe(Effect.provide(layer)),
     )
     expect(reconciled).toBe(1)
-    expect(store.get(`orgs/${ORG}/catalog_items/item-1`)?.reconciliationPending).toBe(false)
+    expect(
+      store.get(docKey(aggregateRef(CatalogItemConfig, ORG, 'item-1')))?.reconciliationPending,
+    ).toBe(false)
     expect(await getDb().select().from(product)).toHaveLength(0)
   })
 })

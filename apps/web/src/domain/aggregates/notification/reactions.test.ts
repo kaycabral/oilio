@@ -1,18 +1,30 @@
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { type AggregateRef, type CollectionRef } from '@/domain/effect/aggregate-ref'
 import type { EventEnvelope } from '@/domain/effect/event-store'
 import type { FirestoreDoc, PersistenceOps, QueryConstraint } from '@/domain/effect/services'
 import { PersistencePort } from '@/domain/effect/services'
+import { docKey } from '@/domain/effect/test-layers'
 import { buildReactor } from '../_shared/reactions'
 import { notificationReactions } from './reactions'
 
+function collectionKey(ref: CollectionRef): string {
+  return `${ref.type}/${ref.orgId}/`
+}
+
+// Bespoke ref-keyed store (D6): unlike the shared `makeReplayStore`, this layer
+// honors `getDocs` query constraints, which the idempotency/expiry reactions
+// rely on (where/limit). Projections are keyed by `docKey(ref)`; events ride a
+// separate log so a `notification.created` append never lands in the projection
+// store.
 function makeStore(initial: Record<string, FirestoreDoc> = {}) {
   const store = new Map(Object.entries(initial))
+  const events = new Map<string, FirestoreDoc[]>()
   const ops: PersistenceOps = {
-    getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-    getDocs: (collectionPath: string, constraints?: readonly QueryConstraint[]) => {
-      const prefix = collectionPath + '/'
+    getDoc: (ref: AggregateRef) => Effect.succeed(store.get(docKey(ref)) ?? null),
+    getDocs: (ref: CollectionRef, constraints?: readonly QueryConstraint[]) => {
+      const prefix = collectionKey(ref)
       const allDocs = [...store.entries()]
         .filter(([key]) => key.startsWith(prefix))
         .map(([, doc]) => doc)
@@ -35,16 +47,26 @@ function makeStore(initial: Record<string, FirestoreDoc> = {}) {
       }
       return Effect.succeed(filtered)
     },
-    setDoc: (path: string, data: FirestoreDoc) =>
+    getEvents: (ref: AggregateRef) => Effect.succeed([...(events.get(docKey(ref)) ?? [])]),
+    setDoc: (ref: AggregateRef, data: FirestoreDoc) =>
       Effect.sync(() => {
-        store.set(path, { ...store.get(path), ...data })
+        const key = docKey(ref)
+        store.set(key, { ...store.get(key), ...data })
       }),
     runTransaction: (fn) =>
       fn({
-        getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-        setDoc: (path, data) =>
+        getDoc: (ref) => Effect.succeed(store.get(docKey(ref)) ?? null),
+        setDoc: (ref, data) =>
           Effect.sync(() => {
-            store.set(path, { ...store.get(path), ...data })
+            const key = docKey(ref)
+            store.set(key, { ...store.get(key), ...data })
+          }),
+        appendEvent: (ref, _version, envelope) =>
+          Effect.sync(() => {
+            const key = docKey(ref)
+            const log = events.get(key) ?? []
+            log.push(envelope)
+            events.set(key, log)
           }),
       }),
   }
@@ -59,10 +81,10 @@ function makeStore(initial: Record<string, FirestoreDoc> = {}) {
 describe('Notification reactions', () => {
   it('customer.created creates notification for each unit', async () => {
     const { store, layer } = makeStore({
-      'orgs/t1/units/u1': { id: 'u1', orgId: 't1', name: 'Unit 1' },
-      'orgs/t1/units/u2': { id: 'u2', orgId: 't1', name: 'Unit 2' },
+      'unit/t1/u1': { id: 'u1', orgId: 't1', name: 'Unit 1' },
+      'unit/t1/u2': { id: 'u2', orgId: 't1', name: 'Unit 2' },
       // A malformed unit doc with no `id` must be skipped (not a 3rd notif).
-      'orgs/t1/units/broken': { orgId: 't1', name: 'No Id' },
+      'unit/t1/broken': { orgId: 't1', name: 'No Id' },
     })
 
     const reactor = buildReactor([...notificationReactions])
@@ -79,8 +101,7 @@ describe('Notification reactions', () => {
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
 
     const projections = [...store.entries()]
-      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
-      .filter(([key]) => !key.includes('/events/'))
+      .filter(([key]) => key.startsWith('notification/t1/'))
       .map(([, doc]) => doc)
 
     expect(projections).toHaveLength(2)
@@ -97,7 +118,7 @@ describe('Notification reactions', () => {
 
   it('customer.created is idempotent — does not duplicate', async () => {
     const { store, layer } = makeStore({
-      'orgs/t1/units/u1': { id: 'u1', orgId: 't1', name: 'Unit 1' },
+      'unit/t1/u1': { id: 'u1', orgId: 't1', name: 'Unit 1' },
     })
 
     const reactor = buildReactor([...notificationReactions])
@@ -114,16 +135,14 @@ describe('Notification reactions', () => {
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
 
-    const notifications = [...store.entries()]
-      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
-      .filter(([key]) => !key.includes('/events/'))
+    const notifications = [...store.entries()].filter(([key]) => key.startsWith('notification/t1/'))
 
     expect(notifications).toHaveLength(1)
   })
 
   it('subscription.charge_failed creates payment_failure for all units', async () => {
     const { store, layer } = makeStore({
-      'orgs/t1/units/u1': { id: 'u1', orgId: 't1', name: 'Unit 1' },
+      'unit/t1/u1': { id: 'u1', orgId: 't1', name: 'Unit 1' },
     })
 
     const reactor = buildReactor([...notificationReactions])
@@ -139,9 +158,7 @@ describe('Notification reactions', () => {
 
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
 
-    const notifications = [...store.entries()]
-      .filter(([key]) => key.startsWith('orgs/t1/notifications/'))
-      .filter(([key]) => !key.includes('/events/'))
+    const notifications = [...store.entries()].filter(([key]) => key.startsWith('notification/t1/'))
 
     expect(notifications).toHaveLength(1)
     const notif = notifications[0]![1]
@@ -155,7 +172,7 @@ describe('Notification reactions', () => {
   it('subscription.activated expires pending subscription notifications', async () => {
     const notifId = 'notif-1'
     const { store, layer } = makeStore({
-      [`orgs/t1/notifications/${notifId}`]: {
+      [`notification/t1/${notifId}`]: {
         id: notifId,
         orgId: 't1',
         unitId: 'u1',
@@ -179,7 +196,7 @@ describe('Notification reactions', () => {
 
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
 
-    const notif = store.get(`orgs/t1/notifications/${notifId}`)
+    const notif = store.get(`notification/t1/${notifId}`)
     expect(notif!['validUntil']).toBeTruthy()
     expect(notif!['_version']).toBe(2)
   })
@@ -187,7 +204,7 @@ describe('Notification reactions', () => {
   it('subscription.activated expires every expiry type for the subscription, and nothing else', async () => {
     function notif(id: string, over: Record<string, unknown>) {
       return {
-        [`orgs/t1/notifications/${id}`]: {
+        [`notification/t1/${id}`]: {
           id,
           orgId: 't1',
           unitId: 'u1',
@@ -226,8 +243,7 @@ describe('Notification reactions', () => {
 
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
 
-    const isExpired = (id: string) =>
-      Boolean(store.get(`orgs/t1/notifications/${id}`)?.['validUntil'])
+    const isExpired = (id: string) => Boolean(store.get(`notification/t1/${id}`)?.['validUntil'])
 
     expect(isExpired('n-tomorrow')).toBe(true)
     expect(isExpired('n-expired')).toBe(true)

@@ -25,9 +25,7 @@ function normalizeOrg(t: StoredOrg): Org {
 
 export async function getOrg(orgId: string): Promise<Org | null> {
   const rows = await readUnderRls<OrgRow>(orgId, (client) =>
-    client
-      .query<OrgRow>('SELECT * FROM orgs WHERE aggregate_path = $1', [`orgs/${orgId}`])
-      .then((res) => res.rows),
+    client.query<OrgRow>('SELECT * FROM orgs WHERE org_id = $1', [orgId]).then((res) => res.rows),
   )
   const row = rows[0]
   return row ? normalizeOrg(decodeOrg(rowToDoc(row))) : null

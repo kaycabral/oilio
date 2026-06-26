@@ -19,6 +19,8 @@ import {
   Membership as MembershipSchema,
   type Membership,
 } from '@/domain'
+import { MembershipConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import {
   MEMBERSHIP_COLUMNS,
   membershipColumnValues,
@@ -51,12 +53,13 @@ const TimestamptzString = Schema.transform(
 
 // Lenient decode of the `memberships` projection row (snake_case columns) into
 // the typed `MembershipRow` the projector's `rowToDoc` consumes. Excess columns
-// (aggregate_path, etc.) are ignored; this only types the fields `rowToDoc` reads.
+// are ignored; this only types the fields `rowToDoc` reads. The projection
+// version column is `last_event_version` (D6).
 const MembershipRowSchema = Schema.Struct({
   org_id: Schema.String,
   id: Schema.String,
   user_id: Schema.String,
-  version: Schema.Union(Schema.String, Schema.Number),
+  last_event_version: Schema.Union(Schema.String, Schema.Number),
   role: Schema.String,
   status: Schema.String,
   rls_unit_scope: Schema.NullOr(Schema.String),
@@ -73,8 +76,8 @@ const MembershipRowSchema = Schema.Struct({
 // seed helper (kept local since session.ts exposes no status mutation).
 async function revokeMembership(orgId: string, userId: string): Promise<void> {
   const membershipId = membershipDocId(orgId, userId)
-  const aggregatePath = `memberships/${membershipId}`
-  const row = await pgReadProjection('memberships', aggregatePath)
+  const ref = aggregateRef(MembershipConfig, orgId, membershipId)
+  const row = await pgReadProjection('memberships', ref)
   if (!row) throw new Error(`revokeMembership: membership ${membershipId} not found`)
   const typedRow: MembershipRow = Schema.decodeUnknownSync(MembershipRowSchema)(row)
   const current = Schema.decodeUnknownSync(MembershipSchema)(membershipRowToDoc(typedRow))
@@ -84,19 +87,21 @@ async function revokeMembership(orgId: string, userId: string): Promise<void> {
   await client.connect()
   try {
     await client.query('BEGIN')
-    const cur = await client.query<{ version: number }>(
-      'SELECT version FROM memberships WHERE aggregate_path = $1',
-      [aggregatePath],
+    // Projection PK is composite `(org_id, id)`; the version column is
+    // `last_event_version` (D6). Read + bump it for the appended event.
+    const cur = await client.query<{ last_event_version: number }>(
+      'SELECT last_event_version FROM memberships WHERE org_id = $1 AND id = $2',
+      [ref.orgId, ref.id],
     )
-    const nextVersion = (cur.rows[0]?.version ?? 1) + 1
+    const nextVersion = (cur.rows[0]?.last_event_version ?? 1) + 1
     await client.query(
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
        VALUES ($1, $2, $3, $4, $5)`,
       [
-        'memberships',
-        aggregatePath,
+        ref.type,
+        ref.id,
         nextVersion,
-        orgId,
+        ref.orgId,
         {
           _tag: 'membership.updated',
           version: nextVersion,
@@ -107,12 +112,12 @@ async function revokeMembership(orgId: string, userId: string): Promise<void> {
         },
       ],
     )
-    const values = membershipColumnValues(next, aggregatePath, nextVersion)
+    const values = membershipColumnValues(next, ref, nextVersion)
     const assignments = MEMBERSHIP_COLUMNS.map((col, i) => `${col} = $${i + 1}`).join(', ')
     const placeholders = MEMBERSHIP_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO memberships (${MEMBERSHIP_COLUMNS.join(', ')}) VALUES (${placeholders})
-       ON CONFLICT (aggregate_path) DO UPDATE SET ${assignments}`,
+       ON CONFLICT (org_id, id) DO UPDATE SET ${assignments}`,
       [...values],
     )
     await client.query('COMMIT')

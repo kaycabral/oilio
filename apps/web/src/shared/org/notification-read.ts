@@ -141,8 +141,9 @@ export async function getNotificationById(
 ): Promise<NotificationDoc | null> {
   const rows = await readUnderRls<NotificationRow>(orgId, (client) =>
     client
-      .query<NotificationRow>('SELECT * FROM notifications WHERE aggregate_path = $1', [
-        `orgs/${orgId}/notifications/${notificationId}`,
+      .query<NotificationRow>('SELECT * FROM notifications WHERE org_id = $1 AND id = $2', [
+        orgId,
+        notificationId,
       ])
       .then((res) => res.rows),
   )

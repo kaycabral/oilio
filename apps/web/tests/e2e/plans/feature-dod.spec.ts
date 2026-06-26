@@ -9,6 +9,8 @@
 //
 // Roda contra emulator + dev. Reusa os fluxos provados nas specs das fatias.
 
+import { CatalogItemConfig, SubscriptionConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import type { Page } from '@playwright/test'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
@@ -32,13 +34,19 @@ const CurrentPeriod = Schema.Struct({ consumed: Schema.optional(Schema.Number) }
 const decodeCurrentPeriod = Schema.decodeUnknownSync(CurrentPeriod)
 
 async function readConsumed(orgId: string, subId: string): Promise<number> {
-  const row = await pgReadProjection('subscriptions', `orgs/${orgId}/subscriptions/${subId}`)
+  const row = await pgReadProjection(
+    'subscriptions',
+    aggregateRef(SubscriptionConfig, orgId, subId),
+  )
   if (!row) return 0
   return decodeCurrentPeriod(row.current_period).consumed ?? 0
 }
 
 async function readStock(orgId: string, itemId: string): Promise<number> {
-  const row = await pgReadProjection('catalog_items', `orgs/${orgId}/catalog_items/${itemId}`)
+  const row = await pgReadProjection(
+    'catalog_items',
+    aggregateRef(CatalogItemConfig, orgId, itemId),
+  )
   const stock = row?.stock
   return typeof stock === 'number' ? stock : Number(stock ?? '0')
 }

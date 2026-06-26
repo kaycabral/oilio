@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { AgendaBlock } from '@/domain/types/agenda-block'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -22,11 +22,10 @@ const decodeAgendaBlock = Schema.decodeUnknownSync(AgendaBlock)
 /** The ordered `agenda_blocks` column list — single source of truth for the
  * runtime upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1. */
 export const AGENDA_BLOCK_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
   'unit_id',
-  'version',
+  'last_event_version',
   'kind',
   'professional_id',
   'block',
@@ -34,11 +33,7 @@ export const AGENDA_BLOCK_COLUMNS = [
   'updated_at',
 ] as const
 
-export function agendaBlockColumnValues(
-  block: AgendaBlock,
-  aggregatePath: string,
-  version: number,
-): unknown[] {
+export function agendaBlockColumnValues(block: AgendaBlock, version: number): unknown[] {
   // The full variant body rides in JSONB (the discriminant + scope ids are also
   // lifted to columns, but the body is authoritative on read).
   const body = {
@@ -50,7 +45,6 @@ export function agendaBlockColumnValues(
     endAt: block.endAt,
   }
   return [
-    aggregatePath,
     block.orgId,
     block.id,
     block.unitId,
@@ -64,13 +58,13 @@ export function agendaBlockColumnValues(
 }
 
 const PLACEHOLDERS = AGENDA_BLOCK_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = AGENDA_BLOCK_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = AGENDA_BLOCK_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO agenda_blocks (${AGENDA_BLOCK_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 function stateVersion(state: FirestoreDoc): number {
@@ -78,13 +72,9 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const block = decodeAgendaBlock(state)
-  await client.query(UPSERT, agendaBlockColumnValues(block, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, agendaBlockColumnValues(block, stateVersion(state)))
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
@@ -95,7 +85,7 @@ export type AgendaBlockRow = {
   org_id: string
   id: string
   unit_id: string
-  version: string | number
+  last_event_version: string | number
   kind: 'recurring' | 'one_off'
   professional_id: string | null
   block: {
@@ -115,7 +105,7 @@ export type AgendaBlockRow = {
 
 export function rowToDoc(row: AgendaBlockRow): FirestoreDoc {
   return {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     unitId: row.unit_id,
@@ -132,21 +122,21 @@ export function rowToDoc(row: AgendaBlockRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<AgendaBlockRow>(
-    'SELECT * FROM agenda_blocks WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT * FROM agenda_blocks WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
-  await client.query('DELETE FROM agenda_blocks WHERE aggregate_path = $1', [aggregatePath])
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
+  await client.query('DELETE FROM agenda_blocks WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
 export const agendaBlockProjector: TypedProjector = { read, upsert, delete: remove }
 
-export const AGENDA_BLOCK_AGGREGATE_TYPE = 'agenda_blocks'
+export const AGENDA_BLOCK_AGGREGATE_TYPE = 'agenda_block'
 
 registerTypedProjector(AGENDA_BLOCK_AGGREGATE_TYPE, agendaBlockProjector)

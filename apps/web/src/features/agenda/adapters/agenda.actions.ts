@@ -7,6 +7,7 @@ import {
   type Appointment,
 } from '@/domain'
 import { AppointmentConfig, UnitConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import {
   decideSnapshotRefresh,
   validateEditableCustomer,
@@ -68,7 +69,7 @@ export async function updateAgendaSlotMinutes(
 
   // Event-first: a granularidade vem do evento na agenda da unidade (sem
   // `.update` paralelo). O reducer projeta a nova config de appointment.
-  const updated = await emitEvent(UnitConfig, `orgs/${orgId}/units/${activeUnit.id}`, {
+  const updated = await emitEvent(UnitConfig, aggregateRef(UnitConfig, orgId, activeUnit.id), {
     _tag: 'unit.updated',
     actorId: r.ctx.session.uid,
     payload: {
@@ -99,7 +100,7 @@ export async function cancelAppointment(appointmentId: string): Promise<Appointm
   // Event-first: a projeção (status/cancelledAt/By/NoticeMinutes) vem do evento.
   const cancelled = await emitEvent(
     AppointmentConfig,
-    `orgs/${r.ctx.membership.orgId}/appointments/${appointmentId}`,
+    aggregateRef(AppointmentConfig, r.ctx.membership.orgId, appointmentId),
     {
       _tag: 'appointment.cancelled',
       actorId: r.ctx.session.uid,
@@ -135,7 +136,7 @@ export async function markAppointmentNoShow(
   // Event-first: a projeção (status/noShowMarkedAt/By) vem do evento.
   const marked = await emitEvent(
     AppointmentConfig,
-    `orgs/${r.ctx.membership.orgId}/appointments/${appointmentId}`,
+    aggregateRef(AppointmentConfig, r.ctx.membership.orgId, appointmentId),
     {
       _tag: 'appointment.no_show',
       actorId: r.ctx.session.uid,
@@ -167,7 +168,7 @@ export async function unmarkAppointmentNoShow(
   // (volta status pra scheduled; o marker anterior fica como histórico).
   const reverted = await emitEvent(
     AppointmentConfig,
-    `orgs/${r.ctx.membership.orgId}/appointments/${appointmentId}`,
+    aggregateRef(AppointmentConfig, r.ctx.membership.orgId, appointmentId),
     { _tag: 'appointment.no_show_reverted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!reverted.ok) return { ok: false, error: reverted.error }

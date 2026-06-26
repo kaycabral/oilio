@@ -2,6 +2,7 @@
 
 import { type Vertical, VERTICALS } from '@/domain'
 import { OrgConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { parseBranding, parseWebsite } from '@/features/company/core/company-form'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
@@ -39,7 +40,7 @@ export async function updateCompany(formData: FormData): Promise<UpdateCompanyRe
 
   // Event-first: estado do Negócio vem do evento (sem `.update` paralelo); o
   // reducer projeta as mudanças. `slug` é preservado (não está no `changes`).
-  const updated = await emitEvent(OrgConfig, `orgs/${orgId}`, {
+  const updated = await emitEvent(OrgConfig, aggregateRef(OrgConfig, orgId, orgId), {
     _tag: 'org.updated',
     actorId: r.ctx.session.uid,
     payload: {

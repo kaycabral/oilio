@@ -7,9 +7,9 @@ import {
   index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
-  unique,
 } from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 
@@ -18,9 +18,9 @@ import { orgs } from './orgs'
  * C, brief 0059) — the physical establishment under an org, carrying address,
  * timezone, the agenda config union and the fiscal identity union.
  *
- * Keyed by `aggregate_path` (`orgs/{orgId}/units/{id}` — org-scoped, mirroring
- * the Firestore layout). FK `org_id → orgs.org_id` (every unit belongs to a real
- * org). `org_id` is the leading index column (RLS performance requirement,
+ * Keyed by composite PK (org_id, id) — org-scoped. FK `org_id → orgs.org_id`
+ * (every unit belongs to a real org). `org_id` is the leading index column
+ * (RLS performance requirement,
  * feature C AC-01).
  *
  * Union mapping (mirrors the catalog-item `service | product` pattern):
@@ -51,16 +51,12 @@ import { orgs } from './orgs'
 export const units = pgTable(
   'units',
   {
-    // Projection key = the Firestore-style aggregate path
-    // (`orgs/{orgId}/units/{id}`).
-    aggregatePath: text('aggregate_path').primaryKey(),
-
     // ── Identity + org scope ────────────────────────────────────────────────
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     name: text('name').notNull(),
@@ -89,6 +85,8 @@ export const units = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),
   },
   (table) => [
+    // Natural composite PK — the target of cross-aggregate composite FKs.
+    primaryKey({ columns: [table.orgId, table.id], name: 'units_pkey' }),
     // The agenda mode discriminant, refused at the DB.
     check(
       'units_agenda_mode_check',
@@ -106,8 +104,6 @@ export const units = pgTable(
       columns: [table.orgId],
       foreignColumns: [orgs.orgId],
     }),
-    // Composite (org_id, id) UNIQUE — the target of cross-aggregate composite FKs.
-    unique('units_org_id_id_uq').on(table.orgId, table.id),
     // `org_id`-leading indexes: the RLS policy + list/order reads
     // (`listUnitsForOrg` filters by org then sorts by name).
     index('units_org_id_name_idx').on(table.orgId, table.name),

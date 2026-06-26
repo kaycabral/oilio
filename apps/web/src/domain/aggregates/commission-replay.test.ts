@@ -5,52 +5,19 @@
 // Brief 0022 #998: comissão nasce `pendente`; eventos com estado legado de split
 // continuam reconstruíveis (a migração para `pendente` é leitura, não rewrite).
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
 import { liquidationStatusOf } from '../types/commission'
 import { CommissionConfig } from './commission/config'
 
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
-
 describe('Commission — replay reconstrói o doc completo (event-first)', () => {
   it('created (snapshot completo) → updated (marcado pago) → replay == projeção', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/commissions/c1'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(CommissionConfig, 't1', 'c1')
     const data = {
       id: 'c1',
       orgId: 't1',
@@ -74,12 +41,12 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(CommissionConfig, path, {
+        yield* appendEvent(CommissionConfig, ref, {
           _tag: 'commission.created',
           actorId: 'actor-1',
           payload: { data },
         })
-        yield* appendEvent(CommissionConfig, path, {
+        yield* appendEvent(CommissionConfig, ref, {
           _tag: 'commission.updated',
           actorId: 'actor-1',
           payload: { changes: { liquidationStatus: 'pago', paidAt: '2026-06-02T09:00:00.000Z' } },
@@ -87,9 +54,9 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(CommissionConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(CommissionConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed).toEqual(projection)
@@ -110,8 +77,8 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
   // keyed by member só pelos eventos (event-first), provando que comissionar
   // não-profissional é event-sourced de ponta a ponta.
   it('comissão de membro não-profissional (recepção) reconstrói por attributedUserId', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/commissions/c-reception'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(CommissionConfig, 't1', 'c-reception')
     const data = {
       id: 'c-reception',
       orgId: 't1',
@@ -133,16 +100,16 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
     }
 
     await Effect.runPromise(
-      appendEvent(CommissionConfig, path, {
+      appendEvent(CommissionConfig, ref, {
         _tag: 'commission.created',
         actorId: 'actor-1',
         payload: { data },
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(CommissionConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(CommissionConfig, ref).pipe(Effect.provide(layer)),
     )
 
     expect(replayed).toEqual(projection)
@@ -153,8 +120,8 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
   })
 
   it('eventos com estado legado de split continuam reconstruíveis (migração é leitura)', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t1/commissions/c-legacy'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(CommissionConfig, 't1', 'c-legacy')
     const data = {
       id: 'c-legacy',
       orgId: 't1',
@@ -175,16 +142,16 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
     }
 
     await Effect.runPromise(
-      appendEvent(CommissionConfig, path, {
+      appendEvent(CommissionConfig, ref, {
         _tag: 'commission.created',
         actorId: 'actor-1',
         payload: { data },
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(CommissionConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(CommissionConfig, ref).pipe(Effect.provide(layer)),
     )
 
     // Replay preserva o evento gravado (append-only, sem rewrite). A migração
@@ -198,11 +165,11 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
   // caller). O stream permanece como verdade e o replay reconstrói o último
   // estado conhecido — a reversão é auditável, nunca silenciosa.
   it('created (pendente) → deleted (reversão na reabertura) — replay mantém o stream', async () => {
-    const { layer } = makeStore()
-    const path = 'orgs/t1/commissions/c-reversed'
+    const { layer } = makeReplayStore()
+    const ref = aggregateRef(CommissionConfig, 't1', 'c-reversed')
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(CommissionConfig, path, {
+        yield* appendEvent(CommissionConfig, ref, {
           _tag: 'commission.created',
           actorId: 'actor-1',
           payload: {
@@ -226,7 +193,7 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
             },
           },
         })
-        yield* appendEvent(CommissionConfig, path, {
+        yield* appendEvent(CommissionConfig, ref, {
           _tag: 'commission.deleted',
           actorId: 'actor-1',
           payload: {},
@@ -235,7 +202,7 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
     )
 
     const replayed = await Effect.runPromise(
-      replayAggregate(CommissionConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(CommissionConfig, ref).pipe(Effect.provide(layer)),
     )
     expect(replayed._version).toBe(2)
     expect(liquidationStatusOf(replayed)).toBe('pendente')

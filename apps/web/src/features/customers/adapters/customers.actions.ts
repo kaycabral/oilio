@@ -1,6 +1,7 @@
 'use server'
 
 import { CustomerConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { parseCustomerForm } from '@/features/customers/core/customer-form'
 import { dispatchNotificationReactions } from '@/features/notifications/adapters/reactor-dispatch'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
@@ -123,11 +124,15 @@ export async function deleteCustomer(customerId: string): Promise<CustomerMutati
   // the customer, so no history is orphaned. Event-first (`deleted` doesn't
   // reproject), then drop the read model.
   if (!impact.hasFootprint) {
-    const deleted = await emitEvent(CustomerConfig, `orgs/${orgId}/customers/${customerId}`, {
-      _tag: 'customer.deleted',
-      actorId: r.ctx.session.uid,
-      payload: {},
-    })
+    const deleted = await emitEvent(
+      CustomerConfig,
+      aggregateRef(CustomerConfig, orgId, customerId),
+      {
+        _tag: 'customer.deleted',
+        actorId: r.ctx.session.uid,
+        payload: {},
+      },
+    )
     if (!deleted.ok) return { ok: false, error: deleted.error }
     // The `*.deleted` event skips reprojection; hard-delete the read-model row.
     // `hasFootprint` already routes transacted customers to the soft-archive
@@ -135,7 +140,7 @@ export async function deleteCustomer(customerId: string): Promise<CustomerMutati
     // D2 — orders/charges/subscriptions/appointments) is the DB's last-line
     // guard: convert its 23503 into a friendly result instead of a raw 500.
     try {
-      await deleteOrgProjectionDoc(orgId, 'customers', customerId)
+      await deleteOrgProjectionDoc(aggregateRef(CustomerConfig, orgId, customerId))
     } catch (err) {
       if (isForeignKeyViolation(err)) {
         return {
@@ -159,11 +164,15 @@ export async function deleteCustomer(customerId: string): Promise<CustomerMutati
   await eraseCustomerCascadeInOrg(orgId, userId, r.ctx.session.uid)
 
   const now = new Date().toISOString()
-  const archived = await emitEvent(CustomerConfig, `orgs/${orgId}/customers/${customerId}`, {
-    _tag: 'customer.updated',
-    actorId: r.ctx.session.uid,
-    payload: { changes: { deactivatedAt: now } },
-  })
+  const archived = await emitEvent(
+    CustomerConfig,
+    aggregateRef(CustomerConfig, orgId, customerId),
+    {
+      _tag: 'customer.updated',
+      actorId: r.ctx.session.uid,
+      payload: { changes: { deactivatedAt: now } },
+    },
+  )
   if (!archived.ok) return { ok: false, error: archived.error }
   revalidatePath('/customers')
   return { ok: true }

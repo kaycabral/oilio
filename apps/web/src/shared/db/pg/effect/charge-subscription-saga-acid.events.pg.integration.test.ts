@@ -1,5 +1,11 @@
 import { ChargeConfig, SubscriptionConfig } from '@/domain/aggregates'
-import { appendEventToTx, runSaga, type SagaStep } from '@/domain/effect'
+import {
+  aggregateRef,
+  type AggregateRef,
+  appendEventToTx,
+  runSaga,
+  type SagaStep,
+} from '@/domain/effect'
 import type { Charge } from '@/domain/types/charge'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -29,8 +35,8 @@ const ORG = 't1'
 const SUB = 'sub1'
 const CHARGE = 'ch1'
 
-const chargePath = (id: string) => `orgs/${ORG}/charges/${id}`
-const subscriptionPath = (id: string) => `orgs/${ORG}/subscriptions/${id}`
+const chargeRef = (id: string): AggregateRef => aggregateRef(ChargeConfig, ORG, id)
+const subscriptionRef = (id: string): AggregateRef => aggregateRef(SubscriptionConfig, ORG, id)
 
 const PLAN = {
   planId: 'plan-basic',
@@ -69,7 +75,7 @@ function chargeCreatedStep(data: Charge): SagaStep {
   return (tx) =>
     appendEventToTx(
       ChargeConfig,
-      chargePath(data.id),
+      chargeRef(data.id),
       { _tag: 'charge.created', actorId: 'test', payload: { data } },
       tx,
     )
@@ -79,7 +85,7 @@ function subscriptionCreatedStep(): SagaStep {
   return (tx) =>
     appendEventToTx(
       SubscriptionConfig,
-      subscriptionPath(SUB),
+      subscriptionRef(SUB),
       {
         _tag: 'subscription.created',
         actorId: 'test',
@@ -104,7 +110,7 @@ function subscriptionCreatedStep(): SagaStep {
 const chargeSucceededStep: SagaStep = (tx) =>
   appendEventToTx(
     ChargeConfig,
-    chargePath(CHARGE),
+    chargeRef(CHARGE),
     {
       _tag: 'charge.succeeded',
       actorId: 'test',
@@ -116,26 +122,31 @@ const chargeSucceededStep: SagaStep = (tx) =>
 const subscriptionSettledStep: SagaStep = (tx) =>
   appendEventToTx(
     SubscriptionConfig,
-    subscriptionPath(SUB),
+    subscriptionRef(SUB),
     { _tag: 'subscription.charge_settled', actorId: 'test', payload: {} },
     tx,
   )
 
-function readCount(table: string, path: string): Promise<number> {
+// Projection tables are keyed by composite PK (org_id, id) (D6, ADR 0013) — read
+// by the ref's org/id, never a path.
+function readCount(table: string, ref: AggregateRef): Promise<number> {
   return getEventStorePool()
-    .query(`SELECT 1 FROM ${table} WHERE aggregate_path = $1`, [path])
+    .query(`SELECT 1 FROM ${table} WHERE org_id = $1 AND id = $2`, [ref.orgId, ref.id])
     .then((res) => res.rowCount ?? 0)
 }
-function readStatus(path: string): Promise<string | null> {
+function readStatus(ref: AggregateRef): Promise<string | null> {
   return getEventStorePool()
-    .query<{ status: string }>('SELECT status FROM charges WHERE aggregate_path = $1', [path])
+    .query<{ status: string }>('SELECT status FROM charges WHERE org_id = $1 AND id = $2', [
+      ref.orgId,
+      ref.id,
+    ])
     .then((res) => res.rows[0]?.status ?? null)
 }
-function readNextChargeDate(path: string): Promise<string | null> {
+function readNextChargeDate(ref: AggregateRef): Promise<string | null> {
   return getEventStorePool()
     .query<{ next_charge_date: Date | string | null }>(
-      'SELECT next_charge_date FROM subscriptions WHERE aggregate_path = $1',
-      [path],
+      'SELECT next_charge_date FROM subscriptions WHERE org_id = $1 AND id = $2',
+      [ref.orgId, ref.id],
     )
     .then((res) => {
       // `next_charge_date` is `timestamptz` (brief 0068 D1): the pg driver hands
@@ -145,9 +156,12 @@ function readNextChargeDate(path: string): Promise<string | null> {
       return value == null ? null : new Date(value).toISOString()
     })
 }
-function readSubStatus(path: string): Promise<string | null> {
+function readSubStatus(ref: AggregateRef): Promise<string | null> {
   return getEventStorePool()
-    .query<{ status: string }>('SELECT status FROM subscriptions WHERE aggregate_path = $1', [path])
+    .query<{ status: string }>('SELECT status FROM subscriptions WHERE org_id = $1 AND id = $2', [
+      ref.orgId,
+      ref.id,
+    ])
     .then((res) => res.rows[0]?.status ?? null)
 }
 
@@ -157,22 +171,22 @@ function readSubStatus(path: string): Promise<string | null> {
 // the subscription in the same tx) so it needs no standalone seed.
 async function seedParents(): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${ORG}`, ORG],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [ORG],
   )
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ($1,$2,'unit-a',1,'Unit','unit-a','America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${ORG}/units/unit-a`, ORG],
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,'unit-a',1,'Unit','unit-a','America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [ORG],
   )
   await getEventStorePool().query(
-    `INSERT INTO customers (aggregate_path, org_id, id, version, user_id, archived_at, deactivated_at, created_at, updated_at)
-     VALUES ($1,$2,'c1',1,'user-c1',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${ORG}/customers/c1`, ORG],
+    `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
+     VALUES ($1,'c1',1,'user-c1',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [ORG],
   )
 }
 
@@ -204,9 +218,9 @@ describe('charge ↔ subscription cascade — ACID rollback (Postgres)', () => {
       ),
     )
 
-    expect(await readStatus(chargePath(CHARGE))).toBe('paid')
+    expect(await readStatus(chargeRef(CHARGE))).toBe('paid')
     // Settling a non-cancelled subscription keeps it active — the cascade landed.
-    expect(await readCount('subscriptions', subscriptionPath(SUB))).toBe(1)
+    expect(await readCount('subscriptions', subscriptionRef(SUB))).toBe(1)
   })
 
   it('rolls back the WHOLE cascade when the charge step trips a DB CHECK', async () => {
@@ -219,7 +233,7 @@ describe('charge ↔ subscription cascade — ACID rollback (Postgres)', () => {
     const renewedStep: SagaStep = (tx) =>
       appendEventToTx(
         SubscriptionConfig,
-        subscriptionPath(SUB),
+        subscriptionRef(SUB),
         {
           _tag: 'subscription.renewed',
           actorId: 'test',
@@ -242,8 +256,8 @@ describe('charge ↔ subscription cascade — ACID rollback (Postgres)', () => {
     // The bad charge never landed AND the subscription.renewed mutation rolled
     // back with it — nextChargeDate stays the ORIGINAL seed value, never the
     // renewed one (2026-08-01), proving the whole cascade reverted as one tx.
-    expect(await readCount('charges', chargePath('ch2'))).toBe(0)
-    expect(await readNextChargeDate(subscriptionPath(SUB))).toBe('2026-07-01T00:00:00.000Z')
+    expect(await readCount('charges', chargeRef('ch2'))).toBe(0)
+    expect(await readNextChargeDate(subscriptionRef(SUB))).toBe('2026-07-01T00:00:00.000Z')
   })
 
   it('commits the markChargeFailed cascade below threshold — charge recovering, sub past_due (#1201)', async () => {
@@ -257,7 +271,7 @@ describe('charge ↔ subscription cascade — ACID rollback (Postgres)', () => {
     const chargeFailedStep: SagaStep = (tx) =>
       appendEventToTx(
         ChargeConfig,
-        chargePath(CHARGE),
+        chargeRef(CHARGE),
         {
           _tag: 'charge.failed',
           actorId: 'test',
@@ -277,7 +291,7 @@ describe('charge ↔ subscription cascade — ACID rollback (Postgres)', () => {
     const subFailedStep: SagaStep = (tx) =>
       appendEventToTx(
         SubscriptionConfig,
-        subscriptionPath(SUB),
+        subscriptionRef(SUB),
         {
           _tag: 'subscription.charge_failed',
           actorId: 'test',
@@ -290,7 +304,7 @@ describe('charge ↔ subscription cascade — ACID rollback (Postgres)', () => {
       runSaga([chargeFailedStep, subFailedStep]).pipe(Effect.provide(PostgresPersistenceLayer)),
     )
 
-    expect(await readStatus(chargePath(CHARGE))).toBe('recovering')
-    expect(await readSubStatus(subscriptionPath(SUB))).toBe('past_due')
+    expect(await readStatus(chargeRef(CHARGE))).toBe('recovering')
+    expect(await readSubStatus(subscriptionRef(SUB))).toBe('past_due')
   })
 })

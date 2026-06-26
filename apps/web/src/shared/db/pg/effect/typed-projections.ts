@@ -1,4 +1,4 @@
-import type { FirestoreDoc, QueryConstraint } from '@/domain/effect'
+import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
 import type { PoolClient } from 'pg'
 
 /**
@@ -11,12 +11,13 @@ import type { PoolClient } from 'pg'
  * into its own richly-constrained table (e.g. `catalog_items`) — in the SAME
  * transaction as the event — instead of the generic store.
  *
- * The registry is keyed by `aggregate_type` (the aggregate-type segment of the
- * event-store path, e.g. `catalog_items`). The Postgres Layer looks the projector
- * up per write: a registered context routes to its typed table; an org-neutral
- * aggregate falls back to the generic `projections` store. This is the seam the
- * typed projectors plug into without reopening the `PersistencePort` — adding a
- * context is registering a projector, not changing the port contract.
+ * The registry is keyed by the aggregate's `AggregateType` (the `config.type`,
+ * e.g. `catalog_item`) — D6 (ADR 0013): the router looks the projector up by the
+ * ref's typed `type`, not by parsing a path segment. A registered context routes
+ * to its typed table; an org-neutral aggregate falls back to the generic
+ * `projections` store. This is the seam the typed projectors plug into without
+ * reopening the `PersistencePort` — adding a context is registering a projector,
+ * not changing the port contract.
  *
  * A projector exposes `read` (reconstruct the reduced state from the typed row),
  * `upsert` (project the reduced state) and `delete` (drop the row on a
@@ -31,7 +32,7 @@ import type { PoolClient } from 'pg'
  */
 export type TypedProjector = {
   /** Reconstruct the reduced state (the reducer's doc shape) from the typed row, or null. */
-  readonly read: (client: PoolClient, aggregatePath: string) => Promise<FirestoreDoc | null>
+  readonly read: (client: PoolClient, ref: AggregateRef) => Promise<FirestoreDoc | null>
   /**
    * Like `read` but takes a ROW LOCK (`SELECT … FOR UPDATE`) — the guarded-append
    * definition read (brief 0033 AC-08). Optional: implemented by the definition
@@ -39,40 +40,40 @@ export type TypedProjector = {
    * so a concurrent reprice/discontinuation serializes against the append. The
    * Postgres layer falls back to a locked generic `projections` read when absent.
    */
-  readonly readForUpdate?: (
-    client: PoolClient,
-    aggregatePath: string,
-  ) => Promise<FirestoreDoc | null>
+  readonly readForUpdate?: (client: PoolClient, ref: AggregateRef) => Promise<FirestoreDoc | null>
   /** Project the reduced `state` (the reducer's output) into the typed table. */
-  readonly upsert: (client: PoolClient, aggregatePath: string, state: FirestoreDoc) => Promise<void>
-  /** Drop the typed row for an aggregate path (hard-delete). */
-  readonly delete: (client: PoolClient, aggregatePath: string) => Promise<void>
+  readonly upsert: (client: PoolClient, ref: AggregateRef, state: FirestoreDoc) => Promise<void>
+  /** Drop the typed row for an aggregate (hard-delete). */
+  readonly delete: (client: PoolClient, ref: AggregateRef) => Promise<void>
   /**
-   * Scan the collection the pure domain/cron reads through `PersistencePort.getDocs`
-   * (e.g. `orgs/{orgId}/notifications`), translating the domain `QueryConstraint[]`
-   * to SQL and mapping each row to the reducer's doc shape via `rowToDoc`. Optional:
-   * only the projectors a collection read actually targets implement it (the
-   * Postgres Layer throws a loud error for an unsupported collection). `org-scoped`
-   * tables filter on the path's org under RLS; a top-level scan (`orgs`) does not.
+   * Scan an aggregate-type collection within an org that the pure domain/cron
+   * reads through `PersistencePort.getDocs` (a {@link CollectionRef}), translating
+   * the domain `QueryConstraint[]` to SQL and mapping each row to the reducer's doc
+   * shape via `rowToDoc`. Optional: only the projectors a collection read actually
+   * targets implement it (the Postgres Layer throws a loud error for an unsupported
+   * collection). Org-scoped tables filter on `ref.orgId` under RLS.
    */
   readonly list?: (
     client: PoolClient,
-    collectionPath: string,
+    ref: CollectionRef,
     constraints: readonly QueryConstraint[],
   ) => Promise<FirestoreDoc[]>
 }
 
-const registry = new Map<string, TypedProjector>()
+const registry = new Map<AggregateRef['type'], TypedProjector>()
 
 /**
- * Register a typed projector for an `aggregate_type`. Idempotent per type
+ * Register a typed projector for an aggregate `type`. Idempotent per type
  * (last registration wins) so module re-evaluation in tests doesn't accumulate.
  */
-export function registerTypedProjector(aggregateType: string, projector: TypedProjector): void {
-  registry.set(aggregateType, projector)
+export function registerTypedProjector(
+  type: AggregateRef['type'],
+  projector: TypedProjector,
+): void {
+  registry.set(type, projector)
 }
 
-/** The typed projector for an `aggregate_type`, or `undefined` (use the generic store). */
-export function typedProjectorFor(aggregateType: string): TypedProjector | undefined {
-  return registry.get(aggregateType)
+/** The typed projector for an aggregate `type`, or `undefined` (use the generic store). */
+export function typedProjectorFor(type: AggregateRef['type']): TypedProjector | undefined {
+  return registry.get(type)
 }

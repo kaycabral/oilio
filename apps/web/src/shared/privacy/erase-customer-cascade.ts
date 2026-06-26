@@ -1,5 +1,6 @@
 import { Appointment, Charge, Subscription, type SubscriptionStatus } from '@/domain'
 import { AppointmentConfig, ChargeConfig, SubscriptionConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import {
   rowToDoc as appointmentRowToDoc,
   type AppointmentRow,
@@ -162,11 +163,15 @@ async function cancelActiveSubscriptions(
     // Hard cut (immediate) — NOT `cancel_scheduled` (soft, at period end). The
     // erasure severs the relationship now; the benefit does not run out the
     // period. Event-first: the reducer projects status='cancelled' + cancelledAt.
-    const cancelled = await emitEvent(SubscriptionConfig, `orgs/${orgId}/subscriptions/${id}`, {
-      _tag: 'subscription.cancelled',
-      actorId: actor,
-      payload: { cancelledBy: actor },
-    })
+    const cancelled = await emitEvent(
+      SubscriptionConfig,
+      aggregateRef(SubscriptionConfig, orgId, id),
+      {
+        _tag: 'subscription.cancelled',
+        actorId: actor,
+        payload: { cancelledBy: actor },
+      },
+    )
     // Erro à mostra (AC-14): a partial cascade is retryable, never silent.
     if (!cancelled.ok) {
       throw new Error(`Failed to cancel subscription ${id}: ${cancelled.error}`)
@@ -195,7 +200,7 @@ async function cancelPendingCharges(
     if (!PENDING_CHARGE_STATUSES.has(charge.status)) continue
 
     const now = new Date().toISOString()
-    const res = await emitEvent(ChargeConfig, `orgs/${orgId}/charges/${id}`, {
+    const res = await emitEvent(ChargeConfig, aggregateRef(ChargeConfig, orgId, id), {
       _tag: 'charge.cancelled',
       actorId: actor,
       payload: {
@@ -268,7 +273,7 @@ async function cancelFutureAppointments(
       0,
       Math.round((new Date(appt.startAt).getTime() - nowMs) / 60000),
     )
-    const res = await emitEvent(AppointmentConfig, `orgs/${orgId}/appointments/${id}`, {
+    const res = await emitEvent(AppointmentConfig, aggregateRef(AppointmentConfig, orgId, id), {
       _tag: 'appointment.cancelled',
       actorId: actor,
       payload: { cancelledBy: 'system', cancelledAt: now, noticeMinutes },

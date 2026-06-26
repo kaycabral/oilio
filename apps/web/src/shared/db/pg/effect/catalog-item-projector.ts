@@ -1,4 +1,5 @@
-import type { FirestoreDoc, QueryConstraint } from '@/domain/effect'
+import { CatalogItemConfig } from '@/domain/aggregates/catalog-item/config'
+import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
 import { CatalogItem, isCatalogProduct } from '@/domain/types/catalog-item'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -17,7 +18,7 @@ import { registerTypedProjector, type TypedProjector } from './typed-projections
  * /org) as real columns the DB constrains, and the composite/structural fields
  * (commission/unit_ids/unit_overrides/required_resources) as JSONB.
  *
- * `delete` drops the row by aggregate path — driven by the backend-aware delete
+ * `delete` drops the row by aggregate ref — driven by the backend-aware delete
  * helper on a hard-delete (the event store skips the projection write for
  * `*.deleted`).
  *
@@ -37,10 +38,9 @@ const decodeCatalogItem = Schema.decodeUnknownSync(CatalogItem)
  * field before). Mirrors the `INSERT` placeholders 1:1.
  */
 export const CATALOG_ITEM_COLUMNS = [
-  'aggregate_path',
   'org_id',
   'id',
-  'version',
+  'last_event_version',
   'kind',
   'name',
   'category_id',
@@ -64,24 +64,18 @@ export const CATALOG_ITEM_COLUMNS = [
 ] as const
 
 /**
- * Map a decoded `CatalogItem` (+ its aggregate path and projection version) onto
- * the ordered `catalog_items` column VALUES — the inverse of `rowToDoc`, shared
- * by the runtime projector and the E2E seed so the two never diverge. Order
- * matches `CATALOG_ITEM_COLUMNS` exactly. JSONB columns: arrays are
- * `JSON.stringify`'d, objects passed raw (node-pg encodes both identically for
- * `jsonb`).
+ * Map a decoded `CatalogItem` (+ its projection version) onto the ordered
+ * `catalog_items` column VALUES — the inverse of `rowToDoc`, shared by the
+ * runtime projector and the E2E seed so the two never diverge. Order matches
+ * `CATALOG_ITEM_COLUMNS` exactly. JSONB columns: arrays are `JSON.stringify`'d,
+ * objects passed raw (node-pg encodes both identically for `jsonb`).
  */
-export function catalogItemColumnValues(
-  item: CatalogItem,
-  aggregatePath: string,
-  version: number,
-): unknown[] {
+export function catalogItemColumnValues(item: CatalogItem, lastEventVersion: number): unknown[] {
   const isProduct = isCatalogProduct(item)
   return [
-    aggregatePath,
     item.orgId,
     item.id,
-    version,
+    lastEventVersion,
     item.kind,
     item.name,
     item.categoryId,
@@ -108,13 +102,13 @@ export function catalogItemColumnValues(
 // INSERT … ON CONFLICT, generated from the single column list so the placeholders
 // and the upsert SET clause can never drift from `CATALOG_ITEM_COLUMNS`.
 const PLACEHOLDERS = CATALOG_ITEM_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = CATALOG_ITEM_COLUMNS.filter((c) => c !== 'aggregate_path')
+const CONFLICT_SET = CATALOG_ITEM_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
   INSERT INTO catalog_items (${CATALOG_ITEM_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
-  ON CONFLICT (aggregate_path) DO UPDATE SET ${CONFLICT_SET}
+  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
 // ── Derived join table (brief 0068 D3): catalog-item ↔ unit ───────────────────
@@ -140,13 +134,9 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(
-  client: PoolClient,
-  aggregatePath: string,
-  state: FirestoreDoc,
-): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const item = decodeCatalogItem(state)
-  await client.query(UPSERT, catalogItemColumnValues(item, aggregatePath, stateVersion(state)))
+  await client.query(UPSERT, catalogItemColumnValues(item, stateVersion(state)))
   // Mirror the N:N `unitIds` array into the join table (same tx). Delete-then-
   // insert so a shrunk array leaves no orphans and replay is idempotent.
   await client.query(CATALOG_ITEM_UNITS_DELETE, [item.orgId, item.id])
@@ -159,7 +149,7 @@ async function upsert(
 export type CatalogItemRow = {
   org_id: string
   id: string
-  version: string | number
+  last_event_version: string | number
   kind: 'service' | 'product'
   name: string
   category_id: string | null
@@ -188,7 +178,7 @@ export type CatalogItemRow = {
 // come back as strings from `pg` — coerced to number to match the domain shape.
 export function rowToDoc(row: CatalogItemRow): FirestoreDoc {
   const base = {
-    _version: Number(row.version),
+    _version: Number(row.last_event_version),
     id: row.id,
     orgId: row.org_id,
     kind: row.kind,
@@ -231,10 +221,10 @@ export function rowToDoc(row: CatalogItemRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, aggregatePath: string): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<CatalogItemRow>(
-    'SELECT * FROM catalog_items WHERE aggregate_path = $1',
-    [aggregatePath],
+    'SELECT * FROM catalog_items WHERE org_id = $1 AND id = $2',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
@@ -243,41 +233,35 @@ async function read(client: PoolClient, aggregatePath: string): Promise<Firestor
 // Locked read for the price/availability guard (brief 0033 AC-08): `FOR UPDATE`
 // holds the catalog-item row until the guarded append's tx ends, so a concurrent
 // reprice/discontinuation can't let two appends snapshot a stale price.
-async function readForUpdate(
-  client: PoolClient,
-  aggregatePath: string,
-): Promise<FirestoreDoc | null> {
+async function readForUpdate(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<CatalogItemRow>(
-    'SELECT * FROM catalog_items WHERE aggregate_path = $1 FOR UPDATE',
-    [aggregatePath],
+    'SELECT * FROM catalog_items WHERE org_id = $1 AND id = $2 FOR UPDATE',
+    [ref.orgId, ref.id],
   )
   const row = res.rows[0]
   return row ? rowToDoc(row) : null
 }
 
-async function remove(client: PoolClient, aggregatePath: string): Promise<void> {
+async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
   // Drop the join rows explicitly (the parent FK is ON DELETE cascade, so this is
-  // defensive + mirrors `professional-projector`'s join cleanup). Path is
-  // `orgs/{orgId}/catalog_items/{id}`.
-  const parts = aggregatePath.split('/')
-  const orgId = parts[1] ?? ''
-  const id = parts[3] ?? ''
-  await client.query(CATALOG_ITEM_UNITS_DELETE, [orgId, id])
-  await client.query('DELETE FROM catalog_items WHERE aggregate_path = $1', [aggregatePath])
+  // defensive + mirrors `professional-projector`'s join cleanup). The ref carries
+  // the org + id directly.
+  await client.query(CATALOG_ITEM_UNITS_DELETE, [ref.orgId, ref.id])
+  await client.query('DELETE FROM catalog_items WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-// Org-scoped collection scan (`orgs/{orgId}/catalog_items`): the reconcile cron
-// reads the pending markers (`where reconciliationPending == true`) to reprocess.
+// Org-scoped collection scan (a {@link CollectionRef} for `catalog_item`): the
+// reconcile cron reads the pending markers (`where reconciliationPending == true`)
+// to reprocess.
 async function list(
   client: PoolClient,
-  collectionPath: string,
+  ref: CollectionRef,
   constraints: readonly QueryConstraint[],
 ): Promise<FirestoreDoc[]> {
-  const orgId = collectionPath.split('/')[1] ?? ''
   const tail = buildCollectionQueryTail(constraints, CATALOG_ITEM_COLUMNS, 2, true)
   const res = await client.query<CatalogItemRow>(
     `SELECT * FROM catalog_items WHERE org_id = $1${tail.sql}`,
-    [orgId, ...tail.params],
+    [ref.orgId, ...tail.params],
   )
   return res.rows.map(rowToDoc)
 }
@@ -291,11 +275,11 @@ export const catalogItemProjector: TypedProjector = {
 }
 
 /**
- * `aggregate_type` for catalog items = the aggregate-type segment of the event-store
- * path (`orgs/{orgId}/catalog_items/{id}` → `catalog_items`). The Postgres Layer
- * derives the same tag with `aggregateTypeOf`, so registration and routing agree.
+ * `aggregate_type` for catalog items = the typed `AggregateType` literal
+ * (`config.type`, singular `catalog_item`) — D6 (ADR 0013). The Postgres Layer
+ * routes by the ref's `type`, so registration and routing agree on this literal.
  */
-export const CATALOG_ITEM_AGGREGATE_TYPE = 'catalog_items'
+export const CATALOG_ITEM_AGGREGATE_TYPE = CatalogItemConfig.type
 
 // Register on module load. The Postgres Layer imports this module so the
 // projector is present before the first projection write.

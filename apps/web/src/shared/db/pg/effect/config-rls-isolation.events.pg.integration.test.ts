@@ -42,10 +42,10 @@ const UNIT_SCOPED_TABLES = ['agenda_blocks', 'goals', 'notifications'] as const
 
 async function seedOrg(id: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${id}`, id],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id) DO NOTHING`,
+    [id],
   )
 }
 
@@ -54,10 +54,10 @@ async function seedOrg(id: string): Promise<void> {
 // fixture rows satisfy the FK.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'Unit','unit-'||$3,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${orgId}/units/${unitId}`, orgId, unitId],
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, unitId],
   )
 }
 
@@ -66,65 +66,64 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
 // tables; the org-only tables ignore it.
 async function seedRow(table: string, orgId: string, id: string, unitId: string): Promise<void> {
   const pool = getEventStorePool()
-  const path = `orgs/${orgId}/${table}/${id}`
   switch (table) {
     case 'professionals':
       await pool.query(
-        `INSERT INTO professionals (aggregate_path, org_id, id, version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-         VALUES ($1,$2,$3,1,'user-'||$3,NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [path, orgId, id],
+        `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+         VALUES ($1,$2,1,'user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        [orgId, id],
       )
       return
     case 'customers':
       await pool.query(
-        `INSERT INTO customers (aggregate_path, org_id, id, version, user_id, archived_at, deactivated_at, created_at, updated_at)
-         VALUES ($1,$2,$3,1,'user-'||$3,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [path, orgId, id],
+        `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
+         VALUES ($1,$2,1,'user-'||$2,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        [orgId, id],
       )
       return
     case 'invites':
       await pool.query(
-        `INSERT INTO invites (aggregate_path, org_id, id, version, role, token_hash, expires_at, status, invited_by, accepted_by_uid, accepted_at, created_at, updated_at)
-         VALUES ($1,$2,$3,1,'professional','hash','2026-01-01T00:00:00Z','pending','owner',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [path, orgId, id],
+        `INSERT INTO invites (org_id, id, last_event_version, role, token_hash, expires_at, status, invited_by, accepted_by_uid, accepted_at, created_at, updated_at)
+         VALUES ($1,$2,1,'professional','hash','2026-01-01T00:00:00Z','pending','owner',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        [orgId, id],
       )
       return
     case 'categories':
       await pool.query(
-        `INSERT INTO categories (aggregate_path, org_id, id, version, name, icon, color, active, archived_at, created_at, updated_at)
-         VALUES ($1,$2,$3,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [path, orgId, id],
+        `INSERT INTO categories (org_id, id, last_event_version, name, icon, color, active, archived_at, created_at, updated_at)
+         VALUES ($1,$2,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        [orgId, id],
       )
       return
     case 'subscription_plans':
       await pool.query(
-        `INSERT INTO subscription_plans (aggregate_path, org_id, id, version, name, description, price_cents, billing_cycle, active, archived_at, usage_limit_kind, usage_limit, included_item_ids, included_category_ids, unit_allowlist, allowed_time_scope, booking_limits, created_at, updated_at)
-         VALUES ($1,$2,$3,1,'Plan',NULL,1000,'monthly',true,NULL,'unlimited','{"kind":"unlimited"}'::jsonb,'[]'::jsonb,'[]'::jsonb,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [path, orgId, id],
+        `INSERT INTO subscription_plans (org_id, id, last_event_version, name, description, price_cents, billing_cycle, active, archived_at, usage_limit_kind, usage_limit, included_item_ids, included_category_ids, unit_allowlist, allowed_time_scope, booking_limits, created_at, updated_at)
+         VALUES ($1,$2,1,'Plan',NULL,1000,'monthly',true,NULL,'unlimited','{"kind":"unlimited"}'::jsonb,'[]'::jsonb,'[]'::jsonb,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        [orgId, id],
       )
       return
     case 'agenda_blocks':
       await seedUnit(orgId, unitId)
       await pool.query(
-        `INSERT INTO agenda_blocks (aggregate_path, org_id, id, unit_id, version, kind, professional_id, block, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,1,'recurring',NULL,'{"reason":"r"}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [path, orgId, id, unitId],
+        `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, professional_id, block, created_at, updated_at)
+         VALUES ($1,$2,$3,1,'recurring',NULL,'{"reason":"r"}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        [orgId, id, unitId],
       )
       return
     case 'goals':
       await seedUnit(orgId, unitId)
       await pool.query(
-        `INSERT INTO goals (aggregate_path, org_id, id, unit_id, version, period, type, target_cents, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,1,'2026-06','profit',100000,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [path, orgId, id, unitId],
+        `INSERT INTO goals (org_id, id, unit_id, last_event_version, period, type, target_cents, created_at, updated_at)
+         VALUES ($1,$2,$3,1,'2026-06','profit',100000,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        [orgId, id, unitId],
       )
       return
     case 'notifications':
       await seedUnit(orgId, unitId)
       await pool.query(
-        `INSERT INTO notifications (aggregate_path, org_id, id, unit_id, version, type, source, event_key, customer_id, appointment_id, subscription_id, read_at, dispatched_at, valid_until, snoozed_until, payload, dispatch, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,1,'birthday','cron','ek-'||$3,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-        [path, orgId, id, unitId],
+        `INSERT INTO notifications (org_id, id, unit_id, last_event_version, type, source, event_key, customer_id, appointment_id, subscription_id, read_at, dispatched_at, valid_until, snoozed_until, payload, dispatch, created_at, updated_at)
+         VALUES ($1,$2,$3,1,'birthday','cron','ek-'||$2,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        [orgId, id, unitId],
       )
       return
     default:
@@ -197,9 +196,9 @@ describe('Postgres RLS isolation — config (brief 0060, AC-02)', () => {
     try {
       await expect(
         a.query(
-          `INSERT INTO categories (aggregate_path, org_id, id, version, name, active, created_at, updated_at)
-           VALUES ($1,$2,'c',1,'C',true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-          [`orgs/${ORG_B}/categories/c`, ORG_B],
+          `INSERT INTO categories (org_id, id, last_event_version, name, active, created_at, updated_at)
+           VALUES ($1,'c',1,'C',true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+          [ORG_B],
         ),
         // 42501 = insufficient_privilege (RLS WITH CHECK violation)
       ).rejects.toMatchObject({ code: '42501' })
@@ -216,9 +215,9 @@ describe('Postgres RLS isolation — config (brief 0060, AC-02)', () => {
     try {
       await expect(
         a.query(
-          `INSERT INTO goals (aggregate_path, org_id, id, unit_id, version, period, type, target_cents, created_at, updated_at)
-           VALUES ($1,$2,'g',$3,1,'2026-06','profit',100000,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-          [`orgs/${ORG_B}/goals/g`, ORG_B, UNIT_A1],
+          `INSERT INTO goals (org_id, id, unit_id, last_event_version, period, type, target_cents, created_at, updated_at)
+           VALUES ($1,'g',$2,1,'2026-06','profit',100000,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+          [ORG_B, UNIT_A1],
         ),
       ).rejects.toMatchObject({ code: '42501' })
     } finally {

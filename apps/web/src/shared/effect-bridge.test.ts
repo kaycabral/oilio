@@ -5,47 +5,15 @@
 // `{ ok: false, error }` with the whole tx rolled back.
 
 import { CashMovementConfig, CommissionConfig } from '@/domain/aggregates'
-import type { FirestoreDoc, TransactionContext } from '@/domain/effect'
-import { PersistencePort, appendEventToTx } from '@/domain/effect'
-import { Effect, Layer } from 'effect'
+import { aggregateRef, appendEventToTx } from '@/domain/effect'
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { Effect } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// In-memory layer with a buffered `runTransaction` (commit flushes; a throw
-// discards the buffer = ROLLBACK). The bridge provides the Postgres layer
-// directly post-cutover (#1202), so we mock that module to this in-memory layer
-// — the bridge's success/rollback/defect mapping is what's under test, not the
-// pg substrate (proven by the `*.events.pg.integration.test.ts` suite).
-const store = new Map<string, FirestoreDoc>()
-const memoryLayer = Layer.succeed(PersistencePort, {
-  getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-  getDocs: () => Effect.succeed([]),
-  setDoc: (path: string, data: FirestoreDoc) =>
-    Effect.sync(() => {
-      store.set(path, { ...store.get(path), ...data })
-    }),
-  runTransaction: <A, E>(fn: (tx: TransactionContext) => Effect.Effect<A, E, never>) => {
-    const buffer = new Map(store)
-    const tx: TransactionContext = {
-      getDoc: (path) => Effect.succeed(buffer.get(path) ?? null),
-      setDoc: (path, data) =>
-        Effect.sync(() => {
-          buffer.set(path, { ...buffer.get(path), ...data })
-        }),
-      deleteDoc: (path) =>
-        Effect.sync(() => {
-          buffer.delete(path)
-        }),
-    }
-    return fn(tx).pipe(
-      Effect.tap(() =>
-        Effect.sync(() => {
-          store.clear()
-          for (const [k, v] of buffer) store.set(k, v)
-        }),
-      ),
-    )
-  },
-})
+// In-memory replay layer (ref-keyed, real event log) standing in for the Postgres
+// substrate (#1202): the bridge's success/rollback/defect mapping is what's under
+// test, not the pg layer (proven by the `*.events.pg.integration.test.ts` suite).
+const { store, layer: memoryLayer } = makeReplayStore()
 
 // The mock factory is hoisted above `memoryLayer`'s definition, so expose the
 // layer through a getter — the bridge reads `PostgresPersistenceLayer` lazily
@@ -55,6 +23,9 @@ vi.mock('@/shared/db/pg/effect/postgres-layer', () => ({
     return memoryLayer
   },
 }))
+
+const commissionRef = aggregateRef(CommissionConfig, 't1', 'c1')
+const cashMovementRef = aggregateRef(CashMovementConfig, 't1', 'm1')
 
 import { commitGuardedThenAppend, commitSaga } from './effect-bridge'
 
@@ -85,7 +56,7 @@ describe('commitSaga', () => {
       (tx) =>
         appendEventToTx(
           CommissionConfig,
-          'orgs/t1/commissions/c1',
+          commissionRef,
           {
             _tag: 'commission.created',
             actorId: 'actor',
@@ -95,7 +66,7 @@ describe('commitSaga', () => {
         ),
     ])
     expect(result).toEqual({ ok: true })
-    expect(store.get('orgs/t1/commissions/c1')).toBeDefined()
+    expect(store.get(docKey(commissionRef))).toBeDefined()
   })
 
   it('returns the error and rolls back when a step fails', async () => {
@@ -103,7 +74,7 @@ describe('commitSaga', () => {
       (tx) =>
         appendEventToTx(
           CashMovementConfig,
-          'orgs/t1/cash_movements/m1',
+          cashMovementRef,
           {
             _tag: 'cash_movement.created',
             actorId: 'actor',
@@ -113,7 +84,7 @@ describe('commitSaga', () => {
         ),
     ])
     expect(result.ok).toBe(false)
-    expect(store.get('orgs/t1/cash_movements/m1')).toBeUndefined()
+    expect(store.get(docKey(cashMovementRef))).toBeUndefined()
   })
 
   it('maps a DB-level DEFECT (e.g. unique-violation) to a graceful {ok:false}', async () => {
@@ -132,13 +103,13 @@ describe('commitGuardedThenAppend', () => {
     const result = await commitGuardedThenAppend(
       {
         config: CommissionConfig,
-        aggregatePath: 'orgs/t1/commissions/c1',
+        ref: commissionRef,
         actorId: 'actor',
         tag: 'commission.created',
         guard: () => Effect.succeed({ _tag: 'ok' as const, payload: { data: commission } }),
       },
       CashMovementConfig,
-      'orgs/t1/cash_movements/m1',
+      cashMovementRef,
       () => ({
         _tag: 'cash_movement.created',
         actorId: 'actor',
@@ -161,24 +132,24 @@ describe('commitGuardedThenAppend', () => {
       }),
     )
     expect(result).toEqual({ ok: true })
-    expect(store.get('orgs/t1/commissions/c1')).toBeDefined()
-    expect(store.get('orgs/t1/cash_movements/m1')).toBeDefined()
+    expect(store.get(docKey(commissionRef))).toBeDefined()
+    expect(store.get(docKey(cashMovementRef))).toBeDefined()
   })
 
   it('returns the reject + writes nothing when the guard rejects', async () => {
     const result = await commitGuardedThenAppend(
       {
         config: CommissionConfig,
-        aggregatePath: 'orgs/t1/commissions/c1',
+        ref: commissionRef,
         actorId: 'actor',
         tag: 'commission.created',
         guard: () => Effect.succeed({ _tag: 'reject' as const, message: 'discontinued' }),
       },
       CashMovementConfig,
-      'orgs/t1/cash_movements/m1',
+      cashMovementRef,
       () => ({ _tag: 'cash_movement.created', actorId: 'actor', payload: { data: commission } }),
     )
     expect(result).toEqual({ ok: false, error: 'discontinued' })
-    expect(store.get('orgs/t1/commissions/c1')).toBeUndefined()
+    expect(store.get(docKey(commissionRef))).toBeUndefined()
   })
 })

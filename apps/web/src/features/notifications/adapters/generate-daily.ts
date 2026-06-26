@@ -8,8 +8,13 @@ import {
   unitBusinessHours,
   type BusinessHours,
 } from '@/domain'
-import { createNotification } from '@/domain/aggregates'
-import { PersistencePort, type EventValidationError } from '@/domain/effect'
+import {
+  CustomerConfig,
+  SubscriptionConfig,
+  UnitConfig,
+  createNotification,
+} from '@/domain/aggregates'
+import { PersistencePort, collectionRef, type EventValidationError } from '@/domain/effect'
 import { decodeAs } from '@/shared/db/converter'
 import { listAllOrgIds } from '@/shared/db/pg/public-org-directory'
 import { getUserById } from '@/shared/db/pg/users-store'
@@ -52,7 +57,7 @@ export function generateDailyNotifications(
     for (const orgId of orgIds) {
       if (!orgId) continue
 
-      const unitDocs = yield* persistence.getDocs(`orgs/${orgId}/units`)
+      const unitDocs = yield* persistence.getDocs(collectionRef(UnitConfig, orgId))
       const units = unitDocs.map((r) => decodeAs(UnitDoc, r))
 
       for (const unit of units) {
@@ -104,7 +109,7 @@ function generateBirthdayNotifications(
   return Effect.gen(function* () {
     const persistence = yield* PersistencePort
     const monthDay = today.slice(5)
-    const customerDocs = yield* persistence.getDocs(`orgs/${orgId}/customers`)
+    const customerDocs = yield* persistence.getDocs(collectionRef(CustomerConfig, orgId))
     let created = 0
 
     for (const raw of customerDocs) {
@@ -155,7 +160,7 @@ function generateSubscriptionTouchNotifications(
 ): Effect.Effect<number, EventValidationError, PersistencePort> {
   return Effect.gen(function* () {
     const persistence = yield* PersistencePort
-    const subDocs = yield* persistence.getDocs(`orgs/${orgId}/subscriptions`, [
+    const subDocs = yield* persistence.getDocs(collectionRef(SubscriptionConfig, orgId), [
       { kind: 'where', field: 'status', op: 'in', value: ['active', 'past_due'] },
     ])
     let created = 0

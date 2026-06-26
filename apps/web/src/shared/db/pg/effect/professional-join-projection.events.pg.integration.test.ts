@@ -1,5 +1,5 @@
 import { ProfessionalConfig } from '@/domain/aggregates'
-import { appendEvent, replayAggregate } from '@/domain/effect'
+import { aggregateRef, appendEvent, replayAggregate } from '@/domain/effect'
 import type { StoredProfessional } from '@/domain/types/professional'
 import { Effect } from 'effect'
 import { Client } from 'pg'
@@ -28,7 +28,7 @@ const APP_ROLE = 'oilio_pj_app'
 const APP_PASSWORD = 'pj_test'
 let appUrl: string
 
-const pathOf = (id: string) => `orgs/${ORG}/professionals/${id}`
+const refOf = (id: string) => aggregateRef(ProfessionalConfig, ORG, id)
 
 function professional(overrides: Partial<StoredProfessional> = {}): StoredProfessional {
   return {
@@ -50,27 +50,27 @@ function pool() {
 
 async function seedOrg(): Promise<void> {
   await pool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ('orgs/'||$1,$1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG],
   )
 }
 
 async function seedUnit(id: string): Promise<void> {
   await pool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/units/'||$2,$1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
   )
 }
 
 async function seedService(id: string): Promise<void> {
   await pool().query(
-    `INSERT INTO catalog_items (aggregate_path, org_id, id, version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
-     VALUES ('orgs/'||$1||'/catalog_items/'||$2,$1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
+    `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
+     VALUES ($1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
   )
 }
@@ -85,7 +85,7 @@ async function seedParents(): Promise<void> {
 
 const create = (pro: StoredProfessional) =>
   Effect.runPromise(
-    appendEvent(ProfessionalConfig, pathOf(pro.id), {
+    appendEvent(ProfessionalConfig, refOf(pro.id), {
       _tag: 'professional.created',
       actorId: 'test',
       payload: { data: pro },
@@ -94,7 +94,7 @@ const create = (pro: StoredProfessional) =>
 
 const update = (changes: Partial<StoredProfessional>) =>
   Effect.runPromise(
-    appendEvent(ProfessionalConfig, pathOf(PRO), {
+    appendEvent(ProfessionalConfig, refOf(PRO), {
       _tag: 'professional.updated',
       actorId: 'test',
       payload: { changes },
@@ -103,7 +103,7 @@ const update = (changes: Partial<StoredProfessional>) =>
 
 const replay = () =>
   Effect.runPromise(
-    replayAggregate(ProfessionalConfig, pathOf(PRO)).pipe(Effect.provide(PostgresPersistenceLayer)),
+    replayAggregate(ProfessionalConfig, refOf(PRO)).pipe(Effect.provide(PostgresPersistenceLayer)),
   )
 
 async function unitIds(): Promise<string[]> {
@@ -191,7 +191,7 @@ describe('Postgres join projection — professional ↔ unit/service (brief 0068
   it('deleting the professional cascades its join rows away', async () => {
     await create(professional())
     expect(await unitIds()).toHaveLength(2)
-    await pool().query('DELETE FROM professionals WHERE aggregate_path = $1', [pathOf(PRO)])
+    await pool().query('DELETE FROM professionals WHERE org_id = $1 AND id = $2', [ORG, PRO])
     expect(await unitIds()).toEqual([])
     expect(await serviceJoinIds()).toEqual([])
   })

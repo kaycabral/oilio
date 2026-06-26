@@ -5,47 +5,14 @@
 // fronteira fiscal e que o reducer a aplica deterministicamente. A identidade
 // fiscal mora na UNIDADE (PRD Identidade v2), não na Org.
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
 import type { CompanyProfile } from '../types/tax'
 import { UnitConfig } from './unit/config'
-
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
 
 const CNPJ = '40148980000199'
 const FORMALIZED_AT = '2026-06-18T12:00:00.000Z'
@@ -100,17 +67,17 @@ function informalUnit() {
 
 describe('Unit — unit.formalized replay (brief 0048 AC-02)', () => {
   it('created (informal) → formalized → replay reconstrói fiscal.kind=company', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/org-1/units/unit-1'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(UnitConfig, 'org-1', 'unit-1')
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(UnitConfig, path, {
+        yield* appendEvent(UnitConfig, ref, {
           _tag: 'unit.created',
           actorId: 'owner-1',
           payload: { data: informalUnit() },
         })
-        yield* appendEvent(UnitConfig, path, {
+        yield* appendEvent(UnitConfig, ref, {
           _tag: 'unit.formalized',
           actorId: 'owner-1',
           payload: { taxId: CNPJ, companyProfile, formalizedAt: FORMALIZED_AT },
@@ -118,9 +85,9 @@ describe('Unit — unit.formalized replay (brief 0048 AC-02)', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    const projection = store.get(path)!
+    const projection = store.get(docKey(ref))!
     const replayed = await Effect.runPromise(
-      replayAggregate(UnitConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(UnitConfig, ref).pipe(Effect.provide(layer)),
     )
 
     // Replay deep-equals the projection (no materialized-state dependency).
@@ -138,17 +105,17 @@ describe('Unit — unit.formalized replay (brief 0048 AC-02)', () => {
   })
 
   it('the event payload carries NO razão social / nome fantasia (ADR 0010)', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/org-1/units/unit-2'
+    const { events, layer } = makeReplayStore()
+    const ref = aggregateRef(UnitConfig, 'org-1', 'unit-2')
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(UnitConfig, path, {
+        yield* appendEvent(UnitConfig, ref, {
           _tag: 'unit.created',
           actorId: 'owner-1',
           payload: { data: { ...informalUnit(), id: 'unit-2' } },
         })
-        yield* appendEvent(UnitConfig, path, {
+        yield* appendEvent(UnitConfig, ref, {
           _tag: 'unit.formalized',
           actorId: 'owner-1',
           payload: { taxId: CNPJ, companyProfile, formalizedAt: FORMALIZED_AT },
@@ -156,7 +123,7 @@ describe('Unit — unit.formalized replay (brief 0048 AC-02)', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    const event = store.get(`${path}/events/v000002`)!
+    const event = events.get(docKey(ref))![1]!
     const serialized = JSON.stringify(event)
     // PII name fields never enter the immutable event (they live in the
     // deletable orgs/{orgId}/units/{unitId}/private/taxIdentity doc).

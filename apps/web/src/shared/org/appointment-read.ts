@@ -22,8 +22,9 @@ export async function getAppointmentById(
 ): Promise<Appointment | null> {
   const rows = await readUnderRls<AppointmentRow>(orgId, (client) =>
     client
-      .query<AppointmentRow>('SELECT * FROM appointments WHERE aggregate_path = $1', [
-        `orgs/${orgId}/appointments/${appointmentId}`,
+      .query<AppointmentRow>('SELECT * FROM appointments WHERE org_id = $1 AND id = $2', [
+        orgId,
+        appointmentId,
       ])
       .then((res) => res.rows),
   )

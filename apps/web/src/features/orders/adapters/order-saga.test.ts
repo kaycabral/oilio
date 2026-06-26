@@ -1,4 +1,12 @@
+import {
+  AppointmentConfig,
+  CashMovementConfig,
+  CommissionConfig,
+  OrderConfig,
+} from '@/domain/aggregates'
 import type { FirestoreDoc, SagaStep, TransactionContext } from '@/domain/effect'
+import { aggregateRef } from '@/domain/effect'
+import { docKey } from '@/domain/effect/test-layers'
 import type { CashMovement } from '@/domain/types/cash-movement'
 import type { Commission } from '@/domain/types/commission'
 import type { Order } from '@/domain/types/order'
@@ -13,14 +21,15 @@ import { buildUndoCloseSteps } from './order-undo-saga'
 async function runSteps(steps: SagaStep[]): Promise<Map<string, FirestoreDoc>> {
   const store = new Map<string, FirestoreDoc>()
   const tx: TransactionContext = {
-    getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-    setDoc: (path, data) =>
+    getDoc: (ref) => Effect.succeed(store.get(docKey(ref)) ?? null),
+    setDoc: (ref, data) =>
       Effect.sync(() => {
-        store.set(path, { ...store.get(path), ...data })
+        const key = docKey(ref)
+        store.set(key, { ...store.get(key), ...data })
       }),
-    deleteDoc: (path) =>
+    deleteDoc: (ref) =>
       Effect.sync(() => {
-        store.delete(path)
+        store.delete(docKey(ref))
       }),
   }
   for (const step of steps) await Effect.runPromise(step(tx))
@@ -138,10 +147,12 @@ describe('buildCloseOrderSteps', () => {
       saleMovement,
     })
     const store = await runSteps(steps)
-    expect(store.get('orgs/t1/orders/o1')).toMatchObject({ status: 'closed' })
-    expect(store.get('orgs/t1/commissions/com-1')).toBeDefined()
-    expect(store.get('orgs/t1/cash_movements/m1')).toBeDefined()
-    expect(store.get('orgs/t1/appointments/apt-1')).toBeDefined()
+    expect(store.get(docKey(aggregateRef(OrderConfig, 't1', 'o1')))).toMatchObject({
+      status: 'closed',
+    })
+    expect(store.get(docKey(aggregateRef(CommissionConfig, 't1', 'com-1')))).toBeDefined()
+    expect(store.get(docKey(aggregateRef(CashMovementConfig, 't1', 'm1')))).toBeDefined()
+    expect(store.get(docKey(aggregateRef(AppointmentConfig, 't1', 'apt-1')))).toBeDefined()
   })
 })
 
@@ -209,7 +220,9 @@ describe('buildUndoCloseSteps', () => {
         orderId: 'o1',
       }),
     )
-    expect(seeded.get('orgs/t1/orders/o1')).toMatchObject({ status: 'open' })
-    expect(seeded.get('orgs/t1/cash_movements/rev-1')).toBeDefined()
+    expect(seeded.get(docKey(aggregateRef(OrderConfig, 't1', 'o1')))).toMatchObject({
+      status: 'open',
+    })
+    expect(seeded.get(docKey(aggregateRef(CashMovementConfig, 't1', 'rev-1')))).toBeDefined()
   })
 })

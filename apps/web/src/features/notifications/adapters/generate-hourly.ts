@@ -1,5 +1,10 @@
-import { createNotification } from '@/domain/aggregates'
-import { PersistencePort, type EventValidationError } from '@/domain/effect'
+import { AppointmentConfig, OrderConfig, UnitConfig, createNotification } from '@/domain/aggregates'
+import {
+  PersistencePort,
+  aggregateRef,
+  collectionRef,
+  type EventValidationError,
+} from '@/domain/effect'
 import { decodeAs } from '@/shared/db/converter'
 import { listAllOrgIds } from '@/shared/db/pg/public-org-directory'
 import { Effect, Schema } from 'effect'
@@ -40,7 +45,7 @@ export function generateHourlyNotifications(
     for (const orgId of orgIds) {
       if (!orgId) continue
 
-      const unitDocs = yield* persistence.getDocs(`orgs/${orgId}/units`)
+      const unitDocs = yield* persistence.getDocs(collectionRef(UnitConfig, orgId))
       const units = unitDocs.map((r) => decodeAs(UnitDoc, r))
       const unitMap = new Map(units.map((u) => [u.id, u]))
 
@@ -59,7 +64,7 @@ function generateOrderStaleNotifications(
 ): Effect.Effect<number, EventValidationError, PersistencePort> {
   return Effect.gen(function* () {
     const persistence = yield* PersistencePort
-    const orderDocs = yield* persistence.getDocs(`orgs/${orgId}/orders`, [
+    const orderDocs = yield* persistence.getDocs(collectionRef(OrderConfig, orgId), [
       { kind: 'where', field: 'status', op: '==', value: 'open' },
     ])
     let created = 0
@@ -68,7 +73,9 @@ function generateOrderStaleNotifications(
       const order = decodeAs(OrderDoc, raw)
       if (!order.appointmentId) continue
 
-      const apptDoc = yield* persistence.getDoc(`orgs/${orgId}/appointments/${order.appointmentId}`)
+      const apptDoc = yield* persistence.getDoc(
+        aggregateRef(AppointmentConfig, orgId, order.appointmentId),
+      )
       if (!apptDoc) continue
 
       const appointment = decodeAs(AppointmentDoc, apptDoc)

@@ -5,7 +5,9 @@
 // - AC-14: clique "abrir WhatsApp" gera link wa.me + marca dispatchedAt +
 //   grava snapshot channel/body no notification.dispatched
 
+import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import type { NotificationState } from '@/domain/aggregates/notification/types'
+import { aggregateRef } from '@/domain/effect'
 import {
   NOTIFICATION_COLUMNS,
   notificationColumnValues,
@@ -27,7 +29,7 @@ async function seedBirthdayNotification(
 ): Promise<string> {
   const notifId = `e2e-notif-${Date.now()}-${randomBytes(4).toString('hex')}`
   const now = new Date().toISOString()
-  const aggregatePath = `orgs/${orgId}/notifications/${notifId}`
+  const ref = aggregateRef(NotificationConfig, orgId, notifId)
   const doc: NotificationState = {
     id: notifId,
     orgId,
@@ -58,7 +60,7 @@ async function seedBirthdayNotification(
        VALUES ($1, $2, 1, $3, $4)`,
       [
         'notifications',
-        aggregatePath,
+        ref.id,
         orgId,
         {
           _tag: 'notification.created',
@@ -73,7 +75,7 @@ async function seedBirthdayNotification(
     const placeholders = NOTIFICATION_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
       `INSERT INTO notifications (${NOTIFICATION_COLUMNS.join(', ')}) VALUES (${placeholders})`,
-      [...notificationColumnValues(doc, aggregatePath, 1)],
+      [...notificationColumnValues(doc, ref, 1)],
     )
     await client.query('COMMIT')
   } catch (err) {
@@ -155,8 +157,10 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
     expect(body.link).toContain('Maria')
 
     // Postgres: dispatchedAt + snapshot (channel/body) na projeção `notifications`.
-    const aggregatePath = `orgs/${org.orgId}/notifications/${notifId}`
-    const row = await pgReadProjection('notifications', aggregatePath)
+    const row = await pgReadProjection(
+      'notifications',
+      aggregateRef(NotificationConfig, org.orgId, notifId),
+    )
     expect(row).not.toBeNull()
     expect(row?.dispatched_at).not.toBeNull()
     const dispatch = decodeDispatch(row?.dispatch)

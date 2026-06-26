@@ -3,12 +3,12 @@
 // replayAggregate == projeção, campo a campo. Prova que nenhum campo é escrito
 // fora de eventos (event-first).
 
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
+import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate, type AggregateConfig } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
-import { PersistencePort } from '../effect/services'
 import { CatalogItemConfig } from './catalog-item/config'
 import { CategoryConfig } from './category/config'
 import { CustomerConfig } from './customer/config'
@@ -17,39 +17,6 @@ import { OrgConfig } from './org/config'
 import { ProfessionalConfig } from './professional/config'
 import { SubscriptionPlanConfig } from './subscription-plan/config'
 import { UnitConfig } from './unit/config'
-
-function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  return {
-    store,
-    layer: Layer.succeed(PersistencePort, {
-      getDoc: (path: string) => Effect.succeed(store.get(path) ?? null),
-      getDocs: (collectionPath: string) =>
-        Effect.succeed(
-          [...store.entries()]
-            .filter(([key]) => key.startsWith(collectionPath + '/'))
-            .map(([, doc]) => doc)
-            .sort(
-              (a, b) =>
-                (typeof a['version'] === 'number' ? a['version'] : 0) -
-                (typeof b['version'] === 'number' ? b['version'] : 0),
-            ),
-        ),
-      setDoc: (path: string, data: FirestoreDoc) =>
-        Effect.sync(() => {
-          store.set(path, { ...store.get(path), ...data })
-        }),
-      runTransaction: (fn) =>
-        fn({
-          getDoc: (path) => Effect.succeed(store.get(path) ?? null),
-          setDoc: (path, data) =>
-            Effect.sync(() => {
-              store.set(path, { ...store.get(path), ...data })
-            }),
-        }),
-    }),
-  }
-}
 
 async function checkReplay<
   State extends { readonly _version: number },
@@ -67,17 +34,17 @@ async function checkReplay<
   data: Record<string, unknown>
   changes: Record<string, unknown>
 }): Promise<void> {
-  const { store, layer } = makeStore()
-  const path = `orgs/t1/${tag}s/${id}`
+  const { store, layer } = makeReplayStore()
+  const ref = aggregateRef(config, 't1', id)
 
   await Effect.runPromise(
     Effect.gen(function* () {
-      yield* appendEvent(config, path, {
+      yield* appendEvent(config, ref, {
         _tag: `${tag}.created`,
         actorId: 'actor-1',
         payload: { data },
       })
-      yield* appendEvent(config, path, {
+      yield* appendEvent(config, ref, {
         _tag: `${tag}.updated`,
         actorId: 'actor-1',
         payload: { changes },
@@ -85,10 +52,8 @@ async function checkReplay<
     }).pipe(Effect.provide(layer)),
   )
 
-  const projection = store.get(path)!
-  const replayed = await Effect.runPromise(
-    replayAggregate(config, path).pipe(Effect.provide(layer)),
-  )
+  const projection = store.get(docKey(ref))!
+  const replayed = await Effect.runPromise(replayAggregate(config, ref).pipe(Effect.provide(layer)))
 
   expect(replayed).toEqual(projection)
   expect(replayed._version).toBe(2)
@@ -256,11 +221,11 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
   // never written outside events) and the publish state lives ONLY in the
   // appointment variant of the agenda union.
   it('unit — self-booking publish/unpublish (event-first, per-unit)', async () => {
-    const { store, layer } = makeStore()
-    const path = 'orgs/t2/units/u2'
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(UnitConfig, 't2', 'u2')
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(UnitConfig, path, {
+        yield* appendEvent(UnitConfig, ref, {
           _tag: 'unit.created',
           actorId: 'owner-2',
           payload: {
@@ -302,7 +267,7 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
             },
           },
         })
-        yield* appendEvent(UnitConfig, path, {
+        yield* appendEvent(UnitConfig, ref, {
           _tag: 'unit.self_booking_published',
           actorId: 'owner-2',
           payload: {},
@@ -311,9 +276,9 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
     )
 
     const afterPublish = await Effect.runPromise(
-      replayAggregate(UnitConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(UnitConfig, ref).pipe(Effect.provide(layer)),
     )
-    expect(afterPublish).toEqual(store.get(path))
+    expect(afterPublish).toEqual(store.get(docKey(ref)))
     // The publish state lives in the appointment variant of the agenda union.
     expect(afterPublish.agenda.mode).toBe('appointment')
     if (afterPublish.agenda.mode !== 'appointment') throw new Error('expected appointment')
@@ -323,16 +288,16 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
 
     // Unpublish reverses the flag (timestamp left as the last publish moment).
     await Effect.runPromise(
-      appendEvent(UnitConfig, path, {
+      appendEvent(UnitConfig, ref, {
         _tag: 'unit.self_booking_unpublished',
         actorId: 'owner-2',
         payload: {},
       }).pipe(Effect.provide(layer)),
     )
     const afterUnpublish = await Effect.runPromise(
-      replayAggregate(UnitConfig, path).pipe(Effect.provide(layer)),
+      replayAggregate(UnitConfig, ref).pipe(Effect.provide(layer)),
     )
-    expect(afterUnpublish).toEqual(store.get(path))
+    expect(afterUnpublish).toEqual(store.get(docKey(ref)))
     if (afterUnpublish.agenda.mode !== 'appointment') throw new Error('expected appointment')
     expect(afterUnpublish.agenda.selfBookingPublished).toBe(false)
     expect(afterUnpublish._version).toBe(3)
@@ -352,18 +317,18 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
     id: string,
     data: Record<string, unknown>,
   ): Promise<void> {
-    const { store, layer } = makeStore()
-    const path = `orgs/t1/${tag}s/${id}`
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(config, 't1', id)
     const archivedAt = '2026-06-01T12:00:00.000Z'
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(config, path, {
+        yield* appendEvent(config, ref, {
           _tag: `${tag}.created`,
           actorId: 'actor-1',
           payload: { data },
         })
-        yield* appendEvent(config, path, {
+        yield* appendEvent(config, ref, {
           _tag: `${tag}.archived`,
           actorId: 'actor-1',
           payload: { archivedAt },
@@ -372,24 +337,24 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
     )
 
     const afterArchive = await Effect.runPromise(
-      replayAggregate(config, path).pipe(Effect.provide(layer)),
+      replayAggregate(config, ref).pipe(Effect.provide(layer)),
     )
-    expect(afterArchive).toEqual(store.get(path))
+    expect(afterArchive).toEqual(store.get(docKey(ref)))
     expect(afterArchive.archivedAt).toBe(archivedAt)
     expect(afterArchive._version).toBe(2)
 
     // Restore — `archivedAt: null` brings it back to active.
     await Effect.runPromise(
-      appendEvent(config, path, {
+      appendEvent(config, ref, {
         _tag: `${tag}.archived`,
         actorId: 'actor-1',
         payload: { archivedAt: null },
       }).pipe(Effect.provide(layer)),
     )
     const afterRestore = await Effect.runPromise(
-      replayAggregate(config, path).pipe(Effect.provide(layer)),
+      replayAggregate(config, ref).pipe(Effect.provide(layer)),
     )
-    expect(afterRestore).toEqual(store.get(path))
+    expect(afterRestore).toEqual(store.get(docKey(ref)))
     expect(afterRestore.archivedAt).toBeNull()
     expect(afterRestore._version).toBe(3)
   }

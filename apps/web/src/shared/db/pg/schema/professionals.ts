@@ -6,9 +6,9 @@ import {
   index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
-  unique,
 } from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 
@@ -17,7 +17,7 @@ import { orgs } from './orgs'
  * feature D, brief 0060, Grupo A) — the operational projection of a
  * `Membership(role=professional)` + `User`, born from the invite-acceptance saga.
  *
- * Keyed by `aggregate_path` (`orgs/{orgId}/professionals/{id}`). FK
+ * Keyed by composite PK `(org_id, id)`. FK
  * `org_id → orgs.org_id`; `org_id` is the leading index column (RLS performance).
  *
  * PII (name/whatsapp/email read LIVE from the global `users/{userId}` doc, and
@@ -41,14 +41,12 @@ import { orgs } from './orgs'
 export const professionals = pgTable(
   'professionals',
   {
-    aggregatePath: text('aggregate_path').primaryKey(),
-
-    // ── Identity + org scope ────────────────────────────────────────────────
+    // ── Identity + org scope (composite PRIMARY KEY) ────────────────────────
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
 
     // Monotonic projection version (the reducer's `_version`).
-    version: bigint('version', { mode: 'number' }).notNull(),
+    lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     // FK into `users/{userId}` (global) — non-null (#1045). PII (name/whatsapp/
@@ -73,8 +71,9 @@ export const professionals = pgTable(
       columns: [table.orgId],
       foreignColumns: [orgs.orgId],
     }),
-    // Composite (org_id, id) UNIQUE — the target of cross-aggregate composite FKs.
-    unique('professionals_org_id_id_uq').on(table.orgId, table.id),
+    // Composite (org_id, id) PRIMARY KEY — the natural key + target of
+    // cross-aggregate composite FKs.
+    primaryKey({ columns: [table.orgId, table.id], name: 'professionals_pkey' }),
     // `org_id`-leading indexes: the RLS policy + list reads
     // (`listProfessionalsForOrg`) + the per-user lookup (`getProfessionalByUserId`).
     index('professionals_org_id_user_id_idx').on(table.orgId, table.userId),

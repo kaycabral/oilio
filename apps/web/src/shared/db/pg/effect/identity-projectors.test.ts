@@ -1,3 +1,5 @@
+import { MembershipConfig } from '@/domain/aggregates/membership/config'
+import { aggregateRef } from '@/domain/effect'
 import { defaultPermissionsForRole, type Membership } from '@/domain/types/membership'
 import { DEFAULT_ORG_BRANDING, type StoredOrg } from '@/domain/types/org'
 import { EMPTY_ADDRESS, type StoredUnit } from '@/domain/types/unit'
@@ -45,12 +47,12 @@ function asPgBigint(v: unknown): string {
 // hands bigint columns back as strings (version), so those go through asPgBigint;
 // double precision / text / jsonb come back as their JS value.
 function orgRow(o: StoredOrg, version: number): OrgRow {
-  const v = orgColumnValues(o, `orgs/${o.id}`, version)
+  const v = orgColumnValues(o, version)
   const at = (c: string): unknown => valueAt(ORG_COLUMNS, v, c)
   return {
     org_id: o.id,
     id: o.id,
-    version: asPgBigint(at('version')),
+    last_event_version: asPgBigint(at('last_event_version')),
     name: o.name,
     slug: o.slug,
     vertical: o.vertical,
@@ -63,13 +65,13 @@ function orgRow(o: StoredOrg, version: number): OrgRow {
 }
 
 function membershipRow(m: Membership, version: number): MembershipRow {
-  const v = membershipColumnValues(m, `memberships/${m.id}`, version)
+  const v = membershipColumnValues(m, aggregateRef(MembershipConfig, m.orgId, m.id), version)
   const at = (c: string): unknown => valueAt(MEMBERSHIP_COLUMNS, v, c)
   return {
     org_id: m.orgId,
     id: m.id,
     user_id: m.userId,
-    version: asPgBigint(at('version')),
+    last_event_version: asPgBigint(at('last_event_version')),
     role: m.role,
     status: m.status,
     rls_unit_scope: m.rlsUnitScope,
@@ -81,12 +83,12 @@ function membershipRow(m: Membership, version: number): MembershipRow {
 }
 
 function unitRow(u: StoredUnit, version: number): UnitRow {
-  const v = unitColumnValues(u, `orgs/${u.orgId}/units/${u.id}`, version)
+  const v = unitColumnValues(u, version)
   const at = (c: string): unknown => valueAt(UNIT_COLUMNS, v, c)
   return {
     org_id: u.orgId,
     id: u.id,
-    version: asPgBigint(at('version')),
+    last_event_version: asPgBigint(at('last_event_version')),
     name: u.name,
     slug: u.slug,
     timezone: u.timezone,
@@ -115,7 +117,7 @@ describe('org projector — pure mapping', () => {
   }
 
   it('columnValues has one value per column, org_id = id', () => {
-    const values = orgColumnValues(org, 'orgs/org-1', 1)
+    const values = orgColumnValues(org, 1)
     expect(values).toHaveLength(ORG_COLUMNS.length)
     expect(values[ORG_COLUMNS.indexOf('org_id')]).toBe('org-1')
     expect(values[ORG_COLUMNS.indexOf('id')]).toBe('org-1')
@@ -158,7 +160,11 @@ describe('membership projector — pure mapping', () => {
   }
 
   it('columnValues has one value per column', () => {
-    const values = membershipColumnValues(membership, 'memberships/org-1_user-1', 1)
+    const values = membershipColumnValues(
+      membership,
+      aggregateRef(MembershipConfig, 'org-1', 'org-1_user-1'),
+      1,
+    )
     expect(values).toHaveLength(MEMBERSHIP_COLUMNS.length)
     expect(values[MEMBERSHIP_COLUMNS.indexOf('user_id')]).toBe('user-1')
     expect(values[MEMBERSHIP_COLUMNS.indexOf('rls_unit_scope')]).toBe('unit-1')
@@ -213,7 +219,7 @@ describe('unit projector — pure mapping', () => {
   }
 
   it('columnValues lifts the agenda/fiscal discriminants to columns', () => {
-    const values = unitColumnValues(baseUnit, 'orgs/org-1/units/unit-1', 1)
+    const values = unitColumnValues(baseUnit, 1)
     expect(values).toHaveLength(UNIT_COLUMNS.length)
     expect(values[UNIT_COLUMNS.indexOf('agenda_mode')]).toBe('fixed')
     expect(values[UNIT_COLUMNS.indexOf('fiscal_kind')]).toBe('informal')
@@ -255,7 +261,7 @@ describe('unit projector — pure mapping', () => {
         selfBookingPublishedAt: '2026-06-02T00:00:00.000Z',
       },
     }
-    const values = unitColumnValues(appt, 'orgs/org-1/units/unit-1', 1)
+    const values = unitColumnValues(appt, 1)
     expect(values[UNIT_COLUMNS.indexOf('public_visible')]).toBe(true)
     expect(values[UNIT_COLUMNS.indexOf('agenda_mode')]).toBe('appointment')
   })

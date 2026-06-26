@@ -1,5 +1,9 @@
+import { CustomerConfig } from '@/domain/aggregates/customer/config'
+import { GoalConfig } from '@/domain/aggregates/goal/config'
+import { InviteConfig } from '@/domain/aggregates/invite/config'
+import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import type { NotificationState } from '@/domain/aggregates/notification/types'
-import type { FirestoreDoc } from '@/domain/effect'
+import { aggregateRef, type FirestoreDoc } from '@/domain/effect'
 import type { AgendaBlock } from '@/domain/types/agenda-block'
 import type { Category } from '@/domain/types/category'
 import type { Customer } from '@/domain/types/customer'
@@ -105,12 +109,12 @@ describe('professional projector — pure mapping', () => {
   }
 
   function professionalRow(version: number): ProfessionalRow {
-    const v = professionalColumnValues(professional, `orgs/org-1/professionals/pro-1`, version)
+    const v = professionalColumnValues(professional, version)
     const at = (c: string): unknown => valueAt(PROFESSIONAL_COLUMNS, v, c)
     return {
       org_id: professional.orgId,
       id: professional.id,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       user_id: professional.userId,
       default_commission: at('default_commission'),
       unit_ids: asPgJsonb(at('unit_ids')),
@@ -121,7 +125,7 @@ describe('professional projector — pure mapping', () => {
   }
 
   it('columnValues has one value per column; PII is NOT projected', () => {
-    const v = professionalColumnValues(professional, 'orgs/org-1/professionals/pro-1', 1)
+    const v = professionalColumnValues(professional, 1)
     expect(v).toHaveLength(PROFESSIONAL_COLUMNS.length)
     expect(v[PROFESSIONAL_COLUMNS.indexOf('user_id')]).toBe('user-1')
     // name/whatsapp/email never reach the typed table (LGPD — sidecar/users).
@@ -160,12 +164,16 @@ describe('customer projector — pure mapping', () => {
   }
 
   function customerRow(version: number, overrides: Partial<CustomerRow> = {}): CustomerRow {
-    const v = customerColumnValues(customer, 'orgs/org-1/customers/cust-1', version)
+    const v = customerColumnValues(
+      customer,
+      aggregateRef(CustomerConfig, customer.orgId, customer.id),
+      version,
+    )
     const at = (c: string): unknown => valueAt(CUSTOMER_COLUMNS, v, c)
     return {
       org_id: customer.orgId,
       id: customer.id,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       user_id: customer.userId,
       archived_at: customer.archivedAt,
       deactivated_at: customer.deactivatedAt,
@@ -176,7 +184,11 @@ describe('customer projector — pure mapping', () => {
   }
 
   it('columnValues has one value per column; only operational fields, no PII', () => {
-    const v = customerColumnValues(customer, 'orgs/org-1/customers/cust-1', 1)
+    const v = customerColumnValues(
+      customer,
+      aggregateRef(CustomerConfig, customer.orgId, customer.id),
+      1,
+    )
     expect(v).toHaveLength(CUSTOMER_COLUMNS.length)
     expect(v[CUSTOMER_COLUMNS.indexOf('user_id')]).toBe('user-9')
     expect(v).not.toContain('Maria')
@@ -213,12 +225,12 @@ describe('invite projector — pure mapping', () => {
   }
 
   function inviteRow(inv: Invite, version: number): InviteRow {
-    const v = inviteColumnValues(inv, `orgs/org-1/invites/${inv.id}`, version)
+    const v = inviteColumnValues(inv, aggregateRef(InviteConfig, inv.orgId, inv.id), version)
     const at = (c: string): unknown => valueAt(INVITE_COLUMNS, v, c)
     return {
       org_id: inv.orgId,
       id: inv.id,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       role: inv.role,
       token_hash: inv.tokenHash,
       expires_at: inv.expiresAt,
@@ -232,7 +244,11 @@ describe('invite projector — pure mapping', () => {
   }
 
   it('columnValues has one value per column; email (PII) is NOT projected', () => {
-    const v = inviteColumnValues(pendingInvite, 'orgs/org-1/invites/inv-1', 1)
+    const v = inviteColumnValues(
+      pendingInvite,
+      aggregateRef(InviteConfig, pendingInvite.orgId, pendingInvite.id),
+      1,
+    )
     expect(v).toHaveLength(INVITE_COLUMNS.length)
     expect(v[INVITE_COLUMNS.indexOf('status')]).toBe('pending')
     expect(v[INVITE_COLUMNS.indexOf('role')]).toBe('professional')
@@ -281,12 +297,12 @@ describe('category projector — pure mapping', () => {
   }
 
   function categoryRow(version: number): CategoryRow {
-    const v = categoryColumnValues(category, 'orgs/org-1/categories/cat-1', version)
+    const v = categoryColumnValues(category, version)
     const at = (c: string): unknown => valueAt(CATEGORY_COLUMNS, v, c)
     return {
       org_id: category.orgId,
       id: category.id,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       name: category.name,
       icon: category.icon,
       color: category.color,
@@ -298,7 +314,7 @@ describe('category projector — pure mapping', () => {
   }
 
   it('columnValues has one value per column', () => {
-    const v = categoryColumnValues(category, 'orgs/org-1/categories/cat-1', 1)
+    const v = categoryColumnValues(category, 1)
     expect(v).toHaveLength(CATEGORY_COLUMNS.length)
     expect(v[CATEGORY_COLUMNS.indexOf('name')]).toBe('Cabelo')
     expect(v[CATEGORY_COLUMNS.indexOf('active')]).toBe(true)
@@ -336,12 +352,12 @@ describe('subscription-plan projector — pure mapping', () => {
   }
 
   function planRow(plan: SubscriptionPlan, version: number): SubscriptionPlanRow {
-    const v = subscriptionPlanColumnValues(plan, 'orgs/org-1/subscription_plans/plan-1', version)
+    const v = subscriptionPlanColumnValues(plan, version)
     const at = (c: string): unknown => valueAt(SUBSCRIPTION_PLAN_COLUMNS, v, c)
     return {
       org_id: plan.orgId,
       id: plan.id,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       name: plan.name,
       description: plan.description,
       price_cents: asPgBigint(at('price_cents')),
@@ -361,7 +377,7 @@ describe('subscription-plan projector — pure mapping', () => {
   }
 
   it('lifts the usageLimit discriminant to a column (unlimited)', () => {
-    const v = subscriptionPlanColumnValues(base, 'orgs/org-1/subscription_plans/plan-1', 1)
+    const v = subscriptionPlanColumnValues(base, 1)
     expect(v).toHaveLength(SUBSCRIPTION_PLAN_COLUMNS.length)
     expect(v[SUBSCRIPTION_PLAN_COLUMNS.indexOf('usage_limit_kind')]).toBe('unlimited')
     // optional scope rules collapse to NULL when absent
@@ -393,7 +409,7 @@ describe('subscription-plan projector — pure mapping', () => {
       allowedTimeScope: { daysOfWeek: [1, 2, 3] },
       bookingLimits: { maxPerDay: 1 },
     }
-    const v = subscriptionPlanColumnValues(counted, 'orgs/org-1/subscription_plans/plan-1', 1)
+    const v = subscriptionPlanColumnValues(counted, 1)
     expect(v[SUBSCRIPTION_PLAN_COLUMNS.indexOf('usage_limit_kind')]).toBe('count')
     const doc = subscriptionPlanRowToDoc(planRow(counted, 2))
     expect(doc).toMatchObject({
@@ -439,7 +455,7 @@ describe('agenda-block projector — pure mapping', () => {
   }
 
   function blockRow(block: AgendaBlock, version: number): AgendaBlockRow {
-    const v = agendaBlockColumnValues(block, `orgs/org-1/agenda_blocks/${block.id}`, version)
+    const v = agendaBlockColumnValues(block, version)
     const at = (c: string): unknown => valueAt(AGENDA_BLOCK_COLUMNS, v, c)
     // The `block` JSONB body the projector emitted is the same shape the pg
     // driver hands back; reconstruct it from the domain fields (the body is what
@@ -456,7 +472,7 @@ describe('agenda-block projector — pure mapping', () => {
       org_id: block.orgId,
       id: block.id,
       unit_id: block.unitId,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       kind: block.kind,
       professional_id: block.professionalId,
       block: body,
@@ -466,7 +482,7 @@ describe('agenda-block projector — pure mapping', () => {
   }
 
   it('lifts kind + unit_id + professional_id to columns; body rides JSONB', () => {
-    const v = agendaBlockColumnValues(recurring, 'orgs/org-1/agenda_blocks/blk-1', 1)
+    const v = agendaBlockColumnValues(recurring, 1)
     expect(v).toHaveLength(AGENDA_BLOCK_COLUMNS.length)
     expect(v[AGENDA_BLOCK_COLUMNS.indexOf('kind')]).toBe('recurring')
     expect(v[AGENDA_BLOCK_COLUMNS.indexOf('unit_id')]).toBe('unit-1')
@@ -515,13 +531,13 @@ describe('goal projector — pure mapping', () => {
   }
 
   function goalRow(version: number): GoalRow {
-    const v = goalColumnValues(goal, `orgs/org-1/goals/${goal.id}`, version)
+    const v = goalColumnValues(goal, aggregateRef(GoalConfig, goal.orgId, goal.id), version)
     const at = (c: string): unknown => valueAt(GOAL_COLUMNS, v, c)
     return {
       org_id: goal.orgId,
       id: goal.id,
       unit_id: goal.unitId,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       period: goal.period,
       type: goal.type,
       target_cents: asPgBigint(at('target_cents')),
@@ -531,7 +547,7 @@ describe('goal projector — pure mapping', () => {
   }
 
   it('columnValues has one value per column', () => {
-    const v = goalColumnValues(goal, `orgs/org-1/goals/${goal.id}`, 1)
+    const v = goalColumnValues(goal, aggregateRef(GoalConfig, goal.orgId, goal.id), 1)
     expect(v).toHaveLength(GOAL_COLUMNS.length)
     expect(v[GOAL_COLUMNS.indexOf('type')]).toBe('profit')
     expect(v[GOAL_COLUMNS.indexOf('period')]).toBe('2026-06')
@@ -577,7 +593,11 @@ describe('notification projector — pure mapping', () => {
   const asDoc = (n: NotificationState): FirestoreDoc => ({ ...n })
 
   function notificationRow(n: NotificationState): NotificationRow {
-    const v = notificationColumnValues(asDoc(n), `orgs/org-1/notifications/${n.id}`, n._version)
+    const v = notificationColumnValues(
+      asDoc(n),
+      aggregateRef(NotificationConfig, n.orgId, n.id),
+      n._version,
+    )
     const at = (c: string): unknown => valueAt(NOTIFICATION_COLUMNS, v, c)
     // The dispatch snapshot the projector packs: null while not dispatched, else
     // the channel/body pair. Reconstruct from the source so the row is lockstep
@@ -590,7 +610,7 @@ describe('notification projector — pure mapping', () => {
       org_id: n.orgId,
       id: n.id,
       unit_id: n.unitId,
-      version: asPgBigint(at('version')),
+      last_event_version: asPgBigint(at('last_event_version')),
       type: n.type,
       source: n.source,
       event_key: n.eventKey,
@@ -609,7 +629,11 @@ describe('notification projector — pure mapping', () => {
   }
 
   it('columnValues lifts type/source to columns; dispatch JSONB is NULL when not dispatched', () => {
-    const v = notificationColumnValues(asDoc(base), 'orgs/org-1/notifications/ntf-1', 1)
+    const v = notificationColumnValues(
+      asDoc(base),
+      aggregateRef(NotificationConfig, base.orgId, base.id),
+      1,
+    )
     expect(v).toHaveLength(NOTIFICATION_COLUMNS.length)
     expect(v[NOTIFICATION_COLUMNS.indexOf('type')]).toBe('birthday')
     expect(v[NOTIFICATION_COLUMNS.indexOf('source')]).toBe('cron')
@@ -636,7 +660,11 @@ describe('notification projector — pure mapping', () => {
       dispatchedChannel: 'whatsapp',
       dispatchedBody: 'Parabéns!',
     }
-    const v = notificationColumnValues(asDoc(dispatched), 'orgs/org-1/notifications/ntf-1', 1)
+    const v = notificationColumnValues(
+      asDoc(dispatched),
+      aggregateRef(NotificationConfig, dispatched.orgId, dispatched.id),
+      1,
+    )
     expect(v[NOTIFICATION_COLUMNS.indexOf('dispatch')]).toMatchObject({
       dispatchedChannel: 'whatsapp',
       dispatchedBody: 'Parabéns!',

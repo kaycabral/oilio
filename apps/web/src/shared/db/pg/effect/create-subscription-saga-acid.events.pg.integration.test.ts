@@ -1,4 +1,5 @@
 import { ChargeConfig, SubscriptionConfig } from '@/domain/aggregates'
+import { aggregateRef, type AggregateRef } from '@/domain/effect'
 import { commitGuardedThenAppend } from '@/shared/effect-bridge'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -27,8 +28,8 @@ const ORG = 't1'
 const SUB = 'sub-1'
 const CHARGE = 'ch-1'
 
-const subscriptionPath = `orgs/${ORG}/subscriptions/${SUB}`
-const chargePath = `orgs/${ORG}/charges/${CHARGE}`
+const subscriptionRef: AggregateRef = aggregateRef(SubscriptionConfig, ORG, SUB)
+const chargeRef: AggregateRef = aggregateRef(ChargeConfig, ORG, CHARGE)
 
 const PLAN = {
   planId: 'plan-basic',
@@ -82,9 +83,10 @@ function buildChargeEvent() {
   }
 }
 
-function readCount(table: string, path: string): Promise<number> {
+// Projection tables are keyed by composite PK (org_id, id) (D6, ADR 0013).
+function readCount(table: string, ref: AggregateRef): Promise<number> {
   return getEventStorePool()
-    .query(`SELECT 1 FROM ${table} WHERE aggregate_path = $1`, [path])
+    .query(`SELECT 1 FROM ${table} WHERE org_id = $1 AND id = $2`, [ref.orgId, ref.id])
     .then((res) => res.rowCount ?? 0)
 }
 
@@ -94,22 +96,22 @@ function readCount(table: string, path: string): Promise<number> {
 // subscription in the same tx), so it needs no standalone seed.
 async function seedParents(): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO orgs (aggregate_path, org_id, id, version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
-     VALUES ($1,$2,$2,1,'Org','slug-'||$2,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${ORG}`, ORG],
+    `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
+     VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [ORG],
   )
   await getEventStorePool().query(
-    `INSERT INTO units (aggregate_path, org_id, id, version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ($1,$2,'u1',1,'Unit','unit-u1','America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${ORG}/units/u1`, ORG],
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,'u1',1,'Unit','unit-u1','America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [ORG],
   )
   await getEventStorePool().query(
-    `INSERT INTO customers (aggregate_path, org_id, id, version, user_id, archived_at, deactivated_at, created_at, updated_at)
-     VALUES ($1,$2,'c1',1,'user-c1',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
-     ON CONFLICT (aggregate_path) DO NOTHING`,
-    [`orgs/${ORG}/customers/c1`, ORG],
+    `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
+     VALUES ($1,'c1',1,'user-c1',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [ORG],
   )
 }
 
@@ -128,19 +130,19 @@ describe('create-subscription guarded cascade — ACID (Postgres)', () => {
     const result = await commitGuardedThenAppend(
       {
         config: SubscriptionConfig,
-        aggregatePath: subscriptionPath,
+        ref: subscriptionRef,
         actorId: 'test',
         tag: 'subscription.created',
         guard: () => Effect.succeed({ _tag: 'ok' as const, payload: subscriptionData }),
       },
       ChargeConfig,
-      chargePath,
+      chargeRef,
       buildChargeEvent,
     )
 
     expect(result).toEqual({ ok: true })
-    expect(await readCount('subscriptions', subscriptionPath)).toBe(1)
-    expect(await readCount('charges', chargePath)).toBe(1)
+    expect(await readCount('subscriptions', subscriptionRef)).toBe(1)
+    expect(await readCount('charges', chargeRef)).toBe(1)
   })
 
   // AC-04 — the gap that was only proven in-memory: guard reject → ZERO rows of
@@ -150,20 +152,20 @@ describe('create-subscription guarded cascade — ACID (Postgres)', () => {
     const result = await commitGuardedThenAppend(
       {
         config: SubscriptionConfig,
-        aggregatePath: subscriptionPath,
+        ref: subscriptionRef,
         actorId: 'test',
         tag: 'subscription.created',
         guard: () =>
           Effect.succeed({ _tag: 'reject' as const, message: 'customer já tem assinatura ativa' }),
       },
       ChargeConfig,
-      chargePath,
+      chargeRef,
       buildChargeEvent,
     )
 
     expect(result).toEqual({ ok: false, error: 'customer já tem assinatura ativa' })
     // Neither the subscription nor its dependent charge may persist.
-    expect(await readCount('subscriptions', subscriptionPath)).toBe(0)
-    expect(await readCount('charges', chargePath)).toBe(0)
+    expect(await readCount('subscriptions', subscriptionRef)).toBe(0)
+    expect(await readCount('charges', chargeRef)).toBe(0)
   })
 })
