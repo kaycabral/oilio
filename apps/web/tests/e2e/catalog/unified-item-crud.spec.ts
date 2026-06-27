@@ -12,6 +12,7 @@
 // - dado degenerado: item com categoryId null renderiza ("Sem categoria").
 
 import { expect, test } from '../fixtures'
+import { fillCatalogName } from '../helpers/forms'
 import { listItem, rowAction, rowActionsTrigger } from '../helpers/list'
 import { chooseOption } from '../helpers/select'
 import { seedCatalogItem, seedCategory } from '../helpers/session'
@@ -56,17 +57,20 @@ test.describe('Catálogo unificado — UI (#1005)', () => {
     await kindGroup.getByRole('radio', { name: 'Serviço' }).click()
     await expect(authedPage.locator('input[name="durationMinutes"]')).toBeVisible()
     await expect(authedPage.locator('input[name="stock"]')).toHaveCount(0)
-    await authedPage.locator('input[name="name"]').fill(svcName)
+    // Required fields first, name (combobox) last — see fillCatalogName.
     await chooseOption(authedPage, 'Categoria', categoryName)
     await authedPage.locator('input[name="unitIds"]').first().check()
     await authedPage.locator('input[name="priceCents"]').fill('50,00')
-    await authedPage.getByRole('button', { name: 'Criar' }).click()
+    await fillCatalogName(authedPage, svcName)
+    const criarSvc = authedPage.getByRole('button', { name: 'Criar' })
+    await expect(criarSvc).toBeEnabled()
+    await criarSvc.click()
     // Client-side redirect after the server action resolves (router.push on
-    // success). `waitForURL` blocks on the navigation itself with a generous
-    // timeout — under parallel load the create succeeds but the redirect is slow,
-    // so a tight 5s URL poll would flake on a create that did complete.
-    await authedPage.waitForURL(/\/catalog$/, { timeout: 30_000 })
-    await expect(authedPage.getByText(svcName, { exact: true })).toBeVisible({ timeout: 5000 })
+    // success). `waitForURL` auto-waits on the navigation — idiomatic, no custom
+    // timeout (the earlier flake was a raced combobox leaving the name empty, now
+    // fixed at the fill site, not a genuinely slow redirect).
+    await authedPage.waitForURL(/\/catalog$/)
+    await expect(authedPage.getByText(svcName, { exact: true })).toBeVisible()
 
     // ── criar PRODUTO pelo MESMO fluxo, trocando o tipo inline (AC-09) ────
     await authedPage.goto('/catalog/new')
@@ -78,13 +82,16 @@ test.describe('Catálogo unificado — UI (#1005)', () => {
       .click()
     await expect(authedPage.locator('input[name="stock"]')).toBeVisible()
     await expect(authedPage.locator('input[name="durationMinutes"]')).toHaveCount(0)
-    await authedPage.locator('input[name="name"]').fill(prodName)
+    // Required fields first, name (combobox) last — see fillCatalogName.
     await authedPage.locator('input[name="unitIds"]').first().check()
     await authedPage.locator('input[name="priceCents"]').fill('19,90')
     await authedPage.locator('input[name="stock"]').fill('5')
-    await authedPage.getByRole('button', { name: 'Criar' }).click()
-    await authedPage.waitForURL(/\/catalog$/, { timeout: 30_000 })
-    await expect(authedPage.getByText(prodName, { exact: true })).toBeVisible({ timeout: 5000 })
+    await fillCatalogName(authedPage, prodName)
+    const criarProd = authedPage.getByRole('button', { name: 'Criar' })
+    await expect(criarProd).toBeEnabled()
+    await criarProd.click()
+    await authedPage.waitForURL(/\/catalog$/)
+    await expect(authedPage.getByText(prodName, { exact: true })).toBeVisible()
 
     // ── ambos listados sem filtro ─────────────────────────────────────────
     await expect(authedPage.getByText(svcName, { exact: true })).toBeVisible()
@@ -114,10 +121,14 @@ test.describe('Catálogo unificado — UI (#1005)', () => {
     // ── editar o serviço pela UI ──────────────────────────────────────────
     await rowAction(authedPage, new RegExp(svcName), 'Editar')
     await expect(authedPage).toHaveURL(/\/catalog\/.+/)
-    await authedPage.locator('input[name="name"]').fill(svcEdited)
-    await authedPage.locator('form').getByRole('button', { name: 'Salvar' }).click()
-    await expect(authedPage).toHaveURL(/\/catalog$/)
-    await expect(authedPage.getByText(svcEdited, { exact: true })).toBeVisible({ timeout: 5000 })
+    // Combobox-safe fill (asserts the value landed) so the edited name can't come
+    // back empty and block Salvar — same race as the create flows.
+    await fillCatalogName(authedPage, svcEdited)
+    const salvar = authedPage.locator('form').getByRole('button', { name: 'Salvar' })
+    await expect(salvar).toBeEnabled()
+    await salvar.click()
+    await authedPage.waitForURL(/\/catalog$/)
+    await expect(authedPage.getByText(svcEdited, { exact: true })).toBeVisible()
 
     // ── excluir o serviço editado (shared AlertDialog, brief 0033 AC-05) ────
     const svcRow = listItem(authedPage, new RegExp(ts)).filter({ hasText: svcEdited })
