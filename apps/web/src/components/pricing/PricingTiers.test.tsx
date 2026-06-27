@@ -2,13 +2,22 @@ import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { PricingTiers } from './PricingTiers'
+import { CHARGEABLE_TIER_SLUGS, PricingTiers, tiersMatchDomain } from './PricingTiers'
 
 vi.mock('@/shared/firebase/config', () => ({
   isFirebaseConfigured: vi.fn(),
 }))
 
 describe('PricingTiers', () => {
+  it('the UI cards match the domain tier catalog (no packaging↔enforcement drift)', () => {
+    // AC-03 (brief 0070): the component consumes the domain catalog; the
+    // chargeable cards are exactly the domain's TIERS. Add/remove a tier in the
+    // domain and this breaks until the page is updated — promise and gate stay
+    // in sync. Rede is contact-sales, not a billing tier, so it's excluded.
+    expect(tiersMatchDomain()).toBe(true)
+    expect([...CHARGEABLE_TIER_SLUGS].sort()).toEqual(['advanced', 'free', 'pro'])
+  })
+
   it('renders the three tiers with CTAs to login when auth is configured', () => {
     vi.mocked(isFirebaseConfigured).mockReturnValue(true)
     render(<PricingTiers />)
