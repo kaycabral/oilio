@@ -55,7 +55,40 @@ ENV NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY \
 
 RUN pnpm --filter @oilio/web run build
 
-# --- Runtime -------------------------------------------------------------
+# --- Event-store migration runtime --------------------------------------
+# A SEPARATE runtime from the app server: the event-store migration runs as a
+# dedicated Cloud Run Job (brief 0057, ADR 0011 D2 — never at app boot, the
+# advisory-lock races across N instances). It can NOT reuse the `runner` image:
+# Next's standalone output bundles `drizzle-orm` INTO the compiled server chunks
+# and prunes it from `node_modules`, so the standalone has no resolvable
+# `drizzle-orm` for a plain `node scripts/migrate-event-store.mjs` entrypoint
+# (it exits MODULE_NOT_FOUND). This stage instead keeps the FULL installed
+# `node_modules` from `builder` (where `drizzle-orm/node-postgres/migrator` + `pg`
+# resolve) plus the script and the versioned SQL it applies. App image stays lean;
+# migration gets its own runtime — same multi-stage Dockerfile, zero duplication
+# of the base/pruner/builder layers.
+#
+# This stage is deliberately placed BEFORE `runner` so that `runner` is the LAST
+# stage: a kaniko/docker build with NO `--target` then defaults to the APP image,
+# not the migrator. (build:oilio still passes `--target runner` explicitly; this
+# ordering is defense-in-depth. The inverse — migrate last — shipped the migrator
+# as the app Service: it ran the migrator at "boot", never listened on :8080, and
+# the deploy failed the startup probe. Incident: oilio-v0.11.3.)
+FROM base AS migrate
+WORKDIR /app
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs
+USER nextjs
+# Full resolvable dependency tree (drizzle-orm migrator + pg live here), the
+# migration entrypoint, and the SQL it reads from `../drizzle`.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/scripts ./apps/oilio/web/scripts
+COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/drizzle ./apps/oilio/web/drizzle
+COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/package.json ./apps/oilio/web/package.json
+ENTRYPOINT ["node", "apps/oilio/web/scripts/migrate-event-store.mjs"]
+
+# --- Runtime (LAST stage → the default build target is the APP image) ----
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
@@ -76,29 +109,3 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/public ./apps/oili
 ENV HOSTNAME=0.0.0.0
 EXPOSE 8080
 CMD ["node", "apps/oilio/web/server.js"]
-
-# --- Event-store migration runtime --------------------------------------
-# A SEPARATE runtime from the app server: the event-store migration runs as a
-# dedicated Cloud Run Job (brief 0057, ADR 0011 D2 — never at app boot, the
-# advisory-lock races across N instances). It can NOT reuse the `runner` image:
-# Next's standalone output bundles `drizzle-orm` INTO the compiled server chunks
-# and prunes it from `node_modules`, so the standalone has no resolvable
-# `drizzle-orm` for a plain `node scripts/migrate-event-store.mjs` entrypoint
-# (it exits MODULE_NOT_FOUND). This stage instead keeps the FULL installed
-# `node_modules` from `builder` (where `drizzle-orm/node-postgres/migrator` + `pg`
-# resolve) plus the script and the versioned SQL it applies. App image stays lean;
-# migration gets its own runtime — same multi-stage Dockerfile, zero duplication
-# of the base/pruner/builder layers.
-FROM base AS migrate
-WORKDIR /app
-ENV NODE_ENV=production
-RUN addgroup --system --gid 1001 nodejs \
-    && adduser --system --uid 1001 nextjs
-USER nextjs
-# Full resolvable dependency tree (drizzle-orm migrator + pg live here), the
-# migration entrypoint, and the SQL it reads from `../drizzle`.
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/scripts ./apps/oilio/web/scripts
-COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/drizzle ./apps/oilio/web/drizzle
-COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/package.json ./apps/oilio/web/package.json
-ENTRYPOINT ["node", "apps/oilio/web/scripts/migrate-event-store.mjs"]
