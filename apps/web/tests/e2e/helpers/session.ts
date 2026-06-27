@@ -2313,11 +2313,20 @@ export async function readProductBase(
   return row === null ? null : { name: row.name, source: row.source }
 }
 
-// Truncate the base between specs so one spec's rows never leak into another
-// (the base is cross-org — there is no orgId partition to isolate on).
-export async function truncateProductBase(): Promise<void> {
+// Clear ONLY a worker's own rows from the cross-org sovereign base between specs.
+// The base has no orgId to isolate on, so a worker isolates by KEY: each derives
+// a unique, GS1-valid GTIN namespace from its `parallelIndex` (see
+// `helpers/sovereign-base.ts`). Deleting just those GTINs — never the whole table
+// — lets base-touching specs run in PARALLEL without one worker's cleanup wiping
+// a row another just seeded (the old `DELETE FROM product` did exactly that and
+// flaked under CI's multi-worker e2e shards).
+export async function deleteProductBaseForWorker(gtins: readonly string[]): Promise<void> {
+  if (gtins.length === 0) return
   const { getDb, product } = await import('@cbrl/product')
-  await getDb().delete(product)
+  const { inArray } = await import('drizzle-orm')
+  await getDb()
+    .delete(product)
+    .where(inArray(product.gtin14, [...gtins]))
 }
 
 // ── Catalog-item projection seeding, backend-aware (brief 0058) ──────────────

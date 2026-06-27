@@ -61,7 +61,11 @@ test.describe('Catálogo unificado — UI (#1005)', () => {
     await authedPage.locator('input[name="unitIds"]').first().check()
     await authedPage.locator('input[name="priceCents"]').fill('50,00')
     await authedPage.getByRole('button', { name: 'Criar' }).click()
-    await expect(authedPage).toHaveURL(/\/catalog$/)
+    // Client-side redirect after the server action resolves (router.push on
+    // success). `waitForURL` blocks on the navigation itself with a generous
+    // timeout — under parallel load the create succeeds but the redirect is slow,
+    // so a tight 5s URL poll would flake on a create that did complete.
+    await authedPage.waitForURL(/\/catalog$/, { timeout: 30_000 })
     await expect(authedPage.getByText(svcName, { exact: true })).toBeVisible({ timeout: 5000 })
 
     // ── criar PRODUTO pelo MESMO fluxo, trocando o tipo inline (AC-09) ────
@@ -79,7 +83,7 @@ test.describe('Catálogo unificado — UI (#1005)', () => {
     await authedPage.locator('input[name="priceCents"]').fill('19,90')
     await authedPage.locator('input[name="stock"]').fill('5')
     await authedPage.getByRole('button', { name: 'Criar' }).click()
-    await expect(authedPage).toHaveURL(/\/catalog$/)
+    await authedPage.waitForURL(/\/catalog$/, { timeout: 30_000 })
     await expect(authedPage.getByText(prodName, { exact: true })).toBeVisible({ timeout: 5000 })
 
     // ── ambos listados sem filtro ─────────────────────────────────────────
