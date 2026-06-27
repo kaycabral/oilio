@@ -1,4 +1,4 @@
-import { type Locator, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 import { checkStable } from './hydration'
 
 // Helpers for shared `@cbrl/design` form fields whose affordance differs from a
@@ -27,6 +27,25 @@ export async function fillBirthDate(
 export function isoToBrDate(iso: string): string {
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
+}
+
+// Fill the catalog item "Nome" field, which is a COMBOBOX (uncontrolled input
+// wired to a debounced suggestion search), not a plain input. A bare `.fill()`
+// can race the combobox's onChange so the submitted value comes back empty —
+// leaving the form invalid, "Criar" disabled, and the redirect never firing
+// (the create-flow flake). Type, ASSERT the value landed, then Escape to dismiss
+// any suggestion list so it can't intercept the later submit click.
+//
+// Call this LAST among the required fields (after price/stock/unit): the
+// combobox's debounced search resolves asynchronously and re-renders the form;
+// filling siblings AFTER the name lets that late render clobber them. Fill the
+// name last and the render has nothing of ours left to disturb.
+export async function fillCatalogName(page: Page, value: string): Promise<void> {
+  const name = page.locator('input[name="name"]')
+  await name.click()
+  await name.fill(value)
+  await expect(name).toHaveValue(value)
+  await name.press('Escape')
 }
 
 // Enable at least one operating day in `BusinessHoursFields` so the `UnitForm`

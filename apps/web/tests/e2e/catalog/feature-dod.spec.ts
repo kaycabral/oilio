@@ -14,6 +14,7 @@ import { SubscriptionPlanConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
+import { fillCatalogName } from '../helpers/forms'
 import { addCatalogItemToOrder } from '../helpers/orders'
 import { chooseOption, choosePaymentMethod } from '../helpers/select'
 import {
@@ -60,9 +61,10 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
     const kindGroup = authedPage.getByRole('radiogroup', { name: 'Tipo do item' })
     await kindGroup.getByRole('radio', { name: 'Serviço' }).click()
     await expect(authedPage.locator('input[name="durationMinutes"]')).toBeVisible()
-    await authedPage.locator('input[name="name"]').fill(svc)
+    // Required fields first, name (combobox) last — see fillCatalogName.
     await authedPage.locator('input[name="unitIds"]').first().check()
     await authedPage.locator('input[name="priceCents"]').fill('50,00')
+    await fillCatalogName(authedPage, svc)
     // The submit button is gated by client-side form validity; wait for it to
     // enable before clicking (a click while disabled is a no-op → no redirect).
     const criarSvc = authedPage.getByRole('button', { name: 'Criar' })
@@ -78,10 +80,11 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
     // Produto revela estoque e esconde duração — mesma tela.
     await expect(authedPage.locator('input[name="stock"]')).toBeVisible()
     await expect(authedPage.locator('input[name="durationMinutes"]')).toHaveCount(0)
-    await authedPage.locator('input[name="name"]').fill(prod)
+    // Required fields first, name (combobox) last — see fillCatalogName.
     await authedPage.locator('input[name="unitIds"]').first().check()
     await authedPage.locator('input[name="priceCents"]').fill('19,90')
     await authedPage.locator('input[name="stock"]').fill('5')
+    await fillCatalogName(authedPage, prod)
     const criarProd = authedPage.getByRole('button', { name: 'Criar' })
     await expect(criarProd).toBeEnabled()
     await criarProd.click()
@@ -113,12 +116,15 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
         name: 'Serviço',
       })
       .click()
-    await authedPage.locator('input[name="name"]').fill(itemName)
     // O picker de categoria lista a entidade cadastrada.
     await chooseOption(authedPage, 'Categoria', categoryName)
     await authedPage.locator('input[name="unitIds"]').first().check()
     await authedPage.locator('input[name="priceCents"]').fill('40,00')
-    await authedPage.getByRole('button', { name: 'Criar' }).click()
+    // Nome (combobox) por último — ver fillCatalogName.
+    await fillCatalogName(authedPage, itemName)
+    const criarItem = authedPage.getByRole('button', { name: 'Criar' })
+    await expect(criarItem).toBeEnabled()
+    await criarItem.click()
     await expect(authedPage).toHaveURL(/\/catalog$/)
     await expect(authedPage.getByText(itemName, { exact: true })).toBeVisible({ timeout: 5000 })
 
