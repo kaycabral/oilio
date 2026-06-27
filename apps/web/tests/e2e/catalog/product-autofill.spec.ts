@@ -69,25 +69,38 @@ async function searchAndChoose(authedPage: Page, term: string, optionName: strin
   await authedPage.getByRole('option', { name: new RegExp(optionName, 'i') }).click()
 }
 
-// Submit the new-item form and wait for the redirect to the catalog list. Wait
-// for the button to be enabled first — the form's validity is client state
-// (`useFormValidity`), so the button starts disabled and only enables once every
-// required field has settled; clicking before then is a no-op. Then click and
-// await the navigation.
-//
-// The redirect is CLIENT-SIDE: the form awaits the `createCatalogItem` server
-// action inside a transition, then `router.push('/catalog')` ONLY on success
-// (`CatalogItemForm.tsx`). So the navigation lands after a server round-trip whose
-// latency scales with how loaded the Next server is. We `waitForURL` (which blocks
-// on the actual navigation event) with a generous timeout instead of polling the
-// URL on the default 5s assertion window — under heavy parallelism the redirect is
-// real but slow, and a tight 5s poll would flake on a create that did succeed.
-const REDIRECT_TIMEOUT_MS = 30_000
+// Set the product Nome (a combobox: uncontrolled input wired to a debounced
+// suggestion search). A bare `.fill()` can race the combobox's onChange so the
+// submitted value comes back empty — and an empty name leaves the form invalid,
+// so the "Criar" button stays disabled, the click is a no-op, and the redirect
+// never fires (the failure that flaked `submitNewItem` under CI load). Type, then
+// ASSERT the value landed before continuing, then Escape to dismiss any
+// suggestion list so it can't intercept the later submit click. Use this whenever
+// a test FILLS the name and then submits (the search-and-choose path uses
+// `searchAndChoose`, which lands the value via the chosen option instead).
+async function fillProductName(authedPage: Page, value: string): Promise<void> {
+  const nameInput = authedPage.locator('input[name="name"]')
+  await nameInput.click()
+  await nameInput.fill(value)
+  await expect(nameInput).toHaveValue(value)
+  await nameInput.press('Escape')
+}
+
+// Submit the new-item form and wait for the redirect to the catalog list. Both
+// steps are auto-retrying / auto-waiting (Playwright best practice — no hard
+// timeouts): `toBeEnabled` waits out the form's client-side validity (the button
+// is disabled until every required field, INCLUDING the debounced combobox name,
+// has settled — clicking early is a silent no-op), and `waitForURL` blocks on the
+// client-side `router.push('/catalog')` the form fires on success
+// (`CatalogItemForm.tsx`). The earlier flake was NOT a slow redirect — it was a
+// raced combobox leaving the name empty, so the button never enabled. That root
+// cause is fixed at the fill site (`fillProductName`); these waits inherit the
+// per-test timeout, no custom values needed.
 async function submitNewItem(authedPage: Page): Promise<void> {
   const criar = authedPage.getByRole('button', { name: 'Criar' })
   await expect(criar).toBeEnabled()
   await criar.click()
-  await authedPage.waitForURL(/\/catalog$/, { timeout: REDIRECT_TIMEOUT_MS })
+  await authedPage.waitForURL(/\/catalog$/)
 }
 
 // BOTH the code boca (C, #1166) AND the name boca (D, #1171) read the SAME
@@ -118,21 +131,13 @@ test.describe('Base de Produtos C+D — autofill por código e nome (DoD #1166/#
     await startNewProduct(authedPage)
 
     // Register a product WITHOUT touching the code field. Fill price/stock/unit
-    // first; type the name LAST and press Escape so any debounced suggestion list
-    // (the name field is a combobox now) is dismissed before we submit — the
-    // dropdown must not intercept the Criar click.
+    // first; type the name LAST via the combobox-safe helper (asserts the value
+    // landed + dismisses any suggestion list) so the dropdown can't intercept the
+    // Criar click and the submitted name is never empty.
     await authedPage.locator('input[name="priceCents"]').fill('8,00')
     await authedPage.locator('input[name="stock"]').fill('3')
     await authedPage.locator('input[name="unitIds"]').first().check()
-    // The product Nome is a combobox (uncontrolled input wired to a debounced
-    // suggestion search). Type into it and ASSERT the value landed before
-    // submitting, then Escape to dismiss any suggestion list — a bare `.fill()`
-    // can race the combobox's onChange so the submitted value comes back empty.
-    const nameInput = authedPage.locator('input[name="name"]')
-    await nameInput.click()
-    await nameInput.fill('Manufaturado Próprio')
-    await expect(nameInput).toHaveValue('Manufaturado Próprio')
-    await nameInput.press('Escape')
+    await fillProductName(authedPage, 'Manufaturado Próprio')
 
     await submitNewItem(authedPage)
 
@@ -187,11 +192,17 @@ test.describe('Base de Produtos C+D — autofill por código e nome (DoD #1166/#
       const name = authedPage.locator('input[name="name"]')
       await expect(name).not.toHaveAttribute('readonly', '')
       await expect(authedPage.getByText(/dê um nome a este produto/i)).toBeVisible()
-      await name.fill(ns.contributedName)
 
+      // Required fields FIRST, name (combobox) LAST — its debounced search
+      // re-renders the form after the fill and would clobber any sibling input
+      // typed in between (see Cenário 3).
       await authedPage.locator('input[name="priceCents"]').fill('3,50')
       await authedPage.locator('input[name="stock"]').fill('20')
       await authedPage.locator('input[name="unitIds"]').first().check()
+
+      // Combobox-safe fill: a bare `.fill()` here raced the debounced onChange, so
+      // the name didn't land, the form stayed invalid, and "Criar" never enabled.
+      await fillProductName(authedPage, ns.contributedName)
       await submitNewItem(authedPage)
 
       // The base received an org-contributed Product with the minimum (GTIN + name).
@@ -261,17 +272,24 @@ test.describe('Base de Produtos C+D — autofill por código e nome (DoD #1166/#
 
       await startNewProduct(authedPage)
       const name = authedPage.locator('input[name="name"]')
-      await name.click()
-      await name.fill('Parafuso Sextavado Inox')
+
+      // Fill the OTHER required fields FIRST, name LAST (same order as scenarios
+      // 1/2/4). The name is a combobox: its debounced zero-match search resolves
+      // AFTER `fillProductName` returns and re-renders the form — a re-render that
+      // clobbers any sibling input filled in between (observed: price/stock reset
+      // to empty, "Criar" never re-enables, redirect hangs). Filling them before
+      // the name means the late re-render has nothing of ours left to wipe.
+      await authedPage.locator('input[name="priceCents"]').fill('5,00')
+      await authedPage.locator('input[name="stock"]').fill('10')
+      await authedPage.locator('input[name="unitIds"]').first().check()
+
+      await fillProductName(authedPage, 'Parafuso Sextavado Inox')
 
       // No suggestions surface (zero match) — the field stays an ordinary name
       // input: editable, no readonly, no blocking error. The cadastro completes.
       await expect(authedPage.getByRole('listbox')).toHaveCount(0)
       await expect(name).not.toHaveAttribute('readonly', '')
 
-      await authedPage.locator('input[name="priceCents"]').fill('5,00')
-      await authedPage.locator('input[name="stock"]').fill('10')
-      await authedPage.locator('input[name="unitIds"]').first().check()
       await submitNewItem(authedPage)
 
       // Registered manually, self-contained (no base reference).
