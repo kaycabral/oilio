@@ -9,6 +9,7 @@ import { PAGINATION_LABELS_PTBR } from '@/shared/list/pagination-labels'
 import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import type { WithCanDelete } from '@/shared/org/delete-guard'
+import { useCapability } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import { Button, List } from '@cbrl/design'
 import { CreditCard } from 'lucide-react'
@@ -56,6 +57,11 @@ export function PlansList({
   const { page, pageCount, pageItems, onPageChange } = useClientPagination(plans, {
     resetKey: `${searchQuery}|${cycleFilter}|${statusFilter}`,
   })
+  // Plano Oilio gate (brief 0072): recurring plans are a Pro+ capability. On Free
+  // the create affordances are hidden (the createPlan server action is the real
+  // wall). Combined with the role gate — both must hold to offer creation.
+  const canCreatePlans = useCapability('plans.recurring')
+  const showCreate = canManage && canCreatePlans
 
   return (
     <List
@@ -65,7 +71,7 @@ export function PlansList({
       header={
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Planos de assinatura</h1>
-          {canManage ? (
+          {showCreate ? (
             <Button asChild>
               <Link href={toRoute('/plans/new')}>Novo plano</Link>
             </Button>
@@ -109,7 +115,7 @@ export function PlansList({
         title: 'Nenhum plano cadastrado',
         description:
           'Crie seu primeiro plano de assinatura para oferecer cobrança recorrente aos clientes.',
-        ...(canManage
+        ...(showCreate
           ? { actionSlot: <Link href={toRoute('/plans/new')}>Cadastrar plano</Link> }
           : {}),
       }}
