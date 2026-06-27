@@ -27,6 +27,13 @@ export {
 } from './message_templates'
 export { notifications, type NewNotificationRow, type StoredNotificationRow } from './notifications'
 export { orders, type NewOrderRow, type StoredOrderRow } from './orders'
+export {
+  orgBilling,
+  orgBillingStripeIndex,
+  type NewOrgBillingRow,
+  type StoredOrgBillingRow,
+  type StoredOrgBillingStripeIndexRow,
+} from './org_billing'
 export { orgLinks, type NewOrgLinkRow, type StoredOrgLinkRow } from './org_links'
 export { orgs, type NewOrgRow, type StoredOrgRow } from './orgs'
 export { piiEvents, type NewPiiEventRow, type StoredPiiEventRow } from './pii_events'

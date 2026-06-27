@@ -43,6 +43,7 @@ export type AggregateType =
   | 'notification'
   | 'order'
   | 'org'
+  | 'org_billing'
   | 'professional'
   | 'subscription'
   | 'subscription_plan'
