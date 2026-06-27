@@ -1,5 +1,6 @@
 'use client'
 
+import { TIERS as BILLING_TIERS, type Tier as BillingTier } from '@/domain/billing/tiers'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import {
   Badge,
@@ -14,10 +15,15 @@ import {
 } from '@cbrl/design'
 import { useState } from 'react'
 
-// Pricing canônico — fonte de verdade na Wiki [Estrategia/Modelo-de-Receita § 5].
-// Cobrança por unidade dentro de cada org, modelo base + marginal (1ª unidade no
-// preço-base, unidade extra com desconto de escala, sem teto). Anual = 2 meses
+// Pricing canônico — modelo de receita em [[Produto/PRD-Monetizacao-SaaS]].
+// Cobrança por unidade dentro de cada Negócio, modelo base + marginal (1ª unidade
+// no preço-base, unidade extra com desconto de escala, sem teto). Anual = 2 meses
 // grátis (~17% off), exibido como preço/mês cobrado anualmente via o toggle.
+//
+// A IDENTIDADE dos tiers (slug, ordem, capabilities) é a fonte única do domínio
+// (`@/domain/billing`); este componente carrega só a COPY de marketing e os
+// preços de exibição, amarrados ao slug do domínio via `tier`. Isso impede que
+// a página prometa o que o enforcement não libera (brief 0070, AC-03).
 type BillingCycle = 'monthly' | 'annual'
 
 type TierPrice = {
@@ -28,6 +34,9 @@ type TierPrice = {
 }
 
 type Tier = {
+  // Slug do domínio (`@/domain/billing`) para os tiers cobráveis; `undefined`
+  // só no tier de contato "Rede" (sem billing). Amarra a copy à fonte única.
+  tier?: BillingTier
   name: string
   pricing: Record<BillingCycle, TierPrice>
   description: string
@@ -56,6 +65,7 @@ const SALES_WHATSAPP = '5592984896424'
 
 const TIERS: readonly Tier[] = [
   {
+    tier: 'free',
     name: 'Free',
     pricing: { monthly: FREE_PRICE, annual: FREE_PRICE },
     description: 'Para começar a organizar a agenda do seu estabelecimento.',
@@ -69,6 +79,7 @@ const TIERS: readonly Tier[] = [
     ],
   },
   {
+    tier: 'pro',
     name: 'Pro',
     pricing: {
       monthly: {
@@ -95,6 +106,7 @@ const TIERS: readonly Tier[] = [
     ],
   },
   {
+    tier: 'advanced',
     name: 'Avançado',
     pricing: {
       monthly: {
@@ -131,6 +143,19 @@ const TIERS: readonly Tier[] = [
     ],
   },
 ] as const
+
+// Drift guard (brief 0070, AC-03): every chargeable tier in the domain has
+// exactly one card here, and no card claims a tier the domain doesn't know.
+// Packaging (this component) and enforcement (`@/domain/billing`) can't diverge.
+export const CHARGEABLE_TIER_SLUGS: readonly BillingTier[] = TIERS.flatMap((t) =>
+  t.tier ? [t.tier] : [],
+)
+
+export function tiersMatchDomain(): boolean {
+  const fromUi = [...CHARGEABLE_TIER_SLUGS].sort()
+  const fromDomain = [...BILLING_TIERS].sort()
+  return fromUi.length === fromDomain.length && fromUi.every((slug, i) => slug === fromDomain[i])
+}
 
 export function PricingTiers() {
   const authEnabled = isFirebaseConfigured()
