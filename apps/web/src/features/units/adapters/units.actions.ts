@@ -9,6 +9,7 @@ import {
   type StoredUnit,
 } from '@/domain'
 import { UnitConfig } from '@/domain/aggregates'
+import { hasCapability } from '@/domain/billing/capabilities'
 import { aggregateRef } from '@/domain/effect'
 import {
   computeUnitPublishReadiness,
@@ -25,10 +26,17 @@ import { deletePostgresProjection } from '@/shared/db/pg/effect/postgres-layer'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
+import { getOrgTier } from '@/shared/org/billing-read'
 import { canDeleteUnit } from '@/shared/org/delete-guard'
 import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
 import { hasOperationalProfessionalInUnit } from '@/shared/org/professional-read'
-import { deleteUnitPii, getUnitById, listUnitSlugs, writeUnitPii } from '@/shared/org/unit-read'
+import {
+  deleteUnitPii,
+  getUnitById,
+  listUnitSlugs,
+  listUnitsForOrg,
+  writeUnitPii,
+} from '@/shared/org/unit-read'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
@@ -77,6 +85,21 @@ async function resolveUnitSlug({
 export async function createUnit(formData: FormData): Promise<UnitMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
+
+  // Plano Oilio gate (brief 0072): Free allows a single unit. A second active
+  // unit requires `units.unlimited` (Pro+), which is also where per-unit billing
+  // kicks in. Counts ACTIVE units (listUnitsForOrg already filters archived).
+  const orgId = r.ctx.membership.orgId
+  const tier = await getOrgTier(orgId)
+  if (!hasCapability(tier, 'units.unlimited')) {
+    const activeUnits = await listUnitsForOrg(orgId)
+    if (activeUnits.length >= 1) {
+      return {
+        ok: false,
+        error: 'O plano Free permite 1 unidade. Faça upgrade para o Pro para adicionar mais.',
+      }
+    }
+  }
 
   const parsed = parseUnitForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }

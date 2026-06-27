@@ -7,11 +7,13 @@ import {
   type Role,
   type User,
 } from '@/domain'
+import { hasCapability, type Capability } from '@/domain/billing/capabilities'
 import { rowToDoc, type MembershipRow } from '@/shared/db/pg/effect/membership-projector'
 import { getPublicOrgNamesByIds } from '@/shared/db/pg/public-org-directory'
 import { readAsSubject, readUnderRls } from '@/shared/db/pg/rls-read'
 import { getUserById, getUsersByIds } from '@/shared/db/pg/users-store'
 import { getSessionUser, type SessionUser } from '@/shared/firebase/admin'
+import { getOrgTier } from '@/shared/org/billing-read'
 import { Schema } from 'effect'
 import 'server-only'
 
@@ -209,6 +211,27 @@ export async function requireOwnerCtx(): Promise<RequireCtxResult> {
   if (!base.ok) return base
   if (base.ctx.membership.role !== 'owner') {
     return { ok: false, error: 'Permission denied (owner required)' }
+  }
+  return base
+}
+
+/**
+ * Resolves org context AND asserts the active Negócio's Plano Oilio unlocks
+ * `capability` (brief 0072). Layers on `requireOrgCtx` and reads the tier via
+ * `getOrgBilling` (default-Free for Negócios with no billing row). Returns the
+ * same discriminated union the role guards use, so a gated server action can
+ * early-return the error. This is the REAL wall — the UI gate (useCapability) is
+ * defense-in-depth, never the only check.
+ */
+export async function requireCapability(capability: Capability): Promise<RequireCtxResult> {
+  const base = await requireOrgCtx()
+  if (!base.ok) return base
+  const tier = await getOrgTier(base.ctx.membership.orgId)
+  if (!hasCapability(tier, capability)) {
+    return {
+      ok: false,
+      error: `Plano ${tier} não inclui este recurso. Faça upgrade para continuar.`,
+    }
   }
   return base
 }
