@@ -1,6 +1,8 @@
 'use client'
 
 import type { Membership, Org, Unit, User } from '@/domain'
+import { hasCapability, type Capability } from '@/domain/billing/capabilities'
+import type { Tier } from '@/domain/billing/tiers'
 import { setActiveOrg as setActiveOrgAction } from '@/shared/org/active-org-actions'
 import { setActiveUnit as setActiveUnitAction } from '@/shared/org/active-unit-actions'
 import { useRouter } from 'next/navigation'
@@ -14,6 +16,10 @@ export type OrgContextValue = {
   user: User
   org: Org
   membership: Membership
+  // Active Negócio's Plano Oilio tier (brief 0072). Drives client-side feature
+  // gating — hide locked surfaces + show upgrade CTAs. Defense-in-depth: the
+  // server action (requireCapability) is the real wall; this only shapes the UI.
+  tier: Tier
   // Orgs the user is an active member of (brief 0029, AC-09). One entry per
   // active membership; drives the org switcher (shown when 2+).
   orgs: OrgOption[]
@@ -77,4 +83,14 @@ export function useOrg(): OrgContextValue {
     throw new Error('useOrg called outside OrgProvider')
   }
   return ctx
+}
+
+/**
+ * Whether the active Negócio's Plano Oilio unlocks `capability` (brief 0072).
+ * Use to hide/lock a gated surface and show an upgrade CTA. NOT a security
+ * boundary — the matching `requireCapability` server guard is the real wall.
+ */
+export function useCapability(capability: Capability): boolean {
+  const { tier } = useOrg()
+  return hasCapability(tier, capability)
 }

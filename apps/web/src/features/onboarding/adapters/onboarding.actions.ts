@@ -16,6 +16,8 @@ import { getPublicOrgDocBySlug } from '@/shared/db/pg/public-org-directory'
 import { patchUser } from '@/shared/db/pg/users-store'
 import { commitSaga } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
+import { getOrgBilling } from '@/shared/org/billing-read'
+import { getUserMemberships } from '@/shared/org/membership'
 
 const SLUG_MAX_ATTEMPTS = 20
 
@@ -29,6 +31,27 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
   const session = await getSessionUser()
   if (!session) return { ok: false, error: 'Not signed in' }
   if (!session.emailVerified) return { ok: false, error: 'Email not verified' }
+
+  // Free = 1 Negócio por usuário (brief 0072; fecha a brecha de N Negócios Free de
+  // 1 unidade). The first Negócio is free; a second one requires that the user
+  // already has at least one PAID (Pro+) Negócio. This is the cross-org gate —
+  // memberships is org-neutral by design, so counting owner-memberships across
+  // orgs does not violate RLS. `getOrgBilling` defaults to Free for orgs with no
+  // billing row, so a user with only Free Negócios is correctly blocked.
+  const ownerOrgIds = (await getUserMemberships(session.uid))
+    .filter((m) => m.role === 'owner')
+    .map((m) => m.orgId)
+  if (ownerOrgIds.length >= 1) {
+    const billings = await Promise.all(ownerOrgIds.map((id) => getOrgBilling(id)))
+    const hasPaid = billings.some((b) => b.tier !== 'free')
+    if (!hasPaid) {
+      return {
+        ok: false,
+        error:
+          'O plano Free permite 1 negócio. Faça upgrade de um negócio para o Pro para criar outro.',
+      }
+    }
+  }
 
   const parsed = parseOrgForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }

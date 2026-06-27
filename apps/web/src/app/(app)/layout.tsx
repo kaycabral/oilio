@@ -2,6 +2,7 @@ import { AppShell } from '@/components/app-shell'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { needsUnitSelection, resolveActiveUnit } from '@/shared/org/active-unit'
+import { getOrgTier } from '@/shared/org/billing-read'
 import { getActiveOrgContext, listAccessibleOrgs } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
 import { OrgProvider } from '@/shared/org/org-context'
@@ -51,12 +52,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // org-scoped — only a non-empty value pins the member (AC-05).
   const unitLocked = Boolean(ctx.membership.rlsUnitScope)
 
+  // Active Negócio's Plano Oilio tier (brief 0072) — drives client-side feature
+  // gating via useCapability. Defaults to Free for orgs with no billing row.
+  const tier = await getOrgTier(ctx.membership.orgId)
+
   return (
     <OrgProvider
       value={{
         user: ctx.user,
         org,
         membership: ctx.membership,
+        tier,
         orgs,
         units,
         activeUnitId,

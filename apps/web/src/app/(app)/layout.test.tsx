@@ -30,6 +30,13 @@ vi.mock('@/shared/org/org', () => ({
   getOrg: mocks.getOrg,
 }))
 
+// The layout reads the active Negócio's Plano Oilio tier to seed OrgProvider
+// (brief 0072). Mock the read seam — this is a layout-gating unit test; the
+// billing read has its own integration coverage (org-billing RLS).
+vi.mock('@/shared/org/billing-read', () => ({
+  getOrgTier: vi.fn(() => Promise.resolve('free')),
+}))
+
 // Post-cutover (#1202) the unit reads moved to Postgres (`readUnderRls`); the
 // layout consumes them only through `needsUnitSelection`/`resolveActiveUnit`, so
 // mock that seam directly — this is a layout-gating unit test, not a unit-read one
