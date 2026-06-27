@@ -1,4 +1,9 @@
 import { Hero } from '@/components/Hero'
+import { ClosingCta } from '@/components/landing/ClosingCta'
+import { Features } from '@/components/landing/Features'
+import { HowItWorks } from '@/components/landing/HowItWorks'
+import { Verticals } from '@/components/landing/Verticals'
+import { MarketingShell } from '@/components/marketing/MarketingShell'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { redirect } from 'next/navigation'
@@ -17,8 +22,12 @@ export default async function HomePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center p-8">
+    <MarketingShell>
       <Hero />
-    </main>
+      <Features />
+      <Verticals />
+      <HowItWorks />
+      <ClosingCta />
+    </MarketingShell>
   )
 }
