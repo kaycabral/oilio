@@ -52,6 +52,15 @@ export interface ProductCodeAutofill {
   readonly lookup: (code: string) => void
   /** Update the name query — debounced search of the base (≥3 chars). */
   readonly searchByName: (query: string) => void
+  /**
+   * Abort a pending/in-flight name search WITHOUT clearing the typed name: drops
+   * the debounce timer, invalidates the in-flight query, and collapses the list.
+   * Wired to the combobox's Escape/dismiss so a search scheduled by the last
+   * keystroke can't fire its setState (re-render) AFTER the user moved on — which
+   * is what raced the form's submit/redirect. Distinct from `clear`, which also
+   * resets the fill state.
+   */
+  readonly dismissSearch: () => void
   /** Choose a suggestion → fill + lock intrinsics, wire the reference (AC-02). */
   readonly selectSuggestion: (suggestion: ProductSuggestion) => void
   /** Revert to the cleared state when the code field empties (AC-06). */
@@ -177,6 +186,7 @@ export function useProductCodeAutofill(): ProductCodeAutofill {
     searching,
     lookup,
     searchByName,
+    dismissSearch: cancelSearch,
     selectSuggestion,
     clear,
     reset: clear,

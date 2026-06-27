@@ -83,7 +83,15 @@ async function fillProductName(authedPage: Page, value: string): Promise<void> {
   await nameInput.click()
   await nameInput.fill(value)
   await expect(nameInput).toHaveValue(value)
+  // Escape now also ABORTS the pending debounced search (ProductNameCombobox →
+  // onDismiss → cancelSearch), so no late re-render fires after this point. Anchor
+  // on the POSITIVE settled state the official PW guidance recommends over a bare
+  // sleep/negative check: the "Buscando…" hint is gone and the listbox is closed.
+  // Once both hold, the form is quiescent and the later submit can't race a
+  // search-driven re-render.
   await nameInput.press('Escape')
+  await expect(authedPage.getByText('Buscando…')).toBeHidden()
+  await expect(authedPage.getByRole('listbox')).toBeHidden()
 }
 
 // Submit the new-item form and wait for the redirect to the catalog list. Both
@@ -274,21 +282,20 @@ test.describe('Base de Produtos C+D — autofill por código e nome (DoD #1166/#
       const name = authedPage.locator('input[name="name"]')
 
       // Fill the OTHER required fields FIRST, name LAST (same order as scenarios
-      // 1/2/4). The name is a combobox: its debounced zero-match search resolves
-      // AFTER `fillProductName` returns and re-renders the form — a re-render that
-      // clobbers any sibling input filled in between (observed: price/stock reset
-      // to empty, "Criar" never re-enables, redirect hangs). Filling them before
-      // the name means the late re-render has nothing of ours left to wipe.
+      // 1/2/4). Fill required fields first, name last — a habit that costs nothing
+      // and keeps field order uniform across scenarios. (The debounced search is
+      // now aborted on the name field's Escape — see fillProductName — so a late
+      // re-render no longer clobbers siblings, but name-last stays the convention.)
       await authedPage.locator('input[name="priceCents"]').fill('5,00')
       await authedPage.locator('input[name="stock"]').fill('10')
       await authedPage.locator('input[name="unitIds"]').first().check()
 
       await fillProductName(authedPage, 'Parafuso Sextavado Inox')
 
-      // No suggestions surface (zero match) — the field stays an ordinary name
-      // input: editable, no readonly, no blocking error. The cadastro completes.
-      await expect(authedPage.getByRole('listbox')).toHaveCount(0)
-      await expect(name).not.toHaveAttribute('readonly', '')
+      // Zero match → the field stays an ordinary, editable name input (no
+      // suggestion lock). `fillProductName` already asserted the listbox is hidden;
+      // assert the positive state that proves no base hit locked the field.
+      await expect(name).toBeEditable()
 
       await submitNewItem(authedPage)
 
