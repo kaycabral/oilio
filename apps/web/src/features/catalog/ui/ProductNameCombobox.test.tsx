@@ -34,6 +34,7 @@ function renderCombobox(opts: { suggestions?: ProductSuggestion[]; searching?: b
   const onQuery = vi.fn()
   const onSelect = vi.fn()
   const onCleared = vi.fn()
+  const onDismiss = vi.fn()
   render(
     <ProductNameCombobox
       defaultName=""
@@ -43,10 +44,11 @@ function renderCombobox(opts: { suggestions?: ProductSuggestion[]; searching?: b
       onQuery={onQuery}
       onSelect={onSelect}
       onCleared={onCleared}
+      onDismiss={onDismiss}
     />,
   )
   const input = screen.getByRole('combobox')
-  return { input, onQuery, onSelect, onCleared }
+  return { input, onQuery, onSelect, onCleared, onDismiss }
 }
 
 describe('ProductNameCombobox', () => {
@@ -106,6 +108,7 @@ describe('ProductNameCombobox', () => {
         onQuery={vi.fn()}
         onSelect={onSelect}
         onCleared={vi.fn()}
+        onDismiss={vi.fn()}
       />,
     )
     const input = screen.getByRole('combobox')
@@ -124,6 +127,7 @@ describe('ProductNameCombobox', () => {
         onQuery={vi.fn()}
         onSelect={onSelect}
         onCleared={vi.fn()}
+        onDismiss={vi.fn()}
       />,
     )
 
@@ -134,13 +138,16 @@ describe('ProductNameCombobox', () => {
     expect(input).not.toHaveAttribute('aria-activedescendant')
   })
 
-  it('Esc fecha a lista sem escolher', () => {
-    const { input, onSelect } = renderCombobox({ suggestions: SUGGESTIONS })
+  it('Esc fecha a lista sem escolher e aborta a busca pendente', () => {
+    const { input, onSelect, onDismiss } = renderCombobox({ suggestions: SUGGESTIONS })
     fireEvent.focus(input)
     expect(screen.getByRole('listbox')).toBeInTheDocument()
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(onSelect).not.toHaveBeenCalled()
+    // Escape must also cancel a still-pending debounced search so it can't fire a
+    // late re-render after the user moved on (the submit/redirect race fix).
+    expect(onDismiss).toHaveBeenCalled()
   })
 
   it('mostra o indicador de carregamento enquanto busca', () => {

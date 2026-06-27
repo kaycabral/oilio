@@ -233,6 +233,7 @@ export function CatalogNameField({
     onQuery: (query: string) => void
     onSelect: (suggestion: ProductSuggestion) => void
     onCleared: () => void
+    onDismiss: () => void
   }
   // Revert affordance for a NAME-boca fill (AC-06). When the name combobox locked
   // the field, the code input is disabled, so the read-only name needs its own way
@@ -255,6 +256,7 @@ export function CatalogNameField({
           onQuery={search.onQuery}
           onSelect={search.onSelect}
           onCleared={search.onCleared}
+          onDismiss={search.onDismiss}
         />
       ) : (
         <Input
@@ -309,6 +311,7 @@ export function ProductNameSection({
         onQuery: autofill.searchByName,
         onSelect: autofill.selectSuggestion,
         onCleared: autofill.clear,
+        onDismiss: autofill.dismissSearch,
       }
     : undefined
 

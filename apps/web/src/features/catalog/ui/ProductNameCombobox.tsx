@@ -24,6 +24,7 @@ export function ProductNameCombobox({
   onQuery,
   onSelect,
   onCleared,
+  onDismiss,
 }: {
   defaultName: string
   required: boolean
@@ -35,6 +36,11 @@ export function ProductNameCombobox({
   onSelect: (suggestion: ProductSuggestion) => void
   // Fired when the field is emptied — reverts any prior fill (AC-06).
   onCleared: () => void
+  // Fired when the user dismisses the search (Escape / blur) WITHOUT picking a
+  // suggestion: aborts a still-pending debounced search so it can't re-render the
+  // form after the user moved on (the race that flaked submit/redirect). Keeps the
+  // typed name — it only kills the search, not the field.
+  onDismiss: () => void
 }) {
   const [open, setOpen] = useState(false)
   // Active descendant for keyboard nav: -1 = none highlighted.
@@ -104,6 +110,9 @@ export function ProductNameCombobox({
         e.preventDefault()
         setOpen(false)
         setActiveIndex(-1)
+        // Escape means "I'm done searching": also abort any pending debounced
+        // search so it can't fire a late re-render after this point.
+        onDismiss()
         break
     }
   }
@@ -128,8 +137,17 @@ export function ProductNameCombobox({
         onFocus={() => {
           if (suggestions.length > 0) setOpen(true)
         }}
-        // Let a click on a suggestion land before the blur closes the list.
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        // Let a click on a suggestion land before the blur closes the list (the
+        // 120ms lets `onMouseDown` on a row run first). Blurring away also ends an
+        // unfinished search: if the user tabs/clicks out (e.g. onto "Criar") a
+        // debounced query scheduled by the last keystroke must not re-render the
+        // form mid-submit. `choose` already cancels, so a pick won't reach here.
+        onBlur={() =>
+          setTimeout(() => {
+            setOpen(false)
+            onDismiss()
+          }, 120)
+        }
         onKeyDown={onKeyDown}
       />
       {searching ? (
