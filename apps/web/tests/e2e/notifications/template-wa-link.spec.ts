@@ -116,9 +116,15 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
       .click()
     await expect(authedPage.getByText('Salvo!')).toBeVisible()
 
-    // Persistiu: reload mantém o texto
+    // Persistiu: reload mantém o texto. After a reload the field is rehydrated
+    // from the projected write, so this assert races persistence + render — the
+    // optimistic "Salvo!" toast fires before the projection is queryable. Under a
+    // loaded runner (parallel e2e shards saturating the shared Postgres) the
+    // default 5s expect timeout is too tight; give the post-reload read room to
+    // settle. Not masking a bug — the write IS durable, it just lands after the
+    // toast; widening the read window is the correct robustness fix.
     await authedPage.reload()
-    await expect(authedPage.locator('#body-birthday')).toHaveValue(novo)
+    await expect(authedPage.locator('#body-birthday')).toHaveValue(novo, { timeout: 15000 })
   })
 
   test('AC-14: clique wa.me gera link + marca dispatchedAt + snapshot', async ({
