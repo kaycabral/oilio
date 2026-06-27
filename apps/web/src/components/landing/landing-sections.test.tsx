@@ -15,7 +15,7 @@ describe('landing sections', () => {
     render(<Features />)
     expect(screen.getByText('Agenda inteligente')).toBeInTheDocument()
     expect(screen.getByText('Assinatura nativa')).toBeInTheDocument()
-    expect(screen.getByText('Split fiscal')).toBeInTheDocument()
+    expect(screen.getByText('Comissão por profissional')).toBeInTheDocument()
     expect(screen.getByText('Multi-unidade')).toBeInTheDocument()
   })
 

@@ -1,27 +1,27 @@
 import { Typography } from '@cbrl/design'
 
-// Perguntas placeholder — revisar quando o brief de pricing definir a
-// estratégia comercial real.
+// FAQ canônico de pricing — fonte de verdade na Wiki
+// [Estrategia/Modelo-de-Receita § 5].
 const FAQ = [
   {
-    question: 'Quem pode criar uma conta no Oilio?',
+    question: 'Como funciona a cobrança por unidade?',
     answer:
-      'Hoje o cadastro é feito pelo estabelecimento. Profissionais, membros da equipe e clientes entram a partir de um estabelecimento já existente.',
+      'Você paga por unidade (estabelecimento) ativa, com profissionais ilimitados. A primeira unidade tem o preço do plano e cada unidade extra entra com desconto. O plano Free cobre uma unidade para sempre.',
   },
   {
-    question: 'Os preços já são definitivos?',
+    question: 'Tenho mais de um negócio. Dá para gerenciar tudo junto?',
     answer:
-      'Ainda não. Estes valores são um rascunho e podem mudar antes do lançamento. Quem entrar agora será avisado de qualquer alteração.',
+      'Sim. Você gerencia várias empresas num único login, alternando entre elas quando quiser. Cada empresa tem a sua assinatura — pode ser Free numa e Pro em outra.',
+  },
+  {
+    question: 'Qual a vantagem do plano anual?',
+    answer:
+      'No anual você ganha 2 meses grátis: paga 10 meses e usa 12. O valor mostrado já é o equivalente por mês, cobrado uma vez por ano.',
   },
   {
     question: 'Preciso usar assinaturas para começar?',
     answer:
-      'Não. Você pode começar só com agenda e atendimentos avulsos e ativar assinaturas quando fizer sentido para o seu negócio.',
-  },
-  {
-    question: 'Dá para gerenciar mais de uma unidade?',
-    answer:
-      'Sim. O Oilio é multi-unidade — cada filial tem equipe, catálogo e relatórios isolados sob a mesma organização.',
+      'Não. Você começa só com agenda e atendimentos avulsos no Free e ativa os planos de assinatura no Pro quando fizer sentido para o seu negócio.',
   },
 ] as const
 

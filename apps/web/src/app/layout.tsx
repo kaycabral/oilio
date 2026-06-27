@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   applicationName: 'Oilio',
   title: 'Oilio',
   description:
-    'Plataforma de gestão para negócios de serviço recorrente: agenda, assinatura e split fiscal.',
+    'Plataforma de gestão para negócios de serviço recorrente: agenda, assinatura e comissões.',
   appleWebApp: {
     capable: true,
     title: 'Oilio',

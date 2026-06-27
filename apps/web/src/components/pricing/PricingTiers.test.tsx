@@ -1,5 +1,6 @@
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { render, screen } from '@testing-library/react'
+import { userEvent } from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { PricingTiers } from './PricingTiers'
 
@@ -11,17 +12,46 @@ describe('PricingTiers', () => {
   it('renders the three tiers with CTAs to login when auth is configured', () => {
     vi.mocked(isFirebaseConfigured).mockReturnValue(true)
     render(<PricingTiers />)
-    expect(screen.getByText('Starter')).toBeInTheDocument()
+    expect(screen.getByText('Free')).toBeInTheDocument()
     expect(screen.getByText('Pro')).toBeInTheDocument()
     expect(screen.getByText('Avançado')).toBeInTheDocument()
     expect(screen.getByText('Recomendado')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Assinar o Pro' })).toHaveAttribute('href', '/login')
   })
 
+  it('shows the contact tier with a WhatsApp CTA', () => {
+    vi.mocked(isFirebaseConfigured).mockReturnValue(true)
+    render(<PricingTiers />)
+    expect(screen.getByText('Rede')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Falar com a gente' })).toHaveAttribute(
+      'href',
+      'https://wa.me/5592984896424',
+    )
+  })
+
+  it('keeps the contact tier CTA even when Firebase is not configured', () => {
+    vi.mocked(isFirebaseConfigured).mockReturnValue(false)
+    render(<PricingTiers />)
+    // O card de contato não depende de auth — é um canal comercial.
+    expect(screen.getByRole('link', { name: 'Falar com a gente' })).toBeInTheDocument()
+  })
+
+  it('defaults to the annual price and switches to monthly via the toggle', async () => {
+    const user = userEvent.setup()
+    vi.mocked(isFirebaseConfigured).mockReturnValue(true)
+    render(<PricingTiers />)
+    // Anual é o padrão (preço mais atrativo primeiro).
+    expect(screen.getByText('R$ 74')).toBeInTheDocument()
+    expect(screen.queryByText('R$ 89')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Mensal' }))
+    expect(screen.getByText('R$ 89')).toBeInTheDocument()
+  })
+
   it('hides plan CTAs when Firebase is not configured', () => {
     vi.mocked(isFirebaseConfigured).mockReturnValue(false)
     render(<PricingTiers />)
-    expect(screen.getByText('Starter')).toBeInTheDocument()
+    expect(screen.getByText('Free')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Assinar o Pro' })).not.toBeInTheDocument()
   })
 })
