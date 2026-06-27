@@ -1,24 +1,70 @@
-// Dev seed for local manual testing ("Barbearia do Zé").
+// Dev seed for local manual testing — the Postgres event-store rebuild of the
+// rich pre-cutover demo (the Firestore seed removed in #1202).
 //
-// DEFERRED (Postgres cutover #1202): the previous seed wrote the whole demo org
-// to the Firestore emulator via `getAdminFirestore`, which no longer exists —
-// oilio's data lives in the Postgres event store now (Firebase is auth-only).
-// Re-seeding the demo org against Postgres (emitEvent over the event store +
-// the *_pii sidecars + org_links) is its own workstream and is tracked as a
-// follow-up; `pnpm local` skips seeding for oilio in the meantime
-// (scripts/local-up.mjs gates on `usesFirestore`).
+// Writes through the SAME canonical path as production: `emitEvent` /
+// `commitSaga` over the Postgres event store (reducer → projection in one ACID
+// tx), the PII sidecars + the global `users` table off the event payload, and
+// Firebase Auth identities for the personas a tester logs in as. NO raw INSERTs,
+// no dual-writes, no `SecurityContext` bypass — the RLS GUC is derived per-write
+// from each `AggregateRef.orgId`.
 //
-// This stub keeps `pnpm db:seed` resolvable (no dangling import of the removed
-// getAdminFirestore) and fails loudly with the reason rather than silently
-// doing nothing, so nobody mistakes "ran, no error" for "seeded".
+// It seeds five isolated orgs (paridade with the old seed):
+//   • Barbearia do Zé   — the rich org (units across all agenda modes, catalog,
+//                          professionals via the invite cascade, customers,
+//                          subscription, appointments, agenda blocks, cash).
+//   • Pizzaria do Tonho  — retail isolation org with closed sales.
+//   • Comércio Esquina   — retail isolation org with closed sales.
+//   • Studio Ana Informal + Ana Fiscal ME — the informal vs formalized fiscal pair.
+//
+// The whole run is idempotent: it TRUNCATEs the local DB first (guarded to
+// localhost) and uses fixed ids + a frozen clock, so re-running reproduces the
+// exact same state. Prerequisite: a migrated local `oilio` Postgres
+// (`pnpm --filter @oilio/web oilio:db:up`, which `pnpm local` runs for you).
 
-console.error(
-  [
-    'oilio dev seed is not available yet.',
-    '',
-    'The Firestore-emulator seed was removed in the Postgres cutover (#1202).',
-    'A Postgres dev seed is a follow-up; until then, run the app against an',
-    'empty local Postgres and create data through the UI/flows.',
-  ].join('\n'),
-)
-process.exit(1)
+import { seedBarbearia } from './seed/barbearia'
+import { seedFormalizacao } from './seed/formalizacao'
+import { seedComercio, seedPizzaria } from './seed/pizzaria-comercio'
+import { resetEventStore } from './seed/reset'
+import { bootSeed, shutdownSeed } from './seed/runtime'
+
+async function main(): Promise<void> {
+  const pool = await bootSeed()
+
+  console.log('▸ resetting local oilio event store…')
+  await resetEventStore(pool)
+
+  console.log('▸ seeding Barbearia do Zé (rich org)…')
+  await seedBarbearia()
+
+  console.log('▸ seeding Pizzaria do Tonho (isolation)…')
+  await seedPizzaria()
+
+  console.log('▸ seeding Comércio Esquina (isolation)…')
+  await seedComercio()
+
+  console.log('▸ seeding formalization orgs (Ana Fiscal)…')
+  await seedFormalizacao()
+
+  console.log(
+    [
+      '',
+      '✓ seed complete — 5 orgs.',
+      '  Login: "Continuar com Google" → Add new account → use one of the emails',
+      '  below (Auth emulator, no password). Each maps to a fixed seeded uid:',
+      '    • dev@cbrl.local        — Zé Owner (Barbearia, owner)',
+      '    • ze.pro@cbrl.local     — Zé Barbeiro (professional)',
+      '    • recep@cbrl.local      — Paula (receptionist)',
+      '    • cliente@cbrl.local    — Cliente Demo (customer)',
+      '    • ana.fiscal@cbrl.local — Ana Fiscal (informal + formalized orgs)',
+    ].join('\n'),
+  )
+}
+
+main()
+  .then(() => shutdownSeed())
+  .then(() => process.exit(0))
+  .catch(async (err) => {
+    console.error('✕ seed failed:', err)
+    await shutdownSeed().catch(() => undefined)
+    process.exit(1)
+  })
