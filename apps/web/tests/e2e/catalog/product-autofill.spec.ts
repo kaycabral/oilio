@@ -15,18 +15,12 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import {
+  deleteProductBaseForWorker,
   readCatalogItemByNameForAssert,
   readProductBase,
   seedProductBase,
-  truncateProductBase,
 } from '../helpers/session'
-
-// Valid GTIN-13 (EAN-13) whose normalized GTIN-14 is the canonical key. Reused
-// from the @cbrl/product integration fixtures so the validator agrees.
-const KNOWN_EAN13 = '7891000100103'
-const KNOWN_GTIN14 = '07891000100103'
-const UNSEEN_EAN13 = '0036000291452'
-const UNSEEN_GTIN14 = '00036000291452'
+import { sovereignBaseNamespace } from '../helpers/sovereign-base'
 
 // The hit/miss scenarios need a real base (DATABASE_URL). The canonical e2e
 // runner (scripts/e2e-with-postgres.mjs / CI services: postgres) always provides
@@ -80,33 +74,40 @@ async function searchAndChoose(authedPage: Page, term: string, optionName: strin
 // (`useFormValidity`), so the button starts disabled and only enables once every
 // required field has settled; clicking before then is a no-op. Then click and
 // await the navigation.
+//
+// The redirect is CLIENT-SIDE: the form awaits the `createCatalogItem` server
+// action inside a transition, then `router.push('/catalog')` ONLY on success
+// (`CatalogItemForm.tsx`). So the navigation lands after a server round-trip whose
+// latency scales with how loaded the Next server is. We `waitForURL` (which blocks
+// on the actual navigation event) with a generous timeout instead of polling the
+// URL on the default 5s assertion window — under heavy parallelism the redirect is
+// real but slow, and a tight 5s poll would flake on a create that did succeed.
+const REDIRECT_TIMEOUT_MS = 30_000
 async function submitNewItem(authedPage: Page): Promise<void> {
   const criar = authedPage.getByRole('button', { name: 'Criar' })
   await expect(criar).toBeEnabled()
   await criar.click()
-  await expect(authedPage).toHaveURL(/\/catalog$/)
+  await authedPage.waitForURL(/\/catalog$/, { timeout: REDIRECT_TIMEOUT_MS })
 }
 
 // BOTH the code boca (C, #1166) AND the name boca (D, #1171) read the SAME
-// cross-org sovereign base and truncate it between tests. They MUST live in one
-// serial describe (Playwright's `serial` is per-file): a second spec file
-// touching this global table would run on another worker under fullyParallel and
-// its truncate would wipe a row this one just seeded mid-assert (flaky). So the
-// whole sovereign-base E2E surface is one serial unit here.
+// cross-org sovereign base (no orgId to isolate on). They isolate by KEY instead:
+// each worker derives a unique, GS1-valid GTIN + worker-tagged name namespace from
+// its `parallelIndex` (see `helpers/sovereign-base.ts`), seeds only its own rows,
+// and cleans up only its own GTINs. So these specs run FULLY PARALLEL safely — no
+// `serial`, no shared constants, no global truncate (the old model needed all
+// three and flaked under CI's multi-worker e2e shards).
 test.describe('Base de Produtos C+D — autofill por código e nome (DoD #1166/#1171)', () => {
-  // Serial — these specs share ONE cross-org product base (no orgId to isolate
-  // on), and the beforeEach truncates it. Under the suite's fullyParallel +
-  // workers:2, a parallel run would let one worker's truncate wipe a row another
-  // worker just seeded mid-assert (flaky). `serial` pins them to a single worker,
-  // sequentially — the only safe model for a globally-shared, truncated table.
-  test.describe.configure({ mode: 'serial' })
-
   test.use({
     orgInput: { unitCount: 1, professionalCount: 1, hasBusinessHours: true, slotMinutes: 30 },
   })
 
-  test.beforeEach(async () => {
-    if (hasBase) await truncateProductBase()
+  // Clear only THIS worker's rows so a parallel worker's namespace is untouched.
+  test.beforeEach(async ({}, testInfo) => {
+    if (hasBase) {
+      const ns = sovereignBaseNamespace(testInfo.parallelIndex)
+      await deleteProductBaseForWorker(ns.ownedGtins)
+    }
   })
 
   test('Cenário 4: sem código — fluxo manual intacto (self-contained)', async ({
@@ -144,19 +145,20 @@ test.describe('Base de Produtos C+D — autofill por código e nome (DoD #1166/#
     test('Cenário 1: hit — código conhecido preenche e trava o intrínseco', async ({
       org,
       authedPage,
-    }) => {
-      await seedProductBase({ gtin14: KNOWN_GTIN14, name: 'Leite Ninho 400g', source: 'official' })
+    }, testInfo) => {
+      const ns = sovereignBaseNamespace(testInfo.parallelIndex)
+      await seedProductBase({ gtin14: ns.knownGtin14, name: ns.knownName, source: 'official' })
 
       await startNewProduct(authedPage)
 
       // The user passes the reader (HID types + Enter) — autosubmit the lookup.
       const code = authedPage.getByLabel('Código do produto')
-      await code.fill(KNOWN_EAN13)
+      await code.fill(ns.knownEan13)
       await code.press('Enter')
 
       // Hit: the name filled from the base and is read-only (a reference, AC-02).
       const name = authedPage.locator('input[name="name"]')
-      await expect(name).toHaveValue('Leite Ninho 400g')
+      await expect(name).toHaveValue(ns.knownName)
       await expect(name).toHaveAttribute('readonly', '')
       await expect(authedPage.getByText(/veio preenchido da base/i)).toBeVisible()
 
@@ -167,24 +169,25 @@ test.describe('Base de Produtos C+D — autofill por código e nome (DoD #1166/#
       await submitNewItem(authedPage)
 
       // The item is linked to the base by the canonical GTIN-14 (reference).
-      expect(await catalogItemGtin14(org.orgId, 'Leite Ninho 400g')).toBe(KNOWN_GTIN14)
+      expect(await catalogItemGtin14(org.orgId, ns.knownName)).toBe(ns.knownGtin14)
     })
 
     test('Cenário 2: miss — código novo contribui com o mínimo (GTIN + nome)', async ({
       org,
       authedPage,
-    }) => {
+    }, testInfo) => {
+      const ns = sovereignBaseNamespace(testInfo.parallelIndex)
       await startNewProduct(authedPage)
 
       const code = authedPage.getByLabel('Código do produto')
-      await code.fill(UNSEEN_EAN13)
+      await code.fill(ns.unseenEan13)
       await code.press('Enter')
 
       // Miss: name editable and is the required contribution (AC-03).
       const name = authedPage.locator('input[name="name"]')
       await expect(name).not.toHaveAttribute('readonly', '')
       await expect(authedPage.getByText(/dê um nome a este produto/i)).toBeVisible()
-      await name.fill('Biscoito Recheado 140g')
+      await name.fill(ns.contributedName)
 
       await authedPage.locator('input[name="priceCents"]').fill('3,50')
       await authedPage.locator('input[name="stock"]').fill('20')
@@ -192,19 +195,19 @@ test.describe('Base de Produtos C+D — autofill por código e nome (DoD #1166/#
       await submitNewItem(authedPage)
 
       // The base received an org-contributed Product with the minimum (GTIN + name).
-      const contributed = await readProductBase(UNSEEN_GTIN14)
-      expect(contributed?.name).toBe('Biscoito Recheado 140g')
+      const contributed = await readProductBase(ns.unseenGtin14)
+      expect(contributed?.name).toBe(ns.contributedName)
       expect(contributed?.source).toBe('org-contributed')
 
       // The item references it, and a 2nd registration of the same code now HITS.
-      expect(await catalogItemGtin14(org.orgId, 'Biscoito Recheado 140g')).toBe(UNSEEN_GTIN14)
+      expect(await catalogItemGtin14(org.orgId, ns.contributedName)).toBe(ns.unseenGtin14)
 
       await startNewProduct(authedPage)
       const code2 = authedPage.getByLabel('Código do produto')
-      await code2.fill(UNSEEN_EAN13)
+      await code2.fill(ns.unseenEan13)
       await code2.press('Enter')
       const name2 = authedPage.locator('input[name="name"]')
-      await expect(name2).toHaveValue('Biscoito Recheado 140g')
+      await expect(name2).toHaveValue(ns.contributedName)
       await expect(name2).toHaveAttribute('readonly', '')
     })
 
@@ -213,15 +216,16 @@ test.describe('Base de Produtos C+D — autofill por código e nome (DoD #1166/#
     test('D · Cenário 1: busca por nome → escolher → referencia (read-only, gtin14)', async ({
       org,
       authedPage,
-    }) => {
-      await seedProductBase({ gtin14: KNOWN_GTIN14, name: 'Leite Ninho 400g', source: 'official' })
+    }, testInfo) => {
+      const ns = sovereignBaseNamespace(testInfo.parallelIndex)
+      await seedProductBase({ gtin14: ns.knownGtin14, name: ns.knownName, source: 'official' })
 
       await startNewProduct(authedPage)
-      await searchAndChoose(authedPage, 'ninho', 'Leite Ninho')
+      await searchAndChoose(authedPage, ns.knownSearchTerm, ns.knownName)
 
       // Chosen: the name filled from the base and is read-only (a reference, AC-02).
       const name = authedPage.locator('input[name="name"]')
-      await expect(name).toHaveValue('Leite Ninho 400g')
+      await expect(name).toHaveValue(ns.knownName)
       await expect(name).toHaveAttribute('readonly', '')
 
       await authedPage.locator('input[name="priceCents"]').fill('12,90')
@@ -230,28 +234,30 @@ test.describe('Base de Produtos C+D — autofill por código e nome (DoD #1166/#
       await submitNewItem(authedPage)
 
       // Linked to the base by the canonical GTIN-14 (reference, AC-02).
-      expect(await catalogItemGtin14(org.orgId, 'Leite Ninho 400g')).toBe(KNOWN_GTIN14)
+      expect(await catalogItemGtin14(org.orgId, ns.knownName)).toBe(ns.knownGtin14)
     })
 
     test('D · Cenário 2: similaridade tolera erro de digitação (typo ainda acha)', async ({
       authedPage,
-    }) => {
-      await seedProductBase({ gtin14: KNOWN_GTIN14, name: 'Leite Ninho 400g', source: 'official' })
+    }, testInfo) => {
+      const ns = sovereignBaseNamespace(testInfo.parallelIndex)
+      await seedProductBase({ gtin14: ns.knownGtin14, name: ns.knownName, source: 'official' })
 
       await startNewProduct(authedPage)
-      // "leit ninho" — a typo (missing 'e'); pg_trgm still surfaces the product.
-      await searchAndChoose(authedPage, 'leit ninho', 'Leite Ninho')
+      // A typo (missing 'e' in "leite"); pg_trgm still surfaces the product.
+      await searchAndChoose(authedPage, ns.knownSearchTypo, ns.knownName)
 
       const name = authedPage.locator('input[name="name"]')
-      await expect(name).toHaveValue('Leite Ninho 400g')
+      await expect(name).toHaveValue(ns.knownName)
       await expect(name).toHaveAttribute('readonly', '')
     })
 
     test('D · Cenário 3: zero resultado — cadastro nunca trava (best-effort)', async ({
       org,
       authedPage,
-    }) => {
-      await seedProductBase({ gtin14: KNOWN_GTIN14, name: 'Leite Ninho 400g', source: 'official' })
+    }, testInfo) => {
+      const ns = sovereignBaseNamespace(testInfo.parallelIndex)
+      await seedProductBase({ gtin14: ns.knownGtin14, name: ns.knownName, source: 'official' })
 
       await startNewProduct(authedPage)
       const name = authedPage.locator('input[name="name"]')
