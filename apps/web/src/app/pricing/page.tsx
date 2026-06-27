@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Preços — Oilio',
   description:
-    'Planos do Oilio para estabelecimentos de serviço recorrente: comece grátis e ative assinaturas, split fiscal e multi-unidade quando precisar.',
+    'Planos do Oilio para estabelecimentos de serviço recorrente: comece grátis e ative assinaturas, comissões e multi-unidade quando precisar.',
 }
 
 export default async function PricingPage() {
@@ -30,7 +30,7 @@ export default async function PricingPage() {
           Um plano para cada estágio do seu estabelecimento
         </Typography>
         <Typography variant="lead" className="max-w-prose">
-          Comece grátis e ative recorrência, split fiscal e multi-unidade conforme o seu negócio
+          Comece grátis e ative assinaturas, comissões e multi-unidade conforme o seu negócio
           cresce. Sem surpresa no fim do mês.
         </Typography>
       </section>

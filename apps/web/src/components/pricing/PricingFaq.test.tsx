@@ -6,7 +6,7 @@ describe('PricingFaq', () => {
   it('renders the frequently asked questions', () => {
     render(<PricingFaq />)
     expect(screen.getByRole('heading', { name: 'Perguntas frequentes' })).toBeInTheDocument()
-    expect(screen.getByText(/quem pode criar uma conta no oilio/i)).toBeInTheDocument()
-    expect(screen.getByText(/os preços já são definitivos/i)).toBeInTheDocument()
+    expect(screen.getByText(/como funciona a cobrança por unidade/i)).toBeInTheDocument()
+    expect(screen.getByText(/qual a vantagem do plano anual/i)).toBeInTheDocument()
   })
 })

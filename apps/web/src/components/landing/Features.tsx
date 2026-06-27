@@ -12,9 +12,9 @@ const FEATURES = [
       'Planos recorrentes de verdade — não um remendo. Cobre todo mês, controle renovações e veja sua receita previsível crescer.',
   },
   {
-    title: 'Split fiscal',
+    title: 'Comissão por profissional',
     description:
-      'Comissão por profissional calculada e repartida na hora do fechamento. Cada um recebe sua parte, sem planilha.',
+      'Comissão calculada na hora do fechamento da comanda. Cada um vê o que tem a receber e você controla a liquidação, sem planilha.',
   },
   {
     title: 'Multi-unidade',
