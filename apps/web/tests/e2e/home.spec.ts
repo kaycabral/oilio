@@ -26,9 +26,11 @@ test.describe('Landing pública', () => {
 
   test('a página de preços mostra os três planos e converte pro login', async ({ page }) => {
     await page.goto('/pricing')
-    await expect(page.getByText('Starter')).toBeVisible()
+    // Nomes dos planos com `exact` — o copy "Tudo do Starter, e mais:" dos cards
+    // seguintes casaria um `getByText` não-exato (strict mode violation).
+    await expect(page.getByText('Starter', { exact: true })).toBeVisible()
     await expect(page.getByText('Pro', { exact: true })).toBeVisible()
-    await expect(page.getByText('Avançado')).toBeVisible()
+    await expect(page.getByText('Avançado', { exact: true })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Assinar o Pro' })).toHaveAttribute(
       'href',
       '/login',
