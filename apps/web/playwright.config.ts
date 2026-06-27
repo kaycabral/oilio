@@ -98,11 +98,24 @@ export default defineConfig({
   // também round-trip-ready. Ver `tests/e2e/helpers/global-setup.ts`.
   globalSetup: './tests/e2e/helpers/global-setup.ts',
   fullyParallel: true,
-  // Local-only worker cap. Unset, Playwright defaults to ~50% of cores (6 on a
-  // 12-core box) → 6 Chromium + 6 SSR loads exhaust RAM and freeze the desktop.
-  // CI is left untouched (sharding owns parallelism there, on sized runners);
-  // locally cap to a fixed 2 to keep peak RSS bounded (~1.5-2 GB per worker).
-  ...(process.env.CI ? {} : { workers: 2 }),
+  // Worker cap — the number of parallel browser contexts PER shard.
+  //
+  // The hazard: each worker is a Chromium + an SSR page load (~1.5-2 GB peak
+  // RSS). Unset, Playwright defaults to ~50% of the cores it SEES — which on a
+  // shared self-hosted runner is the whole host, not an isolated slice. With the
+  // runner's `concurrent=N` running N shards on one box, that's N×(cores/2)
+  // contexts plus N Postgres + N emulators contending for the same RAM/CPU — the
+  // saturation that makes 5s asserts flake. (On GitLab SaaS each shard had its
+  // own VM, so "CI = uncapped" was safe; a single self-hosted runner breaks that
+  // assumption.)
+  //
+  // Fix: cap workers explicitly from the environment, sized to the executor.
+  // `PW_WORKERS` is set per runner (config.toml `environment`). The self-hosted
+  // box runs jobs serially (runner `concurrent=1`), so a shard's Postgres +
+  // emulator are exclusive and ~4 workers fit comfortably in 11 GB; a smaller
+  // box (Raspberry Pi) sets a lower value. Falls back to a conservative 2 when
+  // unset (local runs / shared runners, where per-job VM isolation already holds).
+  workers: process.env.PW_WORKERS ? Number(process.env.PW_WORKERS) : 2,
   forbidOnly: !!process.env.CI,
   // No automatic retries. Retries mascaram flakes — descobrir uma flake
   // tarde + duplicar CPU pra esconder. Se um teste pisca, conserta ou
