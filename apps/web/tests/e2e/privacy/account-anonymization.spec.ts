@@ -75,7 +75,7 @@ async function seedMemberOperationPiiFor(
     await client.query('BEGIN')
     await client.query(
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
-       VALUES ('memberOperations', $1, 1, $2, $3)`,
+       VALUES ('member_operation', $1, 1, $2, $3)`,
       [
         pid,
         orgId,

@@ -77,7 +77,7 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canBeBooked: false,
     canEarnCommission: false,
   },
-  memberOperation: {
+  member_operator: {
     canHaveAgenda: true,
     canManageOwnAgenda: true,
     // Autonomous own-scoped model (brief 0075): a memberOperation books/cancels

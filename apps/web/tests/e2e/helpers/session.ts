@@ -959,7 +959,7 @@ async function readMemberOperationUserId(
   memberOperationId: string,
 ): Promise<string | null> {
   const row = await pgReadProjection(
-    'memberOperations',
+    'member_operations',
     aggregateRef(MemberOperationConfig, orgId, memberOperationId),
   )
   const uid = row?.user_id
@@ -1067,7 +1067,7 @@ async function ensureMemberOperationExists(
 ): Promise<void> {
   if (
     await pgProjectionExists(
-      'memberOperations',
+      'member_operations',
       aggregateRef(MemberOperationConfig, orgId, memberOperationId),
     )
   )
@@ -1607,7 +1607,7 @@ export async function linkMemberOperationToServices(
   catalogServiceIds: string[],
 ): Promise<void> {
   const ref = aggregateRef(MemberOperationConfig, orgId, memberOperationId)
-  const row = await readProjectionRow<MemberOperationRow>('memberOperations', ref)
+  const row = await readProjectionRow<MemberOperationRow>('member_operations', ref)
   if (!row)
     throw new Error(`linkMemberOperationToServices: memberOperation ${memberOperationId} not found`)
   const current = Schema.decodeUnknownSync(StoredMemberOperationSchema)(
@@ -1621,7 +1621,7 @@ export async function linkMemberOperationToServices(
     updatedAt: new Date().toISOString(),
     columns: MEMBER_OPERATION_COLUMNS,
     valuesAt: (v) => memberOperationColumnValues(next, v),
-    table: 'memberOperations',
+    table: 'member_operations',
     // Re-mirror the service N:N into `member_operation_services` in the same tx, as
     // the production projector does (brief 0068 D3): the public availability path
     // reads the join, not the JSONB array. Delete-then-insert keeps it idempotent.
@@ -2903,7 +2903,7 @@ async function seedMemberOperationDoc(orgId: string, doc: StoredMemberOperation)
     createdAt: doc.createdAt,
     columns: MEMBER_OPERATION_COLUMNS,
     values: memberOperationColumnValues(doc, 1),
-    table: 'memberOperations',
+    table: 'member_operations',
     // Mirror the N:N arrays into the join tables in the same tx, exactly as the
     // production projector does (brief 0068 D3) — the public availability path
     // reads `member_operation_units`/`member_operation_services`, not the JSONB arrays.

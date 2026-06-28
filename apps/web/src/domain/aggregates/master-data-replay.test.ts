@@ -109,13 +109,13 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       changes: { name: 'Centro Novo', slug: 'centro-novo' },
     }))
 
-  it('member_operator', () =>
+  it('member_operation', () =>
     // PII (name/whatsapp/email/taxIdentity) lives in `member_operations_pii`,
     // never in the event payload (LGPD — #1036). The projection carries only
     // operational fields.
     checkReplay({
       config: MemberOperationConfig,
-      tag: 'member_operator',
+      tag: 'member_operation',
       id: 'pro1',
       data: {
         id: 'pro1',

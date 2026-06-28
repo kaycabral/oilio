@@ -1,8 +1,8 @@
 // "Barbearia do Zé" — the primary, data-rich org. Exercises the full surface a
 // tester needs locally: 3 units across all three agenda modes, a category, 4
-// services + 2 products, a subscription plan (+3 cycle variants), 4
-// professionals onboarded through the invite-accept cascade (incl. one
-// incomplete pro), a commissioned receptionist, 40+ customers with varied
+// services + 2 products, a subscription plan (+3 cycle variants), 4 member
+// operations onboarded through the invite-accept cascade (incl. one
+// incomplete operator), a commissioned receptionist, 40+ customers with varied
 // birthdays, an active subscription, appointments spread yesterday/today/
 // tomorrow, recurring + one-off agenda blocks, and cash movements
 // (despesa/sangria/suprimento).
@@ -34,6 +34,7 @@ import {
 import { ensureAuthIdentity } from './auth'
 import { seedClosedSale } from './closed-sale'
 import { emitOne } from './emit'
+import { seedMemberOperation } from './member-operation-saga'
 import {
   seedAgendaBlock,
   seedAppointment,
@@ -47,7 +48,6 @@ import {
   seedSubscription,
   seedUnit,
 } from './org-base'
-import { seedProfessional } from './professional-saga'
 import { daysFromNow, now } from './runtime'
 
 const ORG_ID = 'seed-org'
@@ -263,13 +263,13 @@ export async function seedBarbearia(): Promise<void> {
     OWNER.uid,
   )
 
-  // — Professionals via the invite-accept cascade —
+  // — Member operations via the invite-accept cascade —
   // Zé, Maria, João are complete; "Novo" is incomplete (no whatsapp → derived
   // operational status not-ready). The receptionist gets a membership only.
   await ensureAuthIdentity({ uid: PRO_ZE, email: 'ze.pro@cbrl.local', displayName: 'Zé Barbeiro' })
-  const proZeId = await seedProfessional({
+  const proZeId = await seedMemberOperation({
     orgId: ORG_ID,
-    professionalId: 'seed-pro-ze',
+    memberOperationId: 'seed-pro-ze',
     userId: PRO_ZE,
     displayName: 'Zé Barbeiro',
     whatsapp: '5511988880001',
@@ -279,9 +279,9 @@ export async function seedBarbearia(): Promise<void> {
     invitedBy: OWNER.uid,
     now,
   })
-  const proMariaId = await seedProfessional({
+  const proMariaId = await seedMemberOperation({
     orgId: ORG_ID,
-    professionalId: 'seed-pro-maria',
+    memberOperationId: 'seed-pro-maria',
     userId: PRO_MARIA,
     displayName: 'Maria Tesoura',
     whatsapp: '5511988880002',
@@ -291,9 +291,9 @@ export async function seedBarbearia(): Promise<void> {
     invitedBy: OWNER.uid,
     now,
   })
-  const proJoaoId = await seedProfessional({
+  const proJoaoId = await seedMemberOperation({
     orgId: ORG_ID,
-    professionalId: 'seed-pro-joao',
+    memberOperationId: 'seed-pro-joao',
     userId: PRO_JOAO,
     displayName: 'João Navalha',
     whatsapp: '5511988880003',
@@ -303,9 +303,9 @@ export async function seedBarbearia(): Promise<void> {
     invitedBy: OWNER.uid,
     now,
   })
-  await seedProfessional({
+  await seedMemberOperation({
     orgId: ORG_ID,
-    professionalId: 'seed-pro-novo',
+    memberOperationId: 'seed-pro-novo',
     userId: PRO_NOVO,
     displayName: 'Novo Recruta',
     whatsapp: null,
@@ -315,14 +315,14 @@ export async function seedBarbearia(): Promise<void> {
     now,
   })
 
-  // Receptionist — a commissionable NON-professional member (logs in). She gets
-  // a membership with role `receptionist` and NO `professionals` row: a
+  // Receptionist — a commissionable NON-operator member (logs in). She gets
+  // a membership with role `receptionist` and NO `member_operations` row: a
   // receptionist rings up sales / earns commission but performs no services, so
   // she must never become a bookable agenda column. Emitted inline (membership +
-  // the global `users` identity) rather than via `seedProfessional`, which is
-  // professional-only (it always mints a `professionals` row + role
-  // `professional`). Mirrors the production invite-accept path, where a
-  // professional row is created iff the invite role is `professional`.
+  // the global `users` identity) rather than via `seedMemberOperation`, which is
+  // operator-only (it always mints a `member_operations` row + role
+  // `member_operator`). Mirrors the production invite-accept path, where a
+  // member-operation row is created iff the invite role is `member_operator`.
   await ensureAuthIdentity({ uid: RECEP, email: 'recep@cbrl.local', displayName: 'Paula Recepção' })
   await emitOne(MembershipConfig, ORG_ID, membershipDocId(ORG_ID, RECEP), {
     _tag: 'membership.created',
@@ -419,8 +419,8 @@ export async function seedBarbearia(): Promise<void> {
   })
 
   // — Appointments spread across yesterday / today / tomorrow —
-  // `professionalId` references `professionals.id` (FK), NOT the user id;
-  // `professionalUserId` carries the global user id (the agenda's "mine" bridge).
+  // `memberOperationId` references `member_operations.id` (FK), NOT the user id;
+  // `memberOperatorUserId` carries the global user id (the agenda's "mine" bridge).
   const appts = [
     {
       id: 'seed-appt-1',
@@ -483,8 +483,8 @@ export async function seedBarbearia(): Promise<void> {
     await seedAppointment(
       buildAppointment(a.id, ORG_ID, now, {
         unitId: UNIT_CENTRO,
-        professionalId: a.pro,
-        professionalUserId: a.proUser,
+        memberOperationId: a.pro,
+        memberOperatorUserId: a.proUser,
         customerId: a.cust,
         customerUserId: a.custUser,
         serviceId: a.svc,
@@ -509,7 +509,7 @@ export async function seedBarbearia(): Promise<void> {
         open: '12:00',
         close: '13:00',
         now,
-        overrides: { reason: 'Almoço', professionalId: i === 0 ? proZeId : null },
+        overrides: { reason: 'Almoço', memberOperationId: i === 0 ? proZeId : null },
       }),
       OWNER.uid,
     )
@@ -522,7 +522,7 @@ export async function seedBarbearia(): Promise<void> {
       startAt: daysFromNow(1, 15),
       endAt: daysFromNow(1, 17),
       now,
-      overrides: { reason: 'Consulta médica', professionalId: proZeId },
+      overrides: { reason: 'Consulta médica', memberOperationId: proZeId },
     }),
     OWNER.uid,
   )

@@ -44,7 +44,7 @@ export type AggregateType =
   | 'order'
   | 'org'
   | 'org_billing'
-  | 'member_operator'
+  | 'member_operation'
   | 'subscription'
   | 'subscription_plan'
   | 'unit'

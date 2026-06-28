@@ -72,7 +72,7 @@ function resolveDayWindows(input: ComputeAvailabilityInput): DayWindow[] {
 }
 
 function isMemberOperationEligible(
-  pro: ComputeAvailabilityInput['member_operations'][number],
+  pro: ComputeAvailabilityInput['memberOperations'][number],
   unitId: string,
   serviceId: string,
 ): boolean {
@@ -84,7 +84,7 @@ function isMemberOperationEligible(
 }
 
 function slotsForMemberOperation(
-  pro: ComputeAvailabilityInput['member_operations'][number],
+  pro: ComputeAvailabilityInput['memberOperations'][number],
   windows: readonly DayWindow[],
   input: ComputeAvailabilityInput,
   nowMs: number,
