@@ -12,7 +12,7 @@ export type AppointmentRowData = {
   unitSlug: string | null
   appointmentId: string
   serviceName: string
-  professionalName: string
+  memberOperationName: string
   unitName: string
   startAtLabel: string
   endAtLabel: string
@@ -57,7 +57,7 @@ export function AppointmentRow({ data }: { data: AppointmentRowData }) {
         <div className="min-w-0 space-y-0.5">
           <p className="text-sm font-medium">{data.serviceName}</p>
           <p className="text-muted-foreground text-xs">
-            {data.unitName} · {data.professionalName}
+            {data.unitName} · {data.memberOperationName}
           </p>
         </div>
         <span

@@ -1,5 +1,5 @@
+import type { CommissionRule } from '../types/member-operation'
 import { coverageOf, type Order, type OrderItem } from '../types/order'
-import type { CommissionRule } from '../types/professional'
 
 export type OrderTotals = {
   subtotalCents: number
@@ -116,7 +116,7 @@ export function accrueCommissionForItem(
   return {
     orderItemId: item.id,
     // Comissão chaveada por membro (brief 0030, AC-07): a chave é o `userId` do
-    // membro atribuído ao item — qualquer papel, não só Professional. Para
+    // membro atribuído ao item — qualquer papel, não só MemberOperation. Para
     // serviço executado por profissional é a mesma identidade.
     attributedUserId: item.attributedUserId,
     // Snapshot identificável do nome (AC-11) — self-contained, imune a

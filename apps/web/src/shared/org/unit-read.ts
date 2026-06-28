@@ -1,6 +1,6 @@
 // Server-side reads that hydrate Unit docs with PII (whatsapp/email) from the
 // per-org `units_pii/{id}` collection so callers consume a single `Unit`
-// shape. Mirrors `customer-read.ts`/`professional-read.ts` (the reference LGPD
+// shape. Mirrors `customer-read.ts`/`memberOperation-read.ts` (the reference LGPD
 // pattern): the immutable event payload + projection carry NO PII; PII lives
 // in a separate mutable/deletable doc and is merged at read time. See #1036 +
 // ADR 0010 (PII fora de evento — direito à eliminação / LGPD).

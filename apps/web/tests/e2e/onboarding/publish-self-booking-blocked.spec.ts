@@ -7,7 +7,7 @@ import { orgSlug } from '../pages'
 // (isUnitBookable = appointment mode + businessHours). The per-unit card
 // (UnitPublishCard) is FEEDBACK — it tells the owner whether the agenda is
 // visible and exactly what's still missing (hours, public service, approved
-// professional). Nothing in the app is "blocked"; an unmet requirement simply
+// memberOperation). Nothing in the app is "blocked"; an unmet requirement simply
 // keeps the unit off the public surface.
 //
 // AC-06 [critical] [smoke] — a not-yet-bookable unit shows the readiness
@@ -19,11 +19,11 @@ test.describe(
   { tag: '@critical' },
   () => {
     // Degenerate unit: appointment mode (seed default) but no hours/address, no
-    // public service, no approved professional → the unit is NOT bookable.
+    // public service, no approved memberOperation → the unit is NOT bookable.
     test.use({
       orgInput: {
         hasBusinessHours: false,
-        professionalCount: 0,
+        memberOperationCount: 0,
       },
     })
 

@@ -11,12 +11,12 @@ export const CommissionRule = Schema.mutable(
 )
 export type CommissionRule = typeof CommissionRule.Type
 
-export const Professional = Schema.mutable(
+export const MemberOperation = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
     orgId: Schema.String,
-    // Non-null (#1045 / brief 0028 AC-01). A Professional is the operational
-    // projection of a `Membership(role=professional)` + `User`, born only from
+    // Non-null (#1045 / brief 0028 AC-01). A MemberOperation is the operational
+    // projection of a `Membership(role=memberOperation)` + `User`, born only from
     // the invite-acceptance saga — never a standalone entity with a null link.
     userId: Schema.String,
     name: Schema.String,
@@ -30,8 +30,8 @@ export const Professional = Schema.mutable(
     // Readiness to operate (take bookings, show on agenda, receive split).
     // DERIVED on read from real facts (whatsapp present ∧ ≥1 unit ∧ ≥1 service)
     // — see `deriveOperationalStatus` — NOT materialized on the projection (brief
-    // 0068 D4 / #1226 AC-02). Present on the enriched read model `Professional`
-    // (the read layer attaches it); ABSENT from `StoredProfessional` (the event
+    // 0068 D4 / #1226 AC-02). Present on the enriched read model `MemberOperation`
+    // (the read layer attaches it); ABSENT from `StoredMemberOperation` (the event
     // payload + projection row), which omits it below.
     operationalStatus: OperationalStatus,
     defaultCommission: Schema.NullOr(CommissionRule),
@@ -39,7 +39,7 @@ export const Professional = Schema.mutable(
     // Subset dos serviços do org que esse profissional executa — FKs em
     // `catalog_items` de kind service (brief 0023, #1004; era a coleção legada
     // `services`). Invariante server-side: cada id precisa de
-    // `CatalogItem.unitIds ∩ Professional.unitIds ≠ ∅`. Vazio = não executa
+    // `CatalogItem.unitIds ∩ MemberOperation.unitIds ≠ ∅`. Vazio = não executa
     // nenhum serviço ainda (estado válido na criação; sem ele o calendário
     // público filtra esse pro). Ver #876.
     catalogServiceIds: Schema.mutable(Schema.Array(Schema.String)),
@@ -47,41 +47,41 @@ export const Professional = Schema.mutable(
     updatedAt: Schema.String,
   }),
 )
-export type Professional = typeof Professional.Type
+export type MemberOperation = typeof MemberOperation.Type
 
 // The `BookableProfessional` brand was RETIRED in brief 0076 (AC-03). "Bookable"
 // is no longer a compile-time checkpoint papering over a divergent DB state — it
 // is now a DB + capability invariant: the operational profile hangs off the
 // membership via a composite FK (#1260), and "appears on the agenda" is read as
 // the membership's `canBeBooked` capability ∧ derived readiness
-// (`listBookableProfessionalsForOrg`). No runtime brand to mint; the agenda
-// consumes a plain `Professional[]` filtered by that invariant.
+// (`listBookableMemberOperationsForOrg`). No runtime brand to mint; the agenda
+// consumes a plain `MemberOperation[]` filtered by that invariant.
 
-// Storage projection of `Professional`: the per-org `professionals/{id}` doc
+// Storage projection of `MemberOperation`: the per-org `memberOperations/{id}` doc
 // that OMITS the PII (name/whatsapp/email/taxIdentity) materialized from
 // `users/` at read time, AND `operationalStatus` — which is derived on read,
-// not stored (brief 0068 D4 / #1226 AC-02). Decode raw `professionals` docs
+// not stored (brief 0068 D4 / #1226 AC-02). Decode raw `memberOperations` docs
 // against this.
-export const StoredProfessional = Professional.pipe(
+export const StoredMemberOperation = MemberOperation.pipe(
   Schema.omit('name', 'whatsapp', 'email', 'taxIdentity', 'operationalStatus'),
 )
-export type StoredProfessional = typeof StoredProfessional.Type
+export type StoredMemberOperation = typeof StoredMemberOperation.Type
 
-// The deletable `professionals_pii/{id}` doc. Only `taxIdentity` is per-org
+// The deletable `member_operations_pii/{id}` doc. Only `taxIdentity` is per-org
 // PII stored here; name/whatsapp/email are read live from `users/{userId}`.
-// Picked from the same base so it can't drift from `Professional`.
-export const ProfessionalPii = Professional.pipe(Schema.pick('taxIdentity'))
-export type ProfessionalPii = typeof ProfessionalPii.Type
+// Picked from the same base so it can't drift from `MemberOperation`.
+export const MemberOperationPii = MemberOperation.pipe(Schema.pick('taxIdentity'))
+export type MemberOperationPii = typeof MemberOperationPii.Type
 
-// Returns the subset of `professionals` that execute `serviceId` AND
+// Returns the subset of `memberOperations` that execute `serviceId` AND
 // operate at `unitId`. Pure helper used by the public calendar (#842) and
 // catalog filter (#841) — keeps unit-scoping consistent across surfaces.
-export function professionalsForService(
-  professionals: Professional[],
+export function memberOperationsForService(
+  memberOperations: MemberOperation[],
   serviceId: string,
   unitId: string,
-): Professional[] {
-  return professionals.filter(
+): MemberOperation[] {
+  return memberOperations.filter(
     (p) => p.catalogServiceIds.includes(serviceId) && p.unitIds.includes(unitId),
   )
 }

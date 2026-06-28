@@ -104,7 +104,7 @@ describe('computeUnitPublishReadiness', () => {
       computeUnitPublishReadiness({
         hasAddressAndHours: true,
         hasPublicService: true,
-        hasOperationalProfessional: true,
+        hasOperationalMemberOperation: true,
       }),
     ).toEqual({ ready: true, missing: [] })
   })
@@ -114,14 +114,14 @@ describe('computeUnitPublishReadiness', () => {
       computeUnitPublishReadiness({
         hasAddressAndHours: false,
         hasPublicService: false,
-        hasOperationalProfessional: false,
+        hasOperationalMemberOperation: false,
       }),
     ).toEqual({
       ready: false,
       missing: [
         UNIT_REQUIREMENTS.address,
         UNIT_REQUIREMENTS.service,
-        UNIT_REQUIREMENTS.professional,
+        UNIT_REQUIREMENTS.memberOperation,
       ],
     })
   })
@@ -130,7 +130,7 @@ describe('computeUnitPublishReadiness', () => {
     const r = computeUnitPublishReadiness({
       hasAddressAndHours: true,
       hasPublicService: false,
-      hasOperationalProfessional: true,
+      hasOperationalMemberOperation: true,
     })
     expect(r.ready).toBe(false)
     expect(r.missing).toEqual([UNIT_REQUIREMENTS.service])

@@ -25,7 +25,7 @@ import { units } from './units'
  * policy reads `rls_unit_scope` for the single-unit-locked scope.
  *
  * Invariants enforced HERE (proven by integration against real Postgres):
- *   - `role ∈ {owner, manager, professional, receptionist, customer}` — enum CHECK.
+ *   - `role ∈ {owner, manager, member_operator, receptionist, customer}` — enum CHECK.
  *   - `status ∈ {active, invited, suspended, revoked}` — enum CHECK.
  *   - `org_id`/`user_id`/`joined_at`/`updated_at` NOT NULL.
  *   - `org_id` NOT NULL leading column.
@@ -35,7 +35,7 @@ import { units } from './units'
  * `rls_unit_scope` is a nullable column (NOT JSONB) because the RLS unit policy
  * filters on it directly: `rls_unit_scope IS NULL` (org-wide) escapes the unit
  * predicate. Named `rls_unit_scope` (not `unit_id`) to disambiguate from
- * `professionals.unit_ids[]` (a professional's areas of operation) — this column
+ * `member_operations.unit_ids[]` (a memberOperation's areas of operation) — this column
  * is the single-unit RLS lock of the membership (brief 0068 D4).
  */
 export const memberships = pgTable(
@@ -56,7 +56,7 @@ export const memberships = pgTable(
     status: text('status').notNull(),
     // `null` = org-wide; a non-null `rls_unit_scope` pins the membership to one
     // unit (the RLS unit policy reads this column directly). Renamed from
-    // `unit_id` (brief 0068 D4) to disambiguate from `professionals.unit_ids[]`.
+    // `unit_id` (brief 0068 D4) to disambiguate from `member_operations.unit_ids[]`.
     rlsUnitScope: text('rls_unit_scope'),
     invitedBy: text('invited_by'),
     joinedAt: timestamp('joined_at', { withTimezone: true, mode: 'string' }).notNull(),
@@ -72,7 +72,7 @@ export const memberships = pgTable(
     // The role enum, as a CHECK.
     check(
       'memberships_role_check',
-      sql`${table.role} IN ('owner', 'manager', 'professional', 'receptionist')`,
+      sql`${table.role} IN ('owner', 'manager', 'member_operator', 'receptionist')`,
     ),
     // The status enum, as a CHECK.
     check(

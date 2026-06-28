@@ -2,7 +2,7 @@
 // as a COHESIVE JOURNEY against the brief §DoD. One `test()` per DoD scenario:
 //
 //   - Cenário 1 — desligamento limpo (happy path): an owner removes a
-//     professional who has a future appointment, an agenda-block, a pending
+//     memberOperation who has a future appointment, an agenda-block, a pending
 //     invite and a PAST commission, with NO open comanda. The whole cascade runs
 //     end-to-end through the UI: membership → `revoked`, projection deactivated,
 //     gone from the active team + public booking, future appointment cancelled
@@ -10,7 +10,7 @@
 //     PII retained (art. 16) — and the past commission STILL shows the member's
 //     REAL name in the report (snapshot, identifiable).
 //
-//   - Cenário 2 — recusa por comanda aberta: a professional with an OPEN comanda
+//   - Cenário 2 — recusa por comanda aberta: a memberOperation with an OPEN comanda
 //     is refused removal with a clear message; the saga never starts (membership
 //     stays active). A pending COMMISSION does NOT block (AC-06 reescopo —
 //     off-system settlement).
@@ -19,9 +19,9 @@
 //     a PROFESSIONAL in org A and a CUSTOMER in org B. Removed from A's
 //     team, A's commission stays identifiable (real name via snapshot) — and even
 //     after the person's GLOBAL account is anonymized as a customer, A's
-//     professional commission STILL shows the real name. The customer-erasure
+//     memberOperation commission STILL shows the real name. The customer-erasure
 //     side (0032: per-org block via the archived customer shadow) NEVER touches
-//     A's professional records. The two relationships never cross.
+//     A's memberOperation records. The two relationships never cross.
 //
 // Cohesive feature journey: Cenário 1 drives the full UI cascade + report; the
 // granular per-AC assertions live in the sub-issue specs (member-offboarding for
@@ -37,8 +37,8 @@ import {
   AppointmentConfig,
   CommissionConfig,
   InviteConfig,
+  MemberOperationConfig,
   MembershipConfig,
-  ProfessionalConfig,
 } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { patchUser } from '@/shared/db/pg/users-store'
@@ -47,7 +47,7 @@ import {
   blockedSubjectMarkerExists,
   pgProjectionExists,
   pgReadProjection,
-  readProfessionalByUserId,
+  readMemberOperationByUserId,
   seedAppointment,
   seedBlock,
   seedClosedOrder,
@@ -59,19 +59,22 @@ import {
   seedOrgLink,
   type SeededOrg,
 } from '../helpers/session'
-import { ProfessionalsPage, PublicBookingPage, orgSlug } from '../pages'
+import { MemberOperationsPage, PublicBookingPage, orgSlug } from '../pages'
 
 // ── Postgres read-back helpers (aggregate paths → typed projection rows) ──────
 // Post-cutover the specs assert against Postgres. The projection columns are
 // snake_case (`liquidation_status`, etc.); the rows come back as plain records.
 
-// True when the `professionals_pii/{id}` sidecar row still exists (RETENTION,
+// True when the `member_operations_pii/{id}` sidecar row still exists (RETENTION,
 // art. 16). The PII sidecar is keyed by the same aggregate path as the
-// professional projection's PII doc.
-async function professionalPiiExists(orgId: string, professionalId: string): Promise<boolean> {
+// memberOperation projection's PII doc.
+async function memberOperationPiiExists(
+  orgId: string,
+  memberOperationId: string,
+): Promise<boolean> {
   return pgProjectionExists(
     'professionals_pii',
-    aggregateRef(ProfessionalConfig, orgId, professionalId),
+    aggregateRef(MemberOperationConfig, orgId, memberOperationId),
   )
 }
 
@@ -203,13 +206,13 @@ async function seedCommissionWithSnapshot(
 }
 
 test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: '@critical' }, () => {
-  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
   test('Cenário 1: desligamento limpo — cascade completo + registros identificáveis', async ({
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
     // O fixture seed o User do profissional com displayName "Profissional 1".
@@ -224,7 +227,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     const futureAppt = await seedAppointment({
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: proId,
+      memberOperationId: proId,
       customerId,
       serviceId: 'svc-1',
       startAt: future,
@@ -233,7 +236,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     const pastAppt = await seedAppointment({
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: proId,
+      memberOperationId: proId,
       customerId,
       serviceId: 'svc-1',
       startAt: past,
@@ -244,7 +247,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
       kind: 'one_off',
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: proId,
+      memberOperationId: proId,
       startAt: future,
       endAt: new Date(new Date(future).getTime() + 60 * 60_000).toISOString(),
       reason: 'folga do profissional',
@@ -253,7 +256,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
       kind: 'one_off',
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: null,
+      memberOperationId: null,
       startAt: future,
       endAt: new Date(new Date(future).getTime() + 60 * 60_000).toISOString(),
       reason: 'feriado',
@@ -262,7 +265,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     const { inviteId } = await seedInvite({
       orgId: org.orgId,
       email: proEmail,
-      role: 'professional',
+      role: 'member_operator',
       invitedBy: org.uid,
       status: 'pending',
     })
@@ -279,9 +282,9 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
 
     // Baseline: active, approved, PII present, on the team, on public booking.
     expect(await readMembershipStatus(org.orgId, membershipId)).toBe('active')
-    expect(await professionalPiiExists(org.orgId, proId)).toBe(true)
+    expect(await memberOperationPiiExists(org.orgId, proId)).toBe(true)
 
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
     await pros.gotoList()
     await expect(authedPage.getByText(realName)).toBeVisible()
 
@@ -295,12 +298,12 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     // Projection RETAINED (not deleted) + PII RETAINED (art. 16). Under #1226
     // AC-02 operability is severed by the REVOKED membership above (every
     // operational surface keys on an active membership) — there is no
-    // `professional.suspended` event and `operationalStatus` is derived purely
+    // `member_operation.suspended` event and `operationalStatus` is derived purely
     // from profile facts, so the retained projection keeps its derived value.
     // The revoked membership is what takes the member off the active team list
     // (asserted below) and the agenda.
-    expect(await readProfessionalByUserId(org.orgId, proUserId)).not.toBeNull()
-    expect(await professionalPiiExists(org.orgId, proId)).toBe(true)
+    expect(await readMemberOperationByUserId(org.orgId, proUserId)).not.toBeNull()
+    expect(await memberOperationPiiExists(org.orgId, proId)).toBe(true)
 
     // Future appointment CANCELLED but RETAINED; past one LEFT.
     await expect.poll(() => readAppointmentStatus(org.orgId, futureAppt)).toBe('cancelled')
@@ -335,7 +338,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
     const customerId = await seedCustomer(org.orgId, { name: 'Cliente Comanda' })
@@ -344,7 +347,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     const apptId = await seedAppointment({
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: proId,
+      memberOperationId: proId,
       customerId,
       serviceId: 'svc-1',
       startAt: future,
@@ -374,7 +377,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
       attributedUserId: proUserId,
     })
 
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
 
@@ -392,7 +395,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     authedPage,
   }) => {
     // Org A: the seeded org where the subject is a PROFESSIONAL.
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
     const realName = 'Profissional 1'
@@ -404,7 +407,7 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     const customerShadowId = await seedCustomerShadowForUser(org.orgId, proUserId)
     await seedOrgLink(proUserId, org.orgId)
 
-    // A retention commission with the identity snapshot (the professional record).
+    // A retention commission with the identity snapshot (the memberOperation record).
     await seedCommissionWithSnapshot(org, {
       attributedUserId: proUserId,
       attributedMemberName: realName,
@@ -412,13 +415,13 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
       createdAt: now,
     })
 
-    // Remove the professional from A's team (offboarding).
-    const pros = new ProfessionalsPage(authedPage)
+    // Remove the memberOperation from A's team (offboarding).
+    const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
 
-    // Even revoked, the professional commission stays IDENTIFIABLE (real name).
+    // Even revoked, the memberOperation commission stays IDENTIFIABLE (real name).
     await authedPage.goto('/reports')
     await expect(authedPage.getByRole('heading', { name: 'Relatório de comissões' })).toBeVisible()
     const revokedRow = authedPage.getByRole('listitem').filter({ hasText: 'Corte Identidade' })
@@ -437,10 +440,10 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     expect(customerShadowId).toBeTruthy()
 
     // CROSS-RELATIONSHIP SEPARATION — the relations never cross:
-    //  (a) the professional commission (retention) STILL shows the REAL name,
+    //  (a) the memberOperation commission (retention) STILL shows the REAL name,
     //      read from the snapshot — immune to the global-account anonymization.
     //      A live join would now neutralize to the anonymized label; the snapshot
-    //      wins, proving the report reads the professional retention record, not
+    //      wins, proving the report reads the memberOperation retention record, not
     //      the customer-erased identity.
     const neutralLabel = anonymizedLabel(proUserId, 'Profissional')
     await authedPage.goto('/reports')
@@ -449,9 +452,9 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     await expect(afterRow.getByText(realName)).toBeVisible()
     await expect(afterRow.getByText(neutralLabel)).toHaveCount(0)
 
-    //  (b) the professional retention record itself is untouched by the
+    //  (b) the memberOperation retention record itself is untouched by the
     //      customer erasure: PII retained, commission still attributed to the
     //      real userId with the real-name snapshot intact.
-    expect(await professionalPiiExists(org.orgId, proId)).toBe(true)
+    expect(await memberOperationPiiExists(org.orgId, proId)).toBe(true)
   })
 })

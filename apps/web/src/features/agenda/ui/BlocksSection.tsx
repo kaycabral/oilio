@@ -27,8 +27,8 @@ function describeWhen(block: AgendaBlock, tz: string): string {
 }
 
 // Embeddable agenda-block manager (brief 0036). Lives wherever the blocked time
-// is owned: the unit config (unit-wide blocks) or the professional member detail
-// (per-professional blocks). Create/edit happen inline (no dedicated route); the
+// is owned: the unit config (unit-wide blocks) or the memberOperation member detail
+// (per-memberOperation blocks). Create/edit happen inline (no dedicated route); the
 // list refreshes in place after every mutation.
 export function BlocksSection({
   owner,
@@ -52,12 +52,12 @@ export function BlocksSection({
   const [editing, setEditing] = useState<string | null>(null)
 
   const unitNameById = new Map(
-    (owner.scope === 'professional' ? owner.units : ([] as StoredUnit[])).map((u) => [
+    (owner.scope === 'member_operator' ? owner.units : ([] as StoredUnit[])).map((u) => [
       u.id,
       u.name,
     ]),
   )
-  const showUnitColumn = owner.scope === 'professional' && owner.units.length > 1
+  const showUnitColumn = owner.scope === 'member_operator' && owner.units.length > 1
 
   function done() {
     setEditing(null)

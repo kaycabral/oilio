@@ -24,7 +24,7 @@ import { orgs } from './orgs'
  * The typed projection decodes against `StoredInvite` (the email-omitted shape).
  *
  * Invariants enforced HERE (proven by integration against real Postgres):
- *   - `role ∈ {owner, manager, professional, receptionist, customer}` — CHECK.
+ *   - `role ∈ {owner, manager, member_operator, receptionist, customer}` — CHECK.
  *   - `status ∈ {pending, accepted, expired, revoked}` — CHECK.
  *   - acceptance consistency: `accepted_by_uid`/`accepted_at` are both present
  *     for an accepted invite and both NULL for a pending one — the domain
@@ -60,7 +60,7 @@ export const invites = pgTable(
     // The role enum, refused at the DB.
     check(
       'invites_role_check',
-      sql`${table.role} IN ('owner', 'manager', 'professional', 'receptionist')`,
+      sql`${table.role} IN ('owner', 'manager', 'member_operator', 'receptionist')`,
     ),
     // The status enum, refused at the DB.
     check(

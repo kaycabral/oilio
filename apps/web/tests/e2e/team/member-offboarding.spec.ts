@@ -5,17 +5,17 @@
 //   - AC-10: the membership goes to the TERMINAL `revoked` status (event-first,
 //     `membership.updated { status }`); the member loses org access (every
 //     gate keys on `status == 'active'`) and DROPS from the active team list.
-//   - the professional projection is DEACTIVATED (`professional.suspended`),
+//   - the memberOperation projection is DEACTIVATED (`member_operation.suspended`),
 //     NOT deleted — off the public agenda, history preserved.
 //   - RETENTION (brief 0041, art. 16 — the boundary with customer erasure 0032):
-//     `professionals_pii` is RETAINED. The vínculo data stays identifiable; the
+//     `member_operations_pii` is RETAINED. The vínculo data stays identifiable; the
 //     offboarding NEVER scrubs it.
 //   - AC-01: you cannot remove yourself (no self-lockout) nor the owner.
 //   - AC-04: re-running the removal is idempotent (already-revoked → no-op,
 //     no throw, no duplicate status event).
 //
 // Runs against the emulator (auth only) + Postgres (event store). Reads the
-// membership + its event stream + the professional projection + its PII sidecar
+// membership + its event stream + the memberOperation projection + its PII sidecar
 // straight from Postgres to assert the projection AND the event-sourced
 // transition.
 
@@ -25,8 +25,8 @@ import {
   AppointmentConfig,
   CommissionConfig,
   InviteConfig,
+  MemberOperationConfig,
   MembershipConfig,
-  ProfessionalConfig,
 } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
@@ -35,7 +35,7 @@ import {
   pgProjectionExists,
   pgReadEventStream,
   pgReadProjection,
-  readProfessionalByUserId,
+  readMemberOperationByUserId,
   seedAppointment,
   seedBlock,
   seedClosedOrder,
@@ -44,7 +44,7 @@ import {
   seedInvite,
   seedOpenOrder,
 } from '../helpers/session'
-import { ProfessionalsPage } from '../pages'
+import { MemberOperationsPage } from '../pages'
 
 // The `membership.updated` event envelope, narrowed to the `_tag` + the nested
 // `payload.changes.status` string this spec reads. The offboard saga appends
@@ -71,13 +71,16 @@ async function listMembershipStatusEvents(orgId: string, membershipId: string): 
     .filter((s): s is string => typeof s === 'string')
 }
 
-// True when the `professionals_pii/{id}` projection still exists (RETENTION
+// True when the `member_operations_pii/{id}` projection still exists (RETENTION
 // assertion, AC — art. 16). Post-cutover the PII sidecar is a Postgres row keyed
 // by aggregate path; its presence is the retention proof.
-async function professionalPiiExists(orgId: string, professionalId: string): Promise<boolean> {
+async function memberOperationPiiExists(
+  orgId: string,
+  memberOperationId: string,
+): Promise<boolean> {
   return pgProjectionExists(
     'professionals_pii',
-    aggregateRef(ProfessionalConfig, orgId, professionalId),
+    aggregateRef(MemberOperationConfig, orgId, memberOperationId),
   )
 }
 
@@ -111,27 +114,27 @@ async function inviteExists(orgId: string, inviteId: string): Promise<boolean> {
 }
 
 test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, () => {
-  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
   test('owner remove membro → revoked + sai da equipe + PII retida + idempotente', async ({
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
 
     // Baseline: active membership, an approved projection, PII present, no
     // status-change event yet.
     expect(await readMembershipStatus(org.orgId, membershipId)).toBe('active')
-    expect((await readProfessionalByUserId(org.orgId, proUserId))?.operationalStatus).toBe(
+    expect((await readMemberOperationByUserId(org.orgId, proUserId))?.operationalStatus).toBe(
       'operational',
     )
-    expect(await professionalPiiExists(org.orgId, proId)).toBe(true)
+    expect(await memberOperationPiiExists(org.orgId, proId)).toBe(true)
     expect(await listMembershipStatusEvents(org.orgId, membershipId)).toEqual([])
 
     // The member shows on the active team list before removal.
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
     await pros.gotoList()
     await expect(authedPage.getByText('Profissional 1')).toBeVisible()
 
@@ -144,18 +147,18 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
     // Event-first: the transition is recorded as a membership.updated event.
     expect(await listMembershipStatusEvents(org.orgId, membershipId)).toContain('revoked')
 
-    // Professional projection RETAINED (not deleted), reversible (#1226 AC-02):
+    // MemberOperation projection RETAINED (not deleted), reversible (#1226 AC-02):
     // operability is severed by the REVOKED membership above — every operational
     // surface (active team list, agenda) keys on an active membership — NOT by a
-    // `professional.suspended` event. `operationalStatus` is derived purely from
+    // `member_operation.suspended` event. `operationalStatus` is derived purely from
     // profile facts (whatsapp ∧ units ∧ services), so it stays `operational` on
     // the retained projection; the revoked membership is what takes the member
     // off the agenda (proven by the active-team-list assertion below).
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
-    expect(await readProfessionalByUserId(org.orgId, proUserId)).not.toBeNull()
+    expect(await readMemberOperationByUserId(org.orgId, proUserId)).not.toBeNull()
 
     // RETENTION (art. 16): the vínculo PII is RETAINED — not scrubbed.
-    expect(await professionalPiiExists(org.orgId, proId)).toBe(true)
+    expect(await memberOperationPiiExists(org.orgId, proId)).toBe(true)
 
     // Gone from the active team list.
     await pros.gotoList()
@@ -171,7 +174,7 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
   })
 
   test('não é possível remover o owner (identidade imutável)', async ({ org, authedPage }) => {
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
     // The owner detail is read-only and offers no remove affordance.
     await pros.gotoByUserId(org.uid)
     await expect(authedPage.getByRole('form', { name: 'Remover do time' })).toHaveCount(0)
@@ -190,13 +193,13 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
 //     (assert status flip + retention, NOT grid absence). Past ones are LEFT.
 //   - AC-07: the member's agenda-blocks are removed; org-wide blocks stay.
 test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' }, () => {
-  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
   test('AC-05: comanda aberta recusa a remoção com mensagem (saga não inicia)', async ({
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
     const customerId = await seedCustomer(org.orgId, { name: 'Cliente Comanda' })
@@ -206,7 +209,7 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
     const apptId = await seedAppointment({
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: proId,
+      memberOperationId: proId,
       customerId,
       serviceId: 'svc-1',
       startAt: future,
@@ -219,7 +222,7 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
       attributedUserId: proUserId,
     })
 
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
 
@@ -233,7 +236,7 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
     const customerId = await seedCustomer(org.orgId, { name: 'Cliente Agenda' })
@@ -243,7 +246,7 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
     const futureAppt = await seedAppointment({
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: proId,
+      memberOperationId: proId,
       customerId,
       serviceId: 'svc-1',
       startAt: future,
@@ -252,7 +255,7 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
     const pastAppt = await seedAppointment({
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: proId,
+      memberOperationId: proId,
       customerId,
       serviceId: 'svc-1',
       startAt: past,
@@ -262,7 +265,7 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
       kind: 'one_off',
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: proId,
+      memberOperationId: proId,
       startAt: future,
       endAt: new Date(new Date(future).getTime() + 60 * 60_000).toISOString(),
       reason: 'folga do profissional',
@@ -271,13 +274,13 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
       kind: 'one_off',
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: null,
+      memberOperationId: null,
       startAt: future,
       endAt: new Date(new Date(future).getTime() + 60 * 60_000).toISOString(),
       reason: 'feriado',
     })
 
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
@@ -313,18 +316,18 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
 //     does NOT veto or warn. The "acerto entre as partes" is an off-system
 //     settlement between the parties; the removal proceeds and the commission is
 //     LEFT pending + identifiable (still attributed to the member's real userId).
-//   - AC-08 (edge, non-blocking): removing the only professional of a unit leaves
-//     it with 0 active professionals → a NON-BLOCKING warning is surfaced; the
+//   - AC-08 (edge, non-blocking): removing the only memberOperation of a unit leaves
+//     it with 0 active memberOperations → a NON-BLOCKING warning is surfaced; the
 //     member is still removed.
 //   - AC-09: the member's PENDING invite (matched by email) is cleaned.
 test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' }, () => {
-  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
   test('AC-06: comissão pendente NÃO bloqueia a remoção — comissão fica pendente e identificável', async ({
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
 
@@ -345,7 +348,7 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
       orderId,
     })
 
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
 
@@ -367,11 +370,11 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
 
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(proUserId)
     // The remove button submits via a hydrated client handler that sets the
     // AC-08 warning; wait for the button to be actionable so the click goes
@@ -381,7 +384,7 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     await submit.click()
 
     // Non-blocking: the warning is surfaced (the unit is left with no active
-    // professional).
+    // memberOperation).
     await expect(authedPage.getByText(/sem profissional/i)).toBeVisible()
     // And the member IS removed (membership terminal `revoked`).
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
@@ -391,16 +394,16 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
-    // The fixture seeds the professional's User email as `prof-{n}-{pid}@e2e.local`.
+    // The fixture seeds the memberOperation's User email as `prof-{n}-{pid}@e2e.local`.
     const proEmail = `prof-1-${proId}@e2e.local`
 
     const { inviteId } = await seedInvite({
       orgId: org.orgId,
       email: proEmail,
-      role: 'professional',
+      role: 'member_operator',
       invitedBy: org.uid,
       status: 'pending',
     })
@@ -412,7 +415,7 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
       status: 'pending',
     })
 
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')

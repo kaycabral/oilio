@@ -9,8 +9,8 @@ import { getUsersByIds } from '@/shared/db/pg/users-store'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
 import { listInvitesForOrg } from '@/shared/org/invite-read'
+import { listMemberOperationStatuses } from '@/shared/org/member-operation-read'
 import { listMembershipsForOrg, requireManagerPage } from '@/shared/org/membership'
-import { listProfessionalStatuses } from '@/shared/org/professional-read'
 import 'server-only'
 
 // A team list entry — either an accepted member (membership) or a still-pending
@@ -27,8 +27,8 @@ export type TeamPageData = {
   displayNameByUserId: Record<string, string>
   whatsappByUserId: Record<string, string>
   birthDateByUserId: Record<string, string>
-  // Derived professional operational status (#1047), keyed by userId — surfaced
-  // on the list so a professional whose profile is still incomplete (not
+  // Derived memberOperation operational status (#1047), keyed by userId — surfaced
+  // on the list so a memberOperation whose profile is still incomplete (not
   // operational → not bookable) is visibly distinct from an operational one,
   // not just "Ativo".
   operationalByUserId: Record<string, OperationalStatus>
@@ -83,19 +83,19 @@ export async function loadTeamPage(
 
   const orgId = ctx.membership.orgId
 
-  const [allMemberships, invites, professionals] = await Promise.all([
+  const [allMemberships, invites, memberOperations] = await Promise.all([
     // Typed memberships table under RLS — feature C/D.
     listMembershipsForOrg(orgId),
     // PII (invitee email) merged from `invites_pii` on read (#1036).
     listInvitesForOrg(orgId),
     // `operationalStatus` is DERIVED on read (#1226 AC-02) from whatsapp (PII) +
-    // units/services, so `listProfessionalStatuses` enriches and returns the
+    // units/services, so `listMemberOperationStatuses` enriches and returns the
     // `{ userId, operationalStatus }` pairs the team page needs.
-    listProfessionalStatuses(orgId),
+    listMemberOperationStatuses(orgId),
   ])
 
   const operationalByUserId: Record<string, OperationalStatus> = {}
-  for (const pro of professionals) {
+  for (const pro of memberOperations) {
     if (pro.userId) operationalByUserId[pro.userId] = pro.operationalStatus
   }
 

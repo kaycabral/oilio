@@ -1,7 +1,7 @@
 import { Data } from 'effect'
 
 export class AppointmentConflictError extends Data.TaggedError('AppointmentConflictError')<{
-  readonly professionalId: string
+  readonly memberOperationId: string
   readonly proposedStart: string
   readonly proposedEnd: string
   readonly conflictingIds: readonly string[]
@@ -19,8 +19,10 @@ export class UsageLimitReachedError extends Data.TaggedError('UsageLimitReachedE
   readonly limit: number
 }> {}
 
-export class ProfessionalUnavailableError extends Data.TaggedError('ProfessionalUnavailableError')<{
-  readonly professionalId: string
+export class MemberOperationUnavailableError extends Data.TaggedError(
+  'MemberOperationUnavailableError',
+)<{
+  readonly memberOperationId: string
   readonly reason: string
 }> {}
 
@@ -49,7 +51,7 @@ export type DomainError =
   | AppointmentConflictError
   | PlanNotActiveError
   | UsageLimitReachedError
-  | ProfessionalUnavailableError
+  | MemberOperationUnavailableError
   | OrderAlreadyClosedError
   | CardDeclinedError
   | EntityNotFoundError

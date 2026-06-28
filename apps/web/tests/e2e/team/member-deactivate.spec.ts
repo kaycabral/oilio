@@ -6,7 +6,7 @@
 // `status == 'active'`), and reactivation restores it.
 //
 // Member-level lifecycle (vacation / dismissal), distinct from `operationalStatus`
-// (professional unit-activation, 0028) and `professional.suspended` (role
+// (memberOperation unit-activation, 0028) and `member_operation.suspended` (role
 // lifecycle projection, 0037).
 //
 // Runs against the emulator (no mocks). Reads the membership projection + its
@@ -25,7 +25,7 @@ import {
   seedAuthUser,
   seedMembershipFor,
 } from '../helpers/session'
-import { ProfessionalsPage } from '../pages'
+import { MemberOperationsPage } from '../pages'
 
 // The `membership.updated` event-stream envelope, narrowed to the `_tag` + the
 // nested `payload.changes.status` string this spec reads. Excess envelope fields
@@ -67,7 +67,7 @@ async function readMembershipStatus(orgId: string, membershipId: string): Promis
 }
 
 test.describe('Equipe — desativar/reativar membro (#1053)', { tag: '@critical' }, () => {
-  test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
+  test.use({ orgInput: { unitCount: 1, memberOperationCount: 0 } })
 
   test('detalhe mostra o toggle; desativar suspende; reativar volta; event-sourced', async ({
     org,
@@ -81,7 +81,7 @@ test.describe('Equipe — desativar/reativar membro (#1053)', { tag: '@critical'
     expect(await readMembershipStatus(org.orgId, membershipId)).toBe('active')
     expect(await listMembershipStatusEvents(org.orgId, membershipId)).toEqual([])
 
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(member.uid)
 
     // The detail renders the toggle reflecting the active state (it offers
@@ -117,7 +117,7 @@ test.describe('Equipe — desativar/reativar membro (#1053)', { tag: '@critical'
   })
 
   test('owner não tem toggle de desativação (identidade imutável)', async ({ org, authedPage }) => {
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(org.uid)
     // The owner detail is read-only and has no deactivate affordance.
     await expect(authedPage.getByRole('form', { name: 'Desativar membro' })).toHaveCount(0)

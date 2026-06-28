@@ -37,7 +37,7 @@ async function seedFixture(org: SeededOrg): Promise<void> {
   await seedAppointment({
     orgId: org.orgId,
     unitId: org.unitIds[0]!,
-    professionalId: org.professionalIds[0]!,
+    memberOperationId: org.memberOperationIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -72,8 +72,8 @@ test.describe('Comissão — accrual no fechamento (#999)', { tag: '@critical' }
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },

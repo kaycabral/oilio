@@ -58,7 +58,7 @@ export const commissions = pgTable(
 
     // ── Attribution (the credited member) ───────────────────────────────────
     // `attributed_user_id` is the GLOBAL userId of the credited member (any
-    // role can be commissioned), NOT a Professional doc id. The member name is
+    // role can be commissioned), NOT a MemberOperation doc id. The member name is
     // SNAPSHOTTED at apuração so the report survives the member being revoked.
     attributedUserId: text('attributed_user_id').notNull(),
     attributedMemberName: text('attributed_member_name').notNull(),

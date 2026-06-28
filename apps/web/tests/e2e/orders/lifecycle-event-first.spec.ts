@@ -31,7 +31,7 @@ async function seedFixture(org: SeededOrg): Promise<void> {
   await seedAppointment({
     orgId: org.orgId,
     unitId: org.unitIds[0]!,
-    professionalId: org.professionalIds[0]!,
+    memberOperationId: org.memberOperationIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -47,8 +47,8 @@ test.describe('Order — ciclo de vida event-first (#1018)', { tag: '@critical' 
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 2,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 2,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -75,7 +75,7 @@ test.describe('Order — ciclo de vida event-first (#1018)', { tag: '@critical' 
 
     // order.item_attribution_changed (brief 0030, AC-04) — re-atribui a Pomada
     // (produto → rótulo "Vendedor") ao Profissional 2 por membro. A atribuição
-    // grava o `userId` do membro, não o doc id de Professional. O select é
+    // grava o `userId` do membro, não o doc id de MemberOperation. O select é
     // controlado pela projeção (props) — após o router.refresh do server action,
     // reflete o novo membro (prova de que o evento projetou).
     await chooseOption(pomadaRow, 'Vendedor', 'Profissional 2')

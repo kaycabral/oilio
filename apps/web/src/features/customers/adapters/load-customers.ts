@@ -20,7 +20,7 @@ export async function loadCustomersPage(
   rawParams: { q?: string } = {},
 ): Promise<CustomersPageData> {
   // Customers is a balcão/management surface (brief 0075): a self-scoped
-  // professional (no `canManageCustomers`) is redirected; recepção/manager pass.
+  // memberOperation (no `canManageCustomers`) is redirected; recepção/manager pass.
   const ctx = await requireCapabilityPage('canManageCustomers')
 
   const canDelete = canManageOrg(ctx.membership.role)
@@ -37,7 +37,7 @@ export async function loadCustomersPage(
 }
 
 // Imperative shell for the edit route — resolves the customer or null (404).
-// Same capability wall as the list: a professional can't edit customers either.
+// Same capability wall as the list: a memberOperation can't edit customers either.
 export async function loadCustomerForEdit(customerId: string): Promise<Customer | null> {
   const ctx = await requireCapabilityPage('canManageCustomers')
   return getCustomerById(ctx.membership.orgId, customerId)

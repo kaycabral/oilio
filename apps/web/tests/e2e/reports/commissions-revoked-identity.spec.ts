@@ -196,14 +196,14 @@ test.describe(
   { tag: '@critical' },
   () => {
     test.use({
-      orgInput: { professionalCount: 1, professionalOperationalStatus: 'operational' },
+      orgInput: { memberOperationCount: 1, memberOperationOperationalStatus: 'operational' },
     })
 
     test('AC-11/AC-03: revogar a membership não some o nome — snapshot mostra o nome real', async ({
       org,
       authedPage,
     }) => {
-      const proId = org.professionalIds[0]!
+      const proId = org.memberOperationIds[0]!
       const proUser = `e2e-prof-user-${proId}`
       // O fixture seed o User com displayName "Profissional 1" (helpers/session.ts).
       const realName = 'Profissional 1'
@@ -257,7 +257,7 @@ test.describe(
       // relatório resolveria o nome por esse join → rótulo neutro (errado). Com
       // o snapshot no registro (AC-11), o nome real sobrevive. Este teste prova
       // que o relatório lê o SNAPSHOT, não o join ao vivo.
-      const proId = org.professionalIds[0]!
+      const proId = org.memberOperationIds[0]!
       const proUser = `e2e-prof-user-${proId}`
       const realName = 'Profissional 1'
       const now = new Date().toISOString()

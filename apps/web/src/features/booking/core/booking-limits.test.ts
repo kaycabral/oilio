@@ -13,7 +13,7 @@ function appt(over: Partial<Appointment> & { id: string; startAt: string }): App
     id: over.id,
     orgId: 't1',
     unitId: 'u1',
-    professionalId: 'p1',
+    memberOperationId: 'p1',
     customerId: 'c1',
     serviceId: 's1',
     startAt: over.startAt,
@@ -24,7 +24,7 @@ function appt(over: Partial<Appointment> & { id: string; startAt: string }): App
     commissionSnapshot: null,
     cancellationPolicySnapshot: null,
     customerUserId: 'cu1',
-    professionalUserId: null,
+    memberOperatorUserId: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   }

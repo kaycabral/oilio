@@ -6,7 +6,7 @@ import {
   type CatalogServiceItem,
   type Customer,
   type HoursRange,
-  type Professional,
+  type MemberOperation,
   type SlotMinutes,
   type Unit,
   getTodayInOrgTz,
@@ -37,7 +37,7 @@ export type AgendaViewProps = {
   slotMinutes: SlotMinutes
   units: Unit[]
   activeUnitId: string | null
-  professionals: Professional[]
+  memberOperations: MemberOperation[]
   appointments: Appointment[]
   customersById: Record<string, Customer>
   servicesById: Record<string, CatalogServiceItem>
@@ -49,7 +49,7 @@ export type AgendaViewProps = {
   businessName: string
   confirmationTemplate: string
   canManage: boolean
-  selfProfessionalId: string | null
+  selfMemberOperationId: string | null
   canManageCustomers: boolean
 }
 
@@ -59,7 +59,7 @@ export function AgendaView({
   slotMinutes,
   units,
   activeUnitId,
-  professionals,
+  memberOperations,
   appointments,
   customersById,
   servicesById,
@@ -71,14 +71,14 @@ export function AgendaView({
   businessName,
   confirmationTemplate,
   canManage,
-  selfProfessionalId,
+  selfMemberOperationId,
   canManageCustomers,
 }: AgendaViewProps) {
   const router = useRouter()
   const today = getTodayInOrgTz(timezone)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
-  const canCreate = activeUnitId !== null && professionals.length > 0 && services.length > 0
+  const canCreate = activeUnitId !== null && memberOperations.length > 0 && services.length > 0
 
   function openCreateDialog() {
     setSelectedAppointment(null)
@@ -177,7 +177,7 @@ export function AgendaView({
             />
           )
         }
-        if (professionals.length === 0) {
+        if (memberOperations.length === 0) {
           return (
             <EmptyState
               icon={<CalendarDays />}
@@ -189,7 +189,7 @@ export function AgendaView({
         }
         return (
           <AgendaGrid
-            professionals={professionals}
+            memberOperations={memberOperations}
             appointments={appointments}
             customersById={customersById}
             servicesById={servicesById}
@@ -209,7 +209,7 @@ export function AgendaView({
           open={dialogOpen}
           onOpenChange={handleDialogChange}
           unitId={activeUnitId}
-          professionals={professionals}
+          memberOperations={memberOperations}
           services={services}
           customers={customers}
           date={date}
@@ -217,7 +217,7 @@ export function AgendaView({
           appointment={selectedAppointment}
           businessName={businessName}
           confirmationTemplate={confirmationTemplate}
-          selfProfessionalId={selfProfessionalId}
+          selfMemberOperationId={selfMemberOperationId}
           canRegisterCustomer={canManageCustomers}
         />
       ) : null}

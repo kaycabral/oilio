@@ -15,7 +15,7 @@ import { orgSlug } from './pages'
 // default monta unidades bookable, então o card aparece em cada unidade.
 
 test.describe('Unidade — QR por unidade', () => {
-  test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 2, memberOperationCount: 1 } })
 
   test('QR por unidade aponta pra /{slug}/{unitSlug} na página da unidade', async ({
     context,

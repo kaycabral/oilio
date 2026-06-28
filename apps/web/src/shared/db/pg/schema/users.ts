@@ -66,9 +66,9 @@ export const users = pgTable(
     anonymizedAt: timestamp('anonymized_at', { withTimezone: true, mode: 'string' }),
 
     // ── Composite / structural state (JSONB) ────────────────────────────────
-    // PF/PJ identity, same shape as Org/Professional. Null until a role needs it.
+    // PF/PJ identity, same shape as Org/MemberOperation. Null until a role needs it.
     taxIdentity: jsonb('tax_identity'),
-    // Professional skills surfaced on profiles.
+    // MemberOperation skills surfaced on profiles.
     specialties: jsonb('specialties'),
 
     // timestamptz (brief 0068 D1) — mode:'string', rowToDoc normaliza pra ISO

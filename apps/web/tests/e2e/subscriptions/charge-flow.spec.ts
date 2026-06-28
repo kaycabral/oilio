@@ -12,7 +12,7 @@ import { seedCustomer, seedSubscription } from '../helpers/session'
 // the real `/subscriptions/[id]` UI (SubscriptionDetail) the manager uses.
 
 test.describe('subscription charge-flow (não-happy)', () => {
-  test.use({ orgInput: { professionalCount: 0 } })
+  test.use({ orgInput: { memberOperationCount: 0 } })
 
   test('renovar gera nova cobrança Agendada; marcar falha tira do Agendada', async ({
     org,

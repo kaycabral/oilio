@@ -10,7 +10,7 @@ import 'server-only'
 //
 // The guarantee is now the database's: the `appointments_no_double_book` GiST
 // EXCLUDE constraint (migration 0013) refuses any two `scheduled` appointments
-// for the same org + professional whose `[start_at, end_at)` intervals overlap.
+// for the same org + memberOperation whose `[start_at, end_at)` intervals overlap.
 // We emit the `appointment.created` event through the event store; the projector
 // INSERTs the row in the SAME ACID transaction, so a conflicting slot makes the
 // INSERT raise 23P01 (exclusion_violation) and the whole tx rolls back — no
@@ -123,7 +123,7 @@ export async function commitAppointmentBooking({
       actorUid,
       via,
       appointmentId: appointment.id,
-      professionalId: appointment.professionalId,
+      memberOperationId: appointment.memberOperationId,
       unitId: appointment.unitId,
       startAt: appointment.startAt,
       endAt: appointment.endAt,

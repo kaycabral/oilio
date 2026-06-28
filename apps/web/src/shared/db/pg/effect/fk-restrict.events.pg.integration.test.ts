@@ -51,15 +51,15 @@ async function seedCustomer(id = CUSTOMER): Promise<void> {
   )
 }
 
-async function seedProfessional(id = PROFESSIONAL): Promise<void> {
+async function seedMemberOperation(id = PROFESSIONAL): Promise<void> {
   await pool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'professional','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
+     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'member_operator','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
   )
   await pool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+    `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [ORG, id],
   )
@@ -91,7 +91,7 @@ async function seedOrder(id: string): Promise<void> {
 
 async function seedAppointment(id: string): Promise<void> {
   await pool().query(
-    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, professional_id, customer_id, service_id, customer_user_id, professional_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
+    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id, customer_user_id, member_operator_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
      VALUES ($1,$2,$3,1,$4,$5,$6,'user-'||$5,NULL,'2026-01-02T10:00:00Z','2026-01-02T10:30:00Z','scheduled',5000,30,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [ORG, id, UNIT, PROFESSIONAL, CUSTOMER, SERVICE],
   )
@@ -112,12 +112,12 @@ async function deleteRow(table: string, id: string): Promise<void> {
 describe('cross-aggregate FK RESTRICT — proof against Postgres (brief 0068 D2)', () => {
   beforeEach(async () => {
     await pool().query(
-      'TRUNCATE events, projections, orders, charges, subscriptions, appointments, commissions, cash_movements, catalog_items, professionals, customers, units, orgs CASCADE',
+      'TRUNCATE events, projections, orders, charges, subscriptions, appointments, commissions, cash_movements, catalog_items, member_operations, customers, units, orgs CASCADE',
     )
     await seedOrg()
     await seedUnit()
     await seedCustomer()
-    await seedProfessional()
+    await seedMemberOperation()
     await seedService()
   })
 
@@ -135,9 +135,9 @@ describe('cross-aggregate FK RESTRICT — proof against Postgres (brief 0068 D2)
     await expect(deleteRow('customers', CUSTOMER)).rejects.toMatchObject({ code: FK_VIOLATION })
   })
 
-  it('refuses deleting a professional that still has an appointment (23503)', async () => {
+  it('refuses deleting a memberOperation that still has an appointment (23503)', async () => {
     await seedAppointment('appt-1')
-    await expect(deleteRow('professionals', PROFESSIONAL)).rejects.toMatchObject({
+    await expect(deleteRow('member_operations', PROFESSIONAL)).rejects.toMatchObject({
       code: FK_VIOLATION,
     })
   })

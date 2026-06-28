@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
-import { linkProfessionalToServices, seedService } from '../helpers/session'
+import { linkMemberOperationToServices, seedService } from '../helpers/session'
 import { PublicBookingPage, orgSlug } from '../pages'
 
 // Issue #844 — Self-book wizard (Serviço → Slot → Confirmação).
@@ -9,7 +9,7 @@ import { PublicBookingPage, orgSlug } from '../pages'
 //   1. `/{orgSlug}/{unitSlug}` — pick service (#841 deliverable, reused).
 //   2. `/{orgSlug}/{unitSlug}/availability?service=…` — pick slot
 //      (#842 deliverable, reused).
-//   3. `/{orgSlug}/{unitSlug}/book?service=&start=&professional=` —
+//   3. `/{orgSlug}/{unitSlug}/book?service=&start=&memberOperation=` —
 //      confirm contact details, submit.
 //   4. `/{orgSlug}/{unitSlug}/book/success?appt=…` — confirmation page.
 //
@@ -18,7 +18,7 @@ import { PublicBookingPage, orgSlug } from '../pages'
 // contract for now).
 
 test.describe('Wizard de auto-agendamento (#844)', () => {
-  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
   test(
     'caminho feliz: catálogo → disponibilidade → confirmação → sucesso',
@@ -33,7 +33,7 @@ test.describe('Wizard de auto-agendamento (#844)', () => {
         publicVisible: true,
         unitIds: [unitId],
       })
-      await linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
+      await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
       const booking = new PublicBookingPage(page, slug)
 
@@ -49,7 +49,7 @@ test.describe('Wizard de auto-agendamento (#844)', () => {
       // wall-clock-independent.
       const targetDate = nextWeekday('Wed')
       await booking.gotoAvailability('unidade-1', { serviceId, from: targetDate })
-      const firstSlot = booking.slotByProfessional(/profissional 1/i).first()
+      const firstSlot = booking.slotByMemberOperation(/profissional 1/i).first()
       await firstSlot.click()
 
       // Step 3: confirm form pre-filled with service/pro/start.
@@ -96,7 +96,7 @@ test.describe('Wizard de auto-agendamento (#844)', () => {
       publicVisible: true,
       unitIds: [org.unitIds[0]!],
     })
-    await linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
+    await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
     await page.goto(`/${slug}/unidade-1/book?service=${serviceId}`)
     await expect(page).toHaveURL(new RegExp(`/${slug}/unidade-1/availability\\?service=`))

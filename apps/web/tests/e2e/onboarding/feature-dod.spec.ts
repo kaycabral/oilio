@@ -17,12 +17,12 @@
 import { expect, test } from '../fixtures'
 import { checkStable, fillStable } from '../helpers/hydration'
 import { listItem } from '../helpers/list'
-import { linkProfessionalToServices, seedService } from '../helpers/session'
+import { linkMemberOperationToServices, seedService } from '../helpers/session'
 import { PublicBookingPage, orgSlug } from '../pages'
 
 // Toda rota interna autenticada — o org vazio tem que alcançar todas sem
 // nenhum gate de onboarding bouncear (o wizard foi deletado no #1028).
-// `/professionals` removida (brief 0037 #1085) — gestão de gente vive em `/team`.
+// `/memberOperations` removida (brief 0037 #1085) — gestão de gente vive em `/team`.
 // `/agenda` está fora: o app é multi-vertical e a Agenda é escondida/
 // redirecionada quando nenhuma unidade usa o modo de horários por agendamento.
 // O org vazio (sem unidade) não tem unidade de agendamento, então `/agenda`
@@ -43,7 +43,7 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
   // ainda sem gate de setup → Cenários 1 e 2. O caso de ZERO unidade (sem gate,
   // empty-state em /organizations) é coberto por units/no-units-navigable.spec.ts.
   test.describe('org mínimo (1ª unidade criada, sem mais cadastros)', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 0 } })
 
     test('Cenário 1: app operável sem gate global de setup', async ({ authedPage }) => {
       for (const route of INTERNAL_ROUTES) {
@@ -101,7 +101,7 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
   // O card por-unidade (UnitPublishCard) é só FEEDBACK do que falta.
   test.describe('org incompleto (não publicável)', () => {
     test.use({
-      orgInput: { hasBusinessHours: false, professionalCount: 0 },
+      orgInput: { hasBusinessHours: false, memberOperationCount: 0 },
     })
 
     test('Cenário 3: unidade fica fora do público até atender o mínimo (sem horário → 404)', async ({
@@ -136,8 +136,8 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
       orgInput: {
         hasBusinessHours: false,
         unitCount: 1,
-        professionalCount: 1,
-        professionalOperationalStatus: 'operational',
+        memberOperationCount: 1,
+        memberOperationOperationalStatus: 'operational',
       },
     })
 
@@ -156,7 +156,7 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
         publicVisible: true,
         unitIds: [unitId],
       })
-      await linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
+      await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
       // Antes: unidade sem horário não é bookable → página pública não resolve.
       const before = await page.goto(`/${slug}/unidade-1`)

@@ -29,7 +29,7 @@ export const RESERVED_SLUGS = new Set<string>([
   'plans',
   'pricing',
   'products',
-  'professionals',
+  'member_operations',
   'public',
   'receivables',
   'services',

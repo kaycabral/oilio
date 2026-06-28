@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 
-import { CommissionRule } from './professional'
+import { CommissionRule } from './member-operation'
 
 export const ORDER_STATUSES = ['open', 'closed', 'cancelled'] as const
 export const OrderStatus = Schema.Literal(...ORDER_STATUSES)
@@ -48,7 +48,7 @@ export const OrderItem = Schema.mutable(
     // do org); serviços geralmente têm. `null` = sem comissão pra este item.
     commission: Schema.NullOr(CommissionRule),
     // Membro a quem o item é atribuído (brief 0030, AC-04). Guarda o `userId`
-    // GLOBAL do membro — NÃO o doc id de `Professional` (que a recepção não tem)
+    // GLOBAL do membro — NÃO o doc id de `MemberOperation` (que a recepção não tem)
     // nem o id da membership. A membership é derivável do path (`{tid}_{userId}`
     // via `membershipDocId`). Obrigatório, com default esperto (serviço de
     // agendamento → userId do profissional do appointment; produto/avulsa →

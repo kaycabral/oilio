@@ -142,8 +142,8 @@ test.describe('Units — baseline (#17)', () => {
   })
 
   // One verb "Excluir" (brief 0033, AC-03 — #1070). The UI shows only "Excluir"
-  // (no separate "Arquivar"). A unit an active professional references (the seed
-  // links the default professional to "Unidade 1") soft-deletes via the single
+  // (no separate "Arquivar"). A unit an active memberOperation references (the seed
+  // links the default memberOperation to "Unidade 1") soft-deletes via the single
   // "Excluir": drops from the active list while history is preserved. The dialog
   // warns up front.
   test('em uso: 1 verbo "Excluir" vira soft-delete (some da ativa)', async ({ authedPage }) => {

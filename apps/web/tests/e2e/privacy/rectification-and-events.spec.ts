@@ -32,7 +32,7 @@ test.describe('self-service rectification + pii_* events', () => {
   test('editing own profile reflects live across screens and emits a PII-free pii_rectified', async ({
     context,
   }) => {
-    const owner = await seedOrg({ professionalCount: 0 })
+    const owner = await seedOrg({ memberOperationCount: 0 })
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()
 
@@ -70,7 +70,7 @@ test.describe('self-service rectification + pii_* events', () => {
   })
 
   test('erasure emits PII-free pii_erasure_requested + pii_anonymized', async ({ context }) => {
-    const owner = await seedOrg({ professionalCount: 0 })
+    const owner = await seedOrg({ memberOperationCount: 0 })
     const originalEmail = owner.email
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()

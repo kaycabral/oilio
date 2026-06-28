@@ -5,9 +5,9 @@
 // page; if a org's stored template is empty/missing, these defaults render.
 export const DEFAULT_WHATSAPP_TEMPLATES = {
   confirmation:
-    'Olá {customerName}! Confirmando seu agendamento em {businessName}: {serviceName} com {professionalName} em {date} às {time}. Qualquer dúvida, é só responder por aqui.',
+    'Olá {customerName}! Confirmando seu agendamento em {businessName}: {serviceName} com {memberOperationName} em {date} às {time}. Qualquer dúvida, é só responder por aqui.',
   reminder:
-    'Oi {customerName}! Lembrete do seu agendamento amanhã ({date}) às {time} — {serviceName} com {professionalName} em {businessName}. Até lá!',
+    'Oi {customerName}! Lembrete do seu agendamento amanhã ({date}) às {time} — {serviceName} com {memberOperationName} em {businessName}. Até lá!',
   cancellation:
     'Olá {customerName}, infelizmente precisamos cancelar seu agendamento de {serviceName} em {date} às {time}. Vamos remarcar?',
 } as const
@@ -24,7 +24,7 @@ export type WhatsappTemplateVars = {
   customerName?: string
   businessName?: string
   serviceName?: string
-  professionalName?: string
+  memberOperationName?: string
   date?: string
   time?: string
 }

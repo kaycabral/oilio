@@ -29,7 +29,7 @@ test.describe('CUSTOMER self-service discovery + erasure', () => {
     context,
   }) => {
     // Owner of their own org but a customer of NONE — no org_links seeded.
-    const owner = await seedOrg({ professionalCount: 0 })
+    const owner = await seedOrg({ memberOperationCount: 0 })
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()
 
@@ -50,8 +50,8 @@ test.describe('CUSTOMER self-service discovery + erasure', () => {
     // Org A owned by the subject (gives them the org context the (app)
     // layout requires) + org B owned by someone else. The SAME subject uid is
     // a CUSTOMER of both, recorded in their reverse index.
-    const subject = await seedOrg({ professionalCount: 0 })
-    const ownerB = await seedOrg({ professionalCount: 0 })
+    const subject = await seedOrg({ memberOperationCount: 0 })
+    const ownerB = await seedOrg({ memberOperationCount: 0 })
 
     const custA = await seedCustomerShadowForUser(subject.orgId, subject.uid)
     await seedCustomerShadowForUser(ownerB.orgId, subject.uid)
@@ -105,7 +105,7 @@ test.describe('CUSTOMER self-service discovery + erasure', () => {
   test('erasing the whole account anonymizes the global doc + cancels the active subscription, with the warning shown', async ({
     context,
   }) => {
-    const subject = await seedOrg({ professionalCount: 0 })
+    const subject = await seedOrg({ memberOperationCount: 0 })
     const custId = await seedCustomerShadowForUser(subject.orgId, subject.uid)
     await seedOrgLink(subject.uid, subject.orgId)
     await seedSubscription(subject.orgId, custId, { status: 'active' })

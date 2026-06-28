@@ -275,7 +275,7 @@ export function buildAgendaBlockOneOff(args: {
     id: args.id,
     orgId: args.orgId,
     unitId: args.unitId,
-    professionalId: null,
+    memberOperationId: null,
     reason: 'Bloqueio',
     kind: 'one_off',
     weekday: null,
@@ -305,7 +305,7 @@ export function buildAgendaBlockRecurring(args: {
     id: args.id,
     orgId: args.orgId,
     unitId: args.unitId,
-    professionalId: null,
+    memberOperationId: null,
     reason: 'Almoço',
     kind: 'recurring',
     weekday: args.weekday,
@@ -321,8 +321,8 @@ export function buildAgendaBlockRecurring(args: {
 
 // Order line item (snapshot-on-use): captures the catalog item's price +
 // commission rule at the moment of sale, so a later catalog edit never retroacts.
-// `attributedUserId` is the commission beneficiary (the service's professional,
-// or the member who rang up a product) — a global userId, not a professional id.
+// `attributedUserId` is the commission beneficiary (the service's memberOperation,
+// or the member who rang up a product) — a global userId, not a memberOperation id.
 export function buildOrderItem(
   id: string,
   attributedUserId: string,

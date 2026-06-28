@@ -31,11 +31,14 @@ export { UnitConfig } from './unit/config'
 export type { UnitEvent } from './unit/events'
 export type { UnitState } from './unit/types'
 
-// Professional
-export { ProfessionalConfig } from './professional/config'
-export { deriveOperationalStatus, type OperationalInputs } from './professional/derive-operational'
-export type { ProfessionalEvent } from './professional/events'
-export type { ProfessionalState } from './professional/types'
+// MemberOperation
+export { MemberOperationConfig } from './member-operation/config'
+export {
+  deriveOperationalStatus,
+  type OperationalInputs,
+} from './member-operation/derive-operational'
+export type { MemberOperationEvent } from './member-operation/events'
+export type { MemberOperationState } from './member-operation/types'
 
 // Customer
 export { CustomerConfig } from './customer/config'

@@ -48,7 +48,7 @@ async function seedOrg(orgId: string): Promise<void> {
 }
 
 // Parent rows the new D2/0068 cross-aggregate FKs require: subscriptions.unit_id
-// → units (the seed uses 'unit-a'); appointments reference unit 'u1', professional
+// → units (the seed uses 'unit-a'); appointments reference unit 'u1', memberOperation
 // 'p1' and service 's1'. Seeded over the superuser pool in beforeEach.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
@@ -59,18 +59,18 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
   )
 }
 
-async function seedProfessional(orgId: string, professionalId: string): Promise<void> {
+async function seedMemberOperation(orgId: string, memberOperationId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'professional','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
+     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'member_operator','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
-    [orgId, professionalId],
+    [orgId, memberOperationId],
   )
   await getEventStorePool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+    `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
-    [orgId, professionalId],
+    [orgId, memberOperationId],
   )
 }
 
@@ -123,7 +123,7 @@ async function seedAppointment(
   const startMs = new Date(appt.startAt).getTime()
   const endAt = new Date(startMs + 30 * 60_000).toISOString()
   await getEventStorePool().query(
-    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, professional_id, customer_id, service_id, customer_user_id, professional_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
+    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id, customer_user_id, member_operator_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
      VALUES ($1,$2,'u1',1,'p1',$3,'s1',$4,NULL,$5,$6,'scheduled',5000,30,NULL,NULL,NULL,$7,$7)`,
     [orgId, appt.id, appt.customerId, CUSTOMER_USER_ID, appt.startAt, endAt, now],
   )
@@ -134,13 +134,13 @@ describe('enforceSubscriptionScope — Postgres', () => {
 
   beforeEach(async () => {
     await getEventStorePool().query(
-      'TRUNCATE appointments, subscriptions, customers, catalog_items, professionals, units, orgs CASCADE',
+      'TRUNCATE appointments, subscriptions, customers, catalog_items, member_operations, units, orgs CASCADE',
     )
     orgId = uniqueOrgId('scope')
     await seedOrg(orgId)
     await seedUnit(orgId, 'unit-a')
     await seedUnit(orgId, 'u1')
-    await seedProfessional(orgId, 'p1')
+    await seedMemberOperation(orgId, 'p1')
     await seedService(orgId, 's1')
   })
 

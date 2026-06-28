@@ -137,7 +137,7 @@ describe('ROLE_SUBJECT_NOUN', () => {
     expect(ROLE_SUBJECT_NOUN).toEqual({
       owner: 'Dono',
       manager: 'Gerente',
-      professional: 'Profissional',
+      member_operator: 'Profissional',
       receptionist: 'Recepção',
     })
   })

@@ -78,7 +78,7 @@ export type OrgMember = {
  * Membros operáveis de um org (brief 0030, AC-04): memberships ativas com
  * papel operacional (exclui `customer`), enriquecidas com o displayName LIVE do
  * `users/`. É a fonte do controle de atribuição por membro — qualquer membro
- * (recepção inclusa), não só Professional. Ordenado por nome. Sem cross-org
+ * (recepção inclusa), não só MemberOperation. Ordenado por nome. Sem cross-org
  * query: filtra por `orgId` na coleção top-level `memberships`.
  */
 // Active memberships of an org — reads the typed table under RLS (scoped to
@@ -120,7 +120,7 @@ export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
       // `‹Role› ‹CODE›` keyed by the member's role (Profissional / Recepção …).
       //
       // The CUSTOMER per-org block (#1096/#1100) is NOT applied here: members
-      // are the professional/employment relationship (brief 0032 re-scope 04/06),
+      // are the memberOperation/employment relationship (brief 0032 re-scope 04/06),
       // retained IDENTIFIABLE (art. 16). A person blocked as a customer in this
       // org still shows their real name on the team/commissions surfaces.
       const resolved = resolveSubjectName(
@@ -140,11 +140,11 @@ export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
 
 // The user ids whose membership is CURRENTLY active AND carries the `canBeBooked`
 // capability — the set that legitimately appears on operational surfaces (the
-// agenda) right now. This replaces the old `role = 'professional'` axis with the
+// agenda) right now. This replaces the old `role = 'member_operator'` axis with the
 // capability (brief 0076 AC-01/AC-03): "bookable" is read from the membership's
-// `permissions.canBeBooked`, NOT from a class of person — so a non-professional
-// member with `canBeBooked` toggled on appears, and a professional with it off
-// (soft-disabled) drops, with no special-casing. The projection (`professionals`)
+// `permissions.canBeBooked`, NOT from a class of person — so a non-memberOperation
+// member with `canBeBooked` toggled on appears, and a memberOperation with it off
+// (soft-disabled) drops, with no special-casing. The projection (`memberOperations`)
 // can still diverge from the capability (a row can outlive a toggle), so the
 // agenda read cross-checks the projection against THIS set. Keyed on CURRENT
 // state — never history. Reads the typed table under RLS; the capability lives in
@@ -272,7 +272,7 @@ export async function requireManagerPage(notManagerTo: Route = '/agenda'): Promi
  * PAGE guard for routes gated on a membership CAPABILITY (brief 0075) — the
  * server-side wall behind the nav `requires: '<capability>'` gate. Resolves the
  * org context and REDIRECTS when the visitor's membership lacks `capability`, so
- * a self-scoped professional can't reach Clientes/Catálogo/Planos/Assinaturas by
+ * a self-scoped memberOperation can't reach Clientes/Catálogo/Planos/Assinaturas by
  * typing the URL. Mirrors `requireManagerPage`, but keyed on the capability
  * matrix instead of `canManageOrg` — same one-liner usage in a loader.
  */
@@ -350,12 +350,12 @@ export async function guardCapability(capability: MembershipCapability): Promise
 
 /**
  * Distinguishes the **balcão** (owner/manager/recepção — operates the front desk
- * for everyone) from a **self-scoped professional** (acts only on their own
+ * for everyone) from a **self-scoped memberOperation** (acts only on their own
  * work). Brief 0075 model: recepção is the operational superset of a
- * professional. The marker is `canManageCustomers` — held by owner/manager/
- * recepção, never by a professional (whose matrix keeps every `canManage*`
+ * memberOperation. The marker is `canManageCustomers` — held by owner/manager/
+ * recepção, never by a memberOperation (whose matrix keeps every `canManage*`
  * false). A member who can manage the org's customers runs the counter; a member
- * who cannot is a professional bound to their own resources.
+ * who cannot is a memberOperation bound to their own resources.
  */
 export function operatesFrontDesk(membership: Membership): boolean {
   return canManageOrg(membership.role) || hasMembershipCapability(membership, 'canManageCustomers')
@@ -364,7 +364,7 @@ export function operatesFrontDesk(membership: Membership): boolean {
 /**
  * Own-resource authorization (brief 0075, AC-03/AC-04). The balcão
  * (`operatesFrontDesk`) acts on ANY resource; everyone else (a self-scoped
- * professional) acts only on a resource they own
+ * memberOperation) acts only on a resource they own
  * (`resourceOwnerUserId === membership.userId`). Defense-in-depth over the RLS
  * own-scope: the server action refuses a cross-owner write even before the
  * database policy would.

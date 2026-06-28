@@ -15,7 +15,7 @@
 //     nunca cópia do valor.
 //
 // Refs NÃO são PII e são esperadas: `*Id`/`*UserId` (`attributedUserId`,
-// `customerId`, `professionalId`, `userId`) são FKs opacos — o padrão CORRETO.
+// `customerId`, `memberOperationId`, `userId`) são FKs opacos — o padrão CORRETO.
 // O denylist mira VALORES de PII copiados num payload/snapshot, não ids.
 //
 // Pega o caso do futuro: um dev que adicione `name`/`whatsapp`/`email`/`cpf`/...
@@ -34,11 +34,11 @@ import { INITIAL_CHARGE_STATE } from './charge/types'
 import { INITIAL_COMMISSION_STATE } from './commission/types'
 import { INITIAL_CUSTOMER_STATE } from './customer/types'
 import { INITIAL_INVITE_STATE } from './invite/types'
+import { INITIAL_MEMBER_OPERATION_STATE } from './member-operation/types'
 import { INITIAL_MEMBERSHIP_STATE } from './membership/types'
 import { INITIAL_NOTIFICATION_STATE } from './notification/types'
 import { INITIAL_ORDER_STATE } from './order/types'
 import { INITIAL_ORG_STATE } from './org/types'
-import { INITIAL_PROFESSIONAL_STATE } from './professional/types'
 import { INITIAL_SUBSCRIPTION_PLAN_STATE } from './subscription-plan/types'
 import { INITIAL_SUBSCRIPTION_STATE } from './subscription/types'
 import { INITIAL_UNIT_STATE } from './unit/types'
@@ -77,7 +77,7 @@ const SNAPSHOTS: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
   ['catalog-item', INITIAL_CATALOG_ITEM_STATE],
   ['category', INITIAL_CATEGORY_STATE],
   ['subscription-plan', INITIAL_SUBSCRIPTION_PLAN_STATE],
-  ['professional', INITIAL_PROFESSIONAL_STATE],
+  ['member_operator', INITIAL_MEMBER_OPERATION_STATE],
   ['unit', INITIAL_UNIT_STATE],
   ['org', INITIAL_ORG_STATE],
   ['customer', INITIAL_CUSTOMER_STATE],

@@ -26,7 +26,7 @@ async function fillBookingForm(ctx: BrowserContext, slug: string, startAtLocal: 
 }
 
 test.describe('Landing pública — anti-duplo-agendamento', { tag: '@critical' }, () => {
-  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
   // Contexts created by the concurrent-booking test, torn down after each test
   // (replaces an in-test try/finally, which the lint bans as conditional-in-test).

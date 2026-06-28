@@ -69,9 +69,9 @@ test.describe('Org sem unidades — app navegável (regressão)', { tag: '@criti
     // Zero ACTIVE units: the org's only unit is seeded already-archived (post-
     // cutover there is no in-place archive PATCH; `seedUnit({ archivedAt })`
     // reproduces the SAME resolved state the reported flow ended in — a unit
-    // referenced by data that is no longer active). A professional with no unit
+    // referenced by data that is no longer active). A memberOperation with no unit
     // link is enough for the appointment FK resolution.
-    test.use({ orgInput: { unitCount: 0, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 0, memberOperationCount: 1 } })
 
     test('agenda/orders/dashboard não crasham após arquivar a única unidade', async ({
       org,
@@ -84,7 +84,7 @@ test.describe('Org sem unidades — app navegável (regressão)', { tag: '@criti
       await seedAppointment({
         orgId: org.orgId,
         unitId,
-        professionalId: org.professionalIds[0]!,
+        memberOperationId: org.memberOperationIds[0]!,
         customerId,
         serviceId: 'e2e-svc',
         startAt: start,

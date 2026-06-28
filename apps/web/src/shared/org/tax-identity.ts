@@ -7,7 +7,7 @@ import {
 import { formString } from '@/shared/form-data'
 
 // Parse the shared tax-identity fields (`taxKind` / `taxId` / `legalName`) used
-// by both the company form and the professional form. Single source so the
+// by both the company form and the memberOperation form. Single source so the
 // CPF/CNPJ rules can't drift between the two. Returns the identity, `null` (no
 // tax kind selected), or an error message.
 export function parseTaxIdentityFromForm(formData: FormData): TaxIdentity | null | string {

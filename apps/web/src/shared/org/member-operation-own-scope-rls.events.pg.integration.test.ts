@@ -3,16 +3,16 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../db/pg/pool'
 
 /**
- * Professional own-scope RLS proof (brief 0075, #1256) against REAL Postgres.
- * Migration 0005 adds an `app.current_professional` predicate to the
+ * MemberOperation own-scope RLS proof (brief 0075, #1256) against REAL Postgres.
+ * Migration 0005 adds an `app.current_member_operation` predicate to the
  * `appointments` and `agenda_blocks` policies: PERMISSIVE when the GUC is
  * unset/empty (the balcão — owner/manager/recepção), RESTRICTIVE to the acting
- * professional's own rows when set. This proves the DATABASE refuses
- * cross-professional read AND write — a self-scoped professional can never reach
+ * memberOperation's own rows when set. This proves the DATABASE refuses
+ * cross-memberOperation read AND write — a self-scoped memberOperation can never reach
  * a colleague's appointment.
  *
  * Proven through a NON-superuser role (`oilio_prof_app`, NOBYPASSRLS — the
- * production runtime shape) with `app.current_org` + `app.current_professional`
+ * production runtime shape) with `app.current_org` + `app.current_member_operation`
  * set per connection. The ephemeral Postgres connects as superuser (RLS bypass),
  * so a proof over the superuser pool would be vacuous. Seeding happens over the
  * superuser pool so fixtures exist regardless of policy.
@@ -48,15 +48,15 @@ async function seedUnit(): Promise<void> {
   )
 }
 
-async function seedProfessional(id: string): Promise<void> {
+async function seedMemberOperation(id: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'professional','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
+     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'member_operator','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
   )
   await getEventStorePool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+    `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
@@ -82,43 +82,46 @@ async function seedService(): Promise<void> {
   )
 }
 
-// One minimal valid appointment owned by `professionalId`, over the superuser
+// One minimal valid appointment owned by `memberOperationId`, over the superuser
 // pool (bypasses RLS). Satisfies the NOT NULL + FK columns.
-async function seedAppointment(id: string, professionalId: string): Promise<void> {
+async function seedAppointment(id: string, memberOperationId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO appointments (
-       org_id, id, unit_id, last_event_version, professional_id, customer_id, service_id,
-       customer_user_id, professional_user_id, start_at, end_at, status,
+       org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id,
+       customer_user_id, member_operator_user_id, start_at, end_at, status,
        service_price_cents_snapshot, service_duration_minutes_snapshot,
        commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
      VALUES ($1,$2,$3,1,$4,$5,'svc-1','cuser-1','puser-1',
        '2026-06-10T12:00:00Z','2026-06-10T12:30:00Z','scheduled',
        5000,30,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [ORG, id, UNIT, professionalId, CUSTOMER],
+    [ORG, id, UNIT, memberOperationId, CUSTOMER],
   )
 }
 
-// One agenda block; `professionalId` null = unit-wide (owned by no one).
-async function seedBlock(id: string, professionalId: string | null): Promise<void> {
+// One agenda block; `memberOperationId` null = unit-wide (owned by no one).
+async function seedBlock(id: string, memberOperationId: string | null): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, professional_id, block, created_at, updated_at)
+    `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, member_operation_id, block, created_at, updated_at)
      VALUES ($1,$2,$3,1,'recurring',$4,'{"reason":"r"}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-    [ORG, id, UNIT, professionalId],
+    [ORG, id, UNIT, memberOperationId],
   )
 }
 
 // A fresh connection AS the non-superuser app role, with org + (optional)
-// professional GUCs set. Empty professional = balcão (org/unit-wide).
-async function appClient(professionalId = ''): Promise<Client> {
+// memberOperation GUCs set. Empty memberOperation = balcão (org/unit-wide).
+async function appClient(memberOperationId = ''): Promise<Client> {
   const c = new Client({ connectionString: appUrl })
   await c.connect()
   await c.query('SELECT set_config($1, $2, false)', ['app.current_org', ORG])
   await c.query('SELECT set_config($1, $2, false)', ['app.current_unit', UNIT])
-  await c.query('SELECT set_config($1, $2, false)', ['app.current_professional', professionalId])
+  await c.query('SELECT set_config($1, $2, false)', [
+    'app.current_member_operation',
+    memberOperationId,
+  ])
   return c
 }
 
-describe('Postgres RLS — professional own-scope on appointments/agenda_blocks (brief 0075)', () => {
+describe('Postgres RLS — memberOperation own-scope on appointments/agenda_blocks (brief 0075)', () => {
   beforeAll(async () => {
     const pool = getEventStorePool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
@@ -135,13 +138,13 @@ describe('Postgres RLS — professional own-scope on appointments/agenda_blocks 
   beforeEach(async () => {
     const pool = getEventStorePool()
     // One CASCADE truncate from the roots: appointments/agenda_blocks are FK
-    // children of units/professionals/customers, so truncating the parents with
+    // children of units/memberOperations/customers, so truncating the parents with
     // CASCADE clears the children too (a separate child truncate hits the FK).
-    await pool.query('TRUNCATE orgs, units, professionals, customers, catalog_items CASCADE')
+    await pool.query('TRUNCATE orgs, units, member_operations, customers, catalog_items CASCADE')
     await seedOrg()
     await seedUnit()
-    await seedProfessional(PRO_A)
-    await seedProfessional(PRO_B)
+    await seedMemberOperation(PRO_A)
+    await seedMemberOperation(PRO_B)
     await seedCustomer()
     await seedService()
   })
@@ -153,7 +156,7 @@ describe('Postgres RLS — professional own-scope on appointments/agenda_blocks 
     await closeEventStoreDb()
   })
 
-  it('a professional reads ONLY their own appointments — never a colleague’s', async () => {
+  it('a memberOperation reads ONLY their own appointments — never a colleague’s', async () => {
     await seedAppointment('apt-a', PRO_A)
     await seedAppointment('apt-b', PRO_B)
 
@@ -166,7 +169,7 @@ describe('Postgres RLS — professional own-scope on appointments/agenda_blocks 
     }
   })
 
-  it('the balcão (empty professional GUC) reads every appointment in the unit', async () => {
+  it('the balcão (empty memberOperation GUC) reads every appointment in the unit', async () => {
     await seedAppointment('apt-a', PRO_A)
     await seedAppointment('apt-b', PRO_B)
 
@@ -179,14 +182,14 @@ describe('Postgres RLS — professional own-scope on appointments/agenda_blocks 
     }
   })
 
-  it('a professional CANNOT insert an appointment for another professional (WITH CHECK)', async () => {
+  it('a memberOperation CANNOT insert an appointment for another memberOperation (WITH CHECK)', async () => {
     const a = await appClient(PRO_A)
     try {
       await expect(
         a.query(
           `INSERT INTO appointments (
-             org_id, id, unit_id, last_event_version, professional_id, customer_id, service_id,
-             customer_user_id, professional_user_id, start_at, end_at, status,
+             org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id,
+             customer_user_id, member_operator_user_id, start_at, end_at, status,
              service_price_cents_snapshot, service_duration_minutes_snapshot,
              commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
            VALUES ($1,'apt-x',$2,1,$3,$4,'svc-1','cuser-1','puser-1',
@@ -201,13 +204,13 @@ describe('Postgres RLS — professional own-scope on appointments/agenda_blocks 
     }
   })
 
-  it('a professional CANNOT update a colleague’s appointment (zero rows affected — invisible)', async () => {
+  it('a memberOperation CANNOT update a colleague’s appointment (zero rows affected — invisible)', async () => {
     await seedAppointment('apt-b', PRO_B)
 
     const a = await appClient(PRO_A)
     try {
       // The colleague's row is invisible under the USING predicate, so the UPDATE
-      // matches nothing — a professional cannot cancel/reschedule another's.
+      // matches nothing — a memberOperation cannot cancel/reschedule another's.
       const res = await a.query(`UPDATE appointments SET status = 'canceled' WHERE id = 'apt-b'`)
       expect(res.rowCount).toBe(0)
     } finally {
@@ -215,7 +218,7 @@ describe('Postgres RLS — professional own-scope on appointments/agenda_blocks 
     }
   })
 
-  it('a professional sees their own blocks AND unit-wide (NULL) blocks, but not a colleague’s', async () => {
+  it('a memberOperation sees their own blocks AND unit-wide (NULL) blocks, but not a colleague’s', async () => {
     await seedBlock('blk-a', PRO_A)
     await seedBlock('blk-b', PRO_B)
     await seedBlock('blk-unit', null)

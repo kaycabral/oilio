@@ -73,7 +73,7 @@ describe('summarizeCommissionsByMember', () => {
   it('agrupa comissão de membro não-profissional (recepção) por userId', () => {
     const rows = summarizeCommissionsByMember([
       // Produto vendido pela recepção — chaveado pelo userId do membro, não por
-      // um doc id de Professional.
+      // um doc id de MemberOperation.
       commission({
         attributedUserId: 'reception-user',
         itemKind: 'product',
@@ -133,7 +133,7 @@ describe('summarizeCoveredAttendances', () => {
         orderItem({ coverage: 'subscription', unitPriceCents: 3000, quantity: 2 }),
       ]),
     ])
-    const p1 = report.byProfessional.find((r) => r.professionalId === 'p1')!
+    const p1 = report.byMemberOperation.find((r) => r.memberOperationId === 'p1')!
     expect(p1.count).toBe(2)
     // 5000*1 + 3000*2 = 11000
     expect(p1.catalogValueCents).toBe(11000)
@@ -154,7 +154,7 @@ describe('summarizeCoveredAttendances', () => {
     ])
     expect(report.totalCount).toBe(0)
     expect(report.totalCatalogValueCents).toBe(0)
-    expect(report.byProfessional).toEqual([])
+    expect(report.byMemberOperation).toEqual([])
   })
 
   it('agrupa cobertos por profissional executor', () => {
@@ -164,19 +164,19 @@ describe('summarizeCoveredAttendances', () => {
         orderItem({ attributedUserId: 'p2', coverage: 'subscription', unitPriceCents: 7000 }),
       ]),
     ])
-    expect(report.byProfessional).toHaveLength(2)
-    expect(report.byProfessional.find((r) => r.professionalId === 'p1')!.catalogValueCents).toBe(
-      5000,
-    )
-    expect(report.byProfessional.find((r) => r.professionalId === 'p2')!.catalogValueCents).toBe(
-      7000,
-    )
+    expect(report.byMemberOperation).toHaveLength(2)
+    expect(
+      report.byMemberOperation.find((r) => r.memberOperationId === 'p1')!.catalogValueCents,
+    ).toBe(5000)
+    expect(
+      report.byMemberOperation.find((r) => r.memberOperationId === 'p2')!.catalogValueCents,
+    ).toBe(7000)
   })
 
   it('vazio retorna zeros', () => {
     const report = summarizeCoveredAttendances([])
     expect(report.totalCount).toBe(0)
     expect(report.totalCatalogValueCents).toBe(0)
-    expect(report.byProfessional).toEqual([])
+    expect(report.byMemberOperation).toEqual([])
   })
 })

@@ -60,8 +60,8 @@ export function shapeCommissionsSection(input: ShapeCommissionsInput): Commissio
 
   const coveredReport = summarizeCoveredAttendances(unitScopedClosedOrders)
   const coveredByMember = memberFilter
-    ? coveredReport.byProfessional.filter((r) => r.professionalId === memberFilter)
-    : coveredReport.byProfessional
+    ? coveredReport.byMemberOperation.filter((r) => r.memberOperationId === memberFilter)
+    : coveredReport.byMemberOperation
 
   const summary = summarizeCommissions(scopedCommissions)
   const byMember = summarizeCommissionsByMember(scopedCommissions)

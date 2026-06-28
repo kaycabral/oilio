@@ -24,8 +24,8 @@ import { redirect } from 'next/navigation'
 import { emitEvent, emitEventGuarded } from '@/shared/effect-bridge'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { getAppointmentById } from '@/shared/org/appointment-read'
+import { getMemberOperationById } from '@/shared/org/member-operation-read'
 import { canActOnOwnedResource, requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
-import { getProfessionalById } from '@/shared/org/professional-read'
 
 import type { OrderMutationResult } from '@/features/orders/core/order-results'
 import { findOpenOrderIdForAppointment } from './order-financial-read'
@@ -46,10 +46,10 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
   const appointment = await getAppointmentById(orgId, appointmentId)
   if (!appointment) return { ok: false, error: 'Agendamento não encontrado' }
 
-  // Own-resource (brief 0075, #1257): a self-scoped professional only starts the
+  // Own-resource (brief 0075, #1257): a self-scoped memberOperation only starts the
   // attendance of THEIR OWN appointment; the balcão (owner/manager/recepção)
   // starts any. Mirrors the agenda actions' own-resource wall.
-  if (!canActOnOwnedResource(r.ctx.membership, appointment.professionalUserId ?? '')) {
+  if (!canActOnOwnedResource(r.ctx.membership, appointment.memberOperatorUserId ?? '')) {
     return { ok: false, error: 'Você só pode iniciar os próprios atendimentos' }
   }
 
@@ -70,14 +70,14 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
     return { ok: true, orderId: existingOrderId }
   }
 
-  const [service, professional] = await Promise.all([
+  const [service, memberOperation] = await Promise.all([
     getCatalogItemById(orgId, appointment.serviceId),
-    getProfessionalById(orgId, appointment.professionalId),
+    getMemberOperationById(orgId, appointment.memberOperationId),
   ])
   // Unified catalog read (brief 0023, #1004). Only id/name are pulled live —
   // the financial snapshot comes from the appointment, not the live item.
   if (!service) return { ok: false, error: 'Serviço do agendamento não encontrado' }
-  if (!professional) return { ok: false, error: 'Profissional do agendamento não encontrado' }
+  if (!memberOperation) return { ok: false, error: 'Profissional do agendamento não encontrado' }
 
   // Snapshot-first: order inicial herda os valores que o appointment
   // gravou no commit (#875), não os live de Service. Owner mexer no
@@ -91,8 +91,8 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
     unitPriceCents: appointment.servicePriceCentsSnapshot,
     commission: appointment.commissionSnapshot,
     // Atribuição por membro (brief 0030, AC-04): serviço de agendamento default
-    // ao `userId` do profissional do appointment — NÃO o doc id de Professional.
-    attributedUserId: professional.userId,
+    // ao `userId` do profissional do appointment — NÃO o doc id de MemberOperation.
+    attributedUserId: memberOperation.userId,
   }
   const totals = computeOrderTotals([initialItem], 0)
 
@@ -191,7 +191,7 @@ export async function addItemToOrder(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): a self-scoped professional can only edit a
+  // Own-resource (brief 0075, #1257): a self-scoped memberOperation can only edit a
   // comanda whose items are all theirs — never a colleague's.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
@@ -254,7 +254,7 @@ export async function removeItemFromOrder(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): only the order's own professional (or the
+  // Own-resource (brief 0075, #1257): only the order's own memberOperation (or the
   // balcão) may remove items — never a colleague's comanda.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
@@ -284,7 +284,7 @@ export async function removeItemFromOrder(
 }
 
 // Re-atribui um item a outro membro (brief 0030, AC-04). `attributedUserId` é o
-// `userId` global do membro (não doc id de Professional). Valida que o membro
+// `userId` global do membro (não doc id de MemberOperation). Valida que o membro
 // pode operar (AC-05) com a trava por `kind` do item, e emite o evento renomeado
 // `order.item_attribution_changed` carregando o patch recalculado.
 export async function updateItemAttribution(
@@ -300,9 +300,9 @@ export async function updateItemAttribution(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): a self-scoped professional cannot
+  // Own-resource (brief 0075, #1257): a self-scoped memberOperation cannot
   // re-attribute a colleague's item (and cannot pull a colleague's item onto
-  // themselves) — only the order's own professional or the balcão may.
+  // themselves) — only the order's own memberOperation or the balcão may.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
 
@@ -343,7 +343,7 @@ export async function updateItemCoverage(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): only the order's own professional (or the
+  // Own-resource (brief 0075, #1257): only the order's own memberOperation (or the
   // balcão) may flip an item's coverage — never a colleague's comanda.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
@@ -389,8 +389,8 @@ export async function updateOrderMeta(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): a self-scoped professional can't apply a
-  // discount to a colleague's comanda — only its own professional or the balcão.
+  // Own-resource (brief 0075, #1257): a self-scoped memberOperation can't apply a
+  // discount to a colleague's comanda — only its own memberOperation or the balcão.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
 

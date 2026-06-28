@@ -8,14 +8,20 @@ import { toOrgTime } from './timezone'
 // A resolved block segment, in minutes since 00:00 local on the target day.
 export type BlockSegment = {
   blockId: string
-  professionalId: string | null
+  memberOperationId: string | null
   reason: string
   startMin: number
   endMin: number
 }
 
 function segmentOf(b: AgendaBlock, startMin: number, endMin: number): BlockSegment {
-  return { blockId: b.id, professionalId: b.professionalId, reason: b.reason, startMin, endMin }
+  return {
+    blockId: b.id,
+    memberOperationId: b.memberOperationId,
+    reason: b.reason,
+    startMin,
+    endMin,
+  }
 }
 
 // Recurring block: emits a segment when its weekday matches the target day.

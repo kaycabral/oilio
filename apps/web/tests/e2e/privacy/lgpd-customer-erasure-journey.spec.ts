@@ -113,7 +113,7 @@ test.describe(
     test('Cenário 1: self-service account erasure anonymizes the global account irreversibly; records keep the userId pointer', async ({
       context,
     }) => {
-      const subject = await seedOrg({ professionalCount: 0 })
+      const subject = await seedOrg({ memberOperationCount: 0 })
       // A record that references the subject by userId — must survive (AC-04).
       // Use the shadow-only seed: `seedCustomer` would clobber the owner's global
       // user doc (resetting completionCompleted), breaking the authed surfaces.
@@ -160,7 +160,7 @@ test.describe(
     test('Cenário 2: anonymized customer renders the neutral `Cliente ‹CÓDIGO›` label, values intact, no "removido"', async ({
       context,
     }) => {
-      const owner = await seedOrg({ professionalCount: 0 })
+      const owner = await seedOrg({ memberOperationCount: 0 })
       const anonUser = `e2e-cust-c2-${Date.now()}`
       const liveUser = `e2e-cust-c2-live-${Date.now()}`
       await seedCustomer(owner.orgId, { name: 'Mariana Histórico', userId: anonUser })
@@ -189,7 +189,7 @@ test.describe(
     test('Cenário 3: self-service rectification reflects live across screens (single source of truth)', async ({
       context,
     }) => {
-      const owner = await seedOrg({ professionalCount: 0 })
+      const owner = await seedOrg({ memberOperationCount: 0 })
       await signInAndAttachSession(context, owner.email, owner.password)
       const page = await context.newPage()
 
@@ -220,7 +220,7 @@ test.describe(
     test('Cenário 4: privacy events carry zero PII (only opaque refs + field names)', async ({
       context,
     }) => {
-      const subject = await seedOrg({ professionalCount: 0 })
+      const subject = await seedOrg({ memberOperationCount: 0 })
       const originalEmail = subject.email
       await signInAndAttachSession(context, subject.email, subject.password)
       const page = await context.newPage()
@@ -248,8 +248,8 @@ test.describe(
     test('Cenário 5: per-org block neutralizes org A only; org B + global keep the real name', async ({
       context,
     }) => {
-      const ownerA = await seedOrg({ professionalCount: 0 })
-      const ownerB = await seedOrg({ professionalCount: 0 })
+      const ownerA = await seedOrg({ memberOperationCount: 0 })
+      const ownerB = await seedOrg({ memberOperationCount: 0 })
 
       const subjectUserId = `e2e-subject-c5-${Date.now()}`
       const realName = `Marina Bloqueio ${Date.now()}`
@@ -296,8 +296,8 @@ test.describe(
     test('Cenário 6: self-service discovery lists the subject’s establishments via the reverse index (zero PII)', async ({
       context,
     }) => {
-      const subject = await seedOrg({ professionalCount: 0 })
-      const ownerB = await seedOrg({ professionalCount: 0 })
+      const subject = await seedOrg({ memberOperationCount: 0 })
+      const ownerB = await seedOrg({ memberOperationCount: 0 })
       await seedCustomerShadowForUser(subject.orgId, subject.uid)
       await seedCustomerShadowForUser(ownerB.orgId, subject.uid)
       await seedOrgLink(subject.uid, subject.orgId)
@@ -337,9 +337,9 @@ test.describe(
     test('Cenário 7: active subscription warns before confirm, then cancels immediately + cancels future agenda; past retained', async ({
       context,
     }) => {
-      const subject = await seedOrg({ professionalCount: 1 })
+      const subject = await seedOrg({ memberOperationCount: 1 })
       const unitId = subject.unitIds[0]!
-      const professionalId = subject.professionalIds[0]!
+      const memberOperationId = subject.memberOperationIds[0]!
       const custId = await seedCustomerShadowForUser(subject.orgId, subject.uid)
       await seedOrgLink(subject.uid, subject.orgId)
 
@@ -348,7 +348,7 @@ test.describe(
       await seedAppointment({
         orgId: subject.orgId,
         unitId,
-        professionalId,
+        memberOperationId,
         customerId: custId,
         serviceId: 'e2e-svc',
         startAt: futureStart,
@@ -359,7 +359,7 @@ test.describe(
       const pastAppt = await seedAppointment({
         orgId: subject.orgId,
         unitId,
-        professionalId,
+        memberOperationId,
         customerId: custId,
         serviceId: 'e2e-svc',
         startAt: pastStart,
@@ -405,12 +405,12 @@ test.describe(
 
     // Cross-cutting invariant of the 04/06 reescopo: cliente and profissional are
     // DIFFERENT relationships and never cross. A person who is a CUSTOMER
-    // (blocked) AND a PROFESSIONAL stays IDENTIFIABLE on the professional surface.
+    // (blocked) AND a PROFESSIONAL stays IDENTIFIABLE on the memberOperation surface.
     test('Separação de relações: a CUSTOMER blocked in a org stays IDENTIFIABLE as a PROFESSIONAL (team)', async ({
       context,
     }) => {
-      const owner = await seedOrg({ professionalCount: 1 })
-      const proUserId = `e2e-prof-user-${owner.professionalIds[0]}`
+      const owner = await seedOrg({ memberOperationCount: 1 })
+      const proUserId = `e2e-prof-user-${owner.memberOperationIds[0]}`
       const proName = 'Profissional 1'
 
       // The SAME person is also a customer in this org — then blocked as one.
@@ -426,8 +426,8 @@ test.describe(
       await signInAndAttachSession(context, owner.email, owner.password)
       const page = await context.newPage()
 
-      // Team (professional/employment relationship) keeps the real name — the
-      // customer block NEVER neutralizes the professional surface.
+      // Team (memberOperation/employment relationship) keeps the real name — the
+      // customer block NEVER neutralizes the memberOperation surface.
       await page.goto('/team')
       await expect(page.getByText(proName).first()).toBeVisible()
       const neutralProLabel = `Profissional ${anonymizedSubjectCode(proUserId)}`

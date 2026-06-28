@@ -9,7 +9,7 @@ import type { Category } from '@/domain/types/category'
 import type { Customer } from '@/domain/types/customer'
 import type { Goal } from '@/domain/types/goal'
 import type { Invite } from '@/domain/types/invite'
-import type { Professional } from '@/domain/types/professional'
+import type { MemberOperation } from '@/domain/types/member-operation'
 import type { SubscriptionPlan } from '@/domain/types/subscription-plan'
 import { describe, expect, it } from 'vitest'
 import {
@@ -43,17 +43,17 @@ import {
   type InviteRow,
 } from './invite-projector'
 import {
+  MEMBER_OPERATION_COLUMNS,
+  memberOperationColumnValues,
+  rowToDoc as memberOperationRowToDoc,
+  type MemberOperationRow,
+} from './member-operation-projector'
+import {
   NOTIFICATION_COLUMNS,
   notificationColumnValues,
   rowToDoc as notificationRowToDoc,
   type NotificationRow,
 } from './notification-projector'
-import {
-  PROFESSIONAL_COLUMNS,
-  professionalColumnValues,
-  rowToDoc as professionalRowToDoc,
-  type ProfessionalRow,
-} from './professional-projector'
 import {
   SUBSCRIPTION_PLAN_COLUMNS,
   subscriptionPlanColumnValues,
@@ -91,8 +91,8 @@ function asPgJsonb(v: unknown): unknown {
   return typeof v === 'string' ? JSON.parse(v) : v
 }
 
-describe('professional projector — pure mapping', () => {
-  const professional: Professional = {
+describe('memberOperation projector — pure mapping', () => {
+  const memberOperation: MemberOperation = {
     id: 'pro-1',
     orgId: 'org-1',
     userId: 'user-1',
@@ -108,36 +108,36 @@ describe('professional projector — pure mapping', () => {
     updatedAt: '2026-06-01T00:00:00.000Z',
   }
 
-  function professionalRow(version: number): ProfessionalRow {
-    const v = professionalColumnValues(professional, version)
-    const at = (c: string): unknown => valueAt(PROFESSIONAL_COLUMNS, v, c)
+  function memberOperationRow(version: number): MemberOperationRow {
+    const v = memberOperationColumnValues(memberOperation, version)
+    const at = (c: string): unknown => valueAt(MEMBER_OPERATION_COLUMNS, v, c)
     return {
-      org_id: professional.orgId,
-      id: professional.id,
+      org_id: memberOperation.orgId,
+      id: memberOperation.id,
       last_event_version: asPgBigint(at('last_event_version')),
-      user_id: professional.userId,
+      user_id: memberOperation.userId,
       // Derived membership key (`{orgId}_{userId}`) — same value the projector
       // writes into `member_id`.
-      member_id: `${professional.orgId}_${professional.userId}`,
+      member_id: `${memberOperation.orgId}_${memberOperation.userId}`,
       default_commission: at('default_commission'),
       unit_ids: asPgJsonb(at('unit_ids')),
       catalog_service_ids: asPgJsonb(at('catalog_service_ids')),
-      created_at: professional.createdAt,
-      updated_at: professional.updatedAt,
+      created_at: memberOperation.createdAt,
+      updated_at: memberOperation.updatedAt,
     }
   }
 
   it('columnValues has one value per column; PII is NOT projected', () => {
-    const v = professionalColumnValues(professional, 1)
-    expect(v).toHaveLength(PROFESSIONAL_COLUMNS.length)
-    expect(v[PROFESSIONAL_COLUMNS.indexOf('user_id')]).toBe('user-1')
+    const v = memberOperationColumnValues(memberOperation, 1)
+    expect(v).toHaveLength(MEMBER_OPERATION_COLUMNS.length)
+    expect(v[MEMBER_OPERATION_COLUMNS.indexOf('user_id')]).toBe('user-1')
     // name/whatsapp/email never reach the typed table (LGPD — sidecar/users).
     expect(v).not.toContain('Zé')
     expect(v).not.toContain('ze@x.com')
   })
 
   it('rowToDoc round-trips the operational fields (+ _version)', () => {
-    const doc = professionalRowToDoc(professionalRow(2))
+    const doc = memberOperationRowToDoc(memberOperationRow(2))
     expect(doc).toMatchObject({
       _version: 2,
       id: 'pro-1',
@@ -216,7 +216,7 @@ describe('invite projector — pure mapping', () => {
     id: 'inv-1',
     orgId: 'org-1',
     email: 'invitee@x.com',
-    role: 'professional',
+    role: 'member_operator',
     tokenHash: 'hash-abc',
     expiresAt: '2026-06-08T00:00:00.000Z',
     status: 'pending',
@@ -254,7 +254,7 @@ describe('invite projector — pure mapping', () => {
     )
     expect(v).toHaveLength(INVITE_COLUMNS.length)
     expect(v[INVITE_COLUMNS.indexOf('status')]).toBe('pending')
-    expect(v[INVITE_COLUMNS.indexOf('role')]).toBe('professional')
+    expect(v[INVITE_COLUMNS.indexOf('role')]).toBe('member_operator')
     expect(v).not.toContain('invitee@x.com')
   })
 
@@ -263,7 +263,7 @@ describe('invite projector — pure mapping', () => {
     expect(doc).toMatchObject({
       _version: 1,
       id: 'inv-1',
-      role: 'professional',
+      role: 'member_operator',
       status: 'pending',
       acceptedByUid: null,
       acceptedAt: null,
@@ -430,7 +430,7 @@ describe('agenda-block projector — pure mapping', () => {
     id: 'blk-1',
     orgId: 'org-1',
     unitId: 'unit-1',
-    professionalId: 'pro-1',
+    memberOperationId: 'pro-1',
     reason: 'Almoço',
     kind: 'recurring',
     weekday: 'monday',
@@ -445,7 +445,7 @@ describe('agenda-block projector — pure mapping', () => {
     id: 'blk-2',
     orgId: 'org-1',
     unitId: 'unit-1',
-    professionalId: null,
+    memberOperationId: null,
     reason: 'Feriado',
     kind: 'one_off',
     weekday: null,
@@ -477,19 +477,19 @@ describe('agenda-block projector — pure mapping', () => {
       unit_id: block.unitId,
       last_event_version: asPgBigint(at('last_event_version')),
       kind: block.kind,
-      professional_id: block.professionalId,
+      member_operation_id: block.memberOperationId,
       block: body,
       created_at: block.createdAt,
       updated_at: block.updatedAt,
     }
   }
 
-  it('lifts kind + unit_id + professional_id to columns; body rides JSONB', () => {
+  it('lifts kind + unit_id + member_operation_id to columns; body rides JSONB', () => {
     const v = agendaBlockColumnValues(recurring, 1)
     expect(v).toHaveLength(AGENDA_BLOCK_COLUMNS.length)
     expect(v[AGENDA_BLOCK_COLUMNS.indexOf('kind')]).toBe('recurring')
     expect(v[AGENDA_BLOCK_COLUMNS.indexOf('unit_id')]).toBe('unit-1')
-    expect(v[AGENDA_BLOCK_COLUMNS.indexOf('professional_id')]).toBe('pro-1')
+    expect(v[AGENDA_BLOCK_COLUMNS.indexOf('member_operation_id')]).toBe('pro-1')
   })
 
   it('rowToDoc round-trips a recurring block (weekday/open/close)', () => {
@@ -503,7 +503,7 @@ describe('agenda-block projector — pure mapping', () => {
       close: '13:00',
       startAt: null,
       endAt: null,
-      professionalId: 'pro-1',
+      memberOperationId: 'pro-1',
     })
   })
 
@@ -516,7 +516,7 @@ describe('agenda-block projector — pure mapping', () => {
       weekday: null,
       startAt: '2026-06-20T14:00:00.000Z',
       endAt: '2026-06-20T18:00:00.000Z',
-      professionalId: null,
+      memberOperationId: null,
     })
   })
 })

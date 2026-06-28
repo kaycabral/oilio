@@ -1,6 +1,6 @@
-import { ProfessionalConfig } from '@/domain/aggregates'
+import { MemberOperationConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
-import type { StoredProfessional } from '@/domain/types/professional'
+import type { StoredMemberOperation } from '@/domain/types/member-operation'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
@@ -8,24 +8,24 @@ import { buildUser } from '@/shared/fixtures/domain-builders'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
-  hasOperationalProfessionalInUnit,
-  listProfessionalIdsForService,
-  listProfessionalsForServiceInUnit,
-} from './professional-read'
+  hasOperationalMemberOperationInUnit,
+  listMemberOperationIdsForService,
+  listMemberOperationsForServiceInUnit,
+} from './member-operation-read'
 
 /**
- * Inverse-query readers backed by the `professional_units` / `professional_services`
+ * Inverse-query readers backed by the `member_operation_units` / `member_operation_services`
  * join tables (brief 0068 D3, AC-02) against REAL Postgres. Each reader replaces a
  * fetch-all + JS filter at a production call-site:
- *   - `hasOperationalProfessionalInUnit` — units publish-readiness ("operational
+ *   - `hasOperationalMemberOperationInUnit` — units publish-readiness ("operational
  *     pro at this unit?").
- *   - `listProfessionalIdsForService` — catalog `setServiceProfessionals` toggle
+ *   - `listMemberOperationIdsForService` — catalog `setServiceMemberOperations` toggle
  *     diff ("who already performs service Y?").
- *   - `listProfessionalsForServiceInUnit` — public availability ("operational pros
+ *   - `listMemberOperationsForServiceInUnit` — public availability ("operational pros
  *     who perform service Y at unit X").
  *
- * The join rows are written by the professional projector in the same tx as the
- * event (proven in `professional-join-projection.*`), so the professionals here are
+ * The join rows are written by the memberOperation projector in the same tx as the
+ * event (proven in `memberOperation-join-projection.*`), so the memberOperations here are
  * created through `appendEvent` — exercising the real write path the readers read.
  * Readers run under `readUnderRls` over the event-store pool. Per-run-unique org ids
  * isolate each case.
@@ -74,16 +74,16 @@ async function seedService(orgId: string, id: string): Promise<void> {
   )
 }
 
-// Mint a professional through the real write path so the projector mirrors its
+// Mint a memberOperation through the real write path so the projector mirrors its
 // `unit_ids`/`catalog_service_ids` arrays into the join tables. Parent unit/service
-// rows are seeded first (the join FKs are RESTRICT). Returns the professional id.
+// rows are seeded first (the join FKs are RESTRICT). Returns the memberOperation id.
 //
 // `operationalStatus` is now DERIVED on read (#1226 AC-02) from the linked
 // User's whatsapp + the projection's units/services, so this helper seeds the
 // linked `users/{userId}` row accordingly: `operational` ⇒ a completed user WITH
 // whatsapp; `incomplete` ⇒ a user WITHOUT whatsapp (the readers enrich from this
 // global row and derive the status). The units/services still come from `opts`.
-async function seedProfessional(
+async function seedMemberOperation(
   orgId: string,
   opts: {
     unitIds?: string[]
@@ -109,11 +109,11 @@ async function seedProfessional(
   // projector derives `member_id` as `{orgId}_{userId}`.
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_'||$2,$2,1,'professional','active',$3,'{}'::jsonb,$3)
+     VALUES ($1,$1||'_'||$2,$2,1,'member_operator','active',$3,'{}'::jsonb,$3)
      ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, userId, TS],
   )
-  const pro: StoredProfessional = {
+  const pro: StoredMemberOperation = {
     id,
     orgId,
     userId,
@@ -124,8 +124,8 @@ async function seedProfessional(
     updatedAt: TS,
   }
   await Effect.runPromise(
-    appendEvent(ProfessionalConfig, aggregateRef(ProfessionalConfig, orgId, id), {
-      _tag: 'professional.created',
+    appendEvent(MemberOperationConfig, aggregateRef(MemberOperationConfig, orgId, id), {
+      _tag: 'member_operation.created',
       actorId: 'test',
       payload: { data: pro },
     }).pipe(Effect.provide(PostgresPersistenceLayer)),
@@ -134,9 +134,9 @@ async function seedProfessional(
 }
 
 const TABLES =
-  'events, projections, professional_units, professional_services, professionals, memberships, catalog_items, units, orgs, users'
+  'events, projections, member_operation_units, member_operation_services, member_operations, memberships, catalog_items, units, orgs, users'
 
-describe('professional inverse-query readers (brief 0068 D3, AC-02)', () => {
+describe('memberOperation inverse-query readers (brief 0068 D3, AC-02)', () => {
   beforeEach(async () => {
     await pool().query(`TRUNCATE ${TABLES} CASCADE`)
   })
@@ -144,76 +144,76 @@ describe('professional inverse-query readers (brief 0068 D3, AC-02)', () => {
     await closeEventStoreDb()
   })
 
-  describe('hasOperationalProfessionalInUnit', () => {
-    it('no professional at the unit → false', async () => {
+  describe('hasOperationalMemberOperationInUnit', () => {
+    it('no memberOperation at the unit → false', async () => {
       const t = uniqueOrg()
-      expect(await hasOperationalProfessionalInUnit(t, uid('unit'))).toBe(false)
+      expect(await hasOperationalMemberOperationInUnit(t, uid('unit'))).toBe(false)
     })
 
-    it('operational professional scoped to the unit → true', async () => {
+    it('operational memberOperation scoped to the unit → true', async () => {
       const t = uniqueOrg()
       const unitId = uid('unit')
       // Operational requires whatsapp ∧ ≥1 unit ∧ ≥1 service (#1226 AC-02).
-      await seedProfessional(t, { unitIds: [unitId], catalogServiceIds: [uid('svc')] })
-      expect(await hasOperationalProfessionalInUnit(t, unitId)).toBe(true)
+      await seedMemberOperation(t, { unitIds: [unitId], catalogServiceIds: [uid('svc')] })
+      expect(await hasOperationalMemberOperationInUnit(t, unitId)).toBe(true)
     })
 
-    it('only a NON-operational professional at the unit → false', async () => {
+    it('only a NON-operational memberOperation at the unit → false', async () => {
       const t = uniqueOrg()
       const unitId = uid('unit')
-      await seedProfessional(t, { unitIds: [unitId], operationalStatus: 'incomplete' })
-      expect(await hasOperationalProfessionalInUnit(t, unitId)).toBe(false)
+      await seedMemberOperation(t, { unitIds: [unitId], operationalStatus: 'incomplete' })
+      expect(await hasOperationalMemberOperationInUnit(t, unitId)).toBe(false)
     })
 
-    it('professional at a DIFFERENT unit → false for the queried unit', async () => {
+    it('memberOperation at a DIFFERENT unit → false for the queried unit', async () => {
       const t = uniqueOrg()
       const queried = uid('unit')
-      await seedProfessional(t, { unitIds: [uid('other-unit')] })
-      expect(await hasOperationalProfessionalInUnit(t, queried)).toBe(false)
+      await seedMemberOperation(t, { unitIds: [uid('other-unit')] })
+      expect(await hasOperationalMemberOperationInUnit(t, queried)).toBe(false)
     })
   })
 
-  describe('listProfessionalIdsForService', () => {
+  describe('listMemberOperationIdsForService', () => {
     it('no link → empty', async () => {
       const t = uniqueOrg()
-      expect(await listProfessionalIdsForService(t, uid('svc'))).toEqual([])
+      expect(await listMemberOperationIdsForService(t, uid('svc'))).toEqual([])
     })
 
-    it('returns exactly the professionals linked to the service', async () => {
+    it('returns exactly the memberOperations linked to the service', async () => {
       const t = uniqueOrg()
       const svc = uid('svc')
-      const a = await seedProfessional(t, { unitIds: [uid('u')], catalogServiceIds: [svc] })
-      const b = await seedProfessional(t, { unitIds: [uid('u')], catalogServiceIds: [svc] })
-      await seedProfessional(t, { unitIds: [uid('u')], catalogServiceIds: [uid('other-svc')] })
-      const ids = await listProfessionalIdsForService(t, svc)
+      const a = await seedMemberOperation(t, { unitIds: [uid('u')], catalogServiceIds: [svc] })
+      const b = await seedMemberOperation(t, { unitIds: [uid('u')], catalogServiceIds: [svc] })
+      await seedMemberOperation(t, { unitIds: [uid('u')], catalogServiceIds: [uid('other-svc')] })
+      const ids = await listMemberOperationIdsForService(t, svc)
       expect(new Set(ids)).toEqual(new Set([a, b]))
     })
   })
 
-  describe('listProfessionalsForServiceInUnit', () => {
+  describe('listMemberOperationsForServiceInUnit', () => {
     it('returns only operational pros performing the service at the unit (intersection)', async () => {
       const t = uniqueOrg()
       const unitId = uid('unit')
       const svc = uid('svc')
       // Match: service + unit, operational.
-      const match = await seedProfessional(t, { unitIds: [unitId], catalogServiceIds: [svc] })
+      const match = await seedMemberOperation(t, { unitIds: [unitId], catalogServiceIds: [svc] })
       // Wrong unit.
-      await seedProfessional(t, { unitIds: [uid('other-unit')], catalogServiceIds: [svc] })
+      await seedMemberOperation(t, { unitIds: [uid('other-unit')], catalogServiceIds: [svc] })
       // Wrong service.
-      await seedProfessional(t, { unitIds: [unitId], catalogServiceIds: [uid('other-svc')] })
+      await seedMemberOperation(t, { unitIds: [unitId], catalogServiceIds: [uid('other-svc')] })
       // Right unit+service but not operational.
-      await seedProfessional(t, {
+      await seedMemberOperation(t, {
         unitIds: [unitId],
         catalogServiceIds: [svc],
         operationalStatus: 'incomplete',
       })
-      const pros = await listProfessionalsForServiceInUnit(t, svc, unitId)
+      const pros = await listMemberOperationsForServiceInUnit(t, svc, unitId)
       expect(pros.map((p) => p.id)).toEqual([match])
     })
 
     it('no match → empty', async () => {
       const t = uniqueOrg()
-      expect(await listProfessionalsForServiceInUnit(t, uid('svc'), uid('unit'))).toEqual([])
+      expect(await listMemberOperationsForServiceInUnit(t, uid('svc'), uid('unit'))).toEqual([])
     })
   })
 })

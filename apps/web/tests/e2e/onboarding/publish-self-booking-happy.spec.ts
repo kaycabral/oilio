@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures'
 import { checkStable, fillStable } from '../helpers/hydration'
-import { linkProfessionalToServices, seedService } from '../helpers/session'
+import { linkMemberOperationToServices, seedService } from '../helpers/session'
 import { PublicBookingPage, orgSlug } from '../pages'
 
 // #988 (brief 0008, Grupo C) — rewritten for the inferred-availability model
@@ -21,8 +21,8 @@ test.describe('Publish self-booking — happy path (#988)', { tag: '@critical' }
     orgInput: {
       hasBusinessHours: false,
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
     },
   })
 
@@ -34,7 +34,7 @@ test.describe('Publish self-booking — happy path (#988)', { tag: '@critical' }
     const slug = orgSlug(org.orgId)
     const unitId = org.unitIds[0]!
 
-    // A public service linked to the unit + an approved professional execute
+    // A public service linked to the unit + an approved memberOperation execute
     // it — so once the unit is bookable, the catalog has a card to show.
     const serviceId = await seedService(org.orgId, {
       name: 'Corte Publicado',
@@ -42,7 +42,7 @@ test.describe('Publish self-booking — happy path (#988)', { tag: '@critical' }
       publicVisible: true,
       unitIds: [unitId],
     })
-    await linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
+    await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
     // Before: the unit is not bookable (no hours) → public surface is 404.
     const before = await page.goto(`/${slug}/unidade-1`)

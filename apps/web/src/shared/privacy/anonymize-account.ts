@@ -3,7 +3,7 @@ import { readAsSubject, readUnderRls } from '@/shared/db/pg/rls-read'
 import { getUserById, patchUser } from '@/shared/db/pg/users-store'
 import { listLinkedOrgIds } from '@/shared/identity/org-links'
 import { deleteInvitePii } from '@/shared/org/invite-read'
-import { deleteProfessionalPii } from '@/shared/org/professional-read'
+import { deleteMemberOperationPii } from '@/shared/org/member-operation-read'
 import { eraseCustomerCascadeInOrg } from '@/shared/privacy/erase-customer-cascade'
 import { emitPiiEvent } from '@/shared/privacy/pii-events'
 import 'server-only'
@@ -33,7 +33,7 @@ function anonymizationColumnPatch(now: string): Record<string, unknown> {
 // The person's name lived ONLY in the global `users/{uid}` doc (a plain CRUD
 // doc, NOT event-sourced). Anonymizing = a direct, irreversible scrub of that
 // doc plus the subject's deletable per-org `_pii` docs. Records
-// (orders/commissions/memberships/professionals/invites) keep their `userId`
+// (orders/commissions/memberships/memberOperations/invites) keep their `userId`
 // pointer untouched (AC-04 retention); they resolve to a neutral label because
 // the account is anonymized (display handled by #1095). There is no reverse
 // map (art. 12) and no per-record sever / anonymization event (that was the
@@ -43,7 +43,7 @@ export type AnonymizeAccountResult = {
   // Whether the global account doc was scrubbed (false only for an anonymous
   // customer with no `users/{uid}` — the `userId` was null/empty: no-op).
   scrubbedAccount: boolean
-  // Count of per-org `_pii` docs deleted (professionals_pii + invites_pii).
+  // Count of per-org `_pii` docs deleted (member_operations_pii + invites_pii).
   scrubbedPiiDocs: number
   // Whether the subject had an active subscription (in any enumerated org)
   // that the erasure cascade cancelled (brief 0032 / #1101, AC-12). Surfaced for
@@ -74,8 +74,8 @@ export async function anonymizeAccount(userId: string): Promise<AnonymizeAccount
     if (cascade.hadActiveSubscription) hadActiveSubscription = true
   }
 
-  // 2. Scrub the per-org `_pii` docs. Within each org: professionals_pii
-  //    (matched by `professionals.userId`) and invites_pii (by `acceptedByUid`).
+  // 2. Scrub the per-org `_pii` docs. Within each org: member_operations_pii
+  //    (matched by `memberOperations.userId`) and invites_pii (by `acceptedByUid`).
   const scrubbedPiiDocs = await scrubOrgPii(orgIds, userId)
 
   // 3. Scrub the global account record — the single place the name existed. If
@@ -107,8 +107,8 @@ export async function anonymizeAccount(userId: string): Promise<AnonymizeAccount
 //       their `currentOrgId`) is now enumerable, so the global cascade
 //       reaches every org where they hold customer data;
 //   (b) `memberships` (top-level, keyed by userId) — orgs where they're a
-//       member/professional, which the reverse index intentionally does NOT
-//       cover (professional is not self-erasable — brief 0041);
+//       member/memberOperation, which the reverse index intentionally does NOT
+//       cover (memberOperation is not self-erasable — brief 0041);
 //   (c) the user's `currentOrgId` — a defensive fallback for the active
 //       org.
 // All three are per-user reads (own subcollection / userId-keyed top-level /
@@ -118,7 +118,7 @@ async function enumerateSubjectOrgs(userId: string): Promise<string[]> {
   const orgIds = new Set(linkedOrgIds)
 
   // The subject's memberships in ANY status (active/invited/suspended/revoked) —
-  // a revoked membership still means professional PII to scrub. Reads the
+  // a revoked membership still means memberOperation PII to scrub. Reads the
   // subject's OWN rows under the per-subject RLS policy (`app.current_user_id`),
   // never a cross-org query (mirrors the Firestore `where userId == X`).
   const membershipOrgs = await readAsSubject<{ org_id: string }>(userId, (client) =>
@@ -140,17 +140,17 @@ async function enumerateSubjectOrgs(userId: string): Promise<string[]> {
 async function scrubOrgPii(orgIds: string[], userId: string): Promise<number> {
   let deleted = 0
   for (const orgId of orgIds) {
-    // professionals_pii: keyed by the professional doc id; find the subject's
-    // professional projections by `user_id` (under RLS), then delete each PII row.
+    // member_operations_pii: keyed by the memberOperation doc id; find the subject's
+    // memberOperation projections by `user_id` (under RLS), then delete each PII row.
     const proIds = await readUnderRls<{ id: string }>(orgId, (client) =>
       client
         .query<{
           id: string
-        }>('SELECT id FROM professionals WHERE org_id = $1 AND user_id = $2', [orgId, userId])
+        }>('SELECT id FROM member_operations WHERE org_id = $1 AND user_id = $2', [orgId, userId])
         .then((res) => res.rows),
     )
     for (const pro of proIds) {
-      await deleteProfessionalPii(orgId, pro.id)
+      await deleteMemberOperationPii(orgId, pro.id)
       deleted += 1
     }
 

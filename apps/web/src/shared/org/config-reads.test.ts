@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { enrichCustomers } from './customer-read'
 import { enrichInvites } from './invite-read'
-import { enrichProfessionals } from './professional-read'
+import { enrichMemberOperations } from './member-operation-read'
 
 /**
  * Unit coverage for the empty-input fast path of the batch-enrich entrypoints of
@@ -13,8 +13,8 @@ import { enrichProfessionals } from './professional-read'
  */
 
 describe('identity-restante reads — empty-batch enrich short-circuits (no I/O)', () => {
-  it('enrichProfessionals([]) returns [] without reading users/PII', async () => {
-    await expect(enrichProfessionals('org-1', [])).resolves.toEqual([])
+  it('enrichMemberOperations([]) returns [] without reading users/PII', async () => {
+    await expect(enrichMemberOperations('org-1', [])).resolves.toEqual([])
   })
 
   it('enrichCustomers([]) returns [] without reading users', async () => {

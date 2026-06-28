@@ -2,12 +2,12 @@ import { expect, test } from '../fixtures'
 
 // Baseline E2E for #986 (brief 0008, Grupo A) — the app is operable from
 // signup with NO global onboarding wizard gate. Setup completeness (services,
-// professionals, public page) is never required to reach an internal route.
+// memberOperations, public page) is never required to reach an internal route.
 //
 // PRD Identidade v2 / brief 0046 reshapes the empty case: there is NO first-unit
 // gate — a 0-unit owner lands in the app normally (empty-states where data is
 // unit-scoped), never a forced onboarding screen. "Operable without setup" means
-// an org with NO services/professionals reaches every internal route without a
+// an org with NO services/memberOperations reaches every internal route without a
 // gate; the unit-scoped surfaces simply render their empty-state.
 //
 // AC-01 [critical] [smoke] — every authenticated internal route is reachable
@@ -16,10 +16,10 @@ import { expect, test } from '../fixtures'
 //   global gate).
 //
 // Scope note: the per-area render+empty / create→list→edit→delete baseline
-// lives in each area's own spec (units/services/professionals/... baseline.spec
+// lives in each area's own spec (units/services/memberOperations/... baseline.spec
 // + #987 empty-state CTAs). This spec owns the gate-removal invariant.
 
-// `/professionals` was removed (brief 0037 #1085) — people management lives in
+// `/memberOperations` was removed (brief 0037 #1085) — people management lives in
 // `/team`, which is the people surface this sweep already covers via the nav.
 const INTERNAL_ROUTES = [
   '/dashboard',
@@ -33,7 +33,7 @@ const INTERNAL_ROUTES = [
 test.describe('Onboarding — app usable without setup (#986)', { tag: '@critical' }, () => {
   test.use({
     // 1ª unidade criada (modo agendamento), nada mais: o piso pós-fluxo-guiado.
-    orgInput: { unitCount: 1, professionalCount: 0 },
+    orgInput: { unitCount: 1, memberOperationCount: 0 },
   })
 
   test('AC-01/AC-02: minimal org reaches every internal route without an onboarding gate', async ({
@@ -54,7 +54,7 @@ test.describe('Onboarding — app usable without setup (#986)', { tag: '@critica
   })
 
   // With an appointment-mode unit present, the Agenda resolves and is in the
-  // nav — no service/professional setup required to reach it (no gate).
+  // nav — no service/memberOperation setup required to reach it (no gate).
   test('com unidade de agendamento: /agenda resolve sem exigir setup', async ({ authedPage }) => {
     await authedPage.goto('/agenda')
     await expect(authedPage).toHaveURL(/\/agenda(\/|\?|$)/)
@@ -74,7 +74,7 @@ test.describe('Onboarding — app usable without setup (#986)', { tag: '@critica
   // PRD Identidade v2 / brief 0046 — um dono com ZERO unidade NÃO é gateado: cai
   // no app normalmente e as superfícies unit-scoped renderizam seu empty-state.
   test.describe('org sem unidade (recém-signup)', () => {
-    test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 0, memberOperationCount: 0 } })
 
     test('dono com 0 unidades cai no app sem gate de onboarding', async ({ authedPage }) => {
       await authedPage.goto('/dashboard')

@@ -1,6 +1,6 @@
 'use client'
 
-import { type CatalogServiceItem, type Professional, type StoredUnit } from '@/domain'
+import { type CatalogServiceItem, type MemberOperation, type StoredUnit } from '@/domain'
 import {
   COMMISSION_KIND_LABELS,
   OPERATIONAL_LABELS,
@@ -12,16 +12,16 @@ import { Checkbox, Input, Label } from '@cbrl/design'
 import { useId } from 'react'
 
 // Identity + approval + commission fieldsets — rendered only while the member is
-// (and stays) a professional. Split out so the form's render stays under the gate.
-export function ProfessionalIdentityFields({
-  professional,
+// (and stays) a memberOperation. Split out so the form's render stays under the gate.
+export function MemberOperationIdentityFields({
+  memberOperation,
   taxKind,
   setTaxKind,
   commissionKind,
   setCommissionKind,
   initialCommissionValue,
 }: {
-  professional: Professional
+  memberOperation: MemberOperation
   taxKind: TaxKind
   setTaxKind: (k: TaxKind) => void
   commissionKind: CommissionKind
@@ -55,7 +55,7 @@ export function ProfessionalIdentityFields({
               </span>
               <Input
                 name="taxId"
-                defaultValue={professional?.taxIdentity?.taxId ?? ''}
+                defaultValue={memberOperation?.taxIdentity?.taxId ?? ''}
                 placeholder={taxKind === 'individual' ? '000.000.000-00' : '00.000.000/0000-00'}
                 required
               />
@@ -69,8 +69,8 @@ export function ProfessionalIdentityFields({
                   id={legalNameId}
                   name="legalName"
                   defaultValue={
-                    professional?.taxIdentity?.kind === 'company'
-                      ? professional.taxIdentity.legalName
+                    memberOperation?.taxIdentity?.kind === 'company'
+                      ? memberOperation.taxIdentity.legalName
                       : ''
                   }
                   required
@@ -85,7 +85,7 @@ export function ProfessionalIdentityFields({
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium">Status operacional</span>
         <span className="text-sm" role="group" aria-label="Status operacional">
-          {OPERATIONAL_LABELS[professional.operationalStatus]}
+          {OPERATIONAL_LABELS[memberOperation.operationalStatus]}
         </span>
         <span className="text-muted-foreground text-xs">
           Derivado automaticamente: operacional quando o profissional tem WhatsApp, ao menos uma
@@ -128,8 +128,8 @@ export function ProfessionalIdentityFields({
   )
 }
 
-// Units + services scope fieldsets for a professional member.
-export function ProfessionalScopeFields({
+// Units + services scope fieldsets for a memberOperation member.
+export function MemberOperationScopeFields({
   units,
   selectedUnitIds,
   toggleUnit,

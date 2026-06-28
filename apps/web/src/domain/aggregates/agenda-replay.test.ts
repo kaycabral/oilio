@@ -20,7 +20,7 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
       id: 'a1',
       orgId: 't1',
       unitId: 'u1',
-      professionalId: 'pro1',
+      memberOperationId: 'pro1',
       customerId: 'c1',
       serviceId: 's1',
       startAt: '2026-06-01T13:00:00.000Z',
@@ -31,7 +31,7 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
       serviceDurationMinutesSnapshot: 30,
       commissionSnapshot: { kind: 'percentage', value: 40 },
       customerUserId: 'user-c1',
-      professionalUserId: 'user-pro1',
+      memberOperatorUserId: 'user-pro1',
     }
 
     await Effect.runPromise(
@@ -44,7 +44,7 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
         yield* appendEvent(AppointmentConfig, ref, {
           _tag: 'appointment.updated',
           actorId: 'actor-1',
-          payload: { changes: { professionalId: 'pro2', notes: 'VIP' } },
+          payload: { changes: { memberOperationId: 'pro2', notes: 'VIP' } },
         })
         yield* appendEvent(AppointmentConfig, ref, {
           _tag: 'appointment.rescheduled',
@@ -77,7 +77,7 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
     expect(replayed).toEqual(projection)
     expect(replayed._version).toBe(4)
     expect(replayed.status).toBe('cancelled')
-    expect(replayed.professionalId).toBe('pro2')
+    expect(replayed.memberOperationId).toBe('pro2')
     expect(replayed.startAt).toBe('2026-06-01T14:00:00.000Z')
     expect(replayed.cancelledNoticeMinutes).toBe(180)
     expect(replayed.rescheduledNoticeMinutes).toBe(240)
@@ -90,7 +90,7 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
       id: 'a2',
       orgId: 't1',
       unitId: 'u1',
-      professionalId: 'pro1',
+      memberOperationId: 'pro1',
       customerId: 'c1',
       serviceId: 's1',
       startAt: '2026-06-01T13:00:00.000Z',
@@ -101,7 +101,7 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
       serviceDurationMinutesSnapshot: 30,
       commissionSnapshot: null,
       customerUserId: 'user-c1',
-      professionalUserId: null,
+      memberOperatorUserId: null,
     }
 
     await Effect.runPromise(
@@ -141,7 +141,7 @@ describe('Agenda — replay reconstrói o doc completo (event-first)', () => {
       id: 'b1',
       orgId: 't1',
       unitId: 'u1',
-      professionalId: null,
+      memberOperationId: null,
       reason: 'Almoço',
       kind: 'one_off',
       weekday: null,

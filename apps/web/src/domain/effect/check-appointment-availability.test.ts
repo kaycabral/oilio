@@ -3,14 +3,14 @@ import { describe, expect, it } from 'vitest'
 
 import { AgendaBlockConfig } from '@/domain/aggregates/agenda-block/config'
 import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
-import { ProfessionalConfig } from '@/domain/aggregates/professional/config'
+import { MemberOperationConfig } from '@/domain/aggregates/member-operation/config'
 import { aggregateRef } from '@/domain/effect/aggregate-ref'
 import { docKey, makeTestFirestoreLayer } from '@/domain/effect/test-layers'
 
 import { checkAppointmentAvailability } from './check-appointment-availability'
 
-const professionalKey = (orgId: string, id: string) =>
-  docKey(aggregateRef(ProfessionalConfig, orgId, id))
+const memberOperationKey = (orgId: string, id: string) =>
+  docKey(aggregateRef(MemberOperationConfig, orgId, id))
 const appointmentKey = (orgId: string, id: string) =>
   docKey(aggregateRef(AppointmentConfig, orgId, id))
 const agendaBlockKey = (orgId: string, id: string) =>
@@ -19,7 +19,7 @@ const agendaBlockKey = (orgId: string, id: string) =>
 const BASE_INPUT = {
   orgId: 't1',
   unitId: 'u1',
-  professionalId: 'prof-1',
+  memberOperationId: 'prof-1',
   proposed: { startAt: '2026-06-01T14:00:00Z', endAt: '2026-06-01T15:00:00Z' },
   date: '2026-06-01',
   tz: 'America/Sao_Paulo',
@@ -28,7 +28,7 @@ const BASE_INPUT = {
 describe('checkAppointmentAvailability', () => {
   it('AC-06: resolves via PersistencePort layer — no direct singleton import', async () => {
     const layer = makeTestFirestoreLayer({
-      [professionalKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
+      [memberOperationKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
     })
 
     const result = await Effect.runPromise(
@@ -40,11 +40,11 @@ describe('checkAppointmentAvailability', () => {
 
   it('AC-05: returns AppointmentConflictError when slot is occupied', async () => {
     const layer = makeTestFirestoreLayer({
-      [professionalKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
+      [memberOperationKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
       [appointmentKey('t1', 'apt-99')]: {
         id: 'apt-99',
         unitId: 'u1',
-        professionalId: 'prof-1',
+        memberOperationId: 'prof-1',
         startAt: '2026-06-01T14:30:00Z',
         endAt: '2026-06-01T15:30:00Z',
         status: 'scheduled',
@@ -71,7 +71,7 @@ describe('checkAppointmentAvailability', () => {
     })
   })
 
-  it('AC-05: returns EntityNotFoundError when professional does not exist', async () => {
+  it('AC-05: returns EntityNotFoundError when memberOperation does not exist', async () => {
     const layer = makeTestFirestoreLayer({})
 
     const result = await Effect.runPromise(
@@ -85,22 +85,22 @@ describe('checkAppointmentAvailability', () => {
 
     expect(result).toEqual({
       caught: true,
-      entity: 'Professional',
+      entity: 'MemberOperation',
       id: 'prof-1',
     })
   })
 
   it('AC-07: same production code works with different test layer data', async () => {
     const emptyLayer = makeTestFirestoreLayer({
-      [professionalKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
+      [memberOperationKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
     })
 
     const busyLayer = makeTestFirestoreLayer({
-      [professionalKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
+      [memberOperationKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
       [appointmentKey('t1', 'apt-1')]: {
         id: 'apt-1',
         unitId: 'u1',
-        professionalId: 'prof-1',
+        memberOperationId: 'prof-1',
         startAt: '2026-06-01T14:00:00Z',
         endAt: '2026-06-01T15:00:00Z',
         status: 'scheduled',
@@ -122,12 +122,12 @@ describe('checkAppointmentAvailability', () => {
 
   it('AC-05: a one-off agenda block over the slot makes it unavailable', async () => {
     const layer = makeTestFirestoreLayer({
-      [professionalKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
+      [memberOperationKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
       [agendaBlockKey('t1', 'blk-1')]: {
         id: 'blk-1',
         orgId: 't1',
         unitId: 'u1',
-        professionalId: 'prof-1',
+        memberOperationId: 'prof-1',
         reason: 'Médico',
         kind: 'one_off',
         weekday: null,

@@ -244,7 +244,7 @@ async function readForUpdate(client: PoolClient, ref: AggregateRef): Promise<Fir
 
 async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
   // Drop the join rows explicitly (the parent FK is ON DELETE cascade, so this is
-  // defensive + mirrors `professional-projector`'s join cleanup). The ref carries
+  // defensive + mirrors `member-operation-projector`'s join cleanup). The ref carries
   // the org + id directly.
   await client.query(CATALOG_ITEM_UNITS_DELETE, [ref.orgId, ref.id])
   await client.query('DELETE FROM catalog_items WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])

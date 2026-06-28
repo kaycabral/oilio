@@ -14,7 +14,7 @@ export type UnitPublishReadiness = { ready: boolean; missing: string[] }
 export const UNIT_REQUIREMENTS = {
   address: 'Endereço e horário de funcionamento preenchidos',
   service: '1 serviço público oferecido nesta unidade',
-  professional: '1 profissional aprovado nesta unidade',
+  memberOperation: '1 profissional aprovado nesta unidade',
 } as const
 
 // A unit has usable hours when it's `always_open` (open by definition) or its
@@ -29,7 +29,7 @@ export function unitHasAddressAndHours(agenda: UnitAgendaConfig): boolean {
 // Whether a unit's public booking page is live. SPIKE (inferred availability):
 // there is no stored publish flag / publish button — a unit goes public the
 // moment it uses the online agenda (appointment mode) AND declares operating
-// hours. Service/professional readiness is owner-facing FEEDBACK only and does
+// hours. Service/memberOperation readiness is owner-facing FEEDBACK only and does
 // NOT hard-gate the public page (an appointment unit with hours but no pro
 // simply renders no bookable slots). PRD Identidade v2.
 export function isUnitPubliclyLive(unit: Pick<Unit, 'agenda'>): boolean {
@@ -40,11 +40,11 @@ export function isUnitPubliclyLive(unit: Pick<Unit, 'agenda'>): boolean {
 export function computeUnitPublishReadiness(facts: {
   hasAddressAndHours: boolean
   hasPublicService: boolean
-  hasOperationalProfessional: boolean
+  hasOperationalMemberOperation: boolean
 }): UnitPublishReadiness {
   const missing: string[] = []
   if (!facts.hasAddressAndHours) missing.push(UNIT_REQUIREMENTS.address)
   if (!facts.hasPublicService) missing.push(UNIT_REQUIREMENTS.service)
-  if (!facts.hasOperationalProfessional) missing.push(UNIT_REQUIREMENTS.professional)
+  if (!facts.hasOperationalMemberOperation) missing.push(UNIT_REQUIREMENTS.memberOperation)
   return { ready: missing.length === 0, missing }
 }

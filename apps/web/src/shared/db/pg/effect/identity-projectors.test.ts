@@ -150,13 +150,13 @@ describe('membership projector — pure mapping', () => {
     id: 'org-1_user-1',
     orgId: 'org-1',
     userId: 'user-1',
-    role: 'professional',
+    role: 'member_operator',
     status: 'active',
     invitedBy: null,
     joinedAt: '2026-06-01T00:00:00.000Z',
     updatedAt: '2026-06-01T00:00:00.000Z',
     rlsUnitScope: 'unit-1',
-    permissions: defaultPermissionsForRole('professional'),
+    permissions: defaultPermissionsForRole('member_operator'),
   }
 
   it('columnValues has one value per column', () => {
@@ -175,7 +175,7 @@ describe('membership projector — pure mapping', () => {
     expect(doc).toMatchObject({
       _version: 2,
       userId: 'user-1',
-      role: 'professional',
+      role: 'member_operator',
       rlsUnitScope: 'unit-1',
     })
   })

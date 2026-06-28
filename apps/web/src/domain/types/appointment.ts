@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 
-import { CommissionRule } from './professional'
+import { CommissionRule } from './member-operation'
 import { CancellationPolicy } from './unit'
 
 export const APPOINTMENT_STATUSES = ['scheduled', 'completed', 'cancelled', 'no_show'] as const
@@ -22,7 +22,7 @@ export const Appointment = Schema.mutable(
     id: Schema.String,
     orgId: Schema.String,
     unitId: Schema.String,
-    professionalId: Schema.String,
+    memberOperationId: Schema.String,
     customerId: Schema.String,
     // FK into a `catalog_items` doc of kind service (brief 0023, #1004 — was the
     // legacy `services` collection). Field name kept as `serviceId` (semantics
@@ -46,7 +46,7 @@ export const Appointment = Schema.mutable(
     // agendamentos legados/pré-migração: os call-sites de cancel caem na policy
     // viva do org como fallback. Ver brief 0027.
     cancellationPolicySnapshot: Schema.NullOr(CancellationPolicy),
-    // Duplicated from the related `Customer.userId` / `Professional.userId`
+    // Duplicated from the related `Customer.userId` / `MemberOperation.userId`
     // so that Firestore CollectionGroup queries — `collectionGroup('appointments')
     // .where('customerUserId', '==', myUid)` — can return the signed-in user's
     // history across every org they appear in. CG queries only filter on
@@ -54,9 +54,9 @@ export const Appointment = Schema.mutable(
     // canonical userId here. Decided in #832 — wiki:
     // 02-Estrategia-Modelo-Identidade § Visibilidade de histórico.
     customerUserId: Schema.String,
-    // Null when the Professional doc was created without an authenticated user
+    // Null when the MemberOperation doc was created without an authenticated user
     // attached (rec-created placeholder before the pro accepts an invite).
-    professionalUserId: Schema.NullOr(Schema.String),
+    memberOperatorUserId: Schema.NullOr(Schema.String),
     // Transition tracking — populated on every cancel/reschedule/no-show
     // regardless of the org's cancellation policy toggle. Lets the product
     // decide later whether to gate UX on `noticeMinutes` once data exists.

@@ -1,4 +1,4 @@
-import type { Org, Professional, PublicCatalogItem, Unit } from '@/domain'
+import type { MemberOperation, Org, PublicCatalogItem, Unit } from '@/domain'
 import { toRoute } from '@/shared/routes'
 import { Button } from '@cbrl/design'
 import Image from 'next/image'
@@ -14,7 +14,7 @@ export function UnitCatalog({
   unit,
   slug,
   catalogServiceItems,
-  professional,
+  memberOperation,
   showUnitHeader,
   coverageBanner,
 }: {
@@ -22,7 +22,7 @@ export function UnitCatalog({
   unit: Unit
   slug: string
   catalogServiceItems: PublicCatalogItem[]
-  professional: Professional | null
+  memberOperation: MemberOperation | null
   // When true (multi-unit orgs), prepend the unit name + "Trocar unidade".
   // Hidden in single-unit mode where the page is the org landing.
   showUnitHeader: boolean
@@ -109,10 +109,10 @@ export function UnitCatalog({
           </p>
         ) : null}
 
-        {professional ? (
+        {memberOperation ? (
           <div className="bg-muted/40 flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs">
             <span>
-              Filtrado por profissional: <strong>{professional.name}</strong>
+              Filtrado por profissional: <strong>{memberOperation.name}</strong>
             </span>
             <Link
               className="underline-offset-2 hover:underline"
@@ -126,8 +126,8 @@ export function UnitCatalog({
 
         {catalogServiceItems.length === 0 ? (
           <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
-            {professional
-              ? `${professional.name} ainda não executa nenhum serviço público nesta unidade.`
+            {memberOperation
+              ? `${memberOperation.name} ainda não executa nenhum serviço público nesta unidade.`
               : 'Nenhum serviço público publicado ainda.'}
           </p>
         ) : (
@@ -135,7 +135,9 @@ export function UnitCatalog({
             {catalogServiceItems.map((s) => {
               const href =
                 `/${slug}/${unit.slug}/availability?service=${encodeURIComponent(s.id)}` +
-                (professional ? `&professional=${encodeURIComponent(professional.id)}` : '')
+                (memberOperation
+                  ? `&memberOperation=${encodeURIComponent(memberOperation.id)}`
+                  : '')
               return (
                 <li key={s.id}>
                   <Link

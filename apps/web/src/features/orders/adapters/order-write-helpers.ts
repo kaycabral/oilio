@@ -26,16 +26,16 @@ import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
 
+import { getMemberOperationByUserId } from '@/shared/org/member-operation-read'
 import { getMembership, listOrgMembers, operatesFrontDesk } from '@/shared/org/membership'
-import { getProfessionalByUserId } from '@/shared/org/professional-read'
 import { loadActiveSubscriptionForCustomer, loadOrderById } from './order-financial-read'
 
 // Own-resource policy for an OPEN order (brief 0075, #1257): the balcão
-// (owner/manager/recepção) operates any comanda; a self-scoped professional
+// (owner/manager/recepção) operates any comanda; a self-scoped memberOperation
 // operates one only when EVERY item is attributed to them — so they can't touch
 // a colleague's order (remove items, re-attribute commission to themselves,
 // apply discounts). An order with no items yet (just opened) is vacuously theirs,
-// so they can add the first item. Orders carry no `professional_id` column, so
+// so they can add the first item. Orders carry no `member_operation_id` column, so
 // RLS can't enforce this — the gate lives here, in the app layer. Mirrors
 // `canCloseOrder` (close.actions.ts), the close-time form of the same rule.
 export function canOperateOpenOrder(membership: Membership, items: readonly OrderItem[]): boolean {
@@ -85,7 +85,7 @@ export async function loadOpenOrder(
 // (AC-08). Preço = `min(exibido, vigente)` (AC-09): nunca cobra mais que o
 // exibido ao operador; quando o exibido não veio, cobra o vigente.
 // AC-05 (brief 0030): "membro pode operar" generaliza o antigo
-// `assertExecutorApproved` (que carregava um Professional por doc id e exigia
+// `assertExecutorApproved` (que carregava um MemberOperation por doc id e exigia
 // aprovação). O alvo da atribuição agora é o `userId` de QUALQUER membro, então
 // a validação é:
 //
@@ -93,8 +93,8 @@ export async function loadOpenOrder(
 //      (não `customer`), e — se a membership for unit-scoped — escopada à
 //      unidade da venda.
 //   2. Item de SERVIÇO mantém a trava mais estrita: SE existe a projeção
-//      `Professional` para esse `userId`, ela precisa estar aprovada (preserva o
-//      fluxo de serviço atual). Produto/venda avulsa NÃO exige Professional —
+//      `MemberOperation` para esse `userId`, ela precisa estar aprovada (preserva o
+//      fluxo de serviço atual). Produto/venda avulsa NÃO exige MemberOperation —
 //      basta ser membro ativo (é o que destrava o varejo: recepção vende balcão).
 //
 // Mantém o comportamento de serviço intacto e destrava produto sem profissional
@@ -124,14 +124,15 @@ export async function assertMemberCanOperate({
     return 'Membro não opera nesta unidade'
   }
 
-  // Trava de serviço (AC-05): só serviço exige Professional aprovado, e só quando
+  // Trava de serviço (AC-05): só serviço exige MemberOperation aprovado, e só quando
   // a projeção existe para esse membro. Sem projeção (ex.: membro que ainda não
   // virou profissional) o serviço fica bloqueado — fluxo de serviço inalterado.
   if (kind === 'service') {
-    const professional = await getProfessionalByUserId(orgId, attributedUserId)
-    if (!professional) return 'Serviço exige um profissional — membro sem cadastro de profissional'
-    if (!isOperational(professional.operationalStatus)) {
-      return `Profissional não operacional (status: ${professional.operationalStatus})`
+    const memberOperation = await getMemberOperationByUserId(orgId, attributedUserId)
+    if (!memberOperation)
+      return 'Serviço exige um profissional — membro sem cadastro de profissional'
+    if (!isOperational(memberOperation.operationalStatus)) {
+      return `Profissional não operacional (status: ${memberOperation.operationalStatus})`
     }
   }
 

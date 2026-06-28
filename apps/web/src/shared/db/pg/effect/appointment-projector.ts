@@ -22,11 +22,11 @@ export const APPOINTMENT_COLUMNS = [
   'id',
   'unit_id',
   'last_event_version',
-  'professional_id',
+  'member_operation_id',
   'customer_id',
   'service_id',
   'customer_user_id',
-  'professional_user_id',
+  'member_operator_user_id',
   'start_at',
   'end_at',
   'status',
@@ -73,11 +73,11 @@ export function appointmentColumnValues(
     ref.id,
     a.unitId,
     lastEventVersion,
-    a.professionalId,
+    a.memberOperationId,
     a.customerId,
     a.serviceId,
     a.customerUserId,
-    a.professionalUserId,
+    a.memberOperatorUserId,
     a.startAt,
     a.endAt,
     a.status,
@@ -116,11 +116,11 @@ export type AppointmentRow = {
   id: string
   unit_id: string
   last_event_version: string | number
-  professional_id: string
+  member_operation_id: string
   customer_id: string
   service_id: string
   customer_user_id: string
-  professional_user_id: string | null
+  member_operator_user_id: string | null
   start_at: string
   end_at: string
   status: string
@@ -158,11 +158,11 @@ export function rowToDoc(row: AppointmentRow): FirestoreDoc {
     id: row.id,
     orgId: row.org_id,
     unitId: row.unit_id,
-    professionalId: row.professional_id,
+    memberOperationId: row.member_operation_id,
     customerId: row.customer_id,
     serviceId: row.service_id,
     customerUserId: row.customer_user_id,
-    professionalUserId: row.professional_user_id,
+    memberOperatorUserId: row.member_operator_user_id,
     // `start_at`/`end_at` are `timestamptz` columns (for the anti-double-book
     // exclusion constraint). With `mode:'string'` the pg driver returns the
     // Postgres timestamp format (`2026-06-10 14:00:00+00`), NOT ISO 8601 — the

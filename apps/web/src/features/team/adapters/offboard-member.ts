@@ -15,11 +15,14 @@ import {
 import { loadOpenOrdersForOrg } from '@/features/orders/adapters/order-financial-read'
 import { getUserById } from '@/shared/db/pg/users-store'
 import { commitSaga } from '@/shared/effect-bridge'
-import { listAgendaBlocksByProfessionalId } from '@/shared/org/agenda-block-read'
-import { listAppointmentsByProfessionalId } from '@/shared/org/appointment-read'
+import { listAgendaBlocksByMemberOperationId } from '@/shared/org/agenda-block-read'
+import { listAppointmentsByMemberOperationId } from '@/shared/org/appointment-read'
 import { deleteInvitePii, listInvitesByStatus } from '@/shared/org/invite-read'
+import {
+  getMemberOperationByUserId,
+  listMemberOperationsForOrg,
+} from '@/shared/org/member-operation-read'
 import { getMembership } from '@/shared/org/membership'
-import { getProfessionalByUserId, listProfessionalsForOrg } from '@/shared/org/professional-read'
 import 'server-only'
 
 // Unified member offboarding saga core — brief 0041 #1103 (AC-04/AC-10). The
@@ -28,10 +31,10 @@ import 'server-only'
 // so it is integration-testable against the emulator (mirrors
 // `erase-customer-cascade.ts`).
 //
-// Distinct from customer erasure (brief 0032): the professional/employment
+// Distinct from customer erasure (brief 0032): the memberOperation/employment
 // vínculo is a DIFFERENT relationship, retained ORIGINAL + IDENTIFIABLE for
 // legal retention (art. 16). The offboarding NEVER anonymizes/scrubs — in
-// particular it does NOT delete `professionals_pii`.
+// particular it does NOT delete `member_operations_pii`.
 //
 // Saga (Postgres ACID, brief 0061 § Grupo C / AC-03): all aggregate writes
 // commit in ONE transaction (see `buildOffboardSteps`), so a failure of any step
@@ -43,20 +46,20 @@ import 'server-only'
 //     reserved for severance (NOT the reversible `suspended`, brief 0029).
 //     Every access gate keys on `status == 'active'`, so a revoked member loses
 //     access AND drops from the active team list.
-//   Step 2 — DEACTIVATE the professional projection (if any): `professional
+//   Step 2 — DEACTIVATE the memberOperation projection (if any): `memberOperation
 //     .suspended` (the same non-destructive event `changeMemberRole` uses for
 //     demotion). NOT a destructive delete; the PII doc is RETAINED.
 //   Step 3+ — CASCADE HOOKS for #1104 / #1105 (folded into the saga steps).
 //
 // #1104 fills the agenda/comanda/blocks cascade:
 //   PRE-CHECK (AC-05, settlement-first) — runs BEFORE step 1, vetoing the whole
-//     saga if the professional still has an OPEN order/comanda attributed to
+//     saga if the memberOperation still has an OPEN order/comanda attributed to
 //     them (a fiscal document must not be left orphaned). See `findOpenComanda`.
-//   Step 3 (AC-02) — cancel the professional's FUTURE appointments
+//   Step 3 (AC-02) — cancel the memberOperation's FUTURE appointments
 //     (`appointment.cancelled`, event-first). Past ones are LEFT; a cancelled
 //     appointment is RETAINED struck-through in the grid (status flip, not
 //     removal). Notifying the customer is the cancel event's downstream concern.
-//   Step 4 (AC-07) — clean the professional's agenda-blocks
+//   Step 4 (AC-07) — clean the memberOperation's agenda-blocks
 //     (`agenda_block.deleted` event-first, then hard-delete the projection —
 //     mirrors `deleteBlock`).
 
@@ -68,10 +71,10 @@ import 'server-only'
 // anonymization). An earlier implementation vetoed on `liquidationStatus ==
 // 'pendente'`; that pre-flight was removed when the owner rejected MR !1111.
 
-// AC-08 non-blocking signal: removing this member zeroed the active-professional
+// AC-08 non-blocking signal: removing this member zeroed the active-memberOperation
 // count of one or more units. Surfaced (NOT a veto) so the caller/UI can warn the
-// owner that those units have no slots until another professional is assigned.
-export type OffboardWarning = { kind: 'unit-without-professional'; unitIds: string[] }
+// owner that those units have no slots until another memberOperation is assigned.
+export type OffboardWarning = { kind: 'unit-without-memberOperation'; unitIds: string[] }
 
 export type OffboardResult =
   | { ok: true; warnings: OffboardWarning[] }
@@ -93,23 +96,23 @@ async function findOpenComanda(orgId: string, targetUserId: string): Promise<str
   return null
 }
 
-// AC-02 — cancel the professional's FUTURE appointments (`startAt` ahead of now,
-// still `scheduled`). Keys off the professional DOC id (the FK appointments
-// denormalize as `professionalId`), so it only has work when a projection
+// AC-02 — cancel the memberOperation's FUTURE appointments (`startAt` ahead of now,
+// still `scheduled`). Keys off the memberOperation DOC id (the FK appointments
+// denormalize as `memberOperationId`), so it only has work when a projection
 // exists. Past appointments are LEFT; a cancelled appointment is RETAINED
 // struck-through in the grid (status flip, not removal). Event-first + idempotent
 // (already cancelled/completed/no-show is skipped); within-org query (no
 // range index — filters the future/scheduled subset in memory). Errors surface
 // as a saga-aborting message.
-// Resolves the FUTURE-scheduled appointments of a professional + the cancel
+// Resolves the FUTURE-scheduled appointments of a memberOperation + the cancel
 // payload for each (notice minutes from now) — read-only. Feeds the Postgres
 // ACID saga the future-scheduled set + the cancel payload to append as pure
 // steps.
 async function resolveFutureAppointmentCancels(
   orgId: string,
-  professionalId: string,
+  memberOperationId: string,
 ): Promise<{ id: string; cancelledAt: string; noticeMinutes: number }[]> {
-  const appts = await listAppointmentsByProfessionalId(orgId, professionalId)
+  const appts = await listAppointmentsByMemberOperationId(orgId, memberOperationId)
   const nowMs = Date.now()
   const now = new Date().toISOString()
   const cancels: { id: string; cancelledAt: string; noticeMinutes: number }[] = []
@@ -126,27 +129,27 @@ async function resolveFutureAppointmentCancels(
 }
 
 // AC-08 — unit-capacity warning (#1105, edge, NON-BLOCKING). Surface a warning
-// for any unit (`professional.unitIds`) the removed member belonged to that now
-// has ZERO active professionals. Bookings on those units would have no slots —
+// for any unit (`memberOperation.unitIds`) the removed member belonged to that now
+// has ZERO active memberOperations. Bookings on those units would have no slots —
 // the owner must be told (never a silent gap), but it does NOT block the removal.
 //
-// Reads ALL professionals for the org (enriched, so `operationalStatus` is the
+// Reads ALL memberOperations for the org (enriched, so `operationalStatus` is the
 // value DERIVED on read — #1226 AC-02) and excludes the removed projection
 // EXPLICITLY by id, so it never counts itself as staffing (its projection still
 // derives `operational` until deleted). Active = `operationalStatus == 'operational'`.
 // Within-org read; small set. Read-only.
-async function detectUnitsLeftWithoutProfessional(
+async function detectUnitsLeftWithoutMemberOperation(
   orgId: string,
-  removedProfessionalId: string,
+  removedMemberOperationId: string,
   removedUnitIds: readonly string[],
 ): Promise<string[]> {
   if (removedUnitIds.length === 0) return []
-  // Read all professionals for the org (enriched; we only read operationalStatus
+  // Read all memberOperations for the org (enriched; we only read operationalStatus
   // + unitIds, both projection fields).
-  const professionals = await listProfessionalsForOrg(orgId)
+  const memberOperations = await listMemberOperationsForOrg(orgId)
   const stillStaffed = new Set<string>()
-  for (const pro of professionals) {
-    if (pro.id === removedProfessionalId) continue
+  for (const pro of memberOperations) {
+    if (pro.id === removedMemberOperationId) continue
     if (pro.operationalStatus !== 'operational') continue
     for (const unitId of pro.unitIds ?? []) stillStaffed.add(unitId)
   }
@@ -158,7 +161,7 @@ async function detectUnitsLeftWithoutProfessional(
 export type ResolvedOffboard = {
   membershipId: string
   previousStatus: Membership['status']
-  professionalId: string | null
+  memberOperationId: string | null
   appointmentCancels: { id: string; cancelledAt: string; noticeMinutes: number }[]
   agendaBlockIds: string[]
   inviteIds: string[]
@@ -174,7 +177,7 @@ async function resolveMemberEmail(targetUserId: string): Promise<string | null> 
 // Builds the offboard cascade as ACID saga steps (brief 0061 § Grupo C / AC-03):
 // membership revoked + future appointments cancelled + agenda-blocks deleted
 // (event + row drop) + pending invites deleted (event + row drop), all THROUGH
-// the shared tx. No `professional.suspended` step (#1226 AC-02 — derived status). A failure of any step rolls back the whole
+// the shared tx. No `member_operation.suspended` step (#1226 AC-02 — derived status). A failure of any step rolls back the whole
 // offboard — no manual `compensateMembership`. The `*.deleted` steps use
 // `appendDeleteToTx` so the projection row is dropped in the same tx; the
 // `invites_pii` LGPD sidecar is deleted AFTER commit (not an event-store row).
@@ -198,7 +201,7 @@ export function buildOffboardSteps(
     ),
   )
 
-  // No `professional.suspended` step (#1226 AC-02): the professional's
+  // No `member_operation.suspended` step (#1226 AC-02): the memberOperation's
   // `operationalStatus` is derived on read, and the revoked membership above
   // already severs operability (every operational read keys on an active
   // membership). The future appointments are still cancelled below.
@@ -257,27 +260,27 @@ export function buildOffboardSteps(
 
 // The Postgres offboard: resolve every read, run all aggregate writes as ONE
 // ACID transaction, then drop the LGPD invite PII sidecars (post-commit — not an
-// event-store row). Returns the removed professional's unit ids (for the AC-08
+// event-store row). Returns the removed memberOperation's unit ids (for the AC-08
 // warning) + the result, or an error string.
 async function offboardMemberPostgres(args: {
   orgId: string
   targetUserId: string
   actorId: string
   previousStatus: Membership['status']
-  // The member's professional projection, ALREADY loaded by the caller (avoid a
-  // second `getProfessionalByUserId` + its PII/users enrich fan-out).
+  // The member's memberOperation projection, ALREADY loaded by the caller (avoid a
+  // second `getMemberOperationByUserId` + its PII/users enrich fan-out).
   existingPro: { id: string; unitIds?: readonly string[] } | null
 }): Promise<{ ok: true; removedUnitIds: readonly string[] } | { ok: false; error: string }> {
   const { orgId, targetUserId, actorId, previousStatus, existingPro } = args
   const membershipId = membershipDocId(orgId, targetUserId)
-  const professionalId = existingPro?.id ?? null
+  const memberOperationId = existingPro?.id ?? null
   const removedUnitIds = existingPro ? (existingPro.unitIds ?? []) : []
 
-  const appointmentCancels = professionalId
-    ? await resolveFutureAppointmentCancels(orgId, professionalId)
+  const appointmentCancels = memberOperationId
+    ? await resolveFutureAppointmentCancels(orgId, memberOperationId)
     : []
-  const agendaBlocks = professionalId
-    ? await listAgendaBlocksByProfessionalId(orgId, professionalId)
+  const agendaBlocks = memberOperationId
+    ? await listAgendaBlocksByMemberOperationId(orgId, memberOperationId)
     : []
   const email = await resolveMemberEmail(targetUserId)
   const pendingInvites = email
@@ -289,7 +292,7 @@ async function offboardMemberPostgres(args: {
   const resolved: ResolvedOffboard = {
     membershipId,
     previousStatus,
-    professionalId,
+    memberOperationId,
     appointmentCancels,
     agendaBlockIds: agendaBlocks.map((b) => b.id),
     inviteIds: pendingInvites.map((i) => i.id),
@@ -341,11 +344,11 @@ export async function offboardMemberInOrg(
 
   const previousStatus = member.status
 
-  // The whole offboard (membership revoke + professional suspend + appointment
+  // The whole offboard (membership revoke + memberOperation suspend + appointment
   // cancels + agenda-block/invite deletes) runs as ONE ACID transaction (brief
   // 0061 § Grupo C / AC-03) — there is no manual compensation (a failure rolls
   // back the lot). The AC-08 warning is computed after, from the committed state.
-  const existingPro = await getProfessionalByUserId(orgId, targetUserId)
+  const existingPro = await getMemberOperationByUserId(orgId, targetUserId)
   const result = await offboardMemberPostgres({
     orgId,
     targetUserId,
@@ -354,12 +357,12 @@ export async function offboardMemberInOrg(
     existingPro,
   })
   if (!result.ok) return { ok: false, error: result.error }
-  const unitsWithoutProfessional = existingPro
-    ? await detectUnitsLeftWithoutProfessional(orgId, existingPro.id, result.removedUnitIds)
+  const unitsWithoutMemberOperation = existingPro
+    ? await detectUnitsLeftWithoutMemberOperation(orgId, existingPro.id, result.removedUnitIds)
     : []
   const warnings: OffboardWarning[] =
-    unitsWithoutProfessional.length > 0
-      ? [{ kind: 'unit-without-professional', unitIds: unitsWithoutProfessional }]
+    unitsWithoutMemberOperation.length > 0
+      ? [{ kind: 'unit-without-memberOperation', unitIds: unitsWithoutMemberOperation }]
       : []
   return { ok: true, warnings }
 }

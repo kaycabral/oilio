@@ -9,7 +9,7 @@
 // Atribuição de item é por membro (`attributedUserId` = userId) com default
 // esperto (brief 0030, AC-04 / #1056): o produto avulso fica atribuído ao membro
 // que abriu a venda (o owner seedado). O caso de varejo puro — recepção sem
-// Professional vendendo balcão — é coberto em member-attribution.spec.ts.
+// MemberOperation vendendo balcão — é coberto em member-attribution.spec.ts.
 
 import { expect, test } from '../fixtures'
 import { addCatalogItemToOrder } from '../helpers/orders'
@@ -21,8 +21,8 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -87,7 +87,7 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
     await seedAppointment({
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: org.professionalIds[0]!,
+      memberOperationId: org.memberOperationIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',

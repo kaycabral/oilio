@@ -29,8 +29,8 @@ import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
 import { getOrgTier } from '@/shared/org/billing-read'
 import { canDeleteUnit } from '@/shared/org/delete-guard'
+import { hasOperationalMemberOperationInUnit } from '@/shared/org/member-operation-read'
 import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
-import { hasOperationalProfessionalInUnit } from '@/shared/org/professional-read'
 import {
   deleteUnitPii,
   getUnitById,
@@ -267,7 +267,7 @@ export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
 
   // One-verb "Excluir" (brief 0033, AC-03 — #1070): single destructive verb,
   // hard vs soft decided here. Active-reference guard (AC-01/AC-02): a live
-  // dependency is a professional currently scoped to the unit, or a FUTURE
+  // dependency is a memberOperation currently scoped to the unit, or a FUTURE
   // scheduled appointment in it. Past/completed/cancelled appointments are
   // historical (snapshotted) and do not block. With an active reference we
   // soft-delete (archive) — the unit drops from the active list while the
@@ -351,12 +351,12 @@ export async function getUnitPublishReadiness(
   unitId: string,
 ): Promise<UnitPublishReadiness> {
   // Unit + catalog read the typed tables under RLS; the "operational pro at this
-  // unit?" fact is the inverse query served by the `professional_units` join
+  // unit?" fact is the inverse query served by the `member_operation_units` join
   // (brief 0068 D3) — existence-only, no fetch-all + `.some()` over `unit_ids`.
-  const [unit, catalogItems, hasOperationalProfessional] = await Promise.all([
+  const [unit, catalogItems, hasOperationalMemberOperation] = await Promise.all([
     getUnitById(orgId, unitId),
     listCatalogItems(orgId),
-    hasOperationalProfessionalInUnit(orgId, unitId),
+    hasOperationalMemberOperationInUnit(orgId, unitId),
   ])
 
   const hasPublicService = catalogItems
@@ -368,7 +368,7 @@ export async function getUnitPublishReadiness(
   return computeUnitPublishReadiness({
     hasAddressAndHours: unit != null && unitHasAddressAndHours(unit.agenda),
     hasPublicService,
-    hasOperationalProfessional,
+    hasOperationalMemberOperation,
   })
 }
 

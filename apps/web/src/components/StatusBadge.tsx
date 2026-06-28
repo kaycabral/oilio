@@ -26,7 +26,7 @@ export function StatusBadge({ tone, children }: { tone: StatusTone; children: Re
   )
 }
 
-// A professional not yet `operational` (#1047) reads IDENTICALLY on every
+// A memberOperation not yet `operational` (#1047) reads IDENTICALLY on every
 // list/operational surface — one label, one tone — so the team list and the
 // agenda never disagree. The granular stage (Convite não aceito / Cadastro
 // incompleto) stays on the member DETAIL page, where the "why" is actionable.

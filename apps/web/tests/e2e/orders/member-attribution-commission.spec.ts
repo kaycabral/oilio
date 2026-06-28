@@ -31,8 +31,8 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -52,7 +52,7 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
     })
     // Produto SEM regra (degenerado): atribuído mas não comissiona (AC-06).
     await seedProduct(org.orgId, { name: 'Prego Sem Comissao', priceCents: 1000 })
-    // Recepção sem Professional — é quem a re-chave por membro precisa creditar.
+    // Recepção sem MemberOperation — é quem a re-chave por membro precisa creditar.
     await seedMember(org.orgId, { role: 'receptionist', displayName: 'Recepção Caixa' })
 
     await authedPage.goto('/orders')
@@ -133,7 +133,7 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
     await seedAppointment({
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: org.professionalIds[0]!,
+      memberOperationId: org.memberOperationIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',
@@ -158,7 +158,7 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible({ timeout: 5000 })
 
     // No relatório, agrupado por membro, a comissão do serviço (40% de R$ 50 =
-    // R$ 20) aparece sob o profissional executor (membro de papel professional;
+    // R$ 20) aparece sob o profissional executor (membro de papel memberOperation;
     // a chave é o userId dele, mesma identidade).
     await authedPage.goto('/reports/commissions')
     await expect(authedPage.getByRole('heading', { name: 'Por membro' })).toBeVisible()

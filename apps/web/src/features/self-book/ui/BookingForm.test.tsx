@@ -7,7 +7,7 @@ vi.mock('@/features/self-book/adapters/book.actions', () => ({
 }))
 
 const services = [{ id: 's1', name: 'Corte', durationMinutes: 30, priceCents: 5000 }]
-const professionals = [{ id: 'p1', name: 'João', unitName: 'Centro' }]
+const memberOperations = [{ id: 'p1', name: 'João', unitName: 'Centro' }]
 
 describe('BookingForm — cancellation policy notice (#871)', () => {
   it('does not render the notice when policy is disabled', () => {
@@ -15,7 +15,7 @@ describe('BookingForm — cancellation policy notice (#871)', () => {
       <BookingForm
         slug="acme"
         services={services}
-        professionals={professionals}
+        memberOperations={memberOperations}
         cancellationPolicy={{ enabled: false, minNoticeMinutes: 120 }}
       />,
     )
@@ -29,7 +29,7 @@ describe('BookingForm — cancellation policy notice (#871)', () => {
       <BookingForm
         slug="acme"
         services={services}
-        professionals={professionals}
+        memberOperations={memberOperations}
         cancellationPolicy={{ enabled: true, minNoticeMinutes: 120 }}
       />,
     )
@@ -43,7 +43,7 @@ describe('BookingForm — cancellation policy notice (#871)', () => {
       <BookingForm
         slug="acme"
         services={services}
-        professionals={professionals}
+        memberOperations={memberOperations}
         cancellationPolicy={{ enabled: true, minNoticeMinutes: 45 }}
       />,
     )
@@ -57,7 +57,7 @@ describe('BookingForm — cancellation policy notice (#871)', () => {
       <BookingForm
         slug="acme"
         services={services}
-        professionals={professionals}
+        memberOperations={memberOperations}
         cancellationPolicy={{ enabled: true, minNoticeMinutes: 60 * 24 * 2 }}
       />,
     )

@@ -6,8 +6,8 @@ import {
   canCustomerCancelSubscription,
   normalizeCancellationPolicy,
   type CatalogItem,
+  type MemberOperation,
   type Org,
-  type Professional,
   type StoredUnit,
 } from '@/domain'
 import { describeCancelReason } from '@/features/me/core/cancel-notice'
@@ -25,8 +25,8 @@ import {
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { listLinkedOrgIds } from '@/shared/identity/org-links'
+import { listMemberOperationsForOrg } from '@/shared/org/member-operation-read'
 import { getOrg } from '@/shared/org/org'
-import { listProfessionalsForOrg } from '@/shared/org/professional-read'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
 import { Schema } from 'effect'
 import { redirect } from 'next/navigation'
@@ -79,7 +79,7 @@ export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> 
 
   const appointments = await loadAppointmentsAcrossOrgs(session.uid)
 
-  // Hydrate display fields (service, professional, unit, org) in one
+  // Hydrate display fields (service, memberOperation, unit, org) in one
   // batched fetch per org — typical customer has appointments across
   // ≤ 2 orgs so the join cost is negligible.
   const orgIds = Array.from(new Set(appointments.map((a) => a.orgId)))
@@ -87,7 +87,7 @@ export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> 
   // Unified catalog (brief 0023, #1004): appointment.serviceId resolves against
   // catalog_items; only the name is rendered here.
   const services = new Map<string, CatalogItem>()
-  const professionals = new Map<string, Professional>()
+  const memberOperations = new Map<string, MemberOperation>()
   const units = new Map<string, StoredUnit>()
 
   await Promise.all(
@@ -95,13 +95,13 @@ export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> 
       const [org, catalogItems, enrichedPros, storedUnits] = await Promise.all([
         getOrg(tid),
         listCatalogItems(tid),
-        // Professional PII (name) is merged from the global User on read (#1046).
-        listProfessionalsForOrg(tid),
+        // MemberOperation PII (name) is merged from the global User on read (#1046).
+        listMemberOperationsForOrg(tid),
         listStoredUnitsForOrg(tid),
       ])
       if (org) orgs.set(tid, org)
       for (const item of catalogItems) services.set(`${tid}:${item.id}`, item)
-      for (const p of enrichedPros) professionals.set(`${tid}:${p.id}`, p)
+      for (const p of enrichedPros) memberOperations.set(`${tid}:${p.id}`, p)
       for (const u of storedUnits) units.set(`${tid}:${u.id}`, u)
     }),
   )
@@ -113,7 +113,7 @@ export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> 
     const org = orgs.get(a.orgId)
     if (!org) continue
     const service = services.get(`${a.orgId}:${a.serviceId}`)
-    const professional = professionals.get(`${a.orgId}:${a.professionalId}`)
+    const memberOperation = memberOperations.get(`${a.orgId}:${a.memberOperationId}`)
     const unit = units.get(`${a.orgId}:${a.unitId}`)
     // Timezone + cancellation policy are the establishment's (PRD Identidade v2
     // — moved Org→Unit). Snapshot-on-use (#1038): cada linha avalia o cancel
@@ -154,7 +154,7 @@ export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> 
       unitSlug: unit?.slug ?? null,
       appointmentId: a.id,
       serviceName: service?.name ?? 'Serviço',
-      professionalName: professional?.name ?? '—',
+      memberOperationName: memberOperation?.name ?? '—',
       unitName: unit?.name ?? '—',
       startAtLabel,
       endAtLabel,

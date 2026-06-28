@@ -11,8 +11,8 @@ import { ConfirmBookingForm } from '@/features/self-book/ui/ConfirmBookingForm'
 import { PlanCoverageBanner } from '@/features/self-book/ui/PlanCoverageBanner'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { getSessionUser } from '@/shared/firebase/admin'
+import { getMemberOperationById } from '@/shared/org/member-operation-read'
 import { getUserDoc } from '@/shared/org/membership'
-import { getProfessionalById } from '@/shared/org/professional-read'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
@@ -35,41 +35,41 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return { title: `Agendar — ${bundle.unit.name} — ${bundle.org.name}` }
 }
 
-// Load + validate the wizard's bundle, chosen service and professional. Every
+// Load + validate the wizard's bundle, chosen service and memberOperation. Every
 // invalid combination is a `notFound()` (the URL was tampered or the data
 // changed). Returns the validated trio for rendering.
 async function loadWizardPageEntities(
   slug: string,
   unitSlug: string,
   serviceQ: string,
-  professionalQ: string,
+  memberOperationQ: string,
 ) {
   const bundle = await getPublicUnitBundle(slug, unitSlug)
   if (!bundle) notFound()
 
-  const [rawService, professional] = await Promise.all([
+  const [rawService, memberOperation] = await Promise.all([
     getCatalogItemById(bundle.org.id, serviceQ),
-    getProfessionalById(bundle.org.id, professionalQ),
+    getMemberOperationById(bundle.org.id, memberOperationQ),
   ])
   // Unified catalog (brief 0023, #1004 → 0053/B3): re-sanitize through
   // `toPublicCatalogItem` so the rendered labels match the wire projection
   // (no commission leak).
-  if (!rawService || !professional) notFound()
+  if (!rawService || !memberOperation) notFound()
   if (!isCatalogService(rawService)) notFound()
   if (!rawService.active || !rawService.publicVisible) notFound()
   if (!rawService.unitIds.includes(bundle.unit.id)) notFound()
   const publicService = toPublicCatalogItem(rawService, bundle.unit.id)
 
-  if (!professional.unitIds.includes(bundle.unit.id)) notFound()
+  if (!memberOperation.unitIds.includes(bundle.unit.id)) notFound()
   if (
-    !Array.isArray(professional.catalogServiceIds) ||
-    !professional.catalogServiceIds.includes(rawService.id)
+    !Array.isArray(memberOperation.catalogServiceIds) ||
+    !memberOperation.catalogServiceIds.includes(rawService.id)
   ) {
     notFound()
   }
-  if (!isOperational(professional.operationalStatus)) notFound()
+  if (!isOperational(memberOperation.operationalStatus)) notFound()
 
-  return { bundle, publicService, professional, rawService }
+  return { bundle, publicService, memberOperation, rawService }
 }
 
 export default async function WizardBookPage({ params, searchParams }: PageProps) {
@@ -77,7 +77,7 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
   const sp = await searchParams
   const serviceQ = readQuery(sp, 'service')
   const startQ = readQuery(sp, 'start')
-  const professionalQ = readQuery(sp, 'professional')
+  const memberOperationQ = readQuery(sp, 'member_operator')
 
   // Step 1 fallback: no service in URL → bounce to the unit catalog (the
   // canonical "pick a service" surface — #841). Keeps a single source of
@@ -91,17 +91,17 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
     redirect(`/${slug}/${unitSlug}/availability?service=${encodeURIComponent(serviceQ)}`)
   }
 
-  if (!professionalQ) {
+  if (!memberOperationQ) {
     // The availability calendar always assigns a pro; if the URL is missing
     // one, the user manipulated the link — kick them back to slot picking.
     redirect(`/${slug}/${unitSlug}/availability?service=${encodeURIComponent(serviceQ)}`)
   }
 
-  const { bundle, publicService, professional, rawService } = await loadWizardPageEntities(
+  const { bundle, publicService, memberOperation, rawService } = await loadWizardPageEntities(
     slug,
     unitSlug,
     serviceQ,
-    professionalQ,
+    memberOperationQ,
   )
 
   // Render the human-readable start label in org timezone — pre-formatted
@@ -198,10 +198,10 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
         slug={slug}
         unitSlug={unitSlug}
         serviceId={rawService.id}
-        professionalId={professional.id}
+        memberOperationId={memberOperation.id}
         startAtIso={startAt.toISOString()}
         serviceLabel={serviceLabel}
-        professionalLabel={professional.name}
+        memberOperationLabel={memberOperation.name}
         startAtLabel={startAtLabel}
         cancellationPolicy={
           appointmentAgenda(bundle.unit.agenda)?.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY

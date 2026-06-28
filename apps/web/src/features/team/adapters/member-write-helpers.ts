@@ -3,17 +3,17 @@
 // (never form-invoked); imperative-shell helpers the actions compose. All
 // return `string | null` (error | success), so no result-type cycle.
 
-import { isCatalogService, type Professional, type StoredProfessional } from '@/domain'
+import { isCatalogService, type MemberOperation, type StoredMemberOperation } from '@/domain'
 import type { EventInput } from '@/domain/effect'
 
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { newId } from '@/shared/db/pg/new-id'
 
-import { getProfessionalByUserId } from '@/shared/org/professional-read'
+import { getMemberOperationByUserId } from '@/shared/org/member-operation-read'
 
 // Identity (name/whatsapp/email) is NOT parsed here (#1046 / brief 0028
 // AC-04/AC-05): it derives live from `users/{userId}`. The operational edit
-// form only carries professional-scoped fields + `taxIdentity`.
+// form only carries memberOperation-scoped fields + `taxIdentity`.
 // `operationalStatus` is NOT parsed nor stored (#1226 AC-02): it is DERIVED on
 // read from real facts (whatsapp present ∧ ≥1 unit ∧ ≥1 service), never written.
 // Validates the #876 invariant: every `serviceId` in the pro's list must
@@ -41,12 +41,12 @@ export async function validateServiceUnitIntersection(
   return null
 }
 
-// The professional-projection decision for a role change, RESOLVED from reads but
+// The memberOperation-projection decision for a role change, RESOLVED from reads but
 // not yet emitted — so the Postgres ACID path (#1199) can run it as a saga step
 // inside the membership tx, then do the PII sidecar post-commit.
 //
 // Since `operationalStatus` is DERIVED on read (#1226 AC-02), a role change no
-// longer emits `professional.activated`/`.suspended` — re-promotion and demotion
+// longer emits `member_operation.activated`/`.suspended` — re-promotion and demotion
 // need no projection event (a re-promoted pro's readiness is recomputed from
 // real facts on the next read; a demoted member's projection is severed by the
 // offboarding flow, brief 0041). The only remaining write is MATERIALIZING a new
@@ -54,33 +54,33 @@ export async function validateServiceUnitIntersection(
 //   - `none`   — no projection to create (no existing on demotion, or already
 //                exists on re-promotion).
 //   - `create` — materialize a NEW projection (promotion, no existing) + a
-//                post-commit `professionals_pii` sidecar.
-export type ProfessionalRoleStep =
+//                post-commit `member_operations_pii` sidecar.
+export type MemberOperatorRoleStep =
   | { readonly kind: 'none' }
   | {
       readonly kind: 'create'
       readonly path: string
       readonly proId: string
-      readonly input: EventInput<'professional.created'>
+      readonly input: EventInput<'member_operation.created'>
     }
 
-export async function resolveProfessionalRoleStep(args: {
+export async function resolveMemberOperatorRoleStep(args: {
   orgId: string
   actorId: string
   targetUserId: string
-  willBeProfessional: boolean
-}): Promise<ProfessionalRoleStep> {
-  const { orgId, actorId, targetUserId, willBeProfessional } = args
-  if (!willBeProfessional) return { kind: 'none' }
+  willBeMemberOperator: boolean
+}): Promise<MemberOperatorRoleStep> {
+  const { orgId, actorId, targetUserId, willBeMemberOperator } = args
+  if (!willBeMemberOperator) return { kind: 'none' }
 
   // ≤1 projection per userId per org: re-promotion of an existing projection is a
   // no-op (readiness is derived on read), so only materialize when absent.
-  const existingPro: Professional | null = await getProfessionalByUserId(orgId, targetUserId)
+  const existingPro: MemberOperation | null = await getMemberOperationByUserId(orgId, targetUserId)
   if (existingPro) return { kind: 'none' }
 
   const now = new Date().toISOString()
   const proId = newId()
-  const stored: StoredProfessional = {
+  const stored: StoredMemberOperation = {
     id: proId,
     orgId,
     userId: targetUserId,
@@ -92,8 +92,8 @@ export async function resolveProfessionalRoleStep(args: {
   }
   return {
     kind: 'create',
-    path: `orgs/${orgId}/professionals/${proId}`,
+    path: `orgs/${orgId}/memberOperations/${proId}`,
     proId,
-    input: { _tag: 'professional.created', actorId, payload: { data: stored } },
+    input: { _tag: 'member_operation.created', actorId, payload: { data: stored } },
   }
 }

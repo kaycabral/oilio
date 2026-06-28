@@ -6,7 +6,7 @@ import { Check, X } from 'lucide-react'
 
 // SPIKE (inferred availability): no publish button. A unit in "Por agendamento"
 // mode goes live automatically once it meets the minimum (hours + public
-// service + approved professional). This card is just FEEDBACK — it tells the
+// service + approved memberOperation). This card is just FEEDBACK — it tells the
 // owner whether the agenda is visible and, if not, exactly what's missing.
 // Hidden entirely for non-appointment units (the agenda isn't relevant there).
 // `mode` is `Unit.agenda.mode` (PRD Identidade v2 — agenda moved Org→Unit).

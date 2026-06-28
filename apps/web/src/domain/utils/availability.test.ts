@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Appointment } from '../types/appointment'
 import type { CatalogServiceItem } from '../types/catalog-item'
-import type { Professional } from '../types/professional'
+import type { MemberOperation } from '../types/member-operation'
 import type { BusinessHours } from '../types/unit'
 import {
   computeAvailabilityForDay,
@@ -35,7 +35,7 @@ function svc(o: Partial<CatalogServiceItem> = {}): CatalogServiceItem {
   }
 }
 
-function pro(o: Partial<Professional> = {}): Professional {
+function pro(o: Partial<MemberOperation> = {}): MemberOperation {
   return {
     id: 'p1',
     orgId: 't1',
@@ -73,7 +73,7 @@ function appt(o: Partial<Appointment> = {}): Appointment {
     id: 'a1',
     orgId: 't1',
     unitId: UNIT_ID,
-    professionalId: 'p1',
+    memberOperationId: 'p1',
     customerId: 'c1',
     serviceId: 'svc1',
     startAt: '2026-08-17T13:00:00.000Z',
@@ -84,7 +84,7 @@ function appt(o: Partial<Appointment> = {}): Appointment {
     commissionSnapshot: null,
     cancellationPolicySnapshot: null,
     customerUserId: 'u1',
-    professionalUserId: null,
+    memberOperatorUserId: null,
     createdAt: '',
     updatedAt: '',
     ...o,
@@ -100,7 +100,7 @@ describe('computeAvailabilityForDay', () => {
     const slots = computeAvailabilityForDay({
       service: svc(),
       unitId: UNIT_ID,
-      professionals: [pro()],
+      memberOperations: [pro()],
       unitBusinessHours: bh(),
       appointments: [],
       blockSegments: [],
@@ -123,7 +123,7 @@ describe('computeAvailabilityForDay', () => {
     const slots = computeAvailabilityForDay({
       service: svc({ durationMinutes: 0 }),
       unitId: UNIT_ID,
-      professionals: [pro()],
+      memberOperations: [pro()],
       unitBusinessHours: bh(),
       appointments: [],
       blockSegments: [],
@@ -140,7 +140,7 @@ describe('computeAvailabilityForDay', () => {
     const slots = computeAvailabilityForDay({
       service: svc({ durationMinutes: 240 }),
       unitId: UNIT_ID,
-      professionals: [pro()],
+      memberOperations: [pro()],
       unitBusinessHours: bh(),
       appointments: [],
       blockSegments: [],
@@ -156,7 +156,7 @@ describe('computeAvailabilityForDay', () => {
     const slots = computeAvailabilityForDay({
       service: svc(),
       unitId: UNIT_ID,
-      professionals: [pro()],
+      memberOperations: [pro()],
       unitBusinessHours: bh(),
       // 10:00–10:30 BR busy.
       appointments: [
@@ -182,7 +182,7 @@ describe('computeAvailabilityForDay', () => {
     const slots = computeAvailabilityForDay({
       service: svc(),
       unitId: UNIT_ID,
-      professionals: [pro()],
+      memberOperations: [pro()],
       unitBusinessHours: bh(),
       appointments: [
         appt({
@@ -204,14 +204,14 @@ describe('computeAvailabilityForDay', () => {
     const slots = computeAvailabilityForDay({
       service: svc(),
       unitId: UNIT_ID,
-      professionals: [pro()],
+      memberOperations: [pro()],
       unitBusinessHours: bh(),
       appointments: [],
       // Block 10:00–11:00 BR for this pro.
       blockSegments: [
         {
           blockId: 'b1',
-          professionalId: 'p1',
+          memberOperationId: 'p1',
           reason: 'Almoço',
           startMin: 10 * 60,
           endMin: 11 * 60,
@@ -232,7 +232,7 @@ describe('computeAvailabilityForDay', () => {
     const slots = computeAvailabilityForDay({
       service: longer,
       unitId: UNIT_ID,
-      professionals: [pro()],
+      memberOperations: [pro()],
       unitBusinessHours: bh(),
       appointments: [],
       blockSegments: [],
@@ -255,7 +255,7 @@ describe('computeAvailabilityForDay', () => {
     const slots = computeAvailabilityForDay({
       service: svc(),
       unitId: UNIT_ID,
-      professionals: [pro()],
+      memberOperations: [pro()],
       unitBusinessHours: bh({ monday: null }),
       appointments: [],
       blockSegments: [],
@@ -271,7 +271,7 @@ describe('computeAvailabilityForDay', () => {
     const slots = computeAvailabilityForDay({
       service: svc(),
       unitId: UNIT_ID,
-      professionals: [pro()],
+      memberOperations: [pro()],
       unitBusinessHours: bh(),
       appointments: [],
       blockSegments: [],
@@ -288,12 +288,12 @@ describe('computeAvailabilityForDay', () => {
     ])
   })
 
-  it('filters out professionals who do not execute the service', () => {
+  it('filters out memberOperations who do not execute the service', () => {
     const notLinked = pro({ id: 'p2', name: 'Bob', catalogServiceIds: [] })
     const slots = computeAvailabilityForDay({
       service: svc(),
       unitId: UNIT_ID,
-      professionals: [pro(), notLinked],
+      memberOperations: [pro(), notLinked],
       unitBusinessHours: bh(),
       appointments: [],
       blockSegments: [],
@@ -302,16 +302,16 @@ describe('computeAvailabilityForDay', () => {
       timezone: BR,
       nowMs: new Date('2026-08-15T00:00:00.000Z').getTime(),
     })
-    const ids = new Set(slots.map((s) => s.professionalId))
+    const ids = new Set(slots.map((s) => s.memberOperationId))
     expect(ids.has('p1')).toBe(true)
     expect(ids.has('p2')).toBe(false)
   })
 
-  it('emits one slot per professional + start', () => {
+  it('emits one slot per memberOperation + start', () => {
     const slots = computeAvailabilityForDay({
       service: svc(),
       unitId: UNIT_ID,
-      professionals: [pro(), pro({ id: 'p2', name: 'Bob' })],
+      memberOperations: [pro(), pro({ id: 'p2', name: 'Bob' })],
       unitBusinessHours: bh(),
       appointments: [],
       blockSegments: [],
@@ -334,7 +334,7 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
     return computeAvailabilityForDay({
       service: svc(),
       unitId: UNIT_ID,
-      professionals: [pro()],
+      memberOperations: [pro()],
       unitBusinessHours: bh(),
       appointments: [],
       blockSegments: [],
@@ -353,12 +353,12 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
     ])
   })
 
-  it('excludes ineligible professionals (incomplete, off-unit) but keeps the eligible one', () => {
+  it('excludes ineligible memberOperations (incomplete, off-unit) but keeps the eligible one', () => {
     const ids = new Set(
       computeAvailabilityForDay({
         service: svc(),
         unitId: UNIT_ID,
-        professionals: [
+        memberOperations: [
           pro(),
           pro({ id: 'p2', name: 'Incomplete', operationalStatus: 'incomplete' }),
           pro({ id: 'p3', name: 'OffUnit', unitIds: ['other-unit'] }),
@@ -370,7 +370,7 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
         slotMinutes: 30,
         timezone: BR,
         nowMs: FAR_PAST,
-      }).map((s) => s.professionalId),
+      }).map((s) => s.memberOperationId),
     )
     expect([...ids]).toEqual(['p1'])
   })
@@ -381,12 +381,18 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
     expect(slots[0]).toBe('2026-08-17T12:00:00.000Z')
   })
 
-  it('ignores a block owned by a different professional, applies a unit-wide (null) block', () => {
+  it('ignores a block owned by a different memberOperation, applies a unit-wide (null) block', () => {
     // Block 09:00–12:00 for someone else → must NOT touch p1.
     expect(
       run({
         blockSegments: [
-          { blockId: 'bx', professionalId: 'other-pro', reason: 'x', startMin: 540, endMin: 720 },
+          {
+            blockId: 'bx',
+            memberOperationId: 'other-pro',
+            reason: 'x',
+            startMin: 540,
+            endMin: 720,
+          },
         ],
       }),
     ).toHaveLength(6)
@@ -394,7 +400,7 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
     expect(
       run({
         blockSegments: [
-          { blockId: 'b0', professionalId: null, reason: 'Feriado', startMin: 540, endMin: 720 },
+          { blockId: 'b0', memberOperationId: null, reason: 'Feriado', startMin: 540, endMin: 720 },
         ],
       }),
     ).toEqual([])
@@ -405,7 +411,7 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
     // slot 09:30 overlaps (gone); slot 10:00 starts at block end (touch → free).
     const slots = run({
       blockSegments: [
-        { blockId: 'b1', professionalId: 'p1', reason: 'Café', startMin: 570, endMin: 600 },
+        { blockId: 'b1', memberOperationId: 'p1', reason: 'Café', startMin: 570, endMin: 600 },
       ],
     })
     expect(slots).toContain('2026-08-17T12:00:00.000Z')
@@ -423,17 +429,17 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
     )
   })
 
-  it("does not let another professional's appointment block this one's slot", () => {
+  it("does not let another memberOperation's appointment block this one's slot", () => {
     // p1 has a free grid; p2 is booked 10:00–10:30. p1's 10:00 slot must stay.
     const slots = computeAvailabilityForDay({
       service: svc(),
       unitId: UNIT_ID,
-      professionals: [pro()],
+      memberOperations: [pro()],
       unitBusinessHours: bh(),
       appointments: [
         appt({
           id: 'a-p2',
-          professionalId: 'p2',
+          memberOperationId: 'p2',
           status: 'scheduled',
           startAt: '2026-08-17T13:00:00.000Z',
           endAt: '2026-08-17T13:30:00.000Z',
@@ -452,12 +458,12 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
 describe('groupAvailabilityByLocalTime', () => {
   it('groups by org-local HH:mm and sorts ascending', () => {
     const slots: AvailabilitySlot[] = [
-      { professionalId: 'p1', startAt: '2026-08-17T13:30:00.000Z' },
-      { professionalId: 'p2', startAt: '2026-08-17T13:30:00.000Z' },
-      { professionalId: 'p1', startAt: '2026-08-17T12:00:00.000Z' },
+      { memberOperationId: 'p1', startAt: '2026-08-17T13:30:00.000Z' },
+      { memberOperationId: 'p2', startAt: '2026-08-17T13:30:00.000Z' },
+      { memberOperationId: 'p1', startAt: '2026-08-17T12:00:00.000Z' },
     ]
     const rows = groupAvailabilityByLocalTime(slots, BR)
     expect(rows.map((r) => r.localHHmm)).toEqual(['09:00', '10:30'])
-    expect(rows[1]!.slots.map((s) => s.professionalId)).toEqual(['p1', 'p2'])
+    expect(rows[1]!.slots.map((s) => s.memberOperationId)).toEqual(['p1', 'p2'])
   })
 })

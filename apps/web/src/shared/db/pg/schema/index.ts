@@ -19,6 +19,26 @@ export { events, type NewEvent, type StoredEvent } from './events'
 export { goals, type NewGoalRow, type StoredGoalRow } from './goals'
 export { invites, type NewInviteRow, type StoredInviteRow } from './invites'
 export { invitesPii, type NewInvitePiiRow, type StoredInvitePiiRow } from './invites_pii'
+export {
+  memberOperationServices,
+  type NewMemberOperationServiceRow,
+  type StoredMemberOperationServiceRow,
+} from './member_operation_services'
+export {
+  memberOperationUnits,
+  type NewMemberOperationUnitRow,
+  type StoredMemberOperationUnitRow,
+} from './member_operation_units'
+export {
+  memberOperations,
+  type NewMemberOperationRow,
+  type StoredMemberOperationRow,
+} from './member_operations'
+export {
+  memberOperationsPii,
+  type NewMemberOperationPiiRow,
+  type StoredMemberOperationPiiRow,
+} from './member_operations_pii'
 export { memberships, type NewMembershipRow, type StoredMembershipRow } from './memberships'
 export {
   messageTemplates,
@@ -59,22 +79,6 @@ export {
   type NewProductEventRow,
   type StoredProductEventRow,
 } from './product_events'
-export {
-  professionalServices,
-  type NewProfessionalServiceRow,
-  type StoredProfessionalServiceRow,
-} from './professional_services'
-export {
-  professionalUnits,
-  type NewProfessionalUnitRow,
-  type StoredProfessionalUnitRow,
-} from './professional_units'
-export { professionals, type NewProfessionalRow, type StoredProfessionalRow } from './professionals'
-export {
-  professionalsPii,
-  type NewProfessionalPiiRow,
-  type StoredProfessionalPiiRow,
-} from './professionals_pii'
 export { projections, type StoredProjection } from './projections'
 export {
   publicOrgDirectory,

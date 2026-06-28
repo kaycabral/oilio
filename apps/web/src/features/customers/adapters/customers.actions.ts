@@ -20,8 +20,8 @@ export type CustomerMutationResult = { ok: true } | { ok: false; error: string }
 
 export async function createCustomer(formData: FormData): Promise<CustomerMutationResult> {
   // Balcão only (brief 0075): recepção/manager/owner register customers; a
-  // self-scoped professional cannot (the inline "novo cliente" path is also
-  // removed from the AppointmentDialog for professionals).
+  // self-scoped memberOperation cannot (the inline "novo cliente" path is also
+  // removed from the AppointmentDialog for memberOperations).
   const r = await guardCapability('canManageCustomers')
   if (!r.ok) return r
   const parsed = parseCustomerForm(formData)
@@ -116,7 +116,7 @@ export async function deleteCustomer(customerId: string): Promise<CustomerMutati
 
   // The ONLY hard blocker: an open comanda is a fiscal document in progress and
   // can't be orphaned by removing the customer (same rule as the LGPD block
-  // AC-11e + professional offboarding 0041). The dialog already surfaced it.
+  // AC-11e + memberOperation offboarding 0041). The dialog already surfaced it.
   if (impact.openComandas > 0) {
     return {
       ok: false,

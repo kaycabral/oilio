@@ -141,8 +141,8 @@ describe('shapeCommissionsSection', () => {
 
   it('filters covered attendances by the member filter', () => {
     // A closed order with two subscription-covered service items, one per
-    // professional, so `byProfessional` has both — the member filter then keeps
-    // only the matching professional's covered row.
+    // memberOperation, so `byMemberOperation` has both — the member filter then keeps
+    // only the matching memberOperation's covered row.
     const coveredItem = (attributedUserId: string) => ({
       id: `it-${attributedUserId}`,
       kind: 'service' as const,
@@ -168,6 +168,6 @@ describe('shapeCommissionsSection', () => {
       memberFilter: 'u2',
       statusFilter: null,
     })
-    expect(out.coveredByMember.map((r) => r.professionalId)).toEqual(['u2'])
+    expect(out.coveredByMember.map((r) => r.memberOperationId)).toEqual(['u2'])
   })
 })

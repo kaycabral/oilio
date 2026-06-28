@@ -44,7 +44,7 @@ export function isActiveOrderStatus(status: OrderStatus): boolean {
   return status === 'open'
 }
 
-// An appointment holds an **active** reference to its unit / professional /
+// An appointment holds an **active** reference to its unit / memberOperation /
 // service while it is still `scheduled` AND lies in the future. A completed,
 // cancelled or no-show appointment is historical; a past `scheduled` slot is
 // also treated as historical (it already happened — nothing future depends on
@@ -58,12 +58,12 @@ export function isFutureScheduledAppointment(
   return new Date(appointment.startAt).getTime() > now.getTime()
 }
 
-// A membership holds an **active** reference to its member (professional) while
+// A membership holds an **active** reference to its member (memberOperation) while
 // it has NOT been terminally severed. Offboarding (brief 0041) sets the terminal
 // `revoked` status to end the employment vínculo; that is the historical state
 // and does NOT block a hard-delete. Every other status (`active`, `invited`,
 // `suspended` — the reversible 0029 deactivation) means the member is still on
-// the team, a live dependency, so the professional projection can't be
+// the team, a live dependency, so the memberOperation projection can't be
 // hard-deleted: the lifecycle path is deactivate/offboard, not erase.
 export function isActiveMembershipStatus(status: MembershipStatus): boolean {
   return status !== 'revoked'

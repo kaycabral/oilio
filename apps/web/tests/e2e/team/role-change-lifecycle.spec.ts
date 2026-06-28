@@ -1,13 +1,13 @@
 // Feature E2E for #1086 (brief 0037 AC-04/AC-05/AC-06): in-place role-edit with
 // projection lifecycle. From the member detail at `/team/{userId}`, an owner
-// changes a member's role; the Professional projection materializes/deactivates
+// changes a member's role; the MemberOperation projection materializes/deactivates
 // in the same flow and permissions re-derive.
 //
-//   - receptionist → professional: a Professional projection is MATERIALIZED
+//   - receptionist → memberOperation: a MemberOperation projection is MATERIALIZED
 //     (approval `none`, off the public agenda until the profile completes);
 //     completing the operational profile makes it operable.
-//   - professional → receptionist: the projection is DEACTIVATED
-//     (`professional.suspended` → approval leaves `approved`, off the public
+//   - memberOperation → receptionist: the projection is DEACTIVATED
+//     (`member_operation.suspended` → approval leaves `approved`, off the public
 //     agenda); the projection is NOT deleted (AC-05 no orphan operable
 //     projection); the membership permissions re-derive to the receptionist
 //     default.
@@ -23,12 +23,12 @@ import { expect, test } from '../fixtures'
 import { chooseOption } from '../helpers/select'
 import {
   pgReadProjection,
-  readProfessionalByUserId,
+  readMemberOperationByUserId,
   seedAuthUser,
   seedMembershipFor,
   seedService,
 } from '../helpers/session'
-import { ProfessionalsPage } from '../pages'
+import { MemberOperationsPage } from '../pages'
 
 // Reads the membership projection straight from the Postgres event store (the
 // top-level `memberships/{id}` aggregate). Returns the decoded role + the
@@ -51,8 +51,8 @@ async function readMembershipProjection(
 }
 
 test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }, () => {
-  test.describe('receptionist → professional materializa a projeção', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
+  test.describe('receptionist → memberOperation materializa a projeção', () => {
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 0 } })
 
     test('troca de papel materializa a projeção (não-operável até o perfil completar)', async ({
       org,
@@ -62,13 +62,13 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       await seedMembershipFor(org.orgId, member.uid, { role: 'receptionist' })
 
       // No projection before the role change.
-      expect(await readProfessionalByUserId(org.orgId, member.uid)).toBeNull()
+      expect(await readMemberOperationByUserId(org.orgId, member.uid)).toBeNull()
 
-      const pros = new ProfessionalsPage(authedPage)
+      const pros = new MemberOperationsPage(authedPage)
       await pros.gotoByUserId(member.uid)
       await expect(authedPage.getByRole('combobox', { name: 'Papel' })).toHaveText('Recepção')
 
-      // Refino B: change role → professional via the inline select + single
+      // Refino B: change role → memberOperation via the inline select + single
       // Salvar (no separate "Trocar papel" button).
       await chooseOption(authedPage, 'Papel', 'Profissional')
       await pros.saveButton().click()
@@ -80,7 +80,7 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       // `router.refresh()`, so it's not the anchor).
       await expect
         .poll(
-          async () => (await readProfessionalByUserId(org.orgId, member.uid))?.operationalStatus,
+          async () => (await readMemberOperationByUserId(org.orgId, member.uid))?.operationalStatus,
         )
         .toBe('incomplete')
 
@@ -89,13 +89,13 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       await pros.gotoByUserId(member.uid)
       await expect(authedPage.getByRole('combobox', { name: 'Papel' })).toHaveText('Profissional')
 
-      // AC-06: permissions re-derived to the professional default.
+      // AC-06: permissions re-derived to the memberOperation default.
       const membership = await readMembershipProjection(
         org.orgId,
         membershipDocId(org.orgId, member.uid),
       )
-      expect(membership?.role).toBe('professional')
-      expect(membership?.permissions).toEqual(defaultPermissionsForRole('professional'))
+      expect(membership?.role).toBe('member_operator')
+      expect(membership?.permissions).toEqual(defaultPermissionsForRole('member_operator'))
 
       // Completing the operational profile (unit + service) makes it operable —
       // derived approval flips to `approved` (becomes bookable on the agenda).
@@ -114,18 +114,18 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       await pros.saveButton().click()
       await expect(authedPage.getByText('Alterações salvas.')).toBeVisible()
 
-      const afterProfile = await readProfessionalByUserId(org.orgId, member.uid)
+      const afterProfile = await readMemberOperationByUserId(org.orgId, member.uid)
       expect(afterProfile?.operationalStatus).toBe('operational')
       expect(svc).toBeTruthy()
     })
   })
 
-  test.describe('professional → receptionist desativa a projeção', () => {
+  test.describe('memberOperation → receptionist desativa a projeção', () => {
     test.use({
       orgInput: {
         unitCount: 1,
-        professionalCount: 1,
-        professionalOperationalStatus: 'operational',
+        memberOperationCount: 1,
+        memberOperationOperationalStatus: 'operational',
       },
     })
 
@@ -133,13 +133,13 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       org,
       authedPage,
     }) => {
-      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
+      const proUid = `e2e-prof-user-${org.memberOperationIds[0]!}`
 
-      // Operable professional before the change.
-      const before = await readProfessionalByUserId(org.orgId, proUid)
+      // Operable memberOperation before the change.
+      const before = await readMemberOperationByUserId(org.orgId, proUid)
       expect(before?.operationalStatus).toBe('operational')
 
-      const pros = new ProfessionalsPage(authedPage)
+      const pros = new MemberOperationsPage(authedPage)
       await pros.gotoByUserId(proUid)
       await expect(authedPage.getByRole('combobox', { name: 'Papel' })).toHaveText('Profissional')
 
@@ -149,11 +149,11 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
       // The optimistic select value flips before the server commits, so it is
       // not a reliable post-commit anchor. The demotion has no
       // receptionist-specific UI to wait on, so poll the membership projection
-      // until the role change lands. Under #1226 AC-02 the professional
+      // until the role change lands. Under #1226 AC-02 the memberOperation
       // projection is RETAINED (not deleted, reversible) — `operationalStatus`
       // is derived purely from profile facts and is NOT mutated by the role
       // change; operability is severed because the membership is no longer
-      // `professional` (every operational surface keys on the role), so no
+      // `memberOperation` (every operational surface keys on the role), so no
       // orphan-operable member survives. Poll the role, not a status flip.
       await expect
         .poll(
@@ -161,7 +161,7 @@ test.describe('Equipe — role-edit com lifecycle (#1086)', { tag: '@critical' }
             (await readMembershipProjection(org.orgId, membershipDocId(org.orgId, proUid)))?.role,
         )
         .toBe('receptionist')
-      const after = await readProfessionalByUserId(org.orgId, proUid)
+      const after = await readMemberOperationByUserId(org.orgId, proUid)
       expect(after).not.toBeNull()
 
       // AC-06: permissions re-derived to the receptionist default.

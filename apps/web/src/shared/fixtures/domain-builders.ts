@@ -164,7 +164,7 @@ export function buildAppointment(
     id,
     orgId,
     unitId: 'unit',
-    professionalId: 'pro',
+    memberOperationId: 'pro',
     customerId: 'cust',
     serviceId: 'svc',
     startAt: now,
@@ -175,7 +175,7 @@ export function buildAppointment(
     commissionSnapshot: null,
     cancellationPolicySnapshot: null,
     customerUserId: 'cust-user',
-    professionalUserId: null,
+    memberOperatorUserId: null,
     createdAt: now,
     updatedAt: now,
   }
@@ -221,7 +221,7 @@ export function buildMembership(
   now: string,
   overrides: Partial<Membership> = {},
 ): Membership {
-  const role = overrides.role ?? 'professional'
+  const role = overrides.role ?? 'member_operator'
   const base: Membership = {
     id: membershipDocId(orgId, userId),
     orgId,
@@ -252,7 +252,7 @@ export function buildInvite(
     id,
     orgId,
     email: 'invitee@example.com',
-    role: 'professional',
+    role: 'member_operator',
     tokenHash: 'hash',
     expiresAt: now,
     status,

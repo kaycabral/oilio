@@ -1,7 +1,7 @@
-import type { CatalogItem, StoredProfessional, SubscriptionPlan } from '@/domain'
+import type { CatalogItem, StoredMemberOperation, SubscriptionPlan } from '@/domain'
 import { describe, expect, it } from 'vitest'
 import { catalogItemUnitRows } from './catalog-item-projector'
-import { professionalServiceRows, professionalUnitRows } from './professional-projector'
+import { memberOperationServiceRows, memberOperationUnitRows } from './member-operation-projector'
 import {
   planIncludedCategoryRows,
   planIncludedItemRows,
@@ -14,8 +14,8 @@ import {
 // pinning the tuple shape here keeps the runtime and the fixture in lockstep
 // (the same lockstep the integration suite proves at the DB level). No I/O.
 
-describe('professional join-row builders', () => {
-  const base: StoredProfessional = {
+describe('memberOperation join-row builders', () => {
+  const base: StoredMemberOperation = {
     id: 'pro-1',
     orgId: 'org-1',
     userId: 'user-1',
@@ -26,21 +26,21 @@ describe('professional join-row builders', () => {
     updatedAt: '2026-06-01T00:00:00.000Z',
   }
 
-  it('professionalUnitRows maps each unit to [org, pro, unit]', () => {
-    expect(professionalUnitRows(base)).toEqual([
+  it('memberOperationUnitRows maps each unit to [org, pro, unit]', () => {
+    expect(memberOperationUnitRows(base)).toEqual([
       ['org-1', 'pro-1', 'unit-1'],
       ['org-1', 'pro-1', 'unit-2'],
     ])
   })
 
-  it('professionalServiceRows maps each service to [org, pro, service]', () => {
-    expect(professionalServiceRows(base)).toEqual([['org-1', 'pro-1', 'svc-1']])
+  it('memberOperationServiceRows maps each service to [org, pro, service]', () => {
+    expect(memberOperationServiceRows(base)).toEqual([['org-1', 'pro-1', 'svc-1']])
   })
 
   it('empty arrays produce zero rows (a shrunk membership leaves no orphans)', () => {
-    const empty: StoredProfessional = { ...base, unitIds: [], catalogServiceIds: [] }
-    expect(professionalUnitRows(empty)).toEqual([])
-    expect(professionalServiceRows(empty)).toEqual([])
+    const empty: StoredMemberOperation = { ...base, unitIds: [], catalogServiceIds: [] }
+    expect(memberOperationUnitRows(empty)).toEqual([])
+    expect(memberOperationServiceRows(empty)).toEqual([])
   })
 })
 

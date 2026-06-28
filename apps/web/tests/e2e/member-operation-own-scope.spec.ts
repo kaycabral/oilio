@@ -1,29 +1,29 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 import {
-  linkProfessionalToServices,
+  linkMemberOperationToServices,
   seedAppointment,
   seedCustomer,
-  seedLoginableProfessional,
+  seedLoginableMemberOperation,
   seedService,
   setMembershipRole,
   signInAndAttachSession,
 } from './helpers/session'
 import { AgendaPage } from './pages/AgendaPage'
 
-// Brief 0075 (#1253) — DoD: a self-scoped professional only reaches their OWN
-// data. These specs sign in AS the professional (a real auth user via
-// `seedLoginableProfessional`, not the synthetic `e2e-prof-user-*`) and prove:
+// Brief 0075 (#1253) — DoD: a self-scoped memberOperation only reaches their OWN
+// data. These specs sign in AS the memberOperation (a real auth user via
+// `seedLoginableMemberOperation`, not the synthetic `e2e-prof-user-*`) and prove:
 //   1. the agenda shows only their own column, never a colleague's;
 //   2. the registration surfaces (Clientes/Catálogo/Planos/Assinaturas) and the
 //      whole Administração section are gone from the nav;
-//   3. the new-appointment dialog offers ONLY themselves in the professional
+//   3. the new-appointment dialog offers ONLY themselves in the memberOperation
 //      picker and hides the "Cadastrar novo" customer toggle;
 //   4. the balcão (recepção) is the operational superset — it sees every
-//      professional's column and keeps Clientes.
+//      memberOperation's column and keeps Clientes.
 //
 // Capability-gated, never role-branched: the same assertions would hold for any
-// future custom role whose matrix matches the professional preset.
+// future custom role whose matrix matches the memberOperation preset.
 
 const sidebar = (page: Page) => page.locator('[data-sidebar="content"]')
 
@@ -37,13 +37,13 @@ const otherStartUtc = `${APPT_DATE}T14:00:00.000Z`
 const otherEndUtc = `${APPT_DATE}T14:30:00.000Z`
 
 test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => {
-  // One unit, one seeded (colleague) professional named "Profissional 1". The
-  // logged-in professional is the loginable one we add below.
+  // One unit, one seeded (colleague) memberOperation named "Profissional 1". The
+  // logged-in memberOperation is the loginable one we add below.
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 15,
     },
@@ -56,27 +56,27 @@ test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => 
     baseURL,
   }) => {
     const unitId = org.unitIds[0]!
-    const colleagueId = org.professionalIds[0]!
-    // Shared bookable service, linked to my professional so it renders as an
+    const colleagueId = org.memberOperationIds[0]!
+    // Shared bookable service, linked to my memberOperation so it renders as an
     // operational column on the agenda (whatsapp ∧ ≥1 unit ∧ ≥1 service).
     const serviceId = await seedService(org.orgId, {
       name: 'Corte Own-Scope',
       publicVisible: true,
       unitIds: [unitId],
     })
-    const me = await seedLoginableProfessional(org.orgId, {
+    const me = await seedLoginableMemberOperation(org.orgId, {
       unitIds: [unitId],
       catalogServiceIds: [serviceId],
       displayName: 'Profissional Self',
     })
-    await linkProfessionalToServices(org.orgId, colleagueId, [serviceId])
+    await linkMemberOperationToServices(org.orgId, colleagueId, [serviceId])
     const customer = await seedCustomer(org.orgId, { name: 'Cliente Teste' })
 
     // One appointment for me, one for the colleague — same unit, same day.
     await seedAppointment({
       orgId: org.orgId,
       unitId,
-      professionalId: me.professionalId,
+      memberOperationId: me.memberOperationId,
       customerId: customer,
       serviceId,
       startAt: ownStartUtc,
@@ -85,7 +85,7 @@ test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => 
     await seedAppointment({
       orgId: org.orgId,
       unitId,
-      professionalId: colleagueId,
+      memberOperationId: colleagueId,
       customerId: customer,
       serviceId,
       startAt: otherStartUtc,
@@ -97,10 +97,10 @@ test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => 
     await agenda.goto(APPT_DATE)
 
     // My own column renders…
-    await expect(agenda.professionalColumn('Profissional Self')).toBeVisible()
+    await expect(agenda.memberOperationColumn('Profissional Self')).toBeVisible()
     // …the colleague's column does not (RLS hides their row + the read layer
     // scopes to me). `Profissional 1` is the seeded colleague's display name.
-    await expect(agenda.professionalColumn('Profissional 1')).toHaveCount(0)
+    await expect(agenda.memberOperationColumn('Profissional 1')).toHaveCount(0)
   })
 
   test('nav esconde Cadastros, Administração e Assinaturas', async ({
@@ -109,7 +109,7 @@ test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => 
     org,
     baseURL,
   }) => {
-    const me = await seedLoginableProfessional(org.orgId, {
+    const me = await seedLoginableMemberOperation(org.orgId, {
       unitIds: [org.unitIds[0]!],
       displayName: 'Profissional Self',
     })
@@ -141,7 +141,7 @@ test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => 
     org,
     baseURL,
   }) => {
-    const me = await seedLoginableProfessional(org.orgId, {
+    const me = await seedLoginableMemberOperation(org.orgId, {
       unitIds: [org.unitIds[0]!],
       displayName: 'Profissional Self',
     })
@@ -166,7 +166,7 @@ test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => 
       publicVisible: true,
       unitIds: [unitId],
     })
-    const me = await seedLoginableProfessional(org.orgId, {
+    const me = await seedLoginableMemberOperation(org.orgId, {
       unitIds: [unitId],
       catalogServiceIds: [serviceId],
       displayName: 'Profissional Self',
@@ -180,7 +180,7 @@ test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => 
     // The "Cadastrar novo" customer toggle is gone (canRegisterCustomer=false).
     await expect(dialog.getByRole('button', { name: /Cadastrar novo/ })).toHaveCount(0)
 
-    // The professional <Select> offers ONLY the logged-in professional. Open it
+    // The memberOperation <Select> offers ONLY the logged-in memberOperation. Open it
     // and assert the colleague ("Profissional 1") is not an option.
     await dialog.getByRole('combobox', { name: 'Profissional' }).click()
     const listbox = page.getByRole('listbox')
@@ -195,7 +195,7 @@ test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => 
     baseURL,
   }) => {
     // The seeded owner, demoted to receptionist — the operational superset that
-    // does everything professionals do, for ALL of them.
+    // does everything memberOperations do, for ALL of them.
     await setMembershipRole(`${org.orgId}_${org.uid}`, 'receptionist')
     const unitId = org.unitIds[0]!
     const serviceId = await seedService(org.orgId, {
@@ -203,20 +203,20 @@ test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => 
       publicVisible: true,
       unitIds: [unitId],
     })
-    const me = await seedLoginableProfessional(org.orgId, {
+    const me = await seedLoginableMemberOperation(org.orgId, {
       unitIds: [unitId],
       catalogServiceIds: [serviceId],
       displayName: 'Profissional Self',
     })
-    expect(me.professionalId).toBeTruthy()
+    expect(me.memberOperationId).toBeTruthy()
 
     await signInAndAttachSession(context, org.email, org.password, baseURL ?? undefined)
     const agenda = new AgendaPage(page)
     await agenda.goto(APPT_DATE)
 
-    // The balcão sees BOTH professional columns (no own-scope clamp).
-    await expect(agenda.professionalColumn('Profissional 1')).toBeVisible()
-    await expect(agenda.professionalColumn('Profissional Self')).toBeVisible()
+    // The balcão sees BOTH memberOperation columns (no own-scope clamp).
+    await expect(agenda.memberOperationColumn('Profissional 1')).toBeVisible()
+    await expect(agenda.memberOperationColumn('Profissional Self')).toBeVisible()
 
     // …and keeps Clientes (receptionist preset grants canManageCustomers), while
     // still losing the org-admin Administração section.

@@ -1,6 +1,6 @@
 'use client'
 
-import { type CatalogServiceItem, type Professional, type Role, type StoredUnit } from '@/domain'
+import { type CatalogServiceItem, type MemberOperation, type Role, type StoredUnit } from '@/domain'
 import { saveMemberDetail } from '@/features/team/adapters/team.actions'
 import {
   computeEligibleServices,
@@ -22,19 +22,19 @@ import {
 } from '@cbrl/design'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { ProfessionalIdentityFields, ProfessionalScopeFields } from './MemberProfessionalFields'
+import { MemberOperationIdentityFields, MemberOperationScopeFields } from './MemberOperationFields'
 
 // Single editable member-detail surface (brief 0037 refino, review 2026-06-02).
 // There is NO "Editar" gate and NO separate "Trocar papel" button: an authorized
 // user (owner/manager) editing a non-owner member sees the editable fields
 // directly and persists everything with ONE Salvar.
 //   - The role `<select>` sits at the top, replacing the static "Papel" label.
-//   - For a professional member the operational fields follow (units/services/
+//   - For a memberOperation member the operational fields follow (units/services/
 //     commission/tax). Identity (name/whatsapp/email) is NOT repeated here —
 //     it lives read-only at the top of the page (sourced from the User, #1046).
 //   - One Salvar runs the role lifecycle (#1086) when the role changed AND the
 //     operational update (#1085), via `saveMemberDetail`.
-// Non-professional members get just the role select + Salvar (no operational
+// Non-memberOperation members get just the role select + Salvar (no operational
 // fields). The owner is never rendered with this form (read-only — handled by
 // the page).
 
@@ -42,14 +42,14 @@ export function MemberDetailForm({
   targetUserId,
   currentRole,
   statusLabel,
-  professional,
+  memberOperation,
   units,
   services = [],
 }: {
   targetUserId: string
   currentRole: Role
   statusLabel: string
-  professional: Professional | null
+  memberOperation: MemberOperation | null
   units: StoredUnit[]
   services?: CatalogServiceItem[]
 }) {
@@ -60,28 +60,28 @@ export function MemberDetailForm({
   const [saved, setSaved] = useState(false)
 
   const [role, setRole] = useState<Role>(currentRole)
-  const [taxKind, setTaxKind] = useState<TaxKind>(professional?.taxIdentity?.kind ?? 'none')
+  const [taxKind, setTaxKind] = useState<TaxKind>(memberOperation?.taxIdentity?.kind ?? 'none')
   const [commissionKind, setCommissionKind] = useState<CommissionKind>(
-    professional?.defaultCommission?.kind ?? 'none',
+    memberOperation?.defaultCommission?.kind ?? 'none',
   )
-  // AC-03 (brief 0039): when the professional has NO units yet (new/empty),
+  // AC-03 (brief 0039): when the memberOperation has NO units yet (new/empty),
   // pre-check the active unit while keeping the multi-select (definition stays
   // multi-unit — 0012). An existing selection is preserved as-is — the default
   // applies only to the empty case, never overwriting stored units.
   const [selectedUnitIds, setSelectedUnitIds] = useState<Set<string>>(() =>
-    initialMemberUnitIds(professional, activeUnitId),
+    initialMemberUnitIds(memberOperation, activeUnitId),
   )
   const [unitTouched, setUnitTouched] = useState(false)
   const [selectedServiceIds, setSelectedServiceIds] = useState<Set<string>>(
-    () => new Set(professional?.catalogServiceIds ?? []),
+    () => new Set(memberOperation?.catalogServiceIds ?? []),
   )
 
   // The operational fields are shown only while the member is (and stays) a
-  // professional. Switching role away from professional hides them (the save
-  // runs the demotion lifecycle); switching toward professional materializes
+  // memberOperation. Switching role away from memberOperation hides them (the save
+  // runs the demotion lifecycle); switching toward memberOperation materializes
   // the projection on save (operational config happens on the next visit).
   const showOperational =
-    role === 'professional' && currentRole === 'professional' && professional !== null
+    role === 'member_operator' && currentRole === 'member_operator' && memberOperation !== null
 
   const eligibleServices = computeEligibleServices(services, selectedUnitIds)
   const eligibleServiceIds = new Set(eligibleServices.map((s) => s.id))
@@ -108,7 +108,7 @@ export function MemberDetailForm({
     setUnitTouched(true)
   }
 
-  const initialCommissionValue = memberCommissionValue(professional?.defaultCommission)
+  const initialCommissionValue = memberCommissionValue(memberOperation?.defaultCommission)
 
   function onSubmit(formData: FormData) {
     setError(null)
@@ -118,7 +118,7 @@ export function MemberDetailForm({
         targetUserId,
         currentRole,
         newRole: role,
-        professionalId: showOperational ? (professional?.id ?? null) : null,
+        memberOperationId: showOperational ? (memberOperation?.id ?? null) : null,
         formData: showOperational ? formData : null,
       })
       if (!res.ok) {
@@ -174,17 +174,17 @@ export function MemberDetailForm({
         </div>
       </section>
 
-      {showOperational && professional ? (
+      {showOperational && memberOperation ? (
         <>
-          <ProfessionalIdentityFields
-            professional={professional}
+          <MemberOperationIdentityFields
+            memberOperation={memberOperation}
             taxKind={taxKind}
             setTaxKind={setTaxKind}
             commissionKind={commissionKind}
             setCommissionKind={setCommissionKind}
             initialCommissionValue={initialCommissionValue}
           />
-          <ProfessionalScopeFields
+          <MemberOperationScopeFields
             units={units}
             selectedUnitIds={selectedUnitIds}
             toggleUnit={toggleUnit}

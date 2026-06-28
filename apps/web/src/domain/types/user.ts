@@ -9,10 +9,10 @@ const userCommonFields = {
   avatarUrl: Schema.NullOr(Schema.String),
   emailVerified: Schema.Boolean,
   currentOrgId: Schema.NullOr(Schema.String),
-  // PF/PJ identity. Same shape used by Org and Professional. Null until the
+  // PF/PJ identity. Same shape used by Org and MemberOperation. Null until the
   // user activates a role that requires it. See [[02-Estrategia-Modelo-Identidade]].
   taxIdentity: Schema.NullOr(TaxIdentity),
-  // Personal description and skills surfaced on professional profiles.
+  // Personal description and skills surfaced on memberOperation profiles.
   bio: Schema.NullOr(Schema.String),
   specialties: Schema.NullOr(Schema.mutable(Schema.Array(Schema.String))),
   // Timestamp when the doc became backed by a Firebase Auth identity (#839).

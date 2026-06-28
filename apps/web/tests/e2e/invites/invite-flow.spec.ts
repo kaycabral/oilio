@@ -24,7 +24,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
   }) => {
     // Owner seeds a org; we don't sign in as them — we only need their
     // org ID and uid to create the invite.
-    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
 
     // Invitee is a second auth user with verified email.
     const invitee = await seedAuthUser()
@@ -85,7 +85,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
     const invitee = await seedAuthUser()
     const { inviteId } = await seedInvite({
       orgId: owner.orgId,
@@ -106,7 +106,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
     const wrongUser = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
@@ -128,21 +128,21 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
     const invitee = await seedAuthUser()
     // Seed the invite with an upper-cased / padded version of the OAuth email.
     // `inviteEmailsMatch` should normalize both sides and still match.
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
       email: `  ${invitee.email.toUpperCase()}  `,
-      role: 'professional',
+      role: 'member_operator',
       invitedBy: owner.uid,
     })
     await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
 
     await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await page.getByRole('button', { name: /aceitar convite/i }).click()
-    // A professional is NOT a manager, so the post-accept redirect targets
+    // A memberOperation is NOT a manager, so the post-accept redirect targets
     // `/agenda` instead of the manager-only Dashboard. This org has no
     // appointment unit (unitCount: 0), so `/agenda` itself forwards to `/orders`
     // (its no-agenda fallback) — the operational home a non-manager lands on
@@ -155,7 +155,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
   })
 
   test('rejeita convite já consumido (#827 uso único)', async ({ context, page, baseURL }) => {
-    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
@@ -175,7 +175,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
+    const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,

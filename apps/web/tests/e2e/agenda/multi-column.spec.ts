@@ -10,8 +10,8 @@ test.describe('Agenda — múltiplas colunas', () => {
     test.use({
       orgInput: {
         unitCount: 1,
-        professionalCount: 3,
-        professionalOperationalStatus: 'operational',
+        memberOperationCount: 3,
+        memberOperationOperationalStatus: 'operational',
         hasBusinessHours: true,
         slotMinutes: 15,
       },
@@ -22,7 +22,7 @@ test.describe('Agenda — múltiplas colunas', () => {
       await agenda.goto()
       // Each name is unique (`Profissional 1`, `Profissional 2`, `Profissional 3`).
       for (const name of ['Profissional 1', 'Profissional 2', 'Profissional 3']) {
-        await expect(agenda.professionalColumn(name)).toBeVisible()
+        await expect(agenda.memberOperationColumn(name)).toBeVisible()
       }
     })
   })
@@ -31,7 +31,7 @@ test.describe('Agenda — múltiplas colunas', () => {
     test.use({
       orgInput: {
         unitCount: 1,
-        professionalCount: 0,
+        memberOperationCount: 0,
         hasBusinessHours: true,
         slotMinutes: 15,
       },

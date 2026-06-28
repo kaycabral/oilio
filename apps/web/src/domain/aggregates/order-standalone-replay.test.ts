@@ -24,8 +24,8 @@ const STANDALONE_ITEM = {
   unitPriceCents: 3500,
   commission: null,
   // Venda avulsa de produto (varejo): o item é atribuído ao `userId` do membro
-  // que abriu a venda (o operador). NÃO é um doc id de Professional — a recepção
-  // que vende balcão não tem Professional. É o caso que a fatia #1056 habilita.
+  // que abriu a venda (o operador). NÃO é um doc id de MemberOperation — a recepção
+  // que vende balcão não tem MemberOperation. É o caso que a fatia #1056 habilita.
   attributedUserId: 'opener-user-1',
 }
 

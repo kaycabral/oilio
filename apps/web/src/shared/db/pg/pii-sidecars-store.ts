@@ -1,4 +1,4 @@
-import type { InvitePii, ProfessionalPii } from '@/domain'
+import type { InvitePii, MemberOperationPii } from '@/domain'
 import { TaxIdentity } from '@/domain'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -10,11 +10,11 @@ import { readUnderRls } from './rls-read'
 const decodeTaxIdentity = Schema.decodeUnknownSync(Schema.NullOr(TaxIdentity))
 
 /**
- * CRUD helpers for the deletable PII sidecars `invites_pii` / `professionals_pii`
+ * CRUD helpers for the deletable PII sidecars `invites_pii` / `member_operations_pii`
  * (migration feature F — cutover, brief 0062). Both are org-scoped (org RLS), so
  * reads go through `readUnderRls(orgId, …)` and writes set `app.current_org`
  * inside their transaction. The sidecar holds the PII the typed projection omits
- * (invite `email`, professional `taxIdentity`); deleting a row erases the PII
+ * (invite `email`, memberOperation `taxIdentity`); deleting a row erases the PII
  * while the projection + event history stay intact (ADR 0010 / LGPD).
  */
 
@@ -57,19 +57,19 @@ export async function deleteInvitePii(orgId: string, id: string): Promise<void> 
   )
 }
 
-// ── professionals_pii ──────────────────────────────────────────────────────────
+// ── member_operations_pii ──────────────────────────────────────────────────────────
 
-export async function getProfessionalPiiByIds(
+export async function getMemberOperationPiiByIds(
   orgId: string,
   ids: readonly string[],
-): Promise<Map<string, ProfessionalPii>> {
+): Promise<Map<string, MemberOperationPii>> {
   if (ids.length === 0) return new Map()
   const rows = await readUnderRls<{ id: string; tax_identity: unknown }>(orgId, (client) =>
     client
       .query<{
         id: string
         tax_identity: unknown
-      }>('SELECT id, tax_identity FROM professionals_pii WHERE org_id = $1 AND id = ANY($2)', [
+      }>('SELECT id, tax_identity FROM member_operations_pii WHERE org_id = $1 AND id = ANY($2)', [
         orgId,
         [...ids],
       ])
@@ -80,14 +80,14 @@ export async function getProfessionalPiiByIds(
   )
 }
 
-export async function upsertProfessionalPii(input: {
+export async function upsertMemberOperationPii(input: {
   orgId: string
   id: string
-  taxIdentity: ProfessionalPii['taxIdentity']
+  taxIdentity: MemberOperationPii['taxIdentity']
 }): Promise<void> {
   await writeUnderOrg(input.orgId, (client) =>
     client.query(
-      `INSERT INTO professionals_pii (org_id, id, tax_identity)
+      `INSERT INTO member_operations_pii (org_id, id, tax_identity)
        VALUES ($1, $2, $3)
        ON CONFLICT (org_id, id) DO UPDATE SET tax_identity = EXCLUDED.tax_identity`,
       [
@@ -99,9 +99,9 @@ export async function upsertProfessionalPii(input: {
   )
 }
 
-export async function deleteProfessionalPii(orgId: string, id: string): Promise<void> {
+export async function deleteMemberOperationPii(orgId: string, id: string): Promise<void> {
   await writeUnderOrg(orgId, (client) =>
-    client.query('DELETE FROM professionals_pii WHERE org_id = $1 AND id = $2', [orgId, id]),
+    client.query('DELETE FROM member_operations_pii WHERE org_id = $1 AND id = $2', [orgId, id]),
   )
 }
 

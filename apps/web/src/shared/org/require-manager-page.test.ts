@@ -7,7 +7,7 @@
 // role. requireManagerPage REDIRECTS a non-manager, so the wall can't be skipped
 // per-route. These tests pin that contract:
 //   - owner / manager → returns the ctx (allowed through)
-//   - professional / receptionist → redirect (blocked), default to /agenda
+//   - memberOperation / receptionist → redirect (blocked), default to /agenda
 //   - not signed in / no org → redirect to /login / /onboarding (auth chain)
 //
 // `redirect` throws in Next; it's mocked to throw a recognizable sentinel so the
@@ -90,8 +90,8 @@ describe('requireManagerPage', () => {
     await expect(requireManagerPage()).rejects.toThrow('NEXT_REDIRECT:/agenda')
   })
 
-  it('redirects a professional to /agenda', async () => {
-    signedInAs('professional')
+  it('redirects a memberOperation to /agenda', async () => {
+    signedInAs('member_operator')
     await expect(requireManagerPage()).rejects.toThrow('NEXT_REDIRECT:/agenda')
   })
 

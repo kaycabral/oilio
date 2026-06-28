@@ -13,7 +13,7 @@ export type ParsedNewCustomer = {
 
 export type ParsedAppointment = {
   unitId: string
-  professionalId: string
+  memberOperationId: string
   serviceId: string
   customerId: string | null
   newCustomer: ParsedNewCustomer | null
@@ -25,15 +25,15 @@ export type SlotInput = {
   date: string
   startTime: string
   unitId: string
-  professionalId: string
+  memberOperationId: string
   serviceId: string
 }
 
 export function parseAppointmentForm(formData: FormData): ParsedAppointment | string {
   const unitId = formString(formData, 'unitId').trim()
   if (!unitId) return 'Unidade é obrigatória'
-  const professionalId = formString(formData, 'professionalId').trim()
-  if (!professionalId) return 'Profissional é obrigatório'
+  const memberOperationId = formString(formData, 'memberOperationId').trim()
+  if (!memberOperationId) return 'Profissional é obrigatório'
   const serviceId = formString(formData, 'serviceId').trim()
   if (!serviceId) return 'Serviço é obrigatório'
 
@@ -56,7 +56,7 @@ export function parseAppointmentForm(formData: FormData): ParsedAppointment | st
   const startTime = formString(formData, 'startTime')
   if (!/^\d{2}:\d{2}$/.test(startTime)) return 'Horário inválido'
 
-  return { unitId, professionalId, serviceId, customerId, newCustomer, date, startTime }
+  return { unitId, memberOperationId, serviceId, customerId, newCustomer, date, startTime }
 }
 
 export function resolveStartEnd(

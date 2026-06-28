@@ -2,12 +2,12 @@ import { Breadcrumbs } from '@/components/breadcrumbs'
 import { isCatalogService } from '@/domain'
 import { loadEditCatalogItemPage } from '@/features/catalog/adapters/load-catalog'
 import { CatalogItemForm } from '@/features/catalog/ui/CatalogItemForm'
-import { ServiceProfessionalsForm } from '@/features/catalog/ui/ServiceProfessionalsForm'
+import { ServiceMemberOperationsForm } from '@/features/catalog/ui/ServiceMemberOperationsForm'
 import { Main } from '@cbrl/design'
 
 export default async function EditCatalogItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { item, units, categories, professionals } = await loadEditCatalogItemPage(id)
+  const { item, units, categories, memberOperations } = await loadEditCatalogItemPage(id)
 
   return (
     <Main width="narrow" className="space-y-6">
@@ -27,7 +27,7 @@ export default async function EditCatalogItemPage({ params }: { params: Promise<
             Quem aparece no calendário público pra este serviço — mesmo dado também editável em{' '}
             <strong>Profissionais</strong>.
           </p>
-          <ServiceProfessionalsForm service={item} professionals={professionals} />
+          <ServiceMemberOperationsForm service={item} memberOperations={memberOperations} />
         </section>
       ) : null}
     </Main>

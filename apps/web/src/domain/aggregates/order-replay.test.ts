@@ -26,7 +26,7 @@ const itemA = {
   attributedUserId: 'pro-user-1',
 }
 // Produto vendido no balcão → atribuível a QUALQUER membro pelo `userId` (aqui a
-// recepção que vendeu), não a um doc id de Professional.
+// recepção que vendeu), não a um doc id de MemberOperation.
 const itemB = {
   id: 'i2',
   kind: 'product' as const,
@@ -73,7 +73,7 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
           payload: { changes: { items: [itemA, itemB], subtotalCents: 8000, totalCents: 8000 } },
         })
         // Re-atribui o produto a outro membro (brief 0030, AC-04) — guarda o
-        // `userId`, não um doc id de Professional.
+        // `userId`, não um doc id de MemberOperation.
         yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.item_attribution_changed',
           actorId: 'staff-1',

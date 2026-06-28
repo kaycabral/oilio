@@ -59,7 +59,7 @@ async function insertRow(
 }
 
 // Idempotent FK-parent seeds (brief 0068 D2). The child projections carry
-// composite FKs into orgs/units/customers/professionals/catalog_items; a case may
+// composite FKs into orgs/units/customers/memberOperations/catalog_items; a case may
 // seed several children sharing the same parent, so each is `ON CONFLICT DO
 // NOTHING`.
 async function seedOrg(orgId: string): Promise<void> {
@@ -89,18 +89,18 @@ async function seedCustomer(orgId: string, customerId: string): Promise<void> {
   )
 }
 
-async function seedProfessional(orgId: string, professionalId: string): Promise<void> {
+async function seedMemberOperation(orgId: string, memberOperationId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'professional','active',$3,'{}'::jsonb,$3)
+     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'member_operator','active',$3,'{}'::jsonb,$3)
      ON CONFLICT (org_id, id) DO NOTHING`,
-    [orgId, professionalId, TS],
+    [orgId, memberOperationId, TS],
   )
   await getEventStorePool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+    `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,$3,$3)
      ON CONFLICT (org_id, id) DO NOTHING`,
-    [orgId, professionalId, TS],
+    [orgId, memberOperationId, TS],
   )
 }
 
@@ -163,13 +163,13 @@ async function seedAppointment(
     status,
     customerUserId,
   })
-  // FK parents: appointment.org_id → orgs, unit_id → units, professional_id →
-  // professionals, customer_id → customers, service_id → catalog_items. The
-  // builder defaults are unit 'unit', professional 'pro', customer 'cust',
+  // FK parents: appointment.org_id → orgs, unit_id → units, member_operation_id →
+  // memberOperations, customer_id → customers, service_id → catalog_items. The
+  // builder defaults are unit 'unit', memberOperation 'pro', customer 'cust',
   // service 'svc'.
   await seedOrg(orgId)
   await seedUnit(orgId, appt.unitId)
-  await seedProfessional(orgId, appt.professionalId)
+  await seedMemberOperation(orgId, appt.memberOperationId)
   await seedCustomer(orgId, appt.customerId)
   await seedService(orgId, appt.serviceId)
   await insertRow(
@@ -194,7 +194,7 @@ async function statusOf(table: string, orgId: string, id: string): Promise<strin
 describe('eraseCustomerCascadeInOrg (Postgres)', () => {
   beforeEach(async () => {
     await getEventStorePool().query(
-      'TRUNCATE events, projections, subscriptions, charges, appointments, units, customers, professionals, catalog_items, orgs CASCADE',
+      'TRUNCATE events, projections, subscriptions, charges, appointments, units, customers, member_operations, catalog_items, orgs CASCADE',
     )
   })
   afterAll(async () => {

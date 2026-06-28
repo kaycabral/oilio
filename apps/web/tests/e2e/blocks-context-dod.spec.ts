@@ -9,18 +9,18 @@
 //   Cenário 1 — fechar um dia no horário da unidade (units/[id]) → a agenda
 //               reflete a unidade fechada (overlay "Fechado").
 //   Cenário 2 — bloqueio de profissional no detalhe do membro (/team/[userId])
-//               → professionalId set; só a coluna dele.
+//               → memberOperationId set; só a coluna dele.
 //   Cenário 3 — /blocks não existe (404; nav sem "Bloqueios").
 
 import { expect, test } from './fixtures'
-import { AgendaPage, ProfessionalsPage } from './pages'
+import { AgendaPage, MemberOperationsPage } from './pages'
 
 test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () => {
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -82,9 +82,9 @@ test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () =
     const ts = Date.now().toString()
     const reason = `Folga Pro ${ts}`
     const section = authedPage.getByRole('region', { name: 'Bloqueios do profissional' })
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
 
-    await pros.gotoById(org.professionalIds[0]!)
+    await pros.gotoById(org.memberOperationIds[0]!)
     await expect(
       authedPage.getByRole('heading', { name: 'Bloqueios do profissional' }),
     ).toBeVisible()

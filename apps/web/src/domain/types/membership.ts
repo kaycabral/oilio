@@ -15,7 +15,7 @@ export const MembershipPermissions = Schema.mutable(
     canCreateAppointment: Schema.Boolean,
     canCancelAppointment: Schema.Boolean,
     canManageCustomers: Schema.Boolean,
-    canManageProfessionals: Schema.Boolean,
+    canManageOperators: Schema.Boolean,
     canManageCatalog: Schema.Boolean,
     canViewFinancials: Schema.Boolean,
     canManagePlans: Schema.Boolean,
@@ -24,7 +24,7 @@ export const MembershipPermissions = Schema.mutable(
     // capability any member can have toggled — NOT a class of person. `canBeBooked`
     // makes the member eligible to appear on the agenda and take bookings;
     // `canEarnCommission` makes them eligible for commission attribution. The
-    // `professional` preset turns both on; other presets leave them off (but
+    // `memberOperation` preset turns both on; other presets leave them off (but
     // they're plain toggles, editable in the future). "Member eligible for
     // agenda/commission" is read from the capability, never from the role/type —
     // this retires the runtime `BookableProfessional` brand (AC-01/AC-03).
@@ -51,7 +51,7 @@ export const MembershipFields = {
   // Single-unit RLS lock: scopes the membership to one unit (typical for a
   // receptionist assigned to a specific location). Null = scoped to the org
   // as a whole. Renamed from `unitId` (brief 0068 D4) to disambiguate from
-  // `professionals.unitIds[]` (a professional's areas of operation); the DB
+  // `memberOperations.unitIds[]` (a memberOperation's areas of operation); the DB
   // column is `rls_unit_scope` and the RLS unit policy filters on it.
   //
   // This is the canonical read-model / projection key (symmetric across the
@@ -79,7 +79,7 @@ export function membershipDocId(orgId: string, userId: string): string {
 // not bound to a single unit (`rlsUnitScope == null`, i.e. org-wide). Since
 // brief 0044 removed the cross-unit aggregate report view, the only surface
 // this now gates is `/units` management — unit-bound managers, receptionists
-// and professionals stay scoped to their own unit. Owner is always org-wide; a
+// and memberOperations stay scoped to their own unit. Owner is always org-wide; a
 // manager qualifies only when `rlsUnitScope == null`. Keep this the only place
 // the predicate is defined.
 export function operatesCrossUnit(membership: Membership): boolean {
@@ -97,7 +97,7 @@ export function roleDescription(role: Role): string {
       return 'Acesso total: gerencia equipe, serviços, finanças e configurações do negócio.'
     case 'manager':
       return 'Gerencia equipe, serviços, planos e vê finanças — quase tudo, menos ser o dono.'
-    case 'professional':
+    case 'member_operator':
       return 'Tem agenda própria e gerencia os próprios atendimentos.'
     case 'receptionist':
       return 'Agenda e cancela atendimentos e gerencia clientes — sem acesso a finanças.'
@@ -106,7 +106,7 @@ export function roleDescription(role: Role): string {
 
 // Default permission set per role. Owner gets everything; manager mirrors
 // owner minus financial-sensitive bits (kept open here for V0 simplicity
-// but easy to tighten); professional gets agenda + appointments;
+// but easy to tighten); memberOperation gets agenda + appointments;
 // receptionist gets customer + appointment ops. There is no `customer` role —
 // a person who is a client of the org lives in the `customers` table, never as a
 // membership (brief 0068 D4 / AC-04: the vestigial role was removed).
@@ -119,7 +119,7 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canCreateAppointment: true,
         canCancelAppointment: true,
         canManageCustomers: true,
-        canManageProfessionals: true,
+        canManageOperators: true,
         canManageCatalog: true,
         canViewFinancials: true,
         canManagePlans: true,
@@ -136,7 +136,7 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canCreateAppointment: true,
         canCancelAppointment: true,
         canManageCustomers: true,
-        canManageProfessionals: true,
+        canManageOperators: true,
         canManageCatalog: true,
         canViewFinancials: true,
         canManagePlans: true,
@@ -144,23 +144,23 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canBeBooked: false,
         canEarnCommission: false,
       }
-    case 'professional':
+    case 'member_operator':
       return {
         canHaveAgenda: true,
         canManageOwnAgenda: true,
-        // Autonomous own-scoped model (brief 0075): a professional books and
+        // Autonomous own-scoped model (brief 0075): a memberOperation books and
         // cancels their OWN appointments (the picker is locked to themselves and
         // RLS scopes the write to their own rows). Manage* stays false — they
         // never touch customers/catalog/plans/subscriptions.
         canCreateAppointment: true,
         canCancelAppointment: true,
         canManageCustomers: false,
-        canManageProfessionals: false,
+        canManageOperators: false,
         canManageCatalog: false,
         canViewFinancials: false,
         canManagePlans: false,
         canManageSubscriptions: false,
-        // The professional preset is the only one that turns the operational
+        // The memberOperation preset is the only one that turns the operational
         // capabilities on (brief 0076 AC-01): eligible for the agenda and for
         // commission attribution. "Bookable" is now read from this bit, not
         // from the role/type.
@@ -174,7 +174,7 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canCreateAppointment: true,
         canCancelAppointment: true,
         canManageCustomers: true,
-        canManageProfessionals: false,
+        canManageOperators: false,
         canManageCatalog: false,
         canViewFinancials: false,
         canManagePlans: false,

@@ -105,13 +105,15 @@ async function seedClosedOrder(
 }
 
 test.describe('Relatório de comissões (#998)', () => {
-  test.use({ orgInput: { professionalCount: 1, professionalOperationalStatus: 'operational' } })
+  test.use({
+    orgInput: { memberOperationCount: 1, memberOperationOperationalStatus: 'operational' },
+  })
 
   test('AC-05: lista comissões do período com valores, status e totais', async ({
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUser = `e2e-prof-user-${proId}`
     const now = new Date().toISOString()
     await seedCommission(org, {
@@ -157,7 +159,7 @@ test.describe('Relatório de comissões (#998)', () => {
   })
 
   test('filtro por período retorna só registros no range', async ({ org, authedPage }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUser = `e2e-prof-user-${proId}`
     await seedCommission(org, {
       attributedUserId: proUser,
@@ -202,7 +204,7 @@ test.describe('Relatório de comissões (#998)', () => {
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUser = `e2e-prof-user-${proId}`
     const now = new Date().toISOString()
     await seedCommission(org, {
@@ -240,7 +242,7 @@ test.describe('Relatório de comissões (#998)', () => {
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUser = `e2e-prof-user-${proId}`
     const now = new Date().toISOString()
     await seedClosedOrder(

@@ -24,12 +24,12 @@ import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { listAgendaBlocksForUnit } from '@/shared/org/agenda-block-read'
 import { listUnitAppointmentsInRange } from '@/shared/org/appointment-read'
 import { listCustomersForOrg } from '@/shared/org/customer-read'
+import {
+  listBookableMemberOperationsForOrg,
+  resolveMemberOperationScope,
+} from '@/shared/org/member-operation-read'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
-import {
-  listBookableProfessionalsForOrg,
-  resolveProfessionalScope,
-} from '@/shared/org/professional-read'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -59,12 +59,12 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
   // `?unitId=` isolated source is gone; switching happens via the switcher
   // (#1051) which writes the cookie.
   // Bookable = operational AND backed by an active membership with role
-  // `professional` (read-path invariant). Excludes incomplete profiles, demoted
-  // members whose projection lingers, and any non-professional that wrongly
+  // `memberOperation` (read-path invariant). Excludes incomplete profiles, demoted
+  // members whose projection lingers, and any non-memberOperation that wrongly
   // carries a projection row — none of them belong on the agenda grid.
-  const [{ units, activeUnitId }, allProfessionals] = await Promise.all([
+  const [{ units, activeUnitId }, allMemberOperations] = await Promise.all([
     resolveActiveUnit(ctx.membership),
-    listBookableProfessionalsForOrg(ctx.membership.orgId),
+    listBookableMemberOperationsForOrg(ctx.membership.orgId),
   ])
 
   // SPIKE (hours mode): the agenda is a capability gated on having ≥1 unit in
@@ -89,24 +89,24 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
       ? searchParams.date
       : getTodayInOrgTz(timezone)
 
-  // Own-scope (brief 0075, #1256/#1257): a self-scoped professional resolves to
-  // their own `professionals.id`; the balcão (owner/manager/recepção) to `''`.
-  // Used to (a) narrow the agenda reads (RLS `app.current_professional`), (b)
+  // Own-scope (brief 0075, #1256/#1257): a self-scoped memberOperation resolves to
+  // their own `memberOperations.id`; the balcão (owner/manager/recepção) to `''`.
+  // Used to (a) narrow the agenda reads (RLS `app.current_member_operation`), (b)
   // clamp the agenda columns to their own, and (c) lock the appointment dialog's
-  // professional picker to themselves (#1257).
-  const professionalScope = await resolveProfessionalScope(ctx.membership)
-  const selfProfessionalId = professionalScope === '' ? null : professionalScope
+  // memberOperation picker to themselves (#1257).
+  const memberOperationScope = await resolveMemberOperationScope(ctx.membership)
+  const selfMemberOperationId = memberOperationScope === '' ? null : memberOperationScope
 
-  // A self-scoped professional only sees their OWN column on the agenda grid —
-  // not the colleagues' (even empty) columns. The balcão (`selfProfessionalId
+  // A self-scoped memberOperation only sees their OWN column on the agenda grid —
+  // not the colleagues' (even empty) columns. The balcão (`selfMemberOperationId
   // === null`) keeps every bookable column. The RLS-scoped appointment read
   // already hides colleagues' bookings; this clamps the columns to match, so
   // "ver a própria agenda" is the whole surface.
-  const professionals = activeUnitId
-    ? allProfessionals.filter(
+  const memberOperations = activeUnitId
+    ? allMemberOperations.filter(
         (p) =>
           p.unitIds.includes(activeUnitId) &&
-          (selfProfessionalId === null || p.id === selfProfessionalId),
+          (selfMemberOperationId === null || p.id === selfMemberOperationId),
       )
     : []
 
@@ -130,11 +130,11 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
         ctx.membership.orgId,
         activeUnitId,
         { startUtc: dayStart, endUtc: dayEnd },
-        professionalScope,
+        memberOperationScope,
       ),
       // Backend-aware (brief 0060, Grupo C): Postgres reads the typed
       // `agenda_blocks` table under RLS, Firestore the org-scoped subcollection.
-      listAgendaBlocksForUnit(ctx.membership.orgId, activeUnitId, professionalScope),
+      listAgendaBlocksForUnit(ctx.membership.orgId, activeUnitId, memberOperationScope),
       listCatalogItems(ctx.membership.orgId),
       // Não é um `*Snap` — `listCustomersForOrg` já resolve o doc + faz
       // join com `users/` pro PII vir no shape público de `Customer`.
@@ -167,7 +167,7 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
     slotMinutes,
     units,
     activeUnitId,
-    professionals,
+    memberOperations,
     appointments,
     customersById: Object.fromEntries(customersById),
     servicesById: Object.fromEntries(servicesById),
@@ -179,11 +179,11 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
     businessName: org.name,
     confirmationTemplate,
     canManage,
-    // #1257: when set, the appointment dialog locks the professional picker to
-    // this id (a self-scoped professional books only for themselves). Null for
+    // #1257: when set, the appointment dialog locks the memberOperation picker to
+    // this id (a self-scoped memberOperation books only for themselves). Null for
     // the balcão, which keeps the full picker.
-    selfProfessionalId,
-    // #1255 AC-05: only the balcão may register a customer inline; a professional
+    selfMemberOperationId,
+    // #1255 AC-05: only the balcão may register a customer inline; a memberOperation
     // can't (the server action refuses too — this hides the toggle).
     canManageCustomers: ctx.membership.permissions.canManageCustomers,
   }

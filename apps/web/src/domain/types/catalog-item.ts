@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 
-import { CommissionRule } from './professional'
+import { CommissionRule } from './member-operation'
 import {
   ServicePriceVisibility,
   ServiceUnitOverride,

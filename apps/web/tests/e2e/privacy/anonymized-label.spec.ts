@@ -57,7 +57,7 @@ test.describe('neutral label for anonymized accounts', () => {
   test('customer list: anonymized accounts show `Cliente ‹CODE›`, two stay distinct, a live account keeps its name', async ({
     context,
   }) => {
-    const owner = await seedOrg({ professionalCount: 0 })
+    const owner = await seedOrg({ memberOperationCount: 0 })
 
     const anonUserA = `e2e-cust-anon-a-${Date.now()}`
     const anonUserB = `e2e-cust-anon-b-${Date.now()}`
@@ -92,9 +92,9 @@ test.describe('neutral label for anonymized accounts', () => {
   test('team list + member detail: anonymized member shows `Profissional ‹CODE›`', async ({
     context,
   }) => {
-    const owner = await seedOrg({ professionalCount: 0 })
+    const owner = await seedOrg({ memberOperationCount: 0 })
     const { userId } = await seedMember(owner.orgId, {
-      role: 'professional',
+      role: 'member_operator',
       displayName: 'Daniel Profissional',
     })
     await anonymizeUser(userId)

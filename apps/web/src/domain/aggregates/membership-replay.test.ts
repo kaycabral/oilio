@@ -67,13 +67,13 @@ describe('Membership — replay reconstrói o doc completo (event-first)', () =>
       id: 't1_user-2',
       orgId: 't1',
       userId: 'user-2',
-      role: 'professional',
+      role: 'member_operator',
       status: 'active',
       invitedBy: 'owner-1',
       joinedAt: '2026-06-01T12:00:00.000Z',
       updatedAt: '2026-06-01T12:00:00.000Z',
       rlsUnitScope: null,
-      permissions: defaultPermissionsForRole('professional'),
+      permissions: defaultPermissionsForRole('member_operator'),
     }
 
     await Effect.runPromise(
@@ -100,7 +100,7 @@ describe('Membership — replay reconstrói o doc completo (event-first)', () =>
     expect(replayed.status).toBe('revoked')
     // Role/permissions untouched by the offboarding (identity retained
     // identifiable — art. 16): only the status crosses to terminal.
-    expect(replayed.role).toBe('professional')
+    expect(replayed.role).toBe('member_operator')
   })
 
   // #1226 AC-01/AC-03 replay-safety: a LEGACY `membership.created` event whose

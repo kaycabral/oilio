@@ -7,7 +7,7 @@ const FUTURE = '2026-03-11T12:00:00.000Z'
 function form(overrides: Record<string, string> = {}): FormData {
   const base: Record<string, string> = {
     serviceId: 's1',
-    professionalId: 'p1',
+    memberOperationId: 'p1',
     startAt: FUTURE,
     customerName: 'Maria Silva',
     customerWhatsapp: '(11) 99999-9999',
@@ -25,7 +25,7 @@ describe('parseWizardFields', () => {
     expect(typeof result).not.toBe('string')
     if (typeof result === 'string') throw new Error(result)
     expect(result.serviceId).toBe('s1')
-    expect(result.professionalId).toBe('p1')
+    expect(result.memberOperationId).toBe('p1')
     expect(result.customerName).toBe('Maria Silva')
     expect(result.whatsapp).toBe('5511999999999')
     expect(result.startAtDate.toISOString()).toBe(FUTURE)
@@ -36,8 +36,8 @@ describe('parseWizardFields', () => {
     expect(parseWizardFields(form({ serviceId: '' }), NOW)).toBe('Serviço não selecionado.')
   })
 
-  it('rejects missing professional', () => {
-    expect(parseWizardFields(form({ professionalId: '' }), NOW)).toBe(
+  it('rejects missing memberOperation', () => {
+    expect(parseWizardFields(form({ memberOperationId: '' }), NOW)).toBe(
       'Profissional não selecionado.',
     )
   })

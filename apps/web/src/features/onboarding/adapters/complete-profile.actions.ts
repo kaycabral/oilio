@@ -58,7 +58,7 @@ export async function completeProfile(formData: FormData): Promise<CompleteProfi
 
   // No approval event to emit (#1226 AC-02): `operationalStatus` is derived on
   // read from real facts. Setting `User.whatsapp` above can complete a
-  // professional's profile, but readiness is recomputed on the next enriched
+  // memberOperation's profile, but readiness is recomputed on the next enriched
   // read — there is nothing to materialize here.
 
   redirect(safeNext(formData.get('next')))

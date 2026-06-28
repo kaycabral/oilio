@@ -1,4 +1,4 @@
-import { AppointmentConfig, ProfessionalConfig } from '@/domain/aggregates'
+import { AppointmentConfig, MemberOperationConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
 import { expect, test } from './fixtures'
@@ -26,7 +26,7 @@ import { AgendaPage, MeAppointmentsPage } from './pages'
 // UM spec que prova os 5 contratos da migração como Definition of Done. Não é
 // cópia das specs por frente: cada cenário re-afirma o invariante no nível mais
 // barato que ainda prova o contrato. As provas exaustivas por frente vivem em:
-//   - professionals-whatsapp.spec.ts + #1036 (PII fora de evento)
+//   - memberOperations-whatsapp.spec.ts + #1036 (PII fora de evento)
 //   - appointment-snapshot.spec.ts        (#1037 — order não driva do appointment)
 //   - me-self-cancel.spec.ts              (#1038 — policy snapshot não retroage)
 //   - units/baseline.spec.ts              (#1041 — delete uniforme arquiva/exclui)
@@ -51,18 +51,18 @@ const requireString = Schema.decodeUnknownSync(Schema.String)
 test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
   // ── Cenário 1 — PII fora de evento imutável [critical] ──────────────────────
   // Contrato 0027: aggregate que toca PII referencia um id; a PII vive num doc
-  // apagável. O `professional.created` (evento imutável, append-only) NÃO pode
-  // carregar name/whatsapp/email — eles vivem em `professionals_pii/{id}`.
+  // apagável. O `member_operation.created` (evento imutável, append-only) NÃO pode
+  // carregar name/whatsapp/email — eles vivem em `member_operations_pii/{id}`.
   test.describe('Cenário 1 — PII fora de evento imutável', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 0 } })
 
-    test('professional.created não carrega PII; professionals_pii carrega', async ({
+    test('member_operation.created não carrega PII; professionals_pii carrega', async ({
       org,
       context,
       page,
       baseURL,
     }) => {
-      // Criação é invite-only (#1045 / brief 0028 AC-02): o Professional nasce
+      // Criação é invite-only (#1045 / brief 0028 AC-02): o MemberOperation nasce
       // da saga de aceite. A PII (name/whatsapp/email) vem da identidade do
       // convidado (User), não de inputs do form. `seedAuthUser` fixa
       // displayName 'E2E Invitee' + whatsapp 5511900000000; o email é o gerado.
@@ -70,29 +70,29 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       const { inviteId, rawToken } = await seedInvite({
         orgId: org.orgId,
         email: invitee.email,
-        role: 'professional',
+        role: 'member_operator',
         invitedBy: org.uid,
       })
       await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
       await page.goto(`/invites/${org.orgId}/${inviteId}?token=${rawToken}`)
       await page.getByRole('button', { name: /aceitar convite/i }).click()
-      // Professional (non-manager) lands on `/agenda`, not the manager-only
+      // MemberOperation (non-manager) lands on `/agenda`, not the manager-only
       // Dashboard — the org has an appointment unit.
       await expect(page).toHaveURL(/\/agenda/, { timeout: 10_000 })
 
       // Descobre o id do profissional materializado (único do org) — pela
-      // projeção tipada `professionals` no Postgres.
-      const proRows = await pgListByOrg('professionals', org.orgId)
+      // projeção tipada `member_operations` no Postgres.
+      const proRows = await pgListByOrg('member_operations', org.orgId)
       expect(proRows).toHaveLength(1)
       const proId = requireString(proRows[0]?.id)
-      const proRef = aggregateRef(ProfessionalConfig, org.orgId, proId)
+      const proRef = aggregateRef(MemberOperationConfig, org.orgId, proId)
 
       // O stream de eventos do aggregate. O primeiro evento é
-      // `professional.created` (v1) — payload.data é o snapshot operacional.
+      // `member_operation.created` (v1) — payload.data é o snapshot operacional.
       // PII não pode aparecer em nenhum lugar do envelope.
       const stream = await pgReadEventStream(proRef)
       expect(stream.length).toBeGreaterThanOrEqual(1)
-      expect(decodeEventTag(stream[0])._tag).toBe('professional.created')
+      expect(decodeEventTag(stream[0])._tag).toBe('member_operation.created')
 
       // Serializa cada envelope do stream e garante ausência da PII literal.
       // Cobre qualquer nível de aninhamento do payload (data.name etc.).
@@ -111,7 +111,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       expect(userRow?.whatsapp).toBe('5511900000000')
       expect(userRow?.email).toBe(invitee.email)
 
-      // O doc per-org apagável `professionals_pii/{id}` guarda só PII
+      // O doc per-org apagável `member_operations_pii/{id}` guarda só PII
       // profissional-específica (tax_identity), nunca a identidade pessoal.
       // A tabela sidecar (aggregate_path, org_id, id, tax_identity) não tem
       // sequer coluna pra name/whatsapp/email — o contrato é estrutural.
@@ -131,7 +131,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
   // appointment-snapshot.spec.ts; aqui fechamos a order e conferimos a comissão.
   test.describe('Cenário 2 — editar agendamento não driva a order', () => {
     test.use({
-      orgInput: { unitCount: 1, professionalCount: 1, slotMinutes: 30, hasBusinessHours: true },
+      orgInput: { unitCount: 1, memberOperationCount: 1, slotMinutes: 30, hasBusinessHours: true },
     })
 
     test('order fechada usa snapshot travado, não o appointment driftado', async ({
@@ -153,7 +153,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       const appointmentId = await seedAppointment({
         orgId: org.orgId,
         unitId: org.unitIds[0]!,
-        professionalId: org.professionalIds[0]!,
+        memberOperationId: org.memberOperationIds[0]!,
         customerId,
         serviceId,
         startAt: '2026-09-08T17:00:00.000Z',
@@ -219,7 +219,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
     // appointment 30 min à frente → dentro da janela estrita → bloqueado.
     const seed = await seedOrg({
       unitCount: 1,
-      professionalCount: 1,
+      memberOperationCount: 1,
       cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
     })
     const serviceId = await seedService(seed.orgId, {
@@ -237,7 +237,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
     await seedAppointment({
       orgId: seed.orgId,
       unitId: seed.unitIds[0]!,
-      professionalId: seed.professionalIds[0]!,
+      memberOperationId: seed.memberOperationIds[0]!,
       customerId,
       serviceId,
       startAt,
@@ -260,7 +260,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
   // baixo — some da lista ativa, histórico preservado. Master data LIVRE exclui
   // de vez. Versão leve da prova exaustiva em units/baseline.spec.ts.
   test.describe('Cenário 4 — 1 verbo "Excluir": em uso soft-delete, livre hard-delete', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
     test('unidade em uso por profissional → "Excluir" vira soft-delete (some da ativa)', async ({
       authedPage,

@@ -6,7 +6,7 @@
 //   - orders/standalone-sale.spec.ts            (#1055 · AC-01/02 — venda
 //     avulsa, cliente opcional, regressão agendamento)
 //   - orders/member-attribution.spec.ts         (#1056 · AC-04/05 — atribuição
-//     por membro, default esperto, recepção sem Professional fecha)
+//     por membro, default esperto, recepção sem MemberOperation fecha)
 //   - orders/member-attribution-commission.spec.ts (#1057 · AC-06/07 — comissão
 //     chaveada por membro, agrupada em /reports/commissions)
 //   - orders/venda-terminology-pos.spec.ts      (#1058 · AC-09/10 — copy "Venda",
@@ -132,8 +132,8 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -222,7 +222,7 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       await seedAppointment({
         orgId: org.orgId,
         unitId: org.unitIds[0]!,
-        professionalId: org.professionalIds[0]!,
+        memberOperationId: org.memberOperationIds[0]!,
         customerId,
         serviceId,
         startAt: '2026-09-08T17:00:00.000Z',
@@ -247,7 +247,7 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       const serviceRow = authedPage.getByRole('listitem').filter({ hasText: 'Corte Jornada' })
       await expect(serviceRow.getByRole('combobox', { name: 'Executor' })).toBeVisible()
 
-      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
+      const proUid = `e2e-prof-user-${org.memberOperationIds[0]!}`
       await closeWithCash(authedPage)
 
       // Invariantes: venda ligada ao appointment, com cliente, serviço atribuído
@@ -289,7 +289,7 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       await seedAppointment({
         orgId: org.orgId,
         unitId: org.unitIds[0]!,
-        professionalId: org.professionalIds[0]!,
+        memberOperationId: org.memberOperationIds[0]!,
         customerId,
         serviceId,
         startAt: '2026-09-08T17:00:00.000Z',
@@ -325,7 +325,7 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       await expect(productSeller()).toHaveText('Gerente Loja')
 
       // Invariante: NENHUM item fica sem dono — serviço pro pro, produto pro gerente.
-      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
+      const proUid = `e2e-prof-user-${org.memberOperationIds[0]!}`
       const order = (await readOrders(org.orgId)).find((o) => o.appointmentId != null)
       expect(order).toBeDefined()
       expect(order!.itemAttributions).not.toContain(null)
@@ -335,7 +335,7 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
   })
 
   // Cenário 4 — comissão pro vendedor não-profissional. A commissionable product
-  // sold by a reception (no Professional) closes; the commission is keyed by the
+  // sold by a reception (no MemberOperation) closes; the commission is keyed by the
   // member's userId and appears in /reports/commissions grouped by member,
   // status pending. Folds in the degenerate baseline: a product WITHOUT a
   // commission rule is attributed but generates NO commission, and the cancel
@@ -355,7 +355,7 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       })
       // Produto SEM regra (degenerado): atribuído mas não comissiona.
       await seedProduct(org.orgId, { name: 'Prego Sem Comissao', priceCents: 1000 })
-      // Recepção SEM Professional projection — o caso que a generalização destrava.
+      // Recepção SEM MemberOperation projection — o caso que a generalização destrava.
       const recepcao = await seedMember(org.orgId, {
         role: 'receptionist',
         displayName: 'Recepção Balcão',

@@ -3,7 +3,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 // Encapsulates interactions with `/agenda` (authenticated owner/manager view).
 // Methods cover the moves seen across agenda-* specs: navigation by date,
 // opening the "+ Novo" dialog, asserting off-hours banner, locating a
-// professional column.
+// memberOperation column.
 //
 // Locators are returned as `Locator` so the test can chain web-first
 // assertions; actions return `Promise<void>` and wait implicitly via
@@ -32,13 +32,13 @@ export class AgendaPage {
     return this.page.getByRole('link', { name: /configurar horários/i })
   }
 
-  // ── Professional columns ────────────────────────────────────────────────
+  // ── MemberOperation columns ────────────────────────────────────────────────
 
-  professionalColumn(name: string | RegExp): Locator {
+  memberOperationColumn(name: string | RegExp): Locator {
     return this.page.getByText(name)
   }
 
-  // The non-operational professional chip — `IncompleteProfileBadge`, rendering
+  // The non-operational memberOperation chip — `IncompleteProfileBadge`, rendering
   // "Cadastro incompleto" after the approval→operational rename.
   incompleteProfileChip(): Locator {
     return this.page.getByText(/cadastro incompleto/i)

@@ -43,7 +43,7 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
   const { slug, unitSlug } = await params
   const sp = await searchParams
   const serviceId = readQuery(sp, 'service')
-  const professionalId = readQuery(sp, 'professional')
+  const memberOperationId = readQuery(sp, 'member_operator')
   // Single-day endpoint for V0.1 (issue #842 "Out of scope: month view").
   // Range view (`from` + `to`) ships when the booking wizard (#844) drives it.
   const dateQuery = readQuery(sp, 'from') ?? readQuery(sp, 'date')
@@ -76,14 +76,14 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
   const bundle = await getPublicAvailability(slug, unitSlug, {
     serviceId,
     date: probeDate,
-    professionalId,
+    memberOperationId,
     timeScope: scope?.allowedTimeScope ?? null,
   })
   if (!bundle) notFound()
 
   const date = bundle.date
   const rows = groupAvailabilityByLocalTime(bundle.slots, bundle.unit.timezone)
-  const proNameById = new Map(bundle.professionals.map((p) => [p.id, p.name]))
+  const proNameById = new Map(bundle.memberOperations.map((p) => [p.id, p.name]))
 
   const dateFmt = new Intl.DateTimeFormat('pt-BR', {
     timeZone: bundle.unit.timezone,
@@ -137,12 +137,12 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
               <div className="text-sm font-medium tabular-nums">{r.localHHmm}</div>
               <ul className="flex flex-wrap items-center justify-end gap-2">
                 {r.slots.map((s) => (
-                  <li key={`${s.professionalId}-${s.startAt}`}>
+                  <li key={`${s.memberOperationId}-${s.startAt}`}>
                     <Link
-                      href={`/${slug}/${unitSlug}/book?service=${encodeURIComponent(bundle.service.id)}&professional=${encodeURIComponent(s.professionalId)}&start=${encodeURIComponent(s.startAt)}`}
+                      href={`/${slug}/${unitSlug}/book?service=${encodeURIComponent(bundle.service.id)}&memberOperation=${encodeURIComponent(s.memberOperationId)}&start=${encodeURIComponent(s.startAt)}`}
                       className="border-border hover:bg-muted/40 rounded-md border px-2 py-1 text-xs"
                     >
-                      {proNameById.get(s.professionalId) ?? 'Profissional'}
+                      {proNameById.get(s.memberOperationId) ?? 'Profissional'}
                     </Link>
                   </li>
                 ))}

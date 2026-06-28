@@ -2,7 +2,7 @@ import { Effect, Schema } from 'effect'
 
 import { AgendaBlockConfig } from '@/domain/aggregates/agenda-block/config'
 import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
-import { ProfessionalConfig } from '@/domain/aggregates/professional/config'
+import { MemberOperationConfig } from '@/domain/aggregates/member-operation/config'
 import { aggregateRef, collectionRef } from '@/domain/effect/aggregate-ref'
 import { AgendaBlock } from '../types/agenda-block'
 import { getBlockSegmentsForDay } from '../utils/agenda-blocks'
@@ -14,7 +14,7 @@ import { PersistencePort } from './services'
 // just this projection (excess ignored) so the read tolerates the full doc.
 const AppointmentForOverlap = Schema.Struct({
   id: Schema.String,
-  professionalId: Schema.String,
+  memberOperationId: Schema.String,
   startAt: Schema.String,
   endAt: Schema.String,
   status: Schema.String,
@@ -23,7 +23,7 @@ const AppointmentForOverlap = Schema.Struct({
 export function checkAppointmentAvailability(input: {
   readonly orgId: string
   readonly unitId: string
-  readonly professionalId: string
+  readonly memberOperationId: string
   readonly proposed: AppointmentInterval
   readonly date: string
   readonly tz: string
@@ -32,12 +32,12 @@ export function checkAppointmentAvailability(input: {
   return Effect.gen(function* () {
     const persistence = yield* PersistencePort
 
-    const professionalDoc = yield* persistence.getDoc(
-      aggregateRef(ProfessionalConfig, input.orgId, input.professionalId),
+    const memberOperationDoc = yield* persistence.getDoc(
+      aggregateRef(MemberOperationConfig, input.orgId, input.memberOperationId),
     )
-    if (!professionalDoc) {
+    if (!memberOperationDoc) {
       return yield* Effect.fail(
-        new EntityNotFoundError({ entity: 'Professional', id: input.professionalId }),
+        new EntityNotFoundError({ entity: 'MemberOperation', id: input.memberOperationId }),
       )
     }
 
@@ -45,7 +45,7 @@ export function checkAppointmentAvailability(input: {
       collectionRef(AppointmentConfig, input.orgId),
       [
         { kind: 'where', field: 'unitId', op: '==', value: input.unitId },
-        { kind: 'where', field: 'professionalId', op: '==', value: input.professionalId },
+        { kind: 'where', field: 'memberOperationId', op: '==', value: input.memberOperationId },
       ],
     )
     const existing = appointmentDocs.map((d) => Schema.decodeUnknownSync(AppointmentForOverlap)(d))
@@ -58,7 +58,7 @@ export function checkAppointmentAvailability(input: {
 
     const conflicts = findAppointmentConflicts({
       proposed: input.proposed,
-      professionalId: input.professionalId,
+      memberOperationId: input.memberOperationId,
       existing,
       blockSegments,
       date: input.date,
@@ -69,7 +69,7 @@ export function checkAppointmentAvailability(input: {
     if (conflicts.length > 0) {
       return yield* Effect.fail(
         new AppointmentConflictError({
-          professionalId: input.professionalId,
+          memberOperationId: input.memberOperationId,
           proposedStart: input.proposed.startAt,
           proposedEnd: input.proposed.endAt,
           conflictingIds: conflicts.map((c) =>

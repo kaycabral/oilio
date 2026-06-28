@@ -3,7 +3,7 @@ import { formatBrazilPhone, type Membership, type Role } from '@/domain'
 import { BlocksSection } from '@/features/agenda/ui/BlocksSection'
 import {
   loadMemberDetailPage,
-  type ProfessionalEditContext,
+  type MemberOperationEditContext,
 } from '@/features/team/adapters/load-member-detail'
 import { MemberDetailForm } from '@/features/team/ui/MemberDetailForm'
 import { MemberStatusToggle } from '@/features/team/ui/MemberStatusToggle'
@@ -13,7 +13,7 @@ import { Main } from '@cbrl/design'
 const ROLE_LABELS: Record<Role, string> = {
   owner: 'Dono',
   manager: 'Gerente',
-  professional: 'Profissional',
+  member_operator: 'Profissional',
   receptionist: 'Recepção',
 }
 
@@ -32,7 +32,7 @@ const STATUS_LABELS: Record<Membership['status'], string> = {
 // For an authorized user (owner/manager) editing a NON-owner member, there is
 // no "Editar" gate and no separate "Trocar papel" button: a single editable
 // `MemberDetailForm` shows the role select (top) + operational fields (when
-// professional), persisted with ONE Salvar that runs the role lifecycle (#1086)
+// memberOperation), persisted with ONE Salvar that runs the role lifecycle (#1086)
 // and the operational update (#1085) together.
 //
 // The owner is NOT editable (refino): no role select, no Salvar — the detail is
@@ -49,12 +49,12 @@ export default async function MemberDetailPage({
     displayName,
     memberEmail,
     memberWhatsapp,
-    isProfessional,
+    isMemberOperator,
     isReadOnly,
     canToggleStatus,
     canRemove,
-    professionalEdit,
-    professionalBlocks,
+    memberOperationEdit,
+    memberOperationBlocks,
     professionalUnits,
     orgTimezone,
   } = await loadMemberDetailPage(userId)
@@ -104,25 +104,25 @@ export default async function MemberDetailPage({
 
       {renderEditableSurface({
         isReadOnly,
-        isProfessional,
-        professionalEdit,
+        isMemberOperator,
+        memberOperationEdit,
         targetUserId: member.userId,
         currentRole: member.role,
         statusLabel: STATUS_LABELS[member.status],
       })}
 
-      {/* Per-professional agenda blocks (brief 0036 #1082) — the professional's
+      {/* Per-memberOperation agenda blocks (brief 0036 #1082) — the memberOperation's
           own blocks live here, next to the operational config. Needs a
-          materialized professional with at least one unit to attach the block
+          materialized memberOperation with at least one unit to attach the block
           to. */}
-      {isProfessional && professionalEdit && professionalUnits.length > 0 ? (
+      {isMemberOperator && memberOperationEdit && professionalUnits.length > 0 ? (
         <BlocksSection
           owner={{
-            scope: 'professional',
-            professionalId: professionalEdit.professional.id,
+            scope: 'member_operator',
+            memberOperationId: memberOperationEdit.memberOperation.id,
             units: professionalUnits,
           }}
-          blocks={professionalBlocks}
+          blocks={memberOperationBlocks}
           orgTimezone={orgTimezone}
           canManage={!isReadOnly}
           title="Bloqueios do profissional"
@@ -131,7 +131,7 @@ export default async function MemberDetailPage({
       ) : null}
 
       {/* Member-level deactivate/reactivate (AC-10) — distinct from the role
-          select above and from the professional approval status. Suspends
+          select above and from the memberOperation approval status. Suspends
           effective access; reversible. */}
       {canToggleStatus && (member.status === 'active' || member.status === 'suspended') ? (
         <section className="border-border rounded-md border p-4">
@@ -159,28 +159,28 @@ const NOT_MATERIALIZED = (
 // The editable surface below the read-only identity/status (refino). Owner / the
 // viewer's own membership are read-only (no role select, no Salvar). Everyone
 // else gets the single `MemberDetailForm` (role select + operational fields when
-// professional + one Salvar).
+// memberOperation + one Salvar).
 function renderEditableSurface({
   isReadOnly,
-  isProfessional,
-  professionalEdit,
+  isMemberOperator,
+  memberOperationEdit,
   targetUserId,
   currentRole,
   statusLabel,
 }: {
   isReadOnly: boolean
-  isProfessional: boolean
-  professionalEdit: ProfessionalEditContext | null
+  isMemberOperator: boolean
+  memberOperationEdit: MemberOperationEditContext | null
   targetUserId: string
   currentRole: Role
   statusLabel: string
 }) {
   if (isReadOnly) {
-    // No edit affordance. A professional whose projection isn't materialized
+    // No edit affordance. A memberOperation whose projection isn't materialized
     // still surfaces that operational state.
-    return isProfessional && !professionalEdit ? NOT_MATERIALIZED : null
+    return isMemberOperator && !memberOperationEdit ? NOT_MATERIALIZED : null
   }
-  if (isProfessional && !professionalEdit) {
+  if (isMemberOperator && !memberOperationEdit) {
     // Editable (role select + Salvar) but no operational fields to show yet.
     return (
       <>
@@ -189,7 +189,7 @@ function renderEditableSurface({
           targetUserId={targetUserId}
           currentRole={currentRole}
           statusLabel={statusLabel}
-          professional={null}
+          memberOperation={null}
           units={[]}
         />
       </>
@@ -200,9 +200,9 @@ function renderEditableSurface({
       targetUserId={targetUserId}
       currentRole={currentRole}
       statusLabel={statusLabel}
-      professional={professionalEdit?.professional ?? null}
-      units={professionalEdit?.units ?? []}
-      services={professionalEdit?.services ?? []}
+      memberOperation={memberOperationEdit?.memberOperation ?? null}
+      units={memberOperationEdit?.units ?? []}
+      services={memberOperationEdit?.services ?? []}
     />
   )
 }

@@ -9,7 +9,7 @@ import 'server-only'
 
 // Reads for the `appointment` projection (brief 0061 § Grupo C / AC-04): reads
 // the typed `appointments` table under RLS. Org-wide (no unit pin) — the offboard
-// cascade looks up a professional's appointments across the org's units.
+// cascade looks up a memberOperation's appointments across the org's units.
 
 const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 
@@ -41,11 +41,11 @@ export async function listUnitAppointmentsInRange(
   orgId: string,
   unitId: string,
   range: { startUtc: string; endUtc: string },
-  // Own-scope (brief 0075, #1256): pass a professional's id to restrict the read
-  // to THEIR appointments via the `app.current_professional` RLS predicate; `''`
+  // Own-scope (brief 0075, #1256): pass a memberOperation's id to restrict the read
+  // to THEIR appointments via the `app.current_member_operation` RLS predicate; `''`
   // (the balcão) reads the whole unit. The SQL is unchanged — the database
-  // narrows the rows, so a professional can't read a colleague's day.
-  professionalId = '',
+  // narrows the rows, so a memberOperation can't read a colleague's day.
+  memberOperationId = '',
 ): Promise<Appointment[]> {
   const { startUtc, endUtc } = range
   const rows = await readUnderRls<AppointmentRow>(
@@ -59,23 +59,23 @@ export async function listUnitAppointmentsInRange(
         )
         .then((res) => res.rows),
     unitId,
-    professionalId,
+    memberOperationId,
   )
   return rows.map((row) => decodeAppointment(appointmentRowToDoc(row)))
 }
 
-// Every appointment owned by a professional in an org (any status). The caller
+// Every appointment owned by a memberOperation in an org (any status). The caller
 // filters the future/scheduled subset — kept org-wide (no `app.current_unit`
-// pin) because a professional may serve multiple units.
-export async function listAppointmentsByProfessionalId(
+// pin) because a memberOperation may serve multiple units.
+export async function listAppointmentsByMemberOperationId(
   orgId: string,
-  professionalId: string,
+  memberOperationId: string,
 ): Promise<Appointment[]> {
   const rows = await readUnderRls<AppointmentRow>(orgId, (client) =>
     client
       .query<AppointmentRow>(
-        'SELECT * FROM appointments WHERE org_id = $1 AND professional_id = $2',
-        [orgId, professionalId],
+        'SELECT * FROM appointments WHERE org_id = $1 AND member_operation_id = $2',
+        [orgId, memberOperationId],
       )
       .then((res) => res.rows),
   )

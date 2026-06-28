@@ -68,8 +68,8 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -140,7 +140,7 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
     await seedAppointment({
       orgId: org.orgId,
       unitId,
-      professionalId: org.professionalIds[0]!,
+      memberOperationId: org.memberOperationIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',

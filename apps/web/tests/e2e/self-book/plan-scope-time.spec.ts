@@ -20,7 +20,7 @@
 import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
 import {
-  linkProfessionalToServices,
+  linkMemberOperationToServices,
   seedCustomer,
   seedService,
   seedSubscription,
@@ -31,7 +31,7 @@ test.describe(
   'brief 0019 — Feature-level DoD § Scenario 2 (allowedTimeScope)',
   { tag: '@critical' },
   () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
     test('plano com horário restrito filtra slots no calendar e bloqueia commit', async ({
       org,
@@ -46,7 +46,7 @@ test.describe(
         publicVisible: true,
         unitIds: [unitId],
       })
-      await linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
+      await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
       // Plano restrito a seg-sex 09:00-10:00 (envelope ultra-estreito pra
       // tornar o filtro observável dentro de business hours do org
@@ -94,7 +94,7 @@ test.describe(
       const outOfScopeStart = buildLocalIso(targetDate, '14:00', org.orgId)
       const params = new URLSearchParams({
         service: serviceId,
-        professional: org.professionalIds[0]!,
+        memberOperation: org.memberOperationIds[0]!,
         start: outOfScopeStart,
       })
       await authedPage.goto(`/${slug}/unidade-1/book?${params.toString()}`)

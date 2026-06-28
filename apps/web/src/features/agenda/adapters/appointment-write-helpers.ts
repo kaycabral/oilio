@@ -6,7 +6,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import type { Appointment, Professional, resolveCatalogItemForUnit } from '@/domain'
+import type { Appointment, MemberOperation, resolveCatalogItemForUnit } from '@/domain'
 import {
   type AppointmentActorRole,
   type CatalogItem,
@@ -27,7 +27,7 @@ import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { emitEvent } from '@/shared/effect-bridge'
 import { listAgendaBlocksForUnit } from '@/shared/org/agenda-block-read'
 import { listUnitAppointmentsInRange } from '@/shared/org/appointment-read'
-import { getProfessionalById } from '@/shared/org/professional-read'
+import { getMemberOperationById } from '@/shared/org/member-operation-read'
 import { assertCustomerIdNotBlocked } from '@/shared/privacy/assert-customer-not-blocked'
 
 import { AuthzError, getMembership } from '@/shared/org/membership'
@@ -70,24 +70,24 @@ export async function loadActiveCatalogService(
 // (owner could move an appointment onto a non-bookable member). Post brief 0076
 // "bookable" is the capability `canBeBooked` ∧ operational readiness (the retired
 // `BookableProfessional` brand's contract, now a server-side gate): the agenda
-// read filters on exactly this (`listBookableProfessionalsForOrg`), so the write
+// read filters on exactly this (`listBookableMemberOperationsForOrg`), so the write
 // path must enforce it too — a member soft-disabled via `canBeBooked=false`
 // stays out of the grid AND can't receive a booking through a stale form / deep
 // link. Mirrors the read invariant so the two can't drift.
-export async function loadApprovedProfessional(
+export async function loadApprovedMemberOperation(
   orgId: string,
-  professionalId: string,
-): Promise<Professional | string> {
-  const professional = await getProfessionalById(orgId, professionalId)
-  if (!professional) return 'Profissional não encontrado'
-  if (!isOperational(professional.operationalStatus)) {
-    return `Profissional não está operacional para receber agendamentos (status: ${professional.operationalStatus}).`
+  memberOperationId: string,
+): Promise<MemberOperation | string> {
+  const memberOperation = await getMemberOperationById(orgId, memberOperationId)
+  if (!memberOperation) return 'Profissional não encontrado'
+  if (!isOperational(memberOperation.operationalStatus)) {
+    return `Profissional não está operacional para receber agendamentos (status: ${memberOperation.operationalStatus}).`
   }
-  const membership = await getMembership(orgId, professional.userId)
+  const membership = await getMembership(orgId, memberOperation.userId)
   if (!membership || membership.status !== 'active' || !membership.permissions.canBeBooked) {
     return 'Profissional não está habilitado para receber agendamentos (capacidade de agenda desligada).'
   }
-  return professional
+  return memberOperation
 }
 
 // Pre-flight conflict check (blocks + appointment overlap) for a proposed slot.
@@ -113,7 +113,7 @@ export async function checkSlotConflicts(args: {
   const blockSegments = getBlockSegmentsForDay(blocks, parsed.date, org.timezone)
   const conflicts = findAppointmentConflicts({
     proposed: { startAt, endAt },
-    professionalId: parsed.professionalId,
+    memberOperationId: parsed.memberOperationId,
     existing,
     blockSegments,
     date: parsed.date,
@@ -128,7 +128,7 @@ export async function checkSlotConflicts(args: {
 }
 
 // Persist the edit event-first: refresh denormalized userIds when the customer
-// or professional changed, emit `appointment.updated` (diff of mutable fields),
+// or memberOperation changed, emit `appointment.updated` (diff of mutable fields),
 // and add `appointment.rescheduled` when the start instant moved.
 export async function persistAppointmentUpdate(args: {
   orgId: string
@@ -143,27 +143,32 @@ export async function persistAppointmentUpdate(args: {
 }): Promise<AppointmentMutationResult> {
   const { orgId, actorUid, appointmentId, parsed, previous, startAt, endAt, resolved } = args
   const userIdsChanged =
-    parsed.customerId !== previous.customerId || parsed.professionalId !== previous.professionalId
+    parsed.customerId !== previous.customerId ||
+    parsed.memberOperationId !== previous.memberOperationId
   let customerUserId = previous.customerUserId
-  let professionalUserId = previous.professionalUserId
+  let memberOperatorUserId = previous.memberOperatorUserId
   if (userIdsChanged) {
-    const userIds = await resolveAppointmentUserIds(orgId, parsed.customerId, parsed.professionalId)
+    const userIds = await resolveAppointmentUserIds(
+      orgId,
+      parsed.customerId,
+      parsed.memberOperationId,
+    )
     if (!userIds.ok) return userIds
     customerUserId = userIds.ids.customerUserId
-    professionalUserId = userIds.ids.professionalUserId
+    memberOperatorUserId = userIds.ids.memberOperatorUserId
   }
 
   const now = new Date().toISOString()
   const isReschedule = startAt !== previous.startAt
   const changes: Record<string, unknown> = {
     unitId: parsed.unitId,
-    professionalId: parsed.professionalId,
+    memberOperationId: parsed.memberOperationId,
     serviceId: parsed.serviceId,
     customerId: parsed.customerId,
     startAt,
     endAt,
     customerUserId,
-    professionalUserId,
+    memberOperatorUserId,
   }
   if (args.serviceOrUnitChanged) {
     changes.servicePriceCentsSnapshot = resolved.priceCents

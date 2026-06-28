@@ -24,8 +24,8 @@ test.describe(
     test.use({
       orgInput: {
         unitCount: 1,
-        professionalCount: 1,
-        professionalOperationalStatus: 'operational',
+        memberOperationCount: 1,
+        memberOperationOperationalStatus: 'operational',
         hasBusinessHours: true,
         slotMinutes: 30,
       },
@@ -68,7 +68,7 @@ test.describe(
       })
 
       // Agenda for that Monday now reflects the closure: the "Fechado" all-day
-      // overlay covers the professional column.
+      // overlay covers the memberOperation column.
       await agenda.goto(MONDAY)
       await expect(authedPage.getByText('Fechado', { exact: true }).first()).toBeVisible({
         timeout: 5000,

@@ -39,7 +39,7 @@ async function seedFixture(org: SeededOrg): Promise<void> {
   await seedAppointment({
     orgId: org.orgId,
     unitId: org.unitIds[0]!,
-    professionalId: org.professionalIds[0]!,
+    memberOperationId: org.memberOperationIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -71,8 +71,8 @@ test.describe('Comissão 0022 — Definition of Done', () => {
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -110,8 +110,8 @@ test.describe('Comissão 0022 — Definition of Done', () => {
 
     // Lote por membro (gesto que move dinheiro) — só aparece filtrado. A chave
     // da comissão é o `userId` do membro atribuído (brief 0030/0039), então o
-    // filtro usa `?member=<userId>` — não o id do doc Professional.
-    const proId = org.professionalIds[0]!
+    // filtro usa `?member=<userId>` — não o id do doc MemberOperation.
+    const proId = org.memberOperationIds[0]!
     const proUser = `e2e-prof-user-${proId}`
     await authedPage.goto(`/reports/commissions?member=${proUser}`)
     const row = authedPage.getByRole('listitem').filter({ hasText: 'Corte Comissionado' })

@@ -17,11 +17,11 @@ describe('memberCommissionValue', () => {
 })
 
 describe('initialMemberUnitIds', () => {
-  it('keeps the professional stored units when present', () => {
+  it('keeps the memberOperation stored units when present', () => {
     expect([...initialMemberUnitIds({ unitIds: ['u1', 'u2'] }, 'u9')]).toEqual(['u1', 'u2'])
   })
 
-  it('pre-checks the active unit when the professional has no units yet', () => {
+  it('pre-checks the active unit when the memberOperation has no units yet', () => {
     expect([...initialMemberUnitIds({ unitIds: [] }, 'u9')]).toEqual(['u9'])
     expect([...initialMemberUnitIds(null, 'u9')]).toEqual(['u9'])
   })

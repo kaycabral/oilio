@@ -6,7 +6,7 @@ import { formString } from '@/shared/form-data'
 // so parsing here is a plain `new Date()` plus a future-time guard.
 export type WizardFields = {
   serviceId: string
-  professionalId: string
+  memberOperationId: string
   startAtDate: Date
   customerName: string
   whatsapp: string
@@ -22,14 +22,14 @@ export function parseWizardFields(
   now: number = Date.now(),
 ): WizardFields | string {
   const serviceId = formString(formData, 'serviceId').trim()
-  const professionalId = formString(formData, 'professionalId').trim()
+  const memberOperationId = formString(formData, 'memberOperationId').trim()
   const startAtIso = formString(formData, 'startAt').trim()
   const customerName = formString(formData, 'customerName').trim()
   const customerWhatsappRaw = formString(formData, 'customerWhatsapp').trim()
   const customerEmailRaw = formString(formData, 'customerEmail').trim()
 
   if (serviceId.length === 0) return 'Serviço não selecionado.'
-  if (professionalId.length === 0) return 'Profissional não selecionado.'
+  if (memberOperationId.length === 0) return 'Profissional não selecionado.'
   if (startAtIso.length === 0) return 'Horário não selecionado.'
   if (customerName.length < 2) return 'Informe seu nome completo.'
   const whatsapp = normalizeBrazilPhone(customerWhatsappRaw)
@@ -41,7 +41,7 @@ export function parseWizardFields(
 
   return {
     serviceId,
-    professionalId,
+    memberOperationId,
     startAtDate,
     customerName,
     whatsapp,

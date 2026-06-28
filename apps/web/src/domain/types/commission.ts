@@ -32,9 +32,9 @@ export const CommissionFields = Schema.mutable(
     orderItemId: Schema.String,
     // Membro a quem a comissão é creditada (brief 0030, AC-07). É o `userId` do
     // membro atribuído ao item (`OrderItem.attributedUserId`), NÃO o doc id de um
-    // Professional — qualquer papel (recepção, vendedor) pode ser comissionado.
+    // MemberOperation — qualquer papel (recepção, vendedor) pode ser comissionado.
     // Para serviços executados por profissional, este `userId` é a mesma
-    // identidade do Professional, então o agrupamento por membro segue exibindo a
+    // identidade do MemberOperation, então o agrupamento por membro segue exibindo a
     // linha do profissional.
     attributedUserId: Schema.String,
     // Nome identificável do profissional/membro atribuído, SNAPSHOTADO no momento
