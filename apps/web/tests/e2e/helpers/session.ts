@@ -664,6 +664,8 @@ export async function seedMember(
     canViewFinancials: false,
     canManagePlans: false,
     canManageSubscriptions: false,
+    canBeBooked: false,
+    canEarnCommission: false,
   }
   const membership: Membership = {
     id: membershipId,
