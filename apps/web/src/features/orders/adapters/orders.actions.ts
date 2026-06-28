@@ -24,7 +24,7 @@ import { redirect } from 'next/navigation'
 import { emitEvent, emitEventGuarded } from '@/shared/effect-bridge'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { getAppointmentById } from '@/shared/org/appointment-read'
-import { requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
+import { canActOnOwnedResource, requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
 import { getProfessionalById } from '@/shared/org/professional-read'
 
 import type { OrderMutationResult } from '@/features/orders/core/order-results'
@@ -44,6 +44,13 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
 
   const appointment = await getAppointmentById(orgId, appointmentId)
   if (!appointment) return { ok: false, error: 'Agendamento não encontrado' }
+
+  // Own-resource (brief 0075, #1257): a self-scoped professional only starts the
+  // attendance of THEIR OWN appointment; the balcão (owner/manager/recepção)
+  // starts any. Mirrors the agenda actions' own-resource wall.
+  if (!canActOnOwnedResource(r.ctx.membership, appointment.professionalUserId ?? '')) {
+    return { ok: false, error: 'Você só pode iniciar os próprios atendimentos' }
+  }
 
   if (appointment.status === 'cancelled') {
     return { ok: false, error: 'Agendamento cancelado — abra um novo' }
