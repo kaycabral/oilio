@@ -5,21 +5,25 @@
 // the Firestore emulator alone is not enough.
 //
 // Two modes, by whether DATABASE_URL is already set:
-//   • LOCAL (unset): brings up the ephemeral Postgres (docker/postgres.compose
-//     .yaml) — the SAME container `product-it.mjs` uses — waits for healthy,
-//     injects DATABASE_URL, runs the suite, tears it down (pass or fail).
+//   • LOCAL (unset): brings up an ISOLATED ephemeral Postgres (docker/postgres
+//     .compose.yaml under a per-run compose project, on a FREE port), waits for
+//     healthy, injects DATABASE_URL, runs the suite, tears it down (pass or
+//     fail). Fully namespaced so it never collides with — or writes to — the
+//     developer's own dev stack on the same host (see the isolation block below).
 //   • CI (set): GitLab attaches Postgres via `services:` and exports
-//     DATABASE_URL itself, so this just runs the suite — no docker here.
+//     DATABASE_URL itself, so this just runs the suite — no docker here. Each CI
+//     job already has its own isolated network, so CI keeps the fixed ports.
 //
-// The suite itself is the existing `db:exec "playwright test"` (the Firebase
-// AUTH emulator wrapper). DATABASE_URL is set on the env we spawn it under, so it
-// propagates to BOTH the Playwright runner (globalSetup runs migrations) and the
+// The suite runs inside the Firebase AUTH emulator (emulators:exec); DATABASE_URL
+// + OILIO_DATABASE_URL + E2E_PORT are set on the env we spawn it under, so they
+// propagate to BOTH the Playwright runner (globalSetup runs migrations) and the
 // Next webServer subprocess (the gate + live lookup hit the base).
 //
 // The oilio event store ALWAYS runs in Postgres (cutover, brief 0062 / #1202 —
-// Firestore-as-database is gone): this creates the `oilio` logical database
-// alongside `produtos`, applies the event-store migrations, and sets
-// OILIO_DATABASE_URL so every spec exercises the typed relational projections.
+// Firestore-as-database is gone): this creates the event-store database
+// (run-scoped `oilio_e2e_<run>` locally; `oilio` in CI) alongside `produtos`,
+// applies the event-store migrations, and sets OILIO_DATABASE_URL so every spec
+// exercises the typed relational projections.
 //
 // Usage:  node scripts/e2e-with-postgres.mjs [extra pw args…]
 //         (extra args pass through to `playwright test`, e.g. a spec path)
