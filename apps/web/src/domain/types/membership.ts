@@ -20,6 +20,16 @@ export const MembershipPermissions = Schema.mutable(
     canViewFinancials: Schema.Boolean,
     canManagePlans: Schema.Boolean,
     canManageSubscriptions: Schema.Boolean,
+    // Operational capabilities (brief 0076). "Being bookable/commissionable" is a
+    // capability any member can have toggled — NOT a class of person. `canBeBooked`
+    // makes the member eligible to appear on the agenda and take bookings;
+    // `canEarnCommission` makes them eligible for commission attribution. The
+    // `professional` preset turns both on; other presets leave them off (but
+    // they're plain toggles, editable in the future). "Member eligible for
+    // agenda/commission" is read from the capability, never from the role/type —
+    // this retires the runtime `BookableProfessional` brand (AC-01/AC-03).
+    canBeBooked: Schema.Boolean,
+    canEarnCommission: Schema.Boolean,
   }),
 )
 export type MembershipPermissions = typeof MembershipPermissions.Type
@@ -114,6 +124,10 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canViewFinancials: true,
         canManagePlans: true,
         canManageSubscriptions: true,
+        // Not operational by default — an owner is org-management, not a person
+        // who takes bookings. Editable later if they also cut hair.
+        canBeBooked: false,
+        canEarnCommission: false,
       }
     case 'manager':
       return {
@@ -127,6 +141,8 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canViewFinancials: true,
         canManagePlans: true,
         canManageSubscriptions: true,
+        canBeBooked: false,
+        canEarnCommission: false,
       }
     case 'professional':
       return {
@@ -144,6 +160,12 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canViewFinancials: false,
         canManagePlans: false,
         canManageSubscriptions: false,
+        // The professional preset is the only one that turns the operational
+        // capabilities on (brief 0076 AC-01): eligible for the agenda and for
+        // commission attribution. "Bookable" is now read from this bit, not
+        // from the role/type.
+        canBeBooked: true,
+        canEarnCommission: true,
       }
     case 'receptionist':
       return {
@@ -157,6 +179,8 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canViewFinancials: false,
         canManagePlans: false,
         canManageSubscriptions: false,
+        canBeBooked: false,
+        canEarnCommission: false,
       }
   }
 }

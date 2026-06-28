@@ -36,6 +36,8 @@ const PERMISSION_KEYS: readonly (keyof MembershipPermissions)[] = [
   'canViewFinancials',
   'canManagePlans',
   'canManageSubscriptions',
+  'canBeBooked',
+  'canEarnCommission',
 ] as const
 
 describe('membershipDocId', () => {
@@ -58,6 +60,8 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canViewFinancials: true,
     canManagePlans: true,
     canManageSubscriptions: true,
+    canBeBooked: false,
+    canEarnCommission: false,
   },
   manager: {
     canHaveAgenda: false,
@@ -70,6 +74,8 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canViewFinancials: true,
     canManagePlans: true,
     canManageSubscriptions: true,
+    canBeBooked: false,
+    canEarnCommission: false,
   },
   professional: {
     canHaveAgenda: true,
@@ -84,6 +90,10 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canViewFinancials: false,
     canManagePlans: false,
     canManageSubscriptions: false,
+    // The professional preset is the only one with the operational capabilities
+    // on (brief 0076 AC-01).
+    canBeBooked: true,
+    canEarnCommission: true,
   },
   receptionist: {
     canHaveAgenda: false,
@@ -96,6 +106,8 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canViewFinancials: false,
     canManagePlans: false,
     canManageSubscriptions: false,
+    canBeBooked: false,
+    canEarnCommission: false,
   },
 }
 
