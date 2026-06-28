@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
 } from 'drizzle-orm/pg-core'
+import { memberships } from './memberships'
 import { orgs } from './orgs'
 
 /**
@@ -53,6 +54,15 @@ export const professionals = pgTable(
     // email) read live from there; `taxIdentity` from `professionals_pii`.
     userId: text('user_id').notNull(),
 
+    // The membership this operational profile hangs off (brief 0076 AC-02). A
+    // profile cannot exist without its membership: the composite FK
+    // `(org_id, member_id) → memberships(org_id, id)` with `ON DELETE cascade`
+    // kills the drift at the root — demoting/removing the membership removes the
+    // profile, so there is no orphan row. `member_id` is the membership doc id
+    // (`{orgId}_{userId}`), derived deterministically in the projector from the
+    // reduced `userId` (it does NOT enter the event payload). Non-empty.
+    memberId: text('member_id').notNull(),
+
     // ── Composite / structural state (JSONB; not primary-metric invariants) ──
     defaultCommission: jsonb('default_commission'),
     unitIds: jsonb('unit_ids').notNull(),
@@ -65,18 +75,30 @@ export const professionals = pgTable(
   (table) => [
     // A Professional is never linked to nothing (non-empty userId).
     check('professionals_user_id_nonempty', sql`char_length(btrim(${table.userId})) > 0`),
+    // The operational profile is never linked to nothing (non-empty memberId).
+    check('professionals_member_id_nonempty', sql`char_length(btrim(${table.memberId})) > 0`),
     // Every professional belongs to a real org.
     foreignKey({
       name: 'professionals_org_id_fk',
       columns: [table.orgId],
       foreignColumns: [orgs.orgId],
     }),
+    // The operational profile hangs off the membership (brief 0076 AC-02): a
+    // profile cannot exist without its membership, and `ON DELETE cascade` means
+    // it disappears when the membership is removed — drift dead at the root.
+    foreignKey({
+      name: 'professionals_member_id_fk',
+      columns: [table.orgId, table.memberId],
+      foreignColumns: [memberships.orgId, memberships.id],
+    }).onDelete('cascade'),
     // Composite (org_id, id) PRIMARY KEY — the natural key + target of
     // cross-aggregate composite FKs.
     primaryKey({ columns: [table.orgId, table.id], name: 'professionals_pkey' }),
     // `org_id`-leading indexes: the RLS policy + list reads
     // (`listProfessionalsForOrg`) + the per-user lookup (`getProfessionalByUserId`).
     index('professionals_org_id_user_id_idx').on(table.orgId, table.userId),
+    // Supports the composite FK to `memberships` + cascade lookups.
+    index('professionals_org_id_member_id_idx').on(table.orgId, table.memberId),
   ],
 )
 

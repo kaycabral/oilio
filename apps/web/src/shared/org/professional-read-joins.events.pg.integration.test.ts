@@ -104,6 +104,15 @@ async function seedProfessional(
   await putUser(
     wantsOperational ? buildUser(userId, TS, { completionCompleted: true }) : buildUser(userId, TS),
   )
+  // The operational profile hangs off the membership (brief 0076 AC-02): seed
+  // the parent membership so the projector's composite FK is satisfiable. The
+  // projector derives `member_id` as `{orgId}_{userId}`.
+  await getEventStorePool().query(
+    `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
+     VALUES ($1,$1||'_'||$2,$2,1,'professional','active',$3,'{}'::jsonb,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, userId, TS],
+  )
   const pro: StoredProfessional = {
     id,
     orgId,
@@ -125,7 +134,7 @@ async function seedProfessional(
 }
 
 const TABLES =
-  'events, projections, professional_units, professional_services, professionals, catalog_items, units, orgs, users'
+  'events, projections, professional_units, professional_services, professionals, memberships, catalog_items, units, orgs, users'
 
 describe('professional inverse-query readers (brief 0068 D3, AC-02)', () => {
   beforeEach(async () => {

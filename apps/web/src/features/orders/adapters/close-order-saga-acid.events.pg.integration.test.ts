@@ -216,9 +216,17 @@ async function seedParents(): Promise<void> {
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, 'c1'],
   )
+  // The operational profile hangs off the membership (brief 0076 AC-02) — seed
+  // the parent membership first so the composite FK is satisfiable.
   await pool.query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-     VALUES ($1,$2,1,'user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+    `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
+     VALUES ($1,$1||'_user-'||$2,'user-'||$2,1,'professional','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [ORG, 'u1'],
+  )
+  await pool.query(
+    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+     VALUES ($1,$2,1,'user-'||$2,$1||'_user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, 'u1'],
   )

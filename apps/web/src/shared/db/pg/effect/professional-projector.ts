@@ -1,5 +1,6 @@
 import { ProfessionalConfig } from '@/domain/aggregates/professional/config'
 import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
+import { membershipDocId } from '@/domain/types/membership'
 import { StoredProfessional } from '@/domain/types/professional'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -31,6 +32,7 @@ export const PROFESSIONAL_COLUMNS = [
   'id',
   'last_event_version',
   'user_id',
+  'member_id',
   'default_commission',
   'unit_ids',
   'catalog_service_ids',
@@ -47,6 +49,13 @@ export function professionalColumnValues(
     professional.id,
     lastEventVersion,
     professional.userId,
+    // `member_id` is derived deterministically from the membership key
+    // (`{orgId}_{userId}`) — it does NOT enter the event payload (brief 0076
+    // AC-02). The composite FK `(org_id, member_id) → memberships(org_id, id)`
+    // hangs the operational profile off the membership; both the membership and
+    // the professional events commit in the SAME ACID tx (invite-accept saga),
+    // so the membership row exists when this projection inserts.
+    membershipDocId(professional.orgId, professional.userId),
     professional.defaultCommission,
     JSON.stringify(professional.unitIds),
     JSON.stringify(professional.catalogServiceIds),
@@ -119,6 +128,10 @@ export type ProfessionalRow = {
   id: string
   last_event_version: string | number
   user_id: string
+  // Membership key (`{org_id}_{user_id}`) — derived in the projector, backed by
+  // the composite FK to `memberships`. Not surfaced on the domain doc (it's
+  // derivable from userId), so `rowToDoc` omits it.
+  member_id: string
   default_commission: unknown
   unit_ids: unknown
   catalog_service_ids: unknown

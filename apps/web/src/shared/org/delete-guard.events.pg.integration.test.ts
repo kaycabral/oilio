@@ -224,8 +224,14 @@ async function seedService(orgId: string, serviceId: string): Promise<void> {
 // its id for the canDeleteProfessional cases).
 async function seedProfessionalRow(orgId: string, professionalId: string): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-     VALUES ($1,$2,1,'user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,$3,$3)
+    `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
+     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'professional','active',$3,'{}'::jsonb,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, professionalId, TS],
+  )
+  await getEventStorePool().query(
+    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+     VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,$3,$3)
      ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, professionalId, TS],
   )
@@ -239,11 +245,20 @@ async function seedProfessional(
 ): Promise<string> {
   await seedOrg(orgId)
   const id = uid('pro')
+  const userId = opts.userId ?? uid('u')
   const unitIds = opts.unitIds ?? []
+  // Parent membership for the professional's composite FK (org_id, member_id) →
+  // memberships(org_id, id). `member_id` is the membership doc id ({org}_{user}).
   await getEventStorePool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-     VALUES ($1,$2,1,$3,NULL,$4::jsonb,'[]'::jsonb,$5,$5)`,
-    [orgId, id, opts.userId ?? uid('u'), JSON.stringify(unitIds), TS],
+    `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
+     VALUES ($1,$1||'_'||$2,$2,1,'professional','active',$3,'{}'::jsonb,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, userId, TS],
+  )
+  await getEventStorePool().query(
+    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+     VALUES ($1,$2,1,$3,$1||'_'||$3,NULL,$4::jsonb,'[]'::jsonb,$5,$5)`,
+    [orgId, id, userId, JSON.stringify(unitIds), TS],
   )
   // Seeding professionals directly (not via the projector) must also populate the
   // `professional_units` join table — `canDeleteUnit` now reads it (brief 0068 D3).
@@ -270,9 +285,13 @@ async function seedMembership(
   status: MembershipStatus,
 ): Promise<void> {
   const m = buildMembership(orgId, userId, TS, { status })
+  // `seedProfessional`/`seedProfessionalRow` may have pre-seeded the parent
+  // membership (for the professional's composite FK); upsert so this call sets the
+  // case's intended status/role rather than colliding on the (org_id, id) PK.
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, rls_unit_scope, invited_by, joined_at, permissions, updated_at)
-     VALUES ($1,$2,$3,1,$4,$5,NULL,NULL,$6,$7::jsonb,$6)`,
+     VALUES ($1,$2,$3,1,$4,$5,NULL,NULL,$6,$7::jsonb,$6)
+     ON CONFLICT (org_id, id) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status, permissions = EXCLUDED.permissions`,
     [orgId, m.id, userId, m.role, status, TS, JSON.stringify(m.permissions)],
   )
 }

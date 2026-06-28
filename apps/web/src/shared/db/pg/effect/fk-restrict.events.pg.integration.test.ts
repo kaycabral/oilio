@@ -53,8 +53,14 @@ async function seedCustomer(id = CUSTOMER): Promise<void> {
 
 async function seedProfessional(id = PROFESSIONAL): Promise<void> {
   await pool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-     VALUES ($1,$2,1,'user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
+     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'professional','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [ORG, id],
+  )
+  await pool().query(
+    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+     VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [ORG, id],
   )
 }

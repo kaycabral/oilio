@@ -75,8 +75,21 @@ async function seedService(id: string): Promise<void> {
   )
 }
 
+async function seedMembership(): Promise<void> {
+  // The operational profile hangs off the membership (brief 0076 AC-02): the
+  // projector derives `member_id` as `{ORG}_{userId}` and the composite FK needs
+  // this parent. PRO's userId is `user-pro-1`.
+  await pool().query(
+    `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
+     VALUES ($1,$1||'_user-pro-1','user-pro-1',1,'professional','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [ORG],
+  )
+}
+
 async function seedParents(): Promise<void> {
   await seedOrg()
+  await seedMembership()
   await seedUnit(UNIT_A)
   await seedUnit(UNIT_B)
   await seedService(SVC_A)
@@ -138,7 +151,7 @@ describe('Postgres join projection — professional ↔ unit/service (brief 0068
 
   beforeEach(async () => {
     await pool().query(
-      'TRUNCATE events, projections, professional_units, professional_services, professionals, catalog_items, units, orgs CASCADE',
+      'TRUNCATE events, projections, professional_units, professional_services, professionals, memberships, catalog_items, units, orgs CASCADE',
     )
     await seedParents()
   })
