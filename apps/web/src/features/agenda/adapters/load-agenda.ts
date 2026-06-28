@@ -1,5 +1,6 @@
 import {
   type Appointment,
+  canManageOrg,
   type CatalogServiceItem,
   type Customer,
   DEFAULT_SLOT_MINUTES,
@@ -104,12 +105,14 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
   let allServices: CatalogServiceItem[] = []
   let allCustomers: Customer[] = []
 
+  // Own-scope (brief 0075, #1256/#1257): a self-scoped professional resolves to
+  // their own `professionals.id`; the balcão (owner/manager/recepção) to `''`.
+  // Used both to narrow the agenda reads (RLS `app.current_professional`) and to
+  // lock the appointment dialog's professional picker to themselves (#1257).
+  const professionalScope = await resolveProfessionalScope(ctx.membership)
+  const selfProfessionalId = professionalScope === '' ? null : professionalScope
+
   if (activeUnitId) {
-    // Own-scope (brief 0075, #1256): a self-scoped professional sees only their
-    // own appointments/blocks; the balcão (owner/manager/recepção) resolves to
-    // `''` and reads the whole unit. The database enforces the narrowing via the
-    // `app.current_professional` RLS predicate — not a WHERE clause here.
-    const professionalScope = await resolveProfessionalScope(ctx.membership)
     const [dayAppointments, blocks, catalogItems, enrichedCustomers] = await Promise.all([
       // Unit-scoped read of the day's appointments from the typed `appointments`
       // table under RLS (brief 0061 § Grupo C / AC-04).
@@ -146,7 +149,7 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
     customersById = new Map(sortedCustomers.map((c) => [c.id, c]))
   }
 
-  const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
+  const canManage = canManageOrg(ctx.membership.role)
 
   return {
     date,
@@ -166,5 +169,12 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
     businessName: org.name,
     confirmationTemplate,
     canManage,
+    // #1257: when set, the appointment dialog locks the professional picker to
+    // this id (a self-scoped professional books only for themselves). Null for
+    // the balcão, which keeps the full picker.
+    selfProfessionalId,
+    // #1255 AC-05: only the balcão may register a customer inline; a professional
+    // can't (the server action refuses too — this hides the toggle).
+    canManageCustomers: ctx.membership.permissions.canManageCustomers,
   }
 }

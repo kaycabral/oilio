@@ -4,6 +4,7 @@ import {
   resolveCatalogItemForUnit,
   unitCancellationPolicySnapshot,
   type Appointment,
+  type Membership,
 } from '@/domain'
 import { AppointmentConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
@@ -31,7 +32,7 @@ import { emitEvent } from '@/shared/effect-bridge'
 
 import { getAppointmentById } from '@/shared/org/appointment-read'
 import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
-import { requireOrgCtx } from '@/shared/org/membership'
+import { canActOnOwnedResource, requireOrgCtx } from '@/shared/org/membership'
 import { getUnitById } from '@/shared/org/unit-read'
 import {
   checkSlotConflicts,
@@ -42,12 +43,44 @@ import {
   type AppointmentMutationResult,
 } from './appointment-write-helpers'
 
+// Own-resource wall (brief 0075, #1257): the balcão (owner/manager/recepção)
+// acts on any appointment; a self-scoped professional only on their own
+// (`appointment.professionalUserId === membership.userId`). Defense-in-depth over
+// the RLS own-scope — a null owner never matches a professional, so they're
+// blocked and the balcão passes. Returns the error result the actions return.
+function ensureCanActOnAppointment(
+  membership: Membership,
+  appointment: Appointment,
+): AppointmentMutationResult | null {
+  if (canActOnOwnedResource(membership, appointment.professionalUserId ?? '')) return null
+  return { ok: false, error: 'Você só pode alterar os próprios agendamentos' }
+}
+
+// Resolves the loaded-professional result for createAppointment: surfaces the
+// load error, then the own-scope wall (brief 0075, #1257) — a self-scoped
+// professional books only for themselves; the balcão books for anyone. Keeps the
+// branching out of `createAppointment` (cognitive complexity).
+function resolveBookableError(
+  membership: Membership,
+  professional: { userId: string } | string,
+): AppointmentMutationResult | null {
+  if (typeof professional === 'string') return { ok: false, error: professional }
+  if (!canActOnOwnedResource(membership, professional.userId)) {
+    return { ok: false, error: 'Você só pode agendar para si mesmo' }
+  }
+  return null
+}
+
 export async function cancelAppointment(appointmentId: string): Promise<AppointmentMutationResult> {
   const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
   const existing = await getAppointmentById(r.ctx.membership.orgId, appointmentId)
   if (!existing) return { ok: false, error: 'Agendamento não encontrado' }
+  {
+    const denied = ensureCanActOnAppointment(r.ctx.membership, existing)
+    if (denied) return denied
+  }
 
   // Decision is pure (core); the adapter only reads + emits. Staff actor here —
   // internal panel always runs as the logged-in member. Self-cancel from the
@@ -85,6 +118,10 @@ export async function markAppointmentNoShow(
 
   const existing = await getAppointmentById(r.ctx.membership.orgId, appointmentId)
   if (!existing) return { ok: false, error: 'Agendamento não encontrado' }
+  {
+    const denied = ensureCanActOnAppointment(r.ctx.membership, existing)
+    if (denied) return denied
+  }
 
   // Gate (pure, core): only after scheduledStartAt and only from a live booking.
   // Wiki: 04-Roadmap-Politica-Cancelamento § Quando o botão libera.
@@ -120,6 +157,10 @@ export async function unmarkAppointmentNoShow(
 
   const existing = await getAppointmentById(r.ctx.membership.orgId, appointmentId)
   if (!existing) return { ok: false, error: 'Agendamento não encontrado' }
+  {
+    const denied = ensureCanActOnAppointment(r.ctx.membership, existing)
+    if (denied) return denied
+  }
 
   const decision = decideUnmarkNoShow(existing)
   if (!decision.ok) return { ok: false, error: decision.error }
@@ -166,6 +207,10 @@ export async function updateAppointment(
 
   const previous = await getAppointmentById(r.ctx.membership.orgId, appointmentId)
   if (!previous) return { ok: false, error: 'Agendamento não encontrado' }
+  {
+    const denied = ensureCanActOnAppointment(r.ctx.membership, previous)
+    if (denied) return denied
+  }
 
   // Consumers read the unified catalog (brief 0023, #1004): the booked
   // `serviceId` now points at a `catalog_items` doc of kind service. The two
@@ -246,7 +291,8 @@ export async function createAppointment(formData: FormData): Promise<Appointment
     loadApprovedProfessional(r.ctx.membership.orgId, parsed.professionalId),
   ])
   if (typeof item === 'string') return { ok: false, error: item }
-  if (typeof professional === 'string') return { ok: false, error: professional }
+  const bookableError = resolveBookableError(r.ctx.membership, professional)
+  if (bookableError) return bookableError
 
   // Per-unit effective price/duration/commission. Same resolver is used in
   // the snapshot write below — keeping them on a single source.

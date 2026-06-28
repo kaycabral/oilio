@@ -49,6 +49,8 @@ export type AgendaViewProps = {
   businessName: string
   confirmationTemplate: string
   canManage: boolean
+  selfProfessionalId: string | null
+  canManageCustomers: boolean
 }
 
 export function AgendaView({
@@ -69,6 +71,8 @@ export function AgendaView({
   businessName,
   confirmationTemplate,
   canManage,
+  selfProfessionalId,
+  canManageCustomers,
 }: AgendaViewProps) {
   const router = useRouter()
   const today = getTodayInOrgTz(timezone)
@@ -213,6 +217,8 @@ export function AgendaView({
           appointment={selectedAppointment}
           businessName={businessName}
           confirmationTemplate={confirmationTemplate}
+          selfProfessionalId={selfProfessionalId}
+          canRegisterCustomer={canManageCustomers}
         />
       ) : null}
     </div>

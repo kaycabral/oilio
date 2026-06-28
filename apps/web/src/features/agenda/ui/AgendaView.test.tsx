@@ -77,6 +77,8 @@ const baseProps = {
   customers: [],
   businessName: 'Test Co',
   confirmationTemplate: '',
+  selfProfessionalId: null,
+  canManageCustomers: true,
 }
 
 beforeEach(() => {
