@@ -2,13 +2,29 @@
 
 import { GOAL_TARGET_MIN_CENTS, goalDocId, isValidGoalPeriod, type Goal } from '@/domain'
 import { GoalConfig } from '@/domain/aggregates'
+import { hasCapability } from '@/domain/billing/capabilities'
 import { aggregateRef } from '@/domain/effect'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
+import { getOrgTier } from '@/shared/org/billing-read'
 import { requireManagerCtx } from '@/shared/org/membership'
 import { revalidatePath } from 'next/cache'
 
 export type GoalMutationResult = { ok: true } | { ok: false; error: string }
+
+// Plano Oilio gate (brief 0072): "Copiloto: meta mensal de lucro" is a Pro+
+// capability. Returns an error result when the active Negócio's tier lacks it,
+// or null when allowed. The UI also hides the surface (defense-in-depth).
+async function assertCopilotCapability(orgId: string): Promise<GoalMutationResult | null> {
+  const tier = await getOrgTier(orgId)
+  if (!hasCapability(tier, 'copilot.profit_goal')) {
+    return {
+      ok: false,
+      error: 'O Copiloto está disponível no plano Pro. Faça upgrade para definir metas.',
+    }
+  }
+  return null
+}
 
 type GoalFormPayload = { unitId: string; period: string; targetCents: number }
 
@@ -34,6 +50,8 @@ function parseGoalForm(formData: FormData): GoalFormPayload | string {
 export async function defineGoal(formData: FormData): Promise<GoalMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
+  const gate = await assertCopilotCapability(r.ctx.membership.orgId)
+  if (gate) return gate
   const parsed = parseGoalForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
@@ -68,6 +86,8 @@ export async function defineGoal(formData: FormData): Promise<GoalMutationResult
 export async function updateGoal(goalId: string, formData: FormData): Promise<GoalMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
+  const gate = await assertCopilotCapability(r.ctx.membership.orgId)
+  if (gate) return gate
   const parsed = parseGoalForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
