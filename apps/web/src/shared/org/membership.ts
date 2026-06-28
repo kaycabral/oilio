@@ -4,6 +4,7 @@ import {
   membershipDocId,
   resolveSubjectName,
   ROLE_SUBJECT_NOUN,
+  type MembershipPermissions,
   type Role,
   type User,
 } from '@/domain'
@@ -282,4 +283,70 @@ export async function requireCapability(capability: Capability): Promise<Require
     }
   }
   return base
+}
+
+/**
+ * A role-authorization capability — a boolean key of the membership's
+ * permission matrix (`canManageCustomers`, `canCreateAppointment`, …). DISTINCT
+ * from the billing `Capability` above (which is a plan/tier gate). This is the
+ * APP-LEVEL authorization eixo: what this member is allowed to do, regardless of
+ * plan. Canonical convention (brief 0075, `domain/types/membership.ts`): gate by
+ * `permissions.<key>`, NEVER by `role` directly — so the four roles stay presets
+ * of a capability set the business can later edit per role.
+ */
+export type MembershipCapability = keyof MembershipPermissions
+
+/**
+ * Pure predicate: does this membership carry `capability`? The single source of
+ * truth for reading the permission matrix — nav gating, loaders and server
+ * actions all derive from this rather than re-deriving from `role`.
+ */
+export function hasMembershipCapability(
+  membership: Membership,
+  capability: MembershipCapability,
+): boolean {
+  return membership.permissions[capability]
+}
+
+/**
+ * Resolves org context AND asserts the active membership carries `capability`
+ * (brief 0075). Layers on `requireOrgCtx`; returns the same discriminated union
+ * the role guards use, so a gated server action can early-return the error. This
+ * is the REAL wall for app-level authorization — the UI gate is defense-in-depth.
+ */
+export async function guardCapability(capability: MembershipCapability): Promise<RequireCtxResult> {
+  const base = await requireOrgCtx()
+  if (!base.ok) return base
+  if (!hasMembershipCapability(base.ctx.membership, capability)) {
+    return { ok: false, error: `Permission denied (${capability} required)` }
+  }
+  return base
+}
+
+/**
+ * Distinguishes the **balcão** (owner/manager/recepção — operates the front desk
+ * for everyone) from a **self-scoped professional** (acts only on their own
+ * work). Brief 0075 model: recepção is the operational superset of a
+ * professional. The marker is `canManageCustomers` — held by owner/manager/
+ * recepção, never by a professional (whose matrix keeps every `canManage*`
+ * false). A member who can manage the org's customers runs the counter; a member
+ * who cannot is a professional bound to their own resources.
+ */
+export function operatesFrontDesk(membership: Membership): boolean {
+  return canManageOrg(membership.role) || hasMembershipCapability(membership, 'canManageCustomers')
+}
+
+/**
+ * Own-resource authorization (brief 0075, AC-03/AC-04). The balcão
+ * (`operatesFrontDesk`) acts on ANY resource; everyone else (a self-scoped
+ * professional) acts only on a resource they own
+ * (`resourceOwnerUserId === membership.userId`). Defense-in-depth over the RLS
+ * own-scope: the server action refuses a cross-owner write even before the
+ * database policy would.
+ */
+export function canActOnOwnedResource(
+  membership: Membership,
+  resourceOwnerUserId: string,
+): boolean {
+  return operatesFrontDesk(membership) || resourceOwnerUserId === membership.userId
 }

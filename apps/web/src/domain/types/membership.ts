@@ -132,8 +132,12 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
       return {
         canHaveAgenda: true,
         canManageOwnAgenda: true,
-        canCreateAppointment: false,
-        canCancelAppointment: false,
+        // Autonomous own-scoped model (brief 0075): a professional books and
+        // cancels their OWN appointments (the picker is locked to themselves and
+        // RLS scopes the write to their own rows). Manage* stays false — they
+        // never touch customers/catalog/plans/subscriptions.
+        canCreateAppointment: true,
+        canCancelAppointment: true,
         canManageCustomers: false,
         canManageProfessionals: false,
         canManageCatalog: false,
