@@ -1,4 +1,4 @@
-import { membershipDocId, type Role } from '@/domain'
+import { defaultPermissionsForRole, membershipDocId, type Role } from '@/domain'
 import { MembershipConfig, ProfessionalConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
 import type { StoredProfessional } from '@/domain/types/professional'
@@ -11,15 +11,16 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { listBookableProfessionalsForOrg } from './professional-read'
 
 /**
- * The read-path invariant for the agenda (Bug B) against REAL Postgres:
+ * The read-path invariant for the agenda against REAL Postgres:
  * `listBookableProfessionalsForOrg` returns ONLY professionals that are BOTH
- * operational AND backed by a CURRENTLY active membership with role
- * `professional`. The `professionals` projection and the membership role can
- * diverge — a demoted member keeps a lingering projection row (reversibility),
- * a seed/migration could insert one for a non-professional — and the agenda
- * trusted the row alone, leaking receptionists and demoted members onto the
- * grid. This fence proves the cross-check, in BOTH directions (demotion drops,
- * promotion re-includes), keyed on current state — never history.
+ * operational AND backed by a CURRENTLY active membership carrying the
+ * `canBeBooked` capability (brief 0076 AC-03 — the retired `BookableProfessional`
+ * brand's role-based filter generalized to the capability). The `professionals`
+ * projection and the capability can diverge — a row can outlive a toggle — so the
+ * agenda read cross-checks the projection against the bookable-member set. This
+ * fence proves the cross-check in BOTH directions (demotion/toggle-off drops,
+ * promotion/toggle-on re-includes), keyed on current state — never history — and
+ * the generalization (a non-professional with `canBeBooked` on appears).
  */
 
 const TS = '2026-06-01T12:00:00.000Z'
@@ -82,7 +83,10 @@ async function seedMembership(orgId: string, userId: string, role: Role): Promis
 }
 
 // Change a member's role through the real write path (the projector overwrites
-// the membership projection in the same tx). Models promotion/demotion.
+// the membership projection in the same tx). Models promotion/demotion — and
+// mirrors production (`team.actions.ts`), which re-derives the capability set
+// from the new role in the SAME event, so `canBeBooked` flips with the role
+// (brief 0076: bookable is the capability, not the role label).
 async function changeRole(orgId: string, userId: string, role: Role): Promise<void> {
   await Effect.runPromise(
     appendEvent(
@@ -91,7 +95,7 @@ async function changeRole(orgId: string, userId: string, role: Role): Promise<vo
       {
         _tag: 'membership.updated',
         actorId: 'test',
-        payload: { changes: { role } },
+        payload: { changes: { role, permissions: defaultPermissionsForRole(role) } },
       },
     ).pipe(Effect.provide(PostgresPersistenceLayer)),
   )
@@ -211,5 +215,26 @@ describe('listBookableProfessionalsForOrg (agenda read-path invariant)', () => {
       [t, userId],
     )
     expect(await listBookableProfessionalsForOrg(t)).toEqual([])
+  })
+
+  it('INCLUDES a non-professional member with canBeBooked toggled on (generalization)', async () => {
+    const t = uniqueOrg()
+    const userId = uid('user')
+    // A receptionist by role — but the org manually turned `canBeBooked` on
+    // (e.g. a front-desk person who also takes a few bookings). Brief 0076 makes
+    // "bookable" the capability, not the role: with the capability on AND a ready
+    // operational profile, they appear on the agenda. This is exactly what the
+    // retired `BookableProfessional` role-based brand could NOT express.
+    await seedMembership(t, userId, 'receptionist')
+    const proId = await seedProfessionalRow(t, userId, { operational: true })
+    // Role-based logic excluded them; capability-based logic does too — UNTIL the
+    // capability is toggled on.
+    expect(await listBookableProfessionalsForOrg(t)).toEqual([])
+    await pool().query(
+      `UPDATE memberships SET permissions = jsonb_set(permissions, '{canBeBooked}', 'true')
+       WHERE org_id = $1 AND user_id = $2`,
+      [t, userId],
+    )
+    expect((await listBookableProfessionalsForOrg(t)).map((p) => p.id)).toEqual([proId])
   })
 })
