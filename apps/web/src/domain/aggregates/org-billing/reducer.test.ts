@@ -39,6 +39,40 @@ describe('applyOrgBillingEvent', () => {
     expect(next.createdAt).toBe('2026-06-27T10:00:00.000Z')
   })
 
+  it('activated fills createdAt/updatedAt from meta when the data has empty timestamps', () => {
+    // The webhook builds `data` off the Free default (createdAt/updatedAt = ''),
+    // so the reducer must seed both from the stream meta — otherwise the
+    // projection writes an empty string into a timestamptz column (regression,
+    // brief 0074).
+    const next = applyOrgBillingEvent(
+      INITIAL_ORG_BILLING_STATE,
+      {
+        _tag: 'org_billing.activated',
+        data: { ...ACTIVATED_DATA, createdAt: '', updatedAt: '' },
+      },
+      meta(1, '2026-06-27T10:00:00.000Z'),
+    )
+    expect(next.createdAt).toBe('2026-06-27T10:00:00.000Z')
+    expect(next.updatedAt).toBe('2026-06-27T10:00:00.000Z')
+  })
+
+  it('updated as the FIRST event seeds createdAt from meta (no prior activation)', () => {
+    // Stripe may deliver subscription.updated before checkout.session.completed;
+    // the row is born here, so createdAt must come from meta, not stay '' from
+    // the seed state (regression, brief 0074).
+    const next = applyOrgBillingEvent(
+      INITIAL_ORG_BILLING_STATE,
+      {
+        _tag: 'org_billing.updated',
+        changes: { id: 'org-9', orgId: 'org-9', tier: 'pro', status: 'active' },
+      },
+      meta(1, '2026-06-27T10:00:00.000Z'),
+    )
+    expect(next.createdAt).toBe('2026-06-27T10:00:00.000Z')
+    expect(next.updatedAt).toBe('2026-06-27T10:00:00.000Z')
+    expect(next.orgId).toBe('org-9')
+  })
+
   it('updated merges partial changes (status, period, quantity)', () => {
     const base: OrgBillingState = { ...INITIAL_ORG_BILLING_STATE, ...ACTIVATED_DATA, _version: 1 }
     const next = applyOrgBillingEvent(

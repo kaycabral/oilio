@@ -30,9 +30,11 @@ export { orders, type NewOrderRow, type StoredOrderRow } from './orders'
 export {
   orgBilling,
   orgBillingStripeIndex,
+  stripeWebhookEvents,
   type NewOrgBillingRow,
   type StoredOrgBillingRow,
   type StoredOrgBillingStripeIndexRow,
+  type StoredStripeWebhookEventRow,
 } from './org_billing'
 export { orgLinks, type NewOrgLinkRow, type StoredOrgLinkRow } from './org_links'
 export { orgs, type NewOrgRow, type StoredOrgRow } from './orgs'
