@@ -38,7 +38,7 @@ import {
 } from '@/shared/db/pg/pii-sidecars-store'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { getUsersByIds } from '@/shared/db/pg/users-store'
-import { listBookableMemberUserIds } from '@/shared/org/membership'
+import { listBookableMemberUserIds, operatesFrontDesk } from '@/shared/org/membership'
 import { Schema } from 'effect'
 
 const decodeStoredMemberOperation = Schema.decodeUnknownSync(StoredMemberOperation)
@@ -295,21 +295,42 @@ export async function getMemberOperationByUserId(
 /**
  * The memberOperation-id to scope an own-only RLS read/write to (brief 0075,
  * #1256), or `''` for the balcão (owner/manager/recepção), whose reads/writes
- * stay org/unit-wide. A self-scoped memberOperation resolves to THEIR own
+ * stay org/unit-wide. A self-scoped member resolves to THEIR own
  * `memberOperations.id` — the value passed as `app.current_member_operation` so the
  * database admits only their rows. Resolved lazily (a DB lookup) only for a
- * memberOperation membership; the balcão short-circuits to `''` with no extra query.
+ * self-scoped member; the balcão short-circuits to `''` with no extra query.
  *
- * Fail-closed: a memberOperation whose projection row is missing (incomplete
- * onboarding) must NOT widen to `''` (which would be permissive) — it returns a
- * sentinel that matches no row. The membership role is the gate; the projection
- * only supplies the id.
+ * Gated by CAPABILITY, not by the `role` label (#1269): own-scope clamps whenever
+ * the member does NOT operate the front desk (`operatesFrontDesk` = owner/manager
+ * by role ∨ `canManageCustomers`). The rest of the capability model
+ * (`operatesFrontDesk`, `listBookableMemberUserIds`, nav gating) keys on
+ * capability too, so a custom preset that separates role from capability (exactly
+ * what ADR 0014 enables) can't drift the two axes — a bookable member who lacks
+ * `canManageCustomers` and whose role isn't literally `member_operator` is still
+ * clamped to their own scope, not widened to the whole unit.
+ *
+ * Fail-closed: a self-scoped member whose projection row is missing (incomplete
+ * onboarding, or projection lag post invite-accept) must NOT widen to `''` (which
+ * would be permissive) — it returns {@link NO_MEMBER_OPERATION_SCOPE}, a sentinel
+ * that matches no row. The capability is the gate; the projection only supplies
+ * the id. Callers detect the sentinel to surface an explicit degraded state (the
+ * agenda's empty-state, #1268) instead of a mute empty grid.
  */
 export async function resolveMemberOperationScope(membership: Membership): Promise<string> {
-  if (membership.role !== 'member_operator') return ''
+  if (operatesFrontDesk(membership)) return ''
   const memberOperation = await getMemberOperationByUserId(membership.orgId, membership.userId)
-  return memberOperation?.id ?? '__no_member_operation__'
+  return memberOperation?.id ?? NO_MEMBER_OPERATION_SCOPE
 }
+
+/**
+ * Fail-closed sentinel scope (brief 0075, #1268): a self-scoped member whose
+ * `member_operations` projection isn't there yet resolves to this. It matches no
+ * `member_operation_id` in any RLS predicate / column filter, so the member's
+ * reads return EMPTY rather than widening to the unit — never a colleague leak.
+ * A magic string would re-appear in every consumer + test; this is the single
+ * contract both `resolveMemberOperationScope` and its callers compare against.
+ */
+export const NO_MEMBER_OPERATION_SCOPE = '__no_member_operation__'
 
 // Write the per-org PII row directly (mutable, deletable, NOT event-sourced).
 // After #1046 it holds only `taxIdentity` — personal identity is a live reference
