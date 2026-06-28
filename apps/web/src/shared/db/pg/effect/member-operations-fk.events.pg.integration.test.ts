@@ -60,9 +60,60 @@ async function seedProfessional(id: string, user = USER, member?: string): Promi
   )
 }
 
+const UNIT = 'memops-unit'
+const SERVICE = 'memops-svc'
+const CUSTOMER = 'memops-cust'
+
+async function seedUnit(): Promise<void> {
+  await pool().query(
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [ORG, UNIT],
+  )
+}
+
+async function seedService(): Promise<void> {
+  await pool().query(
+    `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
+     VALUES ($1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [ORG, SERVICE],
+  )
+}
+
+async function seedCustomer(): Promise<void> {
+  await pool().query(
+    `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
+     VALUES ($1,$2,1,'user-'||$2,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [ORG, CUSTOMER],
+  )
+}
+
+// An appointment referencing the professional profile (`professional_id`). The
+// FK `appointments.professional_id → professionals(org_id, id)` is RESTRICT, and
+// `professionals.member_id → memberships` is CASCADE — so a membership delete
+// cascades to the profile, which RESTRICT-fails on the appointment: the history
+// chain terminates at the membership (brief 0076 AC-04 uniform model / AC-05).
+async function seedAppointment(id: string, proId: string): Promise<void> {
+  await pool().query(
+    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, professional_id, customer_id, service_id, customer_user_id, professional_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
+     VALUES ($1,$2,$3,1,$4,$5,$6,'user-'||$5,$7,'2026-01-02T10:00:00Z','2026-01-02T10:30:00Z','scheduled',5000,30,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [ORG, id, UNIT, proId, CUSTOMER, SERVICE, USER],
+  )
+}
+
+async function seedAgendaBlock(id: string, proId: string): Promise<void> {
+  await pool().query(
+    `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, professional_id, block, created_at, updated_at)
+     VALUES ($1,$2,$3,1,'one_off',$4,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [ORG, id, UNIT, proId],
+  )
+}
+
 describe('operational profile hangs off the membership (brief 0076 AC-02/AC-05)', () => {
   beforeEach(async () => {
-    await pool().query('TRUNCATE events, projections, professionals, memberships, orgs CASCADE')
+    await pool().query(
+      'TRUNCATE events, projections, appointments, agenda_blocks, professionals, memberships, catalog_items, customers, units, orgs CASCADE',
+    )
     await seedOrg()
   })
 
@@ -108,5 +159,62 @@ describe('operational profile hangs off the membership (brief 0076 AC-02/AC-05)'
       [ORG],
     )
     expect(Number(after.rows[0]?.n)).toBe(0)
+  })
+
+  it('AC-04/AC-05 — a membership WITH an appointment cannot be removed (history restrict)', async () => {
+    await seedMembership()
+    await seedProfessional('pro-1')
+    await seedUnit()
+    await seedService()
+    await seedCustomer()
+    await seedAppointment('appt-1', 'pro-1')
+
+    // Deleting the membership would CASCADE to the profile, but the profile is
+    // RESTRICT-protected by the appointment — so Postgres refuses the whole
+    // delete (23503). The history chain terminates at the membership: the only
+    // way to "remove" an operational member with history is to revoke the
+    // membership / turn `canBeBooked` off, never a hard delete (ADR 0010).
+    await expect(
+      pool().query(`DELETE FROM memberships WHERE org_id = $1 AND id = $2`, [
+        ORG,
+        memberId(ORG, USER),
+      ]),
+    ).rejects.toMatchObject({ code: FK_VIOLATION })
+
+    // The whole cascade rolled back — both the membership and the profile survive.
+    const survivors = await pool().query<{ n: string }>(
+      `SELECT
+         (SELECT count(*) FROM memberships WHERE org_id = $1) +
+         (SELECT count(*) FROM professionals WHERE org_id = $1) AS n`,
+      [ORG],
+    )
+    expect(Number(survivors.rows[0]?.n)).toBe(2)
+  })
+
+  it('AC-05 — a membership whose profile carries an agenda block still cascades (block ref nulled)', async () => {
+    // Agenda blocks are operational scheduling config, NOT immutable history, so
+    // their professional FK stays SET NULL by design (the deliberate policy — see
+    // migration 0002). A whole-unit block survives with a null professional ref
+    // when the profile cascades away. The immutable-history guarantee is carried
+    // by the APPOINTMENT restrict above, which is the financial/scheduling record.
+    await seedMembership()
+    await seedProfessional('pro-1')
+    await seedUnit()
+    await seedAgendaBlock('block-1', 'pro-1')
+
+    await expect(
+      pool().query(`DELETE FROM memberships WHERE org_id = $1 AND id = $2`, [
+        ORG,
+        memberId(ORG, USER),
+      ]),
+    ).resolves.toBeDefined()
+
+    // The block survives the cascade with its professional ref nulled.
+    const { rows } = await pool().query<{ professional_id: string | null }>(
+      `SELECT professional_id FROM agenda_blocks WHERE org_id = $1 AND id = 'block-1'`,
+      [ORG],
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.professional_id).toBeNull()
   })
 })
