@@ -25,7 +25,7 @@ test.describe('Billing — tier gating (brief 0072/0073)', { tag: '@critical' },
       // (The empty-state CTA being gone already proves the UI layer.)
 
       // Billing surface shows Free + the subscribe CTA (no active subscription).
-      await authedPage.goto('/settings/billing')
+      await authedPage.goto('/billing')
       await expect(authedPage.getByRole('heading', { name: 'Plano e cobrança' })).toBeVisible()
       await expect(authedPage.getByText('Plano Free')).toBeVisible()
       await expect(authedPage.getByRole('button', { name: /Assinar o Pro/ })).toBeVisible()
@@ -44,7 +44,7 @@ test.describe('Billing — tier gating (brief 0072/0073)', { tag: '@critical' },
 
       // Billing surface shows the active Pro plan; the subscribe CTA is replaced
       // by the manage/portal action (a Stripe customer exists from the seed).
-      await authedPage.goto('/settings/billing')
+      await authedPage.goto('/billing')
       await expect(authedPage.getByText('Plano Pro')).toBeVisible()
       // "Unidades cobradas" only renders for a paid plan — an unambiguous marker
       // of the active subscription (the status badge text "Ativa" collides with

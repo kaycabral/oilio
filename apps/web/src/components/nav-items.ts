@@ -110,7 +110,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         // Plano e cobrança — the Assinatura Oilio surface (brief 0073). Visible
         // to owner/manager; the page itself gates the subscribe/portal actions
         // to the owner only (defense in depth).
-        href: '/settings/billing',
+        href: '/billing',
         label: 'Plano e cobrança',
         icon: Wallet,
         match: 'prefix',
