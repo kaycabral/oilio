@@ -7,7 +7,7 @@ import {
   type Appointment,
   type CatalogServiceItem,
   type Customer,
-  type Professional,
+  type MemberOperation,
   buildWhatsappLink,
   renderWhatsappTemplate,
   toOrgTime,
@@ -23,28 +23,28 @@ function hhmm(t: { hour: number; minute: number }): string {
 // narrowed to exactly what the link needs so it stays trivially testable.
 export function buildAppointmentWhatsappLink(args: {
   appointment:
-    | Pick<Appointment, 'customerId' | 'serviceId' | 'professionalId' | 'startAt'>
+    | Pick<Appointment, 'customerId' | 'serviceId' | 'memberOperationId' | 'startAt'>
     | null
     | undefined
   customers: Pick<Customer, 'id' | 'name' | 'whatsapp'>[]
   services: Pick<CatalogServiceItem, 'id' | 'name'>[]
-  professionals: Pick<Professional, 'id' | 'name'>[]
+  memberOperations: Pick<MemberOperation, 'id' | 'name'>[]
   timezone: string
   confirmationTemplate: string
   businessName: string
 }): string | null {
-  const { appointment, customers, services, professionals, timezone } = args
+  const { appointment, customers, services, memberOperations, timezone } = args
   if (!appointment) return null
   const customer = customers.find((c) => c.id === appointment.customerId)
   if (!customer) return null
   const service = services.find((s) => s.id === appointment.serviceId)
-  const professional = professionals.find((p) => p.id === appointment.professionalId)
+  const memberOperation = memberOperations.find((p) => p.id === appointment.memberOperationId)
   const t = toOrgTime(appointment.startAt, timezone)
   const message = renderWhatsappTemplate(args.confirmationTemplate, {
     customerName: customer.name,
     businessName: args.businessName,
     serviceName: service?.name,
-    professionalName: professional?.name,
+    memberOperationName: memberOperation?.name,
     date: t.dateISO.split('-').reverse().join('/'),
     time: hhmm(t),
   })

@@ -21,7 +21,7 @@ import { revalidatePath } from 'next/cache'
 
 // Agenda-block mutations, shared by the contexts that own the time being
 // blocked (brief 0036): the unit config (`units/[id]`, unit-wide blocks) and
-// the professional member detail (`/team/[userId]`, per-professional blocks).
+// the memberOperation member detail (`/team/[userId]`, per-memberOperation blocks).
 // `/blocks` was removed — these actions no longer redirect to it; the calling
 // section refreshes in place (`router.refresh()`), and the agenda is
 // revalidated so the segments reflect the change.
@@ -44,8 +44,8 @@ function parseBlockForm(formData: FormData, orgTimezone: string): ParsedBlock | 
   if (!isAgendaBlockKind(kindRaw)) return 'Tipo inválido'
   const unitId = formString(formData, 'unitId').trim()
   if (!unitId) return 'Unidade é obrigatória'
-  const professionalIdRaw = formString(formData, 'professionalId').trim()
-  const professionalId = professionalIdRaw.length > 0 ? professionalIdRaw : null
+  const memberOperationIdRaw = formString(formData, 'memberOperationId').trim()
+  const memberOperationId = memberOperationIdRaw.length > 0 ? memberOperationIdRaw : null
   const reason = formString(formData, 'reason').trim()
   if (reason.length < 2) return 'Motivo é obrigatório'
 
@@ -59,7 +59,7 @@ function parseBlockForm(formData: FormData, orgTimezone: string): ParsedBlock | 
     return {
       kind: 'recurring',
       unitId,
-      professionalId,
+      memberOperationId,
       reason,
       weekday: weekdayRaw,
       open,
@@ -83,7 +83,7 @@ function parseBlockForm(formData: FormData, orgTimezone: string): ParsedBlock | 
   return {
     kind: 'one_off',
     unitId,
-    professionalId,
+    memberOperationId,
     reason,
     weekday: null,
     open: null,

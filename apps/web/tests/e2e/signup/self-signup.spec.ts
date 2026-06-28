@@ -30,7 +30,7 @@ async function listCustomers(orgId: string): Promise<Array<{ userId?: string }>>
 
 test.describe('Auto-cadastro (#840)', () => {
   test('CTA pública em /{slug} rotea para /signup?from={slug}', async ({ page }) => {
-    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
+    const seed = await seedOrg({ unitCount: 1, memberOperationCount: 1 })
     const slug = `e2e-${seed.orgId}`.toLowerCase()
 
     await page.goto(`/${slug}`)
@@ -44,7 +44,7 @@ test.describe('Auto-cadastro (#840)', () => {
     'cadastro completo com origem válida materializa Cliente na empresa',
     { tag: '@critical' },
     async ({ context, page, baseURL }) => {
-      const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
+      const seed = await seedOrg({ unitCount: 1, memberOperationCount: 1 })
       const slug = `e2e-${seed.orgId}`.toLowerCase()
 
       const customer = await seedAuthUser({ completionCompleted: false })
@@ -80,7 +80,7 @@ test.describe('Auto-cadastro (#840)', () => {
     baseURL,
   }) => {
     // Org existe pra cenário ser realista, mas o signup não atribui a ele.
-    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
+    const seed = await seedOrg({ unitCount: 1, memberOperationCount: 1 })
 
     const customer = await seedAuthUser({ completionCompleted: false })
     await signInAndAttachSession(context, customer.email, customer.password, baseURL ?? undefined)
@@ -116,7 +116,7 @@ test.describe('Auto-cadastro (#840)', () => {
   })
 
   test('done sem sessão redireciona pra /signup preservando a origem', async ({ page }) => {
-    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
+    const seed = await seedOrg({ unitCount: 1, memberOperationCount: 1 })
     const slug = `e2e-${seed.orgId}`.toLowerCase()
 
     await page.goto(`/signup/done?from=${slug}`)
@@ -128,7 +128,7 @@ test.describe('Auto-cadastro (#840)', () => {
     page,
     baseURL,
   }) => {
-    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
+    const seed = await seedOrg({ unitCount: 1, memberOperationCount: 1 })
     const slug = `e2e-${seed.orgId}`.toLowerCase()
 
     const customer = await seedAuthUser({ completionCompleted: true })

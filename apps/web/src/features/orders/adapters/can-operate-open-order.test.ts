@@ -10,7 +10,7 @@ import {
 import { canOperateOpenOrder, denyIfNotOwnOrder } from './order-write-helpers'
 
 // Brief 0075 (#1257) — own-resource guard for OPEN-order edits. The balcão
-// (owner/manager/recepção) operates any comanda; a self-scoped professional
+// (owner/manager/recepção) operates any comanda; a self-scoped memberOperation
 // only one whose every item is attributed to them. Pure predicate — tested in
 // isolation so the gate is proven independent of the action plumbing.
 
@@ -51,24 +51,24 @@ describe('canOperateOpenOrder', () => {
     }
   })
 
-  describe('professional is own-scoped', () => {
+  describe('memberOperation is own-scoped', () => {
     it('edits an order whose every item is theirs', () => {
-      const m = membership('professional', 'me')
+      const m = membership('member_operator', 'me')
       expect(canOperateOpenOrder(m, [item('me'), item('me')])).toBe(true)
     })
 
     it("cannot edit an order with a colleague's item", () => {
-      const m = membership('professional', 'me')
+      const m = membership('member_operator', 'me')
       expect(canOperateOpenOrder(m, [item('me'), item('colleague')])).toBe(false)
     })
 
     it("cannot edit an order made entirely of a colleague's items", () => {
-      const m = membership('professional', 'me')
+      const m = membership('member_operator', 'me')
       expect(canOperateOpenOrder(m, [item('colleague')])).toBe(false)
     })
 
     it('can operate an order with no items yet (just opened → vacuously theirs)', () => {
-      const m = membership('professional', 'me')
+      const m = membership('member_operator', 'me')
       expect(canOperateOpenOrder(m, [])).toBe(true)
     })
   })
@@ -77,11 +77,11 @@ describe('canOperateOpenOrder', () => {
 describe('denyIfNotOwnOrder', () => {
   it('returns null when the member may operate', () => {
     expect(denyIfNotOwnOrder(membership('owner'), [item('colleague')])).toBeNull()
-    expect(denyIfNotOwnOrder(membership('professional', 'me'), [item('me')])).toBeNull()
+    expect(denyIfNotOwnOrder(membership('member_operator', 'me'), [item('me')])).toBeNull()
   })
 
-  it("returns an error result when a professional touches a colleague's order", () => {
-    const denied = denyIfNotOwnOrder(membership('professional', 'me'), [item('colleague')])
+  it("returns an error result when a memberOperation touches a colleague's order", () => {
+    const denied = denyIfNotOwnOrder(membership('member_operator', 'me'), [item('colleague')])
     expect(denied).toEqual({ ok: false, error: 'Você só pode editar comandas atribuídas a você' })
   })
 })

@@ -6,7 +6,7 @@ import {
   type CatalogServiceItem,
   type Customer,
   type HoursRange,
-  type Professional,
+  type MemberOperation,
   type SlotMinutes,
   hhmmToMinutes,
   toOrgTime,
@@ -89,7 +89,7 @@ const STATUS_STYLES: Record<Appointment['status'], string> = {
 }
 
 export function AgendaGrid({
-  professionals,
+  memberOperations,
   appointments,
   customersById,
   servicesById,
@@ -101,7 +101,7 @@ export function AgendaGrid({
   blockSegments,
   onSelectAppointment,
 }: {
-  professionals: Professional[]
+  memberOperations: MemberOperation[]
   appointments: Appointment[]
   customersById: Record<string, Customer>
   servicesById: Record<string, CatalogServiceItem>
@@ -115,12 +115,12 @@ export function AgendaGrid({
   blockSegments: readonly BlockSegment[]
   onSelectAppointment?: (appointment: Appointment) => void
 }) {
-  const apptsByProfessional = useMemo(() => {
+  const apptsByMemberOperation = useMemo(() => {
     const map = new Map<string, Appointment[]>()
     for (const a of appointments) {
-      const arr = map.get(a.professionalId) ?? []
+      const arr = map.get(a.memberOperationId) ?? []
       arr.push(a)
-      map.set(a.professionalId, arr)
+      map.set(a.memberOperationId, arr)
     }
     return map
   }, [appointments])
@@ -140,10 +140,12 @@ export function AgendaGrid({
     <div className="border-border overflow-hidden rounded-md border">
       <div
         className="grid"
-        style={{ gridTemplateColumns: `64px repeat(${professionals.length}, minmax(180px, 1fr))` }}
+        style={{
+          gridTemplateColumns: `64px repeat(${memberOperations.length}, minmax(180px, 1fr))`,
+        }}
       >
         <div className="border-border bg-muted/30 border-r border-b" />
-        {professionals.map((p) => (
+        {memberOperations.map((p) => (
           <div
             key={p.id}
             className="border-border bg-muted/30 flex items-center justify-between gap-2 truncate border-r border-b px-3 py-2 text-sm font-medium last:border-r-0"
@@ -165,10 +167,10 @@ export function AgendaGrid({
           ))}
         </div>
 
-        {professionals.map((p) => (
-          <ProfessionalColumn
+        {memberOperations.map((p) => (
+          <MemberOperationColumn
             key={p.id}
-            appointments={apptsByProfessional.get(p.id) ?? []}
+            appointments={apptsByMemberOperation.get(p.id) ?? []}
             customersById={customersById}
             servicesById={servicesById}
             date={date}
@@ -177,7 +179,7 @@ export function AgendaGrid({
             dayHours={dayHours}
             hasBusinessHours={hasBusinessHours}
             blockSegments={blockSegments.filter(
-              (b) => b.professionalId === null || b.professionalId === p.id,
+              (b) => b.memberOperationId === null || b.memberOperationId === p.id,
             )}
             onSelectAppointment={onSelectAppointment}
           />
@@ -187,7 +189,7 @@ export function AgendaGrid({
   )
 }
 
-function ProfessionalColumn({
+function MemberOperationColumn({
   appointments,
   customersById,
   servicesById,

@@ -1,12 +1,12 @@
 // Unit tests for the app-level authorization helpers (brief 0075):
 // `guardCapability` (the REAL server-side wall for a membership capability),
 // `hasMembershipCapability` (the matrix predicate), `operatesFrontDesk` (balcão
-// vs self-scoped professional) and `canActOnOwnedResource` (own-resource gate).
+// vs self-scoped memberOperation) and `canActOnOwnedResource` (own-resource gate).
 //
 // Load-bearing invariant: authorization is gated by the membership's CAPABILITY
 // matrix, never by `role` directly — so the four roles stay presets the business
 // can later edit. The own-resource gate encodes the operational model: recepção/
-// owner/manager run the balcão for everyone; a professional acts only on its own.
+// owner/manager run the balcão for everyone; a memberOperation acts only on its own.
 //
 // Deps mocked: getSessionUser (session), getUserById (user doc → currentOrgId),
 // readUnderRls (membership row). The real requireOrgCtx + membership decode run.
@@ -85,8 +85,10 @@ beforeEach(() => {
 describe('hasMembershipCapability', () => {
   it('reads the capability straight off the matrix', () => {
     expect(hasMembershipCapability(membership('owner'), 'canManageCustomers')).toBe(true)
-    expect(hasMembershipCapability(membership('professional'), 'canManageCustomers')).toBe(false)
-    expect(hasMembershipCapability(membership('professional'), 'canCreateAppointment')).toBe(true)
+    expect(hasMembershipCapability(membership('member_operator'), 'canManageCustomers')).toBe(false)
+    expect(hasMembershipCapability(membership('member_operator'), 'canCreateAppointment')).toBe(
+      true,
+    )
   })
 })
 
@@ -97,8 +99,8 @@ describe('operatesFrontDesk', () => {
     expect(operatesFrontDesk(membership('receptionist'))).toBe(true)
   })
 
-  it('is false for a self-scoped professional', () => {
-    expect(operatesFrontDesk(membership('professional'))).toBe(false)
+  it('is false for a self-scoped memberOperation', () => {
+    expect(operatesFrontDesk(membership('member_operator'))).toBe(false)
   })
 })
 
@@ -108,8 +110,8 @@ describe('canActOnOwnedResource', () => {
     expect(canActOnOwnedResource(membership('manager'), 'someone-else')).toBe(true)
   })
 
-  it('lets a professional act only on their own resource', () => {
-    const pro = membership('professional', 'pro-1')
+  it('lets a memberOperation act only on their own resource', () => {
+    const pro = membership('member_operator', 'pro-1')
     expect(canActOnOwnedResource(pro, 'pro-1')).toBe(true)
     expect(canActOnOwnedResource(pro, 'pro-2')).toBe(false)
   })
@@ -125,7 +127,7 @@ describe('guardCapability', () => {
   })
 
   it('denies when the membership lacks the capability', async () => {
-    signedInAs('professional')
+    signedInAs('member_operator')
 
     const res = await guardCapability('canManageCustomers')
 
@@ -133,8 +135,8 @@ describe('guardCapability', () => {
     if (!res.ok) expect(res.error).toContain('canManageCustomers')
   })
 
-  it('allows a professional the capabilities its preset carries (own agenda)', async () => {
-    signedInAs('professional')
+  it('allows a memberOperation the capabilities its preset carries (own agenda)', async () => {
+    signedInAs('member_operator')
 
     expect((await guardCapability('canCreateAppointment')).ok).toBe(true)
     expect((await guardCapability('canCancelAppointment')).ok).toBe(true)

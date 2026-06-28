@@ -3,9 +3,9 @@ export {
   AuthorizationError,
   CardDeclinedError,
   EntityNotFoundError,
+  MemberOperationUnavailableError,
   OrderAlreadyClosedError,
   PlanNotActiveError,
-  ProfessionalUnavailableError,
   UsageLimitReachedError,
   type DomainError,
 } from './errors'

@@ -77,7 +77,7 @@ async function getCommissionById(orgId: string, commissionId: string): Promise<C
 //
 // O batch é a gestão canônica do owner ("marcar pago por membro/período"): paga
 // tudo o que está pendente no recorte, num gesto só. A chave do lote é o membro
-// (`attributedUserId`, brief 0030 AC-07) — qualquer papel, não só Professional.
+// (`attributedUserId`, brief 0030 AC-07) — qualquer papel, não só MemberOperation.
 export async function markCommissionsPaid(formData: FormData): Promise<MarkPaidResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return { ok: false, error: r.error }

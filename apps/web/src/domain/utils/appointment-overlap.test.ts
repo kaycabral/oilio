@@ -13,7 +13,7 @@ function appt(
     id: 'a1',
     orgId: 't1',
     unitId: 'u1',
-    professionalId: 'p1',
+    memberOperationId: 'p1',
     customerId: 'c1',
     serviceId: 's1',
     status: 'scheduled',
@@ -22,7 +22,7 @@ function appt(
     commissionSnapshot: null,
     cancellationPolicySnapshot: null,
     customerUserId: 'u1',
-    professionalUserId: null,
+    memberOperatorUserId: null,
     createdAt: '2026-05-14T00:00:00.000Z',
     updatedAt: '2026-05-14T00:00:00.000Z',
     ...overrides,
@@ -68,7 +68,7 @@ describe('intervalsOverlap', () => {
 })
 
 describe('findAppointmentConflicts', () => {
-  it('finds appointment overlap for same professional', () => {
+  it('finds appointment overlap for same memberOperation', () => {
     const existing = [
       // 10:00–11:00 local BR == 13:00–14:00 UTC
       appt({
@@ -79,7 +79,7 @@ describe('findAppointmentConflicts', () => {
     ]
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-14T13:30:00.000Z', endAt: '2026-05-14T14:30:00.000Z' },
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       existing,
       blockSegments: [],
       date: DATE,
@@ -88,18 +88,18 @@ describe('findAppointmentConflicts', () => {
     expect(conflicts).toEqual([{ kind: 'appointment', appointmentId: 'existing-1' }])
   })
 
-  it('ignores appointment on different professional', () => {
+  it('ignores appointment on different memberOperation', () => {
     const existing = [
       appt({
         id: 'existing-1',
-        professionalId: 'p2',
+        memberOperationId: 'p2',
         startAt: '2026-05-14T13:00:00.000Z',
         endAt: '2026-05-14T14:00:00.000Z',
       }),
     ]
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-14T13:30:00.000Z', endAt: '2026-05-14T14:30:00.000Z' },
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       existing,
       blockSegments: [],
       date: DATE,
@@ -119,7 +119,7 @@ describe('findAppointmentConflicts', () => {
     ]
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-14T13:30:00.000Z', endAt: '2026-05-14T14:30:00.000Z' },
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       existing,
       blockSegments: [],
       date: DATE,
@@ -138,7 +138,7 @@ describe('findAppointmentConflicts', () => {
     ]
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-14T13:30:00.000Z', endAt: '2026-05-14T14:30:00.000Z' },
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       existing,
       blockSegments: [],
       date: DATE,
@@ -150,12 +150,18 @@ describe('findAppointmentConflicts', () => {
 
   it('detects unit-wide block conflict', () => {
     const blocks: BlockSegment[] = [
-      { blockId: 'b1', professionalId: null, reason: 'Almoço', startMin: 12 * 60, endMin: 13 * 60 },
+      {
+        blockId: 'b1',
+        memberOperationId: null,
+        reason: 'Almoço',
+        startMin: 12 * 60,
+        endMin: 13 * 60,
+      },
     ]
     // 12:30 local BR == 15:30 UTC
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-14T15:30:00.000Z', endAt: '2026-05-14T16:00:00.000Z' },
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       existing: [],
       blockSegments: blocks,
       date: DATE,
@@ -164,13 +170,19 @@ describe('findAppointmentConflicts', () => {
     expect(conflicts).toEqual([{ kind: 'block', blockId: 'b1', reason: 'Almoço' }])
   })
 
-  it('ignores block scoped to other professional', () => {
+  it('ignores block scoped to other memberOperation', () => {
     const blocks: BlockSegment[] = [
-      { blockId: 'b1', professionalId: 'p2', reason: 'Almoço', startMin: 12 * 60, endMin: 13 * 60 },
+      {
+        blockId: 'b1',
+        memberOperationId: 'p2',
+        reason: 'Almoço',
+        startMin: 12 * 60,
+        endMin: 13 * 60,
+      },
     ]
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-14T15:30:00.000Z', endAt: '2026-05-14T16:00:00.000Z' },
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       existing: [],
       blockSegments: blocks,
       date: DATE,
@@ -181,12 +193,18 @@ describe('findAppointmentConflicts', () => {
 
   it('back-to-back with block boundary does not conflict', () => {
     const blocks: BlockSegment[] = [
-      { blockId: 'b1', professionalId: null, reason: 'Almoço', startMin: 12 * 60, endMin: 13 * 60 },
+      {
+        blockId: 'b1',
+        memberOperationId: null,
+        reason: 'Almoço',
+        startMin: 12 * 60,
+        endMin: 13 * 60,
+      },
     ]
     // 13:00 local BR == 16:00 UTC — starts exactly when block ends
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-14T16:00:00.000Z', endAt: '2026-05-14T17:00:00.000Z' },
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       existing: [],
       blockSegments: blocks,
       date: DATE,
@@ -197,12 +215,18 @@ describe('findAppointmentConflicts', () => {
 
   it('skips block check when the proposed interval starts on a different day', () => {
     const blocks: BlockSegment[] = [
-      { blockId: 'b1', professionalId: null, reason: 'Almoço', startMin: 12 * 60, endMin: 13 * 60 },
+      {
+        blockId: 'b1',
+        memberOperationId: null,
+        reason: 'Almoço',
+        startMin: 12 * 60,
+        endMin: 13 * 60,
+      },
     ]
     // Proposed sits on 2026-05-15, but we resolve blocks for DATE (2026-05-14).
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-15T15:30:00.000Z', endAt: '2026-05-15T16:00:00.000Z' },
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       existing: [],
       blockSegments: blocks,
       date: DATE,
@@ -217,7 +241,7 @@ describe('findAppointmentConflicts', () => {
     const blocks: BlockSegment[] = [
       {
         blockId: 'b1',
-        professionalId: null,
+        memberOperationId: null,
         reason: 'Fechado',
         startMin: 23 * 60,
         endMin: 24 * 60,
@@ -225,7 +249,7 @@ describe('findAppointmentConflicts', () => {
     ]
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-15T02:30:00.000Z', endAt: '2026-05-15T03:30:00.000Z' },
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       existing: [],
       blockSegments: blocks,
       date: DATE,
@@ -247,7 +271,7 @@ describe('findAppointmentConflicts', () => {
       // So this block must overlap. Use 10:30 BR for the block start:
       {
         blockId: 'b1',
-        professionalId: null,
+        memberOperationId: null,
         reason: 'Almoço',
         startMin: 10 * 60 + 30,
         endMin: 11 * 60,
@@ -255,7 +279,7 @@ describe('findAppointmentConflicts', () => {
     ]
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-14T13:00:00.000Z', endAt: '2026-05-14T14:30:00.000Z' },
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       existing,
       blockSegments: blocks,
       date: DATE,

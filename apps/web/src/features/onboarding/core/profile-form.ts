@@ -1,7 +1,7 @@
 // Functional core for the post-OAuth completion form (#838): pure parsing +
 // validation of name/WhatsApp/birthDate into a typed payload (or a user-facing
 // error string), plus the minimum-age rule. No I/O — the completeProfile adapter
-// does the stub-dedupe, the user write, and the professional re-derivation.
+// does the stub-dedupe, the user write, and the memberOperation re-derivation.
 
 import { normalizeBrazilPhone, parseBirthDate } from '@/domain'
 import { formString } from '@/shared/form-data'

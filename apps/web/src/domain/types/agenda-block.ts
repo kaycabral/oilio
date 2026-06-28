@@ -10,8 +10,8 @@ import { WEEKDAYS } from '../utils/business-hours'
 //
 // Scope:
 // - `unitId` is always set — blocks live within a unit's agenda.
-// - `professionalId` is optional: when set, only that professional is blocked;
-//   when null, the block applies to the whole unit (all professionals).
+// - `memberOperationId` is optional: when set, only that memberOperation is blocked;
+//   when null, the block applies to the whole unit (all memberOperations).
 //
 // Render rules (and future create-time validation in #636) treat both kinds
 // identically: a UTC interval intersected with the day's grid window.
@@ -19,7 +19,7 @@ const AgendaBlockBaseFields = {
   id: Schema.String,
   orgId: Schema.String,
   unitId: Schema.String,
-  professionalId: Schema.NullOr(Schema.String),
+  memberOperationId: Schema.NullOr(Schema.String),
   reason: Schema.String,
   createdAt: Schema.String,
   updatedAt: Schema.String,

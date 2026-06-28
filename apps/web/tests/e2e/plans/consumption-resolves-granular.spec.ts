@@ -68,8 +68,8 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -119,7 +119,7 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
     await seedAppointment({
       orgId: org.orgId,
       unitId,
-      professionalId: org.professionalIds[0]!,
+      memberOperationId: org.memberOperationIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',
@@ -190,7 +190,7 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
     await seedAppointment({
       orgId: org.orgId,
       unitId,
-      professionalId: org.professionalIds[0]!,
+      memberOperationId: org.memberOperationIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T18:00:00.000Z',

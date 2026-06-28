@@ -54,8 +54,8 @@ export class PublicBookingPage {
 
   // ── Availability ────────────────────────────────────────────────────────
 
-  slotByProfessional(professionalName: string | RegExp): Locator {
-    return this.page.getByRole('link', { name: professionalName })
+  slotByMemberOperation(memberOperationName: string | RegExp): Locator {
+    return this.page.getByRole('link', { name: memberOperationName })
   }
 
   // ── Confirmation form (wizard Step 3) ───────────────────────────────────
@@ -85,13 +85,13 @@ export class PublicBookingPage {
 
   async fillLegacyForm(opts: {
     serviceIndex?: number
-    professionalIndex?: number
+    memberOperationIndex?: number
     dateTimeIso: string
     name: string
     whatsapp: string
   }): Promise<void> {
     await chooseOptionByIndex(this.page, /serviço/i, opts.serviceIndex ?? 0)
-    await chooseOptionByIndex(this.page, /profissional/i, opts.professionalIndex ?? 0)
+    await chooseOptionByIndex(this.page, /profissional/i, opts.memberOperationIndex ?? 0)
     await this.page.getByRole('textbox', { name: /data e horário/i }).fill(opts.dateTimeIso)
     await this.page.getByRole('textbox', { name: /seu nome/i }).fill(opts.name)
     await this.page.getByRole('textbox', { name: /whatsapp/i }).fill(opts.whatsapp)

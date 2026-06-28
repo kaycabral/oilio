@@ -10,8 +10,8 @@ test.describe('Agenda — com profissional aprovado e horários configurados', (
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 15,
     },
@@ -25,7 +25,7 @@ test.describe('Agenda — com profissional aprovado e horários configurados', (
     expect(authedPage.url()).toContain('/agenda')
     expect(resp?.status()).toBeLessThan(400)
     await expect(agenda.heading()).toBeVisible()
-    await expect(agenda.professionalColumn('Profissional 1')).toBeVisible()
+    await expect(agenda.memberOperationColumn('Profissional 1')).toBeVisible()
   })
 })
 
@@ -33,8 +33,8 @@ test.describe('Agenda — com profissional de cadastro incompleto', () => {
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'incomplete',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'incomplete',
       hasBusinessHours: true,
       slotMinutes: 15,
     },
@@ -43,13 +43,13 @@ test.describe('Agenda — com profissional de cadastro incompleto', () => {
   test('profissional não operacional NÃO aparece na agenda (só em Equipe)', async ({
     authedPage,
   }) => {
-    // The agenda lists only BOOKABLE professionals (operational + active
-    // professional-role membership). An incomplete profile must NOT become a
+    // The agenda lists only BOOKABLE memberOperations (operational + active
+    // memberOperation-role membership). An incomplete profile must NOT become a
     // column — it belongs only on the Team page, where its "cadastro incompleto"
     // badge lives. Showing it here only clutters the grid and misleads the UX.
     const agenda = new AgendaPage(authedPage)
     await agenda.goto()
-    await expect(agenda.professionalColumn('Profissional 1')).toHaveCount(0)
+    await expect(agenda.memberOperationColumn('Profissional 1')).toHaveCount(0)
     await expect(agenda.incompleteProfileChip()).toHaveCount(0)
   })
 })
@@ -58,8 +58,8 @@ test.describe('Agenda — sem horários configurados', () => {
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: false,
       slotMinutes: 15,
     },

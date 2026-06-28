@@ -15,7 +15,7 @@ import {
   type Appointment,
   type BookingLimits,
   type CatalogItem,
-  type Professional,
+  type MemberOperation,
   type StoredUnit,
 } from '@/domain'
 import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointment-user-ids'
@@ -29,8 +29,8 @@ import { newId } from '@/shared/db/pg/new-id'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
 import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
+import { getMemberOperationById } from '@/shared/org/member-operation-read'
 import { getOrgBySlug } from '@/shared/org/org'
-import { getProfessionalById } from '@/shared/org/professional-read'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
 
 // Server action for the unit-scoped wizard (#844). Differs from the legacy
@@ -39,7 +39,7 @@ import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
 //   - `unitSlug` comes from the path, not the form.
 //   - `startAt` comes pre-resolved as an ISO UTC instant (from the availability
 //     calendar click) — no parsing of `datetime-local`.
-//   - `professionalId` is required (the calendar in #842 always assigns a pro).
+//   - `memberOperationId` is required (the calendar in #842 always assigns a pro).
 
 export type WizardBookingResult =
   | { ok: true; bookingId: string; orgId: string; unitSlug: string }
@@ -61,19 +61,19 @@ export type WizardBookingResult =
   // message with a "Falar no WhatsApp" CTA pointing at the unit.
   | { ok: false; kind: 'out-of-scope'; error: string }
 
-// Resolve the unit / service / professional and validate they form a bookable
+// Resolve the unit / service / memberOperation and validate they form a bookable
 // combination in this unit (public visibility, links, approval). Error or trio.
 async function resolveWizardEntities(
   orgId: string,
-  fields: Pick<WizardFields, 'serviceId' | 'professionalId'>,
+  fields: Pick<WizardFields, 'serviceId' | 'memberOperationId'>,
   unitSlug: string,
-): Promise<{ unit: StoredUnit; service: CatalogItem; professional: Professional } | string> {
+): Promise<{ unit: StoredUnit; service: CatalogItem; memberOperation: MemberOperation } | string> {
   // Typed projection reads under RLS (Postgres cutover, #1202): units list +
-  // catalog item + professional. The three are independent — run in parallel.
-  const [units, service, professional] = await Promise.all([
+  // catalog item + memberOperation. The three are independent — run in parallel.
+  const [units, service, memberOperation] = await Promise.all([
     listStoredUnitsForOrg(orgId),
     getCatalogItemById(orgId, fields.serviceId),
-    getProfessionalById(orgId, fields.professionalId),
+    getMemberOperationById(orgId, fields.memberOperationId),
   ])
 
   const unit = units.find((u) => u.slug === unitSlug)
@@ -87,17 +87,17 @@ async function resolveWizardEntities(
     return 'Serviço não oferecido nesta unidade.'
   }
 
-  if (!professional) return 'Profissional não encontrado.'
-  if (!professional.unitIds.includes(unit.id)) return 'Profissional não atende nesta unidade.'
+  if (!memberOperation) return 'Profissional não encontrado.'
+  if (!memberOperation.unitIds.includes(unit.id)) return 'Profissional não atende nesta unidade.'
   if (
-    !Array.isArray(professional.catalogServiceIds) ||
-    !professional.catalogServiceIds.includes(service.id)
+    !Array.isArray(memberOperation.catalogServiceIds) ||
+    !memberOperation.catalogServiceIds.includes(service.id)
   ) {
     return 'Profissional não executa este serviço.'
   }
-  if (!isOperational(professional.operationalStatus)) return 'Profissional indisponível.'
+  if (!isOperational(memberOperation.operationalStatus)) return 'Profissional indisponível.'
 
-  return { unit, service, professional }
+  return { unit, service, memberOperation }
 }
 
 // Defense-in-depth (brief 0019): re-check the signed-in visitor's subscription
@@ -199,7 +199,7 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
 
   const fields = parseWizardFields(formData)
   if (typeof fields === 'string') return { ok: false, error: fields }
-  const { serviceId, professionalId, startAtDate, customerName, whatsapp, customerEmailRaw } =
+  const { serviceId, memberOperationId, startAtDate, customerName, whatsapp, customerEmailRaw } =
     fields
 
   const entities = await resolveWizardEntities(org.id, fields, unitSlug)
@@ -249,7 +249,7 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   if (limitsErr) return limitsErr
 
   const now = new Date().toISOString()
-  const userIds = await resolveAppointmentUserIds(org.id, customerId, professionalId)
+  const userIds = await resolveAppointmentUserIds(org.id, customerId, memberOperationId)
   if (!userIds.ok) return userIds
 
   const bookingId = newId()
@@ -257,7 +257,7 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     id: bookingId,
     orgId: org.id,
     unitId: unit.id,
-    professionalId,
+    memberOperationId,
     customerId,
     serviceId,
     startAt: startAtDate.toISOString(),
@@ -269,7 +269,7 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     // Snapshot da cancellation policy no commit (#1038).
     cancellationPolicySnapshot: normalizeCancellationPolicy(unit.agenda.cancellationPolicy),
     customerUserId: userIds.ids.customerUserId,
-    professionalUserId: userIds.ids.professionalUserId,
+    memberOperatorUserId: userIds.ids.memberOperatorUserId,
     createdAt: now,
     updatedAt: now,
   }

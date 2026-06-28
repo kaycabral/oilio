@@ -50,6 +50,13 @@
       "when": 1782674757025,
       "tag": "0006_member_operations_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782674757026,
+      "tag": "0007_rename_member_operations",
+      "breakpoints": true
     }
   ]
 }

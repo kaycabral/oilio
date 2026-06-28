@@ -31,7 +31,7 @@ const PERMISSION_KEYS: readonly (keyof MembershipPermissions)[] = [
   'canCreateAppointment',
   'canCancelAppointment',
   'canManageCustomers',
-  'canManageProfessionals',
+  'canManageOperators',
   'canManageCatalog',
   'canViewFinancials',
   'canManagePlans',
@@ -55,7 +55,7 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canCreateAppointment: true,
     canCancelAppointment: true,
     canManageCustomers: true,
-    canManageProfessionals: true,
+    canManageOperators: true,
     canManageCatalog: true,
     canViewFinancials: true,
     canManagePlans: true,
@@ -69,7 +69,7 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canCreateAppointment: true,
     canCancelAppointment: true,
     canManageCustomers: true,
-    canManageProfessionals: true,
+    canManageOperators: true,
     canManageCatalog: true,
     canViewFinancials: true,
     canManagePlans: true,
@@ -77,20 +77,20 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canBeBooked: false,
     canEarnCommission: false,
   },
-  professional: {
+  memberOperation: {
     canHaveAgenda: true,
     canManageOwnAgenda: true,
-    // Autonomous own-scoped model (brief 0075): a professional books/cancels
+    // Autonomous own-scoped model (brief 0075): a memberOperation books/cancels
     // their OWN appointments. Manage* stays false.
     canCreateAppointment: true,
     canCancelAppointment: true,
     canManageCustomers: false,
-    canManageProfessionals: false,
+    canManageOperators: false,
     canManageCatalog: false,
     canViewFinancials: false,
     canManagePlans: false,
     canManageSubscriptions: false,
-    // The professional preset is the only one with the operational capabilities
+    // The memberOperation preset is the only one with the operational capabilities
     // on (brief 0076 AC-01).
     canBeBooked: true,
     canEarnCommission: true,
@@ -101,7 +101,7 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canCreateAppointment: true,
     canCancelAppointment: true,
     canManageCustomers: true,
-    canManageProfessionals: false,
+    canManageOperators: false,
     canManageCatalog: false,
     canViewFinancials: false,
     canManagePlans: false,
@@ -142,7 +142,7 @@ describe('roleDescription', () => {
   const EXPECTED: Record<Role, string> = {
     owner: 'Acesso total: gerencia equipe, serviços, finanças e configurações do negócio.',
     manager: 'Gerencia equipe, serviços, planos e vê finanças — quase tudo, menos ser o dono.',
-    professional: 'Tem agenda própria e gerencia os próprios atendimentos.',
+    member_operator: 'Tem agenda própria e gerencia os próprios atendimentos.',
     receptionist: 'Agenda e cancela atendimentos e gerencia clientes — sem acesso a finanças.',
   }
 
@@ -175,7 +175,7 @@ describe('operatesCrossUnit', () => {
     expect(operatesCrossUnit(makeMembership('receptionist', 'unit-1'))).toBe(false)
   })
 
-  it('is false for a professional (cannot manage org)', () => {
-    expect(operatesCrossUnit(makeMembership('professional', null))).toBe(false)
+  it('is false for a memberOperation (cannot manage org)', () => {
+    expect(operatesCrossUnit(makeMembership('member_operator', null))).toBe(false)
   })
 })

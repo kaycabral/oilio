@@ -20,17 +20,17 @@ import { offboardMemberInOrg } from './offboard-member'
  * Member offboarding saga against REAL Postgres (#1103/#1104/#1105, brief 0041 —
  * the rewrite of the Firestore-emulator `offboard-member.integration.test.ts`).
  * Post-cutover the whole offboard runs as ONE ACID transaction via `commitSaga`
- * (brief 0061 § Grupo C): membership revoked + professional suspended + future
- * appointments cancelled + the professional's agenda-blocks deleted + the
+ * (brief 0061 § Grupo C): membership revoked + memberOperation suspended + future
+ * appointments cancelled + the memberOperation's agenda-blocks deleted + the
  * member's pending invites deleted, all in one tx; the `invites_pii` LGPD
  * sidecars are dropped post-commit. The owner is immune; the saga is vetoed
  * (before any mutation) by an OPEN comanda; re-running is idempotent; the vínculo
- * PII (`professionals_pii`) is RETAINED (art. 16).
+ * PII (`member_operations_pii`) is RETAINED (art. 16).
  *
  * The production reads/writes run over the event-store pool (RLS bypassed
  * locally/CI — the policies are proven in the isolation specs). Preconditions are
  * seeded as typed projection rows (appointments/agenda-blocks via the projector
- * column mappers; memberships/professionals/orders/users/invites via the store
+ * column mappers; memberships/memberOperations/orders/users/invites via the store
  * helpers or raw INSERT matching the schema). The cascade events read those
  * seeded projection docs and reproject. Per-run-unique ids; no global wipe.
  */
@@ -94,12 +94,12 @@ async function seedMembership(orgId: string, userId: string, role: Role): Promis
   return id
 }
 
-// Professional projection + its retained PII sidecar (must survive offboarding).
+// MemberOperation projection + its retained PII sidecar (must survive offboarding).
 // `operationalStatus` is DERIVED on read (#1226 AC-02): operational ⇔ the linked
 // User has a whatsapp ∧ ≥1 unit ∧ ≥1 service. So an OPERATIONAL seed must wire a
 // whatsapp-bearing User + a service + the join rows; pass an empty `unitIds` (no
 // units ⇒ derives `incomplete`) for a non-operational seed.
-async function seedProfessional(
+async function seedMemberOperation(
   orgId: string,
   userId: string,
   unitIds: string[] = [],
@@ -117,34 +117,34 @@ async function seedProfessional(
   // the offboard cases seed their own membership status separately).
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_'||$2,$2,1,'professional','active',$3,'{}'::jsonb,$3)
+     VALUES ($1,$1||'_'||$2,$2,1,'member_operator','active',$3,'{}'::jsonb,$3)
      ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, userId, TS],
   )
   await getEventStorePool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+    `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,$3,$1||'_'||$3,NULL,$4::jsonb,$5::jsonb,$6,$6)`,
     [orgId, id, userId, JSON.stringify(unitIds), JSON.stringify(catalogServiceIds), TS],
   )
   await getEventStorePool().query(
-    `INSERT INTO professionals_pii (org_id, id, tax_identity) VALUES ($1,$2,NULL)`,
+    `INSERT INTO member_operations_pii (org_id, id, tax_identity) VALUES ($1,$2,NULL)`,
     [orgId, id],
   )
-  // Seeding professionals directly (not via the projector) must mirror the
-  // `professional_units` / `professional_services` join rows the projector now
-  // writes (brief 0068 D3) — the offboard re-projects the professional, and its
+  // Seeding memberOperations directly (not via the projector) must mirror the
+  // `member_operation_units` / `member_operation_services` join rows the projector now
+  // writes (brief 0068 D3) — the offboard re-projects the memberOperation, and its
   // join writes need the parent unit/service rows to exist (composite FKs).
   for (const unitId of unitIds) {
     await seedUnit(orgId, unitId)
     await getEventStorePool().query(
-      `INSERT INTO professional_units (org_id, professional_id, unit_id) VALUES ($1,$2,$3)
+      `INSERT INTO member_operation_units (org_id, member_operation_id, unit_id) VALUES ($1,$2,$3)
        ON CONFLICT DO NOTHING`,
       [orgId, id, unitId],
     )
   }
   for (const sid of catalogServiceIds) {
     await getEventStorePool().query(
-      `INSERT INTO professional_services (org_id, professional_id, service_id) VALUES ($1,$2,$3)
+      `INSERT INTO member_operation_services (org_id, member_operation_id, service_id) VALUES ($1,$2,$3)
        ON CONFLICT DO NOTHING`,
       [orgId, id, sid],
     )
@@ -154,20 +154,20 @@ async function seedProfessional(
 
 async function seedAppointment(
   orgId: string,
-  professionalId: string,
+  memberOperationId: string,
   startAt: string,
   status: 'scheduled' | 'completed' = 'scheduled',
 ): Promise<string> {
   const id = uniqueId('appt')
   const appt = buildAppointment(id, orgId, TS, {
-    professionalId,
+    memberOperationId,
     startAt,
     endAt: startAt,
     status,
   })
   // FK parents: appointment unit_id → units, customer_id → customers, service_id
   // → catalog_items (builder defaults unit 'unit', customer 'cust', service
-  // 'svc'). professional_id already exists (seedProfessional ran first).
+  // 'svc'). member_operation_id already exists (seedMemberOperation ran first).
   await seedUnit(orgId, appt.unitId)
   await seedCustomer(orgId, appt.customerId)
   await seedService(orgId, appt.serviceId)
@@ -179,13 +179,13 @@ async function seedAppointment(
   return id
 }
 
-async function seedAgendaBlock(orgId: string, professionalId: string | null): Promise<string> {
+async function seedAgendaBlock(orgId: string, memberOperationId: string | null): Promise<string> {
   const id = uniqueId('blk')
   const block: AgendaBlock = {
     id,
     orgId,
     unitId: 'unit-1',
-    professionalId,
+    memberOperationId,
     reason: 'férias',
     kind: 'one_off',
     weekday: null,
@@ -250,7 +250,7 @@ async function seedInvite(
   const accepted = status === 'accepted'
   await getEventStorePool().query(
     `INSERT INTO invites (org_id, id, last_event_version, role, token_hash, expires_at, status, invited_by, accepted_by_uid, accepted_at, created_at, updated_at)
-     VALUES ($1,$2,1,'professional','hash',$3,$4,'owner-1',$5,$6,$7,$7)`,
+     VALUES ($1,$2,1,'member_operator','hash',$3,$4,'owner-1',$5,$6,$7,$7)`,
     [
       orgId,
       id,
@@ -312,7 +312,7 @@ async function countRevokedEvents(orgId: string, membershipId: string): Promise<
 }
 
 const TABLES =
-  'events, projections, appointments, agenda_blocks, orders, professionals, professionals_pii, invites, invites_pii, memberships, units, customers, catalog_items, users, orgs'
+  'events, projections, appointments, agenda_blocks, orders, member_operations, member_operations_pii, invites, invites_pii, memberships, units, customers, catalog_items, users, orgs'
 
 describe('offboardMemberInOrg — core (Postgres)', () => {
   beforeEach(async () => {
@@ -322,26 +322,26 @@ describe('offboardMemberInOrg — core (Postgres)', () => {
     await closeEventStoreDb()
   })
 
-  it('ends membership (revoked), RETAINS the professional projection + PII', async () => {
+  it('ends membership (revoked), RETAINS the memberOperation projection + PII', async () => {
     const orgId = uniqueId('org')
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
     await seedOrg(orgId)
-    const membershipId = await seedMembership(orgId, userId, 'professional')
-    const proId = await seedProfessional(orgId, userId)
+    const membershipId = await seedMembership(orgId, userId, 'member_operator')
+    const proId = await seedMemberOperation(orgId, userId)
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
     expect(res.ok).toBe(true)
 
     // Operability is severed by the REVOKED membership (every operational read
-    // keys on an active membership) — not by a professional event (#1226 AC-02:
-    // `operationalStatus` is derived on read, no `professional.suspended`).
+    // keys on an active membership) — not by a memberOperation event (#1226 AC-02:
+    // `operationalStatus` is derived on read, no `member_operation.suspended`).
     expect(await membershipStatus(orgId, membershipId)).toBe('revoked')
     expect(await countRevokedEvents(orgId, membershipId)).toBe(1)
-    // Professional projection RETAINED (not deleted), reversible.
-    expect(await rowExists('professionals', orgId, proId)).toBe(true)
+    // MemberOperation projection RETAINED (not deleted), reversible.
+    expect(await rowExists('member_operations', orgId, proId)).toBe(true)
     // RETENTION (art. 16): the vínculo PII is RETAINED.
-    expect(await piiExists('professionals_pii', orgId, proId)).toBe(true)
+    expect(await piiExists('member_operations_pii', orgId, proId)).toBe(true)
   })
 
   it('is idempotent — re-running is a no-op (no throw, no double-event)', async () => {
@@ -349,15 +349,15 @@ describe('offboardMemberInOrg — core (Postgres)', () => {
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
     await seedOrg(orgId)
-    const membershipId = await seedMembership(orgId, userId, 'professional')
-    const proId = await seedProfessional(orgId, userId)
+    const membershipId = await seedMembership(orgId, userId, 'member_operator')
+    const proId = await seedMemberOperation(orgId, userId)
 
     expect((await offboardMemberInOrg(orgId, userId, actorId)).ok).toBe(true)
     expect((await offboardMemberInOrg(orgId, userId, actorId)).ok).toBe(true)
 
     expect(await membershipStatus(orgId, membershipId)).toBe('revoked')
     expect(await countRevokedEvents(orgId, membershipId)).toBe(1)
-    expect(await piiExists('professionals_pii', orgId, proId)).toBe(true)
+    expect(await piiExists('member_operations_pii', orgId, proId)).toBe(true)
   })
 
   it('refuses to offboard the owner', async () => {
@@ -372,7 +372,7 @@ describe('offboardMemberInOrg — core (Postgres)', () => {
     expect(await membershipStatus(orgId, membershipId)).toBe('active')
   })
 
-  it('offboards a non-professional member (no projection to deactivate)', async () => {
+  it('offboards a non-memberOperation member (no projection to deactivate)', async () => {
     const orgId = uniqueId('org')
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
@@ -398,8 +398,8 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
     await seedOrg(orgId)
-    await seedMembership(orgId, userId, 'professional')
-    const proId = await seedProfessional(orgId, userId)
+    await seedMembership(orgId, userId, 'member_operator')
+    const proId = await seedMemberOperation(orgId, userId)
     const futureAppt = await seedAppointment(orgId, proId, FUTURE)
     const pastAppt = await seedAppointment(orgId, proId, PAST)
 
@@ -412,13 +412,13 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
     expect(await statusOf('appointments', orgId, pastAppt)).toBe('scheduled')
   })
 
-  it('AC-07: removes the professional agenda-blocks, LEAVES org-wide blocks', async () => {
+  it('AC-07: removes the memberOperation agenda-blocks, LEAVES org-wide blocks', async () => {
     const orgId = uniqueId('org')
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
     await seedOrg(orgId)
-    await seedMembership(orgId, userId, 'professional')
-    const proId = await seedProfessional(orgId, userId)
+    await seedMembership(orgId, userId, 'member_operator')
+    const proId = await seedMemberOperation(orgId, userId)
     const proBlock = await seedAgendaBlock(orgId, proId)
     const orgBlock = await seedAgendaBlock(orgId, null)
 
@@ -426,7 +426,7 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
     expect(res.ok).toBe(true)
 
     expect(await rowExists('agenda_blocks', orgId, proBlock)).toBe(false)
-    // Org-wide block (professionalId == null) is NOT the member's — kept.
+    // Org-wide block (memberOperationId == null) is NOT the member's — kept.
     expect(await rowExists('agenda_blocks', orgId, orgBlock)).toBe(true)
   })
 
@@ -435,8 +435,8 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
     await seedOrg(orgId)
-    const membershipId = await seedMembership(orgId, userId, 'professional')
-    const proId = await seedProfessional(orgId, userId)
+    const membershipId = await seedMembership(orgId, userId, 'member_operator')
+    const proId = await seedMemberOperation(orgId, userId)
     const futureAppt = await seedAppointment(orgId, proId, FUTURE)
     await seedOpenOrder(orgId, userId)
 
@@ -454,8 +454,8 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
     await seedOrg(orgId)
-    const membershipId = await seedMembership(orgId, userId, 'professional')
-    await seedProfessional(orgId, userId)
+    const membershipId = await seedMembership(orgId, userId, 'member_operator')
+    await seedMemberOperation(orgId, userId)
     await seedOpenOrder(orgId, userId, 'closed')
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
@@ -469,8 +469,8 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
     const otherUserId = uniqueId('user')
     const actorId = uniqueId('actor')
     await seedOrg(orgId)
-    const membershipId = await seedMembership(orgId, userId, 'professional')
-    await seedProfessional(orgId, userId)
+    const membershipId = await seedMembership(orgId, userId, 'member_operator')
+    await seedMemberOperation(orgId, userId)
     await seedOpenOrder(orgId, otherUserId)
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
@@ -483,8 +483,8 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
     await seedOrg(orgId)
-    await seedMembership(orgId, userId, 'professional')
-    const proId = await seedProfessional(orgId, userId)
+    await seedMembership(orgId, userId, 'member_operator')
+    const proId = await seedMemberOperation(orgId, userId)
     const futureAppt = await seedAppointment(orgId, proId, FUTURE)
     const proBlock = await seedAgendaBlock(orgId, proId)
 
@@ -504,32 +504,32 @@ describe('offboardMemberInOrg — capacity/invites (Postgres)', () => {
     await closeEventStoreDb()
   })
 
-  it('AC-08: warns when removal leaves a unit with 0 active professionals', async () => {
+  it('AC-08: warns when removal leaves a unit with 0 active memberOperations', async () => {
     const orgId = uniqueId('org')
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
     await seedOrg(orgId)
-    await seedMembership(orgId, userId, 'professional')
-    await seedProfessional(orgId, userId, ['unit-solo'])
+    await seedMembership(orgId, userId, 'member_operator')
+    await seedMemberOperation(orgId, userId, ['unit-solo'])
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
     expect(res.ok).toBe(true)
     if (res.ok) {
-      const warn = res.warnings.find((w) => w.kind === 'unit-without-professional')
+      const warn = res.warnings.find((w) => w.kind === 'unit-without-memberOperation')
       expect(warn?.unitIds).toEqual(['unit-solo'])
     }
   })
 
-  it('AC-08: does NOT warn when another active professional still staffs the unit', async () => {
+  it('AC-08: does NOT warn when another active memberOperation still staffs the unit', async () => {
     const orgId = uniqueId('org')
     const userId = uniqueId('user')
     const otherUserId = uniqueId('user')
     const actorId = uniqueId('actor')
     await seedOrg(orgId)
-    await seedMembership(orgId, userId, 'professional')
-    await seedProfessional(orgId, userId, ['unit-shared'])
-    // Another operational professional remains on the same unit.
-    await seedProfessional(orgId, otherUserId, ['unit-shared'])
+    await seedMembership(orgId, userId, 'member_operator')
+    await seedMemberOperation(orgId, userId, ['unit-shared'])
+    // Another operational memberOperation remains on the same unit.
+    await seedMemberOperation(orgId, otherUserId, ['unit-shared'])
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
     expect(res.ok).toBe(true)
@@ -542,8 +542,8 @@ describe('offboardMemberInOrg — capacity/invites (Postgres)', () => {
     const actorId = uniqueId('actor')
     const email = `${uniqueId('member')}@example.com`
     await seedOrg(orgId)
-    await seedMembership(orgId, userId, 'professional')
-    await seedProfessional(orgId, userId)
+    await seedMembership(orgId, userId, 'member_operator')
+    await seedMemberOperation(orgId, userId)
     await seedUser(userId, email)
     const pendingInvite = await seedInvite(orgId, email, 'pending')
     const otherInvite = await seedInvite(orgId, `${uniqueId('other')}@example.com`, 'pending')
@@ -567,8 +567,8 @@ describe('offboardMemberInOrg — capacity/invites (Postgres)', () => {
     const actorId = uniqueId('actor')
     const email = `${uniqueId('member')}@example.com`
     await seedOrg(orgId)
-    await seedMembership(orgId, userId, 'professional')
-    await seedProfessional(orgId, userId)
+    await seedMembership(orgId, userId, 'member_operator')
+    await seedMemberOperation(orgId, userId)
     await seedUser(userId, email)
     const pendingInvite = await seedInvite(orgId, email, 'pending')
 

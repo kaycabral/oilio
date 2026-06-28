@@ -1,13 +1,13 @@
-import type { StoredProfessional } from '@/domain'
+import type { StoredMemberOperation } from '@/domain'
 import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
 import { InviteConfig } from '@/domain/aggregates/invite/config'
-import { ProfessionalConfig } from '@/domain/aggregates/professional/config'
+import { MemberOperationConfig } from '@/domain/aggregates/member-operation/config'
 import { aggregateRef } from '@/domain/effect'
 import {
-  PROFESSIONAL_COLUMNS,
-  professionalColumnValues,
-} from '@/shared/db/pg/effect/professional-projector'
-import { upsertProfessionalPii } from '@/shared/db/pg/pii-sidecars-store'
+  MEMBER_OPERATION_COLUMNS,
+  memberOperationColumnValues,
+} from '@/shared/db/pg/effect/member-operation-projector'
+import { upsertMemberOperationPii } from '@/shared/db/pg/pii-sidecars-store'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import {
@@ -35,7 +35,7 @@ import {
 //
 // Post-cutover (#1202) the read-backs assert against Postgres: the global
 // `users` table (keyed by `uid`, snake_case columns), the deletable per-org PII
-// sidecars (`professionals_pii` / `invites_pii`, keyed by `(org_id, id)`) and the
+// sidecars (`member_operations_pii` / `invites_pii`, keyed by `(org_id, id)`) and the
 // typed `appointments` projection (`customer_user_id`).
 
 // Reads the global `users` row (snake_case columns) — null when absent. Replaces
@@ -46,19 +46,19 @@ async function readUserRow(uid: string): Promise<Record<string, unknown> | null>
   return rows[0] ?? null
 }
 
-// Seeds a `professionals` projection (the created event v1 + the typed row, the
+// Seeds a `member_operations` projection (the created event v1 + the typed row, the
 // same shape the runtime projector writes — shared column helper, zero drift) +
-// its `professionals_pii` (taxIdentity) sidecar for an existing user, mirroring
+// its `member_operations_pii` (taxIdentity) sidecar for an existing user, mirroring
 // the product write path. The projection's `user_id` is what the anonymization
-// matches on to find and scrub the subject's professional PII. Returns the pid.
-async function seedProfessionalPiiFor(
+// matches on to find and scrub the subject's memberOperation PII. Returns the pid.
+async function seedMemberOperationPiiFor(
   orgId: string,
   userId: string,
   unitIds: string[],
 ): Promise<string> {
   const pid = `e2e-prof-${userId}`
   const now = new Date().toISOString()
-  const doc: StoredProfessional = {
+  const doc: StoredMemberOperation = {
     id: pid,
     orgId,
     userId,
@@ -75,12 +75,12 @@ async function seedProfessionalPiiFor(
     await client.query('BEGIN')
     await client.query(
       `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
-       VALUES ('professionals', $1, 1, $2, $3)`,
+       VALUES ('memberOperations', $1, 1, $2, $3)`,
       [
         pid,
         orgId,
         {
-          _tag: 'professional.created',
+          _tag: 'member_operation.created',
           version: 1,
           timestamp: now,
           actorId: 'e2e-seed',
@@ -89,10 +89,10 @@ async function seedProfessionalPiiFor(
         },
       ],
     )
-    const placeholders = PROFESSIONAL_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
+    const placeholders = MEMBER_OPERATION_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
     await client.query(
-      `INSERT INTO professionals (${PROFESSIONAL_COLUMNS.join(', ')}) VALUES (${placeholders})`,
-      [...professionalColumnValues(doc, 1)],
+      `INSERT INTO member_operations (${MEMBER_OPERATION_COLUMNS.join(', ')}) VALUES (${placeholders})`,
+      [...memberOperationColumnValues(doc, 1)],
     )
     await client.query('COMMIT')
   } catch (err) {
@@ -101,7 +101,7 @@ async function seedProfessionalPiiFor(
   } finally {
     await client.end()
   }
-  await upsertProfessionalPii({
+  await upsertMemberOperationPii({
     orgId,
     id: pid,
     taxIdentity: { kind: 'individual', taxId: '39053344705' },
@@ -138,7 +138,7 @@ async function seedRecordFor(orgId: string, unitId: string, userId: string): Pro
   return seedAppointment({
     orgId,
     unitId,
-    professionalId: `e2e-prof-absent-${userId}`,
+    memberOperationId: `e2e-prof-absent-${userId}`,
     customerId,
     serviceId: `e2e-svc-${userId}`,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -163,12 +163,12 @@ test.describe('account-level PII anonymization', () => {
   }) => {
     // Subject = an owner who can log in. Seed a professional_pii doc + an
     // accepted-invite pii doc + a record, all keyed to the subject.
-    const subject = await seedOrg({ professionalCount: 0 })
-    await seedProfessionalPiiFor(subject.orgId, subject.uid, subject.unitIds)
+    const subject = await seedOrg({ memberOperationCount: 0 })
+    await seedMemberOperationPiiFor(subject.orgId, subject.uid, subject.unitIds)
     const { inviteId } = await seedInvite({
       orgId: subject.orgId,
       email: subject.email,
-      role: 'professional',
+      role: 'member_operator',
       invitedBy: subject.uid,
       status: 'accepted',
     })
@@ -177,7 +177,7 @@ test.describe('account-level PII anonymization', () => {
     const recordId = await seedRecordFor(subject.orgId, subject.unitIds[0]!, subject.uid)
 
     // A second, unrelated account — must remain fully intact (AC-07 scoping).
-    const other = await seedOrg({ professionalCount: 0 })
+    const other = await seedOrg({ memberOperationCount: 0 })
     const otherBefore = await readUserRow(other.uid)
 
     // Pre-condition: the subject's PII is present.
@@ -186,7 +186,7 @@ test.describe('account-level PII anonymization', () => {
     expect(
       await pgProjectionExists(
         'professionals_pii',
-        aggregateRef(ProfessionalConfig, subject.orgId, `e2e-prof-${subject.uid}`),
+        aggregateRef(MemberOperationConfig, subject.orgId, `e2e-prof-${subject.uid}`),
       ),
     ).toBe(true)
     expect(
@@ -214,7 +214,7 @@ test.describe('account-level PII anonymization', () => {
     expect(
       await pgProjectionExists(
         'professionals_pii',
-        aggregateRef(ProfessionalConfig, subject.orgId, `e2e-prof-${subject.uid}`),
+        aggregateRef(MemberOperationConfig, subject.orgId, `e2e-prof-${subject.uid}`),
       ),
     ).toBe(false)
     expect(
@@ -236,7 +236,7 @@ test.describe('account-level PII anonymization', () => {
     // The subject anonymizes their own account; a org with NO walk-in
     // account doc proves the no-userId path is harmless. We assert the action
     // succeeds end-to-end for an account whose org has no _pii to scrub.
-    const subject = await seedOrg({ professionalCount: 0 })
+    const subject = await seedOrg({ memberOperationCount: 0 })
     await signInAndAttachSession(context, subject.email, subject.password)
     const page = await context.newPage()
     await anonymizeSelfViaUi(page)

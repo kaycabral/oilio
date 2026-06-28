@@ -1,14 +1,14 @@
 import { expect, test } from './fixtures'
 import { seedService, setActiveUnitCookie } from './helpers/session'
-import { ProfessionalsPage, ServicesPage } from './pages'
+import { MemberOperationsPage, ServicesPage } from './pages'
 
-// Coverage for #876 — Service ↔ Professional link, enforced by intersection
+// Coverage for #876 — Service ↔ MemberOperation link, enforced by intersection
 // of unitIds. UI exposes the link from BOTH sides (Professionals and
 // Services pages).
 
 test.describe('Vínculo Serviço ↔ Profissional', { tag: '@critical' }, () => {
   test.describe('do lado do Profissional', () => {
-    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, memberOperationCount: 1 } })
 
     test('detalhe do membro mostra apenas serviços da unidade do pro', async ({
       context,
@@ -26,8 +26,8 @@ test.describe('Vínculo Serviço ↔ Profissional', { tag: '@critical' }, () => 
 
       // Pro is seeded linked to ALL units. The operational edit in the member
       // detail (#1085) should show BOTH services as eligible.
-      const professionals = new ProfessionalsPage(authedPage)
-      await professionals.gotoById(org.professionalIds[0]!)
+      const memberOperations = new MemberOperationsPage(authedPage)
+      await memberOperations.gotoById(org.memberOperationIds[0]!)
       await expect(authedPage.getByText('Serviços que executa')).toBeVisible()
       await expect(authedPage.getByRole('checkbox', { name: 'Corte' })).toBeVisible()
       await expect(authedPage.getByRole('checkbox', { name: 'Manicure' })).toBeVisible()
@@ -35,7 +35,7 @@ test.describe('Vínculo Serviço ↔ Profissional', { tag: '@critical' }, () => 
   })
 
   test.describe('do lado do Serviço', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 2 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 2 } })
 
     test('/services/[id] cross-edita quais profissionais executam', async ({ org, authedPage }) => {
       const serviceId = await seedService(org.orgId, {

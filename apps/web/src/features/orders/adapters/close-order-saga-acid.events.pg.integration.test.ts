@@ -124,7 +124,7 @@ function appointmentCreatedStep(): SagaStep {
             id: 'apt-1',
             orgId: ORG,
             unitId: 'u1',
-            professionalId: 'u1',
+            memberOperationId: 'u1',
             customerId: 'c1',
             serviceId: 'svc-1',
             startAt: '2026-06-01T11:00:00.000Z',
@@ -135,7 +135,7 @@ function appointmentCreatedStep(): SagaStep {
             serviceDurationMinutesSnapshot: 30,
             commissionSnapshot: { kind: 'percentage', value: 40 },
             customerUserId: 'user-c1',
-            professionalUserId: 'user-pro1',
+            memberOperatorUserId: 'user-pro1',
           },
         },
       },
@@ -193,7 +193,7 @@ function orderCreatedStep(): SagaStep {
 
 // Parent rows the new D2/0068 cross-aggregate FKs require: the order/appointment/
 // subscription projections reference org (t1), unit (u1), customer (c1),
-// professional (the appointment.professionalId 'u1') and the service catalog item
+// memberOperation (the appointment.memberOperationId 'u1') and the service catalog item
 // (the appointment.serviceId 'svc-1'). Seeded over the superuser pool before the
 // saga appends the aggregates.
 async function seedParents(): Promise<void> {
@@ -220,12 +220,12 @@ async function seedParents(): Promise<void> {
   // the parent membership first so the composite FK is satisfiable.
   await pool.query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_user-'||$2,'user-'||$2,1,'professional','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
+     VALUES ($1,$1||'_user-'||$2,'user-'||$2,1,'member_operator','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, 'u1'],
   )
   await pool.query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+    `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,'user-'||$2,$1||'_user-'||$2,NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, 'u1'],
@@ -276,7 +276,7 @@ function readSubscriptionVersion(ref: AggregateRef): Promise<number | null> {
 describe('close-order cascade — ACID (Postgres)', () => {
   beforeEach(async () => {
     await getEventStorePool().query(
-      'TRUNCATE events, projections, orders, commissions, cash_movements, appointments, subscriptions, catalog_items, professionals, customers, units, orgs CASCADE',
+      'TRUNCATE events, projections, orders, commissions, cash_movements, appointments, subscriptions, catalog_items, member_operations, customers, units, orgs CASCADE',
     )
   })
   afterAll(async () => {
@@ -350,7 +350,7 @@ describe('close-order cascade — ACID (Postgres)', () => {
 describe('undo-close cascade — ACID (Postgres)', () => {
   beforeEach(async () => {
     await getEventStorePool().query(
-      'TRUNCATE events, projections, orders, commissions, cash_movements, appointments, subscriptions, catalog_items, professionals, customers, units, orgs CASCADE',
+      'TRUNCATE events, projections, orders, commissions, cash_movements, appointments, subscriptions, catalog_items, member_operations, customers, units, orgs CASCADE',
     )
   })
   afterAll(async () => {

@@ -1,23 +1,25 @@
 'use client'
 
-import type { CatalogServiceItem, Professional } from '@/domain'
-import { setServiceProfessionals } from '@/features/catalog/adapters/catalog.actions'
+import type { CatalogServiceItem, MemberOperation } from '@/domain'
+import { setServiceMemberOperations } from '@/features/catalog/adapters/catalog.actions'
 import { Button, Checkbox } from '@cbrl/design'
 import { useState, useTransition } from 'react'
 
 // Cross-entry editor for the #876 link: from a service item's catalog editor,
-// the owner flips which professionals execute it. Moved here from the deleted
+// the owner flips which memberOperations execute it. Moved here from the deleted
 // `/services` route (brief 0023, AC-10). Mirror of the multi-select inside
-// ProfessionalForm — same data, two entry points (DRY of intent).
-export function ServiceProfessionalsForm({
+// MemberOperationForm — same data, two entry points (DRY of intent).
+export function ServiceMemberOperationsForm({
   service,
-  professionals,
+  memberOperations,
 }: {
   service: CatalogServiceItem
-  professionals: Professional[]
+  memberOperations: MemberOperation[]
 }) {
   const serviceUnitSet = new Set(service.unitIds ?? [])
-  const eligible = professionals.filter((p) => (p.unitIds ?? []).some((u) => serviceUnitSet.has(u)))
+  const eligible = memberOperations.filter((p) =>
+    (p.unitIds ?? []).some((u) => serviceUnitSet.has(u)),
+  )
   const initial = new Set(
     eligible.filter((p) => (p.catalogServiceIds ?? []).includes(service.id)).map((p) => p.id),
   )
@@ -40,13 +42,13 @@ export function ServiceProfessionalsForm({
     setError(null)
     setSavedAt(null)
     startTransition(async () => {
-      const res = await setServiceProfessionals(service.id, Array.from(selected))
+      const res = await setServiceMemberOperations(service.id, Array.from(selected))
       if (!res.ok) setError(res.error)
       else setSavedAt(new Date().toLocaleTimeString('pt-BR'))
     })
   }
 
-  if (professionals.length === 0) {
+  if (memberOperations.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
         Cadastre profissionais primeiro em <strong>Profissionais</strong>.

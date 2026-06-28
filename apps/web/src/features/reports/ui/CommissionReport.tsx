@@ -251,8 +251,10 @@ export function CommissionReport({
             </thead>
             <tbody>
               {coveredByMember.map((row) => (
-                <tr key={row.professionalId}>
-                  <td className="font-medium">{memberNameByUserId[row.professionalId] ?? '—'}</td>
+                <tr key={row.memberOperationId}>
+                  <td className="font-medium">
+                    {memberNameByUserId[row.memberOperationId] ?? '—'}
+                  </td>
                   <td className="text-right tabular-nums">{row.count}</td>
                   <td className="text-right tabular-nums">{formatBRL(row.catalogValueCents)}</td>
                 </tr>

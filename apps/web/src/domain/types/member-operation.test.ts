@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isOperational } from './enums'
-import { professionalsForService, type Professional } from './professional'
+import { memberOperationsForService, type MemberOperation } from './member-operation'
 
 describe('isOperational (#753 gate)', () => {
   it('only passes status="operational"', () => {
@@ -10,7 +10,7 @@ describe('isOperational (#753 gate)', () => {
   })
 })
 
-function buildPro(overrides: Partial<Professional> = {}): Professional {
+function buildPro(overrides: Partial<MemberOperation> = {}): MemberOperation {
   return {
     id: 'p1',
     orgId: 't1',
@@ -29,30 +29,30 @@ function buildPro(overrides: Partial<Professional> = {}): Professional {
   }
 }
 
-describe('professionalsForService (#876)', () => {
-  it('returns empty when no professional executes the service', () => {
+describe('memberOperationsForService (#876)', () => {
+  it('returns empty when no memberOperation executes the service', () => {
     expect(
-      professionalsForService([buildPro({ catalogServiceIds: ['s2'] })], 's1', 'u1'),
+      memberOperationsForService([buildPro({ catalogServiceIds: ['s2'] })], 's1', 'u1'),
     ).toHaveLength(0)
   })
 
-  it('returns only professionals at the given unit', () => {
+  it('returns only memberOperations at the given unit', () => {
     const a = buildPro({ id: 'a', name: 'Ana', unitIds: ['u1'], catalogServiceIds: ['s1'] })
     const b = buildPro({ id: 'b', name: 'Bia', unitIds: ['u2'], catalogServiceIds: ['s1'] })
-    const list = professionalsForService([a, b], 's1', 'u1')
+    const list = memberOperationsForService([a, b], 's1', 'u1')
     expect(list.map((p) => p.id)).toEqual(['a'])
   })
 
   it('handles multiple services on a single pro', () => {
     const a = buildPro({ id: 'a', catalogServiceIds: ['s1', 's2', 's3'], unitIds: ['u1'] })
-    expect(professionalsForService([a], 's2', 'u1')).toHaveLength(1)
-    expect(professionalsForService([a], 's4', 'u1')).toHaveLength(0)
+    expect(memberOperationsForService([a], 's2', 'u1')).toHaveLength(1)
+    expect(memberOperationsForService([a], 's4', 'u1')).toHaveLength(0)
   })
 
   it('multi-unit pro shows up at each of its units (for the same service)', () => {
     const a = buildPro({ id: 'a', unitIds: ['u1', 'u2'], catalogServiceIds: ['s1'] })
-    expect(professionalsForService([a], 's1', 'u1')).toHaveLength(1)
-    expect(professionalsForService([a], 's1', 'u2')).toHaveLength(1)
-    expect(professionalsForService([a], 's1', 'u3')).toHaveLength(0)
+    expect(memberOperationsForService([a], 's1', 'u1')).toHaveLength(1)
+    expect(memberOperationsForService([a], 's1', 'u2')).toHaveLength(1)
+    expect(memberOperationsForService([a], 's1', 'u3')).toHaveLength(0)
   })
 })

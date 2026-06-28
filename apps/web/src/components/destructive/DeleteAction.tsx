@@ -184,7 +184,7 @@ export function ConfirmDeleteDialog({
 // standalone (own-trigger) form; for a ⋯ overflow menu use `RowActions`, which
 // drives the same `ConfirmDeleteDialog`.
 //
-// Disabled tier (kept for professional, where an active membership hard-blocks
+// Disabled tier (kept for memberOperation, where an active membership hard-blocks
 // and the lifecycle is a separate offboarding flow, 0041): `canDelete={false}` +
 // `disabledReason` renders a disabled trigger that explains itself.
 export function DeleteAction({

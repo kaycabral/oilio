@@ -65,7 +65,7 @@ export async function loadOrderDetailPage(orderId: string): Promise<OrderDetailP
     // Unified catalog (brief 0023, #1004): one read, split by kind below.
     listCatalogItems(ctx.membership.orgId, { activeOnly: true }),
     // Membros operáveis (brief 0030, AC-04): fonte do controle de atribuição por
-    // membro — qualquer membro, não só Professional. Atribui o `userId`.
+    // membro — qualquer membro, não só MemberOperation. Atribui o `userId`.
     listOrgMembers(ctx.membership.orgId),
     // Comissões aparecem quando order está fechada — read-only.
     order.status === 'closed'

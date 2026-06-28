@@ -64,7 +64,7 @@ export default async function PublicOrgPage({ params }: PageProps) {
         unit={bundle.unit}
         slug={slug}
         catalogServiceItems={bundle.catalogServiceItems}
-        professional={bundle.professional}
+        memberOperation={bundle.memberOperation}
         showUnitHeader={false}
         coverageBanner={coverageBanner}
       />

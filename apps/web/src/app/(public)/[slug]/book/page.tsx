@@ -1,7 +1,7 @@
 import { DEFAULT_CANCELLATION_POLICY, appointmentAgenda, isOperational } from '@/domain'
 import { getPublicOrgBundle } from '@/features/self-book/adapters/public-org'
 import { BookingForm } from '@/features/self-book/ui/BookingForm'
-import { listProfessionalsForOrg } from '@/shared/org/professional-read'
+import { listMemberOperationsForOrg } from '@/shared/org/member-operation-read'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -23,11 +23,11 @@ export default async function PublicBookingPage({ params }: PageProps) {
   const { org, catalogServiceItems } = bundle
   if (catalogServiceItems.length === 0) notFound()
 
-  const [units, allProfessionals] = await Promise.all([
+  const [units, allMemberOperations] = await Promise.all([
     // PII-free public surface: `listStoredUnitsForOrg` reads the typed `units`
     // table under RLS without merging the `units_pii` contact channels.
     listStoredUnitsForOrg(org.id),
-    listProfessionalsForOrg(org.id),
+    listMemberOperationsForOrg(org.id),
   ])
 
   const unitNameById = new Map(units.map((u) => [u.id, u.name]))
@@ -37,7 +37,7 @@ export default async function PublicBookingPage({ params }: PageProps) {
   const cancellationPolicy =
     units.map((u) => appointmentAgenda(u.agenda)?.cancellationPolicy).find((p) => p != null) ??
     DEFAULT_CANCELLATION_POLICY
-  const professionals = allProfessionals
+  const memberOperations = allMemberOperations
     .filter((p) => p.unitIds.length > 0)
     .filter((p) => isOperational(p.operationalStatus))
     .map((p) => ({
@@ -62,7 +62,7 @@ export default async function PublicBookingPage({ params }: PageProps) {
           durationMinutes: s.durationMinutes,
           priceCents: s.priceCents,
         }))}
-        professionals={professionals}
+        memberOperations={memberOperations}
         cancellationPolicy={cancellationPolicy}
       />
     </main>

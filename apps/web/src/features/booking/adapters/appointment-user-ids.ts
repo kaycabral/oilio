@@ -1,9 +1,9 @@
-// Resolves the `customerUserId` / `professionalUserId` denormalized FKs we
+// Resolves the `customerUserId` / `memberOperatorUserId` denormalized FKs we
 // stamp on every Appointment write — the duplication that powers
 // CollectionGroup history queries (#832, see Wiki § Visibilidade de histórico).
 //
 // Both fields are read straight from the source-of-truth (`Customer.userId`
-// and `Professional.userId`) at write time. We never accept them from
+// and `MemberOperation.userId`) at write time. We never accept them from
 // caller-supplied form data, so the data path can't drift out of sync.
 
 import { readUnderRls } from '@/shared/db/pg/rls-read'
@@ -16,7 +16,7 @@ type UserIdRow = { user_id: string | null }
 
 async function readUserIdRow(
   orgId: string,
-  collection: 'customers' | 'professionals',
+  collection: 'customers' | 'member_operations',
   id: string,
 ): Promise<UserIdRow | undefined> {
   const rows = await readUnderRls<UserIdRow>(orgId, (client) =>
@@ -32,7 +32,7 @@ async function readUserIdRow(
 
 export type ResolvedAppointmentUserIds = {
   customerUserId: string
-  professionalUserId: string | null
+  memberOperatorUserId: string | null
 }
 
 type Resolution = { ok: true; ids: ResolvedAppointmentUserIds } | { ok: false; error: string }
@@ -40,15 +40,15 @@ type Resolution = { ok: true; ids: ResolvedAppointmentUserIds } | { ok: false; e
 export async function resolveAppointmentUserIds(
   orgId: string,
   customerId: string,
-  professionalId: string,
+  memberOperationId: string,
 ): Promise<Resolution> {
-  const [customerRow, professionalRow] = await Promise.all([
+  const [customerRow, memberOperationRow] = await Promise.all([
     readUserIdRow(orgId, 'customers', customerId),
-    readUserIdRow(orgId, 'professionals', professionalId),
+    readUserIdRow(orgId, 'member_operations', memberOperationId),
   ])
 
   if (!customerRow) return { ok: false, error: 'Cliente não encontrado' }
-  if (!professionalRow) return { ok: false, error: 'Profissional não encontrado' }
+  if (!memberOperationRow) return { ok: false, error: 'Profissional não encontrado' }
 
   const customerUserId = customerRow.user_id
   if (!customerUserId) {
@@ -58,7 +58,7 @@ export async function resolveAppointmentUserIds(
     return { ok: false, error: 'Customer sem userId — schema inconsistente' }
   }
 
-  const professionalUserId = professionalRow.user_id ?? null
+  const memberOperatorUserId = memberOperationRow.user_id ?? null
 
-  return { ok: true, ids: { customerUserId, professionalUserId } }
+  return { ok: true, ids: { customerUserId, memberOperatorUserId } }
 }

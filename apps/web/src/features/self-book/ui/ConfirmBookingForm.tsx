@@ -27,10 +27,10 @@ export function ConfirmBookingForm({
   slug,
   unitSlug,
   serviceId,
-  professionalId,
+  memberOperationId,
   startAtIso,
   serviceLabel,
-  professionalLabel,
+  memberOperationLabel,
   startAtLabel,
   cancellationPolicy,
   changeSlotHref,
@@ -41,10 +41,10 @@ export function ConfirmBookingForm({
   slug: string
   unitSlug: string
   serviceId: string
-  professionalId: string
+  memberOperationId: string
   startAtIso: string
   serviceLabel: string
-  professionalLabel: string
+  memberOperationLabel: string
   startAtLabel: string
   cancellationPolicy: CancellationPolicy
   changeSlotHref: string
@@ -96,7 +96,7 @@ export function ConfirmBookingForm({
     formData.set('slug', slug)
     formData.set('unitSlug', unitSlug)
     formData.set('serviceId', serviceId)
-    formData.set('professionalId', professionalId)
+    formData.set('memberOperationId', memberOperationId)
     formData.set('startAt', startAtIso)
     startTransition(async () => {
       const res = await createWizardBooking(formData)
@@ -125,7 +125,7 @@ export function ConfirmBookingForm({
         <dt className="text-muted-foreground">Serviço</dt>
         <dd>{serviceLabel}</dd>
         <dt className="text-muted-foreground">Profissional</dt>
-        <dd>{professionalLabel}</dd>
+        <dd>{memberOperationLabel}</dd>
         <dt className="text-muted-foreground">Quando</dt>
         <dd>{startAtLabel}</dd>
       </dl>

@@ -67,6 +67,13 @@ export {
   normalizeInviteEmail,
 } from './types/invite'
 export {
+  CommissionRule,
+  MemberOperation,
+  MemberOperationPii,
+  StoredMemberOperation,
+  memberOperationsForService,
+} from './types/member-operation'
+export {
   Membership,
   MembershipPermissions,
   defaultPermissionsForRole,
@@ -100,13 +107,6 @@ export {
   normalizeOrgBranding,
 } from './types/org'
 export { OrgLink, orgLinkDocPath } from './types/org-link'
-export {
-  CommissionRule,
-  Professional,
-  ProfessionalPii,
-  StoredProfessional,
-  professionalsForService,
-} from './types/professional'
 export {
   Address,
   BusinessHours,

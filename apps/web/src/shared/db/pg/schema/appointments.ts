@@ -12,8 +12,8 @@ import {
 } from 'drizzle-orm/pg-core'
 import { catalogItems } from './catalog-items'
 import { customers } from './customers'
+import { memberOperations } from './member_operations'
 import { orgs } from './orgs'
-import { professionals } from './professionals'
 import { units } from './units'
 
 /**
@@ -37,7 +37,7 @@ import { units } from './units'
  * constrains; the composite snapshots (commission rule, cancellation policy) are
  * JSONB. The optional transition-tracking fields (cancel/reschedule/no-show
  * metadata) live in a single `tracking` JSONB blob — they are sparse and not
- * primary-metric invariants. PII (ADR 0010 D2): customer/professional are
+ * primary-metric invariants. PII (ADR 0010 D2): customer/memberOperation are
  * id-refs (`customer_id`/`customer_user_id`/`professional_*`), never inline PII.
  */
 export const appointments = pgTable(
@@ -52,11 +52,11 @@ export const appointments = pgTable(
     lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── References (PII by id-ref; ADR 0010 D2) ─────────────────────────────
-    professionalId: text('professional_id').notNull(),
+    memberOperationId: text('member_operation_id').notNull(),
     customerId: text('customer_id').notNull(),
     serviceId: text('service_id').notNull(),
     customerUserId: text('customer_user_id').notNull(),
-    professionalUserId: text('professional_user_id'),
+    memberOperatorUserId: text('member_operator_user_id'),
 
     // ── Schedule + lifecycle ────────────────────────────────────────────────
     // `timestamptz` (not text): the anti-double-book GiST exclusion constraint
@@ -109,16 +109,16 @@ export const appointments = pgTable(
     // cross-aggregate composite FKs.
     primaryKey({ columns: [table.orgId, table.id], name: 'appointments_pkey' }),
     // Cross-aggregate composite FKs (org-scoped). `customer_user_id`/
-    // `professional_user_id` are global userId snapshots (LGPD) — NOT FKs.
+    // `member_operator_user_id` are global userId snapshots (LGPD) — NOT FKs.
     foreignKey({
       name: 'appointments_unit_id_fk',
       columns: [table.orgId, table.unitId],
       foreignColumns: [units.orgId, units.id],
     }).onDelete('restrict'),
     foreignKey({
-      name: 'appointments_professional_id_fk',
-      columns: [table.orgId, table.professionalId],
-      foreignColumns: [professionals.orgId, professionals.id],
+      name: 'appointments_member_operation_id_fk',
+      columns: [table.orgId, table.memberOperationId],
+      foreignColumns: [memberOperations.orgId, memberOperations.id],
     }).onDelete('restrict'),
     foreignKey({
       name: 'appointments_customer_id_fk',
@@ -135,8 +135,8 @@ export const appointments = pgTable(
     }).onDelete('restrict'),
     // Agenda reads filter by org + unit, sorted by start time.
     index('appointments_org_id_unit_id_start_idx').on(table.orgId, table.unitId, table.startAt),
-    // Professional's agenda within an org.
-    index('appointments_org_id_professional_idx').on(table.orgId, table.professionalId),
+    // MemberOperation's agenda within an org.
+    index('appointments_org_id_member_operation_idx').on(table.orgId, table.memberOperationId),
   ],
 )
 

@@ -24,7 +24,7 @@ test.describe(
   'brief 0019 — Feature-level DoD § Scenario 1 (unitAllowlist)',
   { tag: '@critical' },
   () => {
-    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, memberOperationCount: 1 } })
 
     test('plano com unitAllowlist filtra self-book do assinante; avulso vê todas', async ({
       org,

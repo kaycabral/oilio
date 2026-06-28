@@ -21,13 +21,13 @@ import {
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { listAgendaBlocksForUnit } from '@/shared/org/agenda-block-read'
 import { listUnitAppointmentsInRange } from '@/shared/org/appointment-read'
+import { listMemberOperationsForServiceInUnit } from '@/shared/org/member-operation-read'
 import { getOrgBySlug } from '@/shared/org/org'
-import { listProfessionalsForServiceInUnit } from '@/shared/org/professional-read'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
 import 'server-only'
 
 // Public availability payload for `/{orgSlug}/{unitSlug}/availability` (#842).
-// Returns the slot grid for `date` plus the professionals (id+name only) so
+// Returns the slot grid for `date` plus the memberOperations (id+name only) so
 // the UI can label rows without a second round-trip. PII never leaves the
 // admin SDK boundary.
 export type PublicAvailability = {
@@ -36,7 +36,7 @@ export type PublicAvailability = {
   service: CatalogServiceItem
   date: string
   slots: AvailabilitySlot[]
-  professionals: Array<{ id: string; name: string }>
+  memberOperations: Array<{ id: string; name: string }>
 }
 
 export async function getPublicAvailability(
@@ -45,7 +45,7 @@ export async function getPublicAvailability(
   opts: {
     serviceId: string
     date: string
-    professionalId?: string | null
+    memberOperationId?: string | null
     // Temporal scope from the customer's active subscription (brief 0019,
     // Group B — AC-07). Null/undefined = unrestricted, matching the
     // avulso path. Caller resolves this via `resolveCustomerSubscriptionScope`.
@@ -77,14 +77,14 @@ export async function getPublicAvailability(
   if (!Array.isArray(item.unitIds) || !item.unitIds.includes(unit.id)) return null
   const service: CatalogServiceItem = item
 
-  // Inverse query (brief 0068 D3): the operational professionals who perform this
-  // service at this unit — served by the `professional_units`/`professional_services`
-  // joins, replacing fetch-all + `professionalsForService` + operational filter in
+  // Inverse query (brief 0068 D3): the operational memberOperations who perform this
+  // service at this unit — served by the `member_operation_units`/`member_operation_services`
+  // joins, replacing fetch-all + `memberOperationsForService` + operational filter in
   // JS. Identity (name) is merged from the global User; only `id`+`name` leave this
   // boundary below (PII never leaves it).
-  let candidates = await listProfessionalsForServiceInUnit(org.id, service.id, unit.id)
-  if (opts.professionalId) {
-    candidates = candidates.filter((p) => p.id === opts.professionalId)
+  let candidates = await listMemberOperationsForServiceInUnit(org.id, service.id, unit.id)
+  if (opts.memberOperationId) {
+    candidates = candidates.filter((p) => p.id === opts.memberOperationId)
   }
 
   if (candidates.length === 0) {
@@ -94,7 +94,7 @@ export async function getPublicAvailability(
       service,
       date: opts.date,
       slots: [],
-      professionals: [],
+      memberOperations: [],
     }
   }
 
@@ -114,7 +114,7 @@ export async function getPublicAvailability(
   const rawSlots = computeAvailabilityForDay({
     service,
     unitId: unit.id,
-    professionals: candidates,
+    memberOperations: candidates,
     unitBusinessHours: unitBusinessHours(unit.agenda),
     appointments,
     blockSegments,
@@ -143,6 +143,6 @@ export async function getPublicAvailability(
     service,
     date: opts.date,
     slots,
-    professionals: candidates.map((p) => ({ id: p.id, name: p.name })),
+    memberOperations: candidates.map((p) => ({ id: p.id, name: p.name })),
   }
 }

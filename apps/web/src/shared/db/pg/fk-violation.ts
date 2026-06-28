@@ -3,7 +3,7 @@ import * as Cause from 'effect/Cause'
 /**
  * Postgres SQLSTATE for a foreign-key violation. Raised when a hard-delete of a
  * parent projection row is refused by an `ON DELETE RESTRICT` cross-aggregate FK
- * (brief 0068 D2): deleting a unit/customer/professional/catalog-item/subscription
+ * (brief 0068 D2): deleting a unit/customer/memberOperation/catalog-item/subscription
  * that still has dependent rows (orders, charges, appointments, …).
  */
 export const FOREIGN_KEY_VIOLATION = '23503'

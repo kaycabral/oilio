@@ -5,7 +5,7 @@
 //
 // The guarantee is the database's: the `appointments_no_double_book` GiST EXCLUDE
 // constraint (migration 0013) refuses two `scheduled` appointments for the same
-// org + professional whose `[start_at, end_at)` intervals overlap. The
+// org + memberOperation whose `[start_at, end_at)` intervals overlap. The
 // `commitAppointmentBooking` adapter emits `appointment.created` through the event
 // store (projection INSERT in the SAME tx); a conflicting slot raises 23P01 and
 // the tx rolls back → `{ ok: false, error: 'slot_taken' }`. The loser logs the
@@ -38,7 +38,7 @@ function buildAppointment(
     id,
     orgId,
     unitId: 'u1',
-    professionalId: 'p1',
+    memberOperationId: 'p1',
     customerId: `c-${id}`,
     serviceId: 's1',
     startAt: startAtIso,
@@ -49,14 +49,14 @@ function buildAppointment(
     commissionSnapshot: null,
     cancellationPolicySnapshot: null,
     customerUserId: `u-${id}`,
-    professionalUserId: null,
+    memberOperatorUserId: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
 }
 
 // Parent rows the new D2/0068 cross-aggregate FKs require: the appointment
-// references org, unit (u1), professional (p1/p2), service catalog item (s1) and
+// references org, unit (u1), memberOperation (p1/p2), service catalog item (s1) and
 // the per-appointment customer. The first four are seeded once in beforeEach; the
 // customer (dynamic id `c-${id}`) is seeded just-in-time inside `commit`.
 async function seedOrg(orgId: string): Promise<void> {
@@ -77,18 +77,18 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
   )
 }
 
-async function seedProfessional(orgId: string, professionalId: string): Promise<void> {
+async function seedMemberOperation(orgId: string, memberOperationId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'professional','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
+     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'member_operator','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
-    [orgId, professionalId],
+    [orgId, memberOperationId],
   )
   await getEventStorePool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+    `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
-    [orgId, professionalId],
+    [orgId, memberOperationId],
   )
 }
 
@@ -128,12 +128,12 @@ describe('commitAppointmentBooking — Postgres anti-double-book (#843)', () => 
     orgId = uniqueOrgId('book')
     warnSpy.mockClear()
     await getEventStorePool().query(
-      'TRUNCATE events, projections, appointments, customers, professionals, catalog_items, units, orgs CASCADE',
+      'TRUNCATE events, projections, appointments, customers, member_operations, catalog_items, units, orgs CASCADE',
     )
     await seedOrg(orgId)
     await seedUnit(orgId, 'u1')
-    await seedProfessional(orgId, 'p1')
-    await seedProfessional(orgId, 'p2')
+    await seedMemberOperation(orgId, 'p1')
+    await seedMemberOperation(orgId, 'p2')
     await seedService(orgId, 's1')
   })
 
@@ -155,7 +155,7 @@ describe('commitAppointmentBooking — Postgres anti-double-book (#843)', () => 
     expect(written?.endAt).toBe('2026-08-15T13:30:00.000Z')
   })
 
-  it('rejects an overlapping appointment for the same professional', async () => {
+  it('rejects an overlapping appointment for the same memberOperation', async () => {
     await commit(orgId, buildAppointment(orgId, 'first', '2026-08-15T13:00:00.000Z'))
 
     const res = await commit(
@@ -170,7 +170,7 @@ describe('commitAppointmentBooking — Postgres anti-double-book (#843)', () => 
     expect(warnSpy).toHaveBeenCalledTimes(1)
     expect(warnSpy).toHaveBeenCalledWith(
       'appointment.double_book_blocked',
-      expect.objectContaining({ appointmentId: 'second', professionalId: 'p1' }),
+      expect.objectContaining({ appointmentId: 'second', memberOperationId: 'p1' }),
     )
   })
 
@@ -205,11 +205,11 @@ describe('commitAppointmentBooking — Postgres anti-double-book (#843)', () => 
     for (const f of failures) expect(f).toEqual({ ok: false, error: 'slot_taken' })
   }, 30_000)
 
-  it('lets two different professionals book the same slot', async () => {
+  it('lets two different memberOperations book the same slot', async () => {
     const startAt = '2026-08-15T15:00:00.000Z'
     const apptA = buildAppointment(orgId, 'a', startAt)
     const apptB = buildAppointment(orgId, 'b', startAt)
-    const withPro2: Appointment = { ...apptB, professionalId: 'p2' }
+    const withPro2: Appointment = { ...apptB, memberOperationId: 'p2' }
     const [resA, resB] = await Promise.all([commit(orgId, apptA), commit(orgId, withPro2)])
     expect(resA).toEqual({ ok: true })
     expect(resB).toEqual({ ok: true })

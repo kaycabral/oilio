@@ -1,27 +1,27 @@
 import type { Locator, Page } from '@playwright/test'
 
-// Encapsulates the professional operational surface. Since brief 0037 #1085
-// the standalone `/professionals` route is gone: the listing lives in `/team`
+// Encapsulates the memberOperation operational surface. Since brief 0037 #1085
+// the standalone `/memberOperations` route is gone: the listing lives in `/team`
 // (members) and the operational edit lives in the member detail at
 // `/team/{userId}`, behind an "Editar" affordance. The fixture derives each
-// seeded pro's userId as `e2e-prof-user-{professionalId}`.
-export class ProfessionalsPage {
+// seeded pro's userId as `e2e-prof-user-{memberOperationId}`.
+export class MemberOperationsPage {
   constructor(private readonly page: Page) {}
 
-  // The team page is the people-management surface (no more `/professionals`).
+  // The team page is the people-management surface (no more `/memberOperations`).
   async gotoList(): Promise<void> {
     await this.page.goto('/team')
   }
 
-  // Member detail for a professional, keyed by the membership userId.
+  // Member detail for a memberOperation, keyed by the membership userId.
   async gotoByUserId(userId: string): Promise<void> {
     await this.page.goto(`/team/${userId}`)
   }
 
   // Convenience: navigate to a seeded pro's member detail from its projection
-  // id (the fixture's `org.professionalIds[i]`), deriving the userId.
-  async gotoById(professionalId: string): Promise<void> {
-    await this.gotoByUserId(`e2e-prof-user-${professionalId}`)
+  // id (the fixture's `org.memberOperationIds[i]`), deriving the userId.
+  async gotoById(memberOperationId: string): Promise<void> {
+    await this.gotoByUserId(`e2e-prof-user-${memberOperationId}`)
   }
 
   // Since the brief 0037 refino (review 2026-06-02) there is no "Editar" gate:

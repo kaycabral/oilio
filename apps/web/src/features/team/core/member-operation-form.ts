@@ -1,4 +1,4 @@
-// Pure professional-form parsing/validation, extracted from the `'use server'`
+// Pure memberOperation-form parsing/validation, extracted from the `'use server'`
 // actions (Functional Core / Imperative Shell) so it's importable + unit-tested.
 // No I/O — the actions keep the Firestore writes + event emission. The
 // service↔unit intersection invariant (#876) stays in the actions because it
@@ -8,14 +8,14 @@ import { type CommissionRule, type TaxIdentity } from '@/domain'
 import { formString } from '@/shared/form-data'
 import { parseTaxIdentityFromForm } from '@/shared/org/tax-identity'
 
-export type ProfessionalPayload = {
+export type MemberOperationPayload = {
   taxIdentity: TaxIdentity | null
   defaultCommission: CommissionRule | null
   unitIds: string[]
   catalogServiceIds: string[]
 }
 
-export function parseProfessionalForm(formData: FormData): ProfessionalPayload | string {
+export function parseMemberOperationForm(formData: FormData): MemberOperationPayload | string {
   const taxIdentity = parseTaxIdentityFromForm(formData)
   if (typeof taxIdentity === 'string') return taxIdentity
 

@@ -19,7 +19,7 @@ export type AppointmentInterval = {
 // lets callers decode only these fields at the read boundary.
 export type AppointmentForOverlap = {
   readonly id: string
-  readonly professionalId: string
+  readonly memberOperationId: string
   readonly startAt: string
   readonly endAt: string
   readonly status: string
@@ -35,7 +35,7 @@ export type AppointmentConflict =
 
 function appointmentConflicts(
   proposed: AppointmentInterval,
-  professionalId: string,
+  memberOperationId: string,
   existing: readonly AppointmentForOverlap[],
   excludeAppointmentId: string | null | undefined,
 ): AppointmentConflict[] {
@@ -43,7 +43,7 @@ function appointmentConflicts(
     .filter(
       (a) =>
         a.status !== 'cancelled' &&
-        a.professionalId === professionalId &&
+        a.memberOperationId === memberOperationId &&
         !(excludeAppointmentId && a.id === excludeAppointmentId) &&
         intervalsOverlap(proposed, a),
     )
@@ -52,13 +52,13 @@ function appointmentConflicts(
 
 function blockConflicts({
   proposed,
-  professionalId,
+  memberOperationId,
   blockSegments,
   date,
   tz,
 }: {
   proposed: AppointmentInterval
-  professionalId: string
+  memberOperationId: string
   blockSegments: readonly BlockSegment[]
   date: string
   tz: string
@@ -73,11 +73,11 @@ function blockConflicts({
 
   // Block segments are minutes-from-midnight on the target date. A segment
   // conflicts when it overlaps [startMin, endMin) and applies to this
-  // professional (unit-wide or matching id).
+  // memberOperation (unit-wide or matching id).
   return blockSegments
     .filter(
       (seg) =>
-        (seg.professionalId === null || seg.professionalId === professionalId) &&
+        (seg.memberOperationId === null || seg.memberOperationId === memberOperationId) &&
         startMin < seg.endMin &&
         seg.startMin < endMin,
     )
@@ -85,14 +85,14 @@ function blockConflicts({
 }
 
 // Finds appointments and blocks that overlap the proposed interval for a given
-// professional on a given local day. Cancelled appointments are ignored.
+// memberOperation on a given local day. Cancelled appointments are ignored.
 //
-// - `existing` should be pre-filtered to the same unit + professional + day.
+// - `existing` should be pre-filtered to the same unit + memberOperation + day.
 // - `blockSegments` are already resolved for the day in org tz.
 // - `excludeAppointmentId` skips a specific appointment id (for edit flows).
 export function findAppointmentConflicts({
   proposed,
-  professionalId,
+  memberOperationId,
   existing,
   blockSegments,
   date,
@@ -100,7 +100,7 @@ export function findAppointmentConflicts({
   excludeAppointmentId,
 }: {
   proposed: AppointmentInterval
-  professionalId: string
+  memberOperationId: string
   existing: readonly AppointmentForOverlap[]
   blockSegments: readonly BlockSegment[]
   date: string
@@ -108,7 +108,7 @@ export function findAppointmentConflicts({
   excludeAppointmentId?: string | null
 }): AppointmentConflict[] {
   return [
-    ...appointmentConflicts(proposed, professionalId, existing, excludeAppointmentId),
-    ...blockConflicts({ proposed, professionalId, blockSegments, date, tz }),
+    ...appointmentConflicts(proposed, memberOperationId, existing, excludeAppointmentId),
+    ...blockConflicts({ proposed, memberOperationId, blockSegments, date, tz }),
   ]
 }

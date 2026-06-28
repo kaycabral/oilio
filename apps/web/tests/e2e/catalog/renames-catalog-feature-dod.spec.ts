@@ -1,7 +1,7 @@
 // Feature-level E2E — brief 0052 § Definition of Done (parent #1157, B2).
 //
 // B2 is a PURELY NOMINAL refactor on the critical path: it renames the symbols
-// that say `service` but operate on `catalog_items` — the Professional service
+// that say `service` but operate on `catalog_items` — the MemberOperation service
 // FK list, the RBAC catalog-management permission, the agenda active-service
 // loader, the public-services wrapper, and the public bundle's service slice —
 // all to the `catalog*` vocabulary (see no-legacy-catalog-symbols.mjs for the
@@ -10,7 +10,7 @@
 // booking) — a silent regression would break the agenda. This spec proves the
 // renamed names still drive the same behavior, end-to-end, against the emulator.
 //
-// - Cenário 1 [critical]: booking by professional uses catalogServiceIds —
+// - Cenário 1 [critical]: booking by memberOperation uses catalogServiceIds —
 //   availability lists/allocates the linked pro, drops a slot already taken.
 // - Cenário 3 [critical]: commission by service still accrues identically after
 //   the rename (close an order with a commissionable service → pending record).
@@ -26,7 +26,7 @@ import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
 import { choosePaymentMethod } from '../helpers/select'
 import {
-  linkProfessionalToServices,
+  linkMemberOperationToServices,
   seedAppointment,
   seedCustomer,
   seedService,
@@ -36,7 +36,7 @@ import { AgendaPage, PublicBookingPage, orgSlug } from '../pages'
 
 test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', () => {
   test.describe('Cenário 1 — booking por profissional usa catalogServiceIds', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
     test('availability lista/aloca o pro vinculado via catalogServiceIds e dropa slot tomado', async ({
       org,
@@ -52,7 +52,7 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
       })
       // The link is written through the renamed field (updateMask.fieldPaths=
       // catalogServiceIds) — this is the rename under test driving availability.
-      await linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
+      await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
       const targetDate = nextWeekday('Wed')
       // Pre-take 09:00 BR (12:00 UTC) so that slot is dropped — proves the
@@ -61,7 +61,7 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
       await seedAppointment({
         orgId: org.orgId,
         unitId,
-        professionalId: org.professionalIds[0]!,
+        memberOperationId: org.memberOperationIds[0]!,
         customerId: cust,
         serviceId,
         startAt: `${targetDate}T12:00:00.000Z`,
@@ -91,7 +91,7 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
         publicVisible: true,
         unitIds: [unitId],
       })
-      // Deliberately DO NOT link the professional to the service. With an empty
+      // Deliberately DO NOT link the memberOperation to the service. With an empty
       // catalogServiceIds, the pro must not be offered for this service.
       const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
@@ -103,8 +103,8 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
     test.use({
       orgInput: {
         unitCount: 1,
-        professionalCount: 1,
-        professionalOperationalStatus: 'operational',
+        memberOperationCount: 1,
+        memberOperationOperationalStatus: 'operational',
         hasBusinessHours: true,
         slotMinutes: 30,
       },
@@ -135,7 +135,7 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
         await seedAppointment({
           orgId: org.orgId,
           unitId: org.unitIds[0]!,
-          professionalId: org.professionalIds[0]!,
+          memberOperationId: org.memberOperationIds[0]!,
           customerId,
           serviceId,
           startAt: '2026-09-09T17:00:00.000Z',
@@ -160,7 +160,7 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
         await dialog.getByRole('button', { name: /Confirmar fechamento/ }).click()
         await expect(authedPage.getByText(/Fechada em/)).toBeVisible({ timeout: 5000 })
 
-        // Commission accrued for the executing professional — 50% of R$ 60,00.
+        // Commission accrued for the executing memberOperation — 50% of R$ 60,00.
         await authedPage.goto('/reports/commissions')
         await expect(authedPage.getByText('R$ 30,00').first()).toBeVisible({ timeout: 5000 })
       })

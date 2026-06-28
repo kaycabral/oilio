@@ -11,7 +11,7 @@ import { registerTypedProjector, type TypedProjector } from './typed-projections
  *
  * `upsert` decodes the reduced `state` against the domain `AgendaBlock` union
  * (recurring | one_off). It lifts the `kind` discriminant + scope ids (org/unit/
- * professional) onto columns the DB constrains and rides the full variant body
+ * memberOperation) onto columns the DB constrains and rides the full variant body
  * (reason/weekday/open/close/startAt/endAt) in the `block` JSONB so the read
  * round-trips to the exact union. The DB enforces the invariants — a violation
  * rolls back event + projection together. No PII.
@@ -27,7 +27,7 @@ export const AGENDA_BLOCK_COLUMNS = [
   'unit_id',
   'last_event_version',
   'kind',
-  'professional_id',
+  'member_operation_id',
   'block',
   'created_at',
   'updated_at',
@@ -50,7 +50,7 @@ export function agendaBlockColumnValues(block: AgendaBlock, version: number): un
     block.unitId,
     version,
     block.kind,
-    block.professionalId,
+    block.memberOperationId,
     body,
     block.createdAt,
     block.updatedAt,
@@ -78,7 +78,7 @@ async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDo
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
-// `block` JSONB carries the full variant body; `kind`/`professional_id` are also
+// `block` JSONB carries the full variant body; `kind`/`member_operation_id` are also
 // columns (DB CHECK + queryability) but the body + discriminant reconstruct the
 // exact domain union.
 export type AgendaBlockRow = {
@@ -87,7 +87,7 @@ export type AgendaBlockRow = {
   unit_id: string
   last_event_version: string | number
   kind: 'recurring' | 'one_off'
-  professional_id: string | null
+  member_operation_id: string | null
   block: {
     reason: string
     // Day-name weekday (`'monday'`…) for a recurring block, null for one_off —
@@ -109,7 +109,7 @@ export function rowToDoc(row: AgendaBlockRow): FirestoreDoc {
     id: row.id,
     orgId: row.org_id,
     unitId: row.unit_id,
-    professionalId: row.professional_id,
+    memberOperationId: row.member_operation_id,
     kind: row.kind,
     reason: row.block.reason,
     weekday: row.block.weekday,

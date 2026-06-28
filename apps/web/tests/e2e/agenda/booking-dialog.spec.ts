@@ -1,9 +1,9 @@
 import { expect, test } from '../fixtures'
-import { seedCustomer, seedLoginableProfessional, seedService } from '../helpers/session'
+import { seedCustomer, seedLoginableMemberOperation, seedService } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
 // Retrofit pro PR #724 (issue #636) — internal booking dialog na agenda.
-// O botão "+ Novo" só fica habilitado quando há unit + professional +
+// O botão "+ Novo" só fica habilitado quando há unit + memberOperation +
 // service cadastrados (canCreate em AgendaView). Ao clicar, abre o
 // Radix Dialog com title "Novo agendamento" e os campos do form.
 
@@ -11,15 +11,15 @@ test.describe('Agenda — diálogo de novo agendamento', () => {
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
+      memberOperationCount: 1,
       // `incomplete` so the org fixture seeds NO service (the operational seed
-      // now links one — brief 0068 D3/D4) AND the seeded professional is not
+      // now links one — brief 0068 D3/D4) AND the seeded memberOperation is not
       // bookable. The "+ Novo" gate keys on an active unit + ≥1 BOOKABLE
-      // professional in it (`professionals` derives from
-      // `listBookableProfessionalsForOrg`, brief 0075) + ≥1 catalog service. So
+      // memberOperation in it (`member_operations` derives from
+      // `listBookableMemberOperationsForOrg`, brief 0075) + ≥1 catalog service. So
       // the first test's empty agenda holds; the second seeds both its own
-      // service AND a bookable professional to flip the gate.
-      professionalOperationalStatus: 'incomplete',
+      // service AND a bookable memberOperation to flip the gate.
+      memberOperationOperationalStatus: 'incomplete',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -38,10 +38,10 @@ test.describe('Agenda — diálogo de novo agendamento', () => {
       priceCents: 5000,
       unitIds: [org.unitIds[0]!],
     })
-    // A BOOKABLE professional (operational: whatsapp + unit + service) so the
+    // A BOOKABLE memberOperation (operational: whatsapp + unit + service) so the
     // agenda renders a column and `canCreate` flips on. The seeded fixture pro is
     // `incomplete`, hence non-bookable — it never produced a column.
-    await seedLoginableProfessional(org.orgId, {
+    await seedLoginableMemberOperation(org.orgId, {
       unitIds: [org.unitIds[0]!],
       catalogServiceIds: [serviceId],
     })

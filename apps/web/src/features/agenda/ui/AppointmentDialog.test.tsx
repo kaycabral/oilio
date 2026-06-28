@@ -1,4 +1,4 @@
-import type { Appointment, CatalogServiceItem, Customer, Professional } from '@/domain'
+import type { Appointment, CatalogServiceItem, Customer, MemberOperation } from '@/domain'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppointmentDialog } from './AppointmentDialog'
@@ -44,7 +44,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.routerPush, refresh: mocks.routerRefresh }),
 }))
 
-function buildProfessional(): Professional {
+function buildMemberOperation(): MemberOperation {
   return {
     id: 'p1',
     orgId: 't1',
@@ -103,7 +103,7 @@ function buildAppointment(overrides: Partial<Appointment> = {}): Appointment {
     id: 'a1',
     orgId: 't1',
     unitId: 'u1',
-    professionalId: 'p1',
+    memberOperationId: 'p1',
     customerId: 'c1',
     serviceId: 's1',
     // 2026-05-15 10:00 in America/Sao_Paulo = 13:00 UTC.
@@ -115,7 +115,7 @@ function buildAppointment(overrides: Partial<Appointment> = {}): Appointment {
     commissionSnapshot: null,
     cancellationPolicySnapshot: null,
     customerUserId: 'u1',
-    professionalUserId: null,
+    memberOperatorUserId: null,
     createdAt: '2026-05-15T12:00:00.000Z',
     updatedAt: '2026-05-15T12:00:00.000Z',
     ...overrides,
@@ -127,7 +127,7 @@ function makeBaseProps() {
     open: true,
     onOpenChange: vi.fn(),
     unitId: 'u1',
-    professionals: [buildProfessional()],
+    memberOperations: [buildMemberOperation()],
     services: [buildService()],
     customers: [buildCustomer()],
     date: '2026-05-15',
@@ -226,7 +226,7 @@ describe('AppointmentDialog — reschedule (#639)', () => {
     expect(id).toBe('a1')
     expect(fd.get('startTime')).toBe('11:00')
     expect(fd.get('serviceId')).toBe('s1')
-    expect(fd.get('professionalId')).toBe('p1')
+    expect(fd.get('memberOperationId')).toBe('p1')
     expect(mocks.createAppointment).not.toHaveBeenCalled()
   })
 

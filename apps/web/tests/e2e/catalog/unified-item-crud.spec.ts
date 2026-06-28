@@ -18,10 +18,10 @@ import { chooseOption } from '../helpers/select'
 import { seedCatalogItem, seedCategory } from '../helpers/session'
 
 test.describe('Catálogo unificado — UI (#1005)', () => {
-  // No professionals: the operational fixture seed now links a catalog service to
+  // No memberOperations: the operational fixture seed now links a catalog service to
   // each operational pro (brief 0068 D3/D4), which would defeat the empty-catalog
-  // assertion. These catalog tests need no professional, so seed none.
-  test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
+  // assertion. These catalog tests need no memberOperation, so seed none.
+  test.use({ orgInput: { unitCount: 1, memberOperationCount: 0 } })
 
   test('render + empty state', async ({ authedPage }) => {
     // No catalog items → protagonist empty-state (brief 0034 / #1073): the

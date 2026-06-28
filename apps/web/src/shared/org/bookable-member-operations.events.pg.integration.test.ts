@@ -1,26 +1,26 @@
 import { defaultPermissionsForRole, membershipDocId, type Role } from '@/domain'
-import { MembershipConfig, ProfessionalConfig } from '@/domain/aggregates'
+import { MemberOperationConfig, MembershipConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
-import type { StoredProfessional } from '@/domain/types/professional'
+import type { StoredMemberOperation } from '@/domain/types/member-operation'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import { buildMembership, buildUser } from '@/shared/fixtures/domain-builders'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { listBookableProfessionalsForOrg } from './professional-read'
+import { listBookableMemberOperationsForOrg } from './member-operation-read'
 
 /**
  * The read-path invariant for the agenda against REAL Postgres:
- * `listBookableProfessionalsForOrg` returns ONLY professionals that are BOTH
+ * `listBookableMemberOperationsForOrg` returns ONLY memberOperations that are BOTH
  * operational AND backed by a CURRENTLY active membership carrying the
  * `canBeBooked` capability (brief 0076 AC-03 — the retired `BookableProfessional`
- * brand's role-based filter generalized to the capability). The `professionals`
+ * brand's role-based filter generalized to the capability). The `memberOperations`
  * projection and the capability can diverge — a row can outlive a toggle — so the
  * agenda read cross-checks the projection against the bookable-member set. This
  * fence proves the cross-check in BOTH directions (demotion/toggle-off drops,
  * promotion/toggle-on re-includes), keyed on current state — never history — and
- * the generalization (a non-professional with `canBeBooked` on appears).
+ * the generalization (a non-memberOperation with `canBeBooked` on appears).
  */
 
 const TS = '2026-06-01T12:00:00.000Z'
@@ -101,10 +101,10 @@ async function changeRole(orgId: string, userId: string, role: Role): Promise<vo
   )
 }
 
-// Mint a professional projection through the real write path, plus the linked
+// Mint a memberOperation projection through the real write path, plus the linked
 // global user. `operational` ⇒ user WITH whatsapp + ≥1 unit + ≥1 service;
-// `incomplete` ⇒ user WITHOUT whatsapp. Returns the professional id.
-async function seedProfessionalRow(
+// `incomplete` ⇒ user WITHOUT whatsapp. Returns the memberOperation id.
+async function seedMemberOperationRow(
   orgId: string,
   userId: string,
   opts: { operational?: boolean } = {},
@@ -119,7 +119,7 @@ async function seedProfessionalRow(
     operational ? buildUser(userId, TS, { completionCompleted: true }) : buildUser(userId, TS),
   )
   const id = uid('pro')
-  const pro: StoredProfessional = {
+  const pro: StoredMemberOperation = {
     id,
     orgId,
     userId,
@@ -130,8 +130,8 @@ async function seedProfessionalRow(
     updatedAt: TS,
   }
   await Effect.runPromise(
-    appendEvent(ProfessionalConfig, aggregateRef(ProfessionalConfig, orgId, id), {
-      _tag: 'professional.created',
+    appendEvent(MemberOperationConfig, aggregateRef(MemberOperationConfig, orgId, id), {
+      _tag: 'member_operation.created',
       actorId: 'test',
       payload: { data: pro },
     }).pipe(Effect.provide(PostgresPersistenceLayer)),
@@ -140,9 +140,9 @@ async function seedProfessionalRow(
 }
 
 const TABLES =
-  'events, projections, professional_units, professional_services, professionals, memberships, catalog_items, units, orgs, users'
+  'events, projections, member_operation_units, member_operation_services, member_operations, memberships, catalog_items, units, orgs, users'
 
-describe('listBookableProfessionalsForOrg (agenda read-path invariant)', () => {
+describe('listBookableMemberOperationsForOrg (agenda read-path invariant)', () => {
   beforeEach(async () => {
     await pool().query(`TRUNCATE ${TABLES} CASCADE`)
   })
@@ -150,74 +150,74 @@ describe('listBookableProfessionalsForOrg (agenda read-path invariant)', () => {
     await closeEventStoreDb()
   })
 
-  it('includes an operational professional with an active professional-role membership', async () => {
+  it('includes an operational memberOperation with an active memberOperation-role membership', async () => {
     const t = uniqueOrg()
     const userId = uid('user')
-    await seedMembership(t, userId, 'professional')
-    const proId = await seedProfessionalRow(t, userId, { operational: true })
-    const bookable = await listBookableProfessionalsForOrg(t)
+    await seedMembership(t, userId, 'member_operator')
+    const proId = await seedMemberOperationRow(t, userId, { operational: true })
+    const bookable = await listBookableMemberOperationsForOrg(t)
     expect(bookable.map((p) => p.id)).toEqual([proId])
   })
 
-  it('EXCLUDES a receptionist who wrongly carries a professional row (the Paula bug)', async () => {
+  it('EXCLUDES a receptionist who wrongly carries a memberOperation row (the Paula bug)', async () => {
     const t = uniqueOrg()
     const userId = uid('user')
-    // Membership says receptionist, but a professional row exists for her — a
+    // Membership says receptionist, but a memberOperation row exists for her — a
     // seed/migration leak. The row alone must NOT make her bookable.
     await seedMembership(t, userId, 'receptionist')
-    await seedProfessionalRow(t, userId, { operational: true })
-    expect(await listBookableProfessionalsForOrg(t)).toEqual([])
+    await seedMemberOperationRow(t, userId, { operational: true })
+    expect(await listBookableMemberOperationsForOrg(t)).toEqual([])
   })
 
-  it('EXCLUDES a professional whose profile is incomplete', async () => {
+  it('EXCLUDES a memberOperation whose profile is incomplete', async () => {
     const t = uniqueOrg()
     const userId = uid('user')
-    await seedMembership(t, userId, 'professional')
-    await seedProfessionalRow(t, userId, { operational: false })
-    expect(await listBookableProfessionalsForOrg(t)).toEqual([])
+    await seedMembership(t, userId, 'member_operator')
+    await seedMemberOperationRow(t, userId, { operational: false })
+    expect(await listBookableMemberOperationsForOrg(t)).toEqual([])
   })
 
-  it('EXCLUDES a demoted member whose professional row lingers (reversibility)', async () => {
+  it('EXCLUDES a demoted member whose memberOperation row lingers (reversibility)', async () => {
     const t = uniqueOrg()
     const userId = uid('user')
-    // Created as a professional, operational, then demoted to receptionist. The
+    // Created as a memberOperation, operational, then demoted to receptionist. The
     // projection row is intentionally kept (role-edit-lifecycle), but she must
     // drop off the agenda the moment the role changes.
-    await seedMembership(t, userId, 'professional')
-    await seedProfessionalRow(t, userId, { operational: true })
-    expect((await listBookableProfessionalsForOrg(t)).length).toBe(1)
+    await seedMembership(t, userId, 'member_operator')
+    await seedMemberOperationRow(t, userId, { operational: true })
+    expect((await listBookableMemberOperationsForOrg(t)).length).toBe(1)
     await changeRole(t, userId, 'receptionist')
-    expect(await listBookableProfessionalsForOrg(t)).toEqual([])
+    expect(await listBookableMemberOperationsForOrg(t)).toEqual([])
   })
 
-  it('RE-INCLUDES a member promoted back to professional (current state, not history)', async () => {
+  it('RE-INCLUDES a member promoted back to memberOperation (current state, not history)', async () => {
     const t = uniqueOrg()
     const userId = uid('user')
-    // The professional row already exists (kept from a prior stint); promoting
-    // the membership back to professional re-includes her with no special-casing
+    // The memberOperation row already exists (kept from a prior stint); promoting
+    // the membership back to memberOperation re-includes her with no special-casing
     // — the criterion is the CURRENT role, never history.
     await seedMembership(t, userId, 'receptionist')
-    const proId = await seedProfessionalRow(t, userId, { operational: true })
-    expect(await listBookableProfessionalsForOrg(t)).toEqual([])
-    await changeRole(t, userId, 'professional')
-    expect((await listBookableProfessionalsForOrg(t)).map((p) => p.id)).toEqual([proId])
+    const proId = await seedMemberOperationRow(t, userId, { operational: true })
+    expect(await listBookableMemberOperationsForOrg(t)).toEqual([])
+    await changeRole(t, userId, 'member_operator')
+    expect((await listBookableMemberOperationsForOrg(t)).map((p) => p.id)).toEqual([proId])
   })
 
-  it('EXCLUDES a professional whose membership is not active', async () => {
+  it('EXCLUDES a memberOperation whose membership is not active', async () => {
     const t = uniqueOrg()
     const userId = uid('user')
-    await seedMembership(t, userId, 'professional')
-    await seedProfessionalRow(t, userId, { operational: true })
+    await seedMembership(t, userId, 'member_operator')
+    await seedMemberOperationRow(t, userId, { operational: true })
     // Revoke the membership status directly — the read must drop her even though
-    // the role is still `professional` and the projection row remains.
+    // the role is still `memberOperation` and the projection row remains.
     await pool().query(
       "UPDATE memberships SET status = 'revoked' WHERE org_id = $1 AND user_id = $2",
       [t, userId],
     )
-    expect(await listBookableProfessionalsForOrg(t)).toEqual([])
+    expect(await listBookableMemberOperationsForOrg(t)).toEqual([])
   })
 
-  it('INCLUDES a non-professional member with canBeBooked toggled on (generalization)', async () => {
+  it('INCLUDES a non-memberOperation member with canBeBooked toggled on (generalization)', async () => {
     const t = uniqueOrg()
     const userId = uid('user')
     // A receptionist by role — but the org manually turned `canBeBooked` on
@@ -226,15 +226,15 @@ describe('listBookableProfessionalsForOrg (agenda read-path invariant)', () => {
     // operational profile, they appear on the agenda. This is exactly what the
     // retired `BookableProfessional` role-based brand could NOT express.
     await seedMembership(t, userId, 'receptionist')
-    const proId = await seedProfessionalRow(t, userId, { operational: true })
+    const proId = await seedMemberOperationRow(t, userId, { operational: true })
     // Role-based logic excluded them; capability-based logic does too — UNTIL the
     // capability is toggled on.
-    expect(await listBookableProfessionalsForOrg(t)).toEqual([])
+    expect(await listBookableMemberOperationsForOrg(t)).toEqual([])
     await pool().query(
       `UPDATE memberships SET permissions = jsonb_set(permissions, '{canBeBooked}', 'true')
        WHERE org_id = $1 AND user_id = $2`,
       [t, userId],
     )
-    expect((await listBookableProfessionalsForOrg(t)).map((p) => p.id)).toEqual([proId])
+    expect((await listBookableMemberOperationsForOrg(t)).map((p) => p.id)).toEqual([proId])
   })
 })

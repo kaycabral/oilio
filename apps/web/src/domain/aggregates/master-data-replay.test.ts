@@ -13,8 +13,8 @@ import { CatalogItemConfig } from './catalog-item/config'
 import { CategoryConfig } from './category/config'
 import { CustomerConfig } from './customer/config'
 import { InviteConfig } from './invite/config'
+import { MemberOperationConfig } from './member-operation/config'
 import { OrgConfig } from './org/config'
-import { ProfessionalConfig } from './professional/config'
 import { SubscriptionPlanConfig } from './subscription-plan/config'
 import { UnitConfig } from './unit/config'
 
@@ -109,13 +109,13 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       changes: { name: 'Centro Novo', slug: 'centro-novo' },
     }))
 
-  it('professional', () =>
-    // PII (name/whatsapp/email/taxIdentity) lives in `professionals_pii`,
+  it('member_operator', () =>
+    // PII (name/whatsapp/email/taxIdentity) lives in `member_operations_pii`,
     // never in the event payload (LGPD — #1036). The projection carries only
     // operational fields.
     checkReplay({
-      config: ProfessionalConfig,
-      tag: 'professional',
+      config: MemberOperationConfig,
+      tag: 'member_operator',
       id: 'pro1',
       data: {
         id: 'pro1',

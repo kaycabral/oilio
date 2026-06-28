@@ -21,7 +21,7 @@
 import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
 import {
-  linkProfessionalToServices,
+  linkMemberOperationToServices,
   seedAppointment,
   seedCustomer,
   seedService,
@@ -33,7 +33,7 @@ test.describe(
   'brief 0019 — Feature-level DoD § Scenario 3 (bookingLimits.maxPerDay)',
   { tag: '@critical' },
   () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
     test('cliente com agendamento no dia + maxPerDay=1 → modal de reagendamento', async ({
       org,
@@ -41,14 +41,14 @@ test.describe(
     }) => {
       const slug = orgSlug(org.orgId)
       const unitId = org.unitIds[0]!
-      const professionalId = org.professionalIds[0]!
+      const memberOperationId = org.memberOperationIds[0]!
       const serviceId = await seedService(org.orgId, {
         name: 'Corte Limite',
         durationMinutes: 30,
         publicVisible: true,
         unitIds: [unitId],
       })
-      await linkProfessionalToServices(org.orgId, professionalId, [serviceId])
+      await linkMemberOperationToServices(org.orgId, memberOperationId, [serviceId])
 
       // Assinante = mesma session do org.uid pra customerUserId match.
       // Sememente o whatsapp pra que o upsertCustomerWithUser durante o
@@ -91,7 +91,7 @@ test.describe(
       await seedAppointment({
         orgId: org.orgId,
         unitId,
-        professionalId,
+        memberOperationId,
         customerId,
         serviceId,
         startAt: existingStart,
@@ -105,7 +105,7 @@ test.describe(
       const proposedStart = `${targetDate}T17:00:00.000Z`
       const params = new URLSearchParams({
         service: serviceId,
-        professional: professionalId,
+        memberOperation: memberOperationId,
         start: proposedStart,
       })
       const booking = new PublicBookingPage(authedPage, slug)

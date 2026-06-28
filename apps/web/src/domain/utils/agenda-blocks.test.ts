@@ -8,7 +8,7 @@ const lunch = (id: string): RecurringAgendaBlock => ({
   id,
   orgId: 't1',
   unitId: 'u1',
-  professionalId: 'p1',
+  memberOperationId: 'p1',
   reason: 'Almoço',
   kind: 'recurring',
   weekday: 'thursday',
@@ -24,7 +24,7 @@ const oneOff = (id: string, startUtc: string, endUtc: string): AgendaBlock => ({
   id,
   orgId: 't1',
   unitId: 'u1',
-  professionalId: null,
+  memberOperationId: null,
   reason: 'Feriado',
   kind: 'one_off',
   weekday: null,
@@ -42,7 +42,7 @@ describe('getBlockSegmentsForDay', () => {
     expect(segs).toHaveLength(1)
     expect(segs[0]).toMatchObject({
       blockId: 'b1',
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       reason: 'Almoço',
       startMin: 12 * 60,
       endMin: 13 * 60,
@@ -61,7 +61,7 @@ describe('getBlockSegmentsForDay', () => {
     expect(segs).toHaveLength(1)
     expect(segs[0]).toMatchObject({
       blockId: 'b2',
-      professionalId: null,
+      memberOperationId: null,
       startMin: 14 * 60,
       endMin: 16 * 60,
     })

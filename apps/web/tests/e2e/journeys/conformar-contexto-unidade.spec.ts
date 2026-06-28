@@ -30,7 +30,7 @@
 //   - `/units` (manage the set) is GATED to who operates cross-unit
 //     (`canManageOrg && unitId == null`): owner + org-wide manager manage
 //     it (and creating a 2nd unit still works); a unit-bound manager / receptionist
-//     / professional is redirected to `/agenda`;
+//     / memberOperation is redirected to `/agenda`;
 //   - baseline: operational screens render + empty with the active unit and no
 //     orphan unit controls; switching the unit reflects across screens; creating
 //     a 2nd unit as owner still works; degenerate (unit-bound member has no
@@ -57,7 +57,7 @@ import {
   setMembershipUnitId,
   type SeededOrg,
 } from '../helpers/session'
-import { ProfessionalsPage } from '../pages'
+import { MemberOperationsPage } from '../pages'
 
 const switcher = (page: Page) => page.getByLabel('Contexto da unidade')
 
@@ -167,10 +167,10 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
 
   // Cenário 2 — definição default na ativa, multi-select preservado.
   // With unit X active, a NEW catalog item pre-checks unit X by default but the
-  // owner can still check other units; editing a professional's units keeps the
+  // owner can still check other units; editing a memberOperation's units keeps the
   // existing multi-unit selection (the default never collapses it).
   test.describe('Cenário 2 — definição default na ativa, multi-select preservado', () => {
-    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, memberOperationCount: 1 } })
 
     test('novo item pré-marca a unidade ativa (multi-select preservado); editar profissional mantém a seleção atual', async ({
       context,
@@ -203,11 +203,11 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
       await expect(newUnitOne).toBeChecked()
       await expect(newUnitTwo).toBeChecked()
 
-      // --- Editing a professional's units keeps the existing selection ---
-      // The seeded professional is linked to BOTH units. The active-unit default
+      // --- Editing a memberOperation's units keeps the existing selection ---
+      // The seeded memberOperation is linked to BOTH units. The active-unit default
       // must NOT collapse that down to just the active unit.
-      const proUid = `e2e-prof-user-${org.professionalIds[0]}`
-      const pros = new ProfessionalsPage(authedPage)
+      const proUid = `e2e-prof-user-${org.memberOperationIds[0]}`
+      const pros = new MemberOperationsPage(authedPage)
       await pros.gotoByUserId(proUid)
       const unitsGroup = authedPage.getByRole('group', { name: 'Unidades', exact: true })
       await expect(unitsGroup.locator(`input[name="unitIds"][value="${unitOne}"]`)).toBeChecked()

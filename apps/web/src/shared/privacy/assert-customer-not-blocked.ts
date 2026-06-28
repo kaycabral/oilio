@@ -11,7 +11,7 @@ import 'server-only'
 // The block is detected from the customer shadow's materialized `archived_at`
 // (the fail-safe projection of the LGPD block — the fact of record, set
 // event-first by `blockSubjectInOrg`; see `customer-read.ts`). This is the
-// CUSTOMER relationship only — it never guards the professional/employment
+// CUSTOMER relationship only — it never guards the memberOperation/employment
 // relationship (brief 0041).
 
 // Throws `AuthzError` when `userId` is blocked as a customer in `orgId`.

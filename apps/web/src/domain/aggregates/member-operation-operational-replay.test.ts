@@ -1,13 +1,13 @@
 // #1226 AC-02 (DoD § Replay) — `operationalStatus` is NO LONGER materialized on
-// the professional projection: it is DERIVED on read from real facts
-// (whatsapp ∧ ≥1 unit ∧ ≥1 service). The `professional.activated` /
-// `professional.suspended` events are no longer emitted, but HISTORICAL streams
+// the memberOperation projection: it is DERIVED on read from real facts
+// (whatsapp ∧ ≥1 unit ∧ ≥1 service). The `member_operation.activated` /
+// `member_operation.suspended` events are no longer emitted, but HISTORICAL streams
 // that emitted them must still REPLAY without breaking — the reducer treats them
 // as no-ops. This test proves the replay-safety contract:
 //   - a legacy stream (created → activated → suspended) replays cleanly;
 //   - those transition events leave the state untouched (no-op);
 //   - the replayed state carries no `operationalStatus` field;
-//   - a legacy `professional.created` whose payload still carried
+//   - a legacy `member_operation.created` whose payload still carried
 //     `operationalStatus` decodes (excess property ignored).
 //
 // Also exercises the pure derivation rule (the read-layer gate) so the
@@ -19,10 +19,10 @@ import { describe, expect, it } from 'vitest'
 import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
 import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import { ProfessionalConfig } from './professional/config'
-import { deriveOperationalStatus } from './professional/derive-operational'
+import { MemberOperationConfig } from './member-operation/config'
+import { deriveOperationalStatus } from './member-operation/derive-operational'
 
-// A legacy `professional.created` payload — note it still carries the now-dropped
+// A legacy `member_operation.created` payload — note it still carries the now-dropped
 // `operationalStatus` key (a historical stream). Decode must tolerate it as an
 // excess property (a drop, unlike a rename, needs no normalization).
 const LEGACY_CREATED_DATA = {
@@ -37,32 +37,32 @@ const LEGACY_CREATED_DATA = {
   updatedAt: '2026-06-01T12:00:00.000Z',
 }
 
-describe('Professional operational — legacy activate/suspend events replay as no-ops (#1226 AC-02)', () => {
+describe('MemberOperation operational — legacy activate/suspend events replay as no-ops (#1226 AC-02)', () => {
   it('created → updated → activated → suspended replays cleanly with the transitions as no-ops', async () => {
     const { store, layer } = makeReplayStore()
-    const ref = aggregateRef(ProfessionalConfig, 't1', 'pro1')
+    const ref = aggregateRef(MemberOperationConfig, 't1', 'pro1')
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* appendEvent(ProfessionalConfig, ref, {
-          _tag: 'professional.created',
+        yield* appendEvent(MemberOperationConfig, ref, {
+          _tag: 'member_operation.created',
           actorId: 'actor-1',
           payload: { data: LEGACY_CREATED_DATA },
         })
-        yield* appendEvent(ProfessionalConfig, ref, {
-          _tag: 'professional.updated',
+        yield* appendEvent(MemberOperationConfig, ref, {
+          _tag: 'member_operation.updated',
           actorId: 'actor-1',
           payload: { changes: { unitIds: ['u1'], catalogServiceIds: ['s1'] } },
         })
         // Legacy transition events — no longer emitted, but historical streams
         // have them. The reducer must accept + ignore them.
-        yield* appendEvent(ProfessionalConfig, ref, {
-          _tag: 'professional.activated',
+        yield* appendEvent(MemberOperationConfig, ref, {
+          _tag: 'member_operation.activated',
           actorId: 'actor-1',
           payload: {},
         })
-        yield* appendEvent(ProfessionalConfig, ref, {
-          _tag: 'professional.suspended',
+        yield* appendEvent(MemberOperationConfig, ref, {
+          _tag: 'member_operation.suspended',
           actorId: 'actor-1',
           payload: {},
         })
@@ -70,7 +70,7 @@ describe('Professional operational — legacy activate/suspend events replay as 
     )
 
     const replayed = await Effect.runPromise(
-      replayAggregate(ProfessionalConfig, ref).pipe(Effect.provide(layer)),
+      replayAggregate(MemberOperationConfig, ref).pipe(Effect.provide(layer)),
     )
 
     // Replay matches the projection and reconstructs the real state from the
@@ -89,16 +89,16 @@ describe('Professional operational — legacy activate/suspend events replay as 
 
   it('a legacy created event with the dropped operationalStatus key still decodes', async () => {
     const { layer } = makeReplayStore()
-    const ref = aggregateRef(ProfessionalConfig, 't1', 'pro2')
+    const ref = aggregateRef(MemberOperationConfig, 't1', 'pro2')
     await Effect.runPromise(
-      appendEvent(ProfessionalConfig, ref, {
-        _tag: 'professional.created',
+      appendEvent(MemberOperationConfig, ref, {
+        _tag: 'member_operation.created',
         actorId: 'actor-1',
         payload: { data: { ...LEGACY_CREATED_DATA, id: 'pro2' } },
       }).pipe(Effect.provide(layer)),
     )
     const replayed = await Effect.runPromise(
-      replayAggregate(ProfessionalConfig, ref).pipe(Effect.provide(layer)),
+      replayAggregate(MemberOperationConfig, ref).pipe(Effect.provide(layer)),
     )
     expect(replayed.id).toBe('pro2')
     expect('operationalStatus' in replayed).toBe(false)

@@ -24,7 +24,7 @@ type ServiceOption = {
   priceCents: number
 }
 
-type ProfessionalOption = {
+type MemberOperationOption = {
   id: string
   name: string
   unitName: string
@@ -33,12 +33,12 @@ type ProfessionalOption = {
 export function BookingForm({
   slug,
   services,
-  professionals,
+  memberOperations,
   cancellationPolicy,
 }: {
   slug: string
   services: ServiceOption[]
-  professionals: ProfessionalOption[]
+  memberOperations: MemberOperationOption[]
   cancellationPolicy: CancellationPolicy
 }) {
   const [pending, startTransition] = useTransition()
@@ -79,7 +79,7 @@ export function BookingForm({
     )
   }
 
-  if (professionals.length === 0) {
+  if (memberOperations.length === 0) {
     return (
       <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
         Sem profissionais ativos no momento.
@@ -108,15 +108,15 @@ export function BookingForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="book-professional" className="text-sm font-medium">
+        <Label htmlFor="book-memberOperation" className="text-sm font-medium">
           Profissional
         </Label>
-        <Select name="professionalId" required>
-          <SelectTrigger id="book-professional">
+        <Select name="memberOperationId" required>
+          <SelectTrigger id="book-memberOperation">
             <SelectValue placeholder="Selecione um profissional" />
           </SelectTrigger>
           <SelectContent>
-            {professionals.map((p) => (
+            {memberOperations.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.name} · {p.unitName}
               </SelectItem>

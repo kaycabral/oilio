@@ -32,7 +32,7 @@ async function seedScopeFixture(org: SeededOrg): Promise<{ customerName: string 
   await seedAppointment({
     orgId: org.orgId,
     unitId: org.unitIds[0]!,
-    professionalId: org.professionalIds[0]!,
+    memberOperationId: org.memberOperationIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-08-12T17:00:00.000Z',
@@ -49,8 +49,8 @@ test.describe(
     test.use({
       orgInput: {
         unitCount: 1,
-        professionalCount: 1,
-        professionalOperationalStatus: 'operational',
+        memberOperationCount: 1,
+        memberOperationOperationalStatus: 'operational',
         hasBusinessHours: true,
         slotMinutes: 30,
       },

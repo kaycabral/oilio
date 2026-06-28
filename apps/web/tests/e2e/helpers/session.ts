@@ -38,8 +38,8 @@ export type SeedOrgInput = {
   slotMinutes?: 5 | 10 | 15 | 30
   hasBusinessHours?: boolean
   unitCount?: number
-  professionalCount?: number
-  professionalOperationalStatus?: 'incomplete' | 'operational'
+  memberOperationCount?: number
+  memberOperationOperationalStatus?: 'incomplete' | 'operational'
   // Self-booking publication gate (#988) — controls public page visibility.
   // Default true matches the 99% case where specs target an already-published
   // unit; pass `false` to seed an unpublished one (public page 404s). Per-unit
@@ -60,7 +60,7 @@ export type SeededOrg = {
   password: string
   orgId: string
   unitIds: string[]
-  professionalIds: string[]
+  memberOperationIds: string[]
 }
 
 // Curl-based wrappers — Node's global fetch occasionally exhibits an undici
@@ -121,7 +121,7 @@ import {
   membershipDocId,
   Membership as MembershipSchema,
   Role as RoleSchema,
-  StoredProfessional as StoredProfessionalSchema,
+  StoredMemberOperation as StoredMemberOperationSchema,
   Subscription as SubscriptionSchema,
   type AgendaBlock,
   type AllowedTimeScope,
@@ -136,17 +136,17 @@ import {
   type Commission,
   type Goal,
   type InvitePii,
+  type MemberOperationPii,
   type Membership,
   type MembershipPermissions,
   type Order,
   type OrderCoverage,
   type OrderItem,
-  type ProfessionalPii,
   type Role,
   type StoredCustomer,
   type StoredInvite,
+  type StoredMemberOperation,
   type StoredOrg,
-  type StoredProfessional,
   type StoredUnit,
   type Subscription,
   type SubscriptionPeriod,
@@ -166,10 +166,10 @@ import {
   deriveOperationalStatus,
   GoalConfig,
   InviteConfig,
+  MemberOperationConfig,
   MembershipConfig,
   OrderConfig,
   OrgConfig,
-  ProfessionalConfig,
   SubscriptionConfig,
   SubscriptionPlanConfig,
   UnitConfig,
@@ -205,6 +205,17 @@ import {
   type InviteRow,
 } from '@/shared/db/pg/effect/invite-projector'
 import {
+  MEMBER_OPERATION_COLUMNS,
+  MEMBER_OPERATION_SERVICES_DELETE,
+  MEMBER_OPERATION_SERVICES_INSERT,
+  MEMBER_OPERATION_UNITS_INSERT,
+  memberOperationColumnValues,
+  rowToDoc as memberOperationRowToDoc,
+  memberOperationServiceRows,
+  memberOperationUnitRows,
+  type MemberOperationRow,
+} from '@/shared/db/pg/effect/member-operation-projector'
+import {
   MEMBERSHIP_COLUMNS,
   membershipColumnValues,
   rowToDoc as membershipRowToDoc,
@@ -218,17 +229,6 @@ import {
   publicOrgDirectoryValues,
 } from '@/shared/db/pg/effect/org-projector'
 import {
-  PROFESSIONAL_COLUMNS,
-  PROFESSIONAL_SERVICES_DELETE,
-  PROFESSIONAL_SERVICES_INSERT,
-  PROFESSIONAL_UNITS_INSERT,
-  professionalColumnValues,
-  rowToDoc as professionalRowToDoc,
-  professionalServiceRows,
-  professionalUnitRows,
-  type ProfessionalRow,
-} from '@/shared/db/pg/effect/professional-projector'
-import {
   SUBSCRIPTION_PLAN_COLUMNS,
   subscriptionPlanColumnValues,
 } from '@/shared/db/pg/effect/subscription-plan-projector'
@@ -239,7 +239,7 @@ import {
   type SubscriptionRow,
 } from '@/shared/db/pg/effect/subscription-projector'
 import { UNIT_COLUMNS, unitColumnValues } from '@/shared/db/pg/effect/unit-projector'
-import { upsertInvitePii, upsertProfessionalPii } from '@/shared/db/pg/pii-sidecars-store'
+import { upsertInvitePii, upsertMemberOperationPii } from '@/shared/db/pg/pii-sidecars-store'
 import { upsertUnitsPii } from '@/shared/db/pg/units-pii-store'
 import { getUserById, putUser } from '@/shared/db/pg/users-store'
 import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
@@ -286,7 +286,7 @@ export async function seedGoal(
 // `buildStoredCustomer` (`@/shared/fixtures/domain-builders`), so the seed and the
 // E2E helpers construct identical, strongly-typed domain docs (zero drift).
 
-// Creates a fresh user, org, units, and (optional) professionals seeded
+// Creates a fresh user, org, units, and (optional) memberOperations seeded
 // directly into the Postgres event store. Returns the IDs + login material;
 // pair with `signInAndAttachSession` to authenticate the browser context.
 export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
@@ -294,8 +294,8 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
     slotMinutes = 15,
     hasBusinessHours = true,
     unitCount = 1,
-    professionalCount = 1,
-    professionalOperationalStatus = 'operational',
+    memberOperationCount = 1,
+    memberOperationOperationalStatus = 'operational',
     selfBookingPublished = true,
     vertical = 'barbershop',
     cancellationPolicy,
@@ -316,7 +316,7 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
   const uid = signUp.localId
   await getAdminAuth(adminApp()).updateUser(uid, { emailVerified: true })
 
-  // 2) Seed org + membership + user doc + units + professionals into the
+  // 2) Seed org + membership + user doc + units + memberOperations into the
   //    Postgres event store (event + typed projection per aggregate).
   const orgId = `e2e-org-${uniqueSuffix()}`
   const now = new Date().toISOString()
@@ -452,15 +452,15 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
   }
 
   // Post-D4 (#1226 AC-02) `operationalStatus` is DERIVED on read from whatsapp ∧
-  // ≥1 unit ∧ ≥1 service. So an `operational` professional needs a REAL service
-  // linked in the `professional_services` join (brief 0068 D3) — not just
+  // ≥1 unit ∧ ≥1 service. So an `operational` memberOperation needs a REAL service
+  // linked in the `member_operation_services` join (brief 0068 D3) — not just
   // whatsapp + units. Seed one org service first (FK target must exist before the
   // join insert) and link it below. Named distinctly so it never collides with a
   // spec's own `'Corte'` assertion. Incomplete pros get none (they must derive
   // `incomplete`). Specs that drive incomplete→operational through the UI pass
-  // `professionalOperationalStatus: 'incomplete'` to opt out.
+  // `memberOperationOperationalStatus: 'incomplete'` to opt out.
   const operationalServiceId =
-    professionalCount > 0 && professionalOperationalStatus !== 'incomplete'
+    memberOperationCount > 0 && memberOperationOperationalStatus !== 'incomplete'
       ? await seedService(orgId, {
           name: 'Serviço base',
           durationMinutes: 30,
@@ -471,20 +471,20 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
       : null
 
   // Professionals — each linked to all units
-  const professionalIds: string[] = []
-  for (let i = 0; i < professionalCount; i++) {
+  const memberOperationIds: string[] = []
+  for (let i = 0; i < memberOperationCount; i++) {
     const pid = `e2e-prof-${uniqueSuffix()}`
-    professionalIds.push(pid)
+    memberOperationIds.push(pid)
     const proUid = `e2e-prof-user-${pid}`
     // Identity source of truth (#1046 / brief 0028 AC-04/AC-05): the global
     // User doc. The read path merges name/whatsapp/email LIVE from here.
     //
     // `operationalStatus` is DERIVED on read (#1226 AC-02) from whatsapp ∧ ≥1
     // unit ∧ ≥1 service. The seed controls the whatsapp axis here: an
-    // `incomplete` professional is seeded WITHOUT whatsapp (so the derive floors
+    // `incomplete` memberOperation is seeded WITHOUT whatsapp (so the derive floors
     // at incomplete); an `operational` one has whatsapp + ≥1 unit (below) and
-    // expects the spec to attach ≥1 service via `linkProfessionalToServices`.
-    const wantsOperational = professionalOperationalStatus !== 'incomplete'
+    // expects the spec to attach ≥1 service via `linkMemberOperationToServices`.
+    const wantsOperational = memberOperationOperationalStatus !== 'incomplete'
     await putUserDoc(
       buildUser(proUid, now, {
         email: `prof-${i + 1}-${pid}@e2e.local`,
@@ -495,56 +495,56 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
         claimedAt: now,
       }),
     )
-    // Professional projection — decoded as `StoredProfessional` (omits the PII
-    // name/whatsapp/email/taxIdentity, merged from `users/` + `professionals_pii`,
+    // MemberOperation projection — decoded as `StoredMemberOperation` (omits the PII
+    // name/whatsapp/email/taxIdentity, merged from `users/` + `member_operations_pii`,
     // and `operationalStatus`, derived on read — #1226 AC-02).
-    const proDoc: StoredProfessional = {
+    const proDoc: StoredMemberOperation = {
       id: pid,
       orgId,
       // Non-null userId (#1045 / brief 0028 AC-01) — seeded fixtures honor
-      // the same invariant as the product code: no Professional without a
-      // linked User. Synthetic uid per professional, unique per seed run.
+      // the same invariant as the product code: no MemberOperation without a
+      // linked User. Synthetic uid per memberOperation, unique per seed run.
       userId: proUid,
       defaultCommission: null,
       unitIds: [...unitIds],
       // Link the org service so the derive (#1226 AC-02) flips to `operational`;
-      // `seedProfessionalDoc` mirrors this into `professional_services` (D3) in-tx.
+      // `seedMemberOperationDoc` mirrors this into `member_operation_services` (D3) in-tx.
       catalogServiceIds: operationalServiceId ? [operationalServiceId] : [],
       createdAt: now,
       updatedAt: now,
     }
-    // Membership(role=professional) for the seeded professional (brief 0037
-    // #1085): the Professional projection is the operational view of a member,
-    // so the fixture honors the invariant projeção ⟺ membro role=professional.
+    // Membership(role=memberOperation) for the seeded memberOperation (brief 0037
+    // #1085): the MemberOperation projection is the operational view of a member,
+    // so the fixture honors the invariant projeção ⟺ membro role=memberOperation.
     // This makes the pro show up in `/team` and its member detail navigable at
-    // `/team/{proUid}`. Permissions = the professional default.
+    // `/team/{proUid}`. Permissions = the memberOperation default.
     //
-    // Seeded BEFORE the professional doc: the operational profile hangs off the
+    // Seeded BEFORE the memberOperation doc: the operational profile hangs off the
     // membership via the composite FK `(org_id, member_id) → memberships`
     // (brief 0076 AC-02), and these are separate (autocommit) seed txs, so the
-    // membership parent must exist when the professional row commits.
+    // membership parent must exist when the memberOperation row commits.
     const proMembershipId = `${orgId}_${proUid}`
     const proMembership: Membership = {
       id: proMembershipId,
       orgId,
       userId: proUid,
-      role: 'professional',
+      role: 'member_operator',
       status: 'active',
       invitedBy: uid,
       joinedAt: now,
       updatedAt: now,
       rlsUnitScope: null,
-      permissions: defaultPermissionsForRole('professional'),
+      permissions: defaultPermissionsForRole('member_operator'),
     }
     await seedMembershipDoc(proMembership)
-    await seedProfessionalDoc(orgId, proDoc)
+    await seedMemberOperationDoc(orgId, proDoc)
     // Per-org PII (#1036, ADR 0010) — after #1046 only `taxIdentity`.
     // Identity (name/whatsapp/email) lives on the global User (read live).
-    const proPii: ProfessionalPii = { taxIdentity: null }
-    await upsertProfessionalPii({ orgId, id: pid, taxIdentity: proPii.taxIdentity })
+    const proPii: MemberOperationPii = { taxIdentity: null }
+    await upsertMemberOperationPii({ orgId, id: pid, taxIdentity: proPii.taxIdentity })
   }
 
-  return { uid, email, password, orgId, unitIds, professionalIds }
+  return { uid, email, password, orgId, unitIds, memberOperationIds }
 }
 
 // Pins an existing membership to a single unit (brief 0029, AC-05). Mirrors
@@ -630,14 +630,14 @@ export async function setMembershipUnitId(
 
 // Seeds an EXTRA active member into an existing org (brief 0030, AC-04/05):
 // a User doc (live identity) + an active Membership with the given role. By
-// design it does NOT create a Professional projection — so a `receptionist`
-// seeded here has no approved Professional, which is exactly the case AC-05
-// must unblock (a non-professional member can be attributed to a product/
+// design it does NOT create a MemberOperation projection — so a `receptionist`
+// seeded here has no approved MemberOperation, which is exactly the case AC-05
+// must unblock (a non-memberOperation member can be attributed to a product/
 // standalone item and the sale closes). Returns the member's global `userId`.
 export async function seedMember(
   orgId: string,
   opts: {
-    role: 'manager' | 'professional' | 'receptionist'
+    role: 'manager' | 'member_operator' | 'receptionist'
     displayName: string
     unitId?: string | null
   },
@@ -656,7 +656,7 @@ export async function seedMember(
     }),
   )
   const membershipId = `${orgId}_${userId}`
-  // Custom permission set (not the role default): a non-professional member that
+  // Custom permission set (not the role default): a non-memberOperation member that
   // can manage customers + appointments — the AC-05 case (brief 0030).
   const permissions: MembershipPermissions = {
     canHaveAgenda: false,
@@ -665,7 +665,7 @@ export async function seedMember(
     canCancelAppointment: true,
     canManageCustomers: true,
     canManageCatalog: false,
-    canManageProfessionals: false,
+    canManageOperators: false,
     canViewFinancials: false,
     canManagePlans: false,
     canManageSubscriptions: false,
@@ -717,20 +717,20 @@ export async function seedMembershipFor(
   return membershipId
 }
 
-// Seeds a LOGINABLE professional in an existing org (brief 0075, #1253): a real
-// Firebase Auth user (so the spec can sign in AS the professional) linked to a
-// `professionals` projection + a `professional`-role membership + PII. Unlike
+// Seeds a LOGINABLE memberOperation in an existing org (brief 0075, #1253): a real
+// Firebase Auth user (so the spec can sign in AS the memberOperation) linked to a
+// `member_operations` projection + a `memberOperation`-role membership + PII. Unlike
 // the synthetic `e2e-prof-user-*` seeded by `seedOrg`, this user can mint a
 // session — needed to prove own-scope (RLS + capability gates) from the
-// professional's own session. Operational (whatsapp + units + services) so it
+// memberOperation's own session. Operational (whatsapp + units + services) so it
 // is bookable on the agenda. Returns the auth credentials + projection id.
-export async function seedLoginableProfessional(
+export async function seedLoginableMemberOperation(
   orgId: string,
   opts: { unitIds: string[]; catalogServiceIds?: string[]; displayName?: string },
-): Promise<{ uid: string; email: string; password: string; professionalId: string }> {
+): Promise<{ uid: string; email: string; password: string; memberOperationId: string }> {
   const auth = await seedAuthUser()
   const now = new Date().toISOString()
-  const professionalId = `e2e-prof-${uniqueSuffix()}`
+  const memberOperationId = `e2e-prof-${uniqueSuffix()}`
 
   // Refresh the global User doc to carry whatsapp + currentOrgId so the
   // operational-status derive (#1226 AC-02) floors at operational and the app
@@ -748,8 +748,8 @@ export async function seedLoginableProfessional(
     }),
   )
 
-  const proDoc: StoredProfessional = {
-    id: professionalId,
+  const proDoc: StoredMemberOperation = {
+    id: memberOperationId,
     orgId,
     userId: auth.uid,
     defaultCommission: null,
@@ -758,26 +758,26 @@ export async function seedLoginableProfessional(
     createdAt: now,
     updatedAt: now,
   }
-  // Membership seeded BEFORE the professional doc — the operational profile hangs
+  // Membership seeded BEFORE the memberOperation doc — the operational profile hangs
   // off the membership via the composite FK (brief 0076 AC-02), and these are
   // separate (autocommit) seed txs.
   const membership: Membership = {
     id: membershipDocId(orgId, auth.uid),
     orgId,
     userId: auth.uid,
-    role: 'professional',
+    role: 'member_operator',
     status: 'active',
     invitedBy: null,
     joinedAt: now,
     updatedAt: now,
     rlsUnitScope: null,
-    permissions: defaultPermissionsForRole('professional'),
+    permissions: defaultPermissionsForRole('member_operator'),
   }
   await seedMembershipDoc(membership)
-  await seedProfessionalDoc(orgId, proDoc)
-  await upsertProfessionalPii({ orgId, id: professionalId, taxIdentity: null })
+  await seedMemberOperationDoc(orgId, proDoc)
+  await upsertMemberOperationPii({ orgId, id: memberOperationId, taxIdentity: null })
 
-  return { ...auth, professionalId }
+  return { ...auth, memberOperationId }
 }
 
 // Seeds a second org + units + an owner membership for an EXISTING user
@@ -866,7 +866,7 @@ export async function seedAdditionalOrg(
 export type SeedAppointmentInput = {
   orgId: string
   unitId: string
-  professionalId: string
+  memberOperationId: string
   customerId: string
   serviceId: string
   // ISO UTC.
@@ -952,15 +952,15 @@ async function firstOrderIdForOrg(orgId: string): Promise<string> {
   return id
 }
 
-// The Professional → User link off the `professionals` projection; null when the
-// professional has no linked user (or no projection).
-async function readProfessionalUserId(
+// The MemberOperation → User link off the `member_operations` projection; null when the
+// memberOperation has no linked user (or no projection).
+async function readMemberOperationUserId(
   orgId: string,
-  professionalId: string,
+  memberOperationId: string,
 ): Promise<string | null> {
   const row = await pgReadProjection(
-    'professionals',
-    aggregateRef(ProfessionalConfig, orgId, professionalId),
+    'memberOperations',
+    aggregateRef(MemberOperationConfig, orgId, memberOperationId),
   )
   const uid = row?.user_id
   return typeof uid === 'string' && uid ? uid : null
@@ -969,7 +969,7 @@ async function readProfessionalUserId(
 // A raw `timestamptz` cell read off a `SELECT *` projection row: the pg driver
 // hands these back as a `Date` (brief 0068 D1), but a typed-as-string projection
 // historically saw an ISO string. Accept either and normalize to ISO so the
-// decoded row keeps the `ProfessionalRow.created_at: string` shape the projector's
+// decoded row keeps the `MemberOperationRow.created_at: string` shape the projector's
 // `rowToDoc` consumes — the row-schema is intermediate; the domain decode happens
 // downstream on already-ISO strings.
 const TimestamptzRowCell = Schema.transform(
@@ -982,11 +982,11 @@ const TimestamptzRowCell = Schema.transform(
   },
 )
 
-// Row Schema for the `professionals` projection — decodes a raw `pgQueryProjection`
-// record (snake_case, `unknown` values) into the typed `ProfessionalRow` WITHOUT
-// an unsafe cast, so `professionalRowToDoc` can map it. Mirrors the projector's
-// `ProfessionalRow` shape (`operational_status` dropped — #1226 AC-02).
-const ProfessionalRowSchema = Schema.Struct({
+// Row Schema for the `member_operations` projection — decodes a raw `pgQueryProjection`
+// record (snake_case, `unknown` values) into the typed `MemberOperationRow` WITHOUT
+// an unsafe cast, so `memberOperationRowToDoc` can map it. Mirrors the projector's
+// `MemberOperationRow` shape (`operational_status` dropped — #1226 AC-02).
+const MemberOperationRowSchema = Schema.Struct({
   org_id: Schema.String,
   id: Schema.String,
   last_event_version: Schema.Union(Schema.String, Schema.Number),
@@ -1018,28 +1018,30 @@ const MembershipRowSchema = Schema.Struct({
   updated_at: TimestamptzRowCell,
 })
 
-// Reads the Professional projection linked to `userId` (≤1 per org) from
+// Reads the MemberOperation projection linked to `userId` (≤1 per org) from
 // Postgres. Returns the projection id + the DERIVED `operationalStatus` (#1226
 // AC-02 — no longer a stored column), or null when no projection exists. Used by
 // the role-edit lifecycle spec (#1086) to assert materialization (projection
 // appears) and operability (status derives from whatsapp ∧ units ∧ services).
-export type ReadProfessionalResult = { id: string; operationalStatus: string }
+export type ReadMemberOperationResult = { id: string; operationalStatus: string }
 
-export async function readProfessionalByUserId(
+export async function readMemberOperationByUserId(
   orgId: string,
   userId: string,
-): Promise<ReadProfessionalResult | null> {
-  const rows = await pgQueryProjection('professionals', 'user_id', userId)
+): Promise<ReadMemberOperationResult | null> {
+  const rows = await pgQueryProjection('member_operations', 'user_id', userId)
   // Scope strictly to the requested org — a `?? rows[0]` fallback would leak a
-  // professional row from a DIFFERENT org when the user has none in this one,
+  // memberOperation row from a DIFFERENT org when the user has none in this one,
   // defeating the `.toBeNull()` org-isolation asserts.
   const row = rows.find((r) => r.org_id === orgId) ?? null
   if (!row) return null
   // Decode the raw projection record (snake_case, `unknown` values) through the
-  // row Schema so it becomes a typed `ProfessionalRow` WITHOUT an unsafe cast,
+  // row Schema so it becomes a typed `MemberOperationRow` WITHOUT an unsafe cast,
   // then map it to the domain doc + decode (mirrors the production read path).
-  const typedRow = Schema.decodeUnknownSync(ProfessionalRowSchema)(row)
-  const stored = Schema.decodeUnknownSync(StoredProfessionalSchema)(professionalRowToDoc(typedRow))
+  const typedRow = Schema.decodeUnknownSync(MemberOperationRowSchema)(row)
+  const stored = Schema.decodeUnknownSync(StoredMemberOperationSchema)(
+    memberOperationRowToDoc(typedRow),
+  )
   // Derive on read exactly like the production read layer: the projection
   // existing ⇒ invite accepted; whatsapp comes from the linked global User.
   const user = await readUser(stored.userId)
@@ -1054,21 +1056,24 @@ export async function readProfessionalByUserId(
   return { id: stored.id, operationalStatus }
 }
 
-// Ensures a `professionals` projection exists for `professionalId` — appointments
-// FK their professional (`appointments_professional_id_fk`, RESTRICT, #1220 D2),
-// so a spec that references a placeholder professional needs a real parent row.
+// Ensures a `member_operations` projection exists for `memberOperationId` — appointments
+// FK their member-operation (`appointments_member_operation_id_fk`, RESTRICT, #1220 D2),
+// so a spec that references a placeholder memberOperation needs a real parent row.
 // Seeds a minimal one (org-scoped, synthetic linked user) when absent. No-op
 // when the row already exists, so callers passing a real id are untouched.
-async function ensureProfessionalExists(orgId: string, professionalId: string): Promise<void> {
+async function ensureMemberOperationExists(
+  orgId: string,
+  memberOperationId: string,
+): Promise<void> {
   if (
     await pgProjectionExists(
-      'professionals',
-      aggregateRef(ProfessionalConfig, orgId, professionalId),
+      'memberOperations',
+      aggregateRef(MemberOperationConfig, orgId, memberOperationId),
     )
   )
     return
   const now = new Date().toISOString()
-  const proUid = `e2e-prof-user-${professionalId}`
+  const proUid = `e2e-prof-user-${memberOperationId}`
   // The operational profile hangs off the membership via the composite FK
   // (brief 0076 AC-02) — ensure the parent membership exists first (these are
   // separate seed txs, so ordering matters).
@@ -1080,17 +1085,17 @@ async function ensureProfessionalExists(orgId: string, professionalId: string): 
       id: membershipId,
       orgId,
       userId: proUid,
-      role: 'professional',
+      role: 'member_operator',
       status: 'active',
       invitedBy: null,
       joinedAt: now,
       updatedAt: now,
       rlsUnitScope: null,
-      permissions: defaultPermissionsForRole('professional'),
+      permissions: defaultPermissionsForRole('member_operator'),
     })
   }
-  const doc: StoredProfessional = {
-    id: professionalId,
+  const doc: StoredMemberOperation = {
+    id: memberOperationId,
     orgId,
     userId: proUid,
     defaultCommission: null,
@@ -1099,7 +1104,7 @@ async function ensureProfessionalExists(orgId: string, professionalId: string): 
     createdAt: now,
     updatedAt: now,
   }
-  await seedProfessionalDoc(orgId, doc)
+  await seedMemberOperationDoc(orgId, doc)
 }
 
 // Ensures a kind-service `catalog_items` projection exists for `serviceId` —
@@ -1135,20 +1140,20 @@ async function ensureServiceExists(orgId: string, serviceId: string): Promise<vo
 export async function seedAppointment(input: SeedAppointmentInput): Promise<string> {
   const id = `e2e-appt-${uniqueSuffix()}`
   const now = new Date().toISOString()
-  // The appointment FKs its professional + service (#1220 D2, RESTRICT) — ensure
+  // The appointment FKs its memberOperation + service (#1220 D2, RESTRICT) — ensure
   // both parent rows exist so a spec referencing a placeholder id doesn't trip
   // the constraint. No-op when the caller passes ids that already exist.
-  await ensureProfessionalExists(input.orgId, input.professionalId)
+  await ensureMemberOperationExists(input.orgId, input.memberOperationId)
   await ensureServiceExists(input.orgId, input.serviceId)
   // Resolve the denormalized userId FKs at seed time so the doc matches
   // the new Appointment shape (#852 PR 4).
   const customerUserId = await readCustomerUserId(input.orgId, input.customerId)
-  const professionalUserId = await readProfessionalUserId(input.orgId, input.professionalId)
+  const memberOperatorUserId = await readMemberOperationUserId(input.orgId, input.memberOperationId)
   const doc: Appointment = {
     id,
     orgId: input.orgId,
     unitId: input.unitId,
-    professionalId: input.professionalId,
+    memberOperationId: input.memberOperationId,
     customerId: input.customerId,
     serviceId: input.serviceId,
     startAt: input.startAt,
@@ -1159,7 +1164,7 @@ export async function seedAppointment(input: SeedAppointmentInput): Promise<stri
     commissionSnapshot: input.commissionSnapshot ?? null,
     cancellationPolicySnapshot: input.cancellationPolicySnapshot ?? null,
     customerUserId,
-    professionalUserId,
+    memberOperatorUserId,
     createdAt: now,
     updatedAt: now,
   }
@@ -1591,36 +1596,39 @@ export async function seedService(
   return id
 }
 
-// Attaches a list of catalogServiceIds to an existing Professional. Reads the
-// current projection, sets the field, and re-projects via a `professional.updated`
+// Attaches a list of catalogServiceIds to an existing MemberOperation. Reads the
+// current projection, sets the field, and re-projects via a `member_operation.updated`
 // event in one tx (`mutateProjectionPostgres`) — so the other fields (`unitIds`,
-// `operationalStatus`, …) are preserved, not wiped, and the professional stays
+// `operationalStatus`, …) are preserved, not wiped, and the memberOperation stays
 // visible to the booking flow.
-export async function linkProfessionalToServices(
+export async function linkMemberOperationToServices(
   orgId: string,
-  professionalId: string,
+  memberOperationId: string,
   catalogServiceIds: string[],
 ): Promise<void> {
-  const ref = aggregateRef(ProfessionalConfig, orgId, professionalId)
-  const row = await readProjectionRow<ProfessionalRow>('professionals', ref)
-  if (!row) throw new Error(`linkProfessionalToServices: professional ${professionalId} not found`)
-  const current = Schema.decodeUnknownSync(StoredProfessionalSchema)(professionalRowToDoc(row))
-  const next: StoredProfessional = { ...current, catalogServiceIds: [...catalogServiceIds] }
+  const ref = aggregateRef(MemberOperationConfig, orgId, memberOperationId)
+  const row = await readProjectionRow<MemberOperationRow>('memberOperations', ref)
+  if (!row)
+    throw new Error(`linkMemberOperationToServices: memberOperation ${memberOperationId} not found`)
+  const current = Schema.decodeUnknownSync(StoredMemberOperationSchema)(
+    memberOperationRowToDoc(row),
+  )
+  const next: StoredMemberOperation = { ...current, catalogServiceIds: [...catalogServiceIds] }
   await mutateProjectionPostgres({
     ref,
-    updatedTag: 'professional.updated',
+    updatedTag: 'member_operation.updated',
     data: next,
     updatedAt: new Date().toISOString(),
-    columns: PROFESSIONAL_COLUMNS,
-    valuesAt: (v) => professionalColumnValues(next, v),
-    table: 'professionals',
-    // Re-mirror the service N:N into `professional_services` in the same tx, as
+    columns: MEMBER_OPERATION_COLUMNS,
+    valuesAt: (v) => memberOperationColumnValues(next, v),
+    table: 'memberOperations',
+    // Re-mirror the service N:N into `member_operation_services` in the same tx, as
     // the production projector does (brief 0068 D3): the public availability path
     // reads the join, not the JSONB array. Delete-then-insert keeps it idempotent.
     extraWrites: [
-      { sql: PROFESSIONAL_SERVICES_DELETE, params: [orgId, professionalId] },
-      ...professionalServiceRows(next).map((params) => ({
-        sql: PROFESSIONAL_SERVICES_INSERT,
+      { sql: MEMBER_OPERATION_SERVICES_DELETE, params: [orgId, memberOperationId] },
+      ...memberOperationServiceRows(next).map((params) => ({
+        sql: MEMBER_OPERATION_SERVICES_INSERT,
         params,
       })),
     ],
@@ -2135,7 +2143,7 @@ export type SeedBlockInput =
       kind: 'recurring'
       orgId: string
       unitId: string
-      professionalId?: string | null
+      memberOperationId?: string | null
       weekday: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
       open: string
       close: string
@@ -2145,7 +2153,7 @@ export type SeedBlockInput =
       kind: 'one_off'
       orgId: string
       unitId: string
-      professionalId?: string | null
+      memberOperationId?: string | null
       // ISO UTC.
       startAt: string
       endAt: string
@@ -2159,7 +2167,7 @@ export async function seedBlock(input: SeedBlockInput): Promise<string> {
     id,
     orgId: input.orgId,
     unitId: input.unitId,
-    professionalId: input.professionalId ?? null,
+    memberOperationId: input.memberOperationId ?? null,
     reason: input.reason,
     createdAt: now,
     updatedAt: now,
@@ -2228,7 +2236,7 @@ export async function seedAuthUser(
 export type SeedInviteInput = {
   orgId: string
   email: string
-  role: 'manager' | 'professional' | 'receptionist'
+  role: 'manager' | 'member_operator' | 'receptionist'
   invitedBy: string
   // Defaults to now + 7d. Pass a past ISO to seed an expired invite.
   expiresAt?: string
@@ -2853,27 +2861,30 @@ async function seedMembershipDoc(membership: Membership): Promise<void> {
 // The 8 config aggregates mirror the identity pattern: the projection lives in
 // its typed table, so the seed writes the `created` event (v1) + the typed row
 // in one tx (shared column helpers — a seed can't drift from production). PII
-// sidecars (professionals_pii/invites_pii/units_pii) + the global `users` row
+// sidecars (member_operations_pii/invites_pii/units_pii) + the global `users` row
 // are written separately by the caller via their Postgres stores (LGPD contract
 // — merged at read time). The `data` passed is the PII-omitted `Stored*`/domain
 // shape the `*ColumnValues` helper decodes.
 
-async function seedProfessionalDoc(orgId: string, doc: StoredProfessional): Promise<void> {
+async function seedMemberOperationDoc(orgId: string, doc: StoredMemberOperation): Promise<void> {
   await seedIdentityPostgres({
-    ref: aggregateRef(ProfessionalConfig, orgId, doc.id),
-    createdTag: 'professional.created',
+    ref: aggregateRef(MemberOperationConfig, orgId, doc.id),
+    createdTag: 'member_operation.created',
     data: doc,
     createdAt: doc.createdAt,
-    columns: PROFESSIONAL_COLUMNS,
-    values: professionalColumnValues(doc, 1),
-    table: 'professionals',
+    columns: MEMBER_OPERATION_COLUMNS,
+    values: memberOperationColumnValues(doc, 1),
+    table: 'memberOperations',
     // Mirror the N:N arrays into the join tables in the same tx, exactly as the
     // production projector does (brief 0068 D3) — the public availability path
-    // reads `professional_units`/`professional_services`, not the JSONB arrays.
+    // reads `member_operation_units`/`member_operation_services`, not the JSONB arrays.
     extraWrites: [
-      ...professionalUnitRows(doc).map((params) => ({ sql: PROFESSIONAL_UNITS_INSERT, params })),
-      ...professionalServiceRows(doc).map((params) => ({
-        sql: PROFESSIONAL_SERVICES_INSERT,
+      ...memberOperationUnitRows(doc).map((params) => ({
+        sql: MEMBER_OPERATION_UNITS_INSERT,
+        params,
+      })),
+      ...memberOperationServiceRows(doc).map((params) => ({
+        sql: MEMBER_OPERATION_SERVICES_INSERT,
         params,
       })),
     ],

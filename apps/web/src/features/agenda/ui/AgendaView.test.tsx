@@ -1,4 +1,4 @@
-import type { HoursRange, Professional, Unit } from '@/domain'
+import type { HoursRange, MemberOperation, Unit } from '@/domain'
 import { EMPTY_ADDRESS, EMPTY_BUSINESS_HOURS } from '@/domain'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,11 +48,11 @@ const baseProps = {
   slotMinutes: 15 as const,
   units: [buildUnit('u1')],
   activeUnitId: 'u1',
-  // The agenda only ever receives bookable professionals (operational + a
+  // The agenda only ever receives bookable memberOperations (operational + a
   // CURRENTLY active membership carrying `canBeBooked`) —
-  // `listBookableProfessionalsForOrg` applies that filter. Plain `Professional`
+  // `listBookableMemberOperationsForOrg` applies that filter. Plain `MemberOperation`
   // since brief 0076 retired the `BookableProfessional` brand (AC-03).
-  professionals: [
+  memberOperations: [
     {
       id: 'p1',
       orgId: 't1',
@@ -67,7 +67,7 @@ const baseProps = {
       catalogServiceIds: [],
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
-    } satisfies Professional,
+    } satisfies MemberOperation,
   ],
   appointments: [],
   customersById: {},
@@ -78,7 +78,7 @@ const baseProps = {
   customers: [],
   businessName: 'Test Co',
   confirmationTemplate: '',
-  selfProfessionalId: null,
+  selfMemberOperationId: null,
   canManageCustomers: true,
 }
 

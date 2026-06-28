@@ -7,7 +7,7 @@ import 'server-only'
 
 // Per-org CUSTOMER erasure via BLOCKING — brief 0032 / #1096 + #1100
 // (AC-09/AC-11). Re-scoped 04/06: this is the CUSTOMER relationship only. The
-// professional/employment relationship is a DIFFERENT relationship — its PII
+// memberOperation/employment relationship is a DIFFERENT relationship — its PII
 // is retained identifiable (legal retention, art. 16) and its severance is the
 // establishment's offboarding action (brief 0041 / #1102), NOT this block.
 //
@@ -33,7 +33,7 @@ import 'server-only'
 //
 // The customer has NO own `_pii` doc (PII lives in the global `users/{uid}`),
 // so there is nothing else to scrub per-org. There is intentionally NO scrub
-// of `professionals_pii`/`invites_pii` here — those are professional-relationship
+// of `member_operations_pii`/`invites_pii` here — those are memberOperation-relationship
 // PII (brief 0041).
 
 export type BlockSubjectResult = {

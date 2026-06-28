@@ -18,7 +18,7 @@ import type { ReactNode } from 'react'
 const ROLE_LABELS: Record<Role, string> = {
   owner: 'Dono',
   manager: 'Gerente',
-  professional: 'Profissional',
+  member_operator: 'Profissional',
   receptionist: 'Recepção',
 }
 
@@ -46,7 +46,7 @@ function initials(name: string): string {
   return (first + second).toUpperCase() || '?'
 }
 
-// Row badges: membership status (when not redundant) + a professional's
+// Row badges: membership status (when not redundant) + a memberOperation's
 // incomplete-profile flag (when not yet `operational`). Extracted so the row's
 // `renderItem` stays under the cognitive-complexity gate.
 function memberBadges(
@@ -172,13 +172,13 @@ export function TeamList({
         // the owner (can't be suspended/revoked) and your own row (you're logged
         // in, so you're active). Show it only for the others.
         const showStatus = !isOwner && !isSelf
-        // A professional whose profile is still incomplete derives a non-operational
+        // A memberOperation whose profile is still incomplete derives a non-operational
         // status (#1047) → not bookable. Surface it next to "Ativo" so it reads
         // distinctly from an operational pro (the membership being active alone hid
         // this). Suppressed once `operational`.
         const operationalStatus = operationalByUserId[member.userId]
         const incompleteProfile =
-          member.role === 'professional' &&
+          member.role === 'member_operator' &&
           operationalStatus !== undefined &&
           !isOperational(operationalStatus)
         return {

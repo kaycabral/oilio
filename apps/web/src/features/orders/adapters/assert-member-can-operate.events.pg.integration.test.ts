@@ -1,19 +1,19 @@
 // The financial attribution gate `assertMemberCanOperate` (brief 0030 AC-05) for
 // SERVICE items, proven against REAL Postgres after `operationalStatus` became
-// DERIVED on read (#1226 AC-02). The gate must NOT regress: a professional whose
+// DERIVED on read (#1226 AC-02). The gate must NOT regress: a memberOperation whose
 // readiness no longer materializes on a column is still refused a service unless
 // the DERIVED status is `operational` (whatsapp present ∧ ≥1 unit ∧ ≥1 service).
 //
-// The professional is minted through the real write path (`appendEvent`), so the
+// The memberOperation is minted through the real write path (`appendEvent`), so the
 // projector mirrors `unit_ids`/`catalog_service_ids` into the join tables; the
 // linked `users` row carries (or omits) the whatsapp the derive keys on. The gate
-// reads the enriched `Professional` via `getProfessionalByUserId`, which derives
+// reads the enriched `MemberOperation` via `getMemberOperationByUserId`, which derives
 // the status — exactly the production read path.
 
 import { defaultPermissionsForRole } from '@/domain'
-import { ProfessionalConfig } from '@/domain/aggregates'
+import { MemberOperationConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
-import type { StoredProfessional } from '@/domain/types/professional'
+import type { StoredMemberOperation } from '@/domain/types/member-operation'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
@@ -69,14 +69,14 @@ async function seedMembership(orgId: string, userId: string): Promise<void> {
   const membershipId = `${orgId}_${userId}`
   await pool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, rls_unit_scope, invited_by, joined_at, permissions, updated_at)
-     VALUES ($1,$2,$3,1,'professional','active',NULL,NULL,$4,$5::jsonb,$4)`,
-    [orgId, membershipId, userId, TS, JSON.stringify(defaultPermissionsForRole('professional'))],
+     VALUES ($1,$2,$3,1,'member_operator','active',NULL,NULL,$4,$5::jsonb,$4)`,
+    [orgId, membershipId, userId, TS, JSON.stringify(defaultPermissionsForRole('member_operator'))],
   )
 }
 
-// Mint a professional through the real write path (projector mirrors the join
+// Mint a memberOperation through the real write path (projector mirrors the join
 // tables) + its linked User. `whatsapp` controls the derived readiness.
-async function seedProfessional(
+async function seedMemberOperation(
   orgId: string,
   opts: { whatsapp: string | null; unitIds: string[]; catalogServiceIds: string[] },
 ): Promise<string> {
@@ -91,7 +91,7 @@ async function seedProfessional(
   )
   await seedMembership(orgId, userId)
   const proId = id('pro')
-  const pro: StoredProfessional = {
+  const pro: StoredMemberOperation = {
     id: proId,
     orgId,
     userId,
@@ -102,8 +102,8 @@ async function seedProfessional(
     updatedAt: TS,
   }
   await Effect.runPromise(
-    appendEvent(ProfessionalConfig, aggregateRef(ProfessionalConfig, orgId, proId), {
-      _tag: 'professional.created',
+    appendEvent(MemberOperationConfig, aggregateRef(MemberOperationConfig, orgId, proId), {
+      _tag: 'member_operation.created',
       actorId: 'test',
       payload: { data: pro },
     }).pipe(Effect.provide(PostgresPersistenceLayer)),
@@ -112,7 +112,7 @@ async function seedProfessional(
 }
 
 const TABLES =
-  'events, projections, professional_units, professional_services, professionals, catalog_items, memberships, units, orgs, users'
+  'events, projections, member_operation_units, member_operation_services, member_operations, catalog_items, memberships, units, orgs, users'
 
 describe('assertMemberCanOperate — SERVICE gate over DERIVED operationalStatus (#1226 AC-02)', () => {
   beforeEach(async () => {
@@ -128,7 +128,7 @@ describe('assertMemberCanOperate — SERVICE gate over DERIVED operationalStatus
   it('complete profile (whatsapp ∧ unit ∧ service) → derives operational → ACCEPTS the service', async () => {
     const orgId = uniqueOrg()
     await seedOrg(orgId)
-    const userId = await seedProfessional(orgId, {
+    const userId = await seedMemberOperation(orgId, {
       whatsapp: '5511900000000',
       unitIds: [UNIT],
       catalogServiceIds: [SERVICE],
@@ -145,7 +145,7 @@ describe('assertMemberCanOperate — SERVICE gate over DERIVED operationalStatus
   it('NO whatsapp → derives incomplete → REFUSES the service', async () => {
     const orgId = uniqueOrg()
     await seedOrg(orgId)
-    const userId = await seedProfessional(orgId, {
+    const userId = await seedMemberOperation(orgId, {
       whatsapp: null,
       unitIds: [UNIT],
       catalogServiceIds: [SERVICE],
@@ -163,7 +163,7 @@ describe('assertMemberCanOperate — SERVICE gate over DERIVED operationalStatus
   it('NO unit → derives incomplete → REFUSES the service', async () => {
     const orgId = uniqueOrg()
     await seedOrg(orgId)
-    const userId = await seedProfessional(orgId, {
+    const userId = await seedMemberOperation(orgId, {
       whatsapp: '5511900000000',
       unitIds: [],
       catalogServiceIds: [SERVICE],
@@ -181,7 +181,7 @@ describe('assertMemberCanOperate — SERVICE gate over DERIVED operationalStatus
   it('NO service → derives incomplete → REFUSES the service', async () => {
     const orgId = uniqueOrg()
     await seedOrg(orgId)
-    const userId = await seedProfessional(orgId, {
+    const userId = await seedMemberOperation(orgId, {
       whatsapp: '5511900000000',
       unitIds: [UNIT],
       catalogServiceIds: [],

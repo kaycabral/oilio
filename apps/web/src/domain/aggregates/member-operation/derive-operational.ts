@@ -4,11 +4,11 @@
 //   operational ⇔ User.whatsapp present ∧ unitIds.length ≥ 1 ∧ catalogServiceIds.length ≥ 1
 //   incomplete  ⇔ otherwise (accepted, but the profile isn't bookable yet)
 //
-// "Invite accepted" is implied by the professional projection existing (it is
+// "Invite accepted" is implied by the memberOperation projection existing (it is
 // born only from the accept saga, #1045). So callers that already hold a live
 // projection only need to feed identity (whatsapp) + operational completeness
 // (units/services). The pure helper keeps the rule in one place; the server
-// emits `professional.activated` when it flips to `operational`.
+// emits `member_operation.activated` when it flips to `operational`.
 
 import type { OperationalStatus } from '@/domain/types/enums'
 

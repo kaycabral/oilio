@@ -12,7 +12,7 @@ import { listActiveCustomersForOrg, listCustomersForOrg } from './customer-read'
  *   - `deactivatedAt` — operator "Excluir cliente" (brief 0033, AC-07)
  * while `listCustomersForOrg` (the display/history map) keeps ALL of them so an
  * existing appointment/order still resolves the customer's name. This is the
- * customer-side analogue of the agenda professional read-path invariant: the
+ * customer-side analogue of the agenda memberOperation read-path invariant: the
  * picker offers only what can legitimately be selected now; history resolves the
  * rest. Per-run-unique org ids isolate each case.
  */

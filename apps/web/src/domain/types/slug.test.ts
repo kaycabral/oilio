@@ -28,7 +28,7 @@ const RESERVED = [
   'plans',
   'pricing',
   'products',
-  'professionals',
+  'member_operations',
   'public',
   'receivables',
   'services',

@@ -184,9 +184,9 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
     )
     await createMembership(
       membership(ORG, 'user-1', {
-        role: 'professional',
+        role: 'member_operator',
         rlsUnitScope: 'u-appt',
-        permissions: defaultPermissionsForRole('professional'),
+        permissions: defaultPermissionsForRole('member_operator'),
       }),
     )
 
@@ -212,7 +212,7 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
         Effect.provide(PostgresPersistenceLayer),
       ),
     )
-    expect(replayedMembership.role).toBe('professional')
+    expect(replayedMembership.role).toBe('member_operator')
     expect(replayedMembership.rlsUnitScope).toBe('u-appt')
   })
 

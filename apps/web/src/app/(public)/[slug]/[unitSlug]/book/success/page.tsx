@@ -6,7 +6,7 @@ import {
   rowToDoc as appointmentRowToDoc,
 } from '@/shared/db/pg/effect/appointment-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
-import { getProfessionalById } from '@/shared/org/professional-read'
+import { getMemberOperationById } from '@/shared/org/member-operation-read'
 import { Schema } from 'effect'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -52,16 +52,16 @@ export default async function WizardSuccessPage({ params, searchParams }: PagePr
   const unit = summary.units.find((u) => u.slug === unitSlug)
   if (!unit) notFound()
 
-  // Read the appointment + service + professional + unit snapshot. We don't
+  // Read the appointment + service + memberOperation + unit snapshot. We don't
   // expose other customers' PII; we render only the booker's own appointment.
   const appointment = await getAppointmentById(summary.org.id, apptId)
   if (!appointment) notFound()
   if (appointment.unitId !== unit.id) notFound()
 
-  const [service, professional] = await Promise.all([
+  const [service, memberOperation] = await Promise.all([
     getCatalogItemById(summary.org.id, appointment.serviceId),
     // PII (name) merged from `professionals_pii` on read (#1036).
-    getProfessionalById(summary.org.id, appointment.professionalId),
+    getMemberOperationById(summary.org.id, appointment.memberOperationId),
   ])
   // Unified catalog (brief 0023, #1004): only the name is rendered.
   // `unit` comes from the enriched `summary.units` (whatsapp/email merged from
@@ -101,7 +101,7 @@ export default async function WizardSuccessPage({ params, searchParams }: PagePr
           {priceLabel}
         </dd>
         <dt className="text-muted-foreground">Profissional</dt>
-        <dd>{professional?.name ?? '—'}</dd>
+        <dd>{memberOperation?.name ?? '—'}</dd>
         <dt className="text-muted-foreground">Quando</dt>
         <dd>{startLabel}</dd>
         <dt className="text-muted-foreground">Onde</dt>

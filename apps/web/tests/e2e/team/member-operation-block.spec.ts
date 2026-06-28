@@ -1,20 +1,20 @@
-// E2E for #1082 (brief 0036) — a professional's own blocks now live in the
+// E2E for #1082 (brief 0036) — a memberOperation's own blocks now live in the
 // member detail (`/team/[userId]`), next to the operational config. Baseline
 // UI/CRUD: render+empty · criar pelo fluxo real → reflete na agenda → editar →
 // excluir.
 //
-// AC-03 [critical] [smoke] — CRUD de bloqueio do profissional (`professionalId`
+// AC-03 [critical] [smoke] — CRUD de bloqueio do profissional (`memberOperationId`
 //   set) no detalhe do membro; só a coluna dele é bloqueada na agenda.
 
 import { expect, test } from '../fixtures'
-import { AgendaPage, ProfessionalsPage } from '../pages'
+import { AgendaPage, MemberOperationsPage } from '../pages'
 
 test.describe('Equipe — bloqueios do profissional (#1082)', { tag: '@critical' }, () => {
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -24,8 +24,8 @@ test.describe('Equipe — bloqueios do profissional (#1082)', { tag: '@critical'
     org,
     authedPage,
   }) => {
-    const pros = new ProfessionalsPage(authedPage)
-    await pros.gotoById(org.professionalIds[0]!)
+    const pros = new MemberOperationsPage(authedPage)
+    await pros.gotoById(org.memberOperationIds[0]!)
     await expect(
       authedPage.getByRole('heading', { name: 'Bloqueios do profissional' }),
     ).toBeVisible()
@@ -45,9 +45,9 @@ test.describe('Equipe — bloqueios do profissional (#1082)', { tag: '@critical'
     const reason = `Folga ${ts}`
     const edited = `${reason} Editado`
     const section = authedPage.getByRole('region', { name: 'Bloqueios do profissional' })
-    const pros = new ProfessionalsPage(authedPage)
+    const pros = new MemberOperationsPage(authedPage)
 
-    await pros.gotoById(org.professionalIds[0]!)
+    await pros.gotoById(org.memberOperationIds[0]!)
 
     // Criar — recorrente (default segunda 12:00–13:00).
     await section.getByRole('button', { name: 'Novo bloqueio' }).click()
@@ -61,7 +61,7 @@ test.describe('Equipe — bloqueios do profissional (#1082)', { tag: '@critical'
     await expect(authedPage.getByText(reason).first()).toBeVisible({ timeout: 5000 })
 
     // Editar in-place.
-    await pros.gotoById(org.professionalIds[0]!)
+    await pros.gotoById(org.memberOperationIds[0]!)
     await section.locator('li', { hasText: reason }).getByRole('button', { name: 'Editar' }).click()
     await section.locator('input[name="reason"]').fill(edited)
     await section.getByRole('button', { name: 'Salvar' }).click()

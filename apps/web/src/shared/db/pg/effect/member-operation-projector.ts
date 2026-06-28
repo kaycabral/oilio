@@ -1,33 +1,33 @@
-import { ProfessionalConfig } from '@/domain/aggregates/professional/config'
+import { MemberOperationConfig } from '@/domain/aggregates/member-operation/config'
 import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
+import { StoredMemberOperation } from '@/domain/types/member-operation'
 import { membershipDocId } from '@/domain/types/membership'
-import { StoredProfessional } from '@/domain/types/professional'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
 /**
- * Typed projector for the `professional` context (brief 0060, Grupo A) — plugged
+ * Typed projector for the `memberOperation` context (brief 0060, Grupo A) — plugged
  * into the per-context typed-projection registry without reopening the
  * `PersistencePort`.
  *
- * `upsert` decodes the reduced `state` against the domain `StoredProfessional`
+ * `upsert` decodes the reduced `state` against the domain `StoredMemberOperation`
  * schema (the PII-omitted shape — name/whatsapp/email live on the global User,
- * `taxIdentity` in `professionals_pii`). It maps `user_id` onto a constrained
+ * `taxIdentity` in `member_operations_pii`). It maps `user_id` onto a constrained
  * column and the composite fields (default_commission, unit_ids,
  * catalog_service_ids) onto JSONB. The DB enforces the invariants — a violation
  * rolls back event + projection together. `operational_status` is NOT stored
  * (brief 0068 D4 / #1226 AC-02 — derived on read).
  */
 
-const decodeProfessional = Schema.decodeUnknownSync(StoredProfessional)
+const decodeMemberOperation = Schema.decodeUnknownSync(StoredMemberOperation)
 
 /**
- * The ordered `professionals` column list — single source of truth for the
+ * The ordered `memberOperations` column list — single source of truth for the
  * runtime upsert and the E2E seed (so the two writers can never drift). Mirrors
  * the `INSERT` placeholders 1:1.
  */
-export const PROFESSIONAL_COLUMNS = [
+export const MEMBER_OPERATION_COLUMNS = [
   'org_id',
   'id',
   'last_event_version',
@@ -40,64 +40,68 @@ export const PROFESSIONAL_COLUMNS = [
   'updated_at',
 ] as const
 
-export function professionalColumnValues(
-  professional: StoredProfessional,
+export function memberOperationColumnValues(
+  memberOperation: StoredMemberOperation,
   lastEventVersion: number,
 ): unknown[] {
   return [
-    professional.orgId,
-    professional.id,
+    memberOperation.orgId,
+    memberOperation.id,
     lastEventVersion,
-    professional.userId,
+    memberOperation.userId,
     // `member_id` is derived deterministically from the membership key
     // (`{orgId}_{userId}`) — it does NOT enter the event payload (brief 0076
     // AC-02). The composite FK `(org_id, member_id) → memberships(org_id, id)`
     // hangs the operational profile off the membership; both the membership and
-    // the professional events commit in the SAME ACID tx (invite-accept saga),
+    // the memberOperation events commit in the SAME ACID tx (invite-accept saga),
     // so the membership row exists when this projection inserts.
-    membershipDocId(professional.orgId, professional.userId),
-    professional.defaultCommission,
-    JSON.stringify(professional.unitIds),
-    JSON.stringify(professional.catalogServiceIds),
-    professional.createdAt,
-    professional.updatedAt,
+    membershipDocId(memberOperation.orgId, memberOperation.userId),
+    memberOperation.defaultCommission,
+    JSON.stringify(memberOperation.unitIds),
+    JSON.stringify(memberOperation.catalogServiceIds),
+    memberOperation.createdAt,
+    memberOperation.updatedAt,
   ]
 }
 
-const PLACEHOLDERS = PROFESSIONAL_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = PROFESSIONAL_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
+const PLACEHOLDERS = MEMBER_OPERATION_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
+const CONFLICT_SET = MEMBER_OPERATION_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
   .map((c) => `${c} = EXCLUDED.${c}`)
   .join(', ')
 const UPSERT = `
-  INSERT INTO professionals (${PROFESSIONAL_COLUMNS.join(', ')})
+  INSERT INTO member_operations (${MEMBER_OPERATION_COLUMNS.join(', ')})
   VALUES (${PLACEHOLDERS})
   ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
-// ── Derived join tables (brief 0068 D3): professional ↔ unit / service ─────────
+// ── Derived join tables (brief 0068 D3): memberOperation ↔ unit / service ─────────
 // The N:N arrays (`unit_ids`/`catalog_service_ids`) stay in the reduced state
 // (reducer untouched); the projector mirrors them into relational rows in the
 // SAME tx (the `org-projector` public-directory pattern). Delete-then-insert
 // keeps replay/edit idempotent — a shrunk array leaves no orphan rows. The SQL +
-// value-builders are exported so any seed writing `professionals` directly stays
+// value-builders are exported so any seed writing `member_operations` directly stays
 // in lockstep and never drifts.
-export const PROFESSIONAL_UNITS_DELETE =
-  'DELETE FROM professional_units WHERE org_id = $1 AND professional_id = $2'
-export const PROFESSIONAL_UNITS_INSERT =
-  'INSERT INTO professional_units (org_id, professional_id, unit_id) VALUES ($1, $2, $3)'
-export const PROFESSIONAL_SERVICES_DELETE =
-  'DELETE FROM professional_services WHERE org_id = $1 AND professional_id = $2'
-export const PROFESSIONAL_SERVICES_INSERT =
-  'INSERT INTO professional_services (org_id, professional_id, service_id) VALUES ($1, $2, $3)'
+export const MEMBER_OPERATION_UNITS_DELETE =
+  'DELETE FROM member_operation_units WHERE org_id = $1 AND member_operation_id = $2'
+export const MEMBER_OPERATION_UNITS_INSERT =
+  'INSERT INTO member_operation_units (org_id, member_operation_id, unit_id) VALUES ($1, $2, $3)'
+export const MEMBER_OPERATION_SERVICES_DELETE =
+  'DELETE FROM member_operation_services WHERE org_id = $1 AND member_operation_id = $2'
+export const MEMBER_OPERATION_SERVICES_INSERT =
+  'INSERT INTO member_operation_services (org_id, member_operation_id, service_id) VALUES ($1, $2, $3)'
 
-export function professionalUnitRows(professional: StoredProfessional): unknown[][] {
-  return professional.unitIds.map((unitId) => [professional.orgId, professional.id, unitId])
+export function memberOperationUnitRows(memberOperation: StoredMemberOperation): unknown[][] {
+  return memberOperation.unitIds.map((unitId) => [
+    memberOperation.orgId,
+    memberOperation.id,
+    unitId,
+  ])
 }
 
-export function professionalServiceRows(professional: StoredProfessional): unknown[][] {
-  return professional.catalogServiceIds.map((serviceId) => [
-    professional.orgId,
-    professional.id,
+export function memberOperationServiceRows(memberOperation: StoredMemberOperation): unknown[][] {
+  return memberOperation.catalogServiceIds.map((serviceId) => [
+    memberOperation.orgId,
+    memberOperation.id,
     serviceId,
   ])
 }
@@ -108,22 +112,22 @@ function stateVersion(state: FirestoreDoc): number {
 }
 
 async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
-  const professional = decodeProfessional(state)
-  await client.query(UPSERT, professionalColumnValues(professional, stateVersion(state)))
+  const memberOperation = decodeMemberOperation(state)
+  await client.query(UPSERT, memberOperationColumnValues(memberOperation, stateVersion(state)))
   // Mirror the N:N arrays into the join tables (same tx). Delete-then-insert so a
   // shrunk array leaves no orphans and replay is idempotent.
-  await client.query(PROFESSIONAL_UNITS_DELETE, [professional.orgId, professional.id])
-  for (const row of professionalUnitRows(professional)) {
-    await client.query(PROFESSIONAL_UNITS_INSERT, row)
+  await client.query(MEMBER_OPERATION_UNITS_DELETE, [memberOperation.orgId, memberOperation.id])
+  for (const row of memberOperationUnitRows(memberOperation)) {
+    await client.query(MEMBER_OPERATION_UNITS_INSERT, row)
   }
-  await client.query(PROFESSIONAL_SERVICES_DELETE, [professional.orgId, professional.id])
-  for (const row of professionalServiceRows(professional)) {
-    await client.query(PROFESSIONAL_SERVICES_INSERT, row)
+  await client.query(MEMBER_OPERATION_SERVICES_DELETE, [memberOperation.orgId, memberOperation.id])
+  for (const row of memberOperationServiceRows(memberOperation)) {
+    await client.query(MEMBER_OPERATION_SERVICES_INSERT, row)
   }
 }
 
 // Row shape the typed table stores; mapped back to the reducer's doc on read.
-export type ProfessionalRow = {
+export type MemberOperationRow = {
   org_id: string
   id: string
   last_event_version: string | number
@@ -142,7 +146,7 @@ export type ProfessionalRow = {
 // Reconstructs the reducer's projected doc from the typed row (inverse of
 // `upsert`). `_version` is re-attached so the event store versions/replays
 // correctly. PII is NOT present (the read path merges it from the sidecars).
-export function rowToDoc(row: ProfessionalRow): FirestoreDoc {
+export function rowToDoc(row: MemberOperationRow): FirestoreDoc {
   return {
     _version: Number(row.last_event_version),
     id: row.id,
@@ -157,8 +161,8 @@ export function rowToDoc(row: ProfessionalRow): FirestoreDoc {
 }
 
 async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
-  const res = await client.query<ProfessionalRow>(
-    'SELECT * FROM professionals WHERE org_id = $1 AND id = $2',
+  const res = await client.query<MemberOperationRow>(
+    'SELECT * FROM member_operations WHERE org_id = $1 AND id = $2',
     [ref.orgId, ref.id],
   )
   const row = res.rows[0]
@@ -169,18 +173,21 @@ async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
   // Drop the join rows explicitly (the parent FK is ON DELETE cascade, so this is
   // defensive + mirrors `org-projector`'s directory cleanup). The ref carries the
   // org + id directly.
-  await client.query(PROFESSIONAL_UNITS_DELETE, [ref.orgId, ref.id])
-  await client.query(PROFESSIONAL_SERVICES_DELETE, [ref.orgId, ref.id])
-  await client.query('DELETE FROM professionals WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
+  await client.query(MEMBER_OPERATION_UNITS_DELETE, [ref.orgId, ref.id])
+  await client.query(MEMBER_OPERATION_SERVICES_DELETE, [ref.orgId, ref.id])
+  await client.query('DELETE FROM member_operations WHERE org_id = $1 AND id = $2', [
+    ref.orgId,
+    ref.id,
+  ])
 }
 
-export const professionalProjector: TypedProjector = { read, upsert, delete: remove }
+export const memberOperationProjector: TypedProjector = { read, upsert, delete: remove }
 
 /**
- * `aggregate_type` for professionals = the typed `AggregateType` literal
- * (`config.type`, singular `professional`) — D6 (ADR 0013). The Postgres Layer
+ * `aggregate_type` for memberOperations = the typed `AggregateType` literal
+ * (`config.type`, singular `memberOperation`) — D6 (ADR 0013). The Postgres Layer
  * routes by the ref's `type`, so registration and routing agree on this literal.
  */
-export const PROFESSIONAL_AGGREGATE_TYPE = ProfessionalConfig.type
+export const MEMBER_OPERATION_AGGREGATE_TYPE = MemberOperationConfig.type
 
-registerTypedProjector(PROFESSIONAL_AGGREGATE_TYPE, professionalProjector)
+registerTypedProjector(MEMBER_OPERATION_AGGREGATE_TYPE, memberOperationProjector)

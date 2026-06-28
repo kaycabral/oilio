@@ -3,8 +3,8 @@ import { CategoryConfig } from '@/domain/aggregates/category/config'
 import { CustomerConfig } from '@/domain/aggregates/customer/config'
 import { GoalConfig } from '@/domain/aggregates/goal/config'
 import { InviteConfig } from '@/domain/aggregates/invite/config'
+import { MemberOperationConfig } from '@/domain/aggregates/member-operation/config'
 import { NotificationConfig } from '@/domain/aggregates/notification/config'
-import { ProfessionalConfig } from '@/domain/aggregates/professional/config'
 import { SubscriptionPlanConfig } from '@/domain/aggregates/subscription-plan/config'
 import { aggregateRef, type AggregateRef, appendEvent, replayAggregate } from '@/domain/effect'
 import type { AgendaBlock } from '@/domain/types/agenda-block'
@@ -12,7 +12,7 @@ import type { Category } from '@/domain/types/category'
 import type { StoredCustomer } from '@/domain/types/customer'
 import type { Goal } from '@/domain/types/goal'
 import type { StoredInvite } from '@/domain/types/invite'
-import type { StoredProfessional } from '@/domain/types/professional'
+import type { StoredMemberOperation } from '@/domain/types/member-operation'
 import type { SubscriptionPlan } from '@/domain/types/subscription-plan'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -42,7 +42,7 @@ const TS = '2026-06-01T12:00:00.000Z'
 const CONFIG_BY_TABLE = {
   categories: CategoryConfig,
   subscription_plans: SubscriptionPlanConfig,
-  professionals: ProfessionalConfig,
+  member_operations: MemberOperationConfig,
   customers: CustomerConfig,
   invites: InviteConfig,
   agenda_blocks: AgendaBlockConfig,
@@ -129,7 +129,7 @@ function plan(id: string): SubscriptionPlan {
   }
 }
 
-function professional(id: string): StoredProfessional {
+function memberOperation(id: string): StoredMemberOperation {
   return {
     id,
     orgId: ORG,
@@ -158,7 +158,7 @@ function invite(id: string): StoredInvite {
   return {
     id,
     orgId: ORG,
-    role: 'professional',
+    role: 'member_operator',
     tokenHash: 'hash',
     expiresAt: TS,
     status: 'pending',
@@ -175,7 +175,7 @@ function agendaBlock(id: string): AgendaBlock {
     id,
     orgId: ORG,
     unitId: UNIT,
-    professionalId: null,
+    memberOperationId: null,
     reason: 'Almoço',
     kind: 'recurring',
     weekday: 'monday',
@@ -235,7 +235,7 @@ const CREATES: ReadonlyArray<{
       ).then(() => undefined),
   },
   {
-    table: 'professionals',
+    table: 'member_operations',
     id: 'pro-1',
     create: async (id) => {
       // The operational profile hangs off the membership (brief 0076 AC-02): the
@@ -243,15 +243,15 @@ const CREATES: ReadonlyArray<{
       // and the composite FK needs this parent.
       await getEventStorePool().query(
         `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-         VALUES ($1,$1||'_user-'||$2,'user-'||$2,1,'professional','active',$3,'{}'::jsonb,$3)
+         VALUES ($1,$1||'_user-'||$2,'user-'||$2,1,'member_operator','active',$3,'{}'::jsonb,$3)
          ON CONFLICT (org_id, id) DO NOTHING`,
         [ORG, id, TS],
       )
       await run(
-        appendEvent(ProfessionalConfig, refOf('professionals', id), {
-          _tag: 'professional.created',
+        appendEvent(MemberOperationConfig, refOf('member_operations', id), {
+          _tag: 'member_operation.created',
           actorId: 'test',
-          payload: { data: professional(id) },
+          payload: { data: memberOperation(id) },
         }).pipe(Effect.provide(PostgresPersistenceLayer)),
       )
     },
@@ -341,7 +341,7 @@ const creatorFor = (table: keyof typeof CONFIG_BY_TABLE): ((id: string) => Promi
 describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
   beforeEach(async () => {
     await getEventStorePool().query(
-      'TRUNCATE events, projections, professionals, memberships, customers, invites, categories, subscription_plans, agenda_blocks, goals, notifications, units, orgs CASCADE',
+      'TRUNCATE events, projections, member_operations, memberships, customers, invites, categories, subscription_plans, agenda_blocks, goals, notifications, units, orgs CASCADE',
     )
     await seedOrg()
     await seedUnit()
@@ -420,17 +420,17 @@ describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
     await expect(
       getEventStorePool().query(
         `INSERT INTO invites (org_id, id, last_event_version, role, token_hash, expires_at, status, invited_by, created_at, updated_at)
-         VALUES ($1,'x',1,'professional','h','2026-01-01T00:00:00Z','teleported','owner','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+         VALUES ($1,'x',1,'member_operator','h','2026-01-01T00:00:00Z','teleported','owner','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG],
       ),
       // 23514 = check_violation
     ).rejects.toMatchObject({ code: '23514' })
   })
 
-  it('AC-01: the DATABASE refuses a professional with a blank user_id (non-empty CHECK)', async () => {
+  it('AC-01: the DATABASE refuses a memberOperation with a blank user_id (non-empty CHECK)', async () => {
     await expect(
       getEventStorePool().query(
-        `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, unit_ids, catalog_service_ids, created_at, updated_at)
+        `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, unit_ids, catalog_service_ids, created_at, updated_at)
          VALUES ($1,'x',1,'   ',$1||'_   ','[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG],
       ),

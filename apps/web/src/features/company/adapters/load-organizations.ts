@@ -63,7 +63,7 @@ export async function loadOrganizationsPage(): Promise<OrganizationsPageData> {
   ])
 
   // Per-row reference-based flag (brief 0033, AC-03 — #1068 precompute): true
-  // when no active professional / future appointment references the unit, so the
+  // when no active memberOperation / future appointment references the unit, so the
   // UI can offer Excluir; otherwise only Arquivar.
   const units = await attachCanDelete(storedUnits, (id) =>
     unitHasActiveReference(ctx.membership.orgId, id),

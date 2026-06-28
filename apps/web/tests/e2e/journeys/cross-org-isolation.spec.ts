@@ -17,8 +17,8 @@ test.describe('cross-org isolation (surface)', () => {
   test('owner B never sees org A data — not in the customers list, not by direct URL', async ({
     context,
   }) => {
-    const ownerA = await seedOrg({ professionalCount: 1 })
-    const ownerB = await seedOrg({ professionalCount: 0 })
+    const ownerA = await seedOrg({ memberOperationCount: 1 })
+    const ownerB = await seedOrg({ memberOperationCount: 0 })
 
     // Org A owns a customer + a subscription. Their ids are what we'll try to
     // reach from org B's session.

@@ -18,8 +18,10 @@ function readQuery(sp: Record<string, string | string[] | undefined>, key: strin
   return typeof v === 'string' && v.length > 0 ? v : null
 }
 
-function readProfessionalQuery(sp: Record<string, string | string[] | undefined>): string | null {
-  return readQuery(sp, 'professional')
+function readMemberOperationQuery(
+  sp: Record<string, string | string[] | undefined>,
+): string | null {
+  return readQuery(sp, 'member_operator')
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -36,10 +38,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function PublicUnitCatalogPage({ params, searchParams }: PageProps) {
   const { slug, unitSlug } = await params
   const sp = await searchParams
-  const professionalId = readProfessionalQuery(sp)
+  const memberOperationId = readMemberOperationQuery(sp)
 
   const bundle = await getPublicUnitBundle(slug, unitSlug, {
-    professionalId: professionalId ?? undefined,
+    memberOperationId: memberOperationId ?? undefined,
   })
   if (!bundle) notFound()
 
@@ -58,7 +60,7 @@ export default async function PublicUnitCatalogPage({ params, searchParams }: Pa
       unit={bundle.unit}
       slug={slug}
       catalogServiceItems={bundle.catalogServiceItems}
-      professional={bundle.professional}
+      memberOperation={bundle.memberOperation}
       showUnitHeader={bundle.units.length > 1}
       coverageBanner={
         scope ? (

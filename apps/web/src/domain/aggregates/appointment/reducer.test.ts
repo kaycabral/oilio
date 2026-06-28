@@ -12,7 +12,7 @@ const CREATED_DATA: Partial<AppointmentState> = {
   id: 'a1',
   orgId: 't1',
   unitId: 'u1',
-  professionalId: 'p1',
+  memberOperationId: 'p1',
   customerId: 'c1',
   serviceId: 'svc1',
   startAt: '2026-06-10T13:00:00.000Z',

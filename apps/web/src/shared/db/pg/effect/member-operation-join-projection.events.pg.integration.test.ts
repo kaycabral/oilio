@@ -1,6 +1,6 @@
-import { ProfessionalConfig } from '@/domain/aggregates'
+import { MemberOperationConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent, replayAggregate } from '@/domain/effect'
-import type { StoredProfessional } from '@/domain/types/professional'
+import type { StoredMemberOperation } from '@/domain/types/member-operation'
 import { Effect } from 'effect'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -8,10 +8,10 @@ import { closeEventStoreDb, getEventStorePool } from '../pool'
 import { PostgresPersistenceLayer } from './postgres-layer'
 
 /**
- * Join-table projection proof for `professional ↔ unit / service` against REAL
+ * Join-table projection proof for `memberOperation ↔ unit / service` against REAL
  * Postgres (brief 0068 D3). Proves: the projector mirrors the reduced state's
- * `unit_ids` / `catalog_service_ids` arrays into the `professional_units` /
- * `professional_services` join tables in the SAME tx as the event; a shrunk array
+ * `unit_ids` / `catalog_service_ids` arrays into the `member_operation_units` /
+ * `member_operation_services` join tables in the SAME tx as the event; a shrunk array
  * leaves no orphan rows (delete-then-insert idempotency); REPLAY reconstructs the
  * join rows from the array; the FKs refuse a dangling unit/service ref; and RLS
  * isolates the rows per org.
@@ -28,9 +28,9 @@ const APP_ROLE = 'oilio_pj_app'
 const APP_PASSWORD = 'pj_test'
 let appUrl: string
 
-const refOf = (id: string) => aggregateRef(ProfessionalConfig, ORG, id)
+const refOf = (id: string) => aggregateRef(MemberOperationConfig, ORG, id)
 
-function professional(overrides: Partial<StoredProfessional> = {}): StoredProfessional {
+function memberOperation(overrides: Partial<StoredMemberOperation> = {}): StoredMemberOperation {
   return {
     id: PRO,
     orgId: ORG,
@@ -81,7 +81,7 @@ async function seedMembership(): Promise<void> {
   // this parent. PRO's userId is `user-pro-1`.
   await pool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_user-pro-1','user-pro-1',1,'professional','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
+     VALUES ($1,$1||'_user-pro-1','user-pro-1',1,'member_operator','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG],
   )
@@ -96,19 +96,19 @@ async function seedParents(): Promise<void> {
   await seedService(SVC_B)
 }
 
-const create = (pro: StoredProfessional) =>
+const create = (pro: StoredMemberOperation) =>
   Effect.runPromise(
-    appendEvent(ProfessionalConfig, refOf(pro.id), {
-      _tag: 'professional.created',
+    appendEvent(MemberOperationConfig, refOf(pro.id), {
+      _tag: 'member_operation.created',
       actorId: 'test',
       payload: { data: pro },
     }).pipe(Effect.provide(PostgresPersistenceLayer)),
   )
 
-const update = (changes: Partial<StoredProfessional>) =>
+const update = (changes: Partial<StoredMemberOperation>) =>
   Effect.runPromise(
-    appendEvent(ProfessionalConfig, refOf(PRO), {
-      _tag: 'professional.updated',
+    appendEvent(MemberOperationConfig, refOf(PRO), {
+      _tag: 'member_operation.updated',
       actorId: 'test',
       payload: { changes },
     }).pipe(Effect.provide(PostgresPersistenceLayer)),
@@ -116,12 +116,14 @@ const update = (changes: Partial<StoredProfessional>) =>
 
 const replay = () =>
   Effect.runPromise(
-    replayAggregate(ProfessionalConfig, refOf(PRO)).pipe(Effect.provide(PostgresPersistenceLayer)),
+    replayAggregate(MemberOperationConfig, refOf(PRO)).pipe(
+      Effect.provide(PostgresPersistenceLayer),
+    ),
   )
 
 async function unitIds(): Promise<string[]> {
   const res = await pool().query<{ unit_id: string }>(
-    'SELECT unit_id FROM professional_units WHERE org_id = $1 AND professional_id = $2 ORDER BY unit_id',
+    'SELECT unit_id FROM member_operation_units WHERE org_id = $1 AND member_operation_id = $2 ORDER BY unit_id',
     [ORG, PRO],
   )
   return res.rows.map((r) => r.unit_id)
@@ -129,20 +131,20 @@ async function unitIds(): Promise<string[]> {
 
 async function serviceJoinIds(): Promise<string[]> {
   const res = await pool().query<{ service_id: string }>(
-    'SELECT service_id FROM professional_services WHERE org_id = $1 AND professional_id = $2 ORDER BY service_id',
+    'SELECT service_id FROM member_operation_services WHERE org_id = $1 AND member_operation_id = $2 ORDER BY service_id',
     [ORG, PRO],
   )
   return res.rows.map((r) => r.service_id)
 }
 
-describe('Postgres join projection — professional ↔ unit/service (brief 0068 D3)', () => {
+describe('Postgres join projection — memberOperation ↔ unit/service (brief 0068 D3)', () => {
   beforeAll(async () => {
     const p = pool()
     await p.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await p.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await p.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
     await p.query(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON professional_units, professional_services TO ${APP_ROLE}`,
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON member_operation_units, member_operation_services TO ${APP_ROLE}`,
     )
     const base = process.env.OILIO_DATABASE_URL
     if (!base) throw new Error('OILIO_DATABASE_URL is required for the join-projection proof')
@@ -151,7 +153,7 @@ describe('Postgres join projection — professional ↔ unit/service (brief 0068
 
   beforeEach(async () => {
     await pool().query(
-      'TRUNCATE events, projections, professional_units, professional_services, professionals, memberships, catalog_items, units, orgs CASCADE',
+      'TRUNCATE events, projections, member_operation_units, member_operation_services, member_operations, memberships, catalog_items, units, orgs CASCADE',
     )
     await seedParents()
   })
@@ -164,20 +166,20 @@ describe('Postgres join projection — professional ↔ unit/service (brief 0068
   })
 
   it('mirrors the arrays into the join tables in the same tx', async () => {
-    await create(professional())
+    await create(memberOperation())
     expect(await unitIds()).toEqual([UNIT_A, UNIT_B])
     expect(await serviceJoinIds()).toEqual([SVC_A, SVC_B])
   })
 
   it('delete-then-insert: a shrunk array leaves no orphan rows', async () => {
-    await create(professional())
+    await create(memberOperation())
     await update({ unitIds: [UNIT_A], catalogServiceIds: [SVC_B] })
     expect(await unitIds()).toEqual([UNIT_A])
     expect(await serviceJoinIds()).toEqual([SVC_B])
   })
 
   it('replay reconstructs the reduced state the join rows derive from', async () => {
-    await create(professional())
+    await create(memberOperation())
     await update({ unitIds: [UNIT_B] })
     // `replayAggregate` rebuilds the reduced state in memory (it does not
     // re-run the projector); the join tables are a projection OF that state, so
@@ -192,31 +194,31 @@ describe('Postgres join projection — professional ↔ unit/service (brief 0068
   })
 
   it('the DB refuses a join row pointing at a missing unit (composite FK)', async () => {
-    await create(professional())
+    await create(memberOperation())
     await expect(
       pool().query(
-        'INSERT INTO professional_units (org_id, professional_id, unit_id) VALUES ($1, $2, $3)',
+        'INSERT INTO member_operation_units (org_id, member_operation_id, unit_id) VALUES ($1, $2, $3)',
         [ORG, PRO, 'ghost-unit'],
       ),
     ).rejects.toMatchObject({ code: '23503' })
   })
 
-  it('deleting the professional cascades its join rows away', async () => {
-    await create(professional())
+  it('deleting the memberOperation cascades its join rows away', async () => {
+    await create(memberOperation())
     expect(await unitIds()).toHaveLength(2)
-    await pool().query('DELETE FROM professionals WHERE org_id = $1 AND id = $2', [ORG, PRO])
+    await pool().query('DELETE FROM member_operations WHERE org_id = $1 AND id = $2', [ORG, PRO])
     expect(await unitIds()).toEqual([])
     expect(await serviceJoinIds()).toEqual([])
   })
 
   it('RLS: a session scoped to another org sees ZERO join rows', async () => {
-    await create(professional())
+    await create(memberOperation())
     const other = new Client({ connectionString: appUrl })
     await other.connect()
     try {
       await other.query('SELECT set_config($1, $2, false)', ['app.current_org', 'org-other'])
       await other.query('SELECT set_config($1, $2, false)', ['app.current_unit', ''])
-      const res = await other.query('SELECT * FROM professional_units')
+      const res = await other.query('SELECT * FROM member_operation_units')
       expect(res.rows).toHaveLength(0)
     } finally {
       await other.end()

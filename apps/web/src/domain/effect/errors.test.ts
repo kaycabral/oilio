@@ -8,7 +8,7 @@ describe('DomainError tagged errors', () => {
     const program = Effect.gen(function* () {
       return yield* Effect.fail(
         new AppointmentConflictError({
-          professionalId: 'prof-1',
+          memberOperationId: 'prof-1',
           proposedStart: '2026-06-01T10:00:00Z',
           proposedEnd: '2026-06-01T11:00:00Z',
           conflictingIds: ['apt-99'],
@@ -44,7 +44,7 @@ describe('DomainError tagged errors', () => {
 
   it('errors carry discriminated _tag field', () => {
     const error = new AppointmentConflictError({
-      professionalId: 'prof-1',
+      memberOperationId: 'prof-1',
       proposedStart: '2026-06-01T10:00:00Z',
       proposedEnd: '2026-06-01T11:00:00Z',
       conflictingIds: [],

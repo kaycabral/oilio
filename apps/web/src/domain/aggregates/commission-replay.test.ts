@@ -73,7 +73,7 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
 
   // Brief 0030 AC-07: comissão chaveada por MEMBRO (qualquer papel). Um produto
   // vendido pela recepção numa venda avulsa gera comissão chaveada pelo `userId`
-  // do membro — NÃO um doc id de Professional. O replay reconstrói o registro
+  // do membro — NÃO um doc id de MemberOperation. O replay reconstrói o registro
   // keyed by member só pelos eventos (event-first), provando que comissionar
   // não-profissional é event-sourced de ponta a ponta.
   it('comissão de membro não-profissional (recepção) reconstrói por attributedUserId', async () => {
@@ -84,7 +84,7 @@ describe('Commission — replay reconstrói o doc completo (event-first)', () =>
       orgId: 't1',
       orderId: 'o-standalone',
       orderItemId: 'item-product-1',
-      // userId do membro recepção (não tem doc Professional).
+      // userId do membro recepção (não tem doc MemberOperation).
       attributedUserId: 'reception-user-1',
       attributedMemberName: 'Recepção',
       itemKind: 'product',

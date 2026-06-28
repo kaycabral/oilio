@@ -16,7 +16,7 @@ test.describe('Política de cancelamento — aviso na página pública', () => {
     test.use({
       orgInput: {
         unitCount: 1,
-        professionalCount: 1,
+        memberOperationCount: 1,
         cancellationPolicy: { enabled: true, minNoticeMinutes: 60 },
       },
     })
@@ -37,7 +37,7 @@ test.describe('Política de cancelamento — aviso na página pública', () => {
   })
 
   test.describe('política desabilitada', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
     test('aviso fica ausente', async ({ org, page }) => {
       await seedService(org.orgId, {
@@ -57,8 +57,8 @@ test.describe('Não-comparecimento — marcar e desmarcar', () => {
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -82,7 +82,7 @@ test.describe('Não-comparecimento — marcar e desmarcar', () => {
     await seedAppointment({
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: org.professionalIds[0]!,
+      memberOperationId: org.memberOperationIds[0]!,
       customerId,
       serviceId,
       startAt: '2024-01-16T13:00:00.000Z',

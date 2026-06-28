@@ -10,8 +10,8 @@ import {
   text,
   timestamp,
 } from 'drizzle-orm/pg-core'
+import { memberOperations } from './member_operations'
 import { orgs } from './orgs'
-import { professionals } from './professionals'
 import { units } from './units'
 
 /**
@@ -52,9 +52,9 @@ export const agendaBlocks = pgTable(
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     // The union discriminant — the body lives in the `block` JSONB.
     kind: text('kind').notNull(),
-    // Optional professional scope: when set, only that professional is blocked;
+    // Optional memberOperation scope: when set, only that memberOperation is blocked;
     // null = whole-unit block.
-    professionalId: text('professional_id'),
+    memberOperationId: text('member_operation_id'),
 
     // ── Composite / structural state (JSONB) ────────────────────────────────
     // The full variant body: { reason, weekday, open, close, startAt, endAt }.
@@ -84,10 +84,10 @@ export const agendaBlocks = pgTable(
       foreignColumns: [units.orgId, units.id],
     }).onDelete('restrict'),
     foreignKey({
-      name: 'agenda_blocks_professional_id_fk',
-      columns: [table.orgId, table.professionalId],
-      foreignColumns: [professionals.orgId, professionals.id],
-      // The migration authors this as `SET NULL (professional_id)` (column-list
+      name: 'agenda_blocks_member_operation_id_fk',
+      columns: [table.orgId, table.memberOperationId],
+      foreignColumns: [memberOperations.orgId, memberOperations.id],
+      // The migration authors this as `SET NULL (member_operation_id)` (column-list
       // form, PG15+) so only the ref is nulled, never the NOT-NULL `org_id` (a
       // bare composite SET NULL → 23502). See migration 0016 header.
     }).onDelete('set null'),

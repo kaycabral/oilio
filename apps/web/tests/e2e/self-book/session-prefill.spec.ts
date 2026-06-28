@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
-import { linkProfessionalToServices, seedService } from '../helpers/session'
+import { linkMemberOperationToServices, seedService } from '../helpers/session'
 import { PublicBookingPage, orgSlug } from '../pages'
 
 // Issue #864 (finalize) — wizard confirm page detecta sessão e pré-preenche
@@ -8,7 +8,7 @@ import { PublicBookingPage, orgSlug } from '../pages'
 // (coberto pelos specs do wizard golden path).
 
 test.describe('Auto-agendamento — pré-preenchimento por sessão (#864)', () => {
-  test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+  test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
   test('visitante logado no wizard vê nome + WhatsApp pré-preenchidos', async ({
     org,
@@ -24,13 +24,13 @@ test.describe('Auto-agendamento — pré-preenchimento por sessão (#864)', () =
       publicVisible: true,
       unitIds: [unitId],
     })
-    await linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
+    await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
     const targetDate = nextWeekday('Wed')
     const booking = new PublicBookingPage(authedPage, slug)
     await booking.gotoAvailability('unidade-1', { serviceId, from: targetDate })
     await booking
-      .slotByProfessional(/profissional 1/i)
+      .slotByMemberOperation(/profissional 1/i)
       .first()
       .click()
     await expect(authedPage.getByText(/Confirme os dados abaixo/i)).toBeVisible()

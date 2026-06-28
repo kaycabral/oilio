@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 
 /**
- * The operational profile (`professionals`) hangs off the membership — proof
+ * The operational profile (`memberOperations`) hangs off the membership — proof
  * against REAL Postgres (brief 0076 AC-02 / AC-05). The composite FK
  * `(org_id, member_id) → memberships(org_id, id)` with `ON DELETE cascade`
  * kills the drift at the root that the runtime `BookableProfessional` brand used
@@ -41,7 +41,7 @@ async function seedOrg(): Promise<void> {
   )
 }
 
-async function seedMembership(user = USER, role = 'professional'): Promise<void> {
+async function seedMembership(user = USER, role = 'member_operator'): Promise<void> {
   await pool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
      VALUES ($1, $1||'_'||$2, $2, 1, $3, 'active', '2026-01-01T00:00:00Z', '{}'::jsonb, '2026-01-01T00:00:00Z')`,
@@ -49,12 +49,12 @@ async function seedMembership(user = USER, role = 'professional'): Promise<void>
   )
 }
 
-// Insert a professional profile hung off the membership `org_id||'_'||user`.
+// Insert a memberOperation profile hung off the membership `org_id||'_'||user`.
 // `member_id` defaults to the matching membership key; pass an explicit
 // `member` to force an orphan (no membership parent).
-async function seedProfessional(id: string, user = USER, member?: string): Promise<void> {
+async function seedMemberOperation(id: string, user = USER, member?: string): Promise<void> {
   await pool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+    `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,$3,$4,NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [ORG, id, user, member ?? memberId(ORG, user)],
   )
@@ -88,14 +88,14 @@ async function seedCustomer(): Promise<void> {
   )
 }
 
-// An appointment referencing the professional profile (`professional_id`). The
-// FK `appointments.professional_id → professionals(org_id, id)` is RESTRICT, and
-// `professionals.member_id → memberships` is CASCADE — so a membership delete
+// An appointment referencing the memberOperation profile (`member_operation_id`). The
+// FK `appointments.member_operation_id → member_operations(org_id, id)` is RESTRICT, and
+// `memberOperations.member_id → memberships` is CASCADE — so a membership delete
 // cascades to the profile, which RESTRICT-fails on the appointment: the history
 // chain terminates at the membership (brief 0076 AC-04 uniform model / AC-05).
 async function seedAppointment(id: string, proId: string): Promise<void> {
   await pool().query(
-    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, professional_id, customer_id, service_id, customer_user_id, professional_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
+    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id, customer_user_id, member_operator_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
      VALUES ($1,$2,$3,1,$4,$5,$6,'user-'||$5,$7,'2026-01-02T10:00:00Z','2026-01-02T10:30:00Z','scheduled',5000,30,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [ORG, id, UNIT, proId, CUSTOMER, SERVICE, USER],
   )
@@ -103,7 +103,7 @@ async function seedAppointment(id: string, proId: string): Promise<void> {
 
 async function seedAgendaBlock(id: string, proId: string): Promise<void> {
   await pool().query(
-    `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, professional_id, block, created_at, updated_at)
+    `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, member_operation_id, block, created_at, updated_at)
      VALUES ($1,$2,$3,1,'one_off',$4,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [ORG, id, UNIT, proId],
   )
@@ -112,7 +112,7 @@ async function seedAgendaBlock(id: string, proId: string): Promise<void> {
 describe('operational profile hangs off the membership (brief 0076 AC-02/AC-05)', () => {
   beforeEach(async () => {
     await pool().query(
-      'TRUNCATE events, projections, appointments, agenda_blocks, professionals, memberships, catalog_items, customers, units, orgs CASCADE',
+      'TRUNCATE events, projections, appointments, agenda_blocks, member_operations, memberships, catalog_items, customers, units, orgs CASCADE',
     )
     await seedOrg()
   })
@@ -123,16 +123,16 @@ describe('operational profile hangs off the membership (brief 0076 AC-02/AC-05)'
 
   it('AC-02 — refuses an orphan profile with no matching membership (23503)', async () => {
     // No membership seeded for this member key — the FK has nothing to point at.
-    await expect(seedProfessional('pro-orphan', USER, `${ORG}_ghost`)).rejects.toMatchObject({
+    await expect(seedMemberOperation('pro-orphan', USER, `${ORG}_ghost`)).rejects.toMatchObject({
       code: FK_VIOLATION,
     })
   })
 
   it('AC-02 — accepts a profile backed by a real membership', async () => {
     await seedMembership()
-    await expect(seedProfessional('pro-1')).resolves.toBeUndefined()
+    await expect(seedMemberOperation('pro-1')).resolves.toBeUndefined()
     const { rows } = await pool().query<{ n: string }>(
-      `SELECT count(*) AS n FROM professionals WHERE org_id = $1 AND id = 'pro-1'`,
+      `SELECT count(*) AS n FROM member_operations WHERE org_id = $1 AND id = 'pro-1'`,
       [ORG],
     )
     expect(Number(rows[0]?.n)).toBe(1)
@@ -140,10 +140,10 @@ describe('operational profile hangs off the membership (brief 0076 AC-02/AC-05)'
 
   it('AC-05 — removing a membership with no history cascades the profile away', async () => {
     await seedMembership()
-    await seedProfessional('pro-1')
+    await seedMemberOperation('pro-1')
     // Sanity: the profile exists before the cascade.
     const before = await pool().query<{ n: string }>(
-      `SELECT count(*) AS n FROM professionals WHERE org_id = $1`,
+      `SELECT count(*) AS n FROM member_operations WHERE org_id = $1`,
       [ORG],
     )
     expect(Number(before.rows[0]?.n)).toBe(1)
@@ -155,7 +155,7 @@ describe('operational profile hangs off the membership (brief 0076 AC-02/AC-05)'
 
     // The profile is gone — no orphan row survives the membership removal.
     const after = await pool().query<{ n: string }>(
-      `SELECT count(*) AS n FROM professionals WHERE org_id = $1`,
+      `SELECT count(*) AS n FROM member_operations WHERE org_id = $1`,
       [ORG],
     )
     expect(Number(after.rows[0]?.n)).toBe(0)
@@ -163,7 +163,7 @@ describe('operational profile hangs off the membership (brief 0076 AC-02/AC-05)'
 
   it('AC-04/AC-05 — a membership WITH an appointment cannot be removed (history restrict)', async () => {
     await seedMembership()
-    await seedProfessional('pro-1')
+    await seedMemberOperation('pro-1')
     await seedUnit()
     await seedService()
     await seedCustomer()
@@ -185,7 +185,7 @@ describe('operational profile hangs off the membership (brief 0076 AC-02/AC-05)'
     const survivors = await pool().query<{ n: string }>(
       `SELECT
          (SELECT count(*) FROM memberships WHERE org_id = $1) +
-         (SELECT count(*) FROM professionals WHERE org_id = $1) AS n`,
+         (SELECT count(*) FROM member_operations WHERE org_id = $1) AS n`,
       [ORG],
     )
     expect(Number(survivors.rows[0]?.n)).toBe(2)
@@ -193,12 +193,12 @@ describe('operational profile hangs off the membership (brief 0076 AC-02/AC-05)'
 
   it('AC-05 — a membership whose profile carries an agenda block still cascades (block ref nulled)', async () => {
     // Agenda blocks are operational scheduling config, NOT immutable history, so
-    // their professional FK stays SET NULL by design (the deliberate policy — see
-    // migration 0002). A whole-unit block survives with a null professional ref
+    // their memberOperation FK stays SET NULL by design (the deliberate policy — see
+    // migration 0002). A whole-unit block survives with a null memberOperation ref
     // when the profile cascades away. The immutable-history guarantee is carried
     // by the APPOINTMENT restrict above, which is the financial/scheduling record.
     await seedMembership()
-    await seedProfessional('pro-1')
+    await seedMemberOperation('pro-1')
     await seedUnit()
     await seedAgendaBlock('block-1', 'pro-1')
 
@@ -209,12 +209,12 @@ describe('operational profile hangs off the membership (brief 0076 AC-02/AC-05)'
       ]),
     ).resolves.toBeDefined()
 
-    // The block survives the cascade with its professional ref nulled.
-    const { rows } = await pool().query<{ professional_id: string | null }>(
-      `SELECT professional_id FROM agenda_blocks WHERE org_id = $1 AND id = 'block-1'`,
+    // The block survives the cascade with its memberOperation ref nulled.
+    const { rows } = await pool().query<{ member_operation_id: string | null }>(
+      `SELECT member_operation_id FROM agenda_blocks WHERE org_id = $1 AND id = 'block-1'`,
       [ORG],
     )
     expect(rows).toHaveLength(1)
-    expect(rows[0]?.professional_id).toBeNull()
+    expect(rows[0]?.member_operation_id).toBeNull()
   })
 })

@@ -1,7 +1,7 @@
 import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
 import {
-  linkProfessionalToServices,
+  linkMemberOperationToServices,
   seedAppointment,
   seedCustomer,
   seedService,
@@ -12,7 +12,7 @@ import { PublicBookingPage, orgSlug } from '../pages'
 
 test.describe('Landing pública — calendário de disponibilidade', () => {
   test.describe('com serviço selecionado', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
     test('anônimo lê /[slug]/[unitSlug]/availability com grid + filtros', async ({ org, page }) => {
       const unitId = org.unitIds[0]!
@@ -23,7 +23,7 @@ test.describe('Landing pública — calendário de disponibilidade', () => {
         publicVisible: true,
         unitIds: [unitId],
       })
-      await linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
+      await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
       const targetDate = nextWeekday('Wed')
 
@@ -33,7 +33,7 @@ test.describe('Landing pública — calendário de disponibilidade', () => {
       await seedAppointment({
         orgId: org.orgId,
         unitId,
-        professionalId: org.professionalIds[0]!,
+        memberOperationId: org.memberOperationIds[0]!,
         customerId: cust,
         serviceId,
         startAt: `${targetDate}T12:00:00.000Z`,
@@ -53,7 +53,7 @@ test.describe('Landing pública — calendário de disponibilidade', () => {
   })
 
   test.describe('sem serviço', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
     test('página de disponibilidade sem ?service= mostra orientação', async ({ org, page }) => {
       await page.goto(`/${orgSlug(org.orgId)}/unidade-1/availability`)

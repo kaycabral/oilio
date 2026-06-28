@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures'
-import { linkProfessionalToServices, seedService } from '../helpers/session'
+import { linkMemberOperationToServices, seedService } from '../helpers/session'
 import { PublicBookingPage, orgSlug } from '../pages'
 
 // Issue #841 — Catálogo público de serviços da unit (capability D / V0.1).
@@ -9,11 +9,11 @@ import { PublicBookingPage, orgSlug } from '../pages'
 //   - Multi-unit org: `/{orgSlug}` renders the picker;
 //     `/{orgSlug}/{unitSlug}` renders the unit-scoped catalog.
 //   - `priceVisibility='on_request'` renders "Sob consulta".
-//   - `?professional={id}` filters the catalog to services the pro executes.
+//   - `?memberOperation={id}` filters the catalog to services the pro executes.
 
 test.describe('Landing pública — catálogo por unidade', () => {
   test.describe('empresa com 1 unidade', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
     test('`/{orgSlug}` renderiza o catálogo da unidade inline', async ({ org, page }) => {
       await seedService(org.orgId, {
@@ -34,7 +34,7 @@ test.describe('Landing pública — catálogo por unidade', () => {
   })
 
   test.describe('empresa multi-unidade', () => {
-    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, memberOperationCount: 1 } })
 
     test('picker → catálogo da unidade → trocar unidade', async ({ org, page }) => {
       // Different services per unit so the unit-scoped catalog is observable.
@@ -97,9 +97,9 @@ test.describe('Landing pública — catálogo por unidade', () => {
   })
 
   test.describe('filtro por profissional', () => {
-    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, memberOperationCount: 1 } })
 
-    test('?professional={id} filtra catálogo aos serviços que o pro executa', async ({
+    test('?memberOperation={id} filtra catálogo aos serviços que o pro executa', async ({
       org,
       page,
     }) => {
@@ -120,9 +120,9 @@ test.describe('Landing pública — catálogo por unidade', () => {
       })
 
       // The pro executes only svcA at unit A.
-      await linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [svcA])
+      await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [svcA])
 
-      await page.goto(`/${slug}/unidade-1?professional=${org.professionalIds[0]}`)
+      await page.goto(`/${slug}/unidade-1?memberOperation=${org.memberOperationIds[0]}`)
       await expect(page.getByText(/filtrado por profissional/i)).toBeVisible()
       await expect(page.getByText('Corte Pro-A')).toBeVisible()
       await expect(page.getByText('Corte Pro-Outro')).toHaveCount(0)

@@ -63,7 +63,7 @@ async function seedFixture(
   await seedAppointment({
     orgId: org.orgId,
     unitId: org.unitIds[0]!,
-    professionalId: org.professionalIds[0]!,
+    memberOperationId: org.memberOperationIds[0]!,
     customerId,
     serviceId,
     startAt: '2026-09-08T17:00:00.000Z',
@@ -80,8 +80,8 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },

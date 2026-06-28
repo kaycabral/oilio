@@ -125,7 +125,7 @@ describe('computeOccupancyPct', () => {
       id: 'a',
       orgId: 't',
       unitId: 'u',
-      professionalId: 'p',
+      memberOperationId: 'p',
       customerId: 'c',
       serviceId: 's',
       startAt: '2026-01-01T00:00:00.000Z',
@@ -136,7 +136,7 @@ describe('computeOccupancyPct', () => {
       commissionSnapshot: null,
       cancellationPolicySnapshot: null,
       customerUserId: 'cu',
-      professionalUserId: null,
+      memberOperatorUserId: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     }

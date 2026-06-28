@@ -38,7 +38,7 @@ export type OrderDetailProps = {
   services: CatalogServiceItem[]
   products: CatalogProductItem[]
   // Membros operáveis do org (brief 0030, AC-04): a atribuição de item é por
-  // membro (`attributedUserId` = `userId`), não só Professional. Qualquer membro
+  // membro (`attributedUserId` = `userId`), não só MemberOperation. Qualquer membro
   // (recepção inclusa) pode ser atribuído/vendedor.
   members: OrgMember[]
   // `userId` de quem está operando — default de "Vendedor" pra item de produto/

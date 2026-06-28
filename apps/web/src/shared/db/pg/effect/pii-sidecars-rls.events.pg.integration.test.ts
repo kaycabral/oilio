@@ -4,7 +4,7 @@ import { closeEventStoreDb, getEventStorePool } from '../pool'
 
 /**
  * RLS isolation proof for the four deletable PII sidecars (migration feature F —
- * cutover, brief 0062, AC-03): `invites_pii`, `professionals_pii`, `units_pii`,
+ * cutover, brief 0062, AC-03): `invites_pii`, `member_operations_pii`, `units_pii`,
  * `unit_tax_identity`. Each is org-only — the policy filters
  * `org_id = current_setting('app.current_org')` on USING (read) and WITH CHECK
  * (write) — so an org can never read or write another org's PII rows, and a
@@ -26,7 +26,12 @@ const ORG_B = 'org-b'
 
 let appUrl: string
 
-const PII_SIDECARS = ['invites_pii', 'professionals_pii', 'units_pii', 'unit_tax_identity'] as const
+const PII_SIDECARS = [
+  'invites_pii',
+  'member_operations_pii',
+  'units_pii',
+  'unit_tax_identity',
+] as const
 type PiiSidecar = (typeof PII_SIDECARS)[number]
 
 async function seedOrg(id: string): Promise<void> {
@@ -48,9 +53,9 @@ async function seedRow(table: PiiSidecar, orgId: string, id: string): Promise<vo
         [orgId, id],
       )
       return
-    case 'professionals_pii':
+    case 'member_operations_pii':
       await pool.query(
-        `INSERT INTO professionals_pii (org_id, id, tax_identity)
+        `INSERT INTO member_operations_pii (org_id, id, tax_identity)
          VALUES ($1,$2,'{"kind":"individual","taxId":"12345678900"}'::jsonb)`,
         [orgId, id],
       )
@@ -85,9 +90,9 @@ function foreignInsert(
         sql: `INSERT INTO invites_pii (org_id, id, email) VALUES ($1,$2,'e@example.com')`,
         params: [orgId, id],
       }
-    case 'professionals_pii':
+    case 'member_operations_pii':
       return {
-        sql: `INSERT INTO professionals_pii (org_id, id, tax_identity) VALUES ($1,$2,NULL)`,
+        sql: `INSERT INTO member_operations_pii (org_id, id, tax_identity) VALUES ($1,$2,NULL)`,
         params: [orgId, id],
       }
     case 'units_pii':
@@ -118,7 +123,7 @@ describe('Postgres RLS isolation — PII sidecars (brief 0062, AC-03)', () => {
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
     await pool.query(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON orgs, invites_pii, professionals_pii, units_pii, unit_tax_identity TO ${APP_ROLE}`,
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON orgs, invites_pii, member_operations_pii, units_pii, unit_tax_identity TO ${APP_ROLE}`,
     )
     const base = process.env.OILIO_DATABASE_URL
     if (!base) throw new Error('OILIO_DATABASE_URL is required for the RLS isolation proof')
@@ -127,7 +132,7 @@ describe('Postgres RLS isolation — PII sidecars (brief 0062, AC-03)', () => {
 
   beforeEach(async () => {
     await getEventStorePool().query(
-      'TRUNCATE invites_pii, professionals_pii, units_pii, unit_tax_identity, orgs CASCADE',
+      'TRUNCATE invites_pii, member_operations_pii, units_pii, unit_tax_identity, orgs CASCADE',
     )
   })
 

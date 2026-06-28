@@ -12,8 +12,8 @@ test.describe('Minimização de texto livre — DoD 0040 (#1108)', { tag: '@crit
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },

@@ -33,13 +33,13 @@ const WEEKDAY_OPTIONS: { value: Weekday; label: string }[] = [
 ]
 
 // The block's owner is fixed by the surface that renders the form (brief 0036):
-// a unit-wide block (config da unidade) or a single professional's block (member
-// detail). The owner fields (unitId/professionalId) are never free choices here
-// — they're hidden inputs derived from the context. A multi-unit professional
+// a unit-wide block (config da unidade) or a single memberOperation's block (member
+// detail). The owner fields (unitId/memberOperationId) are never free choices here
+// — they're hidden inputs derived from the context. A multi-unit memberOperation
 // picks WHICH of their units the block applies to.
 export type BlockOwner =
   | { scope: 'unit'; unitId: string }
-  | { scope: 'professional'; professionalId: string; units: StoredUnit[] }
+  | { scope: 'member_operator'; memberOperationId: string; units: StoredUnit[] }
 
 function isAgendaBlockKind(v: string): v is AgendaBlockKind {
   return (AGENDA_BLOCK_KINDS as readonly string[]).includes(v)
@@ -97,11 +97,11 @@ export function BlockForm({
       {owner.scope === 'unit' ? (
         <>
           <input type="hidden" name="unitId" value={owner.unitId} />
-          <input type="hidden" name="professionalId" value="" />
+          <input type="hidden" name="memberOperationId" value="" />
         </>
       ) : (
         <>
-          <input type="hidden" name="professionalId" value={owner.professionalId} />
+          <input type="hidden" name="memberOperationId" value={owner.memberOperationId} />
           {owner.units.length > 1 ? (
             <div className="flex flex-col gap-1">
               <Label htmlFor="block-unit" className="text-sm font-medium">

@@ -23,9 +23,9 @@ import {
 //     blanked avatar (AC-13);
 //   - the customer drops from the active list + the new-appointment picker;
 //   - the global account and other orgs keep the live name.
-// CRITICALLY, the professional/employment relationship is a DIFFERENT
+// CRITICALLY, the memberOperation/employment relationship is a DIFFERENT
 // relationship (brief 0041): a person blocked as a CUSTOMER in a org stays
-// IDENTIFIABLE on the professional surfaces (team) — real name, not neutralized.
+// IDENTIFIABLE on the memberOperation surfaces (team) — real name, not neutralized.
 //
 // This spec drives the mechanism's OUTPUT (the archived shadow, what
 // `blockSubjectInOrg` writes server-side) directly against Postgres, the same
@@ -64,8 +64,8 @@ test.describe('per-org CUSTOMER erasure via blocking', () => {
   }) => {
     // The SAME global account is a customer in two orgs. Owner A operates
     // org A; owner B operates org B. The subject's userId is shared.
-    const ownerA = await seedOrg({ professionalCount: 1 })
-    const ownerB = await seedOrg({ professionalCount: 0 })
+    const ownerA = await seedOrg({ memberOperationCount: 1 })
+    const ownerB = await seedOrg({ memberOperationCount: 0 })
 
     const subjectUserId = `e2e-subject-${Date.now()}`
     const realName = `Marina Compartilhada ${Date.now()}`
@@ -114,12 +114,12 @@ test.describe('per-org CUSTOMER erasure via blocking', () => {
   test('a person blocked as a CUSTOMER stays IDENTIFIABLE as a PROFESSIONAL (team surface)', async ({
     context,
   }) => {
-    // A single global account that is BOTH a professional (member) of the org
-    // AND a customer of it. The seeded professional already owns a User with a
+    // A single global account that is BOTH a memberOperation (member) of the org
+    // AND a customer of it. The seeded memberOperation already owns a User with a
     // real displayName. We add a customer shadow for that SAME userId, then block
-    // the CUSTOMER relationship. The professional must remain identifiable.
-    const owner = await seedOrg({ professionalCount: 1 })
-    const proUserId = `e2e-prof-user-${owner.professionalIds[0]}`
+    // the CUSTOMER relationship. The memberOperation must remain identifiable.
+    const owner = await seedOrg({ memberOperationCount: 1 })
+    const proUserId = `e2e-prof-user-${owner.memberOperationIds[0]}`
     const proName = 'Profissional 1'
 
     // Same person is also a customer in this org.
@@ -133,17 +133,17 @@ test.describe('per-org CUSTOMER erasure via blocking', () => {
     await blockCustomer(owner.orgId, custId)
 
     // Guard: the customer shadow is archived (the block landed) — keeps this
-    // test honest about what it simulates before asserting the professional view.
+    // test honest about what it simulates before asserting the memberOperation view.
     const customerRows = await pgQueryProjection('customers', 'user_id', proUserId)
     expect(customerRows.some((r) => r.org_id === owner.orgId && r.archived_at !== null)).toBe(true)
 
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()
 
-    // Team surface (professional/employment relationship): the real name stays.
+    // Team surface (memberOperation/employment relationship): the real name stays.
     await page.goto('/team')
     await expect(page.getByText(proName).first()).toBeVisible()
-    // If the block had (incorrectly) neutralized the professional, the team
+    // If the block had (incorrectly) neutralized the memberOperation, the team
     // would render `Profissional ‹CODE›` instead of the real name. It must NOT.
     const neutralProLabel = `Profissional ${anonymizedSubjectCode(proUserId)}`
     await expect(page.getByText(neutralProLabel, { exact: true })).toHaveCount(0)

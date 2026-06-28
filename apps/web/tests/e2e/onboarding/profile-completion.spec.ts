@@ -47,7 +47,7 @@ test.describe('Onboarding — conclusão de perfil', () => {
     baseURL,
   }) => {
     // seedOrg pre-fills completionCompleted=true on the owner user doc.
-    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
+    const seed = await seedOrg({ unitCount: 1, memberOperationCount: 1 })
     await signInAndAttachSession(context, seed.email, seed.password, baseURL ?? undefined)
 
     // /dashboard renders directly — no bounce through /onboarding/profile.
@@ -95,7 +95,7 @@ test.describe('Onboarding — conclusão de perfil', () => {
     'convidado precisa completar perfil antes de aceitar o convite (#827 + #838)',
     { tag: '@critical' },
     async ({ context, page, baseURL }) => {
-      const owner = await seedOrg({ unitCount: 0, professionalCount: 0 })
+      const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
       // Explicitly seed the invitee without completion so the gate trips.
       const invitee = await seedAuthUser({ completionCompleted: false })
       const { inviteId, rawToken } = await seedInvite({

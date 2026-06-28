@@ -14,7 +14,7 @@ import { getEventStorePool } from '../pool'
 import { readUnderRls } from '../rls-read'
 // Side-effect imports: register the typed projectors in the typed-projection
 // registry before the first projection write. catalog-item (brief 0058);
-// org/unit/membership (identity, brief 0059); professional/customer/invite +
+// org/unit/membership (identity, brief 0059); memberOperation/customer/invite +
 // category/subscription-plan + agenda-block/goal/notification (config, brief 0060);
 // order/commission/cash-movement (financial core, brief 0061 § Grupo A).
 import './agenda-block-projector'
@@ -27,12 +27,12 @@ import './commission-projector'
 import './customer-projector'
 import './goal-projector'
 import './invite-projector'
+import './member-operation-projector'
 import './membership-projector'
 import './notification-projector'
 import './order-projector'
 import './org-billing-projector'
 import './org-projector'
-import './professional-projector'
 import './subscription-plan-projector'
 import './subscription-projector'
 import { typedProjectorFor } from './typed-projections'

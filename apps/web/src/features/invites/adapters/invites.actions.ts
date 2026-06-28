@@ -7,7 +7,7 @@ import {
   type Membership,
   membershipDocId,
 } from '@/domain'
-import { InviteConfig, MembershipConfig, ProfessionalConfig } from '@/domain/aggregates'
+import { InviteConfig, MemberOperationConfig, MembershipConfig } from '@/domain/aggregates'
 import {
   aggregateRef,
   appendEventToTx,
@@ -21,14 +21,17 @@ import { commitSaga, emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
 import { getInviteById } from '@/shared/org/invite-read'
-import { type StoredProfessional, writeProfessionalPii } from '@/shared/org/professional-read'
+import {
+  type StoredMemberOperation,
+  writeMemberOperationPii,
+} from '@/shared/org/member-operation-read'
 import { redirect } from 'next/navigation'
 
 export type AcceptInviteResult = { ok: true; orgId: string } | { ok: false; error: string }
 
-// Identity-pure saga (membership + professional + invite + `users.current_org_id`):
-// membership + professional (if any) + invite.accepted commit together or ROLLBACK
-// as one ACID transaction (#1199 — no manual compensation). The `professionals_pii`
+// Identity-pure saga (membership + memberOperation + invite + `users.current_org_id`):
+// membership + memberOperation (if any) + invite.accepted commit together or ROLLBACK
+// as one ACID transaction (#1199 — no manual compensation). The `member_operations_pii`
 // sidecar + the `users` auth row are non-aggregate writes that can't ride the
 // event-store tx, so they land AFTER the tx commits (idempotent).
 export async function acceptInvite(formData: FormData): Promise<AcceptInviteResult> {
@@ -84,12 +87,12 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
     permissions: defaultPermissionsForRole(invite.role),
   }
 
-  // The professional projection (only for role=professional). The id is minted
+  // The memberOperation projection (only for role=memberOperation). The id is minted
   // backend-agnostically (cutover — `newId()`, brief 0062). PII (`taxIdentity`)
   // never enters the event payload (LGPD — ADR 0010); it lands in the
-  // `professionals_pii` sidecar, written post-commit (non-aggregate).
-  const proId = invite.role === 'professional' ? newId() : null
-  const storedPro: StoredProfessional | null =
+  // `member_operations_pii` sidecar, written post-commit (non-aggregate).
+  const proId = invite.role === 'member_operator' ? newId() : null
+  const storedPro: StoredMemberOperation | null =
     proId === null
       ? null
       : {
@@ -125,12 +128,12 @@ type AcceptInviteSagaArgs = {
   membership: Membership
   now: string
   proId: string | null
-  storedPro: StoredProfessional | null
+  storedPro: StoredMemberOperation | null
 }
 
-// Accept path (#1199): membership + professional (if any) + invite.accepted
+// Accept path (#1199): membership + memberOperation (if any) + invite.accepted
 // commit together or ROLLBACK as one ACID transaction — no manual compensation.
-// The `professionals_pii` sidecar + the `users.current_org_id` auth row are
+// The `member_operations_pii` sidecar + the `users.current_org_id` auth row are
 // non-aggregate writes that land AFTER the tx commits.
 async function acceptInviteSaga(args: AcceptInviteSagaArgs): Promise<AcceptInviteResult> {
   const { orgId, inviteOrgId, inviteId, actorUid, membershipId, membership, now } = args
@@ -152,10 +155,10 @@ async function acceptInviteSaga(args: AcceptInviteSagaArgs): Promise<AcceptInvit
   if (proId && storedPro) {
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
-        ProfessionalConfig,
-        aggregateRef(ProfessionalConfig, orgId, proId),
+        MemberOperationConfig,
+        aggregateRef(MemberOperationConfig, orgId, proId),
         {
-          _tag: 'professional.created',
+          _tag: 'member_operation.created',
           actorId: actorUid,
           payload: { data: storedPro },
         },
@@ -178,10 +181,10 @@ async function acceptInviteSaga(args: AcceptInviteSagaArgs): Promise<AcceptInvit
   const outcome = await commitSaga(steps)
   if (!outcome.ok) return { ok: false, error: outcome.error }
 
-  if (proId) await writeProfessionalPii(orgId, proId, { taxIdentity: null })
+  if (proId) await writeMemberOperationPii(orgId, proId, { taxIdentity: null })
   await patchUser(actorUid, { current_org_id: inviteOrgId }, now)
   // Land on a surface the new member can actually see: the Dashboard is
-  // manager-only (server-side wall on `/dashboard`), so a professional/
+  // manager-only (server-side wall on `/dashboard`), so a memberOperation/
   // receptionist must go to `/agenda` — mirrors `requireManagerPage`'s
   // `notManagerTo` default. Sending a non-manager to `/dashboard` would just
   // bounce them again.

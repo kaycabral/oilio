@@ -34,19 +34,22 @@ import {
   type SubscriptionRow,
 } from '@/shared/db/pg/effect/subscription-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
+import {
+  countMemberOperationsWithUnit,
+  getMemberOperationUserId,
+} from '@/shared/org/member-operation-read'
 import { getMembership } from '@/shared/org/membership'
-import { countProfessionalsWithUnit, getProfessionalUserId } from '@/shared/org/professional-read'
 import { Schema } from 'effect'
 
 const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 const decodeSubscription = Schema.decodeUnknownSync(Subscription)
 
-// Reads the org's `scheduled` appointments for the given FK (`professional_id`
+// Reads the org's `scheduled` appointments for the given FK (`member_operation_id`
 // / `customer_id`) under RLS, decoded to the domain `Appointment`. The
 // caller applies `isFutureScheduledAppointment` to drop past-dated slots.
 async function readScheduledAppointments(
   orgId: string,
-  column: 'professional_id' | 'customer_id' | 'unit_id',
+  column: 'member_operation_id' | 'customer_id' | 'unit_id',
   id: string,
 ): Promise<Appointment[]> {
   const rows = await readUnderRls<AppointmentRow>(orgId, (client) =>
@@ -79,15 +82,15 @@ async function readSubscriptions(
   return rows.map((row) => decodeSubscription(subscriptionRowToDoc(row)))
 }
 
-// Future-scheduled appointment probe shared by the professional and customer
+// Future-scheduled appointment probe shared by the memberOperation and customer
 // guards: both denormalize the FK directly on the appointment row
-// (`professional_id` / `customer_id`), so we filter by `scheduled` in the query
+// (`member_operation_id` / `customer_id`), so we filter by `scheduled` in the query
 // then drop past-dated slots in memory via the shared predicate. Completed /
 // cancelled / no-show and past `scheduled` slots are historical (the
 // appointment snapshotted price/duration/commission), so they never block.
 async function hasFutureScheduledAppointment(
   orgId: string,
-  field: 'professional_id' | 'customer_id',
+  field: 'member_operation_id' | 'customer_id',
   id: string,
 ): Promise<boolean> {
   const appts = await readScheduledAppointments(orgId, field, id)
@@ -171,16 +174,16 @@ export async function canDeleteCatalogItem(orgId: string, catalogItemId: string)
 
 // ── Unit ───────────────────────────────────────────────────────────────────
 // Active reference = a FUTURE scheduled appointment in the unit, OR a
-// professional currently scoped to it (lifecycle/offboarding is non-destructive
+// memberOperation currently scoped to it (lifecycle/offboarding is non-destructive
 // elsewhere — an active pro in the unit is a live dependency). Past/completed/
 // cancelled appointments are historical (snapshotted) and do not block. Catalog
 // items offered in the unit are editable config (the owner repoints `unitIds`),
 // so they no longer block on their own.
 export async function unitHasActiveReference(orgId: string, unitId: string): Promise<boolean> {
-  // Professional actively scoped to the unit → live dependency. Existence check
-  // (count over the `professional_units` join under RLS, brief 0068 D3) — only the
+  // MemberOperation actively scoped to the unit → live dependency. Existence check
+  // (count over the `member_operation_units` join under RLS, brief 0068 D3) — only the
   // count matters, no decode/enrich.
-  if ((await countProfessionalsWithUnit(orgId, unitId)) > 0) return true
+  if ((await countMemberOperationsWithUnit(orgId, unitId)) > 0) return true
 
   // Future scheduled appointment in the unit. Filter by `scheduled` status in
   // the query, then drop past-dated ones in memory via the shared predicate.
@@ -192,43 +195,44 @@ export async function canDeleteUnit(orgId: string, unitId: string): Promise<bool
   return !(await unitHasActiveReference(orgId, unitId))
 }
 
-// ── Professional ─────────────────────────────────────────────────────────────
+// ── MemberOperation ─────────────────────────────────────────────────────────────
 // Active reference (brief 0033, AC-06) = (a) a FUTURE scheduled appointment
 // assigned to them, OR (b) an ACTIVE membership (they're still a current team
 // member). Both mean a live dependency that hard-delete would orphan; the
 // lifecycle path is deactivate (0029 `suspended`) / offboard (0041 `revoked`),
 // never erase. A REVOKED membership is the terminal severance (offboarding ran),
 // and the offboarding cascade already cancelled future appointments — so a
-// fully-offboarded professional has no active reference and becomes deletable.
+// fully-offboarded memberOperation has no active reference and becomes deletable.
 // Past/completed/cancelled appointments are historical (snapshotted) and do not
 // block. This is HARD delete vs archive, distinct from the LGPD anonymize
-// (professional PII is RETAINED for legal retention, brief 0041 — there is no
-// professional anonymization here).
+// (memberOperation PII is RETAINED for legal retention, brief 0041 — there is no
+// memberOperation anonymization here).
 //
-// `professionalId` is the professional DOC id; appointments denormalize it as
-// `professionalId`. Membership is keyed by the professional's `userId` (the
+// `memberOperationId` is the memberOperation DOC id; appointments denormalize it as
+// `memberOperationId`. Membership is keyed by the memberOperation's `userId` (the
 // projection always carries a non-null link, #1045) at `memberships/{tid}_{uid}`.
-export async function professionalHasActiveReference(
+export async function memberOperationHasActiveReference(
   orgId: string,
-  professionalId: string,
+  memberOperationId: string,
 ): Promise<boolean> {
-  if (await hasFutureScheduledAppointment(orgId, 'professional_id', professionalId)) return true
+  if (await hasFutureScheduledAppointment(orgId, 'member_operation_id', memberOperationId))
+    return true
 
-  // Reads the linked `userId` under RLS; use the tolerant `getProfessionalUserId`
-  // (not the strict-decoding `getProfessionalById`) so a degenerate projection
+  // Reads the linked `userId` under RLS; use the tolerant `getMemberOperationUserId`
+  // (not the strict-decoding `getMemberOperationById`) so a degenerate projection
   // doc doesn't throw on this fail-safe guard.
-  const userId = await getProfessionalUserId(orgId, professionalId)
+  const userId = await getMemberOperationUserId(orgId, memberOperationId)
   if (!userId) return false
 
   const member = await getMembership(orgId, userId)
   return member ? isActiveMembershipStatus(member.status) : false
 }
 
-export async function canDeleteProfessional(
+export async function canDeleteMemberOperation(
   orgId: string,
-  professionalId: string,
+  memberOperationId: string,
 ): Promise<boolean> {
-  return !(await professionalHasActiveReference(orgId, professionalId))
+  return !(await memberOperationHasActiveReference(orgId, memberOperationId))
 }
 
 // ── Customer (operator delete — brief 0033, AC-07) ───────────────────────────
@@ -236,7 +240,7 @@ export async function canDeleteProfessional(
 // 0032 — subject-only, self-service, identifiable name preserved here). The ONLY
 // hard blocker is an OPEN comanda: a fiscal document in progress must not be
 // orphaned by removing the customer (mapa Ciclo de Vida e Exclusão — the single
-// rule shared with the LGPD block AC-11e and professional offboarding 0041).
+// rule shared with the LGPD block AC-11e and memberOperation offboarding 0041).
 //
 // An active subscription + future appointments do NOT block — they are
 // cascade-cancelled (`eraseCustomerCascadeInOrg`) and listed in the confirm

@@ -1,19 +1,19 @@
 import { Schema } from 'effect'
 
-export const Role = Schema.Literal('owner', 'manager', 'professional', 'receptionist')
+export const Role = Schema.Literal('owner', 'manager', 'member_operator', 'receptionist')
 export type Role = typeof Role.Type
 
-export const ROLES: readonly Role[] = ['owner', 'manager', 'professional', 'receptionist']
+export const ROLES: readonly Role[] = ['owner', 'manager', 'member_operator', 'receptionist']
 
 export const Vertical = Schema.Literal('barbershop', 'auto_wash', 'auto_detailing', 'other')
 export type Vertical = typeof Vertical.Type
 
 export const VERTICALS: readonly Vertical[] = ['barbershop', 'auto_wash', 'auto_detailing', 'other']
 
-// Derived operational readiness for a Professional being allowed to operate
+// Derived operational readiness for a MemberOperation being allowed to operate
 // (take bookings, appear on the agenda, receive split). There is no human
 // approver: the status is computed from facts. The projection exists only after
-// invite acceptance, so a professional is either `incomplete` (joined, profile
+// invite acceptance, so a memberOperation is either `incomplete` (joined, profile
 // not yet bookable) or `operational` (whatsapp + ≥1 unit + ≥1 service).
 export const OperationalStatus = Schema.Literal('incomplete', 'operational')
 export type OperationalStatus = typeof OperationalStatus.Type

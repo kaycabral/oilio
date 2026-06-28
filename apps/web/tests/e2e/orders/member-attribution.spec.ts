@@ -1,6 +1,6 @@
 // Brief 0030 (#1056) — atribuição de item por membro (`attributedUserId`).
 //
-// AC-04: cada item é atribuído a um MEMBRO (não só Professional), obrigatório
+// AC-04: cada item é atribuído a um MEMBRO (não só MemberOperation), obrigatório
 // com default esperto e editável. AC-05: "membro pode operar" generaliza o
 // antigo `assertExecutorApproved` — uma venda de produto NÃO é travada pela
 // falta de um profissional aprovado.
@@ -10,7 +10,7 @@
 //      que abriu) — o select de "Vendedor" já vem com o operador selecionado.
 //   2. Edição: re-atribui o item a outro membro pelo controle de atribuição.
 //   3. AC-05 (a generalização-chave): um produto avulso atribuído a uma RECEPÇÃO
-//      sem Professional fecha — comissiona o membro (recepção), sem exigir
+//      sem MemberOperation fecha — comissiona o membro (recepção), sem exigir
 //      profissional aprovado.
 //   4. Produto numa venda nascida de agendamento também default-atribui ao
 //      operador (o `attributedUserId` é do operador, não do profissional do
@@ -33,8 +33,8 @@ test.describe('Atribuição de item por membro (brief 0030, #1056)', { tag: '@cr
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
       hasBusinessHours: true,
       slotMinutes: 30,
     },
@@ -79,7 +79,7 @@ test.describe('Atribuição de item por membro (brief 0030, #1056)', { tag: '@cr
     ).toHaveText('Gerente Loja')
   })
 
-  test('AC-05: venda de produto pela recepção (sem Professional) atribui e fecha', async ({
+  test('AC-05: venda de produto pela recepção (sem MemberOperation) atribui e fecha', async ({
     org,
     authedPage,
   }) => {
@@ -92,7 +92,7 @@ test.describe('Atribuição de item por membro (brief 0030, #1056)', { tag: '@cr
       commission: { kind: 'percentage', value: 50 },
       unitIds: [org.unitIds[0]!],
     })
-    // Recepção SEM Professional projection — é o caso que a generalização destrava.
+    // Recepção SEM MemberOperation projection — é o caso que a generalização destrava.
     await seedMember(org.orgId, { role: 'receptionist', displayName: 'Recepção Balcão' })
 
     await authedPage.goto('/orders')
@@ -148,7 +148,7 @@ test.describe('Atribuição de item por membro (brief 0030, #1056)', { tag: '@cr
     await seedAppointment({
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
-      professionalId: org.professionalIds[0]!,
+      memberOperationId: org.memberOperationIds[0]!,
       customerId,
       serviceId,
       startAt: '2026-09-08T17:00:00.000Z',

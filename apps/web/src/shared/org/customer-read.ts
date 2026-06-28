@@ -48,7 +48,7 @@ function mergeWithUser(c: StoredCustomer, u: User | undefined): Customer {
   // customer blocked in THIS org (#1096/#1100, AC-09) resolves to the same
   // neutral label + blanked avatar (AC-13) here, even though the global account
   // keeps its name. The block is detected from the customer's own `archivedAt`
-  // projection — never from the professional relationship (kept identifiable).
+  // projection — never from the memberOperation relationship (kept identifiable).
   const blockedInOrg = isBlockedCustomer(c)
   const name = resolveSubjectName(c.userId, u, 'Cliente', { blockedInOrg }) ?? ''
   return {

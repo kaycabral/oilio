@@ -15,12 +15,12 @@ import {
 } from '@cbrl/design'
 import { useState, useTransition } from 'react'
 
-const INVITABLE_ROLES: Role[] = ['manager', 'professional', 'receptionist']
+const INVITABLE_ROLES: Role[] = ['manager', 'member_operator', 'receptionist']
 
 const ROLE_LABELS: Record<Role, string> = {
   owner: 'Dono',
   manager: 'Gerente',
-  professional: 'Profissional',
+  member_operator: 'Profissional',
   receptionist: 'Recepção',
 }
 

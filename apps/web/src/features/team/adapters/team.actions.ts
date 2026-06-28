@@ -9,18 +9,22 @@ import {
   type Role,
   ROLES,
 } from '@/domain'
-import { InviteConfig, MembershipConfig, ProfessionalConfig } from '@/domain/aggregates'
+import { InviteConfig, MemberOperationConfig, MembershipConfig } from '@/domain/aggregates'
 import { generateInviteToken } from '@/features/invites/adapters/invite-token'
 import { offboardMemberInOrg, type OffboardWarning } from '@/features/team/adapters/offboard-member'
-import { parseProfessionalForm } from '@/features/team/core/professional-form'
+import { parseMemberOperationForm } from '@/features/team/core/member-operation-form'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
-import { canDeleteProfessional } from '@/shared/org/delete-guard'
+import { canDeleteMemberOperation } from '@/shared/org/delete-guard'
 import { type StoredInvite, writeInvitePii } from '@/shared/org/invite-read'
+import {
+  deleteMemberOperationPii,
+  writeMemberOperationPii,
+} from '@/shared/org/member-operation-read'
 import {
   assertCanManage,
   getActiveOrgContext,
@@ -28,7 +32,6 @@ import {
   requireManagerCtx,
   requireOwnerCtx,
 } from '@/shared/org/membership'
-import { deleteProfessionalPii, writeProfessionalPii } from '@/shared/org/professional-read'
 import { revalidatePath } from 'next/cache'
 
 import {
@@ -40,7 +43,7 @@ import {
 import { commitSaga } from '@/shared/effect-bridge'
 
 import {
-  resolveProfessionalRoleStep,
+  resolveMemberOperatorRoleStep,
   validateServiceUnitIntersection,
 } from './member-write-helpers'
 
@@ -111,23 +114,23 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
 }
 
 // ---------------------------------------------------------------------------
-// Professional operational edit — migrated from the killed `/professionals`
-// route into the member detail (brief 0037 #1085 AC-01/AC-02). A Professional
-// is the operational projection of a `Membership(role=professional)` + `User`;
+// MemberOperation operational edit — migrated from the killed `/memberOperations`
+// route into the member detail (brief 0037 #1085 AC-01/AC-02). A MemberOperation
+// is the operational projection of a `Membership(role=memberOperation)` + `User`;
 // editing it is editing a member with extra fields. The actions live here,
 // scoped to the member detail at `/team/{userId}`, and revalidate that path
 // (no redirect to a dead route).
 // ---------------------------------------------------------------------------
 
-export type ProfessionalMutationResult = { ok: true } | { ok: false; error: string }
+export type MemberOperationMutationResult = { ok: true } | { ok: false; error: string }
 
-export async function updateProfessional(
-  professionalId: string,
+export async function updateMemberOperation(
+  memberOperationId: string,
   formData: FormData,
-): Promise<ProfessionalMutationResult> {
+): Promise<MemberOperationMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  const parsed = parseProfessionalForm(formData)
+  const parsed = parseMemberOperationForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
   const invariantErr = await validateServiceUnitIntersection(
@@ -138,16 +141,16 @@ export async function updateProfessional(
   if (invariantErr) return { ok: false, error: invariantErr }
 
   const { taxIdentity, ...operational } = parsed
-  // Professional-scoped PII (taxIdentity) goes to the deletable
-  // `professionals_pii` doc, never to the event. Personal identity
+  // MemberOperation-scoped PII (taxIdentity) goes to the deletable
+  // `member_operations_pii` doc, never to the event. Personal identity
   // (name/whatsapp/email) is NOT written here — it derives live from
   // `users/{userId}` (#1046 / AC-04).
-  await writeProfessionalPii(r.ctx.membership.orgId, professionalId, { taxIdentity })
+  await writeMemberOperationPii(r.ctx.membership.orgId, memberOperationId, { taxIdentity })
   const updated = await emitEvent(
-    ProfessionalConfig,
-    aggregateRef(ProfessionalConfig, r.ctx.membership.orgId, professionalId),
+    MemberOperationConfig,
+    aggregateRef(MemberOperationConfig, r.ctx.membership.orgId, memberOperationId),
     {
-      _tag: 'professional.updated',
+      _tag: 'member_operation.updated',
       actorId: r.ctx.session.uid,
       payload: { changes: { ...operational } },
     },
@@ -162,34 +165,34 @@ export async function updateProfessional(
   return { ok: true }
 }
 
-export async function deleteProfessional(
-  professionalId: string,
-): Promise<ProfessionalMutationResult> {
+export async function deleteMemberOperation(
+  memberOperationId: string,
+): Promise<MemberOperationMutationResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return r
   // Active-reference guard (brief 0033, AC-06 — defense-in-depth even when the
-  // UI already hides Excluir). A professional with a future appointment or an
+  // UI already hides Excluir). A memberOperation with a future appointment or an
   // active membership is a live dependency: the path is deactivate (0029) /
   // offboard (0041), never hard-delete. Offboarding sets `revoked` + cancels
   // future appointments, so a fully-offboarded pro clears this guard.
-  if (!(await canDeleteProfessional(r.ctx.membership.orgId, professionalId))) {
+  if (!(await canDeleteMemberOperation(r.ctx.membership.orgId, memberOperationId))) {
     return { ok: false, error: 'Profissional tem vínculo ativo — desative ou remova do time.' }
   }
   const deleted = await emitEvent(
-    ProfessionalConfig,
-    aggregateRef(ProfessionalConfig, r.ctx.membership.orgId, professionalId),
-    { _tag: 'professional.deleted', actorId: r.ctx.session.uid, payload: {} },
+    MemberOperationConfig,
+    aggregateRef(MemberOperationConfig, r.ctx.membership.orgId, memberOperationId),
+    { _tag: 'member_operation.deleted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
   // The `*.deleted` event skips reprojection; hard-delete the read-model row
-  // (Postgres drops the typed `professionals` row, Firestore deletes the doc).
-  // The `canDeleteProfessional` guard above already blocks live references, but
+  // (Postgres drops the typed `memberOperations` row, Firestore deletes the doc).
+  // The `canDeleteMemberOperation` guard above already blocks live references, but
   // a cross-aggregate `ON DELETE RESTRICT` FK (brief 0068 D2 — appointments
-  // referencing this professional) is the DB's last-line guard: convert its
+  // referencing this memberOperation) is the DB's last-line guard: convert its
   // 23503 into a friendly result instead of a raw 500.
   try {
     await deleteOrgProjectionDoc(
-      aggregateRef(ProfessionalConfig, r.ctx.membership.orgId, professionalId),
+      aggregateRef(MemberOperationConfig, r.ctx.membership.orgId, memberOperationId),
     )
   } catch (err) {
     if (isForeignKeyViolation(err)) {
@@ -201,28 +204,28 @@ export async function deleteProfessional(
     throw err
   }
   // LGPD erasure — drop the PII doc alongside the projection.
-  await deleteProfessionalPii(r.ctx.membership.orgId, professionalId)
+  await deleteMemberOperationPii(r.ctx.membership.orgId, memberOperationId)
   revalidatePath('/team')
   return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
 // Role-edit with projection lifecycle — brief 0037 #1086 (AC-04/AC-05/AC-06).
-// Editing a member's role in-place is more than a field write: the Professional
-// projection is the operational view of a `Membership(role=professional)`, so
+// Editing a member's role in-place is more than a field write: the MemberOperation
+// projection is the operational view of a `Membership(role=memberOperation)`, so
 // the role transition must keep that projection in sync, and permissions are
 // re-derived so the ~47 role/permission read-sites never read stale.
 //
-// Saga (Postgres ACID, #1199): the membership and professional aggregates commit
+// Saga (Postgres ACID, #1199): the membership and memberOperation aggregates commit
 // their events in ONE transaction — a failure rolls back the lot, so there is no
 // manual compensation. Erro à mostra, never silent.
 //
 // Lifecycle (closed decisions, brief 0037 + #1086 clarification + #1226 AC-02):
-//   - →professional : MATERIALIZE the projection if absent (same
-//     `professional.created` path as the 0028 invite-accept flow, linked to
+//   - →memberOperation : MATERIALIZE the projection if absent (same
+//     `member_operation.created` path as the 0028 invite-accept flow, linked to
 //     `userId`). If a projection already exists, leave it — readiness is derived
 //     on read (`operationalStatus`), so no activation event is emitted.
-//   - professional→other : no projection event. `operationalStatus` is derived
+//   - memberOperation→other : no projection event. `operationalStatus` is derived
 //     on read (#1226 AC-02), so there is nothing to suspend here; severing a
 //     demoted member's operability is the offboarding flow's job (brief 0041).
 //   - always : re-derive `permissions{}` via `defaultPermissionsForRole(newRole)`
@@ -235,7 +238,7 @@ export type ChangeRoleResult = { ok: true } | { ok: false; error: string }
 // Roles a member can be moved between via the UI. `owner` is excluded: it is
 // the org-creator identity (onboarding), never assigned by role-edit — same
 // guard as the invite flow (`createInvite` rejects `owner`).
-const ASSIGNABLE_ROLES: readonly Role[] = ['manager', 'professional', 'receptionist'] as const
+const ASSIGNABLE_ROLES: readonly Role[] = ['manager', 'member_operator', 'receptionist'] as const
 
 export async function changeMemberRole(
   targetUserId: string,
@@ -261,22 +264,22 @@ export async function changeMemberRole(
   if (member.role === 'owner') return { ok: false, error: 'Cannot change the owner role' }
   if (member.role === newRole) return { ok: true }
 
-  const willBeProfessional = newRole === 'professional'
+  const willBeMemberOperator = newRole === 'member_operator'
 
   // Step 1 — membership.updated: role + re-derived permissions in one event
   // (AC-06). State is projection (no dual-write): the reducer projects both.
-  // Step 2 — the professional projection lifecycle (≤1 projection per userId/org).
+  // Step 2 — the memberOperation projection lifecycle (≤1 projection per userId/org).
 
-  // ACID (#1199): the membership role change + the professional projection event
+  // ACID (#1199): the membership role change + the memberOperation projection event
   // commit together or ROLLBACK as one — no manual compensation. The decision
-  // (which professional event, if any) is RESOLVED from reads up front so the
-  // writes run as pure saga steps; a NEW projection's `professionals_pii` sidecar
+  // (which memberOperation event, if any) is RESOLVED from reads up front so the
+  // writes run as pure saga steps; a NEW projection's `member_operations_pii` sidecar
   // (non-aggregate) lands post-commit.
-  const proStep = await resolveProfessionalRoleStep({
+  const proStep = await resolveMemberOperatorRoleStep({
     orgId,
     actorId,
     targetUserId,
-    willBeProfessional,
+    willBeMemberOperator,
   })
   const steps: SagaStep[] = [
     (tx: TransactionContext) =>
@@ -296,8 +299,8 @@ export async function changeMemberRole(
   if (proStep.kind !== 'none') {
     steps.push((tx: TransactionContext) =>
       appendEventToTx(
-        ProfessionalConfig,
-        aggregateRef(ProfessionalConfig, orgId, proStep.proId),
+        MemberOperationConfig,
+        aggregateRef(MemberOperationConfig, orgId, proStep.proId),
         proStep.input,
         tx,
       ),
@@ -306,7 +309,7 @@ export async function changeMemberRole(
   const outcome = await commitSaga(steps)
   if (!outcome.ok) return { ok: false, error: outcome.error }
   if (proStep.kind === 'create') {
-    await writeProfessionalPii(orgId, proStep.proId, { taxIdentity: null })
+    await writeMemberOperationPii(orgId, proStep.proId, { taxIdentity: null })
   }
   revalidatePath('/team')
   revalidatePath(`/team/${targetUserId}`)
@@ -316,7 +319,7 @@ export async function changeMemberRole(
 // ---------------------------------------------------------------------------
 // Deactivate / reactivate a member — brief 0029 #1053 (AC-10). Member-level
 // lifecycle (vacation / dismissal / health), distinct from `operationalStatus`
-// (professional unit-activation, 0028) and `professional.suspended` (the role
+// (memberOperation unit-activation, 0028) and `member_operation.suspended` (the role
 // lifecycle projection, 0037). This flips `membership.status` active ↔
 // suspended, event-sourced via `membership.updated` carrying ONLY `status`
 // (same aggregate as `changeMemberRole`, different field — no conflict; the
@@ -382,11 +385,11 @@ export async function setMemberStatus(
 // clean agenda-blocks) and #1105 (commissions / unit-capacity / invites) stack
 // additional cascade steps on top of the skeleton below.
 //
-// Distinct from customer erasure (brief 0032): the professional/employment
+// Distinct from customer erasure (brief 0032): the memberOperation/employment
 // vínculo is a DIFFERENT relationship, retained ORIGINAL + IDENTIFIABLE for
 // legal retention (art. 16). The offboarding NEVER anonymizes/scrubs/neutralizes
-// — in particular it does NOT delete `professionals_pii` (the conflict the brief
-// flags against the old `deleteProfessional`). Vendas/comissões passadas keep
+// — in particular it does NOT delete `member_operations_pii` (the conflict the brief
+// flags against the old `deleteMemberOperation`). Vendas/comissões passadas keep
 // the member's real name.
 //
 // Gating (AC-01): owner/manager only (`requireManagerCtx`); you CANNOT remove
@@ -397,7 +400,7 @@ export async function setMemberStatus(
 // ---------------------------------------------------------------------------
 
 // The result carries the non-blocking AC-08 warnings (e.g. a unit left with no
-// active professional) so the UI can surface them after a successful removal.
+// active memberOperation) so the UI can surface them after a successful removal.
 export type RemoveMemberResult =
   | { ok: true; warnings: OffboardWarning[] }
   | { ok: false; error: string }
@@ -438,13 +441,13 @@ export async function removeMemberFromTeam(targetUserId: string): Promise<Remove
 // orchestrates the two existing flows in one call:
 //   1. if the role changed → run the full `changeMemberRole` lifecycle first
 //      (materialize/deactivate projection + re-derive permissions, #1086);
-//   2. then, when the member stays a professional, persist the operational
-//      fields via `updateProfessional` (units/services/commission/tax, #1085).
+//   2. then, when the member stays a memberOperation, persist the operational
+//      fields via `updateMemberOperation` (units/services/commission/tax, #1085).
 // Event-first throughout (each underlying action emits its own domain events);
 // role lifecycle runs before the operational write so the projection exists.
 // The operational fields are only ever present when the member is (and remains)
-// professional — promotion to/demotion from professional carries no operational
-// payload (the form hides those fields for non-professionals), so there's no
+// memberOperation — promotion to/demotion from memberOperation carries no operational
+// payload (the form hides those fields for non-memberOperations), so there's no
 // write against a not-yet/just-deactivated projection.
 // ---------------------------------------------------------------------------
 
@@ -454,10 +457,10 @@ export async function saveMemberDetail(input: {
   targetUserId: string
   currentRole: Role
   newRole: Role
-  professionalId: string | null
+  memberOperationId: string | null
   formData: FormData | null
 }): Promise<SaveMemberResult> {
-  const { targetUserId, currentRole, newRole, professionalId, formData } = input
+  const { targetUserId, currentRole, newRole, memberOperationId, formData } = input
 
   if (newRole !== currentRole) {
     const roleResult = await changeMemberRole(targetUserId, newRole)
@@ -465,12 +468,12 @@ export async function saveMemberDetail(input: {
   }
 
   // Operational persistence only applies when the member is (and remains) a
-  // professional with a materialized projection. Promotion to professional in
+  // memberOperation with a materialized projection. Promotion to memberOperation in
   // this same save materializes the projection but shows no operational fields
   // yet (configured on the next visit); demotion has no operational payload.
-  const staysProfessional = newRole === 'professional' && currentRole === 'professional'
-  if (staysProfessional && professionalId && formData) {
-    const opResult = await updateProfessional(professionalId, formData)
+  const staysMemberOperator = newRole === 'member_operator' && currentRole === 'member_operator'
+  if (staysMemberOperator && memberOperationId && formData) {
+    const opResult = await updateMemberOperation(memberOperationId, formData)
     if (!opResult.ok) return opResult
   }
 

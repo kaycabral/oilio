@@ -4,7 +4,7 @@ import { closeEventStoreDb, getEventStorePool } from '../pool'
 
 /**
  * RLS isolation proof for the CONFIG contexts (brief 0060, feature D, AC-02) —
- * the 8 aggregates migrated by D: professional/customer/invite (Grupo A),
+ * the 8 aggregates migrated by D: memberOperation/customer/invite (Grupo A),
  * category/subscription_plan (Grupo B), agenda_block/goal/notification (Grupo C).
  *
  * Mirrors `rls-isolation.events.pg.integration.test.ts` (feature C). The
@@ -14,7 +14,7 @@ import { closeEventStoreDb, getEventStorePool } from '../pool'
  * pool so the fixtures exist regardless of policy.
  *
  * Two policy families (per 0005_rls_config):
- *   - ORG-only (professionals/customers/invites/categories/subscription_plans):
+ *   - ORG-only (memberOperations/customers/invites/categories/subscription_plans):
  *     `org_id = current_setting('app.current_org', true)`.
  *   - ORG + UNIT (agenda_blocks/goals/notifications, which carry `unit_id`): the
  *     org predicate AND (no unit pinned OR the row's unit matches the session).
@@ -32,7 +32,7 @@ let appUrl: string
 
 // The 8 config tables D brings under RLS.
 const ORG_ONLY_TABLES = [
-  'professionals',
+  'member_operations',
   'customers',
   'invites',
   'categories',
@@ -67,15 +67,15 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
 async function seedRow(table: string, orgId: string, id: string, unitId: string): Promise<void> {
   const pool = getEventStorePool()
   switch (table) {
-    case 'professionals':
+    case 'member_operations':
       await pool.query(
         `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-         VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'professional','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
+         VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'member_operator','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
          ON CONFLICT (org_id, id) DO NOTHING`,
         [orgId, id],
       )
       await pool.query(
-        `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+        `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
          VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [orgId, id],
       )
@@ -90,7 +90,7 @@ async function seedRow(table: string, orgId: string, id: string, unitId: string)
     case 'invites':
       await pool.query(
         `INSERT INTO invites (org_id, id, last_event_version, role, token_hash, expires_at, status, invited_by, accepted_by_uid, accepted_at, created_at, updated_at)
-         VALUES ($1,$2,1,'professional','hash','2026-01-01T00:00:00Z','pending','owner',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+         VALUES ($1,$2,1,'member_operator','hash','2026-01-01T00:00:00Z','pending','owner',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [orgId, id],
       )
       return
@@ -111,7 +111,7 @@ async function seedRow(table: string, orgId: string, id: string, unitId: string)
     case 'agenda_blocks':
       await seedUnit(orgId, unitId)
       await pool.query(
-        `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, professional_id, block, created_at, updated_at)
+        `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, member_operation_id, block, created_at, updated_at)
          VALUES ($1,$2,$3,1,'recurring',NULL,'{"reason":"r"}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [orgId, id, unitId],
       )
@@ -154,7 +154,7 @@ describe('Postgres RLS isolation — config (brief 0060, AC-02)', () => {
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
     await pool.query(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON orgs, professionals, customers, invites, categories, subscription_plans, agenda_blocks, goals, notifications TO ${APP_ROLE}`,
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON orgs, member_operations, customers, invites, categories, subscription_plans, agenda_blocks, goals, notifications TO ${APP_ROLE}`,
     )
     const base = process.env.OILIO_DATABASE_URL
     if (!base) throw new Error('OILIO_DATABASE_URL is required for the RLS isolation proof')
@@ -163,7 +163,7 @@ describe('Postgres RLS isolation — config (brief 0060, AC-02)', () => {
 
   beforeEach(async () => {
     await getEventStorePool().query(
-      'TRUNCATE professionals, customers, invites, categories, subscription_plans, agenda_blocks, goals, notifications, units, orgs CASCADE',
+      'TRUNCATE member_operations, customers, invites, categories, subscription_plans, agenda_blocks, goals, notifications, units, orgs CASCADE',
     )
   })
 
@@ -234,12 +234,12 @@ describe('Postgres RLS isolation — config (brief 0060, AC-02)', () => {
   // ── Fail-closed: no GUC → zero rows ─────────────────────────────────────────
   it('a session with NO org context (GUC unset) sees zero rows (fail-closed)', async () => {
     await seedOrg(ORG_A)
-    await seedRow('professionals', ORG_A, 'a', UNIT_A1)
+    await seedRow('member_operations', ORG_A, 'a', UNIT_A1)
 
     const c = new Client({ connectionString: appUrl })
     await c.connect()
     try {
-      const visible = await c.query('SELECT org_id FROM professionals')
+      const visible = await c.query('SELECT org_id FROM member_operations')
       expect(visible.rows).toHaveLength(0)
     } finally {
       await c.end()

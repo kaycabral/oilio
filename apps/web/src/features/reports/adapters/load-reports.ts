@@ -60,8 +60,8 @@ export async function loadReportsPage(params: SearchParams): Promise<ReportsPage
   )
 
   // Filtros da seção Comissões (brief 0030 AC-07 / 0022 AC-05). Mantém compat
-  // com links antigos que mandavam `?professional=`.
-  const memberFilter = pickFirst(params.member) ?? pickFirst(params.professional) ?? null
+  // com links antigos que mandavam `?memberOperation=`.
+  const memberFilter = pickFirst(params.member) ?? pickFirst(params.memberOperation) ?? null
   const rawStatus = pickFirst(params.status)
   const statusFilter: LiquidationStatus | null =
     rawStatus === 'pendente' || rawStatus === 'pago' ? rawStatus : null

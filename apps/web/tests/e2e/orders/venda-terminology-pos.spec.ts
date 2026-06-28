@@ -19,8 +19,8 @@ test.describe('Venda — terminologia neutra + POS (brief 0030, #1058)', () => {
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
-      professionalOperationalStatus: 'operational',
+      memberOperationCount: 1,
+      memberOperationOperationalStatus: 'operational',
     },
   })
 

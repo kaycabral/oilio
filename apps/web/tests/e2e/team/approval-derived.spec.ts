@@ -1,10 +1,10 @@
 // Feature E2E for #1047 (brief 0028 AC-06/AC-07; surface moved to the member
 // detail by brief 0037 #1085)
 // (AC-06/AC-07 · DoD Cenário 2): a
-// Professional's `operationalStatus` is DERIVED from real facts — never written
+// MemberOperation's `operationalStatus` is DERIVED from real facts — never written
 // by a UI input. A pro without WhatsApp/service stays `incomplete` and is NOT on
 // the public agenda; completing the profile flips it to `operational`
-// automatically (via the `professional.activated` domain event); there is NO UI
+// automatically (via the `member_operation.activated` domain event); there is NO UI
 // path to write the status.
 //
 // Runs against the emulator (no mocks). The fixture seeds the pro `incomplete`
@@ -15,10 +15,10 @@ import { patchUser } from '@/shared/db/pg/users-store'
 import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
 import { seedService } from '../helpers/session'
-import { ProfessionalsPage, PublicBookingPage, orgSlug } from '../pages'
+import { MemberOperationsPage, PublicBookingPage, orgSlug } from '../pages'
 
-function professionalUserId(professionalId: string): string {
-  return `e2e-prof-user-${professionalId}`
+function memberOperatorUserId(memberOperationId: string): string {
+  return `e2e-prof-user-${memberOperationId}`
 }
 
 // The `User` union forbids a COMPLETED account with a null whatsapp, so nulling
@@ -43,8 +43,8 @@ test.describe(
     test.use({
       orgInput: {
         unitCount: 1,
-        professionalCount: 1,
-        professionalOperationalStatus: 'incomplete',
+        memberOperationCount: 1,
+        memberOperationOperationalStatus: 'incomplete',
       },
     })
 
@@ -52,8 +52,8 @@ test.describe(
       org,
       authedPage,
     }) => {
-      const pros = new ProfessionalsPage(authedPage)
-      await pros.gotoById(org.professionalIds[0]!)
+      const pros = new MemberOperationsPage(authedPage)
+      await pros.gotoById(org.memberOperationIds[0]!)
 
       // Status renders read-only (derived). The pro starts `incomplete` (seeded,
       // no service yet).
@@ -70,12 +70,12 @@ test.describe(
       authedPage,
       page,
     }) => {
-      const proId = org.professionalIds[0]!
+      const proId = org.memberOperationIds[0]!
       const unitId = org.unitIds[0]!
 
       // Strip the linked User's WhatsApp — profile is now incomplete on two
       // axes (no whatsapp, no service).
-      await patchUserWhatsapp(professionalUserId(proId), null)
+      await patchUserWhatsapp(memberOperatorUserId(proId), null)
 
       // A public service exists in the unit, but the pro executes none of it
       // (catalogServiceIds empty) — so they're off the public agenda regardless.
@@ -87,15 +87,15 @@ test.describe(
         unitIds: [unitId],
       })
 
-      const pros = new ProfessionalsPage(authedPage)
+      const pros = new MemberOperationsPage(authedPage)
       await pros.gotoById(proId)
       await expect(pros.operationalStatus()).toHaveText('Cadastro incompleto')
 
-      // Public availability for that service has no professional available
+      // Public availability for that service has no memberOperation available
       // (the pro executes no service → off the agenda).
       const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
-      await expect(booking.slotByProfessional('Profissional 1')).toHaveCount(0)
+      await expect(booking.slotByMemberOperation('Profissional 1')).toHaveCount(0)
     })
 
     test('completar o perfil (unidade + serviço + WhatsApp) vira operacional sozinho', async ({
@@ -103,7 +103,7 @@ test.describe(
       authedPage,
       page,
     }) => {
-      const proId = org.professionalIds[0]!
+      const proId = org.memberOperationIds[0]!
       const unitId = org.unitIds[0]!
 
       // Ensure WhatsApp present on the linked User so the ONLY missing operational
@@ -114,14 +114,14 @@ test.describe(
       // it makes the row match no branch and the strict-decoded read 500s). The
       // derive keys on whatsapp presence, not on `completionCompleted`.
       await patchUser(
-        professionalUserId(proId),
+        memberOperatorUserId(proId),
         { whatsapp: '5511900000000' },
         new Date().toISOString(),
       )
 
       // Seed a service in the pro's unit and attach it through the operational
       // form — that mutation re-derives the status and emits
-      // `professional.activated` (no manual status write anywhere).
+      // `member_operation.activated` (no manual status write anywhere).
       const serviceId = await seedService(org.orgId, {
         name: 'Corte',
         durationMinutes: 30,
@@ -130,7 +130,7 @@ test.describe(
         unitIds: [unitId],
       })
 
-      const pros = new ProfessionalsPage(authedPage)
+      const pros = new MemberOperationsPage(authedPage)
       await pros.gotoById(proId)
       await expect(pros.operationalStatus()).toHaveText('Cadastro incompleto')
 
@@ -148,7 +148,7 @@ test.describe(
       // And the pro now surfaces on the public agenda for that service.
       const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
-      await expect(booking.slotByProfessional('Profissional 1').first()).toBeVisible()
+      await expect(booking.slotByMemberOperation('Profissional 1').first()).toBeVisible()
     })
   },
 )

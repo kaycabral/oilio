@@ -1,4 +1,4 @@
-// The booking write gate `loadApprovedProfessional` must enforce the SAME
+// The booking write gate `loadApprovedMemberOperation` must enforce the SAME
 // invariant the agenda read filters on (brief 0076 AC-03): a member is bookable
 // iff the membership carries `canBeBooked` ∧ the profile is operational. After
 // the `BookableProfessional` brand was retired, "bookable" is the capability —
@@ -7,20 +7,20 @@
 // still hidden from the grid. This proves the read and write can't drift (a stale
 // form / deep link can't book a soft-disabled member).
 //
-// The professional is minted through the real write path; the gate reads the
-// enriched `Professional` + the membership capability exactly like production.
+// The memberOperation is minted through the real write path; the gate reads the
+// enriched `MemberOperation` + the membership capability exactly like production.
 
 import { defaultPermissionsForRole } from '@/domain'
-import { ProfessionalConfig } from '@/domain/aggregates'
+import { MemberOperationConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
-import type { StoredProfessional } from '@/domain/types/professional'
+import type { StoredMemberOperation } from '@/domain/types/member-operation'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import { buildUser } from '@/shared/fixtures/domain-builders'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { loadApprovedProfessional } from './appointment-write-helpers'
+import { loadApprovedMemberOperation } from './appointment-write-helpers'
 
 const TS = '2026-06-01T12:00:00.000Z'
 
@@ -65,21 +65,21 @@ async function seedService(orgId: string, serviceId: string): Promise<void> {
   )
 }
 
-// Seed a membership for `userId` with `canBeBooked` either on (the professional
-// preset) or forced off. Seeded BEFORE the professional (composite FK parent).
+// Seed a membership for `userId` with `canBeBooked` either on (the memberOperation
+// preset) or forced off. Seeded BEFORE the memberOperation (composite FK parent).
 async function seedMembership(orgId: string, userId: string, canBeBooked: boolean): Promise<void> {
-  const permissions = { ...defaultPermissionsForRole('professional'), canBeBooked }
+  const permissions = { ...defaultPermissionsForRole('member_operator'), canBeBooked }
   await pool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, rls_unit_scope, invited_by, joined_at, permissions, updated_at)
-     VALUES ($1,$2,$3,1,'professional','active',NULL,NULL,$4,$5::jsonb,$4)`,
+     VALUES ($1,$2,$3,1,'member_operator','active',NULL,NULL,$4,$5::jsonb,$4)`,
     [orgId, `${orgId}_${userId}`, userId, TS, JSON.stringify(permissions)],
   )
 }
 
-// Mint an OPERATIONAL professional (whatsapp ∧ ≥1 unit ∧ ≥1 service) through the
+// Mint an OPERATIONAL memberOperation (whatsapp ∧ ≥1 unit ∧ ≥1 service) through the
 // real write path; `canBeBooked` is the only axis the tests vary. Returns the
-// professional id (what the booking gate is keyed on).
-async function seedOperationalProfessional(
+// memberOperation id (what the booking gate is keyed on).
+async function seedOperationalMemberOperation(
   orgId: string,
   unitId: string,
   serviceId: string,
@@ -91,7 +91,7 @@ async function seedOperationalProfessional(
   await putUser(buildUser(userId, TS, { completionCompleted: true, whatsapp: '5511900000000' }))
   await seedMembership(orgId, userId, canBeBooked)
   const proId = id('pro')
-  const pro: StoredProfessional = {
+  const pro: StoredMemberOperation = {
     id: proId,
     orgId,
     userId,
@@ -102,8 +102,8 @@ async function seedOperationalProfessional(
     updatedAt: TS,
   }
   await Effect.runPromise(
-    appendEvent(ProfessionalConfig, aggregateRef(ProfessionalConfig, orgId, proId), {
-      _tag: 'professional.created',
+    appendEvent(MemberOperationConfig, aggregateRef(MemberOperationConfig, orgId, proId), {
+      _tag: 'member_operation.created',
       actorId: 'test',
       payload: { data: pro },
     }).pipe(Effect.provide(PostgresPersistenceLayer)),
@@ -112,9 +112,9 @@ async function seedOperationalProfessional(
 }
 
 const TABLES =
-  'events, projections, professional_units, professional_services, professionals, catalog_items, memberships, units, orgs, users'
+  'events, projections, member_operation_units, member_operation_services, member_operations, catalog_items, memberships, units, orgs, users'
 
-describe('loadApprovedProfessional — booking write gate keys on canBeBooked (brief 0076 AC-03)', () => {
+describe('loadApprovedMemberOperation — booking write gate keys on canBeBooked (brief 0076 AC-03)', () => {
   beforeEach(async () => {
     await pool().query(`TRUNCATE ${TABLES} CASCADE`)
   })
@@ -125,21 +125,21 @@ describe('loadApprovedProfessional — booking write gate keys on canBeBooked (b
   const UNIT = 'unit-1'
   const SERVICE = 'svc-1'
 
-  it('operational professional WITH canBeBooked → ACCEPTS the booking', async () => {
+  it('operational memberOperation WITH canBeBooked → ACCEPTS the booking', async () => {
     const orgId = uniqueOrg()
     await seedOrg(orgId)
-    const proId = await seedOperationalProfessional(orgId, UNIT, SERVICE, true)
-    const result = await loadApprovedProfessional(orgId, proId)
+    const proId = await seedOperationalMemberOperation(orgId, UNIT, SERVICE, true)
+    const result = await loadApprovedMemberOperation(orgId, proId)
     expect(typeof result).not.toBe('string')
   })
 
-  it('operational professional with canBeBooked OFF → REFUSES the booking (capability gate)', async () => {
+  it('operational memberOperation with canBeBooked OFF → REFUSES the booking (capability gate)', async () => {
     const orgId = uniqueOrg()
     await seedOrg(orgId)
     // Operational on every readiness axis, but the capability was toggled off
     // (soft-disabled — out of the grid). The write must refuse it too.
-    const proId = await seedOperationalProfessional(orgId, UNIT, SERVICE, false)
-    const result = await loadApprovedProfessional(orgId, proId)
+    const proId = await seedOperationalMemberOperation(orgId, UNIT, SERVICE, false)
+    const result = await loadApprovedMemberOperation(orgId, proId)
     expect(typeof result).toBe('string')
     expect(result).toContain('capacidade de agenda')
   })

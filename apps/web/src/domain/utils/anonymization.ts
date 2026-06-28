@@ -49,7 +49,7 @@ export function anonymizedSubjectCode(userId: string): string {
 export const ROLE_SUBJECT_NOUN: Record<Role, string> = {
   owner: 'Dono',
   manager: 'Gerente',
-  professional: 'Profissional',
+  member_operator: 'Profissional',
   receptionist: 'Recepção',
 }
 
@@ -106,7 +106,7 @@ export function resolveSubjectName(
 // in this org (#1096/#1100, AC-13 — the photo is a re-identification vector,
 // so a blocked customer's surfaces in this org show no photo even though the
 // global account keeps it). `blockedInOrg` is the CUSTOMER per-org block;
-// it never applies to a professional (the employment relationship stays
+// it never applies to a memberOperation (the employment relationship stays
 // identifiable — brief 0041).
 export function resolveSubjectAvatar(
   user: Pick<User, 'avatarUrl' | 'anonymizedAt'> | undefined,

@@ -16,18 +16,21 @@ export async function setRlsGucs(
   client: PoolClient,
   org: string | null,
   unit: string,
-  professional = '',
+  memberOperation = '',
 ): Promise<void> {
   if (org !== null) {
     await client.query('SELECT set_config($1, $2, true)', ['app.current_org', org])
   }
   await client.query('SELECT set_config($1, $2, true)', ['app.current_unit', unit])
-  // `app.current_professional` (brief 0075): when set, the own-scope policies on
-  // `appointments`/`agenda_blocks` admit only the acting professional's own rows
-  // (plus unit-wide blocks with a NULL professional_id). Empty string = balcão
-  // (owner/manager/recepção): the predicate is permissive, exactly like
-  // `app.current_unit`. Set only for a self-scoped professional's read/write.
-  await client.query('SELECT set_config($1, $2, true)', ['app.current_professional', professional])
+  // `app.current_member_operation` (brief 0075): when set, the own-scope policies on
+  // `appointments`/`agenda_blocks` admit only the acting member-operation's own
+  // rows (plus unit-wide blocks with a NULL member_operation_id). Empty string =
+  // balcão (owner/manager/recepção): the predicate is permissive, exactly like
+  // `app.current_unit`. Set only for a self-scoped member-operation's read/write.
+  await client.query('SELECT set_config($1, $2, true)', [
+    'app.current_member_operation',
+    memberOperation,
+  ])
 }
 
 /**

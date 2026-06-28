@@ -20,8 +20,8 @@ import {
   attachCanDelete,
   canDeleteCatalogItem,
   canDeleteCustomer,
+  canDeleteMemberOperation,
   canDeletePlan,
-  canDeleteProfessional,
   canDeleteUnit,
   getCustomerDeletionImpact,
 } from './delete-guard'
@@ -32,13 +32,13 @@ import {
  * Proves the core business rule the `delete-guard.ts` module owns: an ACTIVE
  * reference blocks the hard-delete (`canDelete=false`); a HISTORICAL/snapshotted
  * reference does NOT (`canDelete=true`). Covers every entity the module guards:
- * subscription-plan, catalog-item, unit, professional, customer (+ the
+ * subscription-plan, catalog-item, unit, memberOperation, customer (+ the
  * `getCustomerDeletionImpact` / `attachCanDelete` consumers).
  *
  * The guard reads run under `readUnderRls` over the event-store pool (superuser
  * locally/CI → RLS bypassed; the policies are proven in the isolation specs).
  * Preconditions are seeded as typed projection rows (subscriptions/appointments
- * via the projector column mappers + domain builders; orders/professionals/
+ * via the projector column mappers + domain builders; orders/memberOperations/
  * memberships via raw INSERT matching the schema). Per-run-unique org ids isolate
  * each case; no global wipe.
  */
@@ -109,28 +109,28 @@ async function seedAppointment(
     status: 'scheduled' | 'completed' | 'cancelled'
     startAt: string
     unitId?: string
-    professionalId?: string
+    memberOperationId?: string
     customerId?: string
   },
 ): Promise<void> {
   const id = uid('appt')
   const unitId = opts.unitId ?? 'unit'
-  const professionalId = opts.professionalId ?? 'pro'
+  const memberOperationId = opts.memberOperationId ?? 'pro'
   const customerId = opts.customerId ?? 'cust'
   const appt = buildAppointment(id, orgId, TS, {
     status: opts.status,
     startAt: opts.startAt,
     endAt: opts.startAt,
     unitId,
-    professionalId,
+    memberOperationId,
     customerId,
   })
   // FK parents (brief 0068 D2): appointment.org_id → orgs, unit_id → units,
-  // professional_id → professionals, customer_id → customers, service_id →
+  // member_operation_id → memberOperations, customer_id → customers, service_id →
   // catalog_items. `buildAppointment` defaults service_id to 'svc'.
   await seedOrg(orgId)
   await seedUnit(orgId, unitId)
-  await seedProfessionalRow(orgId, professionalId)
+  await seedMemberOperationRow(orgId, memberOperationId)
   await seedCustomer(orgId, customerId)
   await seedService(orgId, 'svc')
   await insertRow(
@@ -174,10 +174,10 @@ async function seedOrder(
   )
 }
 
-// Seeds the parent `orgs` row idempotently. `professionals.org_id` carries a FK
-// to `orgs(org_id)` (the org-folder projection), so a professional cannot be
+// Seeds the parent `orgs` row idempotently. `memberOperations.org_id` carries a FK
+// to `orgs(org_id)` (the org-folder projection), so a memberOperation cannot be
 // inserted before its org exists — unlike subscriptions/appointments/orders,
-// which have no such FK. Idempotent: a case may seed several professionals under
+// which have no such FK. Idempotent: a case may seed several memberOperations under
 // the same org.
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
@@ -190,7 +190,7 @@ async function seedOrg(orgId: string): Promise<void> {
 
 // Idempotent FK-parent seeds (brief 0068 D2). The child projections
 // (subscriptions/appointments/orders) carry composite FKs into these tables; a
-// case may seed several children sharing the same unit/customer/professional/
+// case may seed several children sharing the same unit/customer/memberOperation/
 // service, so each is `ON CONFLICT DO NOTHING`.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
@@ -219,27 +219,27 @@ async function seedService(orgId: string, serviceId: string): Promise<void> {
   )
 }
 
-// Idempotent professional parent for the appointment FK (distinct from
-// `seedProfessional`, which mints a fresh non-idempotent professional and returns
-// its id for the canDeleteProfessional cases).
-async function seedProfessionalRow(orgId: string, professionalId: string): Promise<void> {
+// Idempotent memberOperation parent for the appointment FK (distinct from
+// `seedMemberOperation`, which mints a fresh non-idempotent memberOperation and returns
+// its id for the canDeleteMemberOperation cases).
+async function seedMemberOperationRow(orgId: string, memberOperationId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'professional','active',$3,'{}'::jsonb,$3)
+     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'member_operator','active',$3,'{}'::jsonb,$3)
      ON CONFLICT (org_id, id) DO NOTHING`,
-    [orgId, professionalId, TS],
+    [orgId, memberOperationId, TS],
   )
   await getEventStorePool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+    `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,$3,$3)
      ON CONFLICT (org_id, id) DO NOTHING`,
-    [orgId, professionalId, TS],
+    [orgId, memberOperationId, TS],
   )
 }
 
-// Professional projection carrying a `userId` link + optional unit scope. Returns
-// the professional DOC id.
-async function seedProfessional(
+// MemberOperation projection carrying a `userId` link + optional unit scope. Returns
+// the memberOperation DOC id.
+async function seedMemberOperation(
   orgId: string,
   opts: { userId?: string; unitIds?: string[] } = {},
 ): Promise<string> {
@@ -247,21 +247,21 @@ async function seedProfessional(
   const id = uid('pro')
   const userId = opts.userId ?? uid('u')
   const unitIds = opts.unitIds ?? []
-  // Parent membership for the professional's composite FK (org_id, member_id) →
+  // Parent membership for the memberOperation's composite FK (org_id, member_id) →
   // memberships(org_id, id). `member_id` is the membership doc id ({org}_{user}).
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_'||$2,$2,1,'professional','active',$3,'{}'::jsonb,$3)
+     VALUES ($1,$1||'_'||$2,$2,1,'member_operator','active',$3,'{}'::jsonb,$3)
      ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, userId, TS],
   )
   await getEventStorePool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+    `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,$3,$1||'_'||$3,NULL,$4::jsonb,'[]'::jsonb,$5,$5)`,
     [orgId, id, userId, JSON.stringify(unitIds), TS],
   )
-  // Seeding professionals directly (not via the projector) must also populate the
-  // `professional_units` join table — `canDeleteUnit` now reads it (brief 0068 D3).
+  // Seeding memberOperations directly (not via the projector) must also populate the
+  // `member_operation_units` join table — `canDeleteUnit` now reads it (brief 0068 D3).
   // The unit row is required by the join's composite FK to units(org_id, id).
   for (const unitId of unitIds) {
     await getEventStorePool().query(
@@ -271,7 +271,7 @@ async function seedProfessional(
       [orgId, unitId, TS],
     )
     await getEventStorePool().query(
-      `INSERT INTO professional_units (org_id, professional_id, unit_id) VALUES ($1,$2,$3)
+      `INSERT INTO member_operation_units (org_id, member_operation_id, unit_id) VALUES ($1,$2,$3)
        ON CONFLICT DO NOTHING`,
       [orgId, id, unitId],
     )
@@ -285,8 +285,8 @@ async function seedMembership(
   status: MembershipStatus,
 ): Promise<void> {
   const m = buildMembership(orgId, userId, TS, { status })
-  // `seedProfessional`/`seedProfessionalRow` may have pre-seeded the parent
-  // membership (for the professional's composite FK); upsert so this call sets the
+  // `seedMemberOperation`/`seedMemberOperationRow` may have pre-seeded the parent
+  // membership (for the memberOperation's composite FK); upsert so this call sets the
   // case's intended status/role rather than colliding on the (org_id, id) PK.
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, rls_unit_scope, invited_by, joined_at, permissions, updated_at)
@@ -297,7 +297,7 @@ async function seedMembership(
 }
 
 const TABLES =
-  'subscriptions, appointments, orders, professionals, memberships, units, customers, catalog_items, orgs'
+  'subscriptions, appointments, orders, member_operations, memberships, units, customers, catalog_items, orgs'
 
 describe('canDeletePlan — active vs historical subscription', () => {
   beforeEach(async () => {
@@ -384,10 +384,10 @@ describe('canDeleteUnit — active pro / future appointment vs historical', () =
     expect(await canDeleteUnit(t, uid('unit'))).toBe(true)
   })
 
-  it('professional scoped to the unit → blocked', async () => {
+  it('memberOperation scoped to the unit → blocked', async () => {
     const t = uniqueOrg()
     const unitId = uid('unit')
-    await seedProfessional(t, { unitIds: [unitId] })
+    await seedMemberOperation(t, { unitIds: [unitId] })
     expect(await canDeleteUnit(t, unitId)).toBe(false)
   })
 
@@ -430,7 +430,7 @@ describe('attachCanDelete — per-row precompute (AC-03)', () => {
   })
 })
 
-describe('canDeleteProfessional — future appointment / active membership vs historical', () => {
+describe('canDeleteMemberOperation — future appointment / active membership vs historical', () => {
   beforeEach(async () => {
     await getEventStorePool().query(`TRUNCATE ${TABLES} CASCADE`)
   })
@@ -441,50 +441,50 @@ describe('canDeleteProfessional — future appointment / active membership vs hi
   it('no reference (revoked membership, no future appt) → deletable', async () => {
     const t = uniqueOrg()
     const u = uid('u')
-    const proId = await seedProfessional(t, { userId: u })
+    const proId = await seedMemberOperation(t, { userId: u })
     await seedMembership(t, u, 'revoked')
-    expect(await canDeleteProfessional(t, proId)).toBe(true)
+    expect(await canDeleteMemberOperation(t, proId)).toBe(true)
   })
 
-  it('professional doc absent → deletable (nothing to orphan)', async () => {
+  it('memberOperation doc absent → deletable (nothing to orphan)', async () => {
     const t = uniqueOrg()
-    expect(await canDeleteProfessional(t, 'ghost')).toBe(true)
+    expect(await canDeleteMemberOperation(t, 'ghost')).toBe(true)
   })
 
   it('active membership → blocked', async () => {
     const t = uniqueOrg()
     const u = uid('u')
-    const proId = await seedProfessional(t, { userId: u })
+    const proId = await seedMemberOperation(t, { userId: u })
     await seedMembership(t, u, 'active')
-    expect(await canDeleteProfessional(t, proId)).toBe(false)
+    expect(await canDeleteMemberOperation(t, proId)).toBe(false)
   })
 
   it('suspended membership (0029 deactivation, reversible) → still blocked', async () => {
     const t = uniqueOrg()
     const u = uid('u')
-    const proId = await seedProfessional(t, { userId: u })
+    const proId = await seedMemberOperation(t, { userId: u })
     await seedMembership(t, u, 'suspended')
-    expect(await canDeleteProfessional(t, proId)).toBe(false)
+    expect(await canDeleteMemberOperation(t, proId)).toBe(false)
   })
 
   it('future scheduled appointment → blocked even after offboarding', async () => {
     const t = uniqueOrg()
     const u = uid('u')
-    const proId = await seedProfessional(t, { userId: u })
+    const proId = await seedMemberOperation(t, { userId: u })
     await seedMembership(t, u, 'revoked')
-    await seedAppointment(t, { professionalId: proId, status: 'scheduled', startAt: future() })
-    expect(await canDeleteProfessional(t, proId)).toBe(false)
+    await seedAppointment(t, { memberOperationId: proId, status: 'scheduled', startAt: future() })
+    expect(await canDeleteMemberOperation(t, proId)).toBe(false)
   })
 
   it('only past/completed/cancelled appointments + revoked membership (historical) → deletable', async () => {
     const t = uniqueOrg()
     const u = uid('u')
-    const proId = await seedProfessional(t, { userId: u })
+    const proId = await seedMemberOperation(t, { userId: u })
     await seedMembership(t, u, 'revoked')
-    await seedAppointment(t, { professionalId: proId, status: 'scheduled', startAt: past() })
-    await seedAppointment(t, { professionalId: proId, status: 'completed', startAt: future() })
-    await seedAppointment(t, { professionalId: proId, status: 'cancelled', startAt: future() })
-    expect(await canDeleteProfessional(t, proId)).toBe(true)
+    await seedAppointment(t, { memberOperationId: proId, status: 'scheduled', startAt: past() })
+    await seedAppointment(t, { memberOperationId: proId, status: 'completed', startAt: future() })
+    await seedAppointment(t, { memberOperationId: proId, status: 'cancelled', startAt: future() })
+    expect(await canDeleteMemberOperation(t, proId)).toBe(true)
   })
 })
 

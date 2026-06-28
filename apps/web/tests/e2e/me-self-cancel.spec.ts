@@ -34,7 +34,7 @@ test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () =>
     // the imperative `signInAndAttachSession` with the customer creds.
     const seed = await seedOrg({
       unitCount: 1,
-      professionalCount: 1,
+      memberOperationCount: 1,
       cancellationPolicy: { enabled: true, minNoticeMinutes: 60 },
     })
     const serviceId = await seedService(seed.orgId, {
@@ -49,7 +49,7 @@ test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () =>
     const apptId = await seedAppointment({
       orgId: seed.orgId,
       unitId: seed.unitIds[0]!,
-      professionalId: seed.professionalIds[0]!,
+      memberOperationId: seed.memberOperationIds[0]!,
       customerId,
       serviceId,
       startAt,
@@ -90,7 +90,7 @@ test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () =>
     // 2h policy; appointment 30 min ahead → outside the window.
     const seed = await seedOrg({
       unitCount: 1,
-      professionalCount: 1,
+      memberOperationCount: 1,
       cancellationPolicy: { enabled: true, minNoticeMinutes: 120 },
     })
     const serviceId = await seedService(seed.orgId, {
@@ -105,7 +105,7 @@ test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () =>
     await seedAppointment({
       orgId: seed.orgId,
       unitId: seed.unitIds[0]!,
-      professionalId: seed.professionalIds[0]!,
+      memberOperationId: seed.memberOperationIds[0]!,
       customerId,
       serviceId,
       startAt,
@@ -137,7 +137,7 @@ test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () =>
     // frozen snapshot (120 min), so the button stays disabled.
     const seed = await seedOrg({
       unitCount: 1,
-      professionalCount: 1,
+      memberOperationCount: 1,
       // Relaxed LIVE policy — disabled. Was previously asserted via a stale org
       // PATCH that the read path never consulted (it reads the unit's agenda).
       cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
@@ -154,7 +154,7 @@ test.describe('Me — auto-cancelamento de cliente', { tag: '@critical' }, () =>
     await seedAppointment({
       orgId: seed.orgId,
       unitId: seed.unitIds[0]!,
-      professionalId: seed.professionalIds[0]!,
+      memberOperationId: seed.memberOperationIds[0]!,
       customerId,
       serviceId,
       startAt,

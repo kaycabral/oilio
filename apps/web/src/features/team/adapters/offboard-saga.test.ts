@@ -21,17 +21,17 @@ async function runSteps(steps: SagaStep[]): Promise<{
 
 /**
  * Pure unit test for the offboard saga STEP BUILDER (brief 0061 § Grupo C). It
- * turns the resolved cascade (membership + professional + appointments + blocks +
+ * turns the resolved cascade (membership + memberOperation + appointments + blocks +
  * invites) into an ordered `SagaStep[]` — pure, no I/O. The ACID rollback
  * behavior is covered by `domain/effect/saga.test.ts` and the integration suite.
  */
 
 describe('buildOffboardSteps', () => {
-  it('a member with no professional projection is just the membership revoke', () => {
+  it('a member with no memberOperation projection is just the membership revoke', () => {
     const resolved: ResolvedOffboard = {
       membershipId: 't1_u1',
       previousStatus: 'active',
-      professionalId: null,
+      memberOperationId: null,
       appointmentCancels: [],
       agendaBlockIds: [],
       inviteIds: [],
@@ -40,11 +40,11 @@ describe('buildOffboardSteps', () => {
     expect(steps).toHaveLength(1)
   })
 
-  it('a professional with the full cascade stacks every aggregate', () => {
+  it('a memberOperation with the full cascade stacks every aggregate', () => {
     const resolved: ResolvedOffboard = {
       membershipId: 't1_u1',
       previousStatus: 'active',
-      professionalId: 'pro-1',
+      memberOperationId: 'pro-1',
       appointmentCancels: [
         { id: 'apt-1', cancelledAt: '2026-06-05T00:00:00.000Z', noticeMinutes: 120 },
         { id: 'apt-2', cancelledAt: '2026-06-05T00:00:00.000Z', noticeMinutes: 60 },
@@ -54,7 +54,7 @@ describe('buildOffboardSteps', () => {
     }
     const steps = buildOffboardSteps(resolved, 't1', 'actor')
     // membership revoke + 2 appointments + 1 block + 1 invite. No
-    // `professional.suspended` step (#1226 AC-02): operationalStatus is derived
+    // `member_operation.suspended` step (#1226 AC-02): operationalStatus is derived
     // on read and the revoked membership already severs operability.
     expect(steps).toHaveLength(5)
   })
@@ -63,7 +63,7 @@ describe('buildOffboardSteps', () => {
     const resolved: ResolvedOffboard = {
       membershipId: 't1_u1',
       previousStatus: 'active',
-      professionalId: 'pro-1',
+      memberOperationId: 'pro-1',
       appointmentCancels: [
         { id: 'apt-1', cancelledAt: '2026-06-05T00:00:00.000Z', noticeMinutes: 120 },
       ],

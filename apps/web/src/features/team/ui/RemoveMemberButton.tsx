@@ -7,7 +7,7 @@ import { useState, useTransition } from 'react'
 
 // Unified "remover do time" action — brief 0041 #1103 (AC-01/AC-10). The single
 // entry point an establishment uses to offboard a member: ends their access
-// (membership → terminal `revoked`) and deactivates the professional projection
+// (membership → terminal `revoked`) and deactivates the memberOperation projection
 // via the server saga. Distinct from the reversible deactivate toggle (brief
 // 0029): this is a terminal severance. The vínculo data is RETAINED identifiable
 // (art. 16) — nothing is anonymized/scrubbed.
@@ -30,10 +30,10 @@ export function RemoveMemberButton({ targetUserId }: { targetUserId: string }) {
         return
       }
       // AC-08: removal succeeded, but a unit was left with no active
-      // professional. Surface a NON-BLOCKING warning + stay on the page so the
+      // memberOperation. Surface a NON-BLOCKING warning + stay on the page so the
       // owner reads it (bookings on that unit would have no slots until another
-      // professional is assigned). The member is already removed.
-      const unitWarning = res.warnings.find((w) => w.kind === 'unit-without-professional')
+      // memberOperation is assigned). The member is already removed.
+      const unitWarning = res.warnings.find((w) => w.kind === 'unit-without-memberOperation')
       if (unitWarning) {
         // Keep the warning on screen — do NOT refresh/navigate (a router.refresh
         // would remount this client component and drop the message). The member

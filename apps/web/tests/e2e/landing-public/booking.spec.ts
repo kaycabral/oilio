@@ -94,7 +94,7 @@ async function patchOrgBranding(
 
 test.describe('Landing pública — branding + catálogo + agendamento', () => {
   test.describe('empresa com unidade + profissional', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
     test(
       'renderiza branding + catálogo público e completa booking',

@@ -20,7 +20,7 @@ import {
 // Minimum capability a nav entry requires to be shown (brief 0029 AC-08; brief
 // 0075). `manageOrg` gates org-admin surfaces (Administração) and the
 // financeiro-admin item (Relatórios). The `canManage*` values are membership
-// capabilities (brief 0075): a self-scoped professional (whose matrix keeps
+// capabilities (brief 0075): a self-scoped memberOperation (whose matrix keeps
 // every `canManage*` false) loses Clientes/Catálogo/Planos/Assinaturas, while
 // the balcão (recepção) keeps the ones its preset grants (e.g. Clientes).
 // `undefined` = visible to every member of the org. Always resolved via the
@@ -169,7 +169,7 @@ function hasCapability(membership: Membership, capability: NavCapability): boole
     case 'manageOrg':
       return canManageOrg(membership.role)
     // Membership capabilities (brief 0075) — read straight off the matrix so a
-    // self-scoped professional drops these surfaces. Listed explicitly (not
+    // self-scoped memberOperation drops these surfaces. Listed explicitly (not
     // `membership.permissions[capability]`) so the type stays a closed union and
     // adding a nav capability is a compile-time decision.
     case 'canManageCustomers':

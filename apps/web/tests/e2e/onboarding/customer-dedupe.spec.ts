@@ -67,7 +67,7 @@ test.describe('Deduplicação de Cliente via conclusão OAuth (#839)', { tag: '@
   }) => {
     // 1. Receptionist has already added "Maria" to her Customer book — stub
     //    User (random uid, claimedAt: null) + Customer doc in the org.
-    const org = await seedOrg({ unitCount: 1, professionalCount: 1 })
+    const org = await seedOrg({ unitCount: 1, memberOperationCount: 1 })
     const sharedWhatsapp = '5511988887777'
     const { customerId, stubUid } = await seedStubCustomer(org.orgId, {
       whatsapp: sharedWhatsapp,
@@ -119,7 +119,7 @@ test.describe('Deduplicação de Cliente via conclusão OAuth (#839)', { tag: '@
   }) => {
     // Org + owner exist (the layout pulls a org context for the post-
     // completion redirect), but no stub Customer is seeded — fresh WhatsApp.
-    await seedOrg({ unitCount: 1, professionalCount: 1 })
+    await seedOrg({ unitCount: 1, memberOperationCount: 1 })
 
     const claimer = await seedAuthUser({ completionCompleted: false })
     await signInAndAttachSession(context, claimer.email, claimer.password, baseURL ?? undefined)

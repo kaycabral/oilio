@@ -6,16 +6,16 @@ import {
   isReservedUnitSlug,
   isValidSlug,
   isValidUnitSlug,
+  type MemberOperation,
   type Org,
-  type Professional,
   type PublicCatalogItem,
   toPublicCatalogItem,
   type Unit,
 } from '@/domain'
 import { isUnitPubliclyLive } from '@/features/units/core/publish-readiness'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
+import { listMemberOperationsForOrg } from '@/shared/org/member-operation-read'
 import { getOrgBySlug } from '@/shared/org/org'
-import { listProfessionalsForOrg } from '@/shared/org/professional-read'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import 'server-only'
 
@@ -42,7 +42,7 @@ export type PublicOrgSummary = {
 // projection of the unit's kind-service items via `toPublicCatalogItem` —
 // drops commission/unitOverrides/active/publicVisible and resolves
 // priceCents/durationMinutes per the unit override stack. When the optional
-// `professionalId` filter is applied, it is further narrowed to entries the
+// `memberOperationId` filter is applied, it is further narrowed to entries the
 // pro executes (#876). Brief 0053/B3 converges this onto `PublicCatalogItem`
 // (the unified projection, AC-08 — #1004), closing the UI convergence (#1005).
 export type PublicUnitBundle = {
@@ -50,7 +50,7 @@ export type PublicUnitBundle = {
   unit: Unit
   units: Unit[]
   catalogServiceItems: PublicCatalogItem[]
-  professional: Professional | null
+  memberOperation: MemberOperation | null
 }
 
 async function loadOrgUnits(orgId: string): Promise<Unit[]> {
@@ -104,15 +104,15 @@ export async function getPublicOrgSummary(slug: string): Promise<PublicOrgSummar
 // Returns null on malformed/reserved slug, missing org/unit, or
 // unpublished self-booking (#988 gate).
 //
-// `professionalId` further filters the catalog to services the pro
-// executes — used by `/{orgSlug}/{unitSlug}?professional={id}`. An
+// `memberOperationId` further filters the catalog to services the pro
+// executes — used by `/{orgSlug}/{unitSlug}?memberOperation={id}`. An
 // unknown/unauthorized id returns an empty catalog (not null) so the user
-// can clear the filter without hitting a 404, and `professional` stays
+// can clear the filter without hitting a 404, and `memberOperation` stays
 // null so the UI doesn't pretend the filter is active.
 export async function getPublicUnitBundle(
   slug: string,
   unitSlug: string,
-  opts: { professionalId?: string | null } = {},
+  opts: { memberOperationId?: string | null } = {},
 ): Promise<PublicUnitBundle | null> {
   if (!isValidSlug(slug) || isReservedSlug(slug)) return null
   if (!isValidUnitSlug(unitSlug) || isReservedUnitSlug(unitSlug)) return null
@@ -120,12 +120,12 @@ export async function getPublicUnitBundle(
   const org = await getOrgBySlug(slug)
   if (!org) return null
 
-  const [units, serviceItems, professionals] = await Promise.all([
+  const [units, serviceItems, memberOperations] = await Promise.all([
     loadOrgUnits(org.id),
     loadPublicCatalogServiceItems(org.id),
     // Backend-aware read (Postgres typed table under RLS / Firestore); enriched
-    // with PII (name from `professionals_pii`/User), so no separate merge below.
-    listProfessionalsForOrg(org.id),
+    // with PII (name from `member_operations_pii`/User), so no separate merge below.
+    listMemberOperationsForOrg(org.id),
   ])
 
   const unit = units.find((u) => u.slug === unitSlug)
@@ -139,15 +139,15 @@ export async function getPublicUnitBundle(
     (s) => Array.isArray(s.unitIds) && s.unitIds.includes(unit.id),
   )
 
-  let professional: Professional | null = null
-  if (opts.professionalId) {
-    const candidate = professionals.find((p) => p.id === opts.professionalId) ?? null
+  let memberOperation: MemberOperation | null = null
+  if (opts.memberOperationId) {
+    const candidate = memberOperations.find((p) => p.id === opts.memberOperationId) ?? null
     if (
       candidate &&
       candidate.unitIds.includes(unit.id) &&
       isOperational(candidate.operationalStatus)
     ) {
-      professional = candidate
+      memberOperation = candidate
       const proServiceIds = new Set(candidate.catalogServiceIds ?? [])
       unitServices = unitServices.filter((s) => proServiceIds.has(s.id))
     } else {
@@ -164,6 +164,6 @@ export async function getPublicUnitBundle(
     unit,
     units,
     catalogServiceItems,
-    professional,
+    memberOperation,
   }
 }

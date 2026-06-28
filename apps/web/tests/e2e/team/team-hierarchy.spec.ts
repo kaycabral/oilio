@@ -16,9 +16,9 @@ import { seedInvite } from '../helpers/session'
 
 test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () => {
   test.describe('org com membros + convites', () => {
-    // Several professionals → a non-trivial members list, so the "doesn't sink"
+    // Several memberOperations → a non-trivial members list, so the "doesn't sink"
     // assertion is meaningful.
-    test.use({ orgInput: { unitCount: 1, professionalCount: 3 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 3 } })
 
     test('Convidar é ação no topo + filtro Status (Todos/Pendentes)', async ({
       org,
@@ -118,7 +118,7 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
       await expect(desc).toContainText(roleDescription('manager'))
 
       await chooseOption(dialog, 'Papel', 'Profissional')
-      await expect(desc).toContainText(roleDescription('professional'))
+      await expect(desc).toContainText(roleDescription('member_operator'))
     })
   })
 
@@ -126,7 +126,7 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
     // 1 unidade (o piso pós-fluxo-guiado da v2 — um dono com 0 unidades é levado
     // ao first-unit antes de qualquer surface) + 0 profissionais isola o caso
     // "equipe só com o owner".
-    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 0 } })
 
     test('render + empty: abre com Convidar no topo, filtro Status, sem convites', async ({
       authedPage,

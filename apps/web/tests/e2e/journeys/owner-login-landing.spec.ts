@@ -37,7 +37,7 @@ test.describe('Owner — login → landing por estado (#1076 · 0035)', { tag: '
   })
 
   test('com org (completo) → /dashboard', async ({ context, page, baseURL }) => {
-    const seed = await seedOrg({ unitCount: 1, professionalCount: 1 })
+    const seed = await seedOrg({ unitCount: 1, memberOperationCount: 1 })
     await signInAndAttachSession(context, seed.email, seed.password, baseURL ?? undefined)
 
     await page.goto('/')

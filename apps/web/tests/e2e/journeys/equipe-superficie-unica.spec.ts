@@ -4,7 +4,7 @@
 // of Done end-to-end (Cenários 1–4), NOT the granular coverage the sub-issue
 // specs already prove exhaustively against the emulator:
 //   - team/member-detail.spec.ts            (#1085 · AC-01/02/03 + refino A/B)
-//   - team/professionals-route-gone.spec.ts (#1085 · AC-01 regression)
+//   - team/memberOperations-route-gone.spec.ts (#1085 · AC-01 regression)
 //   - team/role-change-lifecycle.spec.ts    (#1086 · AC-04/05/06)
 //   - team/team-hierarchy.spec.ts           (#1087 · AC-07 + refino C)
 //   - team/{identity,approval,invite-to-materialized}.spec.ts (0028 base)
@@ -28,30 +28,30 @@ import { listItem, rowAction } from '../helpers/list'
 import { chooseOption } from '../helpers/select'
 import {
   pgReadProjection,
-  readProfessionalByUserId,
+  readMemberOperationByUserId,
   seedAuthUser,
   seedInvite,
   seedMembershipFor,
   seedService,
 } from '../helpers/session'
-import { ProfessionalsPage } from '../pages'
+import { MemberOperationsPage } from '../pages'
 
 test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
   // Cenário 1 — editar profissional pelo /team.
-  // A professional member is seeded with a linked User + Membership so the
+  // A memberOperation member is seeded with a linked User + Membership so the
   // projection ⟺ membership invariant holds and the detail is navigable.
   test.describe('Cenário 1 — editar profissional pelo /team', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
-    test('detalhe do membro edita campos operacionais com um Salvar; identidade read-only; /professionals não existe', async ({
+    test('detalhe do membro edita campos operacionais com um Salvar; identidade read-only; /memberOperations não existe', async ({
       org,
       authedPage,
     }) => {
-      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
-      const pros = new ProfessionalsPage(authedPage)
+      const proUid = `e2e-prof-user-${org.memberOperationIds[0]!}`
+      const pros = new MemberOperationsPage(authedPage)
 
       // /team is the single people surface — the member row's ⋯ menu → Editar
-      // navigates to the detail (no parallel /professionals route).
+      // navigates to the detail (no parallel /memberOperations route).
       await authedPage.goto('/team')
       await expect(authedPage.getByRole('heading', { name: 'Equipe' })).toBeVisible()
       await rowAction(authedPage, 'Profissional 1', 'Editar')
@@ -94,17 +94,17 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       await pros.gotoByUserId(proUid)
       await expect(authedPage.locator('input[name="commissionValue"]')).toHaveValue('35')
 
-      // /professionals is gone (AC-01): the edit route 404s.
-      const res = await authedPage.goto(`/professionals/${org.professionalIds[0]!}`)
+      // /memberOperations is gone (AC-01): the edit route 404s.
+      const res = await authedPage.goto(`/memberOperations/${org.memberOperationIds[0]!}`)
       expect(res?.status()).toBe(404)
     })
   })
 
-  // Cenário 2 — role-edit →professional materializa a projeção.
-  test.describe('Cenário 2 — role-edit →professional materializa', () => {
-    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
+  // Cenário 2 — role-edit →memberOperation materializa a projeção.
+  test.describe('Cenário 2 — role-edit →memberOperation materializa', () => {
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 0 } })
 
-    test('owner muda receptionist→professional: projeção materializa, permissões re-derivam, operável ao completar', async ({
+    test('owner muda receptionist→memberOperation: projeção materializa, permissões re-derivam, operável ao completar', async ({
       org,
       authedPage,
     }) => {
@@ -112,13 +112,13 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       await seedMembershipFor(org.orgId, member.uid, { role: 'receptionist' })
 
       // No projection before the change.
-      expect(await readProfessionalByUserId(org.orgId, member.uid)).toBeNull()
+      expect(await readMemberOperationByUserId(org.orgId, member.uid)).toBeNull()
 
-      const pros = new ProfessionalsPage(authedPage)
+      const pros = new MemberOperationsPage(authedPage)
       await pros.gotoByUserId(member.uid)
       await expect(authedPage.getByRole('combobox', { name: 'Papel' })).toHaveText('Recepção')
 
-      // Change role → professional via the inline select + single Salvar
+      // Change role → memberOperation via the inline select + single Salvar
       // (no separate "Trocar papel" button).
       await chooseOption(authedPage, 'Papel', 'Profissional')
       await pros.saveButton().click()
@@ -128,17 +128,17 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       // read: the in-page select is optimistic / racy with router.refresh().
       await expect
         .poll(
-          async () => (await readProfessionalByUserId(org.orgId, member.uid))?.operationalStatus,
+          async () => (await readMemberOperationByUserId(org.orgId, member.uid))?.operationalStatus,
         )
         .toBe('incomplete')
 
-      // Permissions re-derived to the professional default (AC-06).
+      // Permissions re-derived to the memberOperation default (AC-06).
       const membership = await pgReadProjection(
         'memberships',
         aggregateRef(MembershipConfig, org.orgId, membershipDocId(org.orgId, member.uid)),
       )
-      expect(membership?.role).toBe('professional')
-      expect(membership?.permissions).toEqual(defaultPermissionsForRole('professional'))
+      expect(membership?.role).toBe('member_operator')
+      expect(membership?.permissions).toEqual(defaultPermissionsForRole('member_operator'))
 
       // Completing the operational profile (unit + service) makes it operable
       // — the derived status flips to `operational` (bookable on the agenda).
@@ -156,34 +156,34 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
 
       await expect
         .poll(
-          async () => (await readProfessionalByUserId(org.orgId, member.uid))?.operationalStatus,
+          async () => (await readMemberOperationByUserId(org.orgId, member.uid))?.operationalStatus,
         )
         .toBe('operational')
     })
   })
 
-  // Cenário 3 — role-edit professional→outro desativa a projeção.
-  test.describe('Cenário 3 — role-edit professional→outro desativa', () => {
+  // Cenário 3 — role-edit memberOperation→outro desativa a projeção.
+  test.describe('Cenário 3 — role-edit memberOperation→outro desativa', () => {
     test.use({
       orgInput: {
         unitCount: 1,
-        professionalCount: 1,
-        professionalOperationalStatus: 'operational',
+        memberOperationCount: 1,
+        memberOperationOperationalStatus: 'operational',
       },
     })
 
-    test('owner muda professional→receptionist: projeção desativa (sai da agenda, não deleta); sem órfã operável', async ({
+    test('owner muda memberOperation→receptionist: projeção desativa (sai da agenda, não deleta); sem órfã operável', async ({
       org,
       authedPage,
     }) => {
-      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
+      const proUid = `e2e-prof-user-${org.memberOperationIds[0]!}`
 
-      // Operable professional before the change.
-      expect((await readProfessionalByUserId(org.orgId, proUid))?.operationalStatus).toBe(
+      // Operable memberOperation before the change.
+      expect((await readMemberOperationByUserId(org.orgId, proUid))?.operationalStatus).toBe(
         'operational',
       )
 
-      const pros = new ProfessionalsPage(authedPage)
+      const pros = new MemberOperationsPage(authedPage)
       await pros.gotoByUserId(proUid)
       await expect(authedPage.getByRole('combobox', { name: 'Papel' })).toHaveText('Profissional')
 
@@ -191,10 +191,10 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       await chooseOption(authedPage, 'Papel', 'Recepção')
       await pros.saveButton().click()
 
-      // The professional projection is RETAINED (not deleted, reversible —
+      // The memberOperation projection is RETAINED (not deleted, reversible —
       // #1226 AC-02), and `operationalStatus` is derived purely from profile
       // facts so it is NOT mutated by the demotion. Operability is severed
-      // because the membership is no longer `professional` — every operational
+      // because the membership is no longer `memberOperation` — every operational
       // surface keys on the role — so no orphan-operable member survives. Poll
       // the role change (no receptionist-specific UI to anchor on).
       await expect
@@ -208,7 +208,7 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
             )?.role,
         )
         .toBe('receptionist')
-      expect(await readProfessionalByUserId(org.orgId, proUid)).not.toBeNull()
+      expect(await readMemberOperationByUserId(org.orgId, proUid)).not.toBeNull()
 
       // Permissions re-derived to the receptionist default (AC-06).
       const membership = await pgReadProjection(
@@ -222,9 +222,9 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
 
   // Cenário 4 — hierarquia do /team.
   test.describe('Cenário 4 — hierarquia do /team', () => {
-    // Several professionals → a non-trivial members list, so "doesn't sink"
+    // Several memberOperations → a non-trivial members list, so "doesn't sink"
     // is meaningful.
-    test.use({ orgInput: { unitCount: 1, professionalCount: 3 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 3 } })
 
     test('Convidar no topo (não afunda) + filtro Status (Pendentes mostra convite); modal mostra descrição do papel', async ({
       org,
@@ -271,7 +271,7 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       await chooseOption(dialog, 'Papel', 'Profissional')
       await expect(
         dialog.getByRole('note', { name: 'Permissões do papel', exact: true }),
-      ).toContainText(roleDescription('professional'))
+      ).toContainText(roleDescription('member_operator'))
     })
   })
 
@@ -279,7 +279,7 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
   test.describe('Baseline — render + empty + owner não-editável', () => {
     // 1 unidade (o piso pós-fluxo-guiado da v2) + 0 profissionais isola o caso
     // "equipe só com o owner" sem disparar o redirect guiado de 0 unidades.
-    test.use({ orgInput: { unitCount: 1, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 1, memberOperationCount: 0 } })
 
     test('/team abre só com owner; owner não é link e seu detalhe é read-only', async ({
       org,
@@ -300,7 +300,7 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       await expect(authedPage.getByText('Nenhum convite pendente.')).toBeVisible()
 
       // Owner detail opens read-only: static "Papel", no role select, no Salvar.
-      const pros = new ProfessionalsPage(authedPage)
+      const pros = new MemberOperationsPage(authedPage)
       await pros.gotoByUserId(org.uid)
       await expect(authedPage.getByRole('group', { name: 'Papel', exact: true })).toHaveText('Dono')
       await expect(authedPage.getByRole('combobox', { name: 'Papel' })).toHaveCount(0)

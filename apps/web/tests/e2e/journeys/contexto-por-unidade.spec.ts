@@ -52,7 +52,7 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
   // render+empty baseline (interstitial on first access) and the real flow
   // (choose → operate → switch → operate again).
   test.describe('Cenário 1 — gerente multi-unidade troca contexto', () => {
-    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, memberOperationCount: 1 } })
 
     test('1º acesso interstitial → unidade escolhida escopa Agenda/Comandas/Bloqueios/Dashboard; switcher troca tudo junto', async ({
       authedPage,
@@ -142,7 +142,7 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
   // AGGREGATE (Relatórios) surfaces still span ALL units — the selector does
   // NOT filter them, and `Service.unitOverrides` / the aggregate stay intact.
   test.describe('Cenário 3 — cadastro e relatório seguem cross-unit', () => {
-    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, memberOperationCount: 1 } })
 
     test('com contexto numa unidade, Catálogo/Planos/Relatórios continuam mostrando todas as unidades', async ({
       authedPage,

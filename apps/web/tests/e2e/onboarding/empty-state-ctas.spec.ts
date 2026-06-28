@@ -12,7 +12,7 @@ import { expect, test } from '../fixtures'
 // The per-area create→list→edit→delete round-trip lives in tests/e2e/<area>/
 // baseline.spec.ts; this spec owns the empty-state-with-CTA affordance.
 
-// `/professionals` was removed (brief 0037 #1085): people management moved to
+// `/memberOperations` was removed (brief 0037 #1085): people management moved to
 // `/team`, which is invite-based (not a CRUD create flow), so it's not part of
 // this just-in-time-create sweep.
 //
@@ -48,11 +48,11 @@ const AREAS = [
 ] as const
 
 test.describe('Empty-state CTAs — core areas (#987)', () => {
-  // 1ª unidade criada (o piso pós-fluxo-guiado da v2) + professionalCount=0 mantém
+  // 1ª unidade criada (o piso pós-fluxo-guiado da v2) + memberOperationCount=0 mantém
   // catálogo/clientes/planos genuinamente vazios, sem disparar o redirect guiado
   // de 0 unidades — cada empty-state + CTA renderiza.
   test.use({
-    orgInput: { unitCount: 1, professionalCount: 0 },
+    orgInput: { unitCount: 1, memberOperationCount: 0 },
   })
 
   for (const area of AREAS) {

@@ -6,7 +6,11 @@ import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
 import { AUTH_HOST } from '../helpers/emulator'
 import { parseJson } from '../helpers/rest-json'
-import { linkProfessionalToServices, seedService, signInAndAttachSession } from '../helpers/session'
+import {
+  linkMemberOperationToServices,
+  seedService,
+  signInAndAttachSession,
+} from '../helpers/session'
 import { MeAppointmentsPage, PublicBookingPage, orgSlug } from '../pages'
 
 // Customer journey end-to-end — golden path do cliente final.
@@ -71,7 +75,7 @@ test.describe('Jornada do cliente — caminho feliz', { tag: ['@journey', '@crit
   test.use({
     orgInput: {
       unitCount: 1,
-      professionalCount: 1,
+      memberOperationCount: 1,
       cancellationPolicy: { enabled: true, minNoticeMinutes: 60 },
     },
   })
@@ -91,7 +95,7 @@ test.describe('Jornada do cliente — caminho feliz', { tag: ['@journey', '@crit
       publicVisible: true,
       unitIds: [unitId],
     })
-    await linkProfessionalToServices(org.orgId, org.professionalIds[0]!, [serviceId])
+    await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
     // 1. Customer authentication (separate identity from the org owner).
     const customer = await createCustomerUser()
@@ -103,7 +107,7 @@ test.describe('Jornada do cliente — caminho feliz', { tag: ['@journey', '@crit
     const targetDate = nextWeekday('Wed')
     await booking.gotoAvailability('unidade-1', { serviceId, from: targetDate })
     await booking
-      .slotByProfessional(/profissional 1/i)
+      .slotByMemberOperation(/profissional 1/i)
       .first()
       .click()
     // Pre-fill from session is the #864 finalize.

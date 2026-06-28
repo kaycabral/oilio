@@ -5,7 +5,7 @@ import { setMembershipRole } from '../helpers/session'
 // Server-side authorization wall for manageOrg-gated routes (brief 0029, AC-08).
 //
 // The sidebar hides these routes from non-managers, but that gate is CLIENT-side
-// and cosmetic: a receptionist/professional could reach the surface by typing the
+// and cosmetic: a receptionist/memberOperation could reach the surface by typing the
 // URL. `requireManagerPage` is the server wall that redirects them. This spec
 // proves the wall end-to-end on the three routes that previously leaked:
 //   /copilot   — financial goal/actuals/projection
@@ -42,11 +42,11 @@ test.describe('Acesso direto a rotas manageOrg-gated (AC-08, server wall)', () =
     authedPage,
     org,
   }) => {
-    await setMembershipRole(`${org.orgId}_${org.uid}`, 'professional')
+    await setMembershipRole(`${org.orgId}_${org.uid}`, 'member_operator')
 
     for (const route of MANAGE_ROUTES) {
       await authedPage.goto(route)
-      await expect(authedPage, `professional must not reach ${route}`).toHaveURL(/\/agenda$/)
+      await expect(authedPage, `memberOperation must not reach ${route}`).toHaveURL(/\/agenda$/)
     }
   })
 

@@ -1,15 +1,15 @@
 // Public availability computation for the unit calendar (#842).
 //
 // Pure function — given a org's slot granularity, a unit's business hours,
-// the appointments and blocks for the target day, and the professionals who
-// execute the requested service at this unit, returns the per-professional
+// the appointments and blocks for the target day, and the memberOperations who
+// execute the requested service at this unit, returns the per-memberOperation
 // slot starts (ISO UTC) that are still bookable.
 //
 // Inputs are pre-filtered:
 //   - `appointments` MUST already be scoped to the unit + day.
 //   - `blocks` MUST already be scoped to the unit and resolved for the day
 //      via `getBlockSegmentsForDay`.
-//   - `professionals` MUST already be filtered via `professionalsForService`
+//   - `memberOperations` MUST already be filtered via `memberOperationsForService`
 //      (#876) — i.e., each entry both executes the service and operates at
 //      the unit.
 //
@@ -20,7 +20,7 @@ import type { Appointment } from '../types/appointment'
 import type { CatalogServiceItem } from '../types/catalog-item'
 import { resolveCatalogItemForUnit } from '../types/catalog-item'
 import { isOperational } from '../types/enums'
-import type { Professional } from '../types/professional'
+import type { MemberOperation } from '../types/member-operation'
 import type { BusinessHours } from '../types/unit'
 import type { BlockSegment } from './agenda-blocks'
 import { intervalsOverlap } from './appointment-overlap'
@@ -28,7 +28,7 @@ import { getBusinessHoursForDay, hhmmToMinutes, type Weekday } from './business-
 import { fromOrgTime, toOrgTime } from './timezone'
 
 export type AvailabilitySlot = {
-  professionalId: string
+  memberOperationId: string
   // ISO UTC. The slot covers [startAt, startAt + resolvedDurationMinutes).
   startAt: string
 }
@@ -36,7 +36,7 @@ export type AvailabilitySlot = {
 export type ComputeAvailabilityInput = {
   service: CatalogServiceItem
   unitId: string
-  professionals: readonly Professional[]
+  memberOperations: readonly MemberOperation[]
   unitBusinessHours: BusinessHours | null
   appointments: readonly Appointment[]
   blockSegments: readonly BlockSegment[]
@@ -71,8 +71,8 @@ function resolveDayWindows(input: ComputeAvailabilityInput): DayWindow[] {
   return windows
 }
 
-function isProfessionalEligible(
-  pro: ComputeAvailabilityInput['professionals'][number],
+function isMemberOperationEligible(
+  pro: ComputeAvailabilityInput['member_operations'][number],
   unitId: string,
   serviceId: string,
 ): boolean {
@@ -83,18 +83,18 @@ function isProfessionalEligible(
   )
 }
 
-function slotsForProfessional(
-  pro: ComputeAvailabilityInput['professionals'][number],
+function slotsForMemberOperation(
+  pro: ComputeAvailabilityInput['member_operations'][number],
   windows: readonly DayWindow[],
   input: ComputeAvailabilityInput,
   nowMs: number,
 ): AvailabilitySlot[] {
   const { date, slotMinutes, timezone } = input
   const proAppointments = input.appointments.filter(
-    (a) => a.professionalId === pro.id && a.status !== 'cancelled',
+    (a) => a.memberOperationId === pro.id && a.status !== 'cancelled',
   )
   const proBlocks = input.blockSegments.filter(
-    (b) => b.professionalId === null || b.professionalId === pro.id,
+    (b) => b.memberOperationId === null || b.memberOperationId === pro.id,
   )
   const slots: AvailabilitySlot[] = []
   for (const window of windows) {
@@ -110,7 +110,7 @@ function slotsForProfessional(
         intervalsOverlap({ startAt: startUtcIso, endAt: endUtcIso }, a),
       )
       if (booked) continue
-      slots.push({ professionalId: pro.id, startAt: startUtcIso })
+      slots.push({ memberOperationId: pro.id, startAt: startUtcIso })
     }
   }
   return slots
@@ -120,9 +120,9 @@ export function computeAvailabilityForDay(input: ComputeAvailabilityInput): Avai
   const windows = resolveDayWindows(input)
   if (windows.length === 0) return []
   const nowMs = input.nowMs ?? Date.now()
-  return input.professionals
-    .filter((pro) => isProfessionalEligible(pro, input.unitId, input.service.id))
-    .flatMap((pro) => slotsForProfessional(pro, windows, input, nowMs))
+  return input.memberOperations
+    .filter((pro) => isMemberOperationEligible(pro, input.unitId, input.service.id))
+    .flatMap((pro) => slotsForMemberOperation(pro, windows, input, nowMs))
 }
 
 // Convenience: weekday key from a date string + tz (re-exported for callers

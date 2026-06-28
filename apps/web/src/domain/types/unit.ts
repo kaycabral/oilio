@@ -208,7 +208,7 @@ export function unitUsesAgenda(unit: { agenda: UnitAgendaConfig }): boolean {
 }
 
 // SPIKE (inferred availability): a unit's public booking page is live when it
-// uses the agenda (appointment mode). Service/professional readiness is
+// uses the agenda (appointment mode). Service/memberOperation readiness is
 // surfaced to the owner as feedback but doesn't hard-gate the public page (an
 // appointment unit with hours but no pro simply has no slots).
 export function isUnitBookable(unit: { agenda: UnitAgendaConfig }): boolean {

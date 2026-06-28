@@ -85,7 +85,7 @@ async function seedCustomer(orgId: string, customerId: string, userId: string): 
 }
 
 // Parent rows the new D2/0068 cross-aggregate FKs require. memberships.org_id →
-// orgs; appointments reference unit/professional/service (the `buildAppointment`
+// orgs; appointments reference unit/memberOperation/service (the `buildAppointment`
 // fixture defaults — 'unit'/'pro'/'svc'). buildMembership leaves rls_unit_scope
 // null, so no unit FK there.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
@@ -97,18 +97,18 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
   )
 }
 
-async function seedProfessional(orgId: string, professionalId: string): Promise<void> {
+async function seedMemberOperation(orgId: string, memberOperationId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
-     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'professional','active',$3,'{}'::jsonb,$3)
+     VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'member_operator','active',$3,'{}'::jsonb,$3)
      ON CONFLICT (org_id, id) DO NOTHING`,
-    [orgId, professionalId, TS],
+    [orgId, memberOperationId, TS],
   )
   await getEventStorePool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+    `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,$3,$3)
      ON CONFLICT (org_id, id) DO NOTHING`,
-    [orgId, professionalId, TS],
+    [orgId, memberOperationId, TS],
   )
 }
 
@@ -145,7 +145,7 @@ async function seedAppointment(
   await seedOrg(orgId)
   // The appointment fixture defaults reference these parents.
   await seedUnit(orgId, 'unit')
-  await seedProfessional(orgId, 'pro')
+  await seedMemberOperation(orgId, 'pro')
   await seedService(orgId, 'svc')
   await Effect.runPromise(
     appendEvent(AppointmentConfig, aggregateRef(AppointmentConfig, orgId, apptId), {
@@ -198,7 +198,7 @@ beforeEach(async () => {
   // so the cleanup is robust to whatever a prior test file left behind — a plain
   // ordered DELETE broke once another suite seeded a notification before this one.
   await pool.query(
-    'TRUNCATE customers, appointments, memberships, org_links, orgs, users, events, projections, notifications, units, professionals, catalog_items CASCADE',
+    'TRUNCATE customers, appointments, memberships, org_links, orgs, users, events, projections, notifications, units, member_operations, catalog_items CASCADE',
   )
 })
 

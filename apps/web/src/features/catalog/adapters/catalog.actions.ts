@@ -3,13 +3,13 @@
 import {
   type CatalogItem,
   type CatalogItemKind,
-  type Professional,
+  type MemberOperation,
   type ServicePriceVisibility,
   isCatalogService,
   normalizeCatalogItemKind,
   normalizeServicePriceVisibility,
 } from '@/domain'
-import { CatalogItemConfig, ProfessionalConfig } from '@/domain/aggregates'
+import { CatalogItemConfig, MemberOperationConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import {
   parseCommissionFromForm,
@@ -23,8 +23,11 @@ import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
 import { getCategoryById } from '@/shared/org/category-read'
 import { canDeleteCatalogItem } from '@/shared/org/delete-guard'
+import {
+  getMemberOperationById,
+  listMemberOperationIdsForService,
+} from '@/shared/org/member-operation-read'
 import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
-import { getProfessionalById, listProfessionalIdsForService } from '@/shared/org/professional-read'
 import { listUnitIds } from '@/shared/org/unit-read'
 import { runProductGate } from '@/shared/product'
 import { revalidatePath } from 'next/cache'
@@ -294,29 +297,29 @@ export async function archiveCatalogItem(
   return { ok: true }
 }
 
-// Service item ↔ professional link (brief 0023, #1005). Moved here from the
+// Service item ↔ memberOperation link (brief 0023, #1005). Moved here from the
 // now-deleted `/services` route (AC-10) — `/catalog` is the single place to
-// manage items, including which professionals execute a service. Reads the
+// manage items, including which memberOperations execute a service. Reads the
 // unified `catalog_items` collection and writes the `catalogServiceIds` membership on
-// each affected professional (event-sourced, `professional.updated`).
+// each affected memberOperation (event-sourced, `member_operation.updated`).
 //
 // Cross-edit reached from a service item's catalog editor. Enforces the #876
-// invariant (`item.unitIds ∩ Professional.unitIds ≠ ∅`) before flipping each
-// pro's `catalogServiceIds` membership. Atomic per-pro: each affected professional
+// invariant (`item.unitIds ∩ MemberOperation.unitIds ≠ ∅`) before flipping each
+// pro's `catalogServiceIds` membership. Atomic per-pro: each affected memberOperation
 // gets a single document write.
-// Resolve the next `catalogServiceIds` array for one professional whose link to
+// Resolve the next `catalogServiceIds` array for one memberOperation whose link to
 // `service` flips. `should=true` enforces the #876 invariant (`item.unitIds ∩
-// Professional.unitIds ≠ ∅`) and returns an error message string when violated;
-// otherwise returns the next array. Pure given the loaded professional.
+// MemberOperation.unitIds ≠ ∅`) and returns an error message string when violated;
+// otherwise returns the next array. Pure given the loaded memberOperation.
 function nextCatalogServiceIdsFor(
-  pro: Professional,
+  pro: MemberOperation,
   service: { id: string; name: string; unitSet: ReadonlySet<string> },
   should: boolean,
 ): { ids: string[] } | { error: string } {
   if (should) {
     const sharesUnit = (pro.unitIds ?? []).some((u) => service.unitSet.has(u))
     if (!sharesUnit) {
-      // The enriched read already carries the professional's name.
+      // The enriched read already carries the memberOperation's name.
       const proName = pro.name || 'Profissional'
       return {
         error: `${proName} não atende em nenhuma unidade onde "${service.name}" é oferecido.`,
@@ -327,9 +330,9 @@ function nextCatalogServiceIdsFor(
   return { ids: (pro.catalogServiceIds ?? []).filter((s) => s !== service.id) }
 }
 
-export async function setServiceProfessionals(
+export async function setServiceMemberOperations(
   serviceId: string,
-  professionalIds: string[],
+  memberOperationIds: string[],
 ): Promise<CatalogItemMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
@@ -339,13 +342,13 @@ export async function setServiceProfessionals(
   if (!service || !isCatalogService(service)) return { ok: false, error: 'Serviço não encontrado' }
   const serviceUnitSet = new Set(service.unitIds ?? [])
 
-  const desired = new Set(professionalIds)
+  const desired = new Set(memberOperationIds)
   // "Who already performs this service?" — the inverse query served by the
-  // `professional_services` join (brief 0068 D3), replacing a fetch-all + JS
-  // `.includes()`. The WRITE still flows through `professional.updated` (the
+  // `member_operation_services` join (brief 0068 D3), replacing a fetch-all + JS
+  // `.includes()`. The WRITE still flows through `member_operation.updated` (the
   // `catalogServiceIds` array in the reduced state) — only this READ migrates.
-  const currentlyLinked = new Set(await listProfessionalIdsForService(orgId, serviceId))
-  // Only professionals whose membership actually flips matter: the union of the
+  const currentlyLinked = new Set(await listMemberOperationIdsForService(orgId, serviceId))
+  // Only memberOperations whose membership actually flips matter: the union of the
   // desired set and those currently linked. Load just those (not every pro).
   const affectedIds = [...new Set([...desired, ...currentlyLinked])]
   const updates: { proId: string; nextCatalogServiceIds: string[] }[] = []
@@ -353,9 +356,9 @@ export async function setServiceProfessionals(
     const has = currentlyLinked.has(proId)
     const should = desired.has(proId)
     if (has === should) continue
-    const pro = await getProfessionalById(orgId, proId)
-    // `should && !has` with a missing professional → the toggle targets a
-    // professional that no longer exists; skip rather than emit against a ghost.
+    const pro = await getMemberOperationById(orgId, proId)
+    // `should && !has` with a missing memberOperation → the toggle targets a
+    // memberOperation that no longer exists; skip rather than emit against a ghost.
     if (!pro) continue
     const next = nextCatalogServiceIdsFor(
       pro,
@@ -367,13 +370,13 @@ export async function setServiceProfessionals(
   }
 
   // Event-first: o vínculo pro↔serviço é estado do PROFISSIONAL — cada
-  // profissional afetado emite `professional.updated`.
+  // profissional afetado emite `member_operation.updated`.
   for (const u of updates) {
     const res = await emitEvent(
-      ProfessionalConfig,
-      aggregateRef(ProfessionalConfig, orgId, u.proId),
+      MemberOperationConfig,
+      aggregateRef(MemberOperationConfig, orgId, u.proId),
       {
-        _tag: 'professional.updated',
+        _tag: 'member_operation.updated',
         actorId: r.ctx.session.uid,
         payload: { changes: { catalogServiceIds: u.nextCatalogServiceIds } },
       },

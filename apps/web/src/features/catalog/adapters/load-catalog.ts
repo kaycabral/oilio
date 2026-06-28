@@ -15,8 +15,8 @@ import {
   catalogItemHasActiveReference,
   type WithCanDelete,
 } from '@/shared/org/delete-guard'
+import { listMemberOperationsForOrg } from '@/shared/org/member-operation-read'
 import { requireCapabilityPage } from '@/shared/org/membership'
-import { listProfessionalsForOrg } from '@/shared/org/professional-read'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
 import { notFound } from 'next/navigation'
 import 'server-only'
@@ -137,22 +137,22 @@ export type EditCatalogItemPageData = {
   item: CatalogItem & { id: string }
   units: StoredUnit[]
   categories: Category[]
-  professionals: Awaited<ReturnType<typeof listProfessionalsForOrg>>
+  memberOperations: Awaited<ReturnType<typeof listMemberOperationsForOrg>>
 }
 
 // Imperative shell for the edit route — gate, resolve the item (404), then the
-// form master data + professionals (for the service ↔ pro link section).
+// form master data + memberOperations (for the service ↔ pro link section).
 export async function loadEditCatalogItemPage(itemId: string): Promise<EditCatalogItemPageData> {
   const ctx = await requireCapabilityPage('canManageCatalog')
 
-  const [item, allUnits, allCategories, professionals] = await Promise.all([
+  const [item, allUnits, allCategories, memberOperations] = await Promise.all([
     getCatalogItemById(ctx.membership.orgId, itemId),
     listStoredUnitsForOrg(ctx.membership.orgId),
     listCategoriesForOrg(ctx.membership.orgId),
-    listProfessionalsForOrg(ctx.membership.orgId),
+    listMemberOperationsForOrg(ctx.membership.orgId),
   ])
   if (!item) notFound()
   const units = allUnits.filter((u) => !u.archivedAt)
   const categories = allCategories.filter((c) => !c.archivedAt)
-  return { item, units, categories, professionals }
+  return { item, units, categories, memberOperations }
 }

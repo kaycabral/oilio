@@ -8,18 +8,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ readUnderRls: vi.fn() }))
 vi.mock('@/shared/db/pg/rls-read', () => ({ readUnderRls: mocks.readUnderRls }))
 
-import { listAppointmentsByProfessionalId } from './appointment-read'
+import { listAppointmentsByMemberOperationId } from './appointment-read'
 
 const APPOINTMENT_ROW = {
   org_id: 'org-1',
   id: 'apt-1',
   unit_id: 'u1',
   version: 1,
-  professional_id: 'pro-1',
+  member_operation_id: 'pro-1',
   customer_id: 'c1',
   service_id: 'svc-1',
   customer_user_id: 'user-9',
-  professional_user_id: 'user-1',
+  member_operator_user_id: 'user-1',
   start_at: '2026-06-10T14:00:00.000Z',
   end_at: '2026-06-10T14:30:00.000Z',
   status: 'scheduled',
@@ -36,21 +36,21 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('listAppointmentsByProfessionalId', () => {
+describe('listAppointmentsByMemberOperationId', () => {
   it('maps the typed appointments rows under RLS', async () => {
     mocks.readUnderRls.mockResolvedValue([APPOINTMENT_ROW])
-    const appts = await listAppointmentsByProfessionalId('org-1', 'pro-1')
+    const appts = await listAppointmentsByMemberOperationId('org-1', 'pro-1')
     expect(appts).toHaveLength(1)
     expect(appts[0]).toMatchObject({
       id: 'apt-1',
-      professionalId: 'pro-1',
+      memberOperationId: 'pro-1',
       status: 'scheduled',
       unitId: 'u1',
     })
   })
 
-  it('returns empty when the professional has none', async () => {
+  it('returns empty when the memberOperation has none', async () => {
     mocks.readUnderRls.mockResolvedValue([])
-    expect(await listAppointmentsByProfessionalId('org-1', 'pro-1')).toHaveLength(0)
+    expect(await listAppointmentsByMemberOperationId('org-1', 'pro-1')).toHaveLength(0)
   })
 })

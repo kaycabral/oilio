@@ -6,15 +6,15 @@ const apptArgs = {
   appointment: {
     customerId: 'c1',
     serviceId: 's1',
-    professionalId: 'p1',
+    memberOperationId: 'p1',
     startAt: '2026-06-15T13:00:00.000Z',
   },
   customers: [{ id: 'c1', name: 'Ana', whatsapp: '5511999990000' }],
   services: [{ id: 's1', name: 'Corte' }],
-  professionals: [{ id: 'p1', name: 'Bruno' }],
+  memberOperations: [{ id: 'p1', name: 'Bruno' }],
   timezone: TZ,
   confirmationTemplate:
-    'Oi {{customerName}}, seu {{serviceName}} com {{professionalName}} em {{date}} às {{time}} ({{businessName}}).',
+    'Oi {{customerName}}, seu {{serviceName}} com {{memberOperationName}} em {{date}} às {{time}} ({{businessName}}).',
   businessName: 'Salão X',
 }
 
@@ -42,8 +42,8 @@ describe('buildAppointmentWhatsappLink', () => {
     expect(decoded).toContain('10:00')
   })
 
-  it('still builds the link when service/professional are missing (optional fields)', () => {
-    const link = buildAppointmentWhatsappLink({ ...apptArgs, services: [], professionals: [] })
+  it('still builds the link when service/memberOperation are missing (optional fields)', () => {
+    const link = buildAppointmentWhatsappLink({ ...apptArgs, services: [], memberOperations: [] })
     expect(link).not.toBeNull()
     expect(decodeURIComponent(link!)).toContain('Ana')
   })

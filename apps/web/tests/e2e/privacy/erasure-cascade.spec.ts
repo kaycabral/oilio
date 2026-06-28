@@ -82,9 +82,9 @@ test.describe('CUSTOMER erasure cascade', { tag: '@critical' }, () => {
   test('erasing a customer with an active subscription cancels it + future appointments; past appointment retained', async ({
     context,
   }) => {
-    const owner = await seedOrg({ professionalCount: 1 })
+    const owner = await seedOrg({ memberOperationCount: 1 })
     const unitId = owner.unitIds[0]!
-    const professionalId = owner.professionalIds[0]!
+    const memberOperationId = owner.memberOperationIds[0]!
 
     const customerName = `Cliente Cascata ${Date.now()}`
     const customerId = await seedCustomer(owner.orgId, { name: customerName })
@@ -95,7 +95,7 @@ test.describe('CUSTOMER erasure cascade', { tag: '@critical' }, () => {
     const futureAppt = await seedAppointment({
       orgId: owner.orgId,
       unitId,
-      professionalId,
+      memberOperationId,
       customerId,
       serviceId: 'e2e-svc',
       startAt: futureStart,
@@ -106,7 +106,7 @@ test.describe('CUSTOMER erasure cascade', { tag: '@critical' }, () => {
     const pastAppt = await seedAppointment({
       orgId: owner.orgId,
       unitId,
-      professionalId,
+      memberOperationId,
       customerId,
       serviceId: 'e2e-svc',
       startAt: pastStart,

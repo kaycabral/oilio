@@ -45,13 +45,15 @@ async function seedCommission(org: SeededOrg, c: SeedCommission): Promise<void> 
 }
 
 test.describe('Comissão — marcar pago (#999)', { tag: '@critical' }, () => {
-  test.use({ orgInput: { professionalCount: 1, professionalOperationalStatus: 'operational' } })
+  test.use({
+    orgInput: { memberOperationCount: 1, memberOperationOperationalStatus: 'operational' },
+  })
 
   test('AC-03: lote por membro/período move pendente→pago e fica imutável', async ({
     org,
     authedPage,
   }) => {
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUser = `e2e-prof-user-${proId}`
     await seedCommission(org, {
       attributedUserId: proUser,
@@ -97,7 +99,7 @@ test.describe('Comissão — marcar pago (#999)', { tag: '@critical' }, () => {
     authedPage,
   }) => {
     // Comissão já paga: o lote do período não tem pendentes para marcar.
-    const proId = org.professionalIds[0]!
+    const proId = org.memberOperationIds[0]!
     const proUser = `e2e-prof-user-${proId}`
     await seedCommission(org, {
       attributedUserId: proUser,

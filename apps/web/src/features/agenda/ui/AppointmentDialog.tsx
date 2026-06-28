@@ -6,7 +6,7 @@ import {
   type Appointment,
   type CatalogServiceItem,
   type Customer,
-  type Professional,
+  type MemberOperation,
 } from '@/domain'
 import { createAppointment, updateAppointment } from '@/features/agenda/adapters/agenda.actions'
 import {
@@ -42,36 +42,36 @@ export function AppointmentDialog({
   open,
   onOpenChange,
   unitId,
-  professionals,
+  memberOperations,
   services,
   customers,
   date,
   timezone,
-  defaultProfessionalId,
+  defaultMemberOperationId,
   defaultStartTime,
   appointment,
   businessName,
   confirmationTemplate,
-  selfProfessionalId = null,
+  selfMemberOperationId = null,
   canRegisterCustomer = true,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   unitId: string
-  professionals: Professional[]
+  memberOperations: MemberOperation[]
   services: CatalogServiceItem[]
   customers: Customer[]
   date: string
   timezone: string
-  defaultProfessionalId?: string
+  defaultMemberOperationId?: string
   defaultStartTime?: string
   // When provided, dialog is in edit mode; submit calls updateAppointment.
   appointment?: Appointment | null
   businessName: string
   confirmationTemplate: string
-  // #1257: a self-scoped professional books only for themselves — the picker is
+  // #1257: a self-scoped memberOperation books only for themselves — the picker is
   // replaced by a fixed hidden input carrying this id. Null = balcão (full picker).
-  selfProfessionalId?: string | null
+  selfMemberOperationId?: string | null
   // #1255 AC-05: only the balcão may register a customer inline. When false, the
   // "Cadastrar novo" toggle is hidden (the server action also refuses it).
   canRegisterCustomer?: boolean
@@ -110,12 +110,20 @@ export function AppointmentDialog({
         appointment,
         customers,
         services,
-        professionals,
+        memberOperations,
         timezone,
         confirmationTemplate,
         businessName,
       }),
-    [appointment, customers, services, professionals, timezone, confirmationTemplate, businessName],
+    [
+      appointment,
+      customers,
+      services,
+      memberOperations,
+      timezone,
+      confirmationTemplate,
+      businessName,
+    ],
   )
 
   function onSubmit(formData: FormData) {
@@ -193,31 +201,31 @@ export function AppointmentDialog({
           </div>
 
           <div className="flex flex-col gap-1">
-            <Label htmlFor="appointment-professional" className="text-sm font-medium">
+            <Label htmlFor="appointment-memberOperation" className="text-sm font-medium">
               Profissional
             </Label>
-            {/* #1257: a self-scoped professional books only for themselves — the
+            {/* #1257: a self-scoped memberOperation books only for themselves — the
                 picker offers ONLY their own option (pre-selected), so the submit
                 always carries their id. The server action + RLS also enforce it.
                 The balcão gets the full list. Uses the design Select either way
                 (no hand-rolled primitive). */}
             <Select
-              name="professionalId"
+              name="memberOperationId"
               required
               defaultValue={
-                selfProfessionalId ??
-                appointment?.professionalId ??
-                defaultProfessionalId ??
+                selfMemberOperationId ??
+                appointment?.memberOperationId ??
+                defaultMemberOperationId ??
                 undefined
               }
             >
-              <SelectTrigger id="appointment-professional">
+              <SelectTrigger id="appointment-memberOperation">
                 <SelectValue placeholder="Selecione…" />
               </SelectTrigger>
               <SelectContent>
-                {(selfProfessionalId
-                  ? professionals.filter((p) => p.id === selfProfessionalId)
-                  : professionals
+                {(selfMemberOperationId
+                  ? memberOperations.filter((p) => p.id === selfMemberOperationId)
+                  : memberOperations
                 ).map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name}

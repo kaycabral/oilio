@@ -9,7 +9,7 @@ export const INITIAL_AGENDA_BLOCK_STATE: AgendaBlockState = {
   id: '',
   orgId: '',
   unitId: '',
-  professionalId: null,
+  memberOperationId: null,
   reason: '',
   kind: 'one_off',
   weekday: null,

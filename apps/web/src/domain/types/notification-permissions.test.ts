@@ -25,9 +25,9 @@ describe('canRoleSeeNotificationType', () => {
     }
   })
 
-  it('professional segue restrição (não-manager)', () => {
-    expect(canRoleSeeNotificationType('professional', 'cash_register_open')).toBe(false)
-    expect(canRoleSeeNotificationType('professional', 'birthday')).toBe(true)
+  it('memberOperation segue restrição (não-manager)', () => {
+    expect(canRoleSeeNotificationType('member_operator', 'cash_register_open')).toBe(false)
+    expect(canRoleSeeNotificationType('member_operator', 'birthday')).toBe(true)
   })
 })
 

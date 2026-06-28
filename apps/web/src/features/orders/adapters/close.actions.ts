@@ -56,9 +56,9 @@ export async function closeOrder(orderId: string, formData: FormData): Promise<C
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
   // Own-resource (brief 0075, #1257): the balcão (owner/manager/recepção) closes
-  // any comanda; a self-scoped professional closes one only when EVERY item is
+  // any comanda; a self-scoped memberOperation closes one only when EVERY item is
   // attributed to them — so they never emit a colleague's commission. A
-  // multi-professional comanda is the balcão's to close. Shared with the open-order
+  // multi-memberOperation comanda is the balcão's to close. Shared with the open-order
   // edit guards via `canOperateOpenOrder`.
   if (!canOperateOpenOrder(r.ctx.membership, loaded.order.items)) {
     return { ok: false, error: 'Você só pode fechar comandas atribuídas a você' }

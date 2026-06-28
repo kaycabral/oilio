@@ -155,7 +155,7 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
   })
 
   test.describe('baseline — zero-unit org', () => {
-    test.use({ orgInput: { unitCount: 0, professionalCount: 0 } })
+    test.use({ orgInput: { unitCount: 0, memberOperationCount: 0 } })
 
     test('owner com 0 unidades acessa as surfaces sem gate de onboarding', async ({
       authedPage,

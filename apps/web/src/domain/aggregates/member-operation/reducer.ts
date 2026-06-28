@@ -1,20 +1,20 @@
 import type { EventMeta } from '@/domain/effect/event-store'
-import type { ProfessionalEvent } from './events'
-import type { ProfessionalState } from './types'
+import type { MemberOperationEvent } from './events'
+import type { MemberOperationState } from './types'
 
-export function applyProfessionalEvent(
-  state: ProfessionalState,
-  event: ProfessionalEvent,
+export function applyMemberOperationEvent(
+  state: MemberOperationState,
+  event: MemberOperationEvent,
   meta: EventMeta,
-): ProfessionalState {
+): MemberOperationState {
   const base = { ...state, _version: meta.version, updatedAt: meta.timestamp }
 
   switch (event._tag) {
-    case 'professional.created':
+    case 'member_operation.created':
       return { ...base, ...event.data, createdAt: meta.timestamp, updatedAt: meta.timestamp }
-    case 'professional.updated':
+    case 'member_operation.updated':
       return { ...base, ...event.changes, updatedAt: meta.timestamp }
-    case 'professional.deleted':
+    case 'member_operation.deleted':
       return base
     // Operational-readiness transitions are NO-OPS (#1226 AC-02). The status is
     // no longer materialized on the projection — it is DERIVED on read from real
@@ -22,9 +22,9 @@ export function applyProfessionalEvent(
     // New writes no longer emit these events, but the schemas stay in the union
     // and the cases stay here so HISTORICAL streams (which DID emit them) still
     // replay without breaking — they simply leave the state untouched.
-    case 'professional.activated':
+    case 'member_operation.activated':
       return base
-    case 'professional.suspended':
+    case 'member_operation.suspended':
       return base
   }
 }

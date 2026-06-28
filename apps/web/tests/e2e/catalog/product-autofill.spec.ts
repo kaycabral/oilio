@@ -120,7 +120,7 @@ async function submitNewItem(authedPage: Page): Promise<void> {
 // three and flaked under CI's multi-worker e2e shards).
 test.describe('Base de Produtos C+D — autofill por código e nome (DoD #1166/#1171)', () => {
   test.use({
-    orgInput: { unitCount: 1, professionalCount: 1, hasBusinessHours: true, slotMinutes: 30 },
+    orgInput: { unitCount: 1, memberOperationCount: 1, hasBusinessHours: true, slotMinutes: 30 },
   })
 
   // Clear only THIS worker's rows so a parallel worker's namespace is untouched.

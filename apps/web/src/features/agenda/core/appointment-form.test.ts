@@ -22,7 +22,7 @@ function asParsed(r: ParsedAppointment | string): ParsedAppointment {
 
 const BASE = {
   unitId: 'u1',
-  professionalId: 'p1',
+  memberOperationId: 'p1',
   serviceId: 's1',
   date: '2026-06-15',
   startTime: '10:00',
@@ -34,7 +34,7 @@ describe('parseAppointmentForm', () => {
       parseAppointmentForm(form({ ...BASE, customerMode: 'existing', customerId: 'c1' })),
     ).toEqual({
       unitId: 'u1',
-      professionalId: 'p1',
+      memberOperationId: 'p1',
       serviceId: 's1',
       customerId: 'c1',
       newCustomer: null,
@@ -59,7 +59,7 @@ describe('parseAppointmentForm', () => {
 
   it.each([
     ['unit', { unitId: '' }, 'Unidade é obrigatória'],
-    ['professional', { professionalId: '' }, 'Profissional é obrigatório'],
+    ['member_operator', { memberOperationId: '' }, 'Profissional é obrigatório'],
     ['service', { serviceId: '' }, 'Serviço é obrigatório'],
     ['existing customer', { customerMode: 'existing', customerId: '' }, 'Cliente é obrigatório'],
     [

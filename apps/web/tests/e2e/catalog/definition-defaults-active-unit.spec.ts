@@ -1,11 +1,11 @@
 // Feature E2E — definition forms default to the active unit (brief 0039,
 // AC-03 / DoD Cenário 2, sub-issue #1092).
 //
-// The multi-unit DEFINITION select stays (a catalog item / professional can
+// The multi-unit DEFINITION select stays (a catalog item / memberOperation can
 // exist in multiple units — brief 0012). The only change is the DEFAULT:
 //   - a NEW catalog item pre-checks the active unit, and the user can still
 //     check other units (multi-select preserved);
-//   - editing an EXISTING professional's units shows its CURRENT units intact —
+//   - editing an EXISTING memberOperation's units shows its CURRENT units intact —
 //     the default never resets a stored selection to just the active unit.
 //
 // Runs against the emulator (no mocks). The active unit is driven via the
@@ -14,7 +14,7 @@
 
 import type { BrowserContext } from '@playwright/test'
 import { expect, test } from '../fixtures'
-import { ProfessionalsPage } from '../pages'
+import { MemberOperationsPage } from '../pages'
 
 const ACTIVE_UNIT_COOKIE = 'activeUnitId'
 
@@ -39,7 +39,7 @@ async function setActiveUnitCookie(
 test.describe('Definição default na unidade ativa (#1092)', () => {
   test.describe('org multi-unidade', () => {
     // Two units: "Unidade 1" (unitIds[0]) and "Unidade 2" (unitIds[1]).
-    test.use({ orgInput: { unitCount: 2, professionalCount: 1 } })
+    test.use({ orgInput: { unitCount: 2, memberOperationCount: 1 } })
 
     test('novo item de catálogo pré-marca a unidade ativa, multi-select preservado', async ({
       context,
@@ -85,13 +85,13 @@ test.describe('Definição default na unidade ativa (#1092)', () => {
       baseURL,
     }) => {
       const [unitOne, unitTwo] = org.unitIds
-      // The seeded professional is linked to ALL units (both).
-      const proUid = `e2e-prof-user-${org.professionalIds[0]!}`
+      // The seeded memberOperation is linked to ALL units (both).
+      const proUid = `e2e-prof-user-${org.memberOperationIds[0]!}`
 
       // Active unit = "Unidade 2"; the pro already has BOTH units stored.
       await setActiveUnitCookie(context, baseURL, unitTwo!)
 
-      const pros = new ProfessionalsPage(authedPage)
+      const pros = new MemberOperationsPage(authedPage)
       await pros.gotoByUserId(proUid)
 
       const unitsGroup = authedPage.getByRole('group', { name: 'Unidades', exact: true })
