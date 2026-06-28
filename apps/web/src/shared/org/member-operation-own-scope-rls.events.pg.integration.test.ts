@@ -90,10 +90,11 @@ async function seedAppointment(id: string, memberOperationId: string): Promise<v
        org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id,
        customer_user_id, member_operator_user_id, start_at, end_at, status,
        service_price_cents_snapshot, service_duration_minutes_snapshot,
-       commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
+       commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at, member_id)
      VALUES ($1,$2,$3,1,$4,$5,'svc-1','cuser-1','puser-1',
        '2026-06-10T12:00:00Z','2026-06-10T12:30:00Z','scheduled',
-       5000,30,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+       5000,30,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',
+       (SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = $1 AND mo.id = $4))`,
     [ORG, id, UNIT, memberOperationId, CUSTOMER],
   )
 }
@@ -101,8 +102,8 @@ async function seedAppointment(id: string, memberOperationId: string): Promise<v
 // One agenda block; `memberOperationId` null = unit-wide (owned by no one).
 async function seedBlock(id: string, memberOperationId: string | null): Promise<void> {
   await getEventStorePool().query(
-    `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, member_operation_id, block, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'recurring',$4,'{"reason":"r"}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, member_operation_id, block, created_at, updated_at, member_id)
+     VALUES ($1,$2,$3,1,'recurring',$4,'{"reason":"r"}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = $1 AND mo.id = $4))`,
     [ORG, id, UNIT, memberOperationId],
   )
 }
@@ -191,10 +192,11 @@ describe('Postgres RLS — memberOperation own-scope on appointments/agenda_bloc
              org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id,
              customer_user_id, member_operator_user_id, start_at, end_at, status,
              service_price_cents_snapshot, service_duration_minutes_snapshot,
-             commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
+             commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at, member_id)
            VALUES ($1,'apt-x',$2,1,$3,$4,'svc-1','cuser-1','puser-1',
              '2026-06-10T12:00:00Z','2026-06-10T12:30:00Z','scheduled',
-             5000,30,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+             5000,30,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',
+             $1||'_'||('user-'||$3))`,
           [ORG, UNIT, PRO_B, CUSTOMER],
         ),
         // 42501 = insufficient_privilege (RLS WITH CHECK violation)

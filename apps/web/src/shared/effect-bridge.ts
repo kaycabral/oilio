@@ -5,6 +5,7 @@ import {
   appendEventToTx,
   PersistencePort,
   runSaga,
+  SecurityContext,
   type AggregateConfig,
   type AggregateRef,
   type EventInput,
@@ -13,7 +14,37 @@ import {
   type TransactionContext,
 } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
-import { Effect } from 'effect'
+import { Effect, Layer } from 'effect'
+
+/**
+ * The acting subject's RLS scope for a write (brief 0075, #1265). When a
+ * self-scoped member operates, the action resolves their `memberOperationId` (the
+ * own-scope id — same value the read path passes as `app.current_member_operation`)
+ * and threads it here; the bridge provides a `SecurityContext` so the own-scope
+ * policies enforce own-only on the WRITE (the WITH CHECK refuses a colleague's row
+ * at the DB). Omitted (or `memberOperationId` empty) = balcão: permissive, the
+ * pre-#1265 behaviour every existing call-site keeps unchanged.
+ */
+export type WriteSecurity = {
+  readonly orgId: string
+  readonly unitId?: string | null
+  readonly memberOperationId?: string | null
+}
+
+// Build the optional SecurityContext layer; `Layer.empty` when no scope is given,
+// so a balcão write provides nothing and the GUC stays permissive (`''`).
+// Exported so direct event-store writers that don't go through `emitEvent`
+// (`commitAppointmentBooking` — the anti-double-book commit) share the EXACT same
+// own-scope wiring instead of re-deriving it (DRY: one place builds the
+// `SecurityContext` from a `WriteSecurity`, so the two write paths can't drift).
+export function securityLayer(security?: WriteSecurity): Layer.Layer<never> {
+  if (!security) return Layer.empty
+  return Layer.succeed(SecurityContext, {
+    orgId: security.orgId,
+    unitId: security.unitId ?? null,
+    memberOperationId: security.memberOperationId ?? null,
+  })
+}
 
 export async function emitEvent<
   State extends { readonly _version: number },
@@ -23,6 +54,7 @@ export async function emitEvent<
   config: AggregateConfig<State, Event, Encoded>,
   ref: AggregateRef,
   input: EventInput<Event['_tag']>,
+  security?: WriteSecurity,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   return Effect.runPromise(
     appendEvent(config, ref, input).pipe(
@@ -32,7 +64,9 @@ export async function emitEvent<
       ),
       // The event store runs over the Postgres `PersistencePort` — the sole
       // backend after the cutover (#1202); the OILIO_PERSISTENCE flag is gone.
-      Effect.provide(PostgresPersistenceLayer),
+      // `securityLayer` supplies own-scope RLS when the actor is self-scoped (#1265);
+      // empty otherwise (balcão), so the GUC stays permissive.
+      Effect.provide(Layer.merge(PostgresPersistenceLayer, securityLayer(security))),
     ),
   )
 }
@@ -89,6 +123,7 @@ function catchSagaDefect(defect: unknown) {
 
 export async function commitSaga(
   steps: readonly SagaStep[],
+  security?: WriteSecurity,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   return Effect.runPromise(
     runSaga(steps).pipe(
@@ -100,7 +135,8 @@ export async function commitSaga(
         Effect.succeed({ ok: false as const, error: e.message }),
       ),
       Effect.catchAllDefect(catchSagaDefect),
-      Effect.provide(PostgresPersistenceLayer),
+      // Own-scope RLS for a self-scoped saga actor (#1265); empty for the balcão.
+      Effect.provide(Layer.merge(PostgresPersistenceLayer, securityLayer(security))),
     ),
   )
 }
