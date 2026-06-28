@@ -10,7 +10,7 @@
 //
 // It seeds five isolated orgs (paridade with the old seed):
 //   • Barbearia do Zé   — the rich org (units across all agenda modes, catalog,
-//                          professionals via the invite cascade, customers,
+//                          member operations via the invite cascade, customers,
 //                          subscription, appointments, agenda blocks, cash).
 //   • Pizzaria do Tonho  — retail isolation org with closed sales.
 //   • Comércio Esquina   — retail isolation org with closed sales.
@@ -52,7 +52,7 @@ async function main(): Promise<void> {
       '  Login: "Continuar com Google" → Add new account → use one of the emails',
       '  below (Auth emulator, no password). Each maps to a fixed seeded uid:',
       '    • dev@cbrl.local        — Zé Owner (Barbearia, owner)',
-      '    • ze.pro@cbrl.local     — Zé Barbeiro (professional)',
+      '    • ze.pro@cbrl.local     — Zé Barbeiro (member operator)',
       '    • recep@cbrl.local      — Paula (receptionist)',
       '    • cliente@cbrl.local    — Cliente Demo (customer)',
       '    • ana.fiscal@cbrl.local — Ana Fiscal (informal + formalized orgs)',

@@ -40,7 +40,7 @@ export type MemberDetailData = {
   canRemove: boolean
 } & MemberOperationEditData
 
-const EMPTY_PROFESSIONAL_EDIT: MemberOperationEditData = {
+const EMPTY_MEMBER_OPERATION_EDIT: MemberOperationEditData = {
   memberOperationEdit: null,
   memberOperationBlocks: [],
   memberOperationUnits: [],
@@ -64,8 +64,8 @@ async function loadMemberOperationEditContext(
   // Timezone is the establishment's (PRD Identidade v2 — moved Org→Unit): the
   // member-detail agenda uses the first unit's tz (org-scoped view; per-unit
   // blocks render in that unit's tz).
-  const orgTimezone = units[0]?.timezone ?? EMPTY_PROFESSIONAL_EDIT.orgTimezone
-  if (!memberOperation) return { ...EMPTY_PROFESSIONAL_EDIT, orgTimezone }
+  const orgTimezone = units[0]?.timezone ?? EMPTY_MEMBER_OPERATION_EDIT.orgTimezone
+  if (!memberOperation) return { ...EMPTY_MEMBER_OPERATION_EDIT, orgTimezone }
   // Unified catalog (brief 0023, #1004 → 0053/B3): kind-service items directly.
   const services = catalogItems.filter(isCatalogService)
   // The memberOperation operates in a subset of units; a block applies to one of
@@ -141,7 +141,7 @@ export async function loadMemberDetailPage(userId: string): Promise<MemberDetail
   // Operational edit context — only loaded for memberOperation members (AC-02).
   const memberOperationData = isMemberOperator
     ? await loadMemberOperationEditContext(orgId, userId)
-    : EMPTY_PROFESSIONAL_EDIT
+    : EMPTY_MEMBER_OPERATION_EDIT
 
   return {
     member,

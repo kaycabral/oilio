@@ -55,7 +55,7 @@ export default async function MemberDetailPage({
     canRemove,
     memberOperationEdit,
     memberOperationBlocks,
-    professionalUnits,
+    memberOperationUnits,
     orgTimezone,
   } = await loadMemberDetailPage(userId)
 
@@ -115,12 +115,12 @@ export default async function MemberDetailPage({
           own blocks live here, next to the operational config. Needs a
           materialized memberOperation with at least one unit to attach the block
           to. */}
-      {isMemberOperator && memberOperationEdit && professionalUnits.length > 0 ? (
+      {isMemberOperator && memberOperationEdit && memberOperationUnits.length > 0 ? (
         <BlocksSection
           owner={{
             scope: 'member_operator',
             memberOperationId: memberOperationEdit.memberOperation.id,
-            units: professionalUnits,
+            units: memberOperationUnits,
           }}
           blocks={memberOperationBlocks}
           orgTimezone={orgTimezone}

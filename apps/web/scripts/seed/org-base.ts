@@ -5,8 +5,8 @@
 //
 // These cover the single-aggregate creates (org, unit, category, catalog item,
 // plan, customer, subscription, appointment, agenda block, cash movement). The
-// multi-aggregate cascades (professional onboarding, closed sale) live in their
-// own helpers (`professional-saga.ts`, `closed-sale.ts`).
+// multi-aggregate cascades (member-operation onboarding, closed sale) live in
+// their own helpers (`member-operation-saga.ts`, `closed-sale.ts`).
 
 import {
   buildPlanSnapshot,
