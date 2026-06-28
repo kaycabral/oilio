@@ -12,6 +12,7 @@ import {
   isItemCoveredBySubscription,
   isOperational,
   type LiquidationStatus,
+  type Membership,
   type Order,
   type OrderItem,
   type OrderItemKind,
@@ -25,9 +26,32 @@ import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
 
-import { getMembership, listOrgMembers } from '@/shared/org/membership'
+import { getMembership, listOrgMembers, operatesFrontDesk } from '@/shared/org/membership'
 import { getProfessionalByUserId } from '@/shared/org/professional-read'
 import { loadActiveSubscriptionForCustomer, loadOrderById } from './order-financial-read'
+
+// Own-resource policy for an OPEN order (brief 0075, #1257): the balcão
+// (owner/manager/recepção) operates any comanda; a self-scoped professional
+// operates one only when EVERY item is attributed to them — so they can't touch
+// a colleague's order (remove items, re-attribute commission to themselves,
+// apply discounts). An order with no items yet (just opened) is vacuously theirs,
+// so they can add the first item. Orders carry no `professional_id` column, so
+// RLS can't enforce this — the gate lives here, in the app layer. Mirrors
+// `canCloseOrder` (close.actions.ts), the close-time form of the same rule.
+export function canOperateOpenOrder(membership: Membership, items: readonly OrderItem[]): boolean {
+  if (operatesFrontDesk(membership)) return true
+  return items.every((item) => item.attributedUserId === membership.userId)
+}
+
+// Discriminated guard result wrapper so call-sites stay one-liners. Returns the
+// error result when the member may not operate the order, else null.
+export function denyIfNotOwnOrder(
+  membership: Membership,
+  items: readonly OrderItem[],
+): { ok: false; error: string } | null {
+  if (canOperateOpenOrder(membership, items)) return null
+  return { ok: false, error: 'Você só pode editar comandas atribuídas a você' }
+}
 
 export function genItemId(): string {
   // ID curto suficiente pra colisão ser improvável dentro de uma única
