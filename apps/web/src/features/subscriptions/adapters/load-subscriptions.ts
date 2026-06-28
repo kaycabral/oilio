@@ -1,4 +1,5 @@
 import {
+  canManageOrg,
   Charge,
   Subscription,
   type Customer,
@@ -11,15 +12,12 @@ import {
   type SubscriptionRow,
 } from '@/shared/db/pg/effect/subscription-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
 import { getCustomerById, listCustomersForOrg } from '@/shared/org/customer-read'
-import { getActiveOrgContext } from '@/shared/org/membership'
+import { requireCapabilityPage } from '@/shared/org/membership'
 import { listSubscriptionPlansForOrg } from '@/shared/org/subscription-plan-read'
 import { Schema } from 'effect'
-import { redirect } from 'next/navigation'
 import 'server-only'
 
 const decodeSubscription = Schema.decodeUnknownSync(Subscription)
@@ -90,17 +88,13 @@ export async function loadSubscriptionsPage(rawParams: {
   status?: string
   q?: string
 }): Promise<SubscriptionsPageData> {
-  if (!isFirebaseConfigured()) redirect('/')
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
+  const ctx = await requireCapabilityPage('canManageSubscriptions')
 
   // Default (no param) is the neutral "all"; the sidebar links to `?status=open`
   // to land pre-filtered on the open subscriptions.
   const filter: SubscriptionsFilter =
     rawParams.status === 'cancelled' || rawParams.status === 'open' ? rawParams.status : 'all'
-  const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
+  const canManage = canManageOrg(ctx.membership.role)
   const searchQuery = rawParams.q ?? ''
 
   const orgId = ctx.membership.orgId
@@ -171,16 +165,12 @@ async function loadChargesForSubscription(
 
 // Imperative shell for the detail route — resolves the subscription or null (404).
 export async function loadSubscriptionDetail(id: string): Promise<SubscriptionDetailData | null> {
-  if (!isFirebaseConfigured()) redirect('/')
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
+  const ctx = await requireCapabilityPage('canManageSubscriptions')
 
   const orgId = ctx.membership.orgId
   const subscription = await loadSubscriptionByIdForDetail(orgId, id)
   if (!subscription) return null
-  const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
+  const canManage = canManageOrg(ctx.membership.role)
 
   const [customer, charges, allPlans] = await Promise.all([
     getCustomerById(orgId, subscription.customerId),
