@@ -23,6 +23,7 @@ const WEBHOOK_ACTOR_ID = 'system:stripe-webhook'
 // retries only on non-2xx, so silently dropping unhandled types is correct.
 const HANDLED_EVENTS = new Set<Stripe.Event['type']>([
   'checkout.session.completed',
+  'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted',
   'invoice.payment_failed',
@@ -195,7 +196,12 @@ export async function handleStripeEvent(
     case 'checkout.session.completed':
       await handleCheckoutCompleted(event.data.object, deps.retrieveSubscription)
       return
+    case 'customer.subscription.created':
     case 'customer.subscription.updated':
+      // `.created` covers subscriptions born OUTSIDE the checkout flow (e.g. a
+      // Customer Portal plan change). The partial update carries the full
+      // subscription state (tier/status/period/quantity), so a fresh org_billing
+      // row is born correctly — the reducer seeds id/timestamps.
       await handleSubscriptionChange(event.data.object, 'org_billing.updated')
       return
     case 'customer.subscription.deleted':
