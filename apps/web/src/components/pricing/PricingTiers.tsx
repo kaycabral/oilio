@@ -157,6 +157,17 @@ export function tiersMatchDomain(): boolean {
   return fromUi.length === fromDomain.length && fromUi.every((slug, i) => slug === fromDomain[i])
 }
 
+// Destination for a tier card's CTA. The /pricing page redirects authed users to
+// /dashboard, so every visitor here is logged out: the CTA goes to /login. For a
+// chargeable tier it carries `next` (land on billing after auth) + `intent` (the
+// tier the visitor picked) so the post-login flow can offer that plan directly.
+// Free just lands the visitor in the app.
+function ctaHref(tier?: BillingTier): string {
+  if (!tier || tier === 'free') return '/login'
+  const next = encodeURIComponent('/settings/billing')
+  return `/login?next=${next}&intent=${tier}`
+}
+
 export function PricingTiers() {
   const authEnabled = isFirebaseConfigured()
   // Anual como padrão: mostra o preço mais atrativo primeiro e puxa pro plano
@@ -232,7 +243,7 @@ export function PricingTiers() {
                       variant={tier.highlighted ? 'default' : 'outline'}
                       className="w-full"
                     >
-                      <a href="/login">{tier.cta}</a>
+                      <a href={ctaHref(tier.tier)}>{tier.cta}</a>
                     </Button>
                   )
                 )}
