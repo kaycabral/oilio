@@ -36,6 +36,13 @@
       "when": 1782606480918,
       "tag": "0004_lying_omega_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782606480919,
+      "tag": "0005_professional_own_scope",
+      "breakpoints": true
     }
   ]
 }

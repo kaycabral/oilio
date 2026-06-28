@@ -25,7 +25,10 @@ import { listUnitAppointmentsInRange } from '@/shared/org/appointment-read'
 import { listCustomersForOrg } from '@/shared/org/customer-read'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
-import { listBookableProfessionalsForOrg } from '@/shared/org/professional-read'
+import {
+  listBookableProfessionalsForOrg,
+  resolveProfessionalScope,
+} from '@/shared/org/professional-read'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -102,13 +105,23 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
   let allCustomers: Customer[] = []
 
   if (activeUnitId) {
+    // Own-scope (brief 0075, #1256): a self-scoped professional sees only their
+    // own appointments/blocks; the balcão (owner/manager/recepção) resolves to
+    // `''` and reads the whole unit. The database enforces the narrowing via the
+    // `app.current_professional` RLS predicate — not a WHERE clause here.
+    const professionalScope = await resolveProfessionalScope(ctx.membership)
     const [dayAppointments, blocks, catalogItems, enrichedCustomers] = await Promise.all([
       // Unit-scoped read of the day's appointments from the typed `appointments`
       // table under RLS (brief 0061 § Grupo C / AC-04).
-      listUnitAppointmentsInRange(ctx.membership.orgId, activeUnitId, dayStart, dayEnd),
+      listUnitAppointmentsInRange(
+        ctx.membership.orgId,
+        activeUnitId,
+        { startUtc: dayStart, endUtc: dayEnd },
+        professionalScope,
+      ),
       // Backend-aware (brief 0060, Grupo C): Postgres reads the typed
       // `agenda_blocks` table under RLS, Firestore the org-scoped subcollection.
-      listAgendaBlocksForUnit(ctx.membership.orgId, activeUnitId),
+      listAgendaBlocksForUnit(ctx.membership.orgId, activeUnitId, professionalScope),
       listCatalogItems(ctx.membership.orgId),
       // Não é um `*Snap` — `listCustomersForOrg` já resolve o doc + faz
       // join com `users/` pro PII vir no shape público de `Customer`.

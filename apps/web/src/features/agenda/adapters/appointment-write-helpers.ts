@@ -97,7 +97,7 @@ export async function checkSlotConflicts(args: {
     // The authoritative anti-double-book is the DB exclusion constraint at commit
     // time; this is the staff-friendly pre-flight. Reads the day's unit
     // appointments from the typed `appointments` projection under RLS.
-    listUnitAppointmentsInRange(orgId, parsed.unitId, dayStart, dayEnd),
+    listUnitAppointmentsInRange(orgId, parsed.unitId, { startUtc: dayStart, endUtc: dayEnd }),
     listAgendaBlocksForUnit(orgId, parsed.unitId),
   ])
   const blockSegments = getBlockSegmentsForDay(blocks, parsed.date, org.timezone)

@@ -27,11 +27,12 @@ export async function readUnderRls<T extends QueryResultRow>(
   orgId: string,
   fn: (client: PoolClient) => Promise<T[]>,
   unitId = '',
+  professionalId = '',
 ): Promise<T[]> {
   const client = await getEventStorePool().connect()
   try {
     await client.query('BEGIN')
-    await setRlsGucs(client, orgId, unitId)
+    await setRlsGucs(client, orgId, unitId, professionalId)
     const rows = await fn(client)
     await client.query('COMMIT')
     return rows

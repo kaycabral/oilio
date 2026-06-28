@@ -11,9 +11,13 @@ const decodeAgendaBlock = Schema.decodeUnknownSync(AgendaBlock)
 
 // All agenda blocks for a unit, filtered by `(org_id, unit_id)` under RLS
 // (passing `unitId` sets `app.current_unit` for the unit-scoped policy).
+// Own-scope (brief 0075, #1256): a professional's id narrows the read to their
+// own blocks PLUS unit-wide blocks (NULL professional_id) via the
+// `app.current_professional` predicate; `''` (the balcão) reads all.
 export async function listAgendaBlocksForUnit(
   orgId: string,
   unitId: string,
+  professionalId = '',
 ): Promise<AgendaBlock[]> {
   const rows = await readUnderRls<AgendaBlockRow>(
     orgId,
@@ -25,6 +29,7 @@ export async function listAgendaBlocksForUnit(
         ])
         .then((res) => res.rows),
     unitId,
+    professionalId,
   )
   return rows.map((r) => decodeAgendaBlock(rowToDoc(r)))
 }
