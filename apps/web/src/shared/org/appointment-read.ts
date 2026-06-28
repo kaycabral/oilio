@@ -40,9 +40,14 @@ export async function getAppointmentById(
 export async function listUnitAppointmentsInRange(
   orgId: string,
   unitId: string,
-  startUtc: string,
-  endUtc: string,
+  range: { startUtc: string; endUtc: string },
+  // Own-scope (brief 0075, #1256): pass a professional's id to restrict the read
+  // to THEIR appointments via the `app.current_professional` RLS predicate; `''`
+  // (the balcão) reads the whole unit. The SQL is unchanged — the database
+  // narrows the rows, so a professional can't read a colleague's day.
+  professionalId = '',
 ): Promise<Appointment[]> {
+  const { startUtc, endUtc } = range
   const rows = await readUnderRls<AppointmentRow>(
     orgId,
     (client) =>
@@ -54,6 +59,7 @@ export async function listUnitAppointmentsInRange(
         )
         .then((res) => res.rows),
     unitId,
+    professionalId,
   )
   return rows.map((row) => decodeAppointment(appointmentRowToDoc(row)))
 }

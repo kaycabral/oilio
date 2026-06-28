@@ -106,7 +106,7 @@ export async function getPublicAvailability(
   const timezone = unit.timezone
   const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(opts.date, timezone)
   const [appointments, blocks] = await Promise.all([
-    listUnitAppointmentsInRange(org.id, unit.id, dayStart, dayEnd),
+    listUnitAppointmentsInRange(org.id, unit.id, { startUtc: dayStart, endUtc: dayEnd }),
     listAgendaBlocksForUnit(org.id, unit.id),
   ])
   const blockSegments = getBlockSegmentsForDay(blocks, opts.date, timezone)

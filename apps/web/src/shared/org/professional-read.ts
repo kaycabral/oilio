@@ -24,6 +24,7 @@ import {
   resolveSubjectName,
   StoredProfessional,
   type BookableProfessional,
+  type Membership,
   type OperationalStatus,
   type Professional,
   type ProfessionalPii,
@@ -280,6 +281,25 @@ export async function getProfessionalByUserId(
   if (!row) return null
   const [enriched] = await enrichProfessionals(orgId, [decodeStoredProfessional(rowToDoc(row))])
   return enriched ?? null
+}
+
+/**
+ * The professional-id to scope an own-only RLS read/write to (brief 0075,
+ * #1256), or `''` for the balcão (owner/manager/recepção), whose reads/writes
+ * stay org/unit-wide. A self-scoped professional resolves to THEIR own
+ * `professionals.id` — the value passed as `app.current_professional` so the
+ * database admits only their rows. Resolved lazily (a DB lookup) only for a
+ * professional membership; the balcão short-circuits to `''` with no extra query.
+ *
+ * Fail-closed: a professional whose projection row is missing (incomplete
+ * onboarding) must NOT widen to `''` (which would be permissive) — it returns a
+ * sentinel that matches no row. The membership role is the gate; the projection
+ * only supplies the id.
+ */
+export async function resolveProfessionalScope(membership: Membership): Promise<string> {
+  if (membership.role !== 'professional') return ''
+  const professional = await getProfessionalByUserId(membership.orgId, membership.userId)
+  return professional?.id ?? '__no_professional__'
 }
 
 // Write the per-org PII row directly (mutable, deletable, NOT event-sourced).
