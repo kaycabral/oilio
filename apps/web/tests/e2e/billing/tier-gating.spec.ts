@@ -46,7 +46,10 @@ test.describe('Billing — tier gating (brief 0072/0073)', { tag: '@critical' },
       // by the manage/portal action (a Stripe customer exists from the seed).
       await authedPage.goto('/settings/billing')
       await expect(authedPage.getByText('Plano Pro')).toBeVisible()
-      await expect(authedPage.getByText('Ativa')).toBeVisible()
+      // "Unidades cobradas" only renders for a paid plan — an unambiguous marker
+      // of the active subscription (the status badge text "Ativa" collides with
+      // other copy on the page).
+      await expect(authedPage.getByText('Unidades cobradas')).toBeVisible()
       await expect(authedPage.getByRole('button', { name: /portal de cobrança/ })).toBeVisible()
       await expect(authedPage.getByRole('button', { name: /Assinar o Pro/ })).toBeHidden()
     })

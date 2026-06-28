@@ -1,3 +1,4 @@
+import { requireEnv } from '@cbrl/env'
 import { defineConfig, devices } from '@playwright/test'
 
 import { CRON_SECRET } from './tests/e2e/helpers/secrets'
@@ -18,9 +19,21 @@ import { CRON_SECRET } from './tests/e2e/helpers/secrets'
 // `pnpm dev`. Useful when you're co-editing product code + spec and
 // don't want to rebuild between each change. Don't ship CI runs in dev
 // mode — that's how we got flakes mascaradas as `--retries=2`.
-// Canonical dev port (the `dev` script pins `next dev -p 3005` too). A plain
-// constant — no env override with a fallback default.
-const PORT = '3005'
+// Next server port.
+//
+// `E2E_PORT` is the single source of truth, ALWAYS injected by the E2E runner
+// (scripts/e2e-with-postgres.mjs), which allocates a free port per run so a suite
+// never collides with a dev server — or another suite — on the same host. The
+// runner is the one place env is configured; if it's missing, fail loud there
+// (via @cbrl/env's requireEnv) instead of silently defaulting a value here and
+// leaving you hunting for where the port came from.
+//
+// The ONLY exception is a bare `playwright test` with no runner (IDE debugging a
+// single spec): there is no E2E_PORT and the developer expects the canonical dev
+// port. That's an explicit, named opt-out — `PW_NO_RUNNER=1` — not a silent
+// fallback. Without that flag, a missing E2E_PORT is a misconfig and throws.
+const CANONICAL_DEV_PORT = '3005'
+const PORT = process.env.PW_NO_RUNNER === '1' ? CANONICAL_DEV_PORT : requireEnv('E2E_PORT')
 const BASE_URL = `http://127.0.0.1:${PORT}`
 // Explicit opt-in toggle (not a fallback default): `E2E_DEV=1` swaps the
 // production build for `next dev`. Reading the env to branch on a flag is fine;
