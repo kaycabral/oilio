@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures'
-import { seedCustomer, seedService } from '../helpers/session'
+import { seedCustomer, seedLoginableProfessional, seedService } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
 // Retrofit pro PR #724 (issue #636) — internal booking dialog na agenda.
@@ -13,11 +13,12 @@ test.describe('Agenda — diálogo de novo agendamento', () => {
       unitCount: 1,
       professionalCount: 1,
       // `incomplete` so the org fixture seeds NO service (the operational seed
-      // now links one — brief 0068 D3/D4). The "+ Novo" gate keys on the catalog
-      // having ≥1 service, and a unit-linked professional counts regardless of
-      // operational status (`canCreate` in AgendaView, professionals filtered by
-      // unit not by derive), so the first test's empty-catalog case holds and the
-      // second seeds its own service.
+      // now links one — brief 0068 D3/D4) AND the seeded professional is not
+      // bookable. The "+ Novo" gate keys on an active unit + ≥1 BOOKABLE
+      // professional in it (`professionals` derives from
+      // `listBookableProfessionalsForOrg`, brief 0075) + ≥1 catalog service. So
+      // the first test's empty agenda holds; the second seeds both its own
+      // service AND a bookable professional to flip the gate.
       professionalOperationalStatus: 'incomplete',
       hasBusinessHours: true,
       slotMinutes: 30,
@@ -31,7 +32,19 @@ test.describe('Agenda — diálogo de novo agendamento', () => {
   })
 
   test('"+ Novo" abre o diálogo com os campos esperados', async ({ org, authedPage }) => {
-    await seedService(org.orgId, { name: 'Corte', durationMinutes: 30, priceCents: 5000 })
+    const serviceId = await seedService(org.orgId, {
+      name: 'Corte',
+      durationMinutes: 30,
+      priceCents: 5000,
+      unitIds: [org.unitIds[0]!],
+    })
+    // A BOOKABLE professional (operational: whatsapp + unit + service) so the
+    // agenda renders a column and `canCreate` flips on. The seeded fixture pro is
+    // `incomplete`, hence non-bookable — it never produced a column.
+    await seedLoginableProfessional(org.orgId, {
+      unitIds: [org.unitIds[0]!],
+      catalogServiceIds: [serviceId],
+    })
     await seedCustomer(org.orgId, { name: 'João Teste', whatsapp: '11999990000' })
 
     const agenda = new AgendaPage(authedPage)
