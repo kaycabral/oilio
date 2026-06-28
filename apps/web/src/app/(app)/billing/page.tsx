@@ -11,7 +11,12 @@ import { redirect } from 'next/navigation'
 // (brief 0073, AC-03). Reads the current org_billing state (Free default when
 // no row) plus the live unit count, and hands it to the client panel. Only the
 // owner can act (subscribe/portal); manager sees the read-only view.
-export default async function BillingSettingsPage() {
+//
+// Route lives at top-level `/billing` (not under `/settings`): the Assinatura
+// Oilio is PER-NEGÓCIO, so it sits with the other org-admin surfaces
+// (`/organizations`, `/team`), while `/settings/*` stays the user's own area
+// (profile, privacy). See the nav "Administração" section.
+export default async function BillingPage() {
   if (!isFirebaseConfigured()) redirect('/')
 
   const session = await getSessionUser()

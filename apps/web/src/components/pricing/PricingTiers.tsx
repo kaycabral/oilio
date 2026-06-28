@@ -164,7 +164,7 @@ export function tiersMatchDomain(): boolean {
 // Free just lands the visitor in the app.
 function ctaHref(tier?: BillingTier): string {
   if (!tier || tier === 'free') return '/login'
-  const next = encodeURIComponent('/settings/billing')
+  const next = encodeURIComponent('/billing')
   return `/login?next=${next}&intent=${tier}`
 }
 
