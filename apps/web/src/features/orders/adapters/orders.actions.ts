@@ -201,6 +201,15 @@ export async function addItemToOrder(
   // caso de varejo — produto avulso vendido pela recepção atribui à recepção.
   if (!parsed.attributedUserId) parsed.attributedUserId = r.ctx.session.uid
 
+  // Atribuição own-scope (brief 0075, #1267): `denyIfNotOwnOrder` acima protege
+  // a comanda pelos ITENS existentes — numa comanda recém-aberta (zero itens) ela
+  // passa vacuamente, então um membro own-scoped poderia injetar um item atribuído
+  // a um colega (linha de comissão errada no nome de outro). Trava a ATRIBUIÇÃO em
+  // si: o balcão atribui a qualquer membro; um membro own-scoped só a si mesmo.
+  if (!canActOnOwnedResource(r.ctx.membership, parsed.attributedUserId)) {
+    return { ok: false, error: 'Você só pode atribuir itens a si mesmo' }
+  }
+
   const operateError = await assertMemberCanOperate({
     orgId,
     attributedUserId: parsed.attributedUserId,
@@ -305,6 +314,14 @@ export async function updateItemAttribution(
   // themselves) — only the order's own memberOperation or the balcão may.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
+
+  // Atribuição own-scope (brief 0075, #1267): além de `denyIfNotOwnOrder` (que
+  // protege a comanda pelos itens), trava o DESTINO da re-atribuição — um membro
+  // own-scoped não pode empurrar o próprio item pra um colega; só o balcão
+  // re-atribui a qualquer membro.
+  if (!canActOnOwnedResource(r.ctx.membership, attributedUserId)) {
+    return { ok: false, error: 'Você só pode atribuir itens a si mesmo' }
+  }
 
   const idx = loaded.order.items.findIndex((it) => it.id === itemId)
   if (idx < 0) return { ok: false, error: 'Item não encontrado' }
