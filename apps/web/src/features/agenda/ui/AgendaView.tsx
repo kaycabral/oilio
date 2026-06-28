@@ -51,6 +51,9 @@ export type AgendaViewProps = {
   canManage: boolean
   selfMemberOperationId: string | null
   canManageCustomers: boolean
+  // #1268: this self-scoped member's operational profile isn't provisioned yet —
+  // the grid is empty by design (fail-closed). Render the explicit empty-state.
+  memberOperationMissing: boolean
 }
 
 export function AgendaView({
@@ -73,6 +76,7 @@ export function AgendaView({
   canManage,
   selfMemberOperationId,
   canManageCustomers,
+  memberOperationMissing,
 }: AgendaViewProps) {
   const router = useRouter()
   const today = getTodayInOrgTz(timezone)
@@ -167,6 +171,23 @@ export function AgendaView({
       ) : null}
 
       {(() => {
+        // #1268: a self-scoped member without a provisioned operational profile.
+        // Takes priority over the unit/member empty-states — the reads were
+        // skipped fail-closed, so the grid would otherwise read as data loss.
+        if (memberOperationMissing) {
+          return (
+            <EmptyState
+              icon={<CalendarDays />}
+              title="Seu perfil de agenda ainda não está pronto"
+              description="Estamos finalizando a configuração do seu acesso à agenda. Isso costuma levar alguns instantes após o convite ser aceito. Se persistir, fale com a recepção para concluir seu cadastro."
+              actionSlot={
+                <Button variant="outline" size="sm" onClick={() => router.refresh()}>
+                  Atualizar
+                </Button>
+              }
+            />
+          )
+        }
         if (units.length === 0) {
           return (
             <EmptyState
