@@ -710,6 +710,67 @@ export async function seedMembershipFor(
   return membershipId
 }
 
+// Seeds a LOGINABLE professional in an existing org (brief 0075, #1253): a real
+// Firebase Auth user (so the spec can sign in AS the professional) linked to a
+// `professionals` projection + a `professional`-role membership + PII. Unlike
+// the synthetic `e2e-prof-user-*` seeded by `seedOrg`, this user can mint a
+// session — needed to prove own-scope (RLS + capability gates) from the
+// professional's own session. Operational (whatsapp + units + services) so it
+// is bookable on the agenda. Returns the auth credentials + projection id.
+export async function seedLoginableProfessional(
+  orgId: string,
+  opts: { unitIds: string[]; catalogServiceIds?: string[]; displayName?: string },
+): Promise<{ uid: string; email: string; password: string; professionalId: string }> {
+  const auth = await seedAuthUser()
+  const now = new Date().toISOString()
+  const professionalId = `e2e-prof-${uniqueSuffix()}`
+
+  // Refresh the global User doc to carry whatsapp + currentOrgId so the
+  // operational-status derive (#1226 AC-02) floors at operational and the app
+  // resolves this org on login.
+  await putUserDoc(
+    buildUser(auth.uid, now, {
+      email: auth.email,
+      displayName: opts.displayName ?? 'E2E Profissional',
+      emailVerified: true,
+      currentOrgId: orgId,
+      whatsapp: '5511900000001',
+      birthDate: '1990-01-01',
+      completionCompleted: true,
+      claimedAt: now,
+    }),
+  )
+
+  const proDoc: StoredProfessional = {
+    id: professionalId,
+    orgId,
+    userId: auth.uid,
+    defaultCommission: null,
+    unitIds: [...opts.unitIds],
+    catalogServiceIds: [...(opts.catalogServiceIds ?? [])],
+    createdAt: now,
+    updatedAt: now,
+  }
+  await seedProfessionalDoc(orgId, proDoc)
+  await upsertProfessionalPii({ orgId, id: professionalId, taxIdentity: null })
+
+  const membership: Membership = {
+    id: membershipDocId(orgId, auth.uid),
+    orgId,
+    userId: auth.uid,
+    role: 'professional',
+    status: 'active',
+    invitedBy: null,
+    joinedAt: now,
+    updatedAt: now,
+    rlsUnitScope: null,
+    permissions: defaultPermissionsForRole('professional'),
+  }
+  await seedMembershipDoc(membership)
+
+  return { ...auth, professionalId }
+}
+
 // Seeds a second org + units + an owner membership for an EXISTING user
 // (brief 0029, AC-09). Use after `seedOrg` to give the seeded owner a
 // membership in two orgs so the org switcher shows. Does NOT touch the
