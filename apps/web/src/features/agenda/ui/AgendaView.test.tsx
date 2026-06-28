@@ -1,32 +1,16 @@
 import type { HoursRange, Unit } from '@/domain'
-import { EMPTY_ADDRESS, EMPTY_BUSINESS_HOURS } from '@/domain'
-import type { updateAgendaSlotMinutes as updateAgendaSlotMinutesAction } from '@/features/agenda/adapters/agenda.actions'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { BookableProfessional, EMPTY_ADDRESS, EMPTY_BUSINESS_HOURS } from '@/domain'
+import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgendaView } from './AgendaView'
 
-type UpdateSlotResult = ReturnType<typeof updateAgendaSlotMinutesAction>
-
 const mocks = vi.hoisted(() => ({
-  updateAgendaSlotMinutes: vi.fn<(next: number) => UpdateSlotResult>(),
   routerPush: vi.fn(),
   routerRefresh: vi.fn(),
-  toastSuccess: vi.fn(),
-  toastError: vi.fn(),
-}))
-const { updateAgendaSlotMinutes, routerPush, routerRefresh, toastSuccess, toastError } = mocks
-
-vi.mock('@/features/agenda/adapters/agenda.actions', () => ({
-  updateAgendaSlotMinutes: (next: number): UpdateSlotResult => mocks.updateAgendaSlotMinutes(next),
 }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.routerPush, refresh: mocks.routerRefresh }),
-}))
-
-vi.mock('sonner', () => ({
-  toast: { success: mocks.toastSuccess, error: mocks.toastError },
 }))
 
 // The grid contains pure presentation that we don't care to render in this
@@ -64,8 +48,11 @@ const baseProps = {
   slotMinutes: 15 as const,
   units: [buildUnit('u1')],
   activeUnitId: 'u1',
+  // The agenda only ever receives BOOKABLE professionals (operational + active
+  // professional-role membership) — `listBookableProfessionalsForOrg` mints the
+  // brand. Build it the same way here so the view-model type matches.
   professionals: [
-    {
+    BookableProfessional.make({
       id: 'p1',
       orgId: 't1',
       userId: 'u-pro1',
@@ -73,13 +60,13 @@ const baseProps = {
       whatsapp: '5511900000000',
       email: null,
       taxIdentity: null,
-      operationalStatus: 'operational' as const,
+      operationalStatus: 'operational',
       defaultCommission: null,
       unitIds: ['u1'],
       catalogServiceIds: [],
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
-    },
+    }),
   ],
   appointments: [],
   customersById: {},
@@ -93,62 +80,13 @@ const baseProps = {
 }
 
 beforeEach(() => {
-  updateAgendaSlotMinutes.mockReset()
-  routerPush.mockReset()
-  routerRefresh.mockReset()
-  toastSuccess.mockReset()
-  toastError.mockReset()
+  mocks.routerPush.mockReset()
+  mocks.routerRefresh.mockReset()
 })
 
-// The slot picker is the @cbrl/design Select (Radix). Drive it the canonical
-// way — open the combobox, click the visible option — instead of firing a
-// native `change` event (Radix is a button + portal, not a <select>).
-function getSlotCombobox() {
-  return screen.getByRole('combobox', { name: 'Slots' })
-}
-
-describe('AgendaView — slot granularity (#633, #746)', () => {
-  it('renders the slot select for managers with the current slotMinutes selected', () => {
-    render(<AgendaView {...baseProps} hasBusinessHours canManage />)
-    expect(getSlotCombobox()).toHaveTextContent('15 min')
-  })
-
-  it('hides the slot select for non-managers (canManage=false)', () => {
-    render(<AgendaView {...baseProps} hasBusinessHours canManage={false} />)
-    expect(screen.queryByRole('combobox', { name: 'Slots' })).not.toBeInTheDocument()
-  })
-
-  it('calls updateAgendaSlotMinutes(next) when the manager picks a new value', async () => {
-    const user = userEvent.setup()
-    updateAgendaSlotMinutes.mockResolvedValue({ ok: true })
-    render(<AgendaView {...baseProps} hasBusinessHours canManage />)
-    await user.click(getSlotCombobox())
-    await user.click(await screen.findByRole('option', { name: '30 min' }))
-    await waitFor(() => expect(updateAgendaSlotMinutes).toHaveBeenCalledWith(30))
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/30 min/)))
-    expect(routerRefresh).toHaveBeenCalled()
-  })
-
-  it('does NOT call updateAgendaSlotMinutes when the same value is reselected', async () => {
-    const user = userEvent.setup()
-    render(<AgendaView {...baseProps} hasBusinessHours canManage />)
-    await user.click(getSlotCombobox())
-    // Re-pick the already-selected value: Radix short-circuits same-value
-    // selection, so no spurious write / audit-log entry is triggered.
-    await user.click(await screen.findByRole('option', { name: '15 min' }))
-    expect(updateAgendaSlotMinutes).not.toHaveBeenCalled()
-  })
-
-  it('surfaces toast.error when the server returns { ok: false }', async () => {
-    const user = userEvent.setup()
-    updateAgendaSlotMinutes.mockResolvedValue({ ok: false, error: 'Granularidade inválida' })
-    render(<AgendaView {...baseProps} hasBusinessHours canManage />)
-    await user.click(getSlotCombobox())
-    await user.click(await screen.findByRole('option', { name: '10 min' }))
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/inválida/i)))
-    expect(routerRefresh).not.toHaveBeenCalled()
-  })
-})
+// The slot-granularity control was removed from the agenda (#633/#746 reverted):
+// slot size is now configured ONLY in the unit's hours settings. So this file
+// no longer covers a slot picker — it covers the off-hours banner gating.
 
 describe('AgendaView — off-hours banner (#749)', () => {
   it('shows the off-hours banner when hasBusinessHours is false', () => {

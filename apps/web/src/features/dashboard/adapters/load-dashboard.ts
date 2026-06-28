@@ -6,13 +6,10 @@ import { type DashboardFilters, resolveDashboardFilters } from '@/features/dashb
 import { type DashboardKpis } from '@/features/dashboard/core/kpis'
 import { type DashboardPendencies } from '@/features/dashboard/core/pendencies'
 import { type TrendPoint } from '@/features/dashboard/core/trend'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { listCustomersForOrg } from '@/shared/org/customer-read'
-import { getActiveOrgContext } from '@/shared/org/membership'
+import { requireManagerPage } from '@/shared/org/membership'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
-import { redirect } from 'next/navigation'
 import 'server-only'
 
 type SearchParams = Record<string, string | string[] | undefined>
@@ -32,13 +29,11 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
 }
 
 export async function loadDashboardPage(params: SearchParams): Promise<DashboardPageProps> {
-  if (!isFirebaseConfigured()) redirect('/')
-
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
+  // Manager-only: the Dashboard surfaces financeiro KPIs (faturamento, ticket
+  // médio, receita), so a non-manager (receptionist/professional) is redirected
+  // to /agenda. Mirrors the server-side wall on /copilot, /reports, /team,
+  // /billing — the nav `requires: 'manageOrg'` gate alone is cosmetic.
+  const ctx = await requireManagerPage()
 
   const orgId = ctx.membership.orgId
   // Active (non-archived) units ordered by name. The dashboard only ever scopes

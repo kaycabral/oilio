@@ -27,7 +27,9 @@ describe('getNavSections', () => {
       'Administração',
       'Conta',
     ])
-    expect(labels('owner')).toEqual(expect.arrayContaining(['Relatórios', 'Copiloto', 'Equipe']))
+    expect(labels('owner')).toEqual(
+      expect.arrayContaining(['Relatórios', 'Copiloto', 'Dashboard', 'Equipe']),
+    )
   })
 
   it('surfaces the v2 "Negócios" entry and drops the old "Empresa" label', () => {
@@ -42,6 +44,8 @@ describe('getNavSections', () => {
     expect(sections.map((s) => s.label)).not.toContain('Administração')
     const flat = labels('receptionist')
     expect(flat).not.toContain('Relatórios')
+    // Dashboard surfaces financeiro KPIs — manager-only, hidden from receptionist.
+    expect(flat).not.toContain('Dashboard')
     expect(flat).not.toContain('Equipe')
     // Personal "Conta" surfaces survive — receptionists still self-serve.
     expect(flat).toEqual(expect.arrayContaining(['Perfil', 'Privacidade', 'Clientes']))

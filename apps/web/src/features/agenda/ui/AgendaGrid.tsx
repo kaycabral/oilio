@@ -1,16 +1,14 @@
 'use client'
 
-import { IncompleteProfileBadge } from '@/components/StatusBadge'
 import {
   type Appointment,
   type BlockSegment,
+  type BookableProfessional,
   type CatalogServiceItem,
   type Customer,
   type HoursRange,
-  type Professional,
   type SlotMinutes,
   hhmmToMinutes,
-  isOperational,
   toOrgTime,
 } from '@/domain'
 import { cn } from '@cbrl/design'
@@ -103,7 +101,7 @@ export function AgendaGrid({
   blockSegments,
   onSelectAppointment,
 }: {
-  professionals: Professional[]
+  professionals: BookableProfessional[]
   appointments: Appointment[]
   customersById: Record<string, Customer>
   servicesById: Record<string, CatalogServiceItem>
@@ -145,23 +143,15 @@ export function AgendaGrid({
         style={{ gridTemplateColumns: `64px repeat(${professionals.length}, minmax(180px, 1fr))` }}
       >
         <div className="border-border bg-muted/30 border-r border-b" />
-        {professionals.map((p) => {
-          const operational = isOperational(p.operationalStatus)
-          return (
-            <div
-              key={p.id}
-              className="border-border bg-muted/30 flex items-center justify-between gap-2 truncate border-r border-b px-3 py-2 text-sm font-medium last:border-r-0"
-              title={
-                operational
-                  ? p.name
-                  : `${p.name} (cadastro incompleto — bloqueia novos agendamentos)`
-              }
-            >
-              <span className="truncate">{p.name}</span>
-              {operational ? null : <IncompleteProfileBadge />}
-            </div>
-          )
-        })}
+        {professionals.map((p) => (
+          <div
+            key={p.id}
+            className="border-border bg-muted/30 flex items-center justify-between gap-2 truncate border-r border-b px-3 py-2 text-sm font-medium last:border-r-0"
+            title={p.name}
+          >
+            <span className="truncate">{p.name}</span>
+          </div>
+        ))}
 
         <div className="relative border-r" style={{ height: TOTAL_HEIGHT_PX }}>
           {hourLabels.map((h) => (

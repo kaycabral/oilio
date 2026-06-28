@@ -181,7 +181,11 @@ async function inviteAccept(opts: {
   )
   await opts.page.goto(`/invites/${opts.org.orgId}/${inviteId}?token=${rawToken}`)
   await opts.page.getByRole('button', { name: /aceitar convite/i }).click()
-  await expect(opts.page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
+  // Post-accept landing is role-aware: a manager reaches the (manager-only)
+  // Dashboard; a professional lands on `/agenda` (the org has an appointment
+  // unit). Sending a non-manager to `/dashboard` would just bounce them off.
+  const landing = opts.role === 'manager' ? /\/dashboard/ : /\/agenda/
+  await expect(opts.page).toHaveURL(landing, { timeout: 10_000 })
 }
 
 test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@journey' }, () => {

@@ -3,33 +3,20 @@
 import {
   type Appointment,
   type BlockSegment,
+  type BookableProfessional,
   type CatalogServiceItem,
   type Customer,
   type HoursRange,
-  type Professional,
-  SLOT_MINUTES_OPTIONS,
   type SlotMinutes,
   type Unit,
   getTodayInOrgTz,
-  isValidSlotMinutes,
   shiftDateInOrgTz,
 } from '@/domain'
-import { updateAgendaSlotMinutes } from '@/features/agenda/adapters/agenda.actions'
-import {
-  Button,
-  EmptyState,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@cbrl/design'
+import { Button, EmptyState } from '@cbrl/design'
 import { CalendarDays } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
-import { toast } from 'sonner'
+import { useState } from 'react'
 import { AgendaGrid } from './AgendaGrid'
 import { AppointmentDialog } from './AppointmentDialog'
 
@@ -50,7 +37,7 @@ export type AgendaViewProps = {
   slotMinutes: SlotMinutes
   units: Unit[]
   activeUnitId: string | null
-  professionals: Professional[]
+  professionals: BookableProfessional[]
   appointments: Appointment[]
   customersById: Record<string, Customer>
   servicesById: Record<string, CatalogServiceItem>
@@ -87,21 +74,7 @@ export function AgendaView({
   const today = getTodayInOrgTz(timezone)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
-  const [slotMinutesPending, startSlotMinutesTransition] = useTransition()
   const canCreate = activeUnitId !== null && professionals.length > 0 && services.length > 0
-
-  function changeSlotMinutes(next: SlotMinutes) {
-    if (next === slotMinutes) return
-    startSlotMinutesTransition(async () => {
-      const res = await updateAgendaSlotMinutes(next)
-      if (!res.ok) {
-        toast.error(res.error)
-        return
-      }
-      toast.success(`Granularidade: ${next} min`)
-      router.refresh()
-    })
-  }
 
   function openCreateDialog() {
     setSelectedAppointment(null)
@@ -167,33 +140,6 @@ export function AgendaView({
             onChange={(e) => navigate(e.target.value)}
             className="border-input bg-background h-9 rounded-md border px-3 text-sm"
           />
-          {canManage ? (
-            <div
-              className="text-muted-foreground flex items-center gap-1.5 text-xs"
-              title="Granularidade do grid e passo de agendamento"
-            >
-              <Label htmlFor="agenda-slot-minutes">Slots</Label>
-              <Select
-                value={String(slotMinutes)}
-                disabled={slotMinutesPending}
-                onValueChange={(value) => {
-                  const next = Number(value)
-                  if (isValidSlotMinutes(next)) changeSlotMinutes(next)
-                }}
-              >
-                <SelectTrigger id="agenda-slot-minutes" className="w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SLOT_MINUTES_OPTIONS.map((m) => (
-                    <SelectItem key={m} value={String(m)}>
-                      {m} min
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
         </div>
       </header>
 

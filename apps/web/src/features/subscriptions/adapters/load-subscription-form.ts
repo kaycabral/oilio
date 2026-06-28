@@ -1,5 +1,5 @@
 import { type BillingCycle } from '@/domain'
-import { listCustomersForOrg } from '@/shared/org/customer-read'
+import { listActiveCustomersForOrg } from '@/shared/org/customer-read'
 import { listSubscriptionPlansForOrg } from '@/shared/org/subscription-plan-read'
 import 'server-only'
 
@@ -18,7 +18,10 @@ export async function loadCustomersAndPlans(
   orgId: string,
 ): Promise<{ customers: CustomerLite[]; plans: PlanLite[] }> {
   const [customers, plans] = await Promise.all([
-    listCustomersForOrg(orgId),
+    // Active only — a blocked (LGPD) or operator-deactivated customer can't back
+    // a NEW subscription, mirroring the plan active-filter below. History still
+    // resolves both via the unfiltered read.
+    listActiveCustomersForOrg(orgId),
     // Backend-aware (brief 0060, Grupo B): Postgres typed table under RLS or the
     // Firestore subcollection, both ordered by name.
     listSubscriptionPlansForOrg(orgId),

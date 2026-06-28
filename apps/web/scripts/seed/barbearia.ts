@@ -11,7 +11,10 @@
 // primitives + the saga helpers); ids are fixed so a re-run reproduces the
 // exact same org (idempotent after the reset).
 
-import { buildAppointment } from '@/shared/fixtures/domain-builders'
+import { membershipDocId } from '@/domain'
+import { MembershipConfig } from '@/domain/aggregates'
+import { putUser } from '@/shared/db/pg/users-store'
+import { buildAppointment, buildMembership, buildUser } from '@/shared/fixtures/domain-builders'
 import {
   agendaAlwaysOpen,
   agendaAppointment,
@@ -30,6 +33,7 @@ import {
 } from '@/shared/fixtures/seed-domain-builders'
 import { ensureAuthIdentity } from './auth'
 import { seedClosedSale } from './closed-sale'
+import { emitOne } from './emit'
 import {
   seedAgendaBlock,
   seedAppointment,
@@ -311,19 +315,30 @@ export async function seedBarbearia(): Promise<void> {
     now,
   })
 
-  // Receptionist — a commissionable non-professional member (logs in).
+  // Receptionist — a commissionable NON-professional member (logs in). She gets
+  // a membership with role `receptionist` and NO `professionals` row: a
+  // receptionist rings up sales / earns commission but performs no services, so
+  // she must never become a bookable agenda column. Emitted inline (membership +
+  // the global `users` identity) rather than via `seedProfessional`, which is
+  // professional-only (it always mints a `professionals` row + role
+  // `professional`). Mirrors the production invite-accept path, where a
+  // professional row is created iff the invite role is `professional`.
   await ensureAuthIdentity({ uid: RECEP, email: 'recep@cbrl.local', displayName: 'Paula Recepção' })
-  await seedProfessional({
-    orgId: ORG_ID,
-    professionalId: 'seed-pro-recep',
-    userId: RECEP,
-    displayName: 'Paula Recepção',
-    whatsapp: '5511977770000',
-    unitIds: [UNIT_CENTRO],
-    catalogServiceIds: [],
-    invitedBy: OWNER.uid,
-    now,
+  await emitOne(MembershipConfig, ORG_ID, membershipDocId(ORG_ID, RECEP), {
+    _tag: 'membership.created',
+    actorId: OWNER.uid,
+    payload: {
+      data: buildMembership(ORG_ID, RECEP, now, { role: 'receptionist', invitedBy: OWNER.uid }),
+    },
   })
+  await putUser(
+    buildUser(RECEP, now, {
+      displayName: 'Paula Recepção',
+      completionCompleted: true,
+      whatsapp: '5511977770000',
+      currentOrgId: ORG_ID,
+    }),
+  )
 
   // — Customers: 4 named (one logs in) + ~36 generated with varied birthdays —
   await ensureAuthIdentity({

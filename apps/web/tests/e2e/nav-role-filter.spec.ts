@@ -30,6 +30,8 @@ test.describe('Navegação filtrada por papel (AC-08)', () => {
 
     // Financeiro-admin items are visible (Comissões is folded into Relatórios).
     await expect(nav.getByRole('link', { name: 'Relatórios' })).toBeVisible()
+    // Dashboard surfaces financeiro KPIs, so it's manager-only too.
+    await expect(nav.getByRole('link', { name: 'Dashboard' })).toBeVisible()
     // The old standalone Caixa/Comissões items are gone (brief 0031).
     await expect(nav.getByRole('link', { name: 'Caixa' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Comissões' })).toHaveCount(0)
@@ -64,5 +66,6 @@ test.describe('Navegação filtrada por papel (AC-08)', () => {
 
     // Financeiro-admin items inside Operação are hidden.
     await expect(nav.getByRole('link', { name: 'Relatórios' })).toHaveCount(0)
+    await expect(nav.getByRole('link', { name: 'Dashboard' })).toHaveCount(0)
   })
 })

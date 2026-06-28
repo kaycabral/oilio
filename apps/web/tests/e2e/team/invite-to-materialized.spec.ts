@@ -51,7 +51,9 @@ test.describe('Professional materializa pelo aceite (#1045)', { tag: '@critical'
     await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
     await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await page.getByRole('button', { name: /aceitar convite/i }).click()
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
+    // A professional is not a manager, so the post-accept redirect lands on
+    // `/agenda` (the org has an appointment unit), not the manager-only Dashboard.
+    await expect(page).toHaveURL(/\/agenda/, { timeout: 10_000 })
 
     // Membership exists with role professional (the saga's first step).
     const m = await readMembership(membershipDocId(owner.orgId, invitee.uid))

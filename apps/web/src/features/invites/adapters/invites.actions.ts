@@ -1,6 +1,7 @@
 'use server'
 
 import {
+  canManageOrg,
   defaultPermissionsForRole,
   inviteEmailsMatch,
   type Membership,
@@ -179,5 +180,10 @@ async function acceptInviteSaga(args: AcceptInviteSagaArgs): Promise<AcceptInvit
 
   if (proId) await writeProfessionalPii(orgId, proId, { taxIdentity: null })
   await patchUser(actorUid, { current_org_id: inviteOrgId }, now)
-  redirect('/dashboard')
+  // Land on a surface the new member can actually see: the Dashboard is
+  // manager-only (server-side wall on `/dashboard`), so a professional/
+  // receptionist must go to `/agenda` — mirrors `requireManagerPage`'s
+  // `notManagerTo` default. Sending a non-manager to `/dashboard` would just
+  // bounce them again.
+  redirect(canManageOrg(membership.role) ? '/dashboard' : '/agenda')
 }

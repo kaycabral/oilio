@@ -4,9 +4,9 @@ import { PhoneInput } from '@/components/PhoneInput'
 import {
   formatBrazilPhone,
   type Appointment,
+  type BookableProfessional,
   type CatalogServiceItem,
   type Customer,
-  type Professional,
 } from '@/domain'
 import { createAppointment, updateAppointment } from '@/features/agenda/adapters/agenda.actions'
 import {
@@ -56,7 +56,7 @@ export function AppointmentDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   unitId: string
-  professionals: Professional[]
+  professionals: BookableProfessional[]
   services: CatalogServiceItem[]
   customers: Customer[]
   date: string
@@ -197,20 +197,13 @@ export function AppointmentDialog({
                 <SelectValue placeholder="Selecione…" />
               </SelectTrigger>
               <SelectContent>
-                {professionals.map((p) => {
-                  const operational = p.operationalStatus === 'operational'
-                  return (
-                    <SelectItem key={p.id} value={p.id} disabled={!operational}>
-                      {p.name}
-                      {operational ? '' : ' — cadastro incompleto'}
-                    </SelectItem>
-                  )
-                })}
+                {professionals.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <span className="text-muted-foreground text-xs">
-              Profissionais não aprovados não podem receber agendamentos.
-            </span>
           </div>
 
           <div className="flex items-center justify-between">
