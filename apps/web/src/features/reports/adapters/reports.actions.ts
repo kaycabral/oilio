@@ -2,6 +2,7 @@
 
 import { Commission, liquidationStatusOf } from '@/domain'
 import { CommissionConfig } from '@/domain/aggregates'
+import { hasCapability } from '@/domain/billing/capabilities'
 import { aggregateRef } from '@/domain/effect'
 import {
   type CommissionRow,
@@ -9,6 +10,7 @@ import {
 } from '@/shared/db/pg/effect/commission-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { emitEvent } from '@/shared/effect-bridge'
+import { getOrgTier } from '@/shared/org/billing-read'
 import { requireOwnerCtx } from '@/shared/org/membership'
 import { Schema } from 'effect'
 import { revalidatePath } from 'next/cache'
@@ -16,6 +18,19 @@ import { revalidatePath } from 'next/cache'
 const decodeCommission = Schema.decodeUnknownSync(Commission)
 
 export type MarkPaidResult = { ok: true; markedCount: number } | { ok: false; error: string }
+
+// Plano Oilio gate (brief 0072): commission settlement is a Pro+ capability.
+// Returns an error result when the tier lacks `commissions`, or null when allowed.
+async function assertCommissionsCapability(orgId: string): Promise<MarkPaidResult | null> {
+  const tier = await getOrgTier(orgId)
+  if (!hasCapability(tier, 'commissions')) {
+    return {
+      ok: false,
+      error: 'A liquidação de comissões está disponível no plano Pro. Faça upgrade para continuar.',
+    }
+  }
+  return null
+}
 
 // READ of the commissions to be marked paid (a member's window). The write stays
 // on the event-store port (`emitEvent` below).
@@ -66,6 +81,8 @@ async function getCommissionById(orgId: string, commissionId: string): Promise<C
 export async function markCommissionsPaid(formData: FormData): Promise<MarkPaidResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return { ok: false, error: r.error }
+  const gate = await assertCommissionsCapability(r.ctx.membership.orgId)
+  if (gate) return gate
 
   const attributedUserId = formData.get('attributedUserId')
   if (typeof attributedUserId !== 'string' || attributedUserId.length === 0) {
@@ -120,6 +137,8 @@ export async function markCommissionsPaid(formData: FormData): Promise<MarkPaidR
 export async function markCommissionPaid(formData: FormData): Promise<MarkPaidResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return { ok: false, error: r.error }
+  const gate = await assertCommissionsCapability(r.ctx.membership.orgId)
+  if (gate) return gate
 
   const commissionId = formData.get('commissionId')
   if (typeof commissionId !== 'string' || commissionId.length === 0) {
