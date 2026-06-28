@@ -4,9 +4,9 @@ import { PhoneInput } from '@/components/PhoneInput'
 import {
   formatBrazilPhone,
   type Appointment,
-  type BookableProfessional,
   type CatalogServiceItem,
   type Customer,
+  type Professional,
 } from '@/domain'
 import { createAppointment, updateAppointment } from '@/features/agenda/adapters/agenda.actions'
 import {
@@ -58,7 +58,7 @@ export function AppointmentDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   unitId: string
-  professionals: BookableProfessional[]
+  professionals: Professional[]
   services: CatalogServiceItem[]
   customers: Customer[]
   date: string

@@ -23,7 +23,6 @@ import {
   isOperational,
   resolveSubjectName,
   StoredProfessional,
-  type BookableProfessional,
   type Membership,
   type OperationalStatus,
   type Professional,
@@ -39,7 +38,7 @@ import {
 } from '@/shared/db/pg/pii-sidecars-store'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { getUsersByIds } from '@/shared/db/pg/users-store'
-import { listActiveProfessionalUserIds } from '@/shared/org/membership'
+import { listBookableMemberUserIds } from '@/shared/org/membership'
 import { Schema } from 'effect'
 
 const decodeStoredProfessional = Schema.decodeUnknownSync(StoredProfessional)
@@ -148,25 +147,23 @@ export async function listProfessionalsForOrg(orgId: string): Promise<Profession
 
 // The professionals who may appear on operational surfaces (the agenda grid) —
 // those that are BOTH operational (ready to take bookings) AND backed by a
-// CURRENTLY active membership with role `professional`. This is the read-path
-// invariant: the `professionals` projection alone is not trusted, because it can
-// outlive the role (a demoted member keeps a row for reversibility — see
-// role-edit-lifecycle) or be wrongly materialized (a seed/migration inserting a
-// row for a non-professional). Cross-checking the active-professional user set
-// closes both leaks WITHOUT deleting any data. Returns the `BookableProfessional`
-// brand so callers (the agenda) can't be handed the raw `listProfessionalsForOrg`
-// result by mistake. Keyed on current state, so a promotion re-includes the user
-// and a demotion drops them with no special-casing.
-export async function listBookableProfessionalsForOrg(
-  orgId: string,
-): Promise<BookableProfessional[]> {
-  const [professionals, activeProUserIds] = await Promise.all([
+// CURRENTLY active membership carrying the `canBeBooked` capability (brief 0076
+// AC-03). This is the read-path invariant, now expressed as capability ∧
+// readiness instead of the retired `BookableProfessional` brand: "bookable" is
+// `canBeBooked` (read from the membership) ∧ operational (whatsapp ∧ ≥1 unit ∧
+// ≥1 service, derived). The `professionals` projection alone is not trusted —
+// it can outlive a capability toggle — so cross-checking the bookable-member set
+// closes the leak WITHOUT deleting any data. Keyed on CURRENT state: toggling
+// `canBeBooked` on a member (any role) re-includes them and toggling it off
+// drops them, with no special-casing — which is exactly what generalizes the
+// model beyond the `professional` role.
+export async function listBookableProfessionalsForOrg(orgId: string): Promise<Professional[]> {
+  const [professionals, bookableMemberUserIds] = await Promise.all([
     listProfessionalsForOrg(orgId),
-    listActiveProfessionalUserIds(orgId),
+    listBookableMemberUserIds(orgId),
   ])
   return professionals.filter(
-    (p): p is BookableProfessional =>
-      isOperational(p.operationalStatus) && activeProUserIds.has(p.userId),
+    (p) => isOperational(p.operationalStatus) && bookableMemberUserIds.has(p.userId),
   )
 }
 

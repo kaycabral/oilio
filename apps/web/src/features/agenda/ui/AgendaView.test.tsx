@@ -1,5 +1,5 @@
-import type { HoursRange, Unit } from '@/domain'
-import { BookableProfessional, EMPTY_ADDRESS, EMPTY_BUSINESS_HOURS } from '@/domain'
+import type { HoursRange, Professional, Unit } from '@/domain'
+import { EMPTY_ADDRESS, EMPTY_BUSINESS_HOURS } from '@/domain'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgendaView } from './AgendaView'
@@ -48,11 +48,12 @@ const baseProps = {
   slotMinutes: 15 as const,
   units: [buildUnit('u1')],
   activeUnitId: 'u1',
-  // The agenda only ever receives BOOKABLE professionals (operational + active
-  // professional-role membership) — `listBookableProfessionalsForOrg` mints the
-  // brand. Build it the same way here so the view-model type matches.
+  // The agenda only ever receives bookable professionals (operational + a
+  // CURRENTLY active membership carrying `canBeBooked`) —
+  // `listBookableProfessionalsForOrg` applies that filter. Plain `Professional`
+  // since brief 0076 retired the `BookableProfessional` brand (AC-03).
   professionals: [
-    BookableProfessional.make({
+    {
       id: 'p1',
       orgId: 't1',
       userId: 'u-pro1',
@@ -66,7 +67,7 @@ const baseProps = {
       catalogServiceIds: [],
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
-    }),
+    } satisfies Professional,
   ],
   appointments: [],
   customersById: {},

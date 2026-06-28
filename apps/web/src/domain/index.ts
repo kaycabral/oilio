@@ -101,7 +101,6 @@ export {
 } from './types/org'
 export { OrgLink, orgLinkDocPath } from './types/org-link'
 export {
-  BookableProfessional,
   CommissionRule,
   Professional,
   ProfessionalPii,

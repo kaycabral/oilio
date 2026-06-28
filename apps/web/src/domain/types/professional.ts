@@ -49,21 +49,13 @@ export const Professional = Schema.mutable(
 )
 export type Professional = typeof Professional.Type
 
-// A `Professional` proven BOOKABLE: operational AND backed by an active
-// membership whose role is still `professional`. The `professionals` projection
-// and the membership role can diverge (a demoted member keeps a lingering
-// projection row for reversibility — see role-edit-lifecycle; a seed/migration
-// could insert one for a non-professional), and the agenda read trusted the row
-// alone, so a receptionist or a demoted member leaked onto the grid. This brand
-// is a COMPILE-TIME checkpoint: operational surfaces (agenda columns) require
-// `BookableProfessional[]`, so the raw `listProfessionalsForOrg` result can't be
-// handed to them by mistake — only the cross-checked read path mints the brand.
-// It does NOT prevent the divergent DB state (TS sees shapes, not rows); the
-// integration test proves the runtime filter, and a composite FK is a tracked
-// follow-up. Effect `Schema.brand` (not a bare `unique symbol`) so callers/tests
-// mint it via `BookableProfessional.make(...)` with no `as` escape hatch.
-export const BookableProfessional = Professional.pipe(Schema.brand('BookableProfessional'))
-export type BookableProfessional = typeof BookableProfessional.Type
+// The `BookableProfessional` brand was RETIRED in brief 0076 (AC-03). "Bookable"
+// is no longer a compile-time checkpoint papering over a divergent DB state — it
+// is now a DB + capability invariant: the operational profile hangs off the
+// membership via a composite FK (#1260), and "appears on the agenda" is read as
+// the membership's `canBeBooked` capability ∧ derived readiness
+// (`listBookableProfessionalsForOrg`). No runtime brand to mint; the agenda
+// consumes a plain `Professional[]` filtered by that invariant.
 
 // Storage projection of `Professional`: the per-org `professionals/{id}` doc
 // that OMITS the PII (name/whatsapp/email/taxIdentity) materialized from

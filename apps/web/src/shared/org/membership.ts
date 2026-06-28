@@ -138,21 +138,25 @@ export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
 }
 
-// The user ids whose membership is CURRENTLY active AND role `professional` —
-// the set that legitimately backs a `professionals` projection row right now.
-// The projection and the role can diverge (a demoted member keeps a lingering
-// row for reversibility; a seed could insert one for a non-professional), so
-// operational surfaces (the agenda) cross-check the projection against THIS set
-// to decide who is bookable. Keyed on CURRENT state — never history — so a
-// later promotion (receptionist→professional) re-includes the user with no
-// special-casing, and a demotion drops them. Reads the typed table under RLS.
-export async function listActiveProfessionalUserIds(orgId: string): Promise<Set<string>> {
+// The user ids whose membership is CURRENTLY active AND carries the `canBeBooked`
+// capability — the set that legitimately appears on operational surfaces (the
+// agenda) right now. This replaces the old `role = 'professional'` axis with the
+// capability (brief 0076 AC-01/AC-03): "bookable" is read from the membership's
+// `permissions.canBeBooked`, NOT from a class of person — so a non-professional
+// member with `canBeBooked` toggled on appears, and a professional with it off
+// (soft-disabled) drops, with no special-casing. The projection (`professionals`)
+// can still diverge from the capability (a row can outlive a toggle), so the
+// agenda read cross-checks the projection against THIS set. Keyed on CURRENT
+// state — never history. Reads the typed table under RLS; the capability lives in
+// the `permissions` JSONB, queried with the `->>` text accessor.
+export async function listBookableMemberUserIds(orgId: string): Promise<Set<string>> {
   const rows = await readUnderRls<{ user_id: string }>(orgId, (client) =>
     client
       .query<{
         user_id: string
       }>(
-        "SELECT user_id FROM memberships WHERE org_id = $1 AND status = 'active' AND role = 'professional'",
+        `SELECT user_id FROM memberships
+         WHERE org_id = $1 AND status = 'active' AND permissions->>'canBeBooked' = 'true'`,
         [orgId],
       )
       .then((res) => res.rows),

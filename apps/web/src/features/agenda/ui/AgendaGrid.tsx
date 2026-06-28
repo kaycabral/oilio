@@ -3,10 +3,10 @@
 import {
   type Appointment,
   type BlockSegment,
-  type BookableProfessional,
   type CatalogServiceItem,
   type Customer,
   type HoursRange,
+  type Professional,
   type SlotMinutes,
   hhmmToMinutes,
   toOrgTime,
@@ -101,7 +101,7 @@ export function AgendaGrid({
   blockSegments,
   onSelectAppointment,
 }: {
-  professionals: BookableProfessional[]
+  professionals: Professional[]
   appointments: Appointment[]
   customersById: Record<string, Customer>
   servicesById: Record<string, CatalogServiceItem>

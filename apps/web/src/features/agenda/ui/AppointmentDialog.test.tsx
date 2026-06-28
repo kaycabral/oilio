@@ -1,5 +1,4 @@
-import type { Appointment, BookableProfessional, CatalogServiceItem, Customer } from '@/domain'
-import { BookableProfessional as BookableProfessionalSchema } from '@/domain'
+import type { Appointment, CatalogServiceItem, Customer, Professional } from '@/domain'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppointmentDialog } from './AppointmentDialog'
@@ -45,8 +44,8 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.routerPush, refresh: mocks.routerRefresh }),
 }))
 
-function buildProfessional(): BookableProfessional {
-  return BookableProfessionalSchema.make({
+function buildProfessional(): Professional {
+  return {
     id: 'p1',
     orgId: 't1',
     userId: 'u-pro1',
@@ -60,7 +59,7 @@ function buildProfessional(): BookableProfessional {
     catalogServiceIds: [],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-  })
+  }
 }
 function buildService(): CatalogServiceItem {
   return {

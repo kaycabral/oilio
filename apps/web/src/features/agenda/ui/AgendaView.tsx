@@ -3,10 +3,10 @@
 import {
   type Appointment,
   type BlockSegment,
-  type BookableProfessional,
   type CatalogServiceItem,
   type Customer,
   type HoursRange,
+  type Professional,
   type SlotMinutes,
   type Unit,
   getTodayInOrgTz,
@@ -37,7 +37,7 @@ export type AgendaViewProps = {
   slotMinutes: SlotMinutes
   units: Unit[]
   activeUnitId: string | null
-  professionals: BookableProfessional[]
+  professionals: Professional[]
   appointments: Appointment[]
   customersById: Record<string, Customer>
   servicesById: Record<string, CatalogServiceItem>
