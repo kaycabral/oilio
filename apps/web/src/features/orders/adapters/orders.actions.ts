@@ -31,6 +31,7 @@ import type { OrderMutationResult } from '@/features/orders/core/order-results'
 import { findOpenOrderIdForAppointment } from './order-financial-read'
 import {
   assertMemberCanOperate,
+  denyIfNotOwnOrder,
   genItemId,
   loadOpenOrder,
   resolveItemCoverageSubscription,
@@ -190,6 +191,11 @@ export async function addItemToOrder(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
+  // Own-resource (brief 0075, #1257): a self-scoped professional can only edit a
+  // comanda whose items are all theirs — never a colleague's.
+  const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
+  if (denied) return denied
+
   // Default esperto da atribuição (brief 0030, AC-04): item sem `attributedUserId`
   // explícito fica atribuído ao membro que opera (o `userId` do ator). Cobre o
   // caso de varejo — produto avulso vendido pela recepção atribui à recepção.
@@ -248,6 +254,11 @@ export async function removeItemFromOrder(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
+  // Own-resource (brief 0075, #1257): only the order's own professional (or the
+  // balcão) may remove items — never a colleague's comanda.
+  const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
+  if (denied) return denied
+
   const items = loaded.order.items.filter((it) => it.id !== itemId)
   if (items.length === loaded.order.items.length) {
     return { ok: false, error: 'Item não encontrado' }
@@ -289,6 +300,12 @@ export async function updateItemAttribution(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
+  // Own-resource (brief 0075, #1257): a self-scoped professional cannot
+  // re-attribute a colleague's item (and cannot pull a colleague's item onto
+  // themselves) — only the order's own professional or the balcão may.
+  const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
+  if (denied) return denied
+
   const idx = loaded.order.items.findIndex((it) => it.id === itemId)
   if (idx < 0) return { ok: false, error: 'Item não encontrado' }
   const target = loaded.order.items[idx]!
@@ -325,6 +342,11 @@ export async function updateItemCoverage(
   const orgId = r.ctx.membership.orgId
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
+
+  // Own-resource (brief 0075, #1257): only the order's own professional (or the
+  // balcão) may flip an item's coverage — never a colleague's comanda.
+  const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
+  if (denied) return denied
 
   const idx = loaded.order.items.findIndex((it) => it.id === itemId)
   if (idx < 0) return { ok: false, error: 'Item não encontrado' }
@@ -366,6 +388,11 @@ export async function updateOrderMeta(
   const orgId = r.ctx.membership.orgId
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
+
+  // Own-resource (brief 0075, #1257): a self-scoped professional can't apply a
+  // discount to a colleague's comanda — only its own professional or the balcão.
+  const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
+  if (denied) return denied
 
   const patch = recalcAndPatch(loaded.order.items, discountCents)
   // Event-first: `order.meta_updated` carrega o patch (desconto + totais).

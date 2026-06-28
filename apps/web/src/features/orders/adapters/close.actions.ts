@@ -5,8 +5,6 @@ import { revalidatePath } from 'next/cache'
 
 import {
   type CashMovement,
-  type Membership,
-  type OrderItem,
   type PaymentMethod,
   computeOrderTotals,
   coveredItemQuantity,
@@ -18,16 +16,7 @@ import { newId } from '@/shared/db/pg/new-id'
 
 import { parsePaymentMethod, validateClosableItems } from '@/features/orders/core/order-helpers'
 
-import { operatesFrontDesk, requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
-
-// Own-resource close policy (brief 0075, #1257): the balcão closes any comanda;
-// a self-scoped professional closes one only when EVERY item is attributed to
-// them — never emitting a colleague's commission. A multi-professional comanda
-// is the balcão's to close.
-function canCloseOrder(membership: Membership, items: readonly OrderItem[]): boolean {
-  if (operatesFrontDesk(membership)) return true
-  return items.every((item) => item.attributedUserId === membership.userId)
-}
+import { requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
 
 import type { CloseOrderResult, OrderMutationResult } from '@/features/orders/core/order-results'
 import {
@@ -40,6 +29,7 @@ import { emitCloseOrderSaga } from './order-saga'
 import { emitUndoClose } from './order-undo-saga'
 import {
   buildOrderCommissions,
+  canOperateOpenOrder,
   loadOpenOrder,
   resolveSubscriptionConsumption,
 } from './order-write-helpers'
@@ -68,8 +58,9 @@ export async function closeOrder(orderId: string, formData: FormData): Promise<C
   // Own-resource (brief 0075, #1257): the balcão (owner/manager/recepção) closes
   // any comanda; a self-scoped professional closes one only when EVERY item is
   // attributed to them — so they never emit a colleague's commission. A
-  // multi-professional comanda is the balcão's to close.
-  if (!canCloseOrder(r.ctx.membership, loaded.order.items)) {
+  // multi-professional comanda is the balcão's to close. Shared with the open-order
+  // edit guards via `canOperateOpenOrder`.
+  if (!canOperateOpenOrder(r.ctx.membership, loaded.order.items)) {
     return { ok: false, error: 'Você só pode fechar comandas atribuídas a você' }
   }
 
