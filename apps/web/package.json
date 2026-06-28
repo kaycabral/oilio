@@ -38,17 +38,18 @@
     "@types/qrcode": "^1.5.6",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
-    "pg": "catalog:",
     "firebase": "catalog:",
     "firebase-admin": "catalog:",
     "lucide-react": "catalog:",
     "next": "catalog:",
     "next-themes": "catalog:",
+    "pg": "catalog:",
     "qrcode": "^1.5.4",
     "react": "catalog:",
     "react-dom": "catalog:",
     "server-only": "catalog:",
-    "sonner": "catalog:"
+    "sonner": "catalog:",
+    "stripe": "22.3.0"
   },
   "devDependencies": {
     "@cbrl/eslint-base": "workspace:*",

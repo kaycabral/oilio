@@ -21,6 +21,7 @@ import {
   parseAppointmentConfig,
   parseUnitForm,
 } from '@/features/units/core/unit-form'
+import { syncStripeSubscriptionQuantity } from '@/shared/billing/stripe-sync'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
 import { deletePostgresProjection } from '@/shared/db/pg/effect/postgres-layer'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
@@ -159,6 +160,9 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     },
   )
   if (!created.ok) return { ok: false, error: created.error }
+  // Per-unit billing (brief 0073): a new unit raises the charged quantity. Fire
+  // post-commit (never throws); the reconcile cron fixes any drift.
+  await syncStripeSubscriptionQuantity(orgId)
   revalidatePath('/organizations')
   // SPIKE (hours mode): the sidebar's "Agenda" visibility derives from unit
   // hoursMode (loaded in the shared (app) layout). Revalidate the layout too so
@@ -300,6 +304,8 @@ export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
   }
   // LGPD erasure — drop the PII doc alongside the projection.
   await deleteUnitPii(orgId, unitId)
+  // Per-unit billing (brief 0073): removing a unit lowers the charged quantity.
+  await syncStripeSubscriptionQuantity(orgId)
   revalidatePath('/organizations')
   return { ok: true }
 }
@@ -322,6 +328,10 @@ export async function archiveUnit(unitId: string, archived = true): Promise<Unit
     },
   )
   if (!res.ok) return { ok: false, error: res.error }
+  // Per-unit billing (brief 0073): archiving removes the unit from the active
+  // count (archived units don't bill); restoring adds it back. Either way the
+  // charged quantity must follow.
+  await syncStripeSubscriptionQuantity(r.ctx.membership.orgId)
   revalidatePath('/organizations')
   return { ok: true }
 }

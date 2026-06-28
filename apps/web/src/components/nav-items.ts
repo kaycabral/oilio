@@ -14,6 +14,7 @@ import {
   Target,
   UserCog,
   Users,
+  Wallet,
 } from 'lucide-react'
 
 // Minimum capability a nav entry requires to be shown (brief 0029, AC-08).
@@ -102,6 +103,16 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         href: '/team',
         label: 'Equipe',
         icon: ShieldCheck,
+        match: 'prefix',
+        requires: 'manageOrg',
+      },
+      {
+        // Plano e cobrança — the Assinatura Oilio surface (brief 0073). Visible
+        // to owner/manager; the page itself gates the subscribe/portal actions
+        // to the owner only (defense in depth).
+        href: '/settings/billing',
+        label: 'Plano e cobrança',
+        icon: Wallet,
         match: 'prefix',
         requires: 'manageOrg',
       },
