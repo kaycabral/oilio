@@ -29,6 +29,7 @@ import {
   CategoryConfig,
   CustomerConfig,
   MembershipConfig,
+  OrgBillingConfig,
   OrgConfig,
   SubscriptionConfig,
   SubscriptionPlanConfig,
@@ -111,6 +112,44 @@ export function seedPlan(plan: SubscriptionPlan, actorId: string): Promise<void>
     _tag: 'subscription_plan.created',
     actorId,
     payload: { data: plan },
+  })
+}
+
+// Assinatura Oilio (brief 0072/0073). A Negócio with no org_billing row is Free
+// by default (getOrgBilling), so the gating locks the paid surfaces. The rich
+// demo org needs a PAID tier seeded so plans/commissions/copilot/reports show up
+// — otherwise the seed looks "broken" under gating. Writes the row the Stripe
+// webhook would, via the canonical event path (no Stripe object needed for dev).
+export function seedOrgBilling(args: {
+  orgId: string
+  tier: 'pro' | 'advanced'
+  unitQuantity: number
+  actorId: string
+  now: string
+}): Promise<void> {
+  const { orgId, tier, unitQuantity, actorId, now } = args
+  return emitOne(OrgBillingConfig, orgId, orgId, {
+    _tag: 'org_billing.activated',
+    actorId,
+    payload: {
+      data: {
+        id: orgId,
+        orgId,
+        tier,
+        status: 'active',
+        billingCycle: 'monthly',
+        unitQuantity,
+        // Dev seed has no real Stripe objects. stripeCustomerId null => the
+        // /settings/billing panel shows the "subscribe" path (no portal); prod
+        // gets these from the webhook. The tier alone drives the gating.
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    },
   })
 }
 

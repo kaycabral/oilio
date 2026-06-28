@@ -20,6 +20,10 @@ export type { OrderState, OrderStatus } from './order/types'
 // Org
 export { OrgConfig } from './org/config'
 export type { OrgEvent } from './org/events'
+
+// Org billing (Assinatura Oilio)
+export { OrgBillingConfig } from './org-billing/config'
+export type { OrgBillingEvent } from './org-billing/events'
 export type { OrgState } from './org/types'
 
 // Unit
