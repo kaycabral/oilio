@@ -21,7 +21,12 @@ function labels(role: Role, signals?: NavOrgSignals): string[] {
 describe('getNavSections', () => {
   it('shows every section + manageOrg item to an owner', () => {
     const sections = sectionsFor('owner')
-    expect(sections.map((s) => s.label)).toEqual(['Operação', 'Cadastros', 'Configuração', 'Conta'])
+    expect(sections.map((s) => s.label)).toEqual([
+      'Operação',
+      'Cadastros',
+      'Administração',
+      'Conta',
+    ])
     expect(labels('owner')).toEqual(expect.arrayContaining(['Relatórios', 'Copiloto', 'Equipe']))
   })
 
@@ -32,9 +37,9 @@ describe('getNavSections', () => {
     expect(flat).not.toContain('Unidades')
   })
 
-  it('drops the Configuração section + manageOrg items for a receptionist', () => {
+  it('drops the Administração section + manageOrg items for a receptionist', () => {
     const sections = sectionsFor('receptionist')
-    expect(sections.map((s) => s.label)).not.toContain('Configuração')
+    expect(sections.map((s) => s.label)).not.toContain('Administração')
     const flat = labels('receptionist')
     expect(flat).not.toContain('Relatórios')
     expect(flat).not.toContain('Equipe')

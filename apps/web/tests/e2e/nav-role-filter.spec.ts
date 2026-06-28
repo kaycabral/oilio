@@ -3,7 +3,7 @@ import { expect, test } from './fixtures'
 import { setMembershipRole } from './helpers/session'
 
 // Brief 0029 (#1052) — AC-08: the sidebar nav is filtered by role via
-// `canManageOrg`. A receptionist must not see the Configuração section
+// `canManageOrg`. A receptionist must not see the Administração section
 // (Negócios / Unidades / Equipe) nor the financeiro-admin items
 // (Relatórios); owner/manager see everything. PRD Identidade v2 / F5 renamed
 // the old "Empresa" item to "Negócios". Brief 0031 (#1062)
@@ -26,21 +26,21 @@ test.describe('Navegação filtrada por papel (AC-08)', () => {
     // Every section label is present.
     await expect(nav.getByText('Operação', { exact: true })).toBeVisible()
     await expect(nav.getByText('Cadastros', { exact: true })).toBeVisible()
-    await expect(nav.getByText('Configuração', { exact: true })).toBeVisible()
+    await expect(nav.getByText('Administração', { exact: true })).toBeVisible()
 
     // Financeiro-admin items are visible (Comissões is folded into Relatórios).
     await expect(nav.getByRole('link', { name: 'Relatórios' })).toBeVisible()
     // The old standalone Caixa/Comissões items are gone (brief 0031).
     await expect(nav.getByRole('link', { name: 'Caixa' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Comissões' })).toHaveCount(0)
-    // Configuração items are visible. The standalone "Unidades" entry was folded
+    // Administração items are visible. The standalone "Unidades" entry was folded
     // into the single "Negócios" folder-manager (PRD Identidade v2); there is no
     // separate "Unidades" nav item anymore (see nav-items.test.ts).
     await expect(nav.getByRole('link', { name: 'Negócios' })).toBeVisible()
     await expect(nav.getByRole('link', { name: 'Equipe' })).toBeVisible()
   })
 
-  test('recepção não vê Configuração nem Comissões', async ({ authedPage, org }) => {
+  test('recepção não vê Administração nem Comissões', async ({ authedPage, org }) => {
     // Demote the seeded owner to receptionist (AC-08 base: canManageOrg).
     await setMembershipRole(`${org.orgId}_${org.uid}`, 'receptionist')
 
@@ -56,8 +56,8 @@ test.describe('Navegação filtrada por papel (AC-08)', () => {
     await expect(nav.getByRole('link', { name: 'Clientes' })).toBeVisible()
     await expect(nav.getByRole('link', { name: 'Catálogo' })).toBeVisible()
 
-    // The whole Configuração section disappears.
-    await expect(nav.getByText('Configuração', { exact: true })).toHaveCount(0)
+    // The whole Administração section disappears.
+    await expect(nav.getByText('Administração', { exact: true })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Negócios', exact: true })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Unidades', exact: true })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Equipe' })).toHaveCount(0)

@@ -17,7 +17,7 @@
 //     cross-unit reach;
 //   - the DEFINITION / aggregate surfaces (Catálogo, Planos, Relatórios) stay
 //     cross-unit — the active-unit selector does NOT filter them;
-//   - the sidebar is filtered by role (a receptionist loses Configuração +
+//   - the sidebar is filtered by role (a receptionist loses Administração +
 //     finance-admin items);
 //   - switching org resets the active-unit context (no leak across orgs).
 //
@@ -200,12 +200,12 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
   })
 
   // Cenário 4 — navegação por papel.
-  // A receptionist: no Configuração section (Negócios & Unidades / Unidades /
+  // A receptionist: no Administração section (Negócios & Unidades / Unidades /
   // Equipe), no finance-admin items (Comissões); keeps Operação + Cadastros.
   test.describe('Cenário 4 — navegação por papel', () => {
     test.use({ orgInput: { unitCount: 1 } })
 
-    test('recepção: sem Configuração nem Comissões; mantém Operação + Clientes/Catálogo', async ({
+    test('recepção: sem Administração nem Comissões; mantém Operação + Clientes/Catálogo', async ({
       authedPage,
       org,
     }) => {
@@ -224,9 +224,9 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
       await expect(nav.getByRole('link', { name: 'Clientes' })).toBeVisible()
       await expect(nav.getByRole('link', { name: 'Catálogo' })).toBeVisible()
 
-      // The whole Configuração section disappears. PRD Identidade v2 / F5
+      // The whole Administração section disappears. PRD Identidade v2 / F5
       // renamed "Empresa" → "Negócios & Unidades".
-      await expect(nav.getByText('Configuração', { exact: true })).toHaveCount(0)
+      await expect(nav.getByText('Administração', { exact: true })).toHaveCount(0)
       await expect(nav.getByRole('link', { name: 'Negócios & Unidades' })).toHaveCount(0)
       await expect(nav.getByRole('link', { name: 'Unidades', exact: true })).toHaveCount(0)
       await expect(nav.getByRole('link', { name: 'Equipe' })).toHaveCount(0)
