@@ -89,8 +89,25 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
       ? searchParams.date
       : getTodayInOrgTz(timezone)
 
+  // Own-scope (brief 0075, #1256/#1257): a self-scoped professional resolves to
+  // their own `professionals.id`; the balcão (owner/manager/recepção) to `''`.
+  // Used to (a) narrow the agenda reads (RLS `app.current_professional`), (b)
+  // clamp the agenda columns to their own, and (c) lock the appointment dialog's
+  // professional picker to themselves (#1257).
+  const professionalScope = await resolveProfessionalScope(ctx.membership)
+  const selfProfessionalId = professionalScope === '' ? null : professionalScope
+
+  // A self-scoped professional only sees their OWN column on the agenda grid —
+  // not the colleagues' (even empty) columns. The balcão (`selfProfessionalId
+  // === null`) keeps every bookable column. The RLS-scoped appointment read
+  // already hides colleagues' bookings; this clamps the columns to match, so
+  // "ver a própria agenda" is the whole surface.
   const professionals = activeUnitId
-    ? allProfessionals.filter((p) => p.unitIds.includes(activeUnitId))
+    ? allProfessionals.filter(
+        (p) =>
+          p.unitIds.includes(activeUnitId) &&
+          (selfProfessionalId === null || p.id === selfProfessionalId),
+      )
     : []
 
   const dayHours = getBusinessHoursForDay(activeUnitHours, date, timezone)
@@ -104,13 +121,6 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
   let blockSegments: ReturnType<typeof getBlockSegmentsForDay> = []
   let allServices: CatalogServiceItem[] = []
   let allCustomers: Customer[] = []
-
-  // Own-scope (brief 0075, #1256/#1257): a self-scoped professional resolves to
-  // their own `professionals.id`; the balcão (owner/manager/recepção) to `''`.
-  // Used both to narrow the agenda reads (RLS `app.current_professional`) and to
-  // lock the appointment dialog's professional picker to themselves (#1257).
-  const professionalScope = await resolveProfessionalScope(ctx.membership)
-  const selfProfessionalId = professionalScope === '' ? null : professionalScope
 
   if (activeUnitId) {
     const [dayAppointments, blocks, catalogItems, enrichedCustomers] = await Promise.all([
