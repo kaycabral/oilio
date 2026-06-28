@@ -74,8 +74,10 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
   professional: {
     canHaveAgenda: true,
     canManageOwnAgenda: true,
-    canCreateAppointment: false,
-    canCancelAppointment: false,
+    // Autonomous own-scoped model (brief 0075): a professional books/cancels
+    // their OWN appointments. Manage* stays false.
+    canCreateAppointment: true,
+    canCancelAppointment: true,
     canManageCustomers: false,
     canManageProfessionals: false,
     canManageCatalog: false,
