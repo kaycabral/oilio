@@ -95,16 +95,16 @@ async function seedCustomer(): Promise<void> {
 // chain terminates at the membership (brief 0076 AC-04 uniform model / AC-05).
 async function seedAppointment(id: string, proId: string): Promise<void> {
   await pool().query(
-    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id, customer_user_id, member_operator_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
-     VALUES ($1,$2,$3,1,$4,$5,$6,'user-'||$5,$7,'2026-01-02T10:00:00Z','2026-01-02T10:30:00Z','scheduled',5000,30,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id, customer_user_id, member_operator_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at, member_id)
+     VALUES ($1,$2,$3,1,$4,$5,$6,'user-'||$5,$7,'2026-01-02T10:00:00Z','2026-01-02T10:30:00Z','scheduled',5000,30,NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = $1 AND mo.id = $4))`,
     [ORG, id, UNIT, proId, CUSTOMER, SERVICE, USER],
   )
 }
 
 async function seedAgendaBlock(id: string, proId: string): Promise<void> {
   await pool().query(
-    `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, member_operation_id, block, created_at, updated_at)
-     VALUES ($1,$2,$3,1,'one_off',$4,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, member_operation_id, block, created_at, updated_at, member_id)
+     VALUES ($1,$2,$3,1,'one_off',$4,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = $1 AND mo.id = $4))`,
     [ORG, id, UNIT, proId],
   )
 }

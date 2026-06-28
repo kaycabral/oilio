@@ -13,6 +13,7 @@ import {
 import { catalogItems } from './catalog-items'
 import { customers } from './customers'
 import { memberOperations } from './member_operations'
+import { memberships } from './memberships'
 import { orgs } from './orgs'
 import { units } from './units'
 
@@ -53,6 +54,17 @@ export const appointments = pgTable(
 
     // ── References (PII by id-ref; ADR 0010 D2) ─────────────────────────────
     memberOperationId: text('member_operation_id').notNull(),
+    // The membership whose member performed this appointment (brief 0076 AC-04).
+    // The DIRECT history→membership reference: `(org_id, member_id) → memberships`
+    // with `onDelete: restrict`, so removing a membership that has appointment
+    // history is refused by the DB (the baixa operacional is the `canBeBooked`
+    // capability toggled off, not a delete). Distinct from `member_operation_id`
+    // (FK → member_operations, the operational profile): the profile cascades when
+    // the membership goes, but the history FK restricts — both coexist (ADR 0010
+    // immutability). `member_id` is the membership doc id (`{org_id}_{userId}`),
+    // derived in the projector from the operational profile's `member_id` (it does
+    // NOT enter the event payload), so it is always consistent with the performer.
+    memberId: text('member_id').notNull(),
     customerId: text('customer_id').notNull(),
     serviceId: text('service_id').notNull(),
     customerUserId: text('customer_user_id').notNull(),
@@ -120,6 +132,14 @@ export const appointments = pgTable(
       columns: [table.orgId, table.memberOperationId],
       foreignColumns: [memberOperations.orgId, memberOperations.id],
     }).onDelete('restrict'),
+    // The DIRECT history → membership FK (brief 0076 AC-04): `onDelete: restrict`
+    // refuses removing a membership that has appointment history, so the baixa is
+    // the `canBeBooked` capability toggled off — never a delete (ADR 0010).
+    foreignKey({
+      name: 'appointments_member_id_fk',
+      columns: [table.orgId, table.memberId],
+      foreignColumns: [memberships.orgId, memberships.id],
+    }).onDelete('restrict'),
     foreignKey({
       name: 'appointments_customer_id_fk',
       columns: [table.orgId, table.customerId],
@@ -137,6 +157,9 @@ export const appointments = pgTable(
     index('appointments_org_id_unit_id_start_idx').on(table.orgId, table.unitId, table.startAt),
     // MemberOperation's agenda within an org.
     index('appointments_org_id_member_operation_idx').on(table.orgId, table.memberOperationId),
+    // Supports the history → membership FK lookup + the delete-guard ("does this
+    // membership have appointment history?").
+    index('appointments_org_id_member_id_idx').on(table.orgId, table.memberId),
   ],
 )
 

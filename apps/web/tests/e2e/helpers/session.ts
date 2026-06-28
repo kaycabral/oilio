@@ -2558,6 +2558,37 @@ async function seedCatalogItemDoc(orgId: string, id: string, doc: CatalogItem): 
 // stay separate from the projection (the PII contract — merged at read time).
 
 // Generic one-tx seed of an identity projection (event + typed row) into Postgres.
+// `appointments`/`agenda_blocks` carry `member_id` (brief 0076 AC-04) DERIVED
+// from the operational profile via a correlated subquery on `member_operation_id`
+// — mirroring the runtime projectors. The `*_COLUMNS` lists (the placeholder
+// values) omit it, so the seed/mutate helpers append the derived expression to
+// the INSERT column list + VALUES (NOT a placeholder). For other tables the
+// column list passes through unchanged.
+function withDerivedMemberId(
+  table: string,
+  columns: readonly string[],
+): { columnList: string; valueSuffix: string; conflictSet: string } {
+  const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ')
+  if (table !== 'appointments' && table !== 'agenda_blocks') {
+    return {
+      columnList: columns.join(', '),
+      valueSuffix: placeholders,
+      conflictSet: columns.map((col, i) => `${col} = $${i + 1}`).join(', '),
+    }
+  }
+  const orgIdRef = `$${columns.indexOf('org_id') + 1}`
+  const memberOpIdRef = `$${columns.indexOf('member_operation_id') + 1}`
+  const memberIdDerived = `(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = ${orgIdRef} AND mo.id = ${memberOpIdRef})`
+  return {
+    columnList: [...columns, 'member_id'].join(', '),
+    valueSuffix: `${placeholders}, ${memberIdDerived}`,
+    conflictSet: [
+      ...columns.map((col, i) => `${col} = $${i + 1}`),
+      `member_id = ${memberIdDerived}`,
+    ].join(', '),
+  }
+}
+
 async function seedIdentityPostgres(args: {
   ref: AggregateRef
   createdTag: string
@@ -2597,11 +2628,10 @@ async function seedIdentityPostgres(args: {
         },
       ],
     )
-    const placeholders = args.columns.map((_, i) => `$${i + 1}`).join(', ')
-    await client.query(
-      `INSERT INTO ${args.table} (${args.columns.join(', ')}) VALUES (${placeholders})`,
-      [...args.values],
-    )
+    const { columnList, valueSuffix } = withDerivedMemberId(args.table, args.columns)
+    await client.query(`INSERT INTO ${args.table} (${columnList}) VALUES (${valueSuffix})`, [
+      ...args.values,
+    ])
     for (const w of args.extraWrites ?? []) {
       await client.query(w.sql, [...w.params])
     }
@@ -2665,11 +2695,10 @@ async function mutateProjectionPostgres(args: {
       ],
     )
     const values = args.valuesAt(nextVersion)
-    const assignments = args.columns.map((col, i) => `${col} = $${i + 1}`).join(', ')
-    const placeholders = args.columns.map((_, i) => `$${i + 1}`).join(', ')
+    const { columnList, valueSuffix, conflictSet } = withDerivedMemberId(args.table, args.columns)
     await client.query(
-      `INSERT INTO ${args.table} (${args.columns.join(', ')}) VALUES (${placeholders})
-       ON CONFLICT (org_id, id) DO UPDATE SET ${assignments}`,
+      `INSERT INTO ${args.table} (${columnList}) VALUES (${valueSuffix})
+       ON CONFLICT (org_id, id) DO UPDATE SET ${conflictSet}`,
       [...values],
     )
     for (const w of args.extraWrites ?? []) {

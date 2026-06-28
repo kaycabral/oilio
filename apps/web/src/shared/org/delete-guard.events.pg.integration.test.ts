@@ -64,6 +64,20 @@ async function insertRow(
   values: unknown[],
 ): Promise<void> {
   const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ')
+  // appointments/agenda_blocks carry `member_id` (brief 0076 AC-04) DERIVED from
+  // the operational profile via a correlated subquery on `member_operation_id` —
+  // mirroring the projectors. The column lists passed in (APPOINTMENT_COLUMNS /
+  // AGENDA_BLOCK_COLUMNS) omit it, so append it here.
+  if (table === 'appointments' || table === 'agenda_blocks') {
+    const orgIdRef = `$${columns.indexOf('org_id') + 1}`
+    const memberOpIdRef = `$${columns.indexOf('member_operation_id') + 1}`
+    const memberIdDerived = `(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = ${orgIdRef} AND mo.id = ${memberOpIdRef})`
+    await getEventStorePool().query(
+      `INSERT INTO ${table} (${[...columns, 'member_id'].join(', ')}) VALUES (${placeholders}, ${memberIdDerived})`,
+      values,
+    )
+    return
+  }
   await getEventStorePool().query(
     `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`,
     values,

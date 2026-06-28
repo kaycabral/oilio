@@ -11,6 +11,7 @@ import {
   timestamp,
 } from 'drizzle-orm/pg-core'
 import { memberOperations } from './member_operations'
+import { memberships } from './memberships'
 import { orgs } from './orgs'
 import { units } from './units'
 
@@ -55,6 +56,11 @@ export const agendaBlocks = pgTable(
     // Optional memberOperation scope: when set, only that memberOperation is blocked;
     // null = whole-unit block.
     memberOperationId: text('member_operation_id'),
+    // The membership of the blocked member (brief 0076 AC-04) — the direct
+    // history → membership reference, nullable in lock-step with
+    // `member_operation_id` (a whole-unit block belongs to no member). Derived in
+    // the projector from the operational profile's `member_id`.
+    memberId: text('member_id'),
 
     // ── Composite / structural state (JSONB) ────────────────────────────────
     // The full variant body: { reason, weekday, open, close, startAt, endAt }.
@@ -90,6 +96,14 @@ export const agendaBlocks = pgTable(
       // The migration authors this as `SET NULL (member_operation_id)` (column-list
       // form, PG15+) so only the ref is nulled, never the NOT-NULL `org_id` (a
       // bare composite SET NULL → 23502). See migration 0016 header.
+    }).onDelete('set null'),
+    // Direct history → membership reference (brief 0076 AC-04). `SET NULL
+    // (member_id)` (column-list form) in lock-step with `member_operation_id`, so
+    // only the member ref is nulled on membership removal, never `org_id`.
+    foreignKey({
+      name: 'agenda_blocks_member_id_fk',
+      columns: [table.orgId, table.memberId],
+      foreignColumns: [memberships.orgId, memberships.id],
     }).onDelete('set null'),
     // `org_id`-leading indexes: the RLS policy + per-unit agenda reads.
     index('agenda_blocks_org_id_unit_id_idx').on(table.orgId, table.unitId),

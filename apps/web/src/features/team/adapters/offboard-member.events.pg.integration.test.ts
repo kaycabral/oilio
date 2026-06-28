@@ -172,8 +172,14 @@ async function seedAppointment(
   await seedCustomer(orgId, appt.customerId)
   await seedService(orgId, appt.serviceId)
   const placeholders = APPOINTMENT_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
+  // `member_id` (brief 0076 AC-04) is derived from the operational profile via a
+  // correlated subquery on `member_operation_id`, mirroring the projector — not a
+  // placeholder. org_id is $1, member_operation_id is $5 in APPOINTMENT_COLUMNS.
+  const orgIdRef = `$${APPOINTMENT_COLUMNS.indexOf('org_id') + 1}`
+  const memberOpIdRef = `$${APPOINTMENT_COLUMNS.indexOf('member_operation_id') + 1}`
+  const memberIdDerived = `(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = ${orgIdRef} AND mo.id = ${memberOpIdRef})`
   await getEventStorePool().query(
-    `INSERT INTO appointments (${APPOINTMENT_COLUMNS.join(', ')}) VALUES (${placeholders})`,
+    `INSERT INTO appointments (${[...APPOINTMENT_COLUMNS, 'member_id'].join(', ')}) VALUES (${placeholders}, ${memberIdDerived})`,
     appointmentColumnValues(appt, aggregateRef(AppointmentConfig, orgId, id), 1),
   )
   return id
@@ -199,8 +205,13 @@ async function seedAgendaBlock(orgId: string, memberOperationId: string | null):
   // FK parent: agenda_block unit_id → units (block.unitId === 'unit-1').
   await seedUnit(orgId, block.unitId)
   const placeholders = AGENDA_BLOCK_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
+  // `member_id` (brief 0076 AC-04) derived via subquery; NULL when member_operation_id
+  // is NULL (whole-unit block), mirroring the projector.
+  const orgIdRef = `$${AGENDA_BLOCK_COLUMNS.indexOf('org_id') + 1}`
+  const memberOpIdRef = `$${AGENDA_BLOCK_COLUMNS.indexOf('member_operation_id') + 1}`
+  const memberIdDerived = `(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = ${orgIdRef} AND mo.id = ${memberOpIdRef})`
   await getEventStorePool().query(
-    `INSERT INTO agenda_blocks (${AGENDA_BLOCK_COLUMNS.join(', ')}) VALUES (${placeholders})`,
+    `INSERT INTO agenda_blocks (${[...AGENDA_BLOCK_COLUMNS, 'member_id'].join(', ')}) VALUES (${placeholders}, ${memberIdDerived})`,
     agendaBlockColumnValues(block, 1),
   )
   return id
