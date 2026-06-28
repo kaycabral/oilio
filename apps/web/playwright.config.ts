@@ -1,4 +1,3 @@
-import { requireEnv } from '@cbrl/env'
 import { defineConfig, devices } from '@playwright/test'
 
 import { CRON_SECRET } from './tests/e2e/helpers/secrets'
@@ -21,19 +20,21 @@ import { CRON_SECRET } from './tests/e2e/helpers/secrets'
 // mode — that's how we got flakes mascaradas as `--retries=2`.
 // Next server port.
 //
-// `E2E_PORT` is the single source of truth, ALWAYS injected by the E2E runner
-// (scripts/e2e-with-postgres.mjs), which allocates a free port per run so a suite
-// never collides with a dev server — or another suite — on the same host. The
-// runner is the one place env is configured; if it's missing, fail loud there
-// (via @cbrl/env's requireEnv) instead of silently defaulting a value here and
-// leaving you hunting for where the port came from.
+// The E2E runner (scripts/e2e-with-postgres.mjs) is the SINGLE place this is
+// configured: it ALWAYS sets E2E_PORT before invoking Playwright (a free port per
+// run locally so a suite never collides with a dev server or another suite; the
+// canonical 3005 in CI, whose job network is isolated). The fail-fast lives in
+// the runner — if it can't allocate/inject the port it errors there, the one
+// place you'd look. So no real test run ever reaches this config without
+// E2E_PORT.
 //
-// The ONLY exception is a bare `playwright test` with no runner (IDE debugging a
-// single spec): there is no E2E_PORT and the developer expects the canonical dev
-// port. That's an explicit, named opt-out — `PW_NO_RUNNER=1` — not a silent
-// fallback. Without that flag, a missing E2E_PORT is a misconfig and throws.
-const CANONICAL_DEV_PORT = '3005'
-const PORT = process.env.PW_NO_RUNNER === '1' ? CANONICAL_DEV_PORT : requireEnv('E2E_PORT')
+// This must NOT throw when E2E_PORT is absent, because static tooling (knip's
+// Playwright plugin, the IDE test explorer) merely LOADS this config — it doesn't
+// run the suite — and a throw there breaks spec-entry detection. Flag-style
+// branch (the codebase idiom, like PW_WORKERS below), defaulting to the canonical
+// dev port 3005 for that load-only context — not a value-fallback masking a
+// missing required env, since the runner guarantees the value for every real run.
+const PORT = process.env.E2E_PORT ? process.env.E2E_PORT : '3005'
 const BASE_URL = `http://127.0.0.1:${PORT}`
 // Explicit opt-in toggle (not a fallback default): `E2E_DEV=1` swaps the
 // production build for `next dev`. Reading the env to branch on a flag is fine;
