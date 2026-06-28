@@ -28,10 +28,10 @@ import { revalidatePath } from 'next/cache'
 
 import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointment-user-ids'
 import { newId } from '@/shared/db/pg/new-id'
-import { emitEvent } from '@/shared/effect-bridge'
+import { emitEvent, type WriteSecurity } from '@/shared/effect-bridge'
 
 import { getAppointmentById } from '@/shared/org/appointment-read'
-import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
+import { resolveMemberOperationScope } from '@/shared/org/member-operation-read'
 import { canActOnOwnedResource, requireOrgCtx } from '@/shared/org/membership'
 import { getUnitById } from '@/shared/org/unit-read'
 import {
@@ -40,6 +40,7 @@ import {
   loadActiveCatalogService,
   loadApprovedMemberOperation,
   persistAppointmentUpdate,
+  resolveAppointmentCustomerId,
   type AppointmentMutationResult,
 } from './appointment-write-helpers'
 
@@ -71,6 +72,21 @@ function resolveBookableError(
   return null
 }
 
+// Resolves the acting member's own-scope RLS for a WRITE (brief 0075, #1265).
+// `undefined` for the balcão (permissive); a `WriteSecurity` carrying the member's
+// own-scope id otherwise, so the DB own-scope WITH CHECK refuses touching a
+// colleague's row even past the application gate. `unitId` is the appointment's
+// own unit — every write here targets a row already loaded/parsed, so the unit is
+// known. Centralized so every appointment write threads the identical scope.
+async function resolveWriteSecurity(
+  membership: Membership,
+  unitId: string,
+): Promise<WriteSecurity | undefined> {
+  const ownScope = await resolveMemberOperationScope(membership)
+  if (ownScope === '') return undefined
+  return { orgId: membership.orgId, unitId, memberOperationId: ownScope }
+}
+
 export async function cancelAppointment(appointmentId: string): Promise<AppointmentMutationResult> {
   const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
@@ -91,6 +107,7 @@ export async function cancelAppointment(appointmentId: string): Promise<Appointm
   if (!decision.ok) return { ok: false, error: decision.error }
 
   // Event-first: a projeção (status/cancelledAt/By/NoticeMinutes) vem do evento.
+  const security = await resolveWriteSecurity(r.ctx.membership, existing.unitId)
   const cancelled = await emitEvent(
     AppointmentConfig,
     aggregateRef(AppointmentConfig, r.ctx.membership.orgId, appointmentId),
@@ -103,6 +120,7 @@ export async function cancelAppointment(appointmentId: string): Promise<Appointm
         noticeMinutes: decision.value.noticeMinutes,
       },
     },
+    security,
   )
   if (!cancelled.ok) return { ok: false, error: cancelled.error }
 
@@ -131,6 +149,7 @@ export async function markAppointmentNoShow(
 
   const nowIso = now.toISOString()
   // Event-first: a projeção (status/noShowMarkedAt/By) vem do evento.
+  const security = await resolveWriteSecurity(r.ctx.membership, existing.unitId)
   const marked = await emitEvent(
     AppointmentConfig,
     aggregateRef(AppointmentConfig, r.ctx.membership.orgId, appointmentId),
@@ -142,6 +161,7 @@ export async function markAppointmentNoShow(
         markedBy: r.ctx.session.uid,
       },
     },
+    security,
   )
   if (!marked.ok) return { ok: false, error: marked.error }
 
@@ -167,10 +187,12 @@ export async function unmarkAppointmentNoShow(
 
   // Event-first: reverter o no-show é o evento `appointment.no_show_reverted`
   // (volta status pra scheduled; o marker anterior fica como histórico).
+  const security = await resolveWriteSecurity(r.ctx.membership, existing.unitId)
   const reverted = await emitEvent(
     AppointmentConfig,
     aggregateRef(AppointmentConfig, r.ctx.membership.orgId, appointmentId),
     { _tag: 'appointment.no_show_reverted', actorId: r.ctx.session.uid, payload: {} },
+    security,
   )
   if (!reverted.ok) return { ok: false, error: reverted.error }
 
@@ -259,6 +281,10 @@ export async function updateAppointment(
   })
   if (!scopeCheck.ok) return { ok: false, error: scopeCheck.error }
 
+  // Own-scope RLS for the edit write (brief 0075, #1265): same capability-gated
+  // scope as the create path, forwarded to every event append.
+  const security = await resolveWriteSecurity(r.ctx.membership, parsed.unitId)
+
   return persistAppointmentUpdate({
     orgId: r.ctx.membership.orgId,
     actorUid: r.ctx.session.uid,
@@ -269,6 +295,7 @@ export async function updateAppointment(
     endAt,
     resolved,
     serviceOrUnitChanged,
+    security,
   })
 }
 
@@ -311,21 +338,12 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   })
   if (conflict) return { ok: false, error: conflict.error, conflicts: conflict.conflicts }
 
-  let customerId = parsed.customerId
-  if (parsed.newCustomer) {
-    const upsert = await upsertCustomerWithUser({
-      orgId: r.ctx.membership.orgId,
-      name: parsed.newCustomer.name,
-      whatsappRaw: parsed.newCustomer.whatsapp,
-      email: null,
-      birthDate: null,
-    })
-    if (!upsert.ok) return upsert
-    // Customer event emitted by the upsert layer; no extra emit needed here.
-    customerId = upsert.customerId
-  }
-
-  if (!customerId) return { ok: false, error: 'Cliente não resolvido' }
+  // Resolve the target customer — existing pick, or a brand-new one upserted
+  // inline (the inline branch is gated server-side on `canManageCustomers`,
+  // brief 0075 #1266). Extracted to keep this action under the complexity gate.
+  const resolvedCustomer = await resolveAppointmentCustomerId(r.ctx.membership, parsed)
+  if (!resolvedCustomer.ok) return resolvedCustomer
+  const customerId = resolvedCustomer.customerId
 
   // Write-guard (brief 0032, AC-11): a blocked customer's relationship is
   // severed — no new appointment may be created for them in this org. A
@@ -380,6 +398,11 @@ export async function createAppointment(formData: FormData): Promise<Appointment
     updatedAt: now,
   }
 
+  // Own-scope RLS for the WRITE (brief 0075, #1265): the DB own-scope WITH CHECK
+  // is the last line of defense — a self-scoped member can't book onto a colleague
+  // even past the application gate above. The balcão passes no security.
+  const security = await resolveWriteSecurity(r.ctx.membership, parsed.unitId)
+
   // Authoritative anti-double-book (#843). Pre-flight above gave us a fast
   // staff-friendly error message; this transaction is what actually protects
   // the slot from concurrent public landings + staff agenda writes.
@@ -388,6 +411,7 @@ export async function createAppointment(formData: FormData): Promise<Appointment
     appointment,
     actorUid: r.ctx.session.uid,
     via: 'internal_panel',
+    security,
   })
   if (!commit.ok) {
     return {

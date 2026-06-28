@@ -6,7 +6,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import type { Appointment, MemberOperation, resolveCatalogItemForUnit } from '@/domain'
+import type { Appointment, MemberOperation, Membership, resolveCatalogItemForUnit } from '@/domain'
 import {
   type AppointmentActorRole,
   type CatalogItem,
@@ -24,13 +24,14 @@ import { type SlotInput } from '@/features/agenda/core/appointment-form'
 
 import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointment-user-ids'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
-import { emitEvent } from '@/shared/effect-bridge'
+import { emitEvent, type WriteSecurity } from '@/shared/effect-bridge'
 import { listAgendaBlocksForUnit } from '@/shared/org/agenda-block-read'
 import { listUnitAppointmentsInRange } from '@/shared/org/appointment-read'
+import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
 import { getMemberOperationById } from '@/shared/org/member-operation-read'
 import { assertCustomerIdNotBlocked } from '@/shared/privacy/assert-customer-not-blocked'
 
-import { AuthzError, getMembership } from '@/shared/org/membership'
+import { AuthzError, getMembership, hasMembershipCapability } from '@/shared/org/membership'
 
 export type AppointmentMutationResult =
   | { ok: true; appointmentId: string }
@@ -51,6 +52,36 @@ export async function guardCustomerNotBlocked(
     }
     throw e
   }
+}
+
+// Resolves the customer id for a create: either the picked existing one, or a
+// brand-new customer upserted inline. The inline branch is gated server-side on
+// `canManageCustomers` (brief 0075, #1266) — registering a customer is a
+// front-desk action; the UI hides the toggle for a self-scoped member, and this
+// refuses the POST too (UI-only authorization is no authorization). Returns the
+// resolved id, or the action error to early-return. Keeps the create action under
+// the cognitive-complexity gate.
+export async function resolveAppointmentCustomerId(
+  membership: Membership,
+  parsed: { customerId: string | null; newCustomer: { name: string; whatsapp: string } | null },
+): Promise<{ ok: true; customerId: string } | { ok: false; error: string }> {
+  if (parsed.newCustomer) {
+    if (!hasMembershipCapability(membership, 'canManageCustomers')) {
+      return { ok: false, error: 'Você não tem permissão para cadastrar novos clientes' }
+    }
+    const upsert = await upsertCustomerWithUser({
+      orgId: membership.orgId,
+      name: parsed.newCustomer.name,
+      whatsappRaw: parsed.newCustomer.whatsapp,
+      email: null,
+      birthDate: null,
+    })
+    if (!upsert.ok) return upsert
+    // Customer event emitted by the upsert layer; no extra emit needed here.
+    return { ok: true, customerId: upsert.customerId }
+  }
+  if (!parsed.customerId) return { ok: false, error: 'Cliente não resolvido' }
+  return { ok: true, customerId: parsed.customerId }
 }
 
 // Helpers return `T | string` (error message) — the form-parser convention used
@@ -140,8 +171,13 @@ export async function persistAppointmentUpdate(args: {
   endAt: string
   resolved: ReturnType<typeof resolveCatalogItemForUnit>
   serviceOrUnitChanged: boolean
+  // Own-scope RLS for the write (brief 0075, #1265) — forwarded to every event
+  // append so a self-scoped editor's writes pass the DB own-scope WITH CHECK.
+  // Undefined for the balcão (permissive).
+  security?: WriteSecurity
 }): Promise<AppointmentMutationResult> {
-  const { orgId, actorUid, appointmentId, parsed, previous, startAt, endAt, resolved } = args
+  const { orgId, actorUid, appointmentId, parsed, previous, startAt, endAt, resolved, security } =
+    args
   const userIdsChanged =
     parsed.customerId !== previous.customerId ||
     parsed.memberOperationId !== previous.memberOperationId
@@ -177,25 +213,35 @@ export async function persistAppointmentUpdate(args: {
   }
 
   const apptRef = aggregateRef(AppointmentConfig, orgId, appointmentId)
-  const edited = await emitEvent(AppointmentConfig, apptRef, {
-    _tag: 'appointment.updated',
-    actorId: actorUid,
-    payload: { changes },
-  })
+  const edited = await emitEvent(
+    AppointmentConfig,
+    apptRef,
+    {
+      _tag: 'appointment.updated',
+      actorId: actorUid,
+      payload: { changes },
+    },
+    security,
+  )
   if (!edited.ok) return { ok: false, error: edited.error }
   if (isReschedule) {
     const rescheduledBy: AppointmentActorRole = 'staff'
-    const resched = await emitEvent(AppointmentConfig, apptRef, {
-      _tag: 'appointment.rescheduled',
-      actorId: actorUid,
-      payload: {
-        newStartAt: startAt,
-        newEndAt: endAt,
-        rescheduledBy,
-        rescheduledAt: now,
-        noticeMinutes: computeNoticeMinutes(previous.startAt, now),
+    const resched = await emitEvent(
+      AppointmentConfig,
+      apptRef,
+      {
+        _tag: 'appointment.rescheduled',
+        actorId: actorUid,
+        payload: {
+          newStartAt: startAt,
+          newEndAt: endAt,
+          rescheduledBy,
+          rescheduledAt: now,
+          noticeMinutes: computeNoticeMinutes(previous.startAt, now),
+        },
       },
-    })
+      security,
+    )
     if (!resched.ok) return { ok: false, error: resched.error }
   }
 

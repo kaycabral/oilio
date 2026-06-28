@@ -250,7 +250,17 @@ const postgresOps: PersistenceOps = {
           const ensureRls = async (orgId: string | null): Promise<void> => {
             if (rlsSet) return
             const resolvedOrg = security?.orgId ?? orgId
-            await setRlsGucs(client, resolvedOrg, security?.unitId ?? '')
+            // Pass the acting member-operation (brief 0075, #1265): when the context
+            // carries one (a self-scoped member), the own-scope policies on
+            // appointments/agenda_blocks enforce own-only on the WRITE path too (the
+            // WITH CHECK refuses a colleague's row at the DB), not just on reads.
+            // Empty string = balcão (permissive), exactly like `unitId`.
+            await setRlsGucs(
+              client,
+              resolvedOrg,
+              security?.unitId ?? '',
+              security?.memberOperationId ?? '',
+            )
             if (resolvedOrg !== null) rlsSet = true
           }
           try {

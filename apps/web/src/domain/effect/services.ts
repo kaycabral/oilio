@@ -119,7 +119,16 @@ export type TransactionContext = {
  */
 export class SecurityContext extends Context.Tag('SecurityContext')<
   SecurityContext,
-  { readonly orgId: string; readonly unitId: string | null }
+  {
+    readonly orgId: string
+    readonly unitId: string | null
+    // The acting member-operation to scope own-only RLS to (brief 0075, #1265), or
+    // null/empty for the balcão (owner/manager/recepção), whose reads/writes stay
+    // org/unit-wide. Drives `app.current_member_operation`: when set, the own-scope
+    // policies on `appointments`/`agenda_blocks` admit only this member's rows (read
+    // AND write — the WITH CHECK refuses writing a colleague's row at the DB).
+    readonly memberOperationId?: string | null
+  }
 >() {}
 
 export class LoggerService extends Context.Tag('LoggerService')<

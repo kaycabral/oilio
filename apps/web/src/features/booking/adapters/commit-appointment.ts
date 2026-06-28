@@ -2,8 +2,9 @@ import type { Appointment } from '@/domain'
 import { AppointmentConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
+import { securityLayer, type WriteSecurity } from '@/shared/effect-bridge'
 import { logger } from '@/shared/lib'
-import { Cause, Effect } from 'effect'
+import { Cause, Effect, Layer } from 'effect'
 import 'server-only'
 
 // Anti-double-book guard for appointment creation (#843), Postgres edition.
@@ -35,6 +36,13 @@ export type BookingCommitInput = {
   // Pipeline label ('internal_panel', 'public_landing', …). Logged on the
   // blocked attempt so we can split contention reports by entry point.
   via: string
+  // The acting subject's RLS scope (brief 0075, #1265). When a self-scoped member
+  // books, the caller resolves their `memberOperationId` (own-scope id) and threads
+  // it here; the commit provides a `SecurityContext` so the own-scope WITH CHECK on
+  // `appointments` refuses writing a colleague's row AT THE DATABASE — not just the
+  // application gate. Omitted / empty = balcão (permissive), the behaviour the
+  // public landing + balcão staff keep unchanged.
+  security?: WriteSecurity
 }
 
 // The Postgres exclusion-violation SQLSTATE — raised when the no-double-book
@@ -86,6 +94,7 @@ export async function commitAppointmentBooking({
   appointment,
   actorUid,
   via,
+  security,
 }: BookingCommitInput): Promise<BookingCommitResult> {
   const ref = aggregateRef(AppointmentConfig, orgId, appointment.id)
   // Event-first: the appointment doc is the projection of `appointment.created`,
@@ -109,7 +118,10 @@ export async function commitAppointmentBooking({
         }
         return Effect.die(defect)
       }),
-      Effect.provide(PostgresPersistenceLayer),
+      // Own-scope RLS for a self-scoped booker (#1265): the WITH CHECK on the
+      // own-scope `appointments` policy refuses a colleague's row at the DB.
+      // Empty layer for the balcão / public landing → GUC stays permissive.
+      Effect.provide(Layer.merge(PostgresPersistenceLayer, securityLayer(security))),
     ),
   )
 
