@@ -265,6 +265,27 @@ export async function requireManagerPage(notManagerTo: Route = '/agenda'): Promi
 }
 
 /**
+ * PAGE guard for routes gated on a membership CAPABILITY (brief 0075) — the
+ * server-side wall behind the nav `requires: '<capability>'` gate. Resolves the
+ * org context and REDIRECTS when the visitor's membership lacks `capability`, so
+ * a self-scoped professional can't reach Clientes/Catálogo/Planos/Assinaturas by
+ * typing the URL. Mirrors `requireManagerPage`, but keyed on the capability
+ * matrix instead of `canManageOrg` — same one-liner usage in a loader.
+ */
+export async function requireCapabilityPage(
+  capability: MembershipCapability,
+  notAllowedTo: Route = '/agenda',
+): Promise<RequiredOrgCtx> {
+  if (!isFirebaseConfigured()) redirect('/')
+  const session = await getSessionUser()
+  if (!session) redirect('/login')
+  const ctx = await getActiveOrgContext(session.uid)
+  if (!ctx) redirect('/onboarding')
+  if (!hasMembershipCapability(ctx.membership, capability)) redirect(notAllowedTo)
+  return { ...ctx, session }
+}
+
+/**
  * Resolves org context AND asserts the active Negócio's Plano Oilio unlocks
  * `capability` (brief 0072). Layers on `requireOrgCtx` and reads the tier via
  * `getOrgBilling` (default-Free for Negócios with no billing row). Returns the

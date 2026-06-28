@@ -10,7 +10,7 @@ import { emitEvent } from '@/shared/effect-bridge'
 import { getCustomerUserId } from '@/shared/org/customer-read'
 import { updateCustomerPii, upsertCustomerWithUser } from '@/shared/org/customer-upsert'
 import { getCustomerDeletionImpact, type CustomerDeletionImpact } from '@/shared/org/delete-guard'
-import { AuthzError, requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
+import { AuthzError, guardCapability, requireManagerCtx } from '@/shared/org/membership'
 import { assertCustomerIdNotBlocked } from '@/shared/privacy/assert-customer-not-blocked'
 import { eraseCustomerCascadeInOrg } from '@/shared/privacy/erase-customer-cascade'
 import { revalidatePath } from 'next/cache'
@@ -19,7 +19,10 @@ import { redirect } from 'next/navigation'
 export type CustomerMutationResult = { ok: true } | { ok: false; error: string }
 
 export async function createCustomer(formData: FormData): Promise<CustomerMutationResult> {
-  const r = await requireOrgCtx()
+  // Balcão only (brief 0075): recepção/manager/owner register customers; a
+  // self-scoped professional cannot (the inline "novo cliente" path is also
+  // removed from the AppointmentDialog for professionals).
+  const r = await guardCapability('canManageCustomers')
   if (!r.ok) return r
   const parsed = parseCustomerForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
@@ -48,7 +51,8 @@ export async function updateCustomer(
   customerId: string,
   formData: FormData,
 ): Promise<CustomerMutationResult> {
-  const r = await requireOrgCtx()
+  // Same balcão wall as create (brief 0075).
+  const r = await guardCapability('canManageCustomers')
   if (!r.ok) return r
   const parsed = parseCustomerForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }

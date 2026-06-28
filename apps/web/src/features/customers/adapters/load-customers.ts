@@ -1,11 +1,8 @@
-import type { Customer } from '@/domain'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { canManageOrg, type Customer } from '@/domain'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
 import { getCustomerById, listActiveCustomersForOrg } from '@/shared/org/customer-read'
-import { getActiveOrgContext } from '@/shared/org/membership'
-import { redirect } from 'next/navigation'
+import { requireCapabilityPage } from '@/shared/org/membership'
 import 'server-only'
 
 export type CustomersPageData = {
@@ -22,13 +19,11 @@ export type CustomersPageData = {
 export async function loadCustomersPage(
   rawParams: { q?: string } = {},
 ): Promise<CustomersPageData> {
-  if (!isFirebaseConfigured()) redirect('/')
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
+  // Customers is a balcão/management surface (brief 0075): a self-scoped
+  // professional (no `canManageCustomers`) is redirected; recepção/manager pass.
+  const ctx = await requireCapabilityPage('canManageCustomers')
 
-  const canDelete = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
+  const canDelete = canManageOrg(ctx.membership.role)
   const searchQuery = rawParams.q ?? ''
   const allCustomers = (await listActiveCustomersForOrg(ctx.membership.orgId)).sort((a, b) =>
     a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }),
@@ -42,10 +37,8 @@ export async function loadCustomersPage(
 }
 
 // Imperative shell for the edit route — resolves the customer or null (404).
+// Same capability wall as the list: a professional can't edit customers either.
 export async function loadCustomerForEdit(customerId: string): Promise<Customer | null> {
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
+  const ctx = await requireCapabilityPage('canManageCustomers')
   return getCustomerById(ctx.membership.orgId, customerId)
 }

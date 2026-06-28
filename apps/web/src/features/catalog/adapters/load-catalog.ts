@@ -1,4 +1,5 @@
 import {
+  canManageOrg,
   normalizeCatalogItemKind,
   type CatalogItem,
   type CatalogItemKind,
@@ -7,8 +8,6 @@ import {
 } from '@/domain'
 import { filterCatalogItems, normalizeKindFilter } from '@/features/catalog/core/catalog-item-form'
 import { getCatalogItemById, listCatalogItems } from '@/shared/db/effect/catalog-item-read'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
 import { listCategoriesForOrg } from '@/shared/org/category-read'
 import {
@@ -16,10 +15,10 @@ import {
   catalogItemHasActiveReference,
   type WithCanDelete,
 } from '@/shared/org/delete-guard'
-import { getActiveOrgContext } from '@/shared/org/membership'
+import { requireCapabilityPage } from '@/shared/org/membership'
 import { listProfessionalsForOrg } from '@/shared/org/professional-read'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import 'server-only'
 
 export type CatalogPageData = {
@@ -44,13 +43,9 @@ export async function loadCatalogPage(rawParams: {
   categoryId?: string
   q?: string
 }): Promise<CatalogPageData> {
-  if (!isFirebaseConfigured()) redirect('/')
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
+  const ctx = await requireCapabilityPage('canManageCatalog')
 
-  const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
+  const canManage = canManageOrg(ctx.membership.role)
   const canDelete = ctx.membership.role === 'owner'
 
   const kindFilter = normalizeKindFilter(rawParams.kind)
@@ -127,19 +122,11 @@ async function loadCatalogMasterData(
   return { units, categories }
 }
 
-function requireManagerSession(role: string): void {
-  if (role !== 'owner' && role !== 'manager') redirect('/catalog')
-}
-
 // Imperative shell for the new-item route.
 export async function loadNewCatalogItemPage(rawParams: {
   kind?: string
 }): Promise<NewCatalogItemPageData> {
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
-  requireManagerSession(ctx.membership.role)
+  const ctx = await requireCapabilityPage('canManageCatalog')
 
   const kind: CatalogItemKind = normalizeCatalogItemKind(rawParams.kind)
   const { units, categories } = await loadCatalogMasterData(ctx.membership.orgId)
@@ -156,11 +143,7 @@ export type EditCatalogItemPageData = {
 // Imperative shell for the edit route — gate, resolve the item (404), then the
 // form master data + professionals (for the service ↔ pro link section).
 export async function loadEditCatalogItemPage(itemId: string): Promise<EditCatalogItemPageData> {
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
-  requireManagerSession(ctx.membership.role)
+  const ctx = await requireCapabilityPage('canManageCatalog')
 
   const [item, allUnits, allCategories, professionals] = await Promise.all([
     getCatalogItemById(ctx.membership.orgId, itemId),

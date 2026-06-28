@@ -17,13 +17,20 @@ import {
   Wallet,
 } from 'lucide-react'
 
-// Minimum capability a nav entry requires to be shown (brief 0029, AC-08).
-// `manageOrg` gates org-admin surfaces (Administração) and the
-// financeiro-admin item (Relatórios) — receptionists do not see
-// them. `undefined` = visible to every member of the org. Resolved against
-// the membership role via the canonical RBAC helpers in `@/domain`
-// (never branch on `role` here directly).
-type NavCapability = 'manageOrg'
+// Minimum capability a nav entry requires to be shown (brief 0029 AC-08; brief
+// 0075). `manageOrg` gates org-admin surfaces (Administração) and the
+// financeiro-admin item (Relatórios). The `canManage*` values are membership
+// capabilities (brief 0075): a self-scoped professional (whose matrix keeps
+// every `canManage*` false) loses Clientes/Catálogo/Planos/Assinaturas, while
+// the balcão (recepção) keeps the ones its preset grants (e.g. Clientes).
+// `undefined` = visible to every member of the org. Always resolved via the
+// canonical helpers (never branch on `role` here directly).
+type NavCapability =
+  | 'manageOrg'
+  | 'canManageCustomers'
+  | 'canManageCatalog'
+  | 'canManagePlans'
+  | 'canManageSubscriptions'
 
 // SPIKE (hours mode): per-org facts that gate a nav entry, resolved at
 // request time (not from membership or a global flag). `usesAgenda` = the org
@@ -58,6 +65,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         label: 'Assinaturas',
         icon: CreditCard,
         match: 'prefix',
+        requires: 'canManageSubscriptions',
       },
       {
         href: '/reports',
@@ -85,9 +93,27 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
   {
     label: 'Cadastros',
     items: [
-      { href: '/customers', label: 'Clientes', icon: Users, match: 'prefix' },
-      { href: '/catalog', label: 'Catálogo', icon: PackageOpen, match: 'prefix' },
-      { href: '/plans', label: 'Planos', icon: Repeat, match: 'prefix' },
+      {
+        href: '/customers',
+        label: 'Clientes',
+        icon: Users,
+        match: 'prefix',
+        requires: 'canManageCustomers',
+      },
+      {
+        href: '/catalog',
+        label: 'Catálogo',
+        icon: PackageOpen,
+        match: 'prefix',
+        requires: 'canManageCatalog',
+      },
+      {
+        href: '/plans',
+        label: 'Planos',
+        icon: Repeat,
+        match: 'prefix',
+        requires: 'canManagePlans',
+      },
     ],
   },
   {
@@ -142,6 +168,15 @@ function hasCapability(membership: Membership, capability: NavCapability): boole
   switch (capability) {
     case 'manageOrg':
       return canManageOrg(membership.role)
+    // Membership capabilities (brief 0075) — read straight off the matrix so a
+    // self-scoped professional drops these surfaces. Listed explicitly (not
+    // `membership.permissions[capability]`) so the type stays a closed union and
+    // adding a nav capability is a compile-time decision.
+    case 'canManageCustomers':
+    case 'canManageCatalog':
+    case 'canManagePlans':
+    case 'canManageSubscriptions':
+      return membership.permissions[capability]
   }
 }
 

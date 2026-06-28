@@ -1,5 +1,6 @@
 import {
   BILLING_CYCLES,
+  canManageOrg,
   type BillingCycle,
   type CatalogItem,
   type Category,
@@ -7,8 +8,6 @@ import {
   type SubscriptionPlan,
 } from '@/domain'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
 import { listCategoriesForOrg } from '@/shared/org/category-read'
@@ -17,13 +16,13 @@ import {
   planHasActiveReference,
   type WithCanDelete,
 } from '@/shared/org/delete-guard'
-import { getActiveOrgContext } from '@/shared/org/membership'
+import { requireCapabilityPage } from '@/shared/org/membership'
 import {
   getSubscriptionPlanById,
   listSubscriptionPlansForOrg,
 } from '@/shared/org/subscription-plan-read'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import 'server-only'
 
 export type PlanStatusFilter = 'all' | 'active' | 'inactive'
@@ -53,13 +52,9 @@ function normalizeStatusFilter(value: string | undefined): PlanStatusFilter {
 export async function loadPlansPage(
   rawParams: { q?: string; cycle?: string; status?: string } = {},
 ): Promise<PlansPageData> {
-  if (!isFirebaseConfigured()) redirect('/')
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
+  const ctx = await requireCapabilityPage('canManagePlans')
 
-  const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
+  const canManage = canManageOrg(ctx.membership.role)
   const canDelete = ctx.membership.role === 'owner'
   const searchQuery = rawParams.q ?? ''
   const cycleFilter = normalizeCycleFilter(rawParams.cycle)
@@ -112,13 +107,7 @@ async function loadPlanMasterData(orgId: string): Promise<PlanMasterData> {
 // Imperative shell for the new-plan route: gate to owner/manager then resolve
 // the coverage-picker master data.
 export async function loadNewPlanPage(): Promise<PlanMasterData> {
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
-  if (ctx.membership.role !== 'owner' && ctx.membership.role !== 'manager') {
-    redirect('/plans')
-  }
+  const ctx = await requireCapabilityPage('canManagePlans')
   return loadPlanMasterData(ctx.membership.orgId)
 }
 
@@ -127,13 +116,7 @@ export type EditPlanPageData = PlanMasterData & { plan: SubscriptionPlan }
 // Imperative shell for the edit route — gate, resolve the plan (404), then the
 // coverage-picker master data.
 export async function loadEditPlanPage(planId: string): Promise<EditPlanPageData> {
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
-  if (ctx.membership.role !== 'owner' && ctx.membership.role !== 'manager') {
-    redirect('/plans')
-  }
+  const ctx = await requireCapabilityPage('canManagePlans')
   const plan = await getSubscriptionPlanById(ctx.membership.orgId, planId)
   if (!plan) notFound()
   const masterData = await loadPlanMasterData(ctx.membership.orgId)
