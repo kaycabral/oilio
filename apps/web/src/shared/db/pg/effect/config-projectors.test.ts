@@ -116,6 +116,9 @@ describe('professional projector — pure mapping', () => {
       id: professional.id,
       last_event_version: asPgBigint(at('last_event_version')),
       user_id: professional.userId,
+      // Derived membership key (`{orgId}_{userId}`) — same value the projector
+      // writes into `member_id`.
+      member_id: `${professional.orgId}_${professional.userId}`,
       default_commission: at('default_commission'),
       unit_ids: asPgJsonb(at('unit_ids')),
       catalog_service_ids: asPgJsonb(at('catalog_service_ids')),

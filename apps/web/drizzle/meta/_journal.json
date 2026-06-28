@@ -43,6 +43,13 @@
       "when": 1782606480919,
       "tag": "0005_professional_own_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782674757025,
+      "tag": "0006_member_operations_fk",
+      "breakpoints": true
     }
   ]
 }

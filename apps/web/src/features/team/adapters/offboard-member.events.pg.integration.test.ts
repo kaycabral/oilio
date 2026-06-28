@@ -112,9 +112,18 @@ async function seedProfessional(
   const serviceId = unitIds.length > 0 ? uniqueId('svc') : null
   const catalogServiceIds = serviceId ? [serviceId] : []
   if (serviceId) await seedService(orgId, serviceId)
+  // The operational profile hangs off the membership (brief 0076 AC-02) — ensure
+  // the parent membership exists so the composite FK is satisfiable (idempotent;
+  // the offboard cases seed their own membership status separately).
   await getEventStorePool().query(
-    `INSERT INTO professionals (org_id, id, last_event_version, user_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
-     VALUES ($1,$2,1,$3,NULL,$4::jsonb,$5::jsonb,$6,$6)`,
+    `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
+     VALUES ($1,$1||'_'||$2,$2,1,'professional','active',$3,'{}'::jsonb,$3)
+     ON CONFLICT (org_id, id) DO NOTHING`,
+    [orgId, userId, TS],
+  )
+  await getEventStorePool().query(
+    `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
+     VALUES ($1,$2,1,$3,$1||'_'||$3,NULL,$4::jsonb,$5::jsonb,$6,$6)`,
     [orgId, id, userId, JSON.stringify(unitIds), JSON.stringify(catalogServiceIds), TS],
   )
   await getEventStorePool().query(

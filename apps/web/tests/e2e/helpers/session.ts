@@ -984,6 +984,7 @@ const ProfessionalRowSchema = Schema.Struct({
   id: Schema.String,
   last_event_version: Schema.Union(Schema.String, Schema.Number),
   user_id: Schema.String,
+  member_id: Schema.String,
   default_commission: Schema.Unknown,
   unit_ids: Schema.Unknown,
   catalog_service_ids: Schema.Unknown,

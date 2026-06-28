@@ -237,14 +237,24 @@ const CREATES: ReadonlyArray<{
   {
     table: 'professionals',
     id: 'pro-1',
-    create: (id) =>
-      run(
+    create: async (id) => {
+      // The operational profile hangs off the membership (brief 0076 AC-02): the
+      // projector derives `member_id` as `{ORG}_{userId}` (userId = `user-${id}`)
+      // and the composite FK needs this parent.
+      await getEventStorePool().query(
+        `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
+         VALUES ($1,$1||'_user-'||$2,'user-'||$2,1,'professional','active',$3,'{}'::jsonb,$3)
+         ON CONFLICT (org_id, id) DO NOTHING`,
+        [ORG, id, TS],
+      )
+      await run(
         appendEvent(ProfessionalConfig, refOf('professionals', id), {
           _tag: 'professional.created',
           actorId: 'test',
           payload: { data: professional(id) },
         }).pipe(Effect.provide(PostgresPersistenceLayer)),
-      ).then(() => undefined),
+      )
+    },
   },
   {
     table: 'customers',
@@ -331,7 +341,7 @@ const creatorFor = (table: keyof typeof CONFIG_BY_TABLE): ((id: string) => Promi
 describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
   beforeEach(async () => {
     await getEventStorePool().query(
-      'TRUNCATE events, projections, professionals, customers, invites, categories, subscription_plans, agenda_blocks, goals, notifications, units, orgs CASCADE',
+      'TRUNCATE events, projections, professionals, memberships, customers, invites, categories, subscription_plans, agenda_blocks, goals, notifications, units, orgs CASCADE',
     )
     await seedOrg()
     await seedUnit()
@@ -420,8 +430,8 @@ describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
   it('AC-01: the DATABASE refuses a professional with a blank user_id (non-empty CHECK)', async () => {
     await expect(
       getEventStorePool().query(
-        `INSERT INTO professionals (org_id, id, last_event_version, user_id, unit_ids, catalog_service_ids, created_at, updated_at)
-         VALUES ($1,'x',1,'   ','[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+        `INSERT INTO professionals (org_id, id, last_event_version, user_id, member_id, unit_ids, catalog_service_ids, created_at, updated_at)
+         VALUES ($1,'x',1,'   ',$1||'_   ','[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG],
       ),
     ).rejects.toMatchObject({ code: '23514' })
