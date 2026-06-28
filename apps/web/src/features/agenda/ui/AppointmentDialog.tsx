@@ -52,6 +52,8 @@ export function AppointmentDialog({
   appointment,
   businessName,
   confirmationTemplate,
+  selfProfessionalId = null,
+  canRegisterCustomer = true,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -67,6 +69,12 @@ export function AppointmentDialog({
   appointment?: Appointment | null
   businessName: string
   confirmationTemplate: string
+  // #1257: a self-scoped professional books only for themselves — the picker is
+  // replaced by a fixed hidden input carrying this id. Null = balcão (full picker).
+  selfProfessionalId?: string | null
+  // #1255 AC-05: only the balcão may register a customer inline. When false, the
+  // "Cadastrar novo" toggle is hidden (the server action also refuses it).
+  canRegisterCustomer?: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -188,16 +196,29 @@ export function AppointmentDialog({
             <Label htmlFor="appointment-professional" className="text-sm font-medium">
               Profissional
             </Label>
+            {/* #1257: a self-scoped professional books only for themselves — the
+                picker offers ONLY their own option (pre-selected), so the submit
+                always carries their id. The server action + RLS also enforce it.
+                The balcão gets the full list. Uses the design Select either way
+                (no hand-rolled primitive). */}
             <Select
               name="professionalId"
               required
-              defaultValue={appointment?.professionalId ?? defaultProfessionalId ?? undefined}
+              defaultValue={
+                selfProfessionalId ??
+                appointment?.professionalId ??
+                defaultProfessionalId ??
+                undefined
+              }
             >
               <SelectTrigger id="appointment-professional">
                 <SelectValue placeholder="Selecione…" />
               </SelectTrigger>
               <SelectContent>
-                {professionals.map((p) => (
+                {(selfProfessionalId
+                  ? professionals.filter((p) => p.id === selfProfessionalId)
+                  : professionals
+                ).map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name}
                   </SelectItem>
@@ -210,7 +231,7 @@ export function AppointmentDialog({
             <Label htmlFor="appointment-customer" className="text-sm font-medium">
               Cliente
             </Label>
-            {!editMode ? (
+            {!editMode && canRegisterCustomer ? (
               <button
                 type="button"
                 onClick={() => setCustomerMode(customerMode === 'existing' ? 'new' : 'existing')}
