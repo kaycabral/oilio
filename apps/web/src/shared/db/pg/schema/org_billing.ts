@@ -82,6 +82,23 @@ export const orgBillingStripeIndex = pgTable('org_billing_stripe_index', {
   orgId: text('org_id').notNull(),
 })
 
+/**
+ * Webhook idempotency ledger (brief 0074, AC-02). Stripe delivers each event
+ * at-least-once, so the handler must process every `event.id` exactly once. It
+ * inserts the id here with `ON CONFLICT DO NOTHING` BEFORE applying any state
+ * change; a conflict (already present) means "seen before" → the handler returns
+ * 200 early without re-applying. Non-RLS: the webhook has no session/org context
+ * and the table carries no org-scoped data — only the Stripe event id + when it
+ * was processed.
+ */
+export const stripeWebhookEvents = pgTable('stripe_webhook_events', {
+  eventId: text('event_id').primaryKey(),
+  processedAt: timestamp('processed_at', { withTimezone: true, mode: 'string' })
+    .notNull()
+    .defaultNow(),
+})
+
 export type StoredOrgBillingRow = typeof orgBilling.$inferSelect
 export type NewOrgBillingRow = typeof orgBilling.$inferInsert
 export type StoredOrgBillingStripeIndexRow = typeof orgBillingStripeIndex.$inferSelect
+export type StoredStripeWebhookEventRow = typeof stripeWebhookEvents.$inferSelect

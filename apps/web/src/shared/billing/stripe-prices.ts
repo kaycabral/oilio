@@ -33,3 +33,17 @@ export function stripePriceId(tier: Tier, cycle: BillingCycle): string | null {
   if (!isChargeableTier(tier)) return null
   return requireEnv(PRICE_ENV[tier][cycle])
 }
+
+// Inverse of stripePriceId: resolve a Stripe Price id back to its tier + cycle
+// (brief 0074). The webhook needs this to derive the plan a subscription is on
+// from the price the customer is being billed. Built from the same env vars, so
+// the two directions can never disagree. Returns null for an unknown price id (a
+// stale/foreign Stripe object) — the caller treats that as "not our plan".
+export function tierFromPriceId(priceId: string): { tier: Tier; cycle: BillingCycle } | null {
+  for (const tier of ['pro', 'advanced'] as const) {
+    for (const cycle of ['monthly', 'annual'] as const) {
+      if (requireEnv(PRICE_ENV[tier][cycle]) === priceId) return { tier, cycle }
+    }
+  }
+  return null
+}
