@@ -47,6 +47,11 @@ export type SeedOrgInput = {
   selfBookingPublished?: boolean
   vertical?: 'barbershop' | 'auto_wash' | 'auto_detailing' | 'other'
   cancellationPolicy?: { enabled: boolean; minNoticeMinutes: number }
+  // Assinatura Oilio tier (brief 0072 gating). Defaults to `advanced` so the
+  // seeded org has ALL capabilities — preserving the pre-gating assumption every
+  // existing spec relies on (create plans, copilot goal, commissions, 2nd unit).
+  // Gating-specific specs pass `'free'` (no Stripe row written) or `'pro'`.
+  tier?: 'free' | 'pro' | 'advanced'
 }
 
 export type SeededOrg = {
@@ -294,6 +299,7 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
     selfBookingPublished = true,
     vertical = 'barbershop',
     cancellationPolicy,
+    tier = 'advanced',
   } = input
 
   const password = 'E2E12345!'
@@ -360,6 +366,13 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
     updatedAt: now,
   }
   await seedOrgDoc(orgId, orgDoc)
+
+  // Assinatura Oilio (brief 0072 gating). `free` writes no row (getOrgBilling
+  // defaults a rowless org to Free); a paid tier seeds the row so the seeded org
+  // keeps every capability the existing specs assume.
+  if (tier !== 'free') {
+    await seedOrgBilling(orgId, { tier, unitQuantity: unitCount })
+  }
 
   // Membership (top-level)
   const membershipId = `${orgId}_${uid}`
@@ -1163,6 +1176,52 @@ export async function seedOrgLink(userId: string, orgId: string): Promise<void> 
        VALUES ($1, $2, $3)
        ON CONFLICT (user_id, org_id) DO NOTHING`,
       [userId, orgId, new Date().toISOString()],
+    )
+  } finally {
+    await client.end()
+  }
+}
+
+// Seed the Assinatura Oilio (org_billing) row for a Negócio (brief 0073/0074).
+// A Negócio with no row is treated as Free by getOrgBilling, so specs that need
+// the FREE baseline seed nothing; this helper is for the PAID case — it writes
+// the row the Stripe webhook would, so gating/billing-surface E2E can assert the
+// unlocked state without driving a real Stripe checkout. Direct INSERT (the
+// projector/emitEvent path is `server-only`, can't cross the Playwright bundle
+// boundary — same reason as seedOrgLink).
+export async function seedOrgBilling(
+  orgId: string,
+  opts: {
+    tier: 'pro' | 'advanced'
+    billingCycle?: 'monthly' | 'annual'
+    unitQuantity?: number
+  },
+): Promise<void> {
+  const { Client } = await import('pg')
+  const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
+  await client.connect()
+  try {
+    const now = new Date().toISOString()
+    await client.query(
+      `INSERT INTO org_billing
+         (org_id, id, last_event_version, tier, status, billing_cycle, unit_quantity,
+          stripe_customer_id, stripe_subscription_id, current_period_end, cancel_at_period_end,
+          created_at, updated_at)
+       VALUES ($1, $1, 1, $2, 'active', $3, $4, $5, $6, $7, false, $8, $8)
+       ON CONFLICT (org_id) DO UPDATE SET
+         tier = EXCLUDED.tier, status = EXCLUDED.status, billing_cycle = EXCLUDED.billing_cycle,
+         unit_quantity = EXCLUDED.unit_quantity, updated_at = EXCLUDED.updated_at`,
+      [
+        orgId,
+        opts.tier,
+        opts.billingCycle ?? 'monthly',
+        opts.unitQuantity ?? 1,
+        `cus_seed_${orgId}`,
+        `sub_seed_${orgId}`,
+        // ~30 days out — capabilities hold through the period.
+        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        now,
+      ],
     )
   } finally {
     await client.end()
