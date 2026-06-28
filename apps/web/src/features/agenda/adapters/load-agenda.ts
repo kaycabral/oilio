@@ -26,6 +26,7 @@ import { listUnitAppointmentsInRange } from '@/shared/org/appointment-read'
 import { listCustomersForOrg } from '@/shared/org/customer-read'
 import {
   listBookableMemberOperationsForOrg,
+  NO_MEMBER_OPERATION_SCOPE,
   resolveMemberOperationScope,
 } from '@/shared/org/member-operation-read'
 import { getActiveOrgContext } from '@/shared/org/membership'
@@ -35,6 +36,84 @@ import 'server-only'
 
 function isValidDateISO(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s)
+}
+
+// The day-scoped slice of the agenda view-model: the RLS-scoped appointments +
+// blocks for the active unit/day, plus the supporting catalog/customer maps.
+// Extracted from `loadAgendaPage` so the page stays under the complexity gate.
+type AgendaDayData = {
+  appointments: Appointment[]
+  blockSegments: ReturnType<typeof getBlockSegmentsForDay>
+  allServices: CatalogServiceItem[]
+  allCustomers: Customer[]
+  servicesById: Map<string, CatalogServiceItem>
+  customersById: Map<string, Customer>
+}
+
+// Empty slice for the no-unit / missing-profile paths (#1268) — keeps the
+// view-model shape stable without running any read.
+const EMPTY_AGENDA_DAY_DATA: AgendaDayData = {
+  appointments: [],
+  blockSegments: [],
+  allServices: [],
+  allCustomers: [],
+  servicesById: new Map(),
+  customersById: new Map(),
+}
+
+// Loads the day's appointments + blocks (RLS-scoped to `memberOperationScope`) and
+// the supporting catalog/customers for the active unit. All four reads are
+// independent — run them together.
+async function loadAgendaDayData(args: {
+  orgId: string
+  activeUnitId: string
+  date: string
+  timezone: string
+  dayStart: string
+  dayEnd: string
+  memberOperationScope: string
+}): Promise<AgendaDayData> {
+  const { orgId, activeUnitId, date, timezone, dayStart, dayEnd, memberOperationScope } = args
+  const [dayAppointments, blocks, catalogItems, enrichedCustomers] = await Promise.all([
+    // Unit-scoped read of the day's appointments from the typed `appointments`
+    // table under RLS (brief 0061 § Grupo C / AC-04).
+    listUnitAppointmentsInRange(
+      orgId,
+      activeUnitId,
+      { startUtc: dayStart, endUtc: dayEnd },
+      memberOperationScope,
+    ),
+    // Backend-aware (brief 0060, Grupo C): Postgres reads the typed
+    // `agenda_blocks` table under RLS, Firestore the org-scoped subcollection.
+    listAgendaBlocksForUnit(orgId, activeUnitId, memberOperationScope),
+    listCatalogItems(orgId),
+    // Não é um `*Snap` — `listCustomersForOrg` já resolve o doc + faz join com
+    // `users/` pro PII vir no shape público de `Customer`.
+    listCustomersForOrg(orgId),
+  ])
+  const blockSegments = getBlockSegmentsForDay(blocks, date, timezone)
+  // Unified catalog (brief 0023, #1004 → 0053/B3): the agenda picker offers the
+  // kind-service catalog items directly — no adapter back to a legacy shape.
+  const allServices = catalogItems.filter(isCatalogService)
+  const sortedCustomers = enrichedCustomers.sort((a, b) =>
+    a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }),
+  )
+  // Picker (new appointment) offers ACTIVE customers only — both non-active
+  // states drop out: `archivedAt` (LGPD block, #1100 AC-09) AND `deactivatedAt`
+  // (operator "Excluir cliente", brief 0033 AC-07). The display map below keeps
+  // ALL customers so existing appointments for a removed/blocked customer still
+  // resolve their name (history retained; blocked → neutral label).
+  const allCustomers = sortedCustomers.filter(
+    (c) => c.archivedAt === null && c.deactivatedAt === null,
+  )
+  return {
+    appointments: dayAppointments,
+    blockSegments,
+    allServices,
+    allCustomers,
+    servicesById: new Map(allServices.map((s) => [s.id, s])),
+    customersById: new Map(sortedCustomers.map((c) => [c.id, c])),
+  }
 }
 
 // Imperative shell for the agenda route: resolves session/org/unit, loads the
@@ -95,69 +174,55 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
   // clamp the agenda columns to their own, and (c) lock the appointment dialog's
   // memberOperation picker to themselves (#1257).
   const memberOperationScope = await resolveMemberOperationScope(ctx.membership)
-  const selfMemberOperationId = memberOperationScope === '' ? null : memberOperationScope
+  // Degraded fail-closed state (brief 0075, #1268): a self-scoped member whose
+  // `member_operations` projection isn't there yet resolves to the sentinel scope.
+  // The reads below would all come back EMPTY (the sentinel matches no row) — so
+  // the grid would look like the member lost their agenda. Detect it, skip the
+  // reads (they can only return nothing), and flag the view to render an explicit
+  // empty-state. The fail-closed invariant is preserved: we never widen to `''`.
+  const memberOperationMissing = memberOperationScope === NO_MEMBER_OPERATION_SCOPE
+  const selfMemberOperationId =
+    memberOperationScope === '' || memberOperationMissing ? null : memberOperationScope
 
   // A self-scoped memberOperation only sees their OWN column on the agenda grid —
   // not the colleagues' (even empty) columns. The balcão (`selfMemberOperationId
   // === null`) keeps every bookable column. The RLS-scoped appointment read
   // already hides colleagues' bookings; this clamps the columns to match, so
   // "ver a própria agenda" is the whole surface.
-  const memberOperations = activeUnitId
-    ? allMemberOperations.filter(
-        (p) =>
-          p.unitIds.includes(activeUnitId) &&
-          (selfMemberOperationId === null || p.id === selfMemberOperationId),
-      )
-    : []
+  // A self-scoped memberOperation only sees their OWN column; the balcão keeps all
+  // bookable columns. When the projection is missing (sentinel) there's no own
+  // column to show — clamp to none so the grid is empty and the explicit
+  // empty-state carries the message instead.
+  const memberOperations =
+    activeUnitId && !memberOperationMissing
+      ? allMemberOperations.filter(
+          (p) =>
+            p.unitIds.includes(activeUnitId) &&
+            (selfMemberOperationId === null || p.id === selfMemberOperationId),
+        )
+      : []
 
   const dayHours = getBusinessHoursForDay(activeUnitHours, date, timezone)
   const hasBusinessHours = isBusinessHoursConfigured(activeUnitHours)
 
   const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(date, timezone)
 
-  let appointments: Appointment[] = []
-  let customersById = new Map<string, Customer>()
-  let servicesById = new Map<string, CatalogServiceItem>()
-  let blockSegments: ReturnType<typeof getBlockSegmentsForDay> = []
-  let allServices: CatalogServiceItem[] = []
-  let allCustomers: Customer[] = []
-
-  if (activeUnitId) {
-    const [dayAppointments, blocks, catalogItems, enrichedCustomers] = await Promise.all([
-      // Unit-scoped read of the day's appointments from the typed `appointments`
-      // table under RLS (brief 0061 § Grupo C / AC-04).
-      listUnitAppointmentsInRange(
-        ctx.membership.orgId,
-        activeUnitId,
-        { startUtc: dayStart, endUtc: dayEnd },
-        memberOperationScope,
-      ),
-      // Backend-aware (brief 0060, Grupo C): Postgres reads the typed
-      // `agenda_blocks` table under RLS, Firestore the org-scoped subcollection.
-      listAgendaBlocksForUnit(ctx.membership.orgId, activeUnitId, memberOperationScope),
-      listCatalogItems(ctx.membership.orgId),
-      // Não é um `*Snap` — `listCustomersForOrg` já resolve o doc + faz
-      // join com `users/` pro PII vir no shape público de `Customer`.
-      listCustomersForOrg(ctx.membership.orgId),
-    ])
-    appointments = dayAppointments
-    blockSegments = getBlockSegmentsForDay(blocks, date, timezone)
-    // Unified catalog (brief 0023, #1004 → 0053/B3): the agenda picker offers
-    // the kind-service catalog items directly — no adapter back to a legacy shape.
-    allServices = catalogItems.filter(isCatalogService)
-    const sortedCustomers = enrichedCustomers.sort((a, b) =>
-      a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }),
-    )
-    // Picker (new appointment) offers ACTIVE customers only — both non-active
-    // states drop out: `archivedAt` (LGPD block, #1100 AC-09) AND `deactivatedAt`
-    // (operator "Excluir cliente", brief 0033 AC-07). The display map below keeps
-    // ALL customers so existing appointments for a removed/blocked customer still
-    // resolve their name (history retained; blocked → neutral label).
-    allCustomers = sortedCustomers.filter((c) => c.archivedAt === null && c.deactivatedAt === null)
-
-    servicesById = new Map(allServices.map((s) => [s.id, s]))
-    customersById = new Map(sortedCustomers.map((c) => [c.id, c]))
-  }
+  // Skip the day reads entirely when there's no active unit OR the member's
+  // operational profile is missing (#1268): both yield an empty agenda, and the
+  // sentinel reads would only come back empty anyway. The empty slice keeps the
+  // view-model shape stable while the empty-state carries the reason.
+  const dayData =
+    activeUnitId && !memberOperationMissing
+      ? await loadAgendaDayData({
+          orgId: ctx.membership.orgId,
+          activeUnitId,
+          date,
+          timezone,
+          dayStart,
+          dayEnd,
+          memberOperationScope,
+        })
+      : EMPTY_AGENDA_DAY_DATA
 
   const canManage = canManageOrg(ctx.membership.role)
 
@@ -168,14 +233,14 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
     units,
     activeUnitId,
     memberOperations,
-    appointments,
-    customersById: Object.fromEntries(customersById),
-    servicesById: Object.fromEntries(servicesById),
+    appointments: dayData.appointments,
+    customersById: Object.fromEntries(dayData.customersById),
+    servicesById: Object.fromEntries(dayData.servicesById),
     dayHours,
     hasBusinessHours,
-    blockSegments,
-    services: allServices,
-    customers: allCustomers,
+    blockSegments: dayData.blockSegments,
+    services: dayData.allServices,
+    customers: dayData.allCustomers,
     businessName: org.name,
     confirmationTemplate,
     canManage,
@@ -186,5 +251,10 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
     // #1255 AC-05: only the balcão may register a customer inline; a memberOperation
     // can't (the server action refuses too — this hides the toggle).
     canManageCustomers: ctx.membership.permissions.canManageCustomers,
+    // #1268: a self-scoped member whose operational profile isn't provisioned yet
+    // (onboarding incomplete / projection lag). The grid is intentionally empty
+    // (fail-closed); the view renders an explicit actionable empty-state instead
+    // of a mute blank grid that reads as data loss.
+    memberOperationMissing,
   }
 }

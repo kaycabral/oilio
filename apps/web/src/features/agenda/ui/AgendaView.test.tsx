@@ -1,6 +1,6 @@
 import type { HoursRange, MemberOperation, Unit } from '@/domain'
 import { EMPTY_ADDRESS, EMPTY_BUSINESS_HOURS } from '@/domain'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgendaView } from './AgendaView'
 
@@ -80,6 +80,7 @@ const baseProps = {
   confirmationTemplate: '',
   selfMemberOperationId: null,
   canManageCustomers: true,
+  memberOperationMissing: false,
 }
 
 beforeEach(() => {
@@ -132,5 +133,39 @@ describe('AgendaView — off-hours banner (#749)', () => {
     expect(
       screen.queryByText(/esta unidade ainda não tem horários de funcionamento/i),
     ).not.toBeInTheDocument()
+  })
+})
+
+// #1268: a self-scoped member whose operational profile isn't provisioned yet
+// resolves to the fail-closed sentinel scope; `load-agenda` skips the reads and
+// flags `memberOperationMissing`. The grid must NOT read as data loss — an
+// explicit, actionable empty-state carries the reason instead.
+describe('AgendaView — missing operational profile empty-state (#1268)', () => {
+  it('renders the explicit empty-state instead of the (empty) grid', () => {
+    render(<AgendaView {...baseProps} hasBusinessHours memberOperationMissing canManage={false} />)
+    expect(screen.getByText(/seu perfil de agenda ainda não está pronto/i)).toBeInTheDocument()
+    // The grid is suppressed — no mute blank surface.
+    expect(screen.queryByRole('grid', { name: 'agenda-grid' })).not.toBeInTheDocument()
+  })
+
+  it('offers a refresh action that re-fetches the route (projection lag recovery)', () => {
+    render(<AgendaView {...baseProps} hasBusinessHours memberOperationMissing canManage={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /atualizar/i }))
+    expect(mocks.routerRefresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the grid normally when the profile IS provisioned', () => {
+    render(
+      <AgendaView
+        {...baseProps}
+        hasBusinessHours
+        memberOperationMissing={false}
+        canManage={false}
+      />,
+    )
+    expect(
+      screen.queryByText(/seu perfil de agenda ainda não está pronto/i),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('grid', { name: 'agenda-grid' })).toBeInTheDocument()
   })
 })
