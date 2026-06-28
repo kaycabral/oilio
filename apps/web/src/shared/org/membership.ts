@@ -137,6 +137,28 @@ export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
 }
 
+// The user ids whose membership is CURRENTLY active AND role `professional` —
+// the set that legitimately backs a `professionals` projection row right now.
+// The projection and the role can diverge (a demoted member keeps a lingering
+// row for reversibility; a seed could insert one for a non-professional), so
+// operational surfaces (the agenda) cross-check the projection against THIS set
+// to decide who is bookable. Keyed on CURRENT state — never history — so a
+// later promotion (receptionist→professional) re-includes the user with no
+// special-casing, and a demotion drops them. Reads the typed table under RLS.
+export async function listActiveProfessionalUserIds(orgId: string): Promise<Set<string>> {
+  const rows = await readUnderRls<{ user_id: string }>(orgId, (client) =>
+    client
+      .query<{
+        user_id: string
+      }>(
+        "SELECT user_id FROM memberships WHERE org_id = $1 AND status = 'active' AND role = 'professional'",
+        [orgId],
+      )
+      .then((res) => res.rows),
+  )
+  return new Set(rows.map((r) => r.user_id))
+}
+
 export type OrgOption = { id: string; name: string }
 
 /**

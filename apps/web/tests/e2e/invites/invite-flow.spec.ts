@@ -142,7 +142,12 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
 
     await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await page.getByRole('button', { name: /aceitar convite/i }).click()
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
+    // A professional is NOT a manager, so the post-accept redirect targets
+    // `/agenda` instead of the manager-only Dashboard. This org has no
+    // appointment unit (unitCount: 0), so `/agenda` itself forwards to `/orders`
+    // (its no-agenda fallback) — the operational home a non-manager lands on
+    // here. A manager invite → `/dashboard` is covered by the first test.
+    await expect(page).toHaveURL(/\/orders/, { timeout: 10_000 })
 
     const accepted = await readInvite(owner.orgId, inviteId)
     expect(accepted?.status).toBe('accepted')

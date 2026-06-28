@@ -66,7 +66,13 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         match: 'prefix',
         requires: 'manageOrg',
       },
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: 'prefix' },
+      {
+        href: '/dashboard',
+        label: 'Dashboard',
+        icon: LayoutDashboard,
+        match: 'prefix',
+        requires: 'manageOrg',
+      },
       {
         href: '/copilot',
         label: 'Copiloto',

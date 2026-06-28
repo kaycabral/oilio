@@ -40,11 +40,17 @@ test.describe('Agenda — com profissional de cadastro incompleto', () => {
     },
   })
 
-  test('profissional não operacional mostra chip "Cadastro incompleto"', async ({ authedPage }) => {
+  test('profissional não operacional NÃO aparece na agenda (só em Equipe)', async ({
+    authedPage,
+  }) => {
+    // The agenda lists only BOOKABLE professionals (operational + active
+    // professional-role membership). An incomplete profile must NOT become a
+    // column — it belongs only on the Team page, where its "cadastro incompleto"
+    // badge lives. Showing it here only clutters the grid and misleads the UX.
     const agenda = new AgendaPage(authedPage)
     await agenda.goto()
-    await expect(agenda.professionalColumn('Profissional 1')).toBeVisible()
-    await expect(agenda.incompleteProfileChip()).toBeVisible()
+    await expect(agenda.professionalColumn('Profissional 1')).toHaveCount(0)
+    await expect(agenda.incompleteProfileChip()).toHaveCount(0)
   })
 })
 

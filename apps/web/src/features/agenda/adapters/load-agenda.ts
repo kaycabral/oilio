@@ -25,7 +25,7 @@ import { listUnitAppointmentsInRange } from '@/shared/org/appointment-read'
 import { listCustomersForOrg } from '@/shared/org/customer-read'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
-import { listProfessionalsForOrg } from '@/shared/org/professional-read'
+import { listBookableProfessionalsForOrg } from '@/shared/org/professional-read'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -54,9 +54,13 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
   // validate → first accessible / pinned for single-unit members. The old
   // `?unitId=` isolated source is gone; switching happens via the switcher
   // (#1051) which writes the cookie.
+  // Bookable = operational AND backed by an active membership with role
+  // `professional` (read-path invariant). Excludes incomplete profiles, demoted
+  // members whose projection lingers, and any non-professional that wrongly
+  // carries a projection row — none of them belong on the agenda grid.
   const [{ units, activeUnitId }, allProfessionals] = await Promise.all([
     resolveActiveUnit(ctx.membership),
-    listProfessionalsForOrg(ctx.membership.orgId),
+    listBookableProfessionalsForOrg(ctx.membership.orgId),
   ])
 
   // SPIKE (hours mode): the agenda is a capability gated on having ≥1 unit in
@@ -118,11 +122,12 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
     const sortedCustomers = enrichedCustomers.sort((a, b) =>
       a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }),
     )
-    // Picker (new appointment) offers ACTIVE customers only — a blocked/archived
-    // customer drops out (#1100, AC-09). The display map keeps ALL customers so
-    // existing appointments for a blocked customer still resolve to the neutral
-    // label (history is retained de-identified).
-    allCustomers = sortedCustomers.filter((c) => c.archivedAt === null)
+    // Picker (new appointment) offers ACTIVE customers only — both non-active
+    // states drop out: `archivedAt` (LGPD block, #1100 AC-09) AND `deactivatedAt`
+    // (operator "Excluir cliente", brief 0033 AC-07). The display map below keeps
+    // ALL customers so existing appointments for a removed/blocked customer still
+    // resolve their name (history retained; blocked → neutral label).
+    allCustomers = sortedCustomers.filter((c) => c.archivedAt === null && c.deactivatedAt === null)
 
     servicesById = new Map(allServices.map((s) => [s.id, s]))
     customersById = new Map(sortedCustomers.map((c) => [c.id, c]))

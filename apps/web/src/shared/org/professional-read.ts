@@ -20,8 +20,10 @@
 // Mirrors `customer-read.ts` (the reference identity-merge pattern, #832/#836).
 
 import {
+  isOperational,
   resolveSubjectName,
   StoredProfessional,
+  type BookableProfessional,
   type OperationalStatus,
   type Professional,
   type ProfessionalPii,
@@ -36,6 +38,7 @@ import {
 } from '@/shared/db/pg/pii-sidecars-store'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { getUsersByIds } from '@/shared/db/pg/users-store'
+import { listActiveProfessionalUserIds } from '@/shared/org/membership'
 import { Schema } from 'effect'
 
 const decodeStoredProfessional = Schema.decodeUnknownSync(StoredProfessional)
@@ -140,6 +143,30 @@ export async function listProfessionalsForOrg(orgId: string): Promise<Profession
   const stored = rows.map((r) => decodeStoredProfessional(rowToDoc(r)))
   const enriched = await enrichProfessionals(orgId, stored)
   return enriched.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
+}
+
+// The professionals who may appear on operational surfaces (the agenda grid) —
+// those that are BOTH operational (ready to take bookings) AND backed by a
+// CURRENTLY active membership with role `professional`. This is the read-path
+// invariant: the `professionals` projection alone is not trusted, because it can
+// outlive the role (a demoted member keeps a row for reversibility — see
+// role-edit-lifecycle) or be wrongly materialized (a seed/migration inserting a
+// row for a non-professional). Cross-checking the active-professional user set
+// closes both leaks WITHOUT deleting any data. Returns the `BookableProfessional`
+// brand so callers (the agenda) can't be handed the raw `listProfessionalsForOrg`
+// result by mistake. Keyed on current state, so a promotion re-includes the user
+// and a demotion drops them with no special-casing.
+export async function listBookableProfessionalsForOrg(
+  orgId: string,
+): Promise<BookableProfessional[]> {
+  const [professionals, activeProUserIds] = await Promise.all([
+    listProfessionalsForOrg(orgId),
+    listActiveProfessionalUserIds(orgId),
+  ])
+  return professionals.filter(
+    (p): p is BookableProfessional =>
+      isOperational(p.operationalStatus) && activeProUserIds.has(p.userId),
+  )
 }
 
 // The operational professionals who perform service Y AND work at unit X —

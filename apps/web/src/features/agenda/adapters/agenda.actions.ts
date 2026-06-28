@@ -1,12 +1,11 @@
 'use server'
 
 import {
-  isValidSlotMinutes,
   resolveCatalogItemForUnit,
   unitCancellationPolicySnapshot,
   type Appointment,
 } from '@/domain'
-import { AppointmentConfig, UnitConfig } from '@/domain/aggregates'
+import { AppointmentConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import {
   decideSnapshotRefresh,
@@ -30,10 +29,9 @@ import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointme
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
 
-import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { getAppointmentById } from '@/shared/org/appointment-read'
 import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
-import { requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
+import { requireOrgCtx } from '@/shared/org/membership'
 import { getUnitById } from '@/shared/org/unit-read'
 import {
   checkSlotConflicts,
@@ -43,44 +41,6 @@ import {
   persistAppointmentUpdate,
   type AppointmentMutationResult,
 } from './appointment-write-helpers'
-
-export type AgendaSettingsMutationResult = { ok: true } | { ok: false; error: string }
-
-export async function updateAgendaSlotMinutes(
-  slotMinutesInput: number,
-): Promise<AgendaSettingsMutationResult> {
-  const r = await requireManagerCtx()
-  if (!r.ok) return r
-  if (!isValidSlotMinutes(slotMinutesInput)) {
-    return { ok: false, error: 'Granularidade inválida' }
-  }
-
-  const orgId = r.ctx.membership.orgId
-  // The slot grid is an appointment-agenda concern of the establishment (PRD
-  // Identidade v2 — moved Org→Unit): update the ACTIVE unit's appointment
-  // agenda. The agenda page is unit-scoped, so the slot control acts on the unit
-  // the user is currently viewing.
-  const { activeUnitId, units } = await resolveActiveUnit(r.ctx.membership)
-  const activeUnit = activeUnitId ? units.find((u) => u.id === activeUnitId) : undefined
-  if (!activeUnit) return { ok: false, error: 'Unidade ativa não encontrada' }
-  if (activeUnit.agenda.mode !== 'appointment') {
-    return { ok: false, error: 'A unidade ativa não usa a agenda online' }
-  }
-
-  // Event-first: a granularidade vem do evento na agenda da unidade (sem
-  // `.update` paralelo). O reducer projeta a nova config de appointment.
-  const updated = await emitEvent(UnitConfig, aggregateRef(UnitConfig, orgId, activeUnit.id), {
-    _tag: 'unit.updated',
-    actorId: r.ctx.session.uid,
-    payload: {
-      changes: { agenda: { ...activeUnit.agenda, slotMinutes: slotMinutesInput } },
-    },
-  })
-  if (!updated.ok) return { ok: false, error: updated.error }
-
-  revalidatePath('/agenda')
-  return { ok: true }
-}
 
 export async function cancelAppointment(appointmentId: string): Promise<AppointmentMutationResult> {
   const r = await requireOrgCtx()

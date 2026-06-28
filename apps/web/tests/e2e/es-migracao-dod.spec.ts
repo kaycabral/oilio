@@ -76,7 +76,9 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       await signInAndAttachSession(context, invitee.email, invitee.password, baseURL ?? undefined)
       await page.goto(`/invites/${org.orgId}/${inviteId}?token=${rawToken}`)
       await page.getByRole('button', { name: /aceitar convite/i }).click()
-      await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
+      // Professional (non-manager) lands on `/agenda`, not the manager-only
+      // Dashboard — the org has an appointment unit.
+      await expect(page).toHaveURL(/\/agenda/, { timeout: 10_000 })
 
       // Descobre o id do profissional materializado (único do org) — pela
       // projeção tipada `professionals` no Postgres.

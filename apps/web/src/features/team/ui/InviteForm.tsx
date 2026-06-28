@@ -71,7 +71,7 @@ export function InviteForm() {
             if (next) setRole(next)
           }}
         >
-          <SelectTrigger id="invite-role">
+          <SelectTrigger id="invite-role" className="w-40 shrink-0">
             <SelectValue placeholder="Papel" />
           </SelectTrigger>
           <SelectContent>
