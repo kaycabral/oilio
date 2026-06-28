@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 
 // Minimum capability a nav entry requires to be shown (brief 0029, AC-08).
-// `manageOrg` gates org-admin surfaces (Configuração) and the
+// `manageOrg` gates org-admin surfaces (Administração) and the
 // financeiro-admin item (Relatórios) — receptionists do not see
 // them. `undefined` = visible to every member of the org. Resolved against
 // the membership role via the canonical RBAC helpers in `@/domain`
@@ -85,7 +85,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
     ],
   },
   {
-    label: 'Configuração',
+    label: 'Administração',
     items: [
       {
         // Negócios — the single management surface (PRD Identidade
@@ -122,7 +122,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
     // Personal account surfaces — visible to every member regardless of role.
     // Meu perfil is self-service rectification (brief 0032, AC-06) and
     // Privacidade is self-service erasure (AC-07); both are kept out of the
-    // admin-only Configuração section so receptionists still see them without
+    // admin-only Administração section so receptionists still see them without
     // gaining org-admin links.
     label: 'Conta',
     items: [
@@ -147,7 +147,7 @@ function canSeeItem(membership: Membership, signals: NavOrgSignals, item: GatedN
 // Builds the sidebar sections visible to a given membership (brief 0029,
 // AC-08). Items are filtered by their declared `requires` capability and
 // sections that end up empty are dropped — so a receptionist loses the whole
-// Configuração section plus the financeiro-admin items, while owner/manager
+// Administração section plus the financeiro-admin items, while owner/manager
 // see everything.
 export function getNavSections(membership: Membership, signals: NavOrgSignals): NavSection[] {
   return ALL_NAV_SECTIONS.flatMap((section) => {
