@@ -7,11 +7,8 @@ import {
   computeGoalTracking,
   resolveGoalPeriodWindow,
 } from '@/features/copilot/core/tracking'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
-import { getActiveOrgContext } from '@/shared/org/membership'
-import { redirect } from 'next/navigation'
+import { requireManagerPage } from '@/shared/org/membership'
 import 'server-only'
 
 export type CopilotPageProps = {
@@ -28,13 +25,9 @@ export type CopilotPageProps = {
 )
 
 export async function loadCopilotPage(): Promise<CopilotPageProps> {
-  if (!isFirebaseConfigured()) redirect('/')
-
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
+  // Owner/manager only — the Copiloto surfaces financial goal/actuals/projection
+  // (brief 0045). The nav hides it from non-managers; this is the server wall.
+  const ctx = await requireManagerPage()
 
   const orgId = ctx.membership.orgId
   const { activeUnitId, units } = await resolveActiveUnit(ctx.membership)
