@@ -123,8 +123,8 @@ async function seedAppointment(
   const startMs = new Date(appt.startAt).getTime()
   const endAt = new Date(startMs + 30 * 60_000).toISOString()
   await getEventStorePool().query(
-    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id, customer_user_id, member_operator_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at)
-     VALUES ($1,$2,'u1',1,'p1',$3,'s1',$4,NULL,$5,$6,'scheduled',5000,30,NULL,NULL,NULL,$7,$7)`,
+    `INSERT INTO appointments (org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id, customer_user_id, member_operator_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at, member_id)
+     VALUES ($1,$2,'u1',1,'p1',$3,'s1',$4,NULL,$5,$6,'scheduled',5000,30,NULL,NULL,NULL,$7,$7,(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = $1 AND mo.id = 'p1'))`,
     [orgId, appt.id, appt.customerId, CUSTOMER_USER_ID, appt.startAt, endAt, now],
   )
 }

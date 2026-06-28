@@ -16,7 +16,12 @@ import { registerTypedProjector, type TypedProjector } from './typed-projections
 
 const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 
-/** Ordered `appointments` column list — single source of truth for upsert + seed. */
+// `member_id` (brief 0076 AC-04) is NOT in this placeholder list: it is DERIVED
+// in the INSERT from the operational profile's `member_id` via a correlated
+// subquery on `member_operation_id` (the FK guarantees the profile row exists in
+// the same tx), so the direct history → membership reference is always consistent
+// with the performer and never enters the event payload. See `UPSERT` below.
+/** Ordered `appointments` placeholder column list — single source of truth for upsert + seed. */
 export const APPOINTMENT_COLUMNS = [
   'org_id',
   'id',
@@ -91,13 +96,22 @@ export function appointmentColumnValues(
   ]
 }
 
-const PLACEHOLDERS = APPOINTMENT_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-const CONFLICT_SET = APPOINTMENT_COLUMNS.filter((col) => col !== 'org_id' && col !== 'id')
+const ORG_ID_PLACEHOLDER = `$${APPOINTMENT_COLUMNS.indexOf('org_id') + 1}`
+const MEMBER_OPERATION_ID_PLACEHOLDER = `$${APPOINTMENT_COLUMNS.indexOf('member_operation_id') + 1}`
+// `member_id` derived from the operational profile (brief 0076 AC-04): the
+// membership the performer belongs to. The FK `member_operation_id →
+// member_operations` (RESTRICT) guarantees the profile row exists in this tx, so
+// the subquery always resolves; the result feeds the `appointments_member_id_fk`
+// (RESTRICT) that refuses removing a membership with appointment history.
+const MEMBER_ID_DERIVED = `(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = ${ORG_ID_PLACEHOLDER} AND mo.id = ${MEMBER_OPERATION_ID_PLACEHOLDER})`
+const INSERT_COLUMNS = [...APPOINTMENT_COLUMNS, 'member_id']
+const VALUE_EXPRESSIONS = [...APPOINTMENT_COLUMNS.map((_, i) => `$${i + 1}`), MEMBER_ID_DERIVED]
+const CONFLICT_SET = INSERT_COLUMNS.filter((col) => col !== 'org_id' && col !== 'id')
   .map((col) => `${col} = EXCLUDED.${col}`)
   .join(', ')
 const UPSERT = `
-  INSERT INTO appointments (${APPOINTMENT_COLUMNS.join(', ')})
-  VALUES (${PLACEHOLDERS})
+  INSERT INTO appointments (${INSERT_COLUMNS.join(', ')})
+  VALUES (${VALUE_EXPRESSIONS.join(', ')})
   ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
