@@ -6,14 +6,11 @@ import {
   type OperationalStatus,
 } from '@/domain'
 import { getUsersByIds } from '@/shared/db/pg/users-store'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
 import { listInvitesForOrg } from '@/shared/org/invite-read'
-import { getActiveOrgContext, listMembershipsForOrg } from '@/shared/org/membership'
+import { listMembershipsForOrg, requireManagerPage } from '@/shared/org/membership'
 import { listProfessionalStatuses } from '@/shared/org/professional-read'
-import { redirect } from 'next/navigation'
 import 'server-only'
 
 // A team list entry — either an accepted member (membership) or a still-pending
@@ -76,18 +73,13 @@ async function loadMemberIdentities(members: Membership[]): Promise<{
 export async function loadTeamPage(
   rawParams: { q?: string; view?: string } = {},
 ): Promise<TeamPageData> {
-  if (!isFirebaseConfigured()) redirect('/')
+  // Owner/manager only — the team list exposes member PII (emails, whatsapp) and
+  // invites. The nav hides it from non-managers; this is the server wall (a
+  // non-manager typing /team is redirected, not shown a degraded view).
+  const ctx = await requireManagerPage()
 
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
-
-  const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
   const searchQuery = rawParams.q ?? ''
-  // Non-managers can't see invites, so they're pinned to the members view.
-  const viewFilter: TeamViewFilter = canManage ? normalizeViewFilter(rawParams.view) : 'active'
+  const viewFilter: TeamViewFilter = normalizeViewFilter(rawParams.view)
 
   const orgId = ctx.membership.orgId
 
@@ -95,7 +87,7 @@ export async function loadTeamPage(
     // Typed memberships table under RLS — feature C/D.
     listMembershipsForOrg(orgId),
     // PII (invitee email) merged from `invites_pii` on read (#1036).
-    canManage ? listInvitesForOrg(orgId) : Promise.resolve<Invite[]>([]),
+    listInvitesForOrg(orgId),
     // `operationalStatus` is DERIVED on read (#1226 AC-02) from whatsapp (PII) +
     // units/services, so `listProfessionalStatuses` enriches and returns the
     // `{ userId, operationalStatus }` pairs the team page needs.
@@ -138,8 +130,10 @@ export async function loadTeamPage(
   })
 
   return {
-    canManage,
-    currentUserId: session.uid,
+    // Always an org-manager here (requireManagerPage gates the route); the flag
+    // stays in the view-model so the UI keeps gating owner-only affordances.
+    canManage: true,
+    currentUserId: ctx.session.uid,
     entries,
     displayNameByUserId,
     whatsappByUserId,

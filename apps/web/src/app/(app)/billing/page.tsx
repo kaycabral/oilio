@@ -1,11 +1,8 @@
 import { BillingPanel } from '@/features/billing/ui/BillingPanel'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { getOrgBilling } from '@/shared/org/billing-read'
-import { getActiveOrgContext } from '@/shared/org/membership'
+import { requireManagerPage } from '@/shared/org/membership'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { Main } from '@cbrl/design'
-import { redirect } from 'next/navigation'
 
 // Plano e cobrança — the self-service billing surface for the Assinatura Oilio
 // (brief 0073, AC-03). Reads the current org_billing state (Free default when
@@ -17,13 +14,10 @@ import { redirect } from 'next/navigation'
 // (`/organizations`, `/team`), while `/settings/*` stays the user's own area
 // (profile, privacy). See the nav "Administração" section.
 export default async function BillingPage() {
-  if (!isFirebaseConfigured()) redirect('/')
-
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
+  // Owner/manager only — exposes tier, billed units and billing period. The nav
+  // hides it from non-managers; this is the server wall. Manager sees the
+  // read-only view; only the owner gets the subscribe/portal actions below.
+  const ctx = await requireManagerPage()
 
   const [billing, units] = await Promise.all([
     getOrgBilling(ctx.membership.orgId),

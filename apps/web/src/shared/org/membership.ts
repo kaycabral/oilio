@@ -13,8 +13,11 @@ import { getPublicOrgNamesByIds } from '@/shared/db/pg/public-org-directory'
 import { readAsSubject, readUnderRls } from '@/shared/db/pg/rls-read'
 import { getUserById, getUsersByIds } from '@/shared/db/pg/users-store'
 import { getSessionUser, type SessionUser } from '@/shared/firebase/admin'
+import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { getOrgTier } from '@/shared/org/billing-read'
 import { Schema } from 'effect'
+import type { Route } from 'next'
+import { redirect } from 'next/navigation'
 import 'server-only'
 
 const decodeMembership = Schema.decodeUnknownSync(Membership)
@@ -213,6 +216,29 @@ export async function requireOwnerCtx(): Promise<RequireCtxResult> {
     return { ok: false, error: 'Permission denied (owner required)' }
   }
   return base
+}
+
+/**
+ * PAGE guard for owner/manager-only routes (brief 0029, AC-08). Resolves the
+ * org context and REDIRECTS (not a result union) when the visitor isn't an
+ * org-manager — the server-side wall behind the nav `requires: 'manageOrg'`
+ * gate, which is client-side and cosmetic. Use this as a one-liner in a route's
+ * loader so a non-manager can't reach a hidden surface by typing the URL.
+ *
+ * Mirrors `loadReportsPage`'s inline gate, extracted so every manageOrg-gated
+ * route shares ONE implementation — adding a route can't silently skip the
+ * check (the cause of the original leak on /copilot, /team, /billing).
+ * `notManagerTo` is where a non-manager lands (default `/agenda`, the
+ * lowest-privilege operational home).
+ */
+export async function requireManagerPage(notManagerTo: Route = '/agenda'): Promise<RequiredOrgCtx> {
+  if (!isFirebaseConfigured()) redirect('/')
+  const session = await getSessionUser()
+  if (!session) redirect('/login')
+  const ctx = await getActiveOrgContext(session.uid)
+  if (!ctx) redirect('/onboarding')
+  if (!canManageOrg(ctx.membership.role)) redirect(notManagerTo)
+  return { ...ctx, session }
 }
 
 /**
