@@ -156,6 +156,29 @@ describe('Stripe webhook dispatch → org_billing (brief 0074, AC-03)', () => {
     expect(billing.currentPeriodEnd).toBe(new Date(periodEnd * 1000).toISOString())
   })
 
+  it('customer.subscription.created activates a sub born outside checkout (portal path)', async () => {
+    await seedOrg('org-created')
+    const event = buildEvent(
+      'customer.subscription.created',
+      subscriptionObject({
+        id: 'sub_created',
+        customer: 'cus_created',
+        orgId: 'org-created',
+        priceId: PRO_MONTHLY,
+        quantity: 1,
+        status: 'active',
+        periodEnd: 1_900_000_000,
+      }),
+    )
+
+    await handleStripeEvent(event, noRetrieve)
+
+    const billing = await getOrgBilling('org-created')
+    expect(billing.tier).toBe('pro')
+    expect(billing.status).toBe('active')
+    expect(billing.stripeSubscriptionId).toBe('sub_created')
+  })
+
   it('customer.subscription.updated mirrors status, quantity, period, cancel (orgId via metadata)', async () => {
     await seedOrg('org-upd')
     const periodEnd = 1_900_000_000

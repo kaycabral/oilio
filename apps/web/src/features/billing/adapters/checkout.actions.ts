@@ -10,6 +10,7 @@ import { formString } from '@/shared/form-data'
 import { getOrgBilling } from '@/shared/org/billing-read'
 import { requireOwnerCtx } from '@/shared/org/membership'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
+import { toRoute } from '@/shared/routes'
 import { requireEnv } from '@cbrl/env'
 import { redirect } from 'next/navigation'
 
@@ -85,7 +86,9 @@ export async function startCheckout(formData: FormData): Promise<CheckoutResult>
   })
 
   if (!session.url) return { ok: false, error: 'Falha ao iniciar o checkout' }
-  redirect(session.url)
+  // session.url is Stripe's hosted Checkout (external) — not an in-app typed
+  // route; toRoute is the sanctioned narrowing seam for an opaque redirect target.
+  redirect(toRoute(session.url))
 }
 
 // Open the Stripe Customer Portal for self-service management (cancel/upgrade/
@@ -104,5 +107,6 @@ export async function manageBilling(): Promise<CheckoutResult> {
     customer: billing.stripeCustomerId,
     return_url: `${appUrl()}/settings/billing`,
   })
-  redirect(portal.url)
+  // External Stripe-hosted portal URL — same narrowing seam as the checkout redirect.
+  redirect(toRoute(portal.url))
 }
