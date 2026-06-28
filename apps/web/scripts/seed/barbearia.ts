@@ -37,6 +37,7 @@ import {
   seedCatalogItem,
   seedCategory,
   seedCustomer,
+  seedOrgBilling,
   seedOrgWithOwner,
   seedPlan,
   seedSubscription,
@@ -114,6 +115,19 @@ export async function seedBarbearia(): Promise<void> {
       vertical: 'barbershop',
     }),
     owner: OWNER,
+    now,
+  })
+
+  // Assinatura Oilio: the showcase org is on Avançado so the gated paid surfaces
+  // (planos, comissões, copiloto, relatórios, multi-unidade) are unlocked — it
+  // has 3 units below. Without this, gating (brief 0072) would lock the rich
+  // demo down to Free. The isolation orgs below stay Free on purpose, to also
+  // exercise the gate. (3 units → unitQuantity 3.)
+  await seedOrgBilling({
+    orgId: ORG_ID,
+    tier: 'advanced',
+    unitQuantity: 3,
+    actorId: OWNER.uid,
     now,
   })
 
