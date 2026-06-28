@@ -30,7 +30,7 @@ import { listUnitAppointmentsInRange } from '@/shared/org/appointment-read'
 import { getProfessionalById } from '@/shared/org/professional-read'
 import { assertCustomerIdNotBlocked } from '@/shared/privacy/assert-customer-not-blocked'
 
-import { AuthzError } from '@/shared/org/membership'
+import { AuthzError, getMembership } from '@/shared/org/membership'
 
 export type AppointmentMutationResult =
   | { ok: true; appointmentId: string }
@@ -66,8 +66,14 @@ export async function loadActiveCatalogService(
   return item
 }
 
-// Approval gate (#753): only `approved` professionals take bookings — re-checked
-// on update too (owner could move an appointment onto a non-approved pro).
+// Booking gate: only a BOOKABLE member takes bookings — re-checked on update too
+// (owner could move an appointment onto a non-bookable member). Post brief 0076
+// "bookable" is the capability `canBeBooked` ∧ operational readiness (the retired
+// `BookableProfessional` brand's contract, now a server-side gate): the agenda
+// read filters on exactly this (`listBookableProfessionalsForOrg`), so the write
+// path must enforce it too — a member soft-disabled via `canBeBooked=false`
+// stays out of the grid AND can't receive a booking through a stale form / deep
+// link. Mirrors the read invariant so the two can't drift.
 export async function loadApprovedProfessional(
   orgId: string,
   professionalId: string,
@@ -76,6 +82,10 @@ export async function loadApprovedProfessional(
   if (!professional) return 'Profissional não encontrado'
   if (!isOperational(professional.operationalStatus)) {
     return `Profissional não está operacional para receber agendamentos (status: ${professional.operationalStatus}).`
+  }
+  const membership = await getMembership(orgId, professional.userId)
+  if (!membership || membership.status !== 'active' || !membership.permissions.canBeBooked) {
+    return 'Profissional não está habilitado para receber agendamentos (capacidade de agenda desligada).'
   }
   return professional
 }
