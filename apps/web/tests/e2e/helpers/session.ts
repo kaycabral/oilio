@@ -513,12 +513,16 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
       createdAt: now,
       updatedAt: now,
     }
-    await seedProfessionalDoc(orgId, proDoc)
     // Membership(role=professional) for the seeded professional (brief 0037
     // #1085): the Professional projection is the operational view of a member,
     // so the fixture honors the invariant projeção ⟺ membro role=professional.
     // This makes the pro show up in `/team` and its member detail navigable at
     // `/team/{proUid}`. Permissions = the professional default.
+    //
+    // Seeded BEFORE the professional doc: the operational profile hangs off the
+    // membership via the composite FK `(org_id, member_id) → memberships`
+    // (brief 0076 AC-02), and these are separate (autocommit) seed txs, so the
+    // membership parent must exist when the professional row commits.
     const proMembershipId = `${orgId}_${proUid}`
     const proMembership: Membership = {
       id: proMembershipId,
@@ -533,6 +537,7 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
       permissions: defaultPermissionsForRole('professional'),
     }
     await seedMembershipDoc(proMembership)
+    await seedProfessionalDoc(orgId, proDoc)
     // Per-org PII (#1036, ADR 0010) — after #1046 only `taxIdentity`.
     // Identity (name/whatsapp/email) lives on the global User (read live).
     const proPii: ProfessionalPii = { taxIdentity: null }
@@ -753,9 +758,9 @@ export async function seedLoginableProfessional(
     createdAt: now,
     updatedAt: now,
   }
-  await seedProfessionalDoc(orgId, proDoc)
-  await upsertProfessionalPii({ orgId, id: professionalId, taxIdentity: null })
-
+  // Membership seeded BEFORE the professional doc — the operational profile hangs
+  // off the membership via the composite FK (brief 0076 AC-02), and these are
+  // separate (autocommit) seed txs.
   const membership: Membership = {
     id: membershipDocId(orgId, auth.uid),
     orgId,
@@ -769,6 +774,8 @@ export async function seedLoginableProfessional(
     permissions: defaultPermissionsForRole('professional'),
   }
   await seedMembershipDoc(membership)
+  await seedProfessionalDoc(orgId, proDoc)
+  await upsertProfessionalPii({ orgId, id: professionalId, taxIdentity: null })
 
   return { ...auth, professionalId }
 }
@@ -1061,10 +1068,31 @@ async function ensureProfessionalExists(orgId: string, professionalId: string): 
   )
     return
   const now = new Date().toISOString()
+  const proUid = `e2e-prof-user-${professionalId}`
+  // The operational profile hangs off the membership via the composite FK
+  // (brief 0076 AC-02) — ensure the parent membership exists first (these are
+  // separate seed txs, so ordering matters).
+  const membershipId = membershipDocId(orgId, proUid)
+  if (
+    !(await pgProjectionExists('memberships', aggregateRef(MembershipConfig, orgId, membershipId)))
+  ) {
+    await seedMembershipDoc({
+      id: membershipId,
+      orgId,
+      userId: proUid,
+      role: 'professional',
+      status: 'active',
+      invitedBy: null,
+      joinedAt: now,
+      updatedAt: now,
+      rlsUnitScope: null,
+      permissions: defaultPermissionsForRole('professional'),
+    })
+  }
   const doc: StoredProfessional = {
     id: professionalId,
     orgId,
-    userId: `e2e-prof-user-${professionalId}`,
+    userId: proUid,
     defaultCommission: null,
     unitIds: [],
     catalogServiceIds: [],
