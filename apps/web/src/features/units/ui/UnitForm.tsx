@@ -92,10 +92,18 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
       return
     }
     setSlugState({ kind: 'checking' })
+    // `cancelled` guards against a late setState: clearTimeout drops a debounce
+    // that hasn't fired, but once the async availability check is IN FLIGHT only
+    // this flag can stop its resolution from calling setSlugState after the effect
+    // re-ran (new keystroke) or the form unmounted (submit → redirect). A stray
+    // late setState here would re-render the form and re-run its validity gate
+    // mid-submit — the same flake class as the combobox blur timer.
+    let cancelled = false
     const handle = setTimeout(() => {
       void (async () => {
         try {
           const res = await checkUnitSlugAvailability(candidate, unit?.id ?? null)
+          if (cancelled) return
           if (!res.ok) {
             setSlugState({ kind: 'error', message: res.error })
             return
@@ -104,11 +112,15 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
           else if (res.reason === 'taken') setSlugState({ kind: 'taken' })
           else setSlugState({ kind: 'invalid' })
         } catch (e) {
+          if (cancelled) return
           setSlugState({ kind: 'error', message: e instanceof Error ? e.message : 'Erro' })
         }
       })()
     }, 300)
-    return () => clearTimeout(handle)
+    return () => {
+      cancelled = true
+      clearTimeout(handle)
+    }
   }, [slug, unit?.id, unit?.slug])
 
   function onSubmit(formData: FormData) {

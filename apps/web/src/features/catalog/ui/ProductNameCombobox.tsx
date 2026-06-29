@@ -137,17 +137,19 @@ export function ProductNameCombobox({
         onFocus={() => {
           if (suggestions.length > 0) setOpen(true)
         }}
-        // Let a click on a suggestion land before the blur closes the list (the
-        // 120ms lets `onMouseDown` on a row run first). Blurring away also ends an
-        // unfinished search: if the user tabs/clicks out (e.g. onto "Criar") a
-        // debounced query scheduled by the last keystroke must not re-render the
-        // form mid-submit. `choose` already cancels, so a pick won't reach here.
-        onBlur={() =>
-          setTimeout(() => {
-            setOpen(false)
-            onDismiss()
-          }, 120)
-        }
+        // Close the list + end the search SYNCHRONOUSLY on blur — never on a
+        // deferred timer. A picked suggestion fires its `onMouseDown` (which runs
+        // BEFORE blur by spec, and `choose` already cancels the search), so there
+        // is no pending click to wait out. The old `setTimeout(…, 120)` here was
+        // the flake root cause: when focus left for the submit button, it queued a
+        // setState ~120ms LATER, whose re-render re-ran the form's validity check
+        // (via the useFormValidity MutationObserver) and flickered "Criar" back to
+        // disabled mid-submit, so the click became a no-op and the redirect never
+        // fired (product-autofill hung 30s). Synchronous teardown closes that race.
+        onBlur={() => {
+          setOpen(false)
+          onDismiss()
+        }}
         onKeyDown={onKeyDown}
       />
       {searching ? (
