@@ -1,8 +1,7 @@
 'use server'
 
-import { mergeStubUserIntoClaimer } from '@/features/onboarding/adapters/user-merge'
 import { parseProfileForm } from '@/features/onboarding/core/profile-form'
-import { findClaimableStubByWhatsapp, getUserById, patchUser } from '@/shared/db/pg/users-store'
+import { getUserById, patchUser } from '@/shared/db/pg/users-store'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { toRoute } from '@/shared/routes'
 import type { Route } from 'next'
@@ -33,17 +32,12 @@ export async function completeProfile(formData: FormData): Promise<CompleteProfi
 
   const now = new Date().toISOString()
 
-  // #839 dedupe: a recepcionista may have already created a stub User for
-  // this human (random uuid, `claimedAt: null`) when adding them to her
-  // Customer book. If the WhatsApp matches, fold the stub into this OAuth
-  // user — re-points every Customer/Membership/Appointment FK and deletes
-  // the stub. Name from the completion form wins (data ownership — the
-  // user is canonical, not the org's typed-in copy). When no stub
-  // exists this is a normal new-user completion.
-  const stubUid = await findClaimableStubByWhatsapp(whatsapp, session.uid)
-  if (stubUid) {
-    await mergeStubUserIntoClaimer({ stubUid, claimerUid: session.uid })
-  }
+  // No stub dedupe (brief 0077, Grupo C — #1276). The recepcionista no longer
+  // creates stub Users by typing PII (the convite-contextual flow #1279 hands
+  // out a link instead), so there is no stub to fold in. Folding-by-WhatsApp was
+  // the SOURCE of the wrong-number breach the brief kills: a mistyped number on a
+  // stub could silently capture a real login. Each login is its own user — no
+  // merge. (Removed `findClaimableStubByWhatsapp` + `mergeStubUserIntoClaimer`.)
 
   await patchUser(
     session.uid,
