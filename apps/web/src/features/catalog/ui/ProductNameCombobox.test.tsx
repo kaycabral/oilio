@@ -150,6 +150,21 @@ describe('ProductNameCombobox', () => {
     expect(onDismiss).toHaveBeenCalled()
   })
 
+  it('blur fecha a lista e aborta a busca SINCRONAMENTE (sem timer diferido)', () => {
+    // Regression: the old onBlur deferred this teardown by 120ms via setTimeout.
+    // When focus left for the submit button, that late setState re-ran the form's
+    // validity check (useFormValidity MutationObserver) and flickered "Criar" to
+    // disabled mid-submit, so the click no-op'd and the redirect never fired
+    // (product-autofill e2e hung 30s). Teardown must be synchronous on blur, with
+    // NO fake timers needed — if this needs `vi.advanceTimers`, the flake is back.
+    const { input, onDismiss } = renderCombobox({ suggestions: SUGGESTIONS })
+    fireEvent.focus(input)
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    fireEvent.blur(input)
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
+
   it('mostra o indicador de carregamento enquanto busca', () => {
     renderCombobox({ searching: true })
     expect(screen.getByText(/buscando/i)).toBeInTheDocument()
