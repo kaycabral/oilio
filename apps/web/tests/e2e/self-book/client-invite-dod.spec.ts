@@ -120,7 +120,8 @@ test.describe('brief 0077 — Feature-level DoD', { tag: '@critical' }, () => {
 
     const tampered = '/signup/done?from=slug-que-nao-existe-99999'
     await page.goto(`/onboarding/profile?next=${encodeURIComponent(tampered)}`)
-    await page.getByRole('textbox', { name: /nome/i }).fill('Cliente Adulterado')
+    // Identity already supplied the name (seedAuthUser sets displayName), so the
+    // form confirms it — only whatsapp + birthDate are asked.
     await page
       .getByRole('textbox', { name: /whatsapp/i })
       .fill(`119${String(Date.now()).slice(-8)}`)
