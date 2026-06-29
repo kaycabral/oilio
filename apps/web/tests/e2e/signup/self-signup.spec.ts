@@ -55,7 +55,7 @@ test.describe('Auto-cadastro (#840)', () => {
       // o from. Vamos direto pro completion espelhando esse next.
       const next = `/signup/done?from=${slug}`
       await page.goto(`/onboarding/profile?next=${encodeURIComponent(next)}`)
-      await page.getByRole('textbox', { name: /nome/i }).fill('Cliente Smoke')
+      // Identity supplied the name (seedAuthUser displayName) — confirmed, not asked.
       await page.getByRole('textbox', { name: /whatsapp/i }).fill('11977776666')
       await fillBirthDate(page, '30/06/1988')
       await page.getByRole('button', { name: /continuar/i }).click()
@@ -86,7 +86,7 @@ test.describe('Auto-cadastro (#840)', () => {
     await signInAndAttachSession(context, customer.email, customer.password, baseURL ?? undefined)
 
     await page.goto(`/onboarding/profile?next=${encodeURIComponent('/signup/done')}`)
-    await page.getByRole('textbox', { name: /nome/i }).fill('Sem Org')
+    // Identity supplied the name (seedAuthUser displayName) — confirmed, not asked.
     await page.getByRole('textbox', { name: /whatsapp/i }).fill('11955554444')
     await fillBirthDate(page, '20/02/1985')
     await page.getByRole('button', { name: /continuar/i }).click()

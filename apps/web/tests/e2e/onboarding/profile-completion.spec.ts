@@ -27,7 +27,10 @@ test.describe('Onboarding — conclusão de perfil', () => {
     await expect(page).toHaveURL(/\/onboarding\/profile/)
     await expect(page.getByRole('heading', { name: /completar seu cadastro/i })).toBeVisible()
 
-    await page.getByRole('textbox', { name: /nome/i }).fill('Owner Smoke')
+    // The identity (seedAuthUser sets displayName) already gave us the name, so
+    // the form confirms it instead of re-asking — only whatsapp + birthDate left.
+    await expect(page.getByText(/você é/i)).toBeVisible()
+    await expect(page.getByRole('textbox', { name: /nome/i })).toHaveCount(0)
     await page.getByRole('textbox', { name: /whatsapp/i }).fill('11988887777')
     await fillBirthDate(page, '15/04/1990')
     await page.getByRole('button', { name: /continuar/i }).click()
@@ -60,7 +63,8 @@ test.describe('Onboarding — conclusão de perfil', () => {
     await signInAndAttachSession(context, owner.email, owner.password, baseURL ?? undefined)
 
     await page.goto('/onboarding/profile')
-    await page.getByRole('textbox', { name: /nome/i }).fill('Bad')
+    // Name comes from the identity (confirmed, not re-asked) — gate hinges on
+    // the masked WhatsApp below.
     // Typing non-digits into the masked PhoneInput yields an EMPTY value, so the
     // required field fails client validation and `Continuar` stays disabled (the
     // form is client-gated via useFormValidity — same as the units form). There's
@@ -79,7 +83,6 @@ test.describe('Onboarding — conclusão de perfil', () => {
     await signInAndAttachSession(context, owner.email, owner.password, baseURL ?? undefined)
 
     await page.goto('/onboarding/profile')
-    await page.getByRole('textbox', { name: /nome/i }).fill('Kid')
     await page.getByRole('textbox', { name: /whatsapp/i }).fill('11988887777')
     // 5 years ago — well under the 13-year cutoff.
     const fiveYearsAgo = new Date()
@@ -111,7 +114,6 @@ test.describe('Onboarding — conclusão de perfil', () => {
       await expect(page).toHaveURL(/\/onboarding\/profile/)
       await expect(page).toHaveURL(/next=/)
 
-      await page.getByRole('textbox', { name: /nome/i }).fill('Maria Invitee')
       await page.getByRole('textbox', { name: /whatsapp/i }).fill('11977776666')
       await fillBirthDate(page, '22/07/1992')
       await page.getByRole('button', { name: /continuar/i }).click()
