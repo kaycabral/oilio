@@ -13,7 +13,7 @@
 
 import { expect, test } from '../fixtures'
 import { listItem, rowAction } from '../helpers/list'
-import { seedCustomerShadowForUser } from '../helpers/session'
+import { seedCustomer, seedCustomerShadowForUser } from '../helpers/session'
 
 // Semeia um cliente "degenerado": um Customer shadow schema-completo cujo
 // `userId` aponta pra um User que NÃO existe (avulso sem user resolvível) —
@@ -26,29 +26,44 @@ async function seedDegenerateCustomer(orgId: string): Promise<string> {
 
 test.describe('Customers — baseline (#17)', () => {
   test('render + empty state', async ({ authedPage }) => {
-    // No customers → protagonist empty-state (brief 0034 / #1073): the
-    // EmptyState takes over with its single CTA; the header is hidden.
+    // No customers → protagonist empty-state (brief 0034 / #1073). Since brief
+    // 0077 (#1279) the establishment no longer types customer PII — the CTA
+    // hands out a contextual invite instead ("Convidar cliente").
     await authedPage.goto('/customers')
     await expect(authedPage.getByText('Nenhum cliente cadastrado')).toBeVisible()
-    await expect(authedPage.getByRole('link', { name: 'Cadastrar cliente' })).toBeVisible()
+    await expect(authedPage.getByRole('link', { name: 'Convidar cliente' })).toBeVisible()
     await expect(authedPage.getByRole('heading', { name: 'Clientes' })).toBeHidden()
   })
 
-  test('criar pelo fluxo real → listar → editar → excluir', async ({ authedPage }) => {
-    // WhatsApp único: User é dedupado por whatsapp GLOBALMENTE (cross-org);
-    // valor fixo colide com runs anteriores no emulator persistido e reusa um
-    // User com nome antigo. Ver memória "PII única por test".
-    const whatsapp = `119${Date.now().toString().slice(-8)}`
-
-    // Criar
+  test('convidar pelo fluxo real gera link contextual (sem digitar PII do cliente)', async ({
+    authedPage,
+  }) => {
+    // The "novo cliente" surface is now the contextual invite (#1279): the recep
+    // types ONLY a WhatsApp number and gets a signup link back — no Customer with
+    // recep-typed PII is created (that kills the wrong-number ghost).
     await authedPage.goto('/customers/new')
-    await authedPage.locator('input[name="name"]').fill('Cliente Baseline')
-    await authedPage.locator('input[name="whatsapp"]').fill(whatsapp)
-    await authedPage.getByRole('button', { name: 'Criar' }).click()
-    await expect(authedPage).toHaveURL(/\/customers$/)
+    await expect(authedPage.getByRole('heading', { name: 'Convidar cliente' })).toBeVisible()
+    await authedPage.locator('input[name="whatsapp"]').fill(`119${Date.now().toString().slice(-8)}`)
+    await authedPage.getByRole('button', { name: /enviar convite/i }).click()
+    // Result panel shows a copyable contextual link carrying `from={slug}`.
+    await expect(authedPage.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
+    await expect(authedPage.getByText(/\/signup\?/)).toBeVisible()
+  })
+
+  test('listar → editar → excluir (cliente materializado)', async ({ org, authedPage }) => {
+    // Customers now materialize via self-signup, not a balcão form. Seed one
+    // (unclaimed stub) to cover the list/edit/delete contract the page still owns.
+    // WhatsApp is required by the edit form's validity gate — without it `Salvar`
+    // stays disabled. Unique per run (User is deduped by whatsapp globally).
+    await seedCustomer(org.orgId, {
+      name: 'Cliente Baseline',
+      whatsapp: `5511${String(Date.now()).slice(-9)}`,
+    })
+
+    await authedPage.goto('/customers')
     await expect(authedPage.getByText('Cliente Baseline')).toBeVisible({ timeout: 5000 })
 
-    // Editar
+    // Editar (allowed while the User is an unclaimed stub).
     await rowAction(authedPage, /Cliente Baseline/, 'Editar')
     await expect(authedPage).toHaveURL(/\/customers\/.+/)
     await authedPage.locator('input[name="name"]').fill('Cliente Baseline Editado')

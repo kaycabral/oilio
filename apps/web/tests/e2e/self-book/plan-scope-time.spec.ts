@@ -21,7 +21,7 @@ import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
 import {
   linkMemberOperationToServices,
-  seedCustomer,
+  seedCustomerShadowForUser,
   seedService,
   seedSubscription,
 } from '../helpers/session'
@@ -52,10 +52,9 @@ test.describe(
       // tornar o filtro observável dentro de business hours do org
       // 09:00-18:00). Avulso vê todo o grid 09:00-18:00; assinante só vê
       // <10:00.
-      const customerId = await seedCustomer(org.orgId, {
-        name: 'Cliente Tempo',
-        userId: org.uid,
-      })
+      // `seedCustomerShadowForUser` (not `seedCustomer`) preserves the owner's
+      // completionCompleted=true — clobbering it would trip the #1275 gate.
+      const customerId = await seedCustomerShadowForUser(org.orgId, org.uid)
       await seedSubscription(org.orgId, customerId, {
         planName: 'Plano Janela Curta',
         allowedTimeScope: {
@@ -98,14 +97,8 @@ test.describe(
         start: outOfScopeStart,
       })
       await authedPage.goto(`/${slug}/unidade-1/book?${params.toString()}`)
-      // `await seedCustomer({ userId })` reescreve o User stub com completionCompleted=false,
-      // anulando o prefill do #864. Preenche os campos manualmente — o que
-      // importa pro DoD é o resultado do submit (out-of-scope notice), não
-      // o caminho do prefill (coberto em `session-prefill.spec.ts`).
-      await subscribed.fillContact({
-        name: 'Cliente Tempo',
-        whatsapp: '5511988887777',
-      })
+      // No PII to type (#1275) — one-click confirm. O que importa pro DoD é o
+      // resultado do submit (out-of-scope notice + WA CTA).
       await subscribed.confirmButton().click()
       await expect(authedPage.getByRole('link', { name: 'Falar no WhatsApp' })).toBeVisible()
     })

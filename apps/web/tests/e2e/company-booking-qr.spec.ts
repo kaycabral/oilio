@@ -35,8 +35,11 @@ test.describe('Unidade — QR por unidade', () => {
 
       // CardTitle é um <div> (data-slot="dialog/card-title"), não role=heading.
       await expect(authedPage.getByText('QR pra agendamento')).toBeVisible()
-      // O alvo do QR é a entrada de self-book da unidade: /{slug}/{unitSlug}.
-      await expect(authedPage.getByText(new RegExp(`/${slug}/${unitSlug}`))).toBeVisible()
+      // Desde o brief 0077 (#1279) o QR vira um convite contextual: sem booking
+      // context é signup-intent (`/signup?...&from={slug}`) atribuído ao canal QR
+      // (cbrl_source=qr). O nome + slug da unidade seguem como rótulos do card.
+      await expect(authedPage.getByText(new RegExp(`/signup\\?.*from=${slug}`))).toBeVisible()
+      await expect(authedPage.getByText(`/${unitSlug}`, { exact: true })).toBeVisible()
     }
   })
 })

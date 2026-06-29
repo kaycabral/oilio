@@ -31,8 +31,10 @@ const AREAS = [
     title: /nenhum item no catálogo/i,
   },
   {
+    // Brief 0077 (#1279): the establishment hands out a contextual invite
+    // instead of typing customer PII — the CTA reads "Convidar cliente".
     path: '/customers',
-    cta: 'Cadastrar cliente',
+    cta: 'Convidar cliente',
     newPath: '/customers/new',
     title: /nenhum cliente/i,
   },
