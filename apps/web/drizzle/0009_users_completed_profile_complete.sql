@@ -1,0 +1,24 @@
+-- ════════════════════════════════════════════════════════════════════════════
+-- Complete-registration invariant on `users` (brief 0077 AC-02, #1274).
+--
+-- The DATABASE layer of the defesa-em-3-camadas (banco + action + UI): a user who
+-- FINISHED the completion step (`completion_completed = true`) MUST carry the
+-- contact channel (`whatsapp`) and `birth_date`. Nobody completes registration
+-- without them, so nobody who logged in can linger *usable* with an incomplete
+-- profile — the brief's origin incident (a wrong/missing number, no path to fix).
+--
+-- Keyed on `completion_completed`, NOT `claimed_at`: the brief AC-02 wording says
+-- "claimed ⇒ complete", but the brief's own Fluxo principal logs the user in
+-- FIRST (step 4) and completes the profile AFTER (step 5). So claimed +
+-- not-yet-completed is the legitimate transient between login and the completion
+-- form — `/api/session` creates exactly that row on first login. Anchoring on
+-- `completion_completed` is the only predicate that forbids a usable incomplete
+-- account AND admits that transient. The booking gate (#1275) refuses to act for
+-- a non-completed user, so a claimed+incomplete row never produces an appointment.
+--
+-- Anonymized accounts (`anonymized_at IS NOT NULL`) are carved out: the LGPD
+-- erasure scrubs PII to null AFTER completion was proven, so a completed +
+-- anonymized user is allowed null whatsapp/birth_date — without this the erasure
+-- cascade would deadlock against this CHECK and `users_anonymized_pii_scrubbed`.
+-- ════════════════════════════════════════════════════════════════════════════
+ALTER TABLE "users" ADD CONSTRAINT "users_completed_profile_complete" CHECK ("users"."completion_completed" = false OR "users"."anonymized_at" IS NOT NULL OR ("users"."whatsapp" IS NOT NULL AND "users"."birth_date" IS NOT NULL));

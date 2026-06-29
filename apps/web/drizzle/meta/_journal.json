@@ -64,6 +64,13 @@
       "when": 1782688535368,
       "tag": "0008_appointment_member_id",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782751372192,
+      "tag": "0009_users_completed_profile_complete",
+      "breakpoints": true
     }
   ]
 }
