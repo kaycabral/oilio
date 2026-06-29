@@ -4,14 +4,14 @@ import { parseWizardFields } from './wizard-fields'
 const NOW = Date.parse('2026-03-10T12:00:00.000Z')
 const FUTURE = '2026-03-11T12:00:00.000Z'
 
+// Since brief 0077 (#1275) the confirm step carries NO customer PII — login is
+// required and the Customer is derived from the authenticated uid — so the
+// parser only validates the booking coordinates (service/pro/startAt).
 function form(overrides: Record<string, string> = {}): FormData {
   const base: Record<string, string> = {
     serviceId: 's1',
     memberOperationId: 'p1',
     startAt: FUTURE,
-    customerName: 'Maria Silva',
-    customerWhatsapp: '(11) 99999-9999',
-    customerEmail: 'maria@example.com',
     ...overrides,
   }
   const fd = new FormData()
@@ -26,10 +26,18 @@ describe('parseWizardFields', () => {
     if (typeof result === 'string') throw new Error(result)
     expect(result.serviceId).toBe('s1')
     expect(result.memberOperationId).toBe('p1')
-    expect(result.customerName).toBe('Maria Silva')
-    expect(result.whatsapp).toBe('5511999999999')
     expect(result.startAtDate.toISOString()).toBe(FUTURE)
-    expect(result.customerEmailRaw).toBe('maria@example.com')
+  })
+
+  it('does not parse any customer PII (none is carried anymore)', () => {
+    // Even if a tampered form smuggles PII fields, the parser ignores them —
+    // the typed result has only the booking coordinates.
+    const result = parseWizardFields(
+      form({ customerName: 'Maria', customerWhatsapp: '11999999999' }),
+      NOW,
+    )
+    if (typeof result === 'string') throw new Error(result)
+    expect(Object.keys(result).sort()).toEqual(['memberOperationId', 'serviceId', 'startAtDate'])
   })
 
   it('rejects missing service', () => {
@@ -44,16 +52,6 @@ describe('parseWizardFields', () => {
 
   it('rejects missing start', () => {
     expect(parseWizardFields(form({ startAt: '' }), NOW)).toBe('Horário não selecionado.')
-  })
-
-  it('rejects a too-short name', () => {
-    expect(parseWizardFields(form({ customerName: 'A' }), NOW)).toBe('Informe seu nome completo.')
-  })
-
-  it('rejects an invalid whatsapp', () => {
-    expect(parseWizardFields(form({ customerWhatsapp: '123' }), NOW)).toBe(
-      'Número de WhatsApp inválido.',
-    )
   })
 
   it('rejects a non-parseable start', () => {
