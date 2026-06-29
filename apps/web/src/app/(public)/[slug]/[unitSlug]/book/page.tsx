@@ -114,20 +114,16 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
     redirect(`/${slug}/${unitSlug}/availability?service=${encodeURIComponent(serviceQ)}`)
   }
 
-  // #864 session detection — when the visitor already has a global User
-  // (came in through OAuth, or self-cancelled a prior booking, or just
-  // signed up earlier), prefill name + whatsapp from the User doc so the
-  // confirm step is one click. Falls back to the anonymous form when
-  // there's no session.
+  // Session detection (#1275). Login is required to confirm; the confirm step
+  // carries no PII (the Customer is derived from the uid). We resolve only the
+  // display name of a signed-in + completed viewer so the screen reads
+  // "Agendando como <nome>". A visitor who isn't logged in (or hasn't completed)
+  // still sees the confirm screen — the action routes them to login/cadastro.
   const session = await getSessionUser()
   const sessionUser = session ? await getUserDoc(session.uid) : null
-  const prefill =
+  const viewerName =
     sessionUser && sessionUser.completionCompleted
-      ? {
-          name: sessionUser.displayName ?? '',
-          whatsapp: sessionUser.whatsapp ?? '',
-          email: sessionUser.email,
-        }
+      ? (sessionUser.displayName ?? sessionUser.email ?? 'cliente')
       : null
 
   // Brief 0019 Group D — AC-16. Same scope resolution path as the unit
@@ -207,7 +203,7 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
           appointmentAgenda(bundle.unit.agenda)?.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY
         }
         changeSlotHref={changeSlotHref}
-        prefill={prefill}
+        viewerName={viewerName}
         unitWhatsapp={bundle.unit.whatsapp}
         unitName={bundle.unit.name}
       />

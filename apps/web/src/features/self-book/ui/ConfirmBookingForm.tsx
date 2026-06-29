@@ -1,6 +1,5 @@
 'use client'
 
-import { PhoneInput } from '@/components/PhoneInput'
 import { buildWhatsappLink, type CancellationPolicy } from '@/domain'
 import { createWizardBooking } from '@/features/self-book/adapters/wizard-book.actions'
 import { formatNoticeWindow } from '@/features/self-book/core/format'
@@ -13,16 +12,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
-  Label,
 } from '@cbrl/design'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useId, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 
 // Step 3 of the self-book wizard (#844). All booking data (service, pro,
-// startAt) is locked from the URL — the only inputs are the visitor's
-// contact details. On success, navigates to /[slug]/[unitSlug]/book/success.
+// startAt) is locked from the URL. Since brief 0077 (#1275) the confirm step
+// carries NO customer PII: login is required and the Customer is derived from
+// the authenticated uid. On success, navigates to /[slug]/[unitSlug]/book/success.
 export function ConfirmBookingForm({
   slug,
   unitSlug,
@@ -34,7 +32,7 @@ export function ConfirmBookingForm({
   startAtLabel,
   cancellationPolicy,
   changeSlotHref,
-  prefill,
+  viewerName,
   unitWhatsapp,
   unitName,
 }: {
@@ -48,11 +46,11 @@ export function ConfirmBookingForm({
   startAtLabel: string
   cancellationPolicy: CancellationPolicy
   changeSlotHref: string
-  // #864 session pre-fill. When the visitor has a global User with
-  // `completionCompleted=true`, the page resolves their PII server-side
-  // and threads it here so the inputs start filled — single-click confirm.
-  // `null` means anonymous flow.
-  prefill: { name: string; whatsapp: string; email: string | null } | null
+  // Brief 0077 (#1275). Display-only name of the signed-in + completed viewer,
+  // resolved server-side, so the confirm screen reads "Agendando como <nome>".
+  // `null` means the viewer isn't logged in (or hasn't completed) — the action
+  // returns `needs-login`/`needs-completion` and we route them to fix it.
+  viewerName: string | null
   // Brief 0019 Group D — AC-17. Unit WhatsApp (normalized E.164 digits)
   // used to build the "Falar no WhatsApp" CTA shown when the booking
   // attempt is rejected because it's outside the customer's plan scope.
@@ -62,9 +60,6 @@ export function ConfirmBookingForm({
   unitName: string
 }) {
   const router = useRouter()
-  const customerNameId = useId()
-  const customerWhatsappId = useId()
-  const customerEmailId = useId()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   // Brief 0019 Group D — AC-17. Tracked separately from `error` so the
@@ -89,6 +84,12 @@ export function ConfirmBookingForm({
     `Oi! Sou cliente assinante e gostaria de agendar em ${unitName} fora do meu plano. Pode me ajudar?`,
   )
 
+  // Confirm CTA: one-click for a signed-in viewer; otherwise it kicks off the
+  // login round-trip (#1275). Hoisted out of JSX to keep the label flat.
+  let submitLabel = 'Confirmar agendamento'
+  if (pending) submitLabel = 'Confirmando…'
+  else if (!viewerName) submitLabel = 'Entrar e confirmar'
+
   function onSubmit(formData: FormData) {
     setError(null)
     setOutOfScope(null)
@@ -98,10 +99,24 @@ export function ConfirmBookingForm({
     formData.set('serviceId', serviceId)
     formData.set('memberOperationId', memberOperationId)
     formData.set('startAt', startAtIso)
+    // Round-trip target so login/completion returns the visitor right back to
+    // this confirm step with the booking context intact (#1275). Computed at
+    // click time from the live URL — keeps any contextual attribution params.
+    const next = encodeURIComponent(window.location.pathname + window.location.search)
     startTransition(async () => {
       const res = await createWizardBooking(formData)
       if (res.ok) {
         router.push(`/${slug}/${unitSlug}/book/success?appt=${res.bookingId}`)
+        return
+      }
+      // Login gate (#1275): nobody agenda sem login + cadastro completo. Route
+      // to Google login or completar cadastro, returning to this booking URL.
+      if ('kind' in res && res.kind === 'needs-login') {
+        router.push(`/login?next=${next}`)
+        return
+      }
+      if ('kind' in res && res.kind === 'needs-completion') {
+        router.push(`/onboarding/profile?next=${next}`)
         return
       }
       if ('kind' in res && res.kind === 'reschedule-required') {
@@ -137,55 +152,19 @@ export function ConfirmBookingForm({
         ← Trocar horário
       </Link>
 
-      {prefill ? (
+      {/* No customer PII inputs since #1275: login is required and the Customer
+          is derived from the authenticated uid. Logged-in viewers see who they
+          are agendando como; the rest get routed to login/completar cadastro on
+          submit (the server action is the authority either way). */}
+      {viewerName ? (
         <p className="text-muted-foreground border-border bg-muted/40 rounded-md border px-3 py-2 text-xs">
-          Logado como <strong>{prefill.name || 'cliente'}</strong>. Confirme os dados abaixo ou
-          edite se algo mudou.
+          Agendando como <strong>{viewerName}</strong>.
         </p>
-      ) : null}
-
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={customerNameId} className="text-sm font-medium">
-          Seu nome
-        </Label>
-        <Input
-          id={customerNameId}
-          name="customerName"
-          required
-          minLength={2}
-          placeholder="Nome completo"
-          defaultValue={prefill?.name ?? ''}
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={customerWhatsappId} className="text-sm font-medium">
-          WhatsApp
-        </Label>
-        <PhoneInput
-          id={customerWhatsappId}
-          name="customerWhatsapp"
-          required
-          defaultValue={prefill?.whatsapp ?? ''}
-        />
-        <span className="text-muted-foreground text-xs">
-          Usado pra confirmar e lembrar do horário.
-        </span>
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={customerEmailId} className="text-sm font-medium">
-          E-mail (opcional)
-        </Label>
-        <Input
-          id={customerEmailId}
-          name="customerEmail"
-          type="email"
-          placeholder="seu@email.com"
-          autoComplete="email"
-          defaultValue={prefill?.email ?? ''}
-        />
-      </div>
+      ) : (
+        <p className="text-muted-foreground border-border bg-muted/40 rounded-md border px-3 py-2 text-xs">
+          Você precisa entrar com sua conta pra confirmar. É rápido — seguimos do mesmo ponto.
+        </p>
+      )}
 
       {outOfScope ? (
         <div className="border-border bg-muted/40 flex flex-col gap-2 rounded-md border p-3 text-sm">
@@ -214,7 +193,7 @@ export function ConfirmBookingForm({
       ) : null}
 
       <Button type="submit" disabled={pending}>
-        {pending ? 'Confirmando…' : 'Confirmar agendamento'}
+        {submitLabel}
       </Button>
 
       <Dialog

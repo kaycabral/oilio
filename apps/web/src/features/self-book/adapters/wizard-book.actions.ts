@@ -23,14 +23,14 @@ import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointme
 import { checkBookingLimits } from '@/features/booking/adapters/check-booking-limits'
 import { commitAppointmentBooking } from '@/features/booking/adapters/commit-appointment'
 import { resolveCustomerSubscriptionScope } from '@/features/booking/adapters/subscription-scope.repo'
-import { isValidEmail } from '@/features/self-book/core/contact'
 import { parseWizardFields, type WizardFields } from '@/features/self-book/core/wizard-fields'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { newId } from '@/shared/db/pg/new-id'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
-import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
+import { ensureSelfSignupCustomer } from '@/shared/org/customer-upsert'
 import { getMemberOperationById } from '@/shared/org/member-operation-read'
+import { getUserDoc } from '@/shared/org/membership'
 import { getOrgBySlug } from '@/shared/org/org'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
 import { channelOf, emitClientFunnelEvent } from '@/shared/product'
@@ -62,6 +62,15 @@ export type WizardBookingResult =
   // (temporal axis). The client trades the generic error for a friendly
   // message with a "Falar no WhatsApp" CTA pointing at the unit.
   | { ok: false; kind: 'out-of-scope'; error: string }
+  // Brief 0077 Grupo A — AC-01/AC-03 (#1275). The action refuses to book
+  // without an authenticated session: nobody agenda sem login. The client
+  // sends the visitor to Google login, returning to this booking URL.
+  | { ok: false; kind: 'needs-login' }
+  // Brief 0077 Grupo A — AC-03/AC-04 (#1274/#1275). Logged in but the
+  // profile isn't complete (no whatsapp/birthDate) — the DB CHECK + this
+  // gate both refuse. The client sends the visitor to completar cadastro,
+  // returning here. PII comes from the completed profile, never the form.
+  | { ok: false; kind: 'needs-completion' }
 
 // Resolve the unit / service / memberOperation and validate they form a bookable
 // combination in this unit (public visibility, links, approval). Error or trio.
@@ -201,8 +210,18 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
 
   const fields = parseWizardFields(formData)
   if (typeof fields === 'string') return { ok: false, error: fields }
-  const { serviceId, memberOperationId, startAtDate, customerName, whatsapp, customerEmailRaw } =
-    fields
+  const { serviceId, memberOperationId, startAtDate } = fields
+
+  // Login gate (brief 0077 Grupo A — AC-01/AC-03/AC-04, #1275). Nobody agenda
+  // sem login + cadastro completo. Server-side authority: even a tampered UI
+  // hits these two refusals. The customer is DERIVED from the authenticated uid
+  // — the confirm step carries no Nome/WhatsApp/email (those were removed).
+  const session = await getSessionUser()
+  if (!session) return { ok: false, kind: 'needs-login' }
+  const sessionUser = await getUserDoc(session.uid)
+  if (!sessionUser || !sessionUser.completionCompleted) {
+    return { ok: false, kind: 'needs-completion' }
+  }
 
   const entities = await resolveWizardEntities(org.id, fields, unitSlug)
   if (typeof entities === 'string') return { ok: false, error: entities }
@@ -219,7 +238,6 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   const resolved = resolveCatalogItemForUnit(service, unit.id)
   const endAt = new Date(startAtDate.getTime() + resolved.durationMinutes * 60_000)
 
-  const session = await getSessionUser()
   // Behavioral scope (brief 0019, Group C — AC-12..14) reuses the same resolver;
   // hoist the booking limits to enforce below once the customer is materialized.
   const scopeResult = await checkWizardSubscriptionScope({
@@ -235,19 +253,12 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   // forwarded as hidden form fields. Backend re-sanitizes (single boundary).
   const attribution = attributionFromParams((k) => formString(formData, k) || null)
 
-  const upsert = await upsertCustomerWithUser({
-    orgId: org.id,
-    name: customerName,
-    whatsappRaw: whatsapp,
-    email: isValidEmail(customerEmailRaw) ? customerEmailRaw : null,
-    birthDate: null,
-    // Write-once acquisition: only takes effect on FIRST materialization; a
-    // returning customer keeps their original acquisition (helper no-ops the
-    // field when the shadow already exists).
-    acquisition: attribution,
-  })
-  if (!upsert.ok) return upsert
-  const customerId = upsert.customerId
+  // Customer derived from the logged-in uid (#1275) — NOT from typed PII. The
+  // User doc already holds the (completed) PII; we only need the per-org shadow.
+  // Idempotent: a returning customer gets their existing shadow. Write-once
+  // acquisition lands only on first materialization.
+  const customer = await ensureSelfSignupCustomer(org.id, session.uid, attribution)
+  const customerId = customer.customerId
 
   const limitsErr = await enforceWizardBookingLimits({
     org: unitScope,

@@ -1,6 +1,5 @@
 'use client'
 
-import { PhoneInput } from '@/components/PhoneInput'
 import type { CancellationPolicy } from '@/domain'
 import { createPublicBooking } from '@/features/self-book/adapters/book.actions'
 import { formatBRL, formatDuration, formatNoticeWindow } from '@/features/self-book/core/format'
@@ -15,6 +14,7 @@ import {
   SelectValue,
 } from '@cbrl/design'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useId, useState, useTransition } from 'react'
 
 type ServiceOption = {
@@ -41,31 +41,44 @@ export function BookingForm({
   memberOperations: MemberOperationOption[]
   cancellationPolicy: CancellationPolicy
 }) {
+  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<{ bookingId: string } | null>(null)
   const startAtId = useId()
-  const customerNameId = useId()
-  const customerWhatsappId = useId()
-  const customerEmailId = useId()
 
   function onSubmit(formData: FormData) {
     setError(null)
     formData.set('slug', slug)
+    // Round-trip target so login/completion returns the visitor right back here
+    // with the booking context intact (#1275).
+    const next = encodeURIComponent(window.location.pathname + window.location.search)
     startTransition(async () => {
       const res = await createPublicBooking(formData)
-      if (!res.ok) setError(res.error)
-      else setSuccess({ bookingId: res.bookingId })
+      if (res.ok) {
+        setSuccess({ bookingId: res.bookingId })
+        return
+      }
+      // Login gate (#1275): nobody agenda sem login + cadastro completo.
+      if ('kind' in res && res.kind === 'needs-login') {
+        router.push(`/login?next=${next}`)
+        return
+      }
+      if ('kind' in res && res.kind === 'needs-completion') {
+        router.push(`/onboarding/profile?next=${next}`)
+        return
+      }
+      setError(res.error)
     })
   }
 
   if (success) {
     return (
       <div className="space-y-3 rounded-md border border-emerald-300 bg-emerald-50 p-4 text-sm dark:border-emerald-700 dark:bg-emerald-950/40">
-        <h2 className="text-base font-semibold">Agendamento solicitado!</h2>
+        <h2 className="text-base font-semibold">Agendamento confirmado!</h2>
         <p className="text-muted-foreground">
-          Sua solicitação foi registrada. O estabelecimento confirmará por WhatsApp em breve. Você
-          pode fechar esta página.
+          Seu horário está reservado. Você pode acompanhar e cancelar pelo app. Pode fechar esta
+          página.
         </p>
         <p className="text-muted-foreground text-xs">
           Código: <code>{success.bookingId.slice(0, 8)}</code>
@@ -132,41 +145,14 @@ export function BookingForm({
         <Input id={startAtId} name="startAt" type="datetime-local" required />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={customerNameId} className="text-sm font-medium">
-          Seu nome
-        </Label>
-        <Input
-          id={customerNameId}
-          name="customerName"
-          required
-          minLength={2}
-          placeholder="Nome completo"
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={customerWhatsappId} className="text-sm font-medium">
-          WhatsApp
-        </Label>
-        <PhoneInput id={customerWhatsappId} name="customerWhatsapp" required />
-        <span className="text-muted-foreground text-xs">
-          Usado pra confirmar e lembrar do horário.
-        </span>
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={customerEmailId} className="text-sm font-medium">
-          E-mail (opcional)
-        </Label>
-        <Input
-          id={customerEmailId}
-          name="customerEmail"
-          type="email"
-          placeholder="seu@email.com"
-          autoComplete="email"
-        />
-      </div>
+      {/* No customer PII inputs since #1275: login is required and the Customer
+          is derived from the authenticated uid. Visitors who aren't logged in
+          (or haven't completed) are routed to login/completar cadastro on submit
+          and return right here — the server action is the authority. */}
+      <p className="text-muted-foreground border-border bg-muted/40 rounded-md border px-3 py-2 text-xs">
+        Pra confirmar, você entra com sua conta. Seus dados vêm do seu cadastro — sem digitar nome
+        ou WhatsApp de novo.
+      </p>
 
       {error ? (
         <p className="text-destructive border-destructive/40 bg-destructive/10 rounded-md border p-2 text-sm">
@@ -183,7 +169,7 @@ export function BookingForm({
       ) : null}
 
       <Button type="submit" disabled={pending}>
-        {pending ? 'Enviando…' : 'Solicitar agendamento'}
+        {pending ? 'Enviando…' : 'Entrar e agendar'}
       </Button>
     </form>
   )
