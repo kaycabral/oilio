@@ -78,10 +78,10 @@ export function ClientInviteForm() {
             Convite gerado. O WhatsApp deve ter aberto com a mensagem pronta — se não, use o link
             abaixo.
           </p>
-          <div className="flex items-center gap-2">
-            <code className="bg-background text-muted-foreground min-w-0 flex-1 truncate rounded px-2 py-1 font-mono text-xs">
-              {result.inviteUrl}
-            </code>
+          <code className="bg-background text-muted-foreground block w-full rounded px-2 py-1 font-mono text-xs break-all">
+            {result.inviteUrl}
+          </code>
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
@@ -91,13 +91,13 @@ export function ClientInviteForm() {
               <Copy className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
               {copied ? 'Copiado' : 'Copiar'}
             </Button>
+            <Button asChild variant="outline" size="sm">
+              <a href={result.whatsappHref} target="_blank" rel="noopener noreferrer">
+                <Send className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                Abrir WhatsApp
+              </a>
+            </Button>
           </div>
-          <Button asChild variant="outline" size="sm" className="self-start">
-            <a href={result.whatsappHref} target="_blank" rel="noopener noreferrer">
-              <Send className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-              Abrir WhatsApp
-            </a>
-          </Button>
         </div>
       ) : null}
     </div>
