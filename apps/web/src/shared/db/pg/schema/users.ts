@@ -85,6 +85,32 @@ export const users = pgTable(
       'users_anonymized_pii_scrubbed',
       sql`${table.anonymizedAt} IS NULL OR (${table.whatsapp} IS NULL AND ${table.birthDate} IS NULL)`,
     ),
+    // Complete-registration invariant (brief 0077, AC-02) — the DATABASE layer of
+    // the defesa-em-3-camadas (banco + action + UI). A user who FINISHED the
+    // completion step (`completion_completed = true`) MUST carry the contact
+    // channel (whatsapp) and birth_date: nobody completes registration without
+    // them, so nobody who logged in can linger usable with an incomplete profile
+    // (the brief's origin incident — a wrong/missing number with no path to fix).
+    //
+    // Keyed on `completion_completed`, NOT `claimed_at` (brief AC-02 says
+    // "claimed ⇒ complete", but the brief's own Fluxo principal logs the user in
+    // FIRST — step 4 — and completes the profile AFTER — step 5; so claimed +
+    // not-yet-completed is the legitimate transient between login and the
+    // completion form, and `/api/session` creates exactly that row on first
+    // login. Anchoring the CHECK on `completion_completed` is the only predicate
+    // that both forbids a *usable* incomplete account and admits that transient.
+    // The booking gate (#1275) refuses to act for a non-completed user, so a
+    // claimed+incomplete row can never produce an appointment.)
+    //
+    // Anonymized accounts (`anonymized_at != null`) are carved out: the LGPD
+    // erasure scrubs PII to null AFTER completion was proven, so a completed +
+    // anonymized user is allowed null whatsapp/birth_date — without this the
+    // erasure cascade would deadlock against this CHECK and
+    // `users_anonymized_pii_scrubbed` at once.
+    check(
+      'users_completed_profile_complete',
+      sql`${table.completionCompleted} = false OR ${table.anonymizedAt} IS NOT NULL OR (${table.whatsapp} IS NOT NULL AND ${table.birthDate} IS NOT NULL)`,
+    ),
   ],
 )
 
