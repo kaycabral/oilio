@@ -44,7 +44,7 @@ describe('sanitizeAttributionValue (brief 0077 AC-13)', () => {
 })
 
 describe('attributionFromParams', () => {
-  it('reads the cbrl_* namespace and defaults intent to signup', () => {
+  it('reads the standard utm_* params and defaults intent to signup', () => {
     const a = attributionFromParams(
       reader({
         [ATTRIBUTION_PARAM.source]: 'qr',
@@ -74,18 +74,18 @@ describe('attributionFromParams', () => {
     expect(a.intent).toBe('signup')
   })
 
-  it('falls back to utm_* aliases when the cbrl_* axis is absent', () => {
+  it('falls back to the legacy cbrl_* alias when the utm_* axis is absent', () => {
     const a = attributionFromParams(
-      reader({ utm_source: 'instagram', utm_medium: 'social', utm_campaign: 'promo' }),
+      reader({ cbrl_source: 'instagram', cbrl_medium: 'social', cbrl_campaign: 'promo' }),
     )
     expect(a.source).toBe('instagram')
     expect(a.medium).toBe('social')
     expect(a.campaign).toBe('promo')
   })
 
-  it('prefers the cbrl_* axis over the utm_* alias', () => {
+  it('prefers the standard utm_* axis over the legacy cbrl_* alias', () => {
     const a = attributionFromParams(
-      reader({ [ATTRIBUTION_PARAM.source]: 'qr', utm_source: 'instagram' }),
+      reader({ [ATTRIBUTION_PARAM.source]: 'qr', cbrl_source: 'instagram' }),
     )
     expect(a.source).toBe('qr')
   })

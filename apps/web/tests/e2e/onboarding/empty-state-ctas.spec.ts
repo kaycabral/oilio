@@ -30,14 +30,10 @@ const AREAS = [
     newPath: '/catalog/new\\?kind=service',
     title: /nenhum item no catálogo/i,
   },
-  {
-    // Brief 0077 (#1279): the establishment hands out a contextual invite
-    // instead of typing customer PII — the CTA reads "Convidar cliente".
-    path: '/customers',
-    cta: 'Convidar cliente',
-    newPath: '/customers/new',
-    title: /nenhum cliente/i,
-  },
+  // NOTE: `/customers` is NOT in this navigation sweep. Since brief 0077 (#1279)
+  // its CTA opens a contextual-invite DIALOG (mirrors Equipe), not a create
+  // route — so it can't assert a `newPath` navigation. Its empty-state + dialog
+  // CTA is covered by its own test below + customers/baseline.spec.ts.
   { path: '/plans', cta: 'Cadastrar plano', newPath: '/plans/new', title: /nenhum plano/i },
   {
     // Brief 0023 (#1005): the old `/products` route was removed; the product
@@ -73,4 +69,15 @@ test.describe('Empty-state CTAs — core areas (#987)', () => {
       await expect(authedPage).toHaveURL(new RegExp(`${area.newPath}$`))
     })
   }
+
+  // `/customers` empty state (#1279): the primary CTA opens the contextual-invite
+  // dialog in place (no navigation), mirroring Equipe.
+  test('/customers: empty state CTA opens the contextual-invite dialog', async ({ authedPage }) => {
+    await authedPage.goto('/customers')
+    await expect(authedPage.getByText(/nenhum cliente/i)).toBeVisible()
+    await authedPage.getByRole('button', { name: 'Convidar cliente' }).click()
+    const dialog = authedPage.getByRole('dialog')
+    await expect(dialog.getByRole('heading', { name: 'Convidar cliente' })).toBeVisible()
+    await expect(dialog.locator('input[name="whatsapp"]')).toBeVisible()
+  })
 })

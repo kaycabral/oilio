@@ -20,18 +20,14 @@
 // Public booking is the only un-authenticated caller and is OK on the server
 // path because the action receives no auth surface beyond the form data.
 
-import { normalizeBrazilPhone, StoredCustomer, type Attribution, type User } from '@/domain'
+import { normalizeBrazilPhone, type Attribution, type StoredCustomer, type User } from '@/domain'
 import { CustomerConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
-import { rowToDoc, type CustomerRow } from '@/shared/db/pg/effect/customer-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
-import { findUserByWhatsapp, getUserById, patchUser, putUser } from '@/shared/db/pg/users-store'
+import { findUserByWhatsapp, patchUser, putUser } from '@/shared/db/pg/users-store'
 import { emitEvent } from '@/shared/effect-bridge'
 import { linkCustomerOrg } from '@/shared/identity/org-links'
-import { Schema } from 'effect'
 import { randomUUID } from 'node:crypto'
-
-const decodeStoredCustomer = Schema.decodeUnknownSync(StoredCustomer)
 
 // What we actually persist under `orgs/{t}/customers/{id}`. The PII
 // fields on the public `Customer` type are merged in at read time — see
@@ -222,52 +218,8 @@ export async function ensureSelfSignupCustomer(
   return { customerId, created: true }
 }
 
-// Update PII on the User behind a Customer. Recepcionista is allowed to do
-// this only while the User is still a stub (`claimedAt === null`). Once the
-// user claims the account via OAuth, only they may edit their own PII —
-// this helper enforces that as a hard gate (data ownership, #832).
-export async function updateCustomerPii(
-  customerId: string,
-  orgId: string,
-  patch: {
-    name?: string
-    whatsappRaw?: string
-    email?: string | null
-    birthDate?: string | null
-  },
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const rows = await readUnderRls<CustomerRow>(orgId, (client) =>
-    client
-      .query<CustomerRow>('SELECT * FROM customers WHERE org_id = $1 AND id = $2', [
-        orgId,
-        customerId,
-      ])
-      .then((res) => res.rows),
-  )
-  const row = rows[0]
-  if (!row) return { ok: false, error: 'Customer não encontrado' }
-  const customer = decodeStoredCustomer(rowToDoc(row))
-  const userId = customer.userId
-
-  const user = await getUserById(userId)
-  if (!user) return { ok: false, error: 'User órfão — Customer aponta pra nada' }
-  if (user.claimedAt !== null) {
-    return {
-      ok: false,
-      error: 'Cliente já se cadastrou — apenas ele pode atualizar os próprios dados',
-    }
-  }
-
-  const userPatch: Record<string, unknown> = {}
-  if (patch.name !== undefined) userPatch.display_name = patch.name
-  if (patch.email !== undefined) userPatch.email = patch.email
-  if (patch.birthDate !== undefined) userPatch.birth_date = patch.birthDate
-  if (patch.whatsappRaw !== undefined) {
-    const normalized = normalizeBrazilPhone(patch.whatsappRaw)
-    if (!normalized) return { ok: false, error: 'WhatsApp inválido' }
-    userPatch.whatsapp = normalized
-  }
-  if (Object.keys(userPatch).length === 0) return { ok: true }
-  await patchUser(userId, userPatch, new Date().toISOString())
-  return { ok: true }
-}
+// NOTE(#1279): `updateCustomerPii` was removed. The establishment no longer
+// edits a customer's PII — the customer owns their own data (#1278, #832) and
+// the establishment-facing surface is read-only. The account identity (incl.
+// `email`) is written only by the customer's own self-signup/completion path
+// (`upsertCustomerWithUser` above), never typed by the recepção.

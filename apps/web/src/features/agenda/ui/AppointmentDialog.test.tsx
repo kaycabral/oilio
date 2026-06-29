@@ -89,7 +89,6 @@ function buildCustomer(): Customer {
     userId: 'u1',
     name: 'João',
     whatsapp: '5511999999999',
-    email: null,
     birthDate: null,
     avatarUrl: null,
     archivedAt: null,

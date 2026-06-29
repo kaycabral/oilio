@@ -157,7 +157,6 @@ describe('customer projector — pure mapping', () => {
     userId: 'user-9',
     name: 'Maria',
     whatsapp: '5511988888888',
-    email: null,
     birthDate: null,
     avatarUrl: null,
     archivedAt: null,

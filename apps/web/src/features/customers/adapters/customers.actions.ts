@@ -2,23 +2,19 @@
 
 import { CustomerConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
-import { parseCustomerForm } from '@/features/customers/core/customer-form'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
 import { buildClientInviteWhatsapp } from '@/shared/invite/client-invite'
 import { getCustomerUserId } from '@/shared/org/customer-read'
-import { updateCustomerPii } from '@/shared/org/customer-upsert'
 import { getCustomerDeletionImpact, type CustomerDeletionImpact } from '@/shared/org/delete-guard'
-import { AuthzError, guardCapability, requireManagerCtx } from '@/shared/org/membership'
+import { guardCapability, requireManagerCtx } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
-import { assertCustomerIdNotBlocked } from '@/shared/privacy/assert-customer-not-blocked'
 import { eraseCustomerCascadeInOrg } from '@/shared/privacy/erase-customer-cascade'
 import { emitClientFunnelEvent } from '@/shared/product'
 import { resolveBaseUrl } from '@/shared/site-url'
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 
 export type CustomerMutationResult = { ok: true } | { ok: false; error: string }
 
@@ -85,44 +81,8 @@ export async function generateClientInvite(
 // invite (`generateClientInvite` above). The customer materializes their own
 // account via login → completar cadastro (#1278). This is what kills the
 // wrong-number ghost the brief targets. Editing an existing customer's PII
-// (`updateCustomer`) stays — valid while the User is an unclaimed stub.
-
-export async function updateCustomer(
-  customerId: string,
-  formData: FormData,
-): Promise<CustomerMutationResult> {
-  // Same balcão wall as create (brief 0075).
-  const r = await guardCapability('canManageCustomers')
-  if (!r.ok) return r
-  const parsed = parseCustomerForm(formData)
-  if (typeof parsed === 'string') return { ok: false, error: parsed }
-
-  const orgId = r.ctx.membership.orgId
-
-  // Write-guard (brief 0032, AC-11): a blocked customer's relationship is
-  // severed — editing them in this org is rejected (erro à mostra).
-  try {
-    await assertCustomerIdNotBlocked(orgId, customerId)
-  } catch (e) {
-    if (e instanceof AuthzError) {
-      return { ok: false, error: 'Cliente bloqueado neste estabelecimento (exclusão LGPD).' }
-    }
-    throw e
-  }
-
-  // Customer identity is PII on the User; the Customer shadow carries no
-  // operator-editable free-text fields (brief 0040 — notes/tags removed).
-  const piiResult = await updateCustomerPii(customerId, orgId, {
-    name: parsed.name,
-    whatsappRaw: parsed.whatsapp,
-    email: parsed.email,
-    birthDate: parsed.birthDate,
-  })
-  if (!piiResult.ok) return piiResult
-
-  revalidatePath('/customers')
-  redirect('/customers')
-}
+// the customer's own data (#1278). The establishment only consults the customer
+// (read-only detail), so there is no establishment-side edit action anymore.
 
 // Powers the delete-confirm dialog's loss-list (brief 0033, AC-07/AC-10): the
 // client fetches this when the dialog opens to show what will be cancelled.

@@ -21,18 +21,20 @@ test.describe('Minimização de texto livre — DoD 0040 (#1108)', { tag: '@crit
 
   // Cenário 1 — cadastrar cliente sem texto livre.
   test('cenário 1: convite de cliente sem campo de notas nem tags', async ({ authedPage }) => {
-    // Desde o brief 0077 (#1279) o estabelecimento não digita PII do cliente: a
-    // tela "novo cliente" virou o convite contextual (só o WhatsApp). A
-    // minimização do 0040 segue valendo — nenhum texto livre (notes/tags) aqui.
-    await authedPage.goto('/customers/new')
-    await expect(authedPage.locator('input[name="whatsapp"]')).toBeVisible()
-    await expect(authedPage.locator('[name="tags"]')).toHaveCount(0)
-    await expect(authedPage.locator('textarea[name="notes"]')).toHaveCount(0)
-    await expect(authedPage.getByText('Observações')).toHaveCount(0)
+    // Desde o brief 0077 (#1279) o estabelecimento não digita PII do cliente: o
+    // convite contextual (só o WhatsApp) abre num modal na lista. A minimização
+    // do 0040 segue valendo — nenhum texto livre (notes/tags) aqui.
+    await authedPage.goto('/customers')
+    await authedPage.getByRole('button', { name: 'Convidar cliente' }).click()
+    const dialog = authedPage.getByRole('dialog')
+    await expect(dialog.locator('input[name="whatsapp"]')).toBeVisible()
+    await expect(dialog.locator('[name="tags"]')).toHaveCount(0)
+    await expect(dialog.locator('textarea[name="notes"]')).toHaveCount(0)
+    await expect(dialog.getByText('Observações')).toHaveCount(0)
     // Fluxo segue: gera o convite só com o número.
-    await authedPage.locator('input[name="whatsapp"]').fill(`119${String(Date.now()).slice(-8)}`)
-    await authedPage.getByRole('button', { name: /enviar convite/i }).click()
-    await expect(authedPage.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
+    await dialog.locator('input[name="whatsapp"]').fill(`119${String(Date.now()).slice(-8)}`)
+    await dialog.getByRole('button', { name: /enviar convite/i }).click()
+    await expect(dialog.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
   })
 
   // Cenário 2 — fechar venda sem observações.
