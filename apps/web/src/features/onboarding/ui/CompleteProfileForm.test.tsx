@@ -19,14 +19,27 @@ function prefill(over: Partial<ProfilePrefill> = {}): ProfilePrefill {
 }
 
 describe('CompleteProfileForm — progressive profiling (brief 0077 #1277)', () => {
-  it('pre-fills the name the identity gave us (editable, not re-asked)', () => {
+  it('confirms the name the identity gave us instead of re-asking it', () => {
     render(
       <CompleteProfileForm
         prefill={prefill({ name: 'Maria Silva', missing: ['whatsapp', 'birthDate'] })}
         next="/dashboard"
       />,
     )
-    expect(screen.getByLabelText(/nome/i)).toHaveValue('Maria Silva')
+    expect(screen.queryByLabelText(/nome/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/você é/i).textContent).toMatch(/Maria Silva/)
+  })
+
+  it('asks for the name only when the identity gave us none', () => {
+    render(
+      <CompleteProfileForm
+        prefill={prefill({ name: '', missing: ['name', 'whatsapp', 'birthDate'] })}
+        next="/dashboard"
+      />,
+    )
+    // No name from Google → editable input shown so the user can provide it.
+    expect(screen.getByLabelText(/nome/i)).toBeInTheDocument()
+    expect(screen.queryByText(/você é/i)).not.toBeInTheDocument()
   })
 
   it('marks only the still-missing fields with a "falta preencher" hint', () => {
