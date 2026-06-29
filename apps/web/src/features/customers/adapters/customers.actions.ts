@@ -3,49 +3,89 @@
 import { CustomerConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { parseCustomerForm } from '@/features/customers/core/customer-form'
-import { dispatchNotificationReactions } from '@/features/notifications/adapters/reactor-dispatch'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { emitEvent } from '@/shared/effect-bridge'
+import { formString } from '@/shared/form-data'
+import { buildClientInviteWhatsapp } from '@/shared/invite/client-invite'
 import { getCustomerUserId } from '@/shared/org/customer-read'
-import { updateCustomerPii, upsertCustomerWithUser } from '@/shared/org/customer-upsert'
+import { updateCustomerPii } from '@/shared/org/customer-upsert'
 import { getCustomerDeletionImpact, type CustomerDeletionImpact } from '@/shared/org/delete-guard'
 import { AuthzError, guardCapability, requireManagerCtx } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
 import { assertCustomerIdNotBlocked } from '@/shared/privacy/assert-customer-not-blocked'
 import { eraseCustomerCascadeInOrg } from '@/shared/privacy/erase-customer-cascade'
+import { emitClientFunnelEvent } from '@/shared/product'
+import { resolveBaseUrl } from '@/shared/site-url'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 export type CustomerMutationResult = { ok: true } | { ok: false; error: string }
 
-export async function createCustomer(formData: FormData): Promise<CustomerMutationResult> {
-  // Balcão only (brief 0075): recepção/manager/owner register customers; a
-  // self-scoped memberOperation cannot (the inline "novo cliente" path is also
-  // removed from the AppointmentDialog for memberOperations).
+export type GenerateClientInviteResult =
+  | { ok: true; whatsappHref: string; inviteUrl: string }
+  | { ok: false; error: string }
+
+// Contextual client invite (brief 0077, Grupo B — AC-05/AC-06, #1279). The
+// recepcionista informs ONLY the WhatsApp number; the system generates a signup
+// link carrying the org context + attribution and returns the `wa.me` deep link
+// for her to send. NO Customer with her-typed PII is created — the customer
+// materializes their own account on the other side (login → complete). The only
+// datum the recep provides is the destination number, which never persists here.
+export async function generateClientInvite(
+  formData: FormData,
+): Promise<GenerateClientInviteResult> {
   const r = await guardCapability('canManageCustomers')
   if (!r.ok) return r
-  const parsed = parseCustomerForm(formData)
-  if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  const result = await upsertCustomerWithUser({
-    orgId: r.ctx.membership.orgId,
-    name: parsed.name,
-    whatsappRaw: parsed.whatsapp,
-    email: parsed.email,
-    birthDate: parsed.birthDate,
-  })
-  if (!result.ok) return result
-  // `upsertCustomerWithUser` já emite `customer.created` (event-first
-  // centralizado). PII vai pro User dentro do helper, não pro evento.
+  const rawPhone = formString(formData, 'whatsapp').trim()
+  if (rawPhone.length === 0) return { ok: false, error: 'Informe o WhatsApp do cliente' }
 
-  await dispatchNotificationReactions('customer.created', r.ctx.session.uid, {
-    orgId: r.ctx.membership.orgId,
-    name: parsed.name,
-    whatsapp: parsed.whatsapp,
+  const orgId = r.ctx.membership.orgId
+  const org = await getOrg(orgId)
+  if (!org) return { ok: false, error: 'Estabelecimento não encontrado' }
+
+  const baseUrl = await resolveBaseUrl()
+  const built = buildClientInviteWhatsapp({
+    rawPhone,
+    baseUrl,
+    orgName: org.name,
+    invite: {
+      orgSlug: org.slug,
+      intent: 'signup',
+      attribution: {
+        source: 'whatsapp',
+        medium: 'invite',
+        campaign: null,
+        content: null,
+        term: null,
+        actorId: r.ctx.session.uid,
+        intent: 'signup',
+      },
+    },
   })
-  revalidatePath('/customers')
-  redirect('/customers')
+  if (!built.ok) return { ok: false, error: 'Número de WhatsApp inválido' }
+
+  // Funnel event (AC-12) — PII-zero: org/actor ids + channel only, never the
+  // number the recep typed. Best-effort; never traps the invite generation.
+  await emitClientFunnelEvent({
+    event: 'client_invite_issued',
+    orgId,
+    actorId: r.ctx.session.uid,
+    intent: 'signup',
+    source: 'whatsapp',
+    medium: 'invite',
+  })
+
+  return { ok: true, whatsappHref: built.href, inviteUrl: built.url }
 }
+
+// NOTE(#1279): `createCustomer` was removed. The establishment no longer registers
+// customers by typing PII — the "novo cliente" surface became the contextual
+// invite (`generateClientInvite` above). The customer materializes their own
+// account via login → completar cadastro (#1278). This is what kills the
+// wrong-number ghost the brief targets. Editing an existing customer's PII
+// (`updateCustomer`) stays — valid while the User is an unclaimed stub.
 
 export async function updateCustomer(
   customerId: string,

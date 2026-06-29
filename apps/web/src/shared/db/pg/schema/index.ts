@@ -13,6 +13,11 @@ export {
 } from './catalog_item_units'
 export { categories, type NewCategoryRow, type StoredCategoryRow } from './categories'
 export { charges, type NewChargeRow, type StoredChargeRow } from './charges'
+export {
+  clientFunnelEvents,
+  type NewClientFunnelEventRow,
+  type StoredClientFunnelEventRow,
+} from './client_funnel_events'
 export { commissions, type NewCommissionRow, type StoredCommissionRow } from './commissions'
 export { customers, type NewCustomerRow, type StoredCustomerRow } from './customers'
 export { events, type NewEvent, type StoredEvent } from './events'

@@ -183,6 +183,17 @@ export {
   computeNoticeMinutes,
 } from './types/appointment'
 export {
+  ATTRIBUTION_INTENTS,
+  ATTRIBUTION_MAX_LEN,
+  ATTRIBUTION_PARAM,
+  Attribution,
+  AttributionIntent,
+  attributionForEvent,
+  attributionFromParams,
+  attributionToSearchParams,
+  sanitizeAttributionValue,
+} from './types/attribution'
+export {
   CATALOG_ITEM_KINDS,
   CatalogItem,
   CatalogItemKind,

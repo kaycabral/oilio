@@ -1,23 +1,52 @@
+import { type BookingContext, buildClientInviteUrl } from '@/shared/invite/client-invite'
+import { resolveBaseUrl } from '@/shared/site-url'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@cbrl/design'
-import { headers } from 'next/headers'
 import QRCode from 'qrcode'
 import { CopyPublicUrlButton } from './CopyPublicUrlButton'
 
-// Booking-entry QR for a single unit (#864). Lives on the unit page since
-// the QR is a unit-level artifact — it points at `/{orgSlug}/{unitSlug}`,
-// Step 1 of the self-book wizard (#844). Whoever scans lands straight on the
-// unit's agenda; the customer record is created on booking confirmation.
+// Booking-entry QR for a single unit (#864, contextual since brief 0077 #1279).
+// Lives on the unit page since the QR is a unit-level artifact. The URL now
+// carries QR attribution (`source=qr`) so a scan is attributed to the QR channel
+// (AC-06/AC-10), and — when a `booking` context is supplied — the chosen
+// service/professional/slot are baked in so the scanner lands straight on the
+// confirm step (the brief's "QR com serviço + profissional + horário"). Without a
+// context it's the unit-level entry: pick service/slot on the unit agenda.
+//
+// PII-zero by construction: the QR encodes org/unit + service/pro/slot ids +
+// attribution only — never a customer's name/phone (AC-06).
 export async function UnitBookingQr({
   orgSlug,
   unitSlug,
   unitName,
+  booking,
+  campaign,
 }: {
   orgSlug: string
   unitSlug: string
   unitName: string
+  // Optional fully-resolved booking context (service + pro + slot) — when present
+  // the QR is contextual; when absent it's the unit entry point.
+  booking?: BookingContext
+  // Optional campaign slug to attribute the QR to a named campaign (flyer, promo).
+  campaign?: string
 }) {
   const baseUrl = await resolveBaseUrl()
-  const url = `${baseUrl}/${orgSlug}/${unitSlug}`
+  const intent = booking ? 'booking' : 'signup'
+  const url = buildClientInviteUrl(baseUrl, {
+    orgSlug,
+    intent,
+    booking,
+    attribution: {
+      source: 'qr',
+      medium: 'invite',
+      campaign: campaign ?? null,
+      content: null,
+      term: null,
+      // A QR is anonymous physical media — no per-actor attribution.
+      actorId: null,
+      intent,
+    },
+  })
   const qrSvg = await QRCode.toString(url, {
     type: 'svg',
     margin: 1,
@@ -30,9 +59,9 @@ export async function UnitBookingQr({
       <CardHeader>
         <CardTitle className="text-base">QR pra agendamento</CardTitle>
         <CardDescription>
-          Cole no balcão, no Instagram ou em um flyer. Quem escaneia entra direto na agenda desta
-          unidade — escolhe serviço, horário e confirma sem precisar pré-cadastrar nada. O cadastro
-          acontece automaticamente na confirmação do agendamento.
+          {booking
+            ? 'Serviço, profissional e horário já vêm escolhidos: quem escaneia faz login e confirma. O cadastro acontece automaticamente.'
+            : 'Cole no balcão, no Instagram ou em um flyer. Quem escaneia entra na agenda desta unidade — escolhe serviço, horário, faz login e confirma. O cadastro acontece automaticamente.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-4">
@@ -52,18 +81,4 @@ export async function UnitBookingQr({
       </CardContent>
     </Card>
   )
-}
-
-async function resolveBaseUrl(): Promise<string> {
-  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL
-  if (fromEnv) return stripTrailingSlash(fromEnv)
-  const h = await headers()
-  const host = h.get('x-forwarded-host') ?? h.get('host')
-  const proto = h.get('x-forwarded-proto') ?? 'http'
-  if (host) return `${proto}://${host}`
-  return 'http://localhost:3005'
-}
-
-function stripTrailingSlash(s: string): string {
-  return s.endsWith('/') ? s.slice(0, -1) : s
 }
