@@ -23,7 +23,9 @@ describe('buildClientInvitePath', () => {
     const url = new URL(`https://h${path}`)
     expect(url.pathname).toBe('/signup')
     expect(url.searchParams.get('from')).toBe('salao-x')
-    expect(url.searchParams.get('cbrl_source')).toBe('whatsapp')
+    // Marketing axes emit the standard utm_* names; actor/intent have no UTM
+    // equivalent and keep the cbrl_ namespace.
+    expect(url.searchParams.get('utm_source')).toBe('whatsapp')
     expect(url.searchParams.get('cbrl_actor')).toBe('recep-1')
     expect(url.searchParams.get('cbrl_intent')).toBe('signup')
   })

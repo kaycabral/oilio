@@ -36,7 +36,6 @@ function makeCustomer(over: Partial<Customer>): Customer {
     userId: 'u1',
     name: 'Maria Silva',
     whatsapp: '+5511900000000',
-    email: null,
     birthDate: null,
     avatarUrl: null,
     archivedAt: null,

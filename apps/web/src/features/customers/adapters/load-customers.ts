@@ -36,9 +36,10 @@ export async function loadCustomersPage(
   return { customers, searchQuery, canDelete, state }
 }
 
-// Imperative shell for the edit route — resolves the customer or null (404).
-// Same capability wall as the list: a memberOperation can't edit customers either.
-export async function loadCustomerForEdit(customerId: string): Promise<Customer | null> {
+// Imperative shell for the read-only detail route — resolves the customer or
+// null (404). Same capability wall as the list. The establishment only consults
+// a customer (#1279); editing the data belongs to the customer (#1278).
+export async function loadCustomerForView(customerId: string): Promise<Customer | null> {
   const ctx = await requireCapabilityPage('canManageCustomers')
   return getCustomerById(ctx.membership.orgId, customerId)
 }

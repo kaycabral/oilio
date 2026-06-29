@@ -60,16 +60,19 @@ test.describe('brief 0077 — Feature-level DoD', { tag: '@critical' }, () => {
   })
 
   test('Cenário 2 — recepção convida sem digitar PII do cliente', async ({ authedPage }) => {
-    await authedPage.goto('/customers/new')
-    await expect(authedPage.getByRole('heading', { name: 'Convidar cliente' })).toBeVisible()
+    await authedPage.goto('/customers')
+    await authedPage.getByRole('button', { name: 'Convidar cliente' }).click()
+    const dialog = authedPage.getByRole('dialog')
+    await expect(dialog.getByRole('heading', { name: 'Convidar cliente' })).toBeVisible()
     // Só o WhatsApp — nenhum nome/email/nascimento do cliente é tipado aqui.
-    await expect(authedPage.locator('input[name="name"]')).toHaveCount(0)
-    await expect(authedPage.locator('input[name="birthDate"]')).toHaveCount(0)
-    await authedPage.locator('input[name="whatsapp"]').fill(`119${String(Date.now()).slice(-8)}`)
-    await authedPage.getByRole('button', { name: /enviar convite/i }).click()
+    await expect(dialog.locator('input[name="name"]')).toHaveCount(0)
+    await expect(dialog.locator('input[name="email"]')).toHaveCount(0)
+    await expect(dialog.locator('input[name="birthDate"]')).toHaveCount(0)
+    await dialog.locator('input[name="whatsapp"]').fill(`119${String(Date.now()).slice(-8)}`)
+    await dialog.getByRole('button', { name: /enviar convite/i }).click()
     // Devolve o link contextual (signup com `from`) — sem criar Customer.
-    await expect(authedPage.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
-    await expect(authedPage.getByText(/\/signup\?.*from=/)).toBeVisible()
+    await expect(dialog.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
+    await expect(dialog.getByText(/\/signup\?.*from=/)).toBeVisible()
   })
 
   test('Cenário 5 — logado mas incompleto é mandado completar antes de agendar', async ({

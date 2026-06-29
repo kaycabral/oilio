@@ -28,33 +28,35 @@ test.describe('Customers — baseline (#17)', () => {
   test('render + empty state', async ({ authedPage }) => {
     // No customers → protagonist empty-state (brief 0034 / #1073). Since brief
     // 0077 (#1279) the establishment no longer types customer PII — the CTA
-    // hands out a contextual invite instead ("Convidar cliente").
+    // opens a contextual-invite dialog ("Convidar cliente").
     await authedPage.goto('/customers')
     await expect(authedPage.getByText('Nenhum cliente cadastrado')).toBeVisible()
-    await expect(authedPage.getByRole('link', { name: 'Convidar cliente' })).toBeVisible()
+    await expect(authedPage.getByRole('button', { name: 'Convidar cliente' })).toBeVisible()
     await expect(authedPage.getByRole('heading', { name: 'Clientes' })).toBeHidden()
   })
 
   test('convidar pelo fluxo real gera link contextual (sem digitar PII do cliente)', async ({
     authedPage,
   }) => {
-    // The "novo cliente" surface is now the contextual invite (#1279): the recep
+    // The invite surface is a dialog on the list (#1279, mirrors Equipe): the recep
     // types ONLY a WhatsApp number and gets a signup link back — no Customer with
     // recep-typed PII is created (that kills the wrong-number ghost).
-    await authedPage.goto('/customers/new')
-    await expect(authedPage.getByRole('heading', { name: 'Convidar cliente' })).toBeVisible()
-    await authedPage.locator('input[name="whatsapp"]').fill(`119${Date.now().toString().slice(-8)}`)
-    await authedPage.getByRole('button', { name: /enviar convite/i }).click()
+    await authedPage.goto('/customers')
+    await authedPage.getByRole('button', { name: 'Convidar cliente' }).click()
+    const dialog = authedPage.getByRole('dialog')
+    await expect(dialog.getByRole('heading', { name: 'Convidar cliente' })).toBeVisible()
+    await dialog.locator('input[name="whatsapp"]').fill(`119${Date.now().toString().slice(-8)}`)
+    await dialog.getByRole('button', { name: /enviar convite/i }).click()
     // Result panel shows a copyable contextual link carrying `from={slug}`.
-    await expect(authedPage.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
-    await expect(authedPage.getByText(/\/signup\?/)).toBeVisible()
+    await expect(dialog.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
+    await expect(dialog.getByText(/\/signup\?/)).toBeVisible()
   })
 
-  test('listar → editar → excluir (cliente materializado)', async ({ org, authedPage }) => {
-    // Customers now materialize via self-signup, not a balcão form. Seed one
-    // (unclaimed stub) to cover the list/edit/delete contract the page still owns.
-    // WhatsApp is required by the edit form's validity gate — without it `Salvar`
-    // stays disabled. Unique per run (User is deduped by whatsapp globally).
+  test('listar → ver → excluir (cliente materializado)', async ({ org, authedPage }) => {
+    // Customers now materialize via self-signup, not a balcão form. Seed one to
+    // cover the list/view/delete contract the page still owns. The establishment
+    // only CONSULTS the customer (read-only detail) — editing belongs to the
+    // customer (#1278). Unique per run (User is deduped by whatsapp globally).
     await seedCustomer(org.orgId, {
       name: 'Cliente Baseline',
       whatsapp: `5511${String(Date.now()).slice(-9)}`,
@@ -63,21 +65,20 @@ test.describe('Customers — baseline (#17)', () => {
     await authedPage.goto('/customers')
     await expect(authedPage.getByText('Cliente Baseline')).toBeVisible({ timeout: 5000 })
 
-    // Editar (allowed while the User is an unclaimed stub).
-    await rowAction(authedPage, /Cliente Baseline/, 'Editar')
+    // Ver — read-only detail (no edit form, no Salvar).
+    await rowAction(authedPage, /Cliente Baseline/, 'Ver')
     await expect(authedPage).toHaveURL(/\/customers\/.+/)
-    await authedPage.locator('input[name="name"]').fill('Cliente Baseline Editado')
-    await authedPage.getByRole('button', { name: 'Salvar' }).click()
-    await expect(authedPage).toHaveURL(/\/customers$/)
-    await expect(authedPage.getByText('Cliente Baseline Editado')).toBeVisible({ timeout: 5000 })
+    await expect(authedPage.getByRole('heading', { name: 'Cliente Baseline' })).toBeVisible()
+    await expect(authedPage.getByRole('button', { name: 'Salvar' })).toBeHidden()
+    await authedPage.goto('/customers')
 
     // Excluir — shared AlertDialog (brief 0033, AC-05/AC-10): high-impact, so
     // type the name to confirm before the destructive button enables.
-    await rowAction(authedPage, /Cliente Baseline Editado/, 'Excluir')
+    await rowAction(authedPage, /Cliente Baseline/, 'Excluir')
     const dialog = authedPage.getByRole('alertdialog')
-    await dialog.getByRole('textbox').fill('Cliente Baseline Editado')
+    await dialog.getByRole('textbox').fill('Cliente Baseline')
     await dialog.getByRole('button', { name: 'Excluir' }).click()
-    await expect(listItem(authedPage, /Cliente Baseline Editado/)).toBeHidden({
+    await expect(listItem(authedPage, /Cliente Baseline/)).toBeHidden({
       timeout: 5000,
     })
   })

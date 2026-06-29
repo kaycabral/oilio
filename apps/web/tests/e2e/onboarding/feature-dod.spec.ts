@@ -16,7 +16,6 @@
 
 import { expect, test } from '../fixtures'
 import { checkStable, fillStable } from '../helpers/hydration'
-import { listItem } from '../helpers/list'
 import { linkMemberOperationToServices, seedService } from '../helpers/session'
 import { PublicBookingPage, orgSlug } from '../pages'
 
@@ -64,32 +63,28 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
       await expect(authedPage).toHaveURL(/\/agenda(\/|\?|$)/)
     })
 
-    test('Cenário 2: empty-state leva ao cadastro real (round-trip pelo fluxo da UI)', async ({
+    test('Cenário 2: empty-state leva ao fluxo real (convite contextual pela UI)', async ({
       authedPage,
     }) => {
       // Área core vazia (Clientes — nenhum cliente semeado) → empty-state
-      // acionável com CTA primário que abre o fluxo de criação REAL.
+      // acionável. Desde o brief 0077 (#1279) o fluxo REAL não é mais um form de
+      // cadastro: o estabelecimento emite um convite contextual (só o WhatsApp) e
+      // o cliente faz o próprio cadastro. A CTA primária abre esse modal.
       await authedPage.goto('/customers')
       await expect(authedPage.getByText(/nenhum cliente/i)).toBeVisible()
-      const cta = authedPage.getByRole('link', { name: 'Cadastrar cliente' })
+      const cta = authedPage.getByRole('button', { name: 'Convidar cliente' })
       await expect(cta).toBeVisible()
 
-      // CTA abre o fluxo de criação REAL (não um wizard).
+      // CTA abre o fluxo real (modal de convite), não um form de PII.
       await cta.click()
-      await expect(authedPage).toHaveURL(/\/customers\/new$/)
+      const dialog = authedPage.getByRole('dialog')
+      await expect(dialog.getByRole('heading', { name: 'Convidar cliente' })).toBeVisible()
 
-      const ts = Date.now().toString()
-      const name = `Cliente DoD ${ts}`
-      await fillStable(authedPage.locator('input[name="name"]'), name)
-      await authedPage.locator('input[name="whatsapp"]').fill(`11${ts.slice(-9)}`)
-      await authedPage.getByRole('button', { name: 'Criar' }).click()
-
-      // Ao criar, o registro aparece na listagem e o empty-state some.
-      await expect(authedPage).toHaveURL(/\/customers$/)
-      await expect(listItem(authedPage, name)).toBeVisible({
-        timeout: 5000,
-      })
-      await expect(authedPage.getByText(/nenhum cliente/i)).toBeHidden()
+      // Informa só o número e gera o link contextual (sem criar Customer aqui).
+      await dialog.locator('input[name="whatsapp"]').fill(`11${Date.now().toString().slice(-9)}`)
+      await dialog.getByRole('button', { name: /enviar convite/i }).click()
+      await expect(dialog.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
+      await expect(dialog.getByText(/\/signup\?/)).toBeVisible()
     })
   })
 

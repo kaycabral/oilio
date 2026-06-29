@@ -14,9 +14,9 @@ import { PAGINATION_LABELS_PTBR } from '@/shared/list/pagination-labels'
 import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import { toRoute } from '@/shared/routes'
-import { Avatar, AvatarFallback, AvatarImage, Button, List } from '@cbrl/design'
+import { Avatar, AvatarFallback, AvatarImage, List } from '@cbrl/design'
 import { Users } from 'lucide-react'
-import Link from 'next/link'
+import { ClientInviteDialog } from './ClientInviteDialog'
 
 // Maps the server impact into the dialog's "isto vai…" list + blocker. An open
 // comanda is the only hard blocker (brief 0033, AC-07); the active subscription
@@ -85,9 +85,7 @@ export function CustomersList({
       header={
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Clientes</h1>
-          <Button asChild>
-            <Link href={toRoute('/customers/new')}>Convidar cliente</Link>
-          </Button>
+          <ClientInviteDialog />
         </header>
       }
       search={{
@@ -100,13 +98,12 @@ export function CustomersList({
         icon: <Users />,
         title: 'Nenhum cliente cadastrado',
         description:
-          'Convide seu primeiro cliente: você informa o WhatsApp e ele faz o próprio cadastro pelo link.',
-        actionSlot: <Link href={toRoute('/customers/new')}>Convidar cliente</Link>,
+          'Convide seu primeiro cliente em "Convidar cliente": você informa o WhatsApp e ele faz o próprio cadastro pelo link.',
       }}
       filteredEmpty={{ title: 'Nenhum cliente para esta busca.' }}
       renderItem={(c) => {
         const actions: RowAction[] = [
-          { kind: 'link', label: 'Editar', href: toRoute(`/customers/${c.id}`) },
+          { kind: 'link', label: 'Ver', href: toRoute(`/customers/${c.id}`) },
         ]
         if (canDelete) {
           // Operator delete (brief 0033, AC-07/AC-10) — NOT LGPD. Lists what will

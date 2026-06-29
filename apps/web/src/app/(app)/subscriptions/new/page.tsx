@@ -53,7 +53,7 @@ export default async function NewSubscriptionPage() {
         <div className="border-border bg-muted/20 rounded-md border p-6 text-sm">
           <p>Nenhum cliente cadastrado.</p>
           <Button asChild variant="outline" className="mt-3">
-            <Link href="/customers/new">Convidar cliente</Link>
+            <Link href="/customers">Convidar cliente</Link>
           </Button>
         </div>
       </Main>

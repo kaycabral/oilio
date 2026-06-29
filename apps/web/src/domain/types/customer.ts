@@ -3,9 +3,12 @@ import { Attribution } from './attribution'
 
 // `Customer` is the **conceptual entity** of a person known to a org —
 // what every read site and UI component handles. PII (name, whatsapp,
-// email, birthDate) is materialized into this shape at read time by the
+// birthDate) is materialized into this shape at read time by the
 // server, but the canonical storage lives on the global `users/{userId}`
-// doc (referenced via `userId`). Per-org `orgs/{t}/customers/{id}`
+// doc (referenced via `userId`). The account `email` is NOT materialized
+// here: it is our SaaS account datum (the identity login), never surfaced to
+// the establishment (brief 0077 — WhatsApp is the customer comms channel).
+// Per-org `orgs/{t}/customers/{id}`
 // only persists operational data (eventual scores). Schema
 // decided in #832 + #836 — canonical doc:
 // https://github.com/cbrl-dev/cbrl/wiki/02-Estrategia-Modelo-Identidade
@@ -25,7 +28,6 @@ export const Customer = Schema.mutable(
     // directly and don't need to know about the User/Customer split.
     name: Schema.String,
     whatsapp: Schema.String,
-    email: Schema.NullOr(Schema.String),
     birthDate: Schema.NullOr(Schema.String),
     // Materialized from `User.avatarUrl` at read time. Neutralized (null) for a
     // customer blocked in this org (LGPD art. 18 — brief 0032, AC-13: the
@@ -62,11 +64,11 @@ export const Customer = Schema.mutable(
 export type Customer = typeof Customer.Type
 
 // Storage projection of `Customer`: the per-org `customers/{id}` doc that
-// OMITS the PII (name/whatsapp/email/birthDate/avatarUrl) materialized from
+// OMITS the PII (name/whatsapp/birthDate/avatarUrl) materialized from
 // `users/` at read time. Decode raw `customers` docs against this — decoding
 // against the full `Customer` would fail by design (the PII isn't stored).
 export const StoredCustomer = Customer.pipe(
-  Schema.omit('name', 'whatsapp', 'email', 'birthDate', 'avatarUrl'),
+  Schema.omit('name', 'whatsapp', 'birthDate', 'avatarUrl'),
 )
 export type StoredCustomer = typeof StoredCustomer.Type
 

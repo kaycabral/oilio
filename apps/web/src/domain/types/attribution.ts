@@ -44,27 +44,28 @@ export const Attribution = Schema.mutable(
 )
 export type Attribution = typeof Attribution.Type
 
-// The URL query-param names that carry attribution on a contextual link/QR. The
-// `cbrl_` namespace avoids colliding with a host's own `utm_*` (which a campaign
-// tool may append) while staying recognizable. The capture path reads BOTH this
-// namespace and the standard `utm_*` aliases (see `attributionFromParams`).
+// The URL query-param names emitted on a contextual link/QR. The five marketing
+// axes use the industry-standard `utm_*` names so any analytics tool recognizes
+// the attribution natively. The two oilio-specific axes (actor, intent) have no
+// UTM equivalent, so they keep the `cbrl_` namespace.
 export const ATTRIBUTION_PARAM = {
-  source: 'cbrl_source',
-  medium: 'cbrl_medium',
-  campaign: 'cbrl_campaign',
-  content: 'cbrl_content',
-  term: 'cbrl_term',
-  actorId: 'cbrl_actor',
-  intent: 'cbrl_intent',
-} as const
-
-// Standard UTM aliases accepted on the capture side (AC-13 — UTM from a URL).
-const UTM_ALIAS = {
   source: 'utm_source',
   medium: 'utm_medium',
   campaign: 'utm_campaign',
   content: 'utm_content',
   term: 'utm_term',
+  actorId: 'cbrl_actor',
+  intent: 'cbrl_intent',
+} as const
+
+// Legacy `cbrl_*` aliases for the five marketing axes, still accepted on the
+// capture side (AC-13) so links minted before the `utm_*` switch keep resolving.
+const LEGACY_ALIAS = {
+  source: 'cbrl_source',
+  medium: 'cbrl_medium',
+  campaign: 'cbrl_campaign',
+  content: 'cbrl_content',
+  term: 'cbrl_term',
 } as const
 
 // Hard ceiling per axis (AC-13 length cap). Long enough for real campaign slugs,
@@ -102,15 +103,16 @@ function coerceIntent(raw: string | null | undefined): AttributionIntent {
 }
 
 // Read attribution from a flat param bag (a URLSearchParams-like record), applying
-// the same sanitization the persistence path relies on. Accepts the `cbrl_*`
-// namespace first, then falls back to the standard `utm_*` alias for the five UTM
-// axes — so a campaign tool's `utm_source=...` is captured too (AC-13). Backend is
-// the authority: this is the single sanitizing boundary, never a raw passthrough.
+// the same sanitization the persistence path relies on. Reads the standard
+// `utm_*` name first, then falls back to the legacy `cbrl_*` alias for the five
+// marketing axes — so both a campaign tool's `utm_source=...` and a link minted
+// before the switch are captured (AC-13). Backend is the authority: this is the
+// single sanitizing boundary, never a raw passthrough.
 export function attributionFromParams(
   read: (key: string) => string | null | undefined,
 ): Attribution {
-  const axis = (key: keyof typeof UTM_ALIAS): string | null =>
-    sanitizeAttributionValue(read(ATTRIBUTION_PARAM[key]) ?? read(UTM_ALIAS[key]))
+  const axis = (key: keyof typeof LEGACY_ALIAS): string | null =>
+    sanitizeAttributionValue(read(ATTRIBUTION_PARAM[key]) ?? read(LEGACY_ALIAS[key]))
   return {
     source: axis('source'),
     medium: axis('medium'),
