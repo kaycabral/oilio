@@ -345,10 +345,13 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
       await expect(switcher(authedPage)).toContainText('Unidade 1')
       await expect(switcher(authedPage)).toHaveAttribute('data-interactive', 'false')
 
-      // Dashboard: no aggregate toggle (1 unit + unit-scoped role).
+      // Dashboard is manager-only since #1265 (requireManagerPage on the
+      // /dashboard loader): a receptionist is bounced to /agenda — she never
+      // sees the heading. The "1 unit → no aggregate toggle" coverage for roles
+      // that CAN see the dashboard lives in Cenário 3 (manager). Here we assert
+      // the capability wall instead.
       await authedPage.goto('/dashboard')
-      await expect(authedPage.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
-      await expect(authedPage.getByRole('checkbox', { name: 'Todas as unidades' })).toHaveCount(0)
+      await expect(authedPage).toHaveURL(/\/agenda$/)
 
       // `/units` is denied for a receptionist (not cross-unit) → /agenda.
       await authedPage.goto('/units')
