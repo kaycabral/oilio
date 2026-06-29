@@ -10,6 +10,7 @@ export const INITIAL_CUSTOMER_STATE: CustomerState = {
   userId: '',
   archivedAt: null,
   deactivatedAt: null,
+  acquisition: null,
   createdAt: '',
   updatedAt: '',
   _version: 0,

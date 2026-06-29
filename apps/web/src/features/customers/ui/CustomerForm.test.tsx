@@ -20,6 +20,7 @@ function customer(overrides: Partial<Customer> = {}): Customer {
     avatarUrl: null,
     archivedAt: null,
     deactivatedAt: null,
+    acquisition: null,
     createdAt: '2026-05-16T00:00:00.000Z',
     updatedAt: '2026-05-16T00:00:00.000Z',
     ...overrides,

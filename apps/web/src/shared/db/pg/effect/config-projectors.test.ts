@@ -162,6 +162,7 @@ describe('customer projector — pure mapping', () => {
     avatarUrl: null,
     archivedAt: null,
     deactivatedAt: null,
+    acquisition: null,
     createdAt: '2026-06-01T00:00:00.000Z',
     updatedAt: '2026-06-01T00:00:00.000Z',
   }
@@ -180,6 +181,7 @@ describe('customer projector — pure mapping', () => {
       user_id: customer.userId,
       archived_at: customer.archivedAt,
       deactivated_at: customer.deactivatedAt,
+      acquisition: customer.acquisition,
       created_at: customer.createdAt,
       updated_at: customer.updatedAt,
       ...overrides,

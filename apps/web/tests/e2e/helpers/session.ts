@@ -1207,6 +1207,7 @@ export async function seedAppointment(input: SeedAppointmentInput): Promise<stri
     cancellationPolicySnapshot: input.cancellationPolicySnapshot ?? null,
     customerUserId,
     memberOperatorUserId,
+    attribution: null,
     createdAt: now,
     updatedAt: now,
   }

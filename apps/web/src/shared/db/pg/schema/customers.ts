@@ -4,6 +4,7 @@ import {
   check,
   foreignKey,
   index,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -52,6 +53,13 @@ export const customers = pgTable(
     // Operator-side removal (brief 0033) — keeps the NAME in history. Distinct
     // from `archived_at` (the LGPD block) on purpose.
     deactivatedAt: timestamp('deactivated_at', { withTimezone: true, mode: 'string' }),
+
+    // ACQUISITION attribution (brief 0077, Grupo D — AC-10/AC-11). The first-touch
+    // channel/campaign that created the relationship, WRITE-ONCE (set on
+    // materialization, never overwritten). Composite/structural → JSONB (mirrors
+    // `tax_identity`/`commission_snapshot`). PII-zero by construction. Null for
+    // customers materialized before the model (greenfield — no data migration).
+    acquisition: jsonb('acquisition'),
 
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),

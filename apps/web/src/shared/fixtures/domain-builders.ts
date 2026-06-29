@@ -96,6 +96,7 @@ export function buildStoredCustomer(
     userId,
     archivedAt: null,
     deactivatedAt: null,
+    acquisition: null,
     createdAt: now,
     updatedAt: now,
   }
@@ -176,6 +177,7 @@ export function buildAppointment(
     cancellationPolicySnapshot: null,
     customerUserId: 'cust-user',
     memberOperatorUserId: null,
+    attribution: null,
     createdAt: now,
     updatedAt: now,
   }

@@ -96,6 +96,12 @@ export const appointments = pgTable(
     // ── Transition tracking (sparse optional metadata) — single JSONB blob ──
     tracking: jsonb('tracking'),
 
+    // TOUCH attribution (brief 0077, Grupo D — AC-11): the channel/campaign that
+    // produced THIS booking. Per-appointment (a returning customer's new touch
+    // never clobbers the Customer's write-once acquisition). Composite → JSONB,
+    // PII-zero. Null for legacy/seed appointments (greenfield — no migration).
+    attribution: jsonb('attribution'),
+
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },

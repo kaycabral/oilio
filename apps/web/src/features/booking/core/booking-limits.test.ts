@@ -25,6 +25,7 @@ function appt(over: Partial<Appointment> & { id: string; startAt: string }): App
     cancellationPolicySnapshot: null,
     customerUserId: 'cu1',
     memberOperatorUserId: null,
+    attribution: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   }

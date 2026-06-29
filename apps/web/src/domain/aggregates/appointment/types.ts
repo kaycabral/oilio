@@ -23,6 +23,7 @@ export const INITIAL_APPOINTMENT_STATE: AppointmentState = {
   cancellationPolicySnapshot: null,
   customerUserId: '',
   memberOperatorUserId: null,
+  attribution: null,
   createdAt: '',
   updatedAt: '',
   _version: 0,

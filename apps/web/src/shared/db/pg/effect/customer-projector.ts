@@ -29,6 +29,7 @@ export const CUSTOMER_COLUMNS = [
   'user_id',
   'archived_at',
   'deactivated_at',
+  'acquisition',
   'created_at',
   'updated_at',
 ] as const
@@ -45,6 +46,9 @@ export function customerColumnValues(
     customer.userId,
     customer.archivedAt,
     customer.deactivatedAt,
+    // Composite attribution → JSONB (mirrors the schema's JSONB for structural
+    // state). Null stays null; a value is stringified for the bound param.
+    customer.acquisition === null ? null : JSON.stringify(customer.acquisition),
     customer.createdAt,
     customer.updatedAt,
   ]
@@ -78,6 +82,9 @@ export type CustomerRow = {
   user_id: string
   archived_at: string | null
   deactivated_at: string | null
+  // JSONB — driver returns the parsed object (or null). Passed through to the
+  // doc as-is; the `StoredCustomer` decode validates the shape on read.
+  acquisition: unknown
   created_at: string
   updated_at: string
 }
@@ -93,6 +100,7 @@ export function rowToDoc(row: CustomerRow): FirestoreDoc {
     userId: row.user_id,
     archivedAt: row.archived_at == null ? null : new Date(row.archived_at).toISOString(),
     deactivatedAt: row.deactivated_at == null ? null : new Date(row.deactivated_at).toISOString(),
+    acquisition: row.acquisition ?? null,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   }

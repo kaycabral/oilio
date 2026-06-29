@@ -379,6 +379,9 @@ export async function createAppointment(formData: FormData): Promise<Appointment
     cancellationPolicySnapshot: unitCancellationPolicySnapshot(unit.agenda),
     customerUserId: userIds.ids.customerUserId,
     memberOperatorUserId: userIds.ids.memberOperatorUserId,
+    // Internal balcão booking (brief 0077 AC-11): no acquisition channel — the
+    // staff created it directly, not via a contextual link.
+    attribution: null,
     createdAt: now,
     updatedAt: now,
   }

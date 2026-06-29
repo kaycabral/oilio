@@ -567,6 +567,7 @@ describe('appointment projector — pure mapping', () => {
     cancellationPolicySnapshot: null,
     customerUserId: 'user-9',
     memberOperatorUserId: 'user-1',
+    attribution: null,
     createdAt: '2026-06-01T00:00:00.000Z',
     updatedAt: '2026-06-01T00:00:00.000Z',
   }
@@ -605,6 +606,7 @@ describe('appointment projector — pure mapping', () => {
       commission_snapshot: at('commission_snapshot'),
       cancellation_policy_snapshot: at('cancellation_policy_snapshot'),
       tracking: asPgJsonb(at('tracking')),
+      attribution: asPgJsonb(at('attribution')),
       created_at: source.createdAt,
       updated_at: source.updatedAt,
     }
