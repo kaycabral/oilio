@@ -15,6 +15,7 @@ import {
 import { Schema } from 'effect'
 import { randomBytes } from 'node:crypto'
 import { expect, test } from '../fixtures'
+import { fillStable } from '../helpers/hydration'
 import { parseJson } from '../helpers/rest-json'
 import { pgReadProjection, seedCustomer } from '../helpers/session'
 
@@ -104,7 +105,13 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
     await expect(birthdayBox).toBeVisible()
 
     const novo = 'Parabéns {cliente_nome}! 🎂 Bom demais te ver por aqui.'
-    await birthdayBox.fill(novo)
+    // `#body-birthday` is a React-CONTROLLED textarea (value={body}). A bare
+    // `.fill()` that lands before hydration is silently dropped, then hydration
+    // re-applies the seeded default ON TOP of the typed text — the textarea ends
+    // up holding `novo + default`, which is what gets submitted, persisted, and
+    // read back (the flake: post-reload value came back concatenated). fillStable
+    // retries the fill until the input actually holds `novo`, post-hydration.
+    await fillStable(birthdayBox, novo)
 
     // Preview reflete o texto editado (AC-15)
     await expect(authedPage.getByText('Parabéns Maria! 🎂', { exact: false })).toBeVisible()
@@ -116,13 +123,10 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
       .click()
     await expect(authedPage.getByText('Salvo!')).toBeVisible()
 
-    // Persistiu: reload mantém o texto. After a reload the field is rehydrated
-    // from the projected write, so this assert races persistence + render — the
-    // optimistic "Salvo!" toast fires before the projection is queryable. Under a
-    // loaded runner (parallel e2e shards saturating the shared Postgres) the
-    // default 5s expect timeout is too tight; give the post-reload read room to
-    // settle. Not masking a bug — the write IS durable, it just lands after the
-    // toast; widening the read window is the correct robustness fix.
+    // Persistiu: reload mantém o texto. The optimistic "Salvo!" toast can fire
+    // just before the projected write is queryable, so under a loaded runner the
+    // post-reload read needs room beyond the default 5s — the write IS durable,
+    // it just lands shortly after the toast.
     await authedPage.reload()
     await expect(authedPage.locator('#body-birthday')).toHaveValue(novo, { timeout: 15000 })
   })
