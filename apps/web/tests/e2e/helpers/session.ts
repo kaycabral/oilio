@@ -12,7 +12,7 @@ import { expect, type BrowserContext, type Page } from '@playwright/test'
 import { getApps, initializeApp, type App } from 'firebase-admin/app'
 import { getAuth as getAdminAuth } from 'firebase-admin/auth'
 import { execFileSync } from 'node:child_process'
-import { AUTH_HOST, PROJECT_ID } from './emulator'
+import { appBaseUrl, AUTH_HOST, PROJECT_ID } from './emulator'
 
 const API_KEY = 'fake-api-key'
 
@@ -2388,13 +2388,15 @@ export async function readUser(uid: string): Promise<User | null> {
 
 // Sign in via Auth REST + POST idToken to `/api/session` to mint the
 // httpOnly `__session` cookie, then attach it to the Playwright context.
-// `baseURL` defaults to the Playwright project config — pass an override only
-// when the spec uses a different host.
+// `appUrl` defaults to the run's actual host (`appBaseUrl()` reads the runner's
+// `E2E_PORT` — the same source `playwright.config.ts` uses), so specs that don't
+// thread `baseURL` still hit the right server under the isolated per-run port.
+// Pass an override only when the spec deliberately targets a different host.
 export async function signInAndAttachSession(
   context: BrowserContext,
   email: string,
   password = 'E2E12345!',
-  appUrl = 'http://127.0.0.1:3005',
+  appUrl: string = appBaseUrl(),
 ): Promise<void> {
   const tokenJson = curlJson(
     `http://${AUTH_HOST}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`,
