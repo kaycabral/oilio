@@ -1,5 +1,5 @@
 import type { NextConfig } from 'next'
-import { networkInterfaces } from 'node:os'
+import { hostname, networkInterfaces } from 'node:os'
 
 // Every non-internal IPv4 of this machine — so `next dev` accepts /_next/* over
 // the LAN by the host's current IP, not just a hardcoded one (DHCP changes it).
@@ -10,6 +10,14 @@ function lanIPv4(): string[] {
     .flat()
     .filter((i): i is NonNullable<typeof i> => !!i && i.family === 'IPv4' && !i.internal)
     .map((i) => i.address)
+}
+
+// This machine's mDNS name (`<host>.local`) — the canonical dev base for
+// links/QRs (see `local-up.mjs` → NEXT_PUBLIC_SITE_URL). Derived per-machine so
+// a clone elsewhere allowlists its own host, not a hardcoded one. Lowercased to
+// match the origin string (origin checks are case-sensitive).
+function mdnsHost(): string {
+  return `${hostname().toLowerCase()}.local`
 }
 
 const nextConfig: NextConfig = {
@@ -38,7 +46,7 @@ const nextConfig: NextConfig = {
   // server by: 127.0.0.1 (Playwright), ideapad.local (mDNS), and the machine's
   // current LAN IPs (phone/tablet testing by IP — resolved live so DHCP changes
   // don't break it). See incident: LAN smoke login "did nothing" (#1273).
-  allowedDevOrigins: ['127.0.0.1', 'ideapad.local', ...lanIPv4()],
+  allowedDevOrigins: ['127.0.0.1', mdnsHost(), ...lanIPv4()],
   // App Hosting copies `.next/standalone` into the Cloud Run image. Set
   // explicitly so the standalone artifacts always land, regardless of which
   // builder produced them.
