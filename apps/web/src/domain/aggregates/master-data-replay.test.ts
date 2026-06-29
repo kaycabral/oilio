@@ -141,6 +141,7 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
         userId: 'user-1',
         archivedAt: null,
         deactivatedAt: null,
+        acquisition: null,
         createdAt: '2026-06-01T12:00:00.000Z',
         updatedAt: '2026-06-01T12:00:00.000Z',
       },
