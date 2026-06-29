@@ -5,6 +5,7 @@ import {
   seedAppointment,
   seedCustomer,
   seedLoginableMemberOperation,
+  seedLoginableMemberWithoutProfile,
   seedService,
   setMembershipRole,
   signInAndAttachSession,
@@ -223,5 +224,32 @@ test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => 
     const nav = sidebar(page)
     await expect(nav.getByRole('link', { name: 'Clientes' })).toBeVisible()
     await expect(nav.getByText('Administração', { exact: true })).toHaveCount(0)
+  })
+
+  // #1268 — degraded fail-closed state: a self-scoped member whose
+  // `member_operations` projection isn't provisioned yet (onboarding incomplete /
+  // projection lag) resolves to the sentinel scope. The agenda reads come back
+  // empty BY DESIGN; the surface must explain WHY (an actionable empty-state),
+  // never a mute blank grid that reads as data loss — while never widening scope.
+  test('agenda sem perfil operacional mostra empty-state explícito (não grid mudo)', async ({
+    context,
+    page,
+    org,
+    baseURL,
+  }) => {
+    // A loginable member_operator with NO member_operations projection → sentinel.
+    const me = await seedLoginableMemberWithoutProfile(org.orgId, {
+      displayName: 'Sem Perfil',
+    })
+
+    await signInAndAttachSession(context, me.email, me.password, baseURL ?? undefined)
+    const agenda = new AgendaPage(page)
+    await agenda.goto(APPT_DATE)
+
+    // The explicit empty-state renders…
+    await expect(page.getByText(/seu perfil de agenda ainda não está pronto/i)).toBeVisible()
+    // …and the agenda grid (with its memberOperation columns) does NOT — no mute
+    // blank surface, and fail-closed (no colleague column leaks through).
+    await expect(agenda.memberOperationColumn('Profissional 1')).toHaveCount(0)
   })
 })

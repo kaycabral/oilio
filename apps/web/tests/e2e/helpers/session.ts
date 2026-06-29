@@ -780,6 +780,48 @@ export async function seedLoginableMemberOperation(
   return { ...auth, memberOperationId }
 }
 
+// Seeds a loginable member with a `member_operator` membership (default preset:
+// `canBeBooked` true, `canManageCustomers` false → own-scoped, NOT front-desk)
+// but DELIBERATELY NO `member_operations` projection row — the degraded
+// fail-closed state of brief 0076/#1268 (onboarding incomplete / projection lag
+// after invite-accept). `resolveMemberOperationScope` then returns the sentinel,
+// so the agenda surfaces the explicit empty-state instead of a mute blank grid.
+// Mirrors `seedLoginableMemberOperation` minus the projection + PII writes.
+export async function seedLoginableMemberWithoutProfile(
+  orgId: string,
+  opts: { displayName?: string } = {},
+): Promise<{ uid: string; email: string; password: string }> {
+  const auth = await seedAuthUser()
+  const now = new Date().toISOString()
+  await putUserDoc(
+    buildUser(auth.uid, now, {
+      email: auth.email,
+      displayName: opts.displayName ?? 'E2E Sem Perfil',
+      emailVerified: true,
+      currentOrgId: orgId,
+      whatsapp: '5511900000002',
+      birthDate: '1990-01-01',
+      completionCompleted: true,
+      claimedAt: now,
+    }),
+  )
+  const membership: Membership = {
+    id: membershipDocId(orgId, auth.uid),
+    orgId,
+    userId: auth.uid,
+    role: 'member_operator',
+    status: 'active',
+    invitedBy: null,
+    joinedAt: now,
+    updatedAt: now,
+    rlsUnitScope: null,
+    permissions: defaultPermissionsForRole('member_operator'),
+  }
+  await seedMembershipDoc(membership)
+  // No seedMemberOperationDoc / PII — the projection is absent ON PURPOSE.
+  return auth
+}
+
 // Seeds a second org + units + an owner membership for an EXISTING user
 // (brief 0029, AC-09). Use after `seedOrg` to give the seeded owner a
 // membership in two orgs so the org switcher shows. Does NOT touch the
