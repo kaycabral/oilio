@@ -7,10 +7,6 @@ import { useFormValidity } from '@/hooks/use-form-validity'
 import { Button, DateField, Input, Label } from '@cbrl/design'
 import { useId, useState, useTransition } from 'react'
 
-// Progressive profiling (brief 0077 #1277): every required field renders, but
-// the ones the identity already gave us start pre-filled (editable, not
-// re-asked) and the still-missing ones get a "Falta preencher" hint + autofocus.
-// `prefill.missing` is the source of truth for which is which.
 export function CompleteProfileForm({
   prefill,
   next,
@@ -18,10 +14,6 @@ export function CompleteProfileForm({
 }: {
   prefill: ProfilePrefill
   next: string
-  // Materialize-at-completion context (#1278): a pre-built query string carrying
-  // the establishment `from` slug + attribution axes, recovered from the return
-  // URL by the page. Forwarded verbatim so the action can create the Customer.
-  // Empty for a plain platform signup (no establishment context).
   contextQuery?: string
 }) {
   const [pending, startTransition] = useTransition()
@@ -53,12 +45,21 @@ export function CompleteProfileForm({
     >
       <input type="hidden" name="next" value={next} />
       {contextQuery ? <input type="hidden" name="context" value={contextQuery} /> : null}
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={nameId} className="text-sm font-medium">
-          Nome {isMissing('name') ? <MissingHint /> : null}
-        </Label>
-        <Input id={nameId} name="name" defaultValue={prefill.name} required minLength={2} />
-      </div>
+      {isMissing('name') ? (
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={nameId} className="text-sm font-medium">
+            Nome <MissingHint />
+          </Label>
+          <Input id={nameId} name="name" defaultValue={prefill.name} required minLength={2} />
+        </div>
+      ) : (
+        <>
+          <input type="hidden" name="name" value={prefill.name} />
+          <p className="text-muted-foreground text-sm">
+            Você é <strong className="text-foreground">{prefill.name}</strong>.
+          </p>
+        </>
+      )}
       <div className="flex flex-col gap-1">
         <Label htmlFor={whatsappId} className="text-sm font-medium">
           WhatsApp {isMissing('whatsapp') ? <MissingHint /> : null}
@@ -86,8 +87,6 @@ export function CompleteProfileForm({
   )
 }
 
-// Inline marker on a field the identity didn't pre-fill — tells the customer
-// exactly what they still have to type (AC-08/AC-09).
 function MissingHint() {
   return <span className="text-muted-foreground text-xs font-normal">· falta preencher</span>
 }
