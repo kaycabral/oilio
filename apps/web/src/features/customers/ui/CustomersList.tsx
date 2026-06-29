@@ -86,7 +86,7 @@ export function CustomersList({
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Clientes</h1>
           <Button asChild>
-            <Link href={toRoute('/customers/new')}>Novo cliente</Link>
+            <Link href={toRoute('/customers/new')}>Convidar cliente</Link>
           </Button>
         </header>
       }
@@ -100,8 +100,8 @@ export function CustomersList({
         icon: <Users />,
         title: 'Nenhum cliente cadastrado',
         description:
-          'Cadastre seu primeiro cliente para registrar atendimentos e agendamentos no nome dele.',
-        actionSlot: <Link href={toRoute('/customers/new')}>Cadastrar cliente</Link>,
+          'Convide seu primeiro cliente: você informa o WhatsApp e ele faz o próprio cadastro pelo link.',
+        actionSlot: <Link href={toRoute('/customers/new')}>Convidar cliente</Link>,
       }}
       filteredEmpty={{ title: 'Nenhum cliente para esta busca.' }}
       renderItem={(c) => {

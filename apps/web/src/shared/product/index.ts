@@ -1,3 +1,11 @@
+export { channelOf, emitClientFunnelEvent } from './client-funnel-events'
+export type {
+  AppointmentCreatedPayload,
+  ClientFunnelEventName,
+  ClientInviteIssuedPayload,
+  ClientProfileCompletedPayload,
+  ClientSignedInPayload,
+} from './client-funnel-events'
 export { emitProductEvent } from './product-events'
 export type {
   ProductAutocontributedPayload,

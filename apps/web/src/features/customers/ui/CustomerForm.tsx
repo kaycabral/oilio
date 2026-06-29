@@ -2,12 +2,17 @@
 
 import { PhoneInput } from '@/components/PhoneInput'
 import type { Customer } from '@/domain'
-import { createCustomer, updateCustomer } from '@/features/customers/adapters/customers.actions'
+import { updateCustomer } from '@/features/customers/adapters/customers.actions'
 import { useFormValidity } from '@/hooks/use-form-validity'
 import { Button, DateField, Input, Label } from '@cbrl/design'
 import { useState, useTransition } from 'react'
 
-export function CustomerForm({ customer }: { customer?: Customer }) {
+// Edit-only since brief 0077 (#1279): the establishment no longer CREATES
+// customers by typing PII — that surface became the contextual invite
+// (`ClientInviteForm`). This form only edits an EXISTING customer's PII (still a
+// valid balcão action while the User is an unclaimed stub; once claimed, the
+// `updateCustomerPii` gate refuses and only the customer can edit their own data).
+export function CustomerForm({ customer }: { customer: Customer }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const { formRef, isValid, refresh } = useFormValidity()
@@ -15,9 +20,7 @@ export function CustomerForm({ customer }: { customer?: Customer }) {
   function onSubmit(formData: FormData) {
     setError(null)
     startTransition(async () => {
-      const res = customer
-        ? await updateCustomer(customer.id, formData)
-        : await createCustomer(formData)
+      const res = await updateCustomer(customer.id, formData)
       if (!res.ok) setError(res.error)
     })
   }
@@ -86,10 +89,7 @@ export function CustomerForm({ customer }: { customer?: Customer }) {
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <div className="flex justify-end pt-2">
         <Button type="submit" disabled={pending || !isValid}>
-          {(() => {
-            if (pending) return 'Salvando…'
-            return customer ? 'Salvar' : 'Criar'
-          })()}
+          {pending ? 'Salvando…' : 'Salvar'}
         </Button>
       </div>
     </form>
