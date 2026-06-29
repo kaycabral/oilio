@@ -1,5 +1,6 @@
 import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { AgendaBlock } from '@/domain/types/agenda-block'
+import { buildMemberIdUpsert } from '@/shared/db/pg/effect/member-id-upsert'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
@@ -57,24 +58,13 @@ export function agendaBlockColumnValues(block: AgendaBlock, version: number): un
   ]
 }
 
-const ORG_ID_PLACEHOLDER = `$${AGENDA_BLOCK_COLUMNS.indexOf('org_id') + 1}`
-const MEMBER_OPERATION_ID_PLACEHOLDER = `$${AGENDA_BLOCK_COLUMNS.indexOf('member_operation_id') + 1}`
 // `member_id` derived from the operational profile (brief 0076 AC-04). A
 // whole-unit block has a NULL `member_operation_id`, so the subquery yields NULL
 // and `member_id` is NULL in lock-step (both FKs are SET NULL). When a member is
 // scoped, the FK guarantees the profile row exists in this tx, so the subquery
-// resolves to its membership.
-const MEMBER_ID_DERIVED = `(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = ${ORG_ID_PLACEHOLDER} AND mo.id = ${MEMBER_OPERATION_ID_PLACEHOLDER})`
-const INSERT_COLUMNS = [...AGENDA_BLOCK_COLUMNS, 'member_id']
-const VALUE_EXPRESSIONS = [...AGENDA_BLOCK_COLUMNS.map((_, i) => `$${i + 1}`), MEMBER_ID_DERIVED]
-const CONFLICT_SET = INSERT_COLUMNS.filter((c) => c !== 'org_id' && c !== 'id')
-  .map((c) => `${c} = EXCLUDED.${c}`)
-  .join(', ')
-const UPSERT = `
-  INSERT INTO agenda_blocks (${INSERT_COLUMNS.join(', ')})
-  VALUES (${VALUE_EXPRESSIONS.join(', ')})
-  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
-`
+// resolves to its membership. Built by the shared `buildMemberIdUpsert` (same rule
+// for appointments).
+const UPSERT = buildMemberIdUpsert('agenda_blocks', AGENDA_BLOCK_COLUMNS)
 
 function stateVersion(state: FirestoreDoc): number {
   const v = state['_version']

@@ -27,7 +27,12 @@ import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
 
 import { getMemberOperationByUserId } from '@/shared/org/member-operation-read'
-import { getMembership, listOrgMembers, operatesFrontDesk } from '@/shared/org/membership'
+import {
+  canActOnOwnedResource,
+  getMembership,
+  listOrgMembers,
+  operatesFrontDesk,
+} from '@/shared/org/membership'
 import { loadActiveSubscriptionForCustomer, loadOrderById } from './order-financial-read'
 
 // Own-resource policy for an OPEN order (brief 0075, #1257): the balcão
@@ -51,6 +56,20 @@ export function denyIfNotOwnOrder(
 ): { ok: false; error: string } | null {
   if (canOperateOpenOrder(membership, items)) return null
   return { ok: false, error: 'Você só pode editar comandas atribuídas a você' }
+}
+
+// Own-scope attribution guard (brief 0075, #1267). `denyIfNotOwnOrder` protects an
+// order by its EXISTING items, so a freshly-opened (empty) comanda passes vacuously
+// — a self-scoped member could then attribute an item to a colleague (wrong
+// commission line). This gates the ATTRIBUTION TARGET itself: the balcão attributes
+// to anyone; a self-scoped member only to themselves. Mirrors `denyIfNotOwnOrder`'s
+// one-liner shape. Returns the error result when disallowed, else null.
+export function denyIfCannotAttributeTo(
+  membership: Membership,
+  attributedUserId: string,
+): { ok: false; error: string } | null {
+  if (canActOnOwnedResource(membership, attributedUserId)) return null
+  return { ok: false, error: 'Você só pode atribuir itens a si mesmo' }
 }
 
 export function genItemId(): string {

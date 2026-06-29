@@ -16,6 +16,7 @@ import { newId } from '@/shared/db/pg/new-id'
 
 import { parsePaymentMethod, validateClosableItems } from '@/features/orders/core/order-helpers'
 
+import { resolveWriteSecurity } from '@/shared/org/member-operation-read'
 import { requireManagerCtx, requireOrgCtx } from '@/shared/org/membership'
 
 import type { CloseOrderResult, OrderMutationResult } from '@/features/orders/core/order-results'
@@ -99,6 +100,11 @@ export async function closeOrder(orderId: string, formData: FormData): Promise<C
     closedAt,
     consumption,
     commissions,
+    // Own-scope RLS for the WRITE (brief 0075, #1265): a self-scoped closer runs
+    // under their own scope so the DB own-scope WITH CHECK on the emitted
+    // `appointment.completed` is enforced, not just the `canOperateOpenOrder` gate
+    // above. Balcão → undefined (permissive).
+    security: await resolveWriteSecurity(r.ctx.membership, loaded.order.unitId),
   })
   if (sagaErr) return { ok: false, error: sagaErr }
 

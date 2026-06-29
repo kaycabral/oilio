@@ -28,10 +28,10 @@ import { revalidatePath } from 'next/cache'
 
 import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointment-user-ids'
 import { newId } from '@/shared/db/pg/new-id'
-import { emitEvent, type WriteSecurity } from '@/shared/effect-bridge'
+import { emitEvent } from '@/shared/effect-bridge'
 
 import { getAppointmentById } from '@/shared/org/appointment-read'
-import { resolveMemberOperationScope } from '@/shared/org/member-operation-read'
+import { resolveWriteSecurity } from '@/shared/org/member-operation-read'
 import { canActOnOwnedResource, requireOrgCtx } from '@/shared/org/membership'
 import { getUnitById } from '@/shared/org/unit-read'
 import {
@@ -70,21 +70,6 @@ function resolveBookableError(
     return { ok: false, error: 'Você só pode agendar para si mesmo' }
   }
   return null
-}
-
-// Resolves the acting member's own-scope RLS for a WRITE (brief 0075, #1265).
-// `undefined` for the balcão (permissive); a `WriteSecurity` carrying the member's
-// own-scope id otherwise, so the DB own-scope WITH CHECK refuses touching a
-// colleague's row even past the application gate. `unitId` is the appointment's
-// own unit — every write here targets a row already loaded/parsed, so the unit is
-// known. Centralized so every appointment write threads the identical scope.
-async function resolveWriteSecurity(
-  membership: Membership,
-  unitId: string,
-): Promise<WriteSecurity | undefined> {
-  const ownScope = await resolveMemberOperationScope(membership)
-  if (ownScope === '') return undefined
-  return { orgId: membership.orgId, unitId, memberOperationId: ownScope }
 }
 
 export async function cancelAppointment(appointmentId: string): Promise<AppointmentMutationResult> {

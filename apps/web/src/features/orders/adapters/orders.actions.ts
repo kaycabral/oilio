@@ -31,6 +31,7 @@ import type { OrderMutationResult } from '@/features/orders/core/order-results'
 import { findOpenOrderIdForAppointment } from './order-financial-read'
 import {
   assertMemberCanOperate,
+  denyIfCannotAttributeTo,
   denyIfNotOwnOrder,
   genItemId,
   loadOpenOrder,
@@ -201,14 +202,12 @@ export async function addItemToOrder(
   // caso de varejo — produto avulso vendido pela recepção atribui à recepção.
   if (!parsed.attributedUserId) parsed.attributedUserId = r.ctx.session.uid
 
-  // Atribuição own-scope (brief 0075, #1267): `denyIfNotOwnOrder` acima protege
-  // a comanda pelos ITENS existentes — numa comanda recém-aberta (zero itens) ela
-  // passa vacuamente, então um membro own-scoped poderia injetar um item atribuído
-  // a um colega (linha de comissão errada no nome de outro). Trava a ATRIBUIÇÃO em
-  // si: o balcão atribui a qualquer membro; um membro own-scoped só a si mesmo.
-  if (!canActOnOwnedResource(r.ctx.membership, parsed.attributedUserId)) {
-    return { ok: false, error: 'Você só pode atribuir itens a si mesmo' }
-  }
+  // Atribuição own-scope (brief 0075, #1267): `denyIfNotOwnOrder` acima protege a
+  // comanda pelos ITENS existentes — uma comanda recém-aberta (zero itens) passa
+  // vacuamente, então trava a ATRIBUIÇÃO em si (balcão → qualquer membro;
+  // own-scoped → só a si mesmo).
+  const attributionDenied = denyIfCannotAttributeTo(r.ctx.membership, parsed.attributedUserId)
+  if (attributionDenied) return attributionDenied
 
   const operateError = await assertMemberCanOperate({
     orgId,
@@ -319,9 +318,8 @@ export async function updateItemAttribution(
   // protege a comanda pelos itens), trava o DESTINO da re-atribuição — um membro
   // own-scoped não pode empurrar o próprio item pra um colega; só o balcão
   // re-atribui a qualquer membro.
-  if (!canActOnOwnedResource(r.ctx.membership, attributedUserId)) {
-    return { ok: false, error: 'Você só pode atribuir itens a si mesmo' }
-  }
+  const attributionDenied = denyIfCannotAttributeTo(r.ctx.membership, attributedUserId)
+  if (attributionDenied) return attributionDenied
 
   const idx = loaded.order.items.findIndex((it) => it.id === itemId)
   if (idx < 0) return { ok: false, error: 'Item não encontrado' }

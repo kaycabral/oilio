@@ -28,7 +28,14 @@ export const memberOperationServices = pgTable(
     serviceId: text('service_id').notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.orgId, table.memberOperationId, table.serviceId] }),
+    // Explicit name: the drizzle-derived default
+    // (`member_operation_services_org_id_member_operation_id_service_id_pk`) is 66
+    // chars and Postgres silently truncates at 63 (NAMEDATALEN), diverging from the
+    // snapshot. Pin a ≤63-char name so schema, migration and DB agree.
+    primaryKey({
+      name: 'member_operation_services_org_id_member_op_service_pk',
+      columns: [table.orgId, table.memberOperationId, table.serviceId],
+    }),
     foreignKey({
       name: 'member_operation_services_org_id_fk',
       columns: [table.orgId],

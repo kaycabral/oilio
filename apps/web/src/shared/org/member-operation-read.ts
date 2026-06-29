@@ -323,6 +323,28 @@ export async function resolveMemberOperationScope(membership: Membership): Promi
 }
 
 /**
+ * The acting member's own-scope RLS payload for a WRITE (brief 0075, #1265),
+ * matching `effect-bridge`'s `WriteSecurity` shape (typed structurally here to
+ * avoid a dependency on the bridge). `undefined` for the balcão (no own-scope →
+ * the GUC stays permissive); otherwise carries the resolved scope id so the
+ * own-scope WITH CHECK refuses writing a colleague's row AT THE DATABASE — the
+ * last line of defense behind the application gate.
+ *
+ * The single resolver for every own-scope write call-site (agenda actions, the
+ * close-order saga, …) so the scope→security mapping (including the fail-closed
+ * sentinel, which is forwarded verbatim and matches no row) lives in one place
+ * and can't drift per consumer.
+ */
+export async function resolveWriteSecurity(
+  membership: Membership,
+  unitId: string,
+): Promise<{ orgId: string; unitId: string | null; memberOperationId: string } | undefined> {
+  const ownScope = await resolveMemberOperationScope(membership)
+  if (ownScope === '') return undefined
+  return { orgId: membership.orgId, unitId, memberOperationId: ownScope }
+}
+
+/**
  * Fail-closed sentinel scope (brief 0075, #1268): a self-scoped member whose
  * `member_operations` projection isn't there yet resolves to this. It matches no
  * `member_operation_id` in any RLS predicate / column filter, so the member's
