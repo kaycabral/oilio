@@ -2103,8 +2103,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "member_operation_services_org_id_member_operation_id_service_id_pk": {
-          "name": "member_operation_services_org_id_member_operation_id_service_id_pk",
+        "member_operation_services_org_id_member_op_service_pk": {
+          "name": "member_operation_services_org_id_member_op_service_pk",
           "columns": ["org_id", "member_operation_id", "service_id"]
         }
       },

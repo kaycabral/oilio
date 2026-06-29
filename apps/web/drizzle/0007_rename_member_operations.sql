@@ -61,7 +61,7 @@ ALTER INDEX "professional_units_org_id_unit_id_idx" RENAME TO "member_operation_
 ALTER POLICY "professional_units_org_isolation" ON "member_operation_units" RENAME TO "member_operation_units_org_isolation";--> statement-breakpoint
 
 -- ── 7. member_operation_services — constraints + indexes + policy ─────────────
-ALTER TABLE "member_operation_services" RENAME CONSTRAINT "professional_services_org_id_professional_id_service_id_pk" TO "member_operation_services_org_id_member_operation_id_service_id_pk";--> statement-breakpoint
+ALTER TABLE "member_operation_services" RENAME CONSTRAINT "professional_services_org_id_professional_id_service_id_pk" TO "member_operation_services_org_id_member_op_service_pk";--> statement-breakpoint
 ALTER TABLE "member_operation_services" RENAME CONSTRAINT "professional_services_org_id_fk" TO "member_operation_services_org_id_fk";--> statement-breakpoint
 ALTER TABLE "member_operation_services" RENAME CONSTRAINT "professional_services_professional_id_fk" TO "member_operation_services_member_operation_id_fk";--> statement-breakpoint
 ALTER TABLE "member_operation_services" RENAME CONSTRAINT "professional_services_service_id_fk" TO "member_operation_services_service_id_fk";--> statement-breakpoint
@@ -102,6 +102,14 @@ CREATE POLICY "appointments_org_unit_isolation" ON "appointments"
       OR "member_operation_id" = current_setting('app.current_member_operation', true)
     )
   );--> statement-breakpoint
+-- NOTE (brief 0075, #1264 review): the WITH CHECK below admits a NULL
+-- `member_operation_id` (a whole-unit block) for ANY acting scope. This is safe
+-- ONLY because block writes are manager-gated at the app layer
+-- (`blocks.actions.ts` → `requireManagerCtx`), so a self-scoped member never
+-- reaches the write path. If a future "member blocks their own time" feature lets
+-- a non-manager write blocks, this clause must additionally forbid a self-scoped
+-- member from authoring a NULL (unit-wide) block — the policy does NOT enforce
+-- that today.
 DROP POLICY IF EXISTS "agenda_blocks_org_unit_isolation" ON "agenda_blocks";--> statement-breakpoint
 CREATE POLICY "agenda_blocks_org_unit_isolation" ON "agenda_blocks"
   USING (

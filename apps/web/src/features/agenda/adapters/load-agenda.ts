@@ -11,6 +11,7 @@ import {
   getTodayInOrgTz,
   isBusinessHoursConfigured,
   isCatalogService,
+  type Membership,
   resolveWhatsappTemplates,
   unitBusinessHours,
   unitSlotMinutes,
@@ -59,6 +60,44 @@ const EMPTY_AGENDA_DAY_DATA: AgendaDayData = {
   allCustomers: [],
   servicesById: new Map(),
   customersById: new Map(),
+}
+
+// The acting member's resolved agenda scope (brief 0075, #1256/#1257/#1268),
+// derived once so the downstream consumers don't re-compute the gating predicate.
+type AgendaScope = {
+  // The raw scope passed to the RLS reads: `''` (balcão), a self id, or the
+  // fail-closed sentinel.
+  memberOperationScope: string
+  // The self id to clamp columns / lock the dialog picker to; null for the balcão
+  // AND for the degraded (sentinel) state.
+  selfMemberOperationId: string | null
+  // Degraded fail-closed state: a self-scoped member whose `member_operations`
+  // projection isn't provisioned yet (sentinel scope).
+  memberOperationMissing: boolean
+  // Whether to run the day reads + render columns: needs an active unit AND a
+  // non-degraded scope. When false the grid is empty by design.
+  shouldLoadDay: boolean
+}
+
+// Resolves the acting member's scope and the single gating predicate the page
+// branches on. Keeps `loadAgendaPage` flat (one call instead of three inline
+// re-derivations of the same condition).
+async function resolveAgendaScope(
+  membership: Membership,
+  activeUnitId: string | null,
+): Promise<AgendaScope> {
+  // `''` = balcão (owner/manager/recepção, permissive); a self id = own-scope;
+  // the sentinel = fail-closed (projection not provisioned yet).
+  const memberOperationScope = await resolveMemberOperationScope(membership)
+  const memberOperationMissing = memberOperationScope === NO_MEMBER_OPERATION_SCOPE
+  const selfMemberOperationId =
+    memberOperationScope === '' || memberOperationMissing ? null : memberOperationScope
+  return {
+    memberOperationScope,
+    selfMemberOperationId,
+    memberOperationMissing,
+    shouldLoadDay: activeUnitId !== null && !memberOperationMissing,
+  }
 }
 
 // Loads the day's appointments + blocks (RLS-scoped to `memberOperationScope`) and
@@ -168,33 +207,19 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
       ? searchParams.date
       : getTodayInOrgTz(timezone)
 
-  // Own-scope (brief 0075, #1256/#1257): a self-scoped memberOperation resolves to
-  // their own `memberOperations.id`; the balcão (owner/manager/recepção) to `''`.
-  // Used to (a) narrow the agenda reads (RLS `app.current_member_operation`), (b)
-  // clamp the agenda columns to their own, and (c) lock the appointment dialog's
-  // memberOperation picker to themselves (#1257).
-  const memberOperationScope = await resolveMemberOperationScope(ctx.membership)
-  // Degraded fail-closed state (brief 0075, #1268): a self-scoped member whose
-  // `member_operations` projection isn't there yet resolves to the sentinel scope.
-  // The reads below would all come back EMPTY (the sentinel matches no row) — so
-  // the grid would look like the member lost their agenda. Detect it, skip the
-  // reads (they can only return nothing), and flag the view to render an explicit
-  // empty-state. The fail-closed invariant is preserved: we never widen to `''`.
-  const memberOperationMissing = memberOperationScope === NO_MEMBER_OPERATION_SCOPE
-  const selfMemberOperationId =
-    memberOperationScope === '' || memberOperationMissing ? null : memberOperationScope
+  // Own-scope (brief 0075, #1256/#1257/#1268): resolves the acting member's scope
+  // once and derives every downstream flag from it (column clamp, dialog lock,
+  // degraded empty-state, whether to run the day reads). Single source so the
+  // gating predicate isn't re-derived per use.
+  const scope = await resolveAgendaScope(ctx.membership, activeUnitId)
+  const { selfMemberOperationId, memberOperationMissing, shouldLoadDay } = scope
 
-  // A self-scoped memberOperation only sees their OWN column on the agenda grid —
-  // not the colleagues' (even empty) columns. The balcão (`selfMemberOperationId
-  // === null`) keeps every bookable column. The RLS-scoped appointment read
-  // already hides colleagues' bookings; this clamps the columns to match, so
-  // "ver a própria agenda" is the whole surface.
   // A self-scoped memberOperation only sees their OWN column; the balcão keeps all
   // bookable columns. When the projection is missing (sentinel) there's no own
-  // column to show — clamp to none so the grid is empty and the explicit
-  // empty-state carries the message instead.
+  // column to show — `shouldLoadDay` is false, so the grid is empty and the
+  // explicit empty-state carries the message instead.
   const memberOperations =
-    activeUnitId && !memberOperationMissing
+    shouldLoadDay && activeUnitId !== null
       ? allMemberOperations.filter(
           (p) =>
             p.unitIds.includes(activeUnitId) &&
@@ -212,7 +237,7 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
   // sentinel reads would only come back empty anyway. The empty slice keeps the
   // view-model shape stable while the empty-state carries the reason.
   const dayData =
-    activeUnitId && !memberOperationMissing
+    shouldLoadDay && activeUnitId !== null
       ? await loadAgendaDayData({
           orgId: ctx.membership.orgId,
           activeUnitId,
@@ -220,7 +245,7 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
           timezone,
           dayStart,
           dayEnd,
-          memberOperationScope,
+          memberOperationScope: scope.memberOperationScope,
         })
       : EMPTY_AGENDA_DAY_DATA
 

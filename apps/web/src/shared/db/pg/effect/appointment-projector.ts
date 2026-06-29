@@ -1,5 +1,6 @@
 import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
 import { Appointment } from '@/domain/types/appointment'
+import { buildMemberIdUpsert } from '@/shared/db/pg/effect/member-id-upsert'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
@@ -96,24 +97,13 @@ export function appointmentColumnValues(
   ]
 }
 
-const ORG_ID_PLACEHOLDER = `$${APPOINTMENT_COLUMNS.indexOf('org_id') + 1}`
-const MEMBER_OPERATION_ID_PLACEHOLDER = `$${APPOINTMENT_COLUMNS.indexOf('member_operation_id') + 1}`
 // `member_id` derived from the operational profile (brief 0076 AC-04): the
 // membership the performer belongs to. The FK `member_operation_id →
 // member_operations` (RESTRICT) guarantees the profile row exists in this tx, so
 // the subquery always resolves; the result feeds the `appointments_member_id_fk`
-// (RESTRICT) that refuses removing a membership with appointment history.
-const MEMBER_ID_DERIVED = `(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = ${ORG_ID_PLACEHOLDER} AND mo.id = ${MEMBER_OPERATION_ID_PLACEHOLDER})`
-const INSERT_COLUMNS = [...APPOINTMENT_COLUMNS, 'member_id']
-const VALUE_EXPRESSIONS = [...APPOINTMENT_COLUMNS.map((_, i) => `$${i + 1}`), MEMBER_ID_DERIVED]
-const CONFLICT_SET = INSERT_COLUMNS.filter((col) => col !== 'org_id' && col !== 'id')
-  .map((col) => `${col} = EXCLUDED.${col}`)
-  .join(', ')
-const UPSERT = `
-  INSERT INTO appointments (${INSERT_COLUMNS.join(', ')})
-  VALUES (${VALUE_EXPRESSIONS.join(', ')})
-  ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
-`
+// (RESTRICT) that refuses removing a membership with appointment history. Built by
+// the shared `buildMemberIdUpsert` (same rule for agenda_blocks).
+const UPSERT = buildMemberIdUpsert('appointments', APPOINTMENT_COLUMNS)
 
 function stateVersion(state: FirestoreDoc): number {
   const v = state['_version']

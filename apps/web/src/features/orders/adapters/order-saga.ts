@@ -27,7 +27,7 @@ import {
 
 import { buildSaleMovement } from '@/features/cash/adapters/sale-movement'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
-import { commitSaga } from '@/shared/effect-bridge'
+import { commitSaga, type WriteSecurity } from '@/shared/effect-bridge'
 import 'server-only'
 
 import { type ConsumptionPlan } from './order-write-helpers'
@@ -190,6 +190,12 @@ export async function emitCloseOrderSaga(args: {
   closedAt: string
   consumption: ConsumptionPlan
   commissions: Commission[]
+  // Own-scope RLS for the WRITE (brief 0075, #1265): the saga emits
+  // `appointment.completed` on the own-scope-protected `appointments` table, so a
+  // self-scoped closer must run under their own scope — the DB WITH CHECK is the
+  // last line of defense, not just the `canOperateOpenOrder` app gate. Undefined
+  // for the balcão (permissive).
+  security?: WriteSecurity
 }): Promise<string | null> {
   const { orgId, actorUid, orderId, order, paymentMethod, totals, closedAt } = args
   const { subscriptionToConsume, stockDecrements } = args.consumption
@@ -224,6 +230,6 @@ export async function emitCloseOrderSaga(args: {
     commissions: args.commissions,
     saleMovement,
   })
-  const outcome = await commitSaga(steps)
+  const outcome = await commitSaga(steps, args.security)
   return outcome.ok ? null : outcome.error
 }
