@@ -42,30 +42,25 @@ describe('CompleteProfileForm — progressive profiling (brief 0077 #1277)', () 
     expect(screen.queryByText(/você é/i)).not.toBeInTheDocument()
   })
 
-  it('marks only the still-missing fields with a "falta preencher" hint', () => {
+  it('marks every required field with the asterisk — name confirmed, no extra input', () => {
     render(
       <CompleteProfileForm
         prefill={prefill({ name: 'Maria Silva', missing: ['whatsapp', 'birthDate'] })}
         next="/dashboard"
       />,
     )
-    // Name is on file → no hint next to it; whatsapp + birthDate are missing.
-    const hints = screen.getAllByText(/falta preencher/i)
-    expect(hints).toHaveLength(2)
+    // Name is on file → only whatsapp + birthDate are asked, both required.
+    expect(screen.getAllByText('*')).toHaveLength(2)
   })
 
-  it('shows no hints when nothing is missing', () => {
+  it('marks the name field required too when it has to be asked', () => {
     render(
       <CompleteProfileForm
-        prefill={prefill({
-          name: 'Maria Silva',
-          whatsapp: '5511990000000',
-          birthDate: '1990-05-05',
-          missing: [],
-        })}
+        prefill={prefill({ name: '', missing: ['name', 'whatsapp', 'birthDate'] })}
         next="/dashboard"
       />,
     )
-    expect(screen.queryByText(/falta preencher/i)).not.toBeInTheDocument()
+    // name + whatsapp + birthDate all asked → three required markers.
+    expect(screen.getAllByText('*')).toHaveLength(3)
   })
 })
