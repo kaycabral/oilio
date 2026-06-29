@@ -1,4 +1,16 @@
 import type { NextConfig } from 'next'
+import { networkInterfaces } from 'node:os'
+
+// Every non-internal IPv4 of this machine — so `next dev` accepts /_next/* over
+// the LAN by the host's current IP, not just a hardcoded one (DHCP changes it).
+// Dev-only; empty in prod builds where it's unused.
+function lanIPv4(): string[] {
+  if (process.env.NODE_ENV === 'production') return []
+  return Object.values(networkInterfaces())
+    .flat()
+    .filter((i): i is NonNullable<typeof i> => !!i && i.family === 'IPv4' && !i.internal)
+    .map((i) => i.address)
+}
 
 const nextConfig: NextConfig = {
   typedRoutes: true,
@@ -19,11 +31,14 @@ const nextConfig: NextConfig = {
       { source: '/__/firebase/:path*', destination: `${firebaseAppDomain}/__/firebase/:path*` },
     ]
   },
-  // Playwright runs against http://127.0.0.1:3005 (see playwright.config.ts).
-  // Next dev blocks cross-origin requests to /_next/* by default — without
-  // 127.0.0.1 here, HMR/RSC streams from Playwright land on the wrong origin
-  // and React hydration silently stalls (click handlers never attach).
-  allowedDevOrigins: ['127.0.0.1', 'ideapad.local'],
+  // Next dev blocks cross-origin requests to /_next/* by default — when the
+  // requesting origin isn't allowlisted, HMR/RSC streams land on the wrong origin
+  // and React hydration silently stalls (click handlers never attach: the page
+  // renders but every button is inert). So allow every host we reach the dev
+  // server by: 127.0.0.1 (Playwright), ideapad.local (mDNS), and the machine's
+  // current LAN IPs (phone/tablet testing by IP — resolved live so DHCP changes
+  // don't break it). See incident: LAN smoke login "did nothing" (#1273).
+  allowedDevOrigins: ['127.0.0.1', 'ideapad.local', ...lanIPv4()],
   // App Hosting copies `.next/standalone` into the Cloud Run image. Set
   // explicitly so the standalone artifacts always land, regardless of which
   // builder produced them.
