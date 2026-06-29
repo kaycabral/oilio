@@ -1,8 +1,13 @@
 'use server'
 
 import { parseProfileForm } from '@/features/onboarding/core/profile-form'
+import { resolveSignupOrgContext } from '@/features/onboarding/core/signup-context'
 import { getUserById, patchUser } from '@/shared/db/pg/users-store'
 import { getSessionUser } from '@/shared/firebase/admin'
+import { formString } from '@/shared/form-data'
+import { ensureSelfSignupCustomer } from '@/shared/org/customer-upsert'
+import { getOrgBySlug } from '@/shared/org/org'
+import { emitClientFunnelEvent } from '@/shared/product'
 import { toRoute } from '@/shared/routes'
 import type { Route } from 'next'
 import { redirect } from 'next/navigation'
@@ -53,9 +58,53 @@ export async function completeProfile(formData: FormData): Promise<CompleteProfi
   // No approval event to emit (#1226 AC-02): `operationalStatus` is derived on
   // read from real facts. Setting `User.whatsapp` above can complete a
   // memberOperation's profile, but readiness is recomputed on the next enriched
-  // read — there is nothing to materialize here.
+  // read — there is nothing to materialize there.
+
+  // Materialize the Customer at completion (brief 0077 Grupo E / Cenário 3 —
+  // #1278). The visitor becomes a Customer of the establishment the moment they
+  // finish their profile, even before booking — satisfying intent=signup. This
+  // revises [[0001]]'s deferred materialization (which only created on the 1st
+  // booking). Best-effort + idempotent: a missing/unpublished org or a returning
+  // customer never blocks completion. The funnel touch is PII-zero throughout.
+  await materializeSelfSignupCustomer(formData, session.uid)
 
   redirect(safeNext(formData.get('next')))
+}
+
+// Resolve the establishment from the forwarded `context` query string and create
+// (idempotently) the Customer shadow + emit the funnel events. Swallows its own
+// failures — completion already succeeded and must not be rolled back by an
+// optional org link or a telemetry write.
+async function materializeSelfSignupCustomer(formData: FormData, uid: string): Promise<void> {
+  const context = formString(formData, 'context').trim()
+  if (context.length === 0) return
+  // `context` is a query string (`from={slug}&cbrl_*`); resolve via the same
+  // pure helper the page uses by presenting it as a relative path.
+  const ctx = resolveSignupOrgContext(`/?${context}`)
+  if (!ctx) return
+
+  try {
+    const org = await getOrgBySlug(ctx.orgSlug)
+    if (!org) return
+    const attribution = ctx.attribution
+    const { customerId } = await ensureSelfSignupCustomer(org.id, uid, attribution)
+
+    // Funnel: signed-in (came through an invite) + profile-completed (AC-12).
+    // PII-zero — only ids + the field NAMES filled, never their values.
+    await emitClientFunnelEvent({
+      event: 'client_signed_in',
+      orgId: org.id,
+      fromInvite: attribution.actorId !== null,
+    })
+    await emitClientFunnelEvent({
+      event: 'client_profile_completed',
+      orgId: org.id,
+      customerId,
+      fieldsFilled: ['name', 'whatsapp', 'birthDate'],
+    })
+  } catch (err) {
+    console.error('[completeProfile] self-signup customer materialization failed', err)
+  }
 }
 
 // Only accept same-origin paths so a tampered `next=` can't bounce the
