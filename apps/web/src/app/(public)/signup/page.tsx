@@ -1,5 +1,6 @@
 import { OAuthSignInButtons } from '@/components/oauth-sign-in-buttons'
 import { attributionFromParams, attributionToSearchParams } from '@/domain'
+import { buildSignupNext } from '@/features/onboarding/core/signup-context'
 import { getPublicOrgBundle } from '@/features/self-book/adapters/public-org'
 import type { Metadata } from 'next'
 import Image from 'next/image'
@@ -32,14 +33,11 @@ export default async function PublicSignupPage({ searchParams }: PageProps) {
   const from = params.from
   const bundle = from ? await getPublicOrgBundle(from) : null
 
-  // After completion, take the visitor straight to the establishment's booking
-  // screen — the "you're all set" page (/signup/done) was a dead-end feedback
-  // step. The Customer shadow is already materialized at completion (#1278), so
-  // skipping /signup/done loses nothing. The booking URL is also the org context
-  // the completion step recovers (`resolveSignupOrgContext` reads the slug from
-  // path[0]), so the attribution still rides through to the Customer write. We
-  // forward the captured attribution so it survives the OAuth round-trip.
-  const next = bundle ? `/${from}/book${attributionSuffix(params)}` : '/signup/done'
+  // Post-OAuth target: completion step FIRST, then the establishment's booking
+  // screen (replacing the old dead-end /signup/done). See `buildSignupNext` for
+  // why we never route straight to booking. The booking path carries the org
+  // slug + attribution, which the completion step reads to attribute the Customer.
+  const next = buildSignupNext(bundle ? `/${from}/book${attributionSuffix(params)}` : null)
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 px-4 py-12">

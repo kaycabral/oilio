@@ -49,3 +49,19 @@ export function resolveSignupOrgContext(next: string | null | undefined): Signup
 
   return null
 }
+
+// Build the post-OAuth `next` for the public signup button (brief 0077). The
+// visitor ALWAYS goes through the completion step first — it captures the
+// WhatsApp/birthDate OAuth can't give us and materializes the Customer — and
+// only then to the establishment's booking screen. Routing straight to booking
+// skips completion (the booking page has no completion gate of its own; the gate
+// only fires later, at confirm), so a visitor would reach the calendar with an
+// incomplete profile. `/onboarding/profile` passes straight through to `next`
+// when the profile is already complete, so returning visitors aren't re-asked.
+//
+// `bookingTarget` is the absolute booking path (`/{slug}/book?...attribution`).
+// Returns the platform fallback (`/signup/done`) when there's no org context.
+export function buildSignupNext(bookingTarget: string | null): string {
+  if (!bookingTarget) return '/signup/done'
+  return `/onboarding/profile?next=${encodeURIComponent(bookingTarget)}`
+}
