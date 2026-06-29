@@ -98,7 +98,11 @@ export function CustomersList({
         icon: <Users />,
         title: 'Nenhum cliente cadastrado',
         description:
-          'Convide seu primeiro cliente em "Convidar cliente": você informa o WhatsApp e ele faz o próprio cadastro pelo link.',
+          'Convide seu primeiro cliente: você informa o WhatsApp e ele faz o próprio cadastro pelo link.',
+        // The List hides the header (and its invite button) when truly empty, so
+        // the empty state carries its own invite CTA — otherwise the first-client
+        // moment would have no way to invite. Same dialog, default trigger.
+        actionSlot: <ClientInviteDialog />,
       }}
       filteredEmpty={{ title: 'Nenhum cliente para esta busca.' }}
       renderItem={(c) => {
