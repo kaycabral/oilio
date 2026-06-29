@@ -1,12 +1,19 @@
 'use client'
 
 import { getClientAuth } from '@/shared/firebase/client'
-import { REDIRECT_NEXT_KEY } from '@/shared/firebase/session'
 import { Button } from '@cbrl/design'
-import { getRedirectResult, GoogleAuthProvider, signInWithRedirect } from 'firebase/auth'
-import { useEffect, useRef, useState } from 'react'
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+// Google sign-in via popup for ALL browsers. We deliberately do NOT use
+// signInWithRedirect: its result is recovered on the way back from
+// cross-page storage, which Safari/iOS (ITP) and other privacy-partitioning
+// browsers wipe — so getRedirectResult comes back empty and the user silently
+// bounces to sign-in. Popup resolves the credential in the same promise (no
+// cross-page storage), so it works uniformly. It's gesture-initiated (fired from
+// the button's onClick), so browser popup blockers allow it. This is Firebase's
+// recommended default for web sign-in.
 export type OAuthSignInButtonsProps = {
   next: string
   googleLabel?: string
@@ -27,48 +34,15 @@ export function OAuthSignInButtons({
   const [pending, setPending] = useState(false)
   const started = useRef(false)
 
-  useEffect(() => {
-    let cancelled = false
-    if (window.sessionStorage.getItem(REDIRECT_NEXT_KEY) !== null) {
-      started.current = true
-      setPending(true)
-    }
-    async function resumeRedirect() {
-      try {
-        const auth = getClientAuth()
-        const credential = await getRedirectResult(auth)
-        if (cancelled) return
-        if (!credential) {
-          window.sessionStorage.removeItem(REDIRECT_NEXT_KEY)
-          started.current = false
-          setPending(false)
-          return
-        }
-        await createSession(await credential.user.getIdToken())
-        const stored = window.sessionStorage.getItem(REDIRECT_NEXT_KEY)
-        window.sessionStorage.removeItem(REDIRECT_NEXT_KEY)
-        window.location.replace(stored ?? next)
-      } catch (err) {
-        if (cancelled) return
-        started.current = false
-        setPending(false)
-        toast.error(err instanceof Error ? err.message : 'Não foi possível entrar.')
-      }
-    }
-    void resumeRedirect()
-    return () => {
-      cancelled = true
-    }
-  }, [next])
-
   async function signIn() {
     if (started.current) return
     started.current = true
     setPending(true)
     try {
       const auth = getClientAuth()
-      window.sessionStorage.setItem(REDIRECT_NEXT_KEY, next)
-      await signInWithRedirect(auth, buildProvider())
+      const credential = await signInWithPopup(auth, buildProvider())
+      await createSession(await credential.user.getIdToken())
+      window.location.replace(next)
     } catch (err) {
       started.current = false
       setPending(false)

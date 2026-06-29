@@ -12,7 +12,6 @@ vi.mock('firebase/auth', () => ({
     this.setCustomParameters = vi.fn()
   }),
   signInWithPopup: vi.fn(),
-  signInWithRedirect: vi.fn(),
 }))
 
 vi.mock('@/shared/firebase/client', () => ({
