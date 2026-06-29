@@ -78,6 +78,13 @@
       "when": 1782752704713,
       "tag": "0010_client_funnel_events",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782753782122,
+      "tag": "0011_attribution_columns",
+      "breakpoints": true
     }
   ]
 }

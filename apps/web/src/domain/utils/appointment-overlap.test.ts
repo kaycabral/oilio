@@ -23,6 +23,7 @@ function appt(
     cancellationPolicySnapshot: null,
     customerUserId: 'u1',
     memberOperatorUserId: null,
+    attribution: null,
     createdAt: '2026-05-14T00:00:00.000Z',
     updatedAt: '2026-05-14T00:00:00.000Z',
     ...overrides,

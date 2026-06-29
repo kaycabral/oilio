@@ -1,4 +1,5 @@
 import { Schema } from 'effect'
+import { Attribution } from './attribution'
 
 // `Customer` is the **conceptual entity** of a person known to a org —
 // what every read site and UI component handles. PII (name, whatsapp,
@@ -46,6 +47,14 @@ export const Customer = Schema.mutable(
     // fields means the two relations never get conflated (mapa Ciclo de Vida e
     // Exclusão). A no-footprint customer is hard-deleted instead of deactivated.
     deactivatedAt: Schema.NullOr(Schema.String),
+    // ACQUISITION attribution (brief 0077, Grupo D — AC-10/AC-11). The first
+    // touch that created the relationship: which channel/campaign brought this
+    // person to this org. WRITE-ONCE — set on materialization and never
+    // overwritten by a later visit (a returning client booking via another
+    // channel records that on the Appointment, not here). PII-zero (channel +
+    // ids only), so it is safe to read into `track()`. Null for legacy/seed
+    // customers materialized before the model existed (greenfield — no migration).
+    acquisition: Schema.NullOr(Attribution),
     createdAt: Schema.String,
     updatedAt: Schema.String,
   }),

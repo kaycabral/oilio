@@ -1,6 +1,7 @@
 'use server'
 
 import {
+  attributionFromParams,
   getTodayInOrgTz,
   isBookingLimitsUnrestricted,
   isCatalogService,
@@ -32,6 +33,7 @@ import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
 import { getMemberOperationById } from '@/shared/org/member-operation-read'
 import { getOrgBySlug } from '@/shared/org/org'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
+import { channelOf, emitClientFunnelEvent } from '@/shared/product'
 
 // Server action for the unit-scoped wizard (#844). Differs from the legacy
 // `createPublicBooking` (which lives at `/{slug}/book` and accepts free-form
@@ -229,12 +231,20 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   if ('error' in scopeResult) return scopeResult.error
   const bookingLimitsForCustomer = scopeResult.bookingLimits
 
+  // Touch attribution (brief 0077 AC-11) from the contextual link's params,
+  // forwarded as hidden form fields. Backend re-sanitizes (single boundary).
+  const attribution = attributionFromParams((k) => formString(formData, k) || null)
+
   const upsert = await upsertCustomerWithUser({
     orgId: org.id,
     name: customerName,
     whatsappRaw: whatsapp,
     email: isValidEmail(customerEmailRaw) ? customerEmailRaw : null,
     birthDate: null,
+    // Write-once acquisition: only takes effect on FIRST materialization; a
+    // returning customer keeps their original acquisition (helper no-ops the
+    // field when the shadow already exists).
+    acquisition: attribution,
   })
   if (!upsert.ok) return upsert
   const customerId = upsert.customerId
@@ -270,6 +280,8 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     cancellationPolicySnapshot: normalizeCancellationPolicy(unit.agenda.cancellationPolicy),
     customerUserId: userIds.ids.customerUserId,
     memberOperatorUserId: userIds.ids.memberOperatorUserId,
+    // Per-booking touch attribution (brief 0077 AC-11).
+    attribution,
     createdAt: now,
     updatedAt: now,
   }
@@ -283,6 +295,14 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   if (!commit.ok) {
     return { ok: false, error: 'Esse horário acabou de ser ocupado. Volte e escolha outro.' }
   }
+
+  // Funnel event (brief 0077 AC-12) — PII-zero touch attribution. Best-effort.
+  await emitClientFunnelEvent({
+    event: 'appointment_created',
+    orgId: org.id,
+    customerId,
+    ...channelOf(attribution),
+  })
 
   // Auditoria = stream: `commitAppointmentBooking` já emite `appointment.created`
   // (fonte de verdade). Sem `audit_logs` paralelo (erradicação ES, #1029).

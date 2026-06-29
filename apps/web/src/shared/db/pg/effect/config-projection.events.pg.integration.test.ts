@@ -149,6 +149,7 @@ function customer(id: string): StoredCustomer {
     userId: `user-${id}`,
     archivedAt: null,
     deactivatedAt: null,
+    acquisition: null,
     createdAt: TS,
     updatedAt: TS,
   }

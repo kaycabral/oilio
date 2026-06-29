@@ -3,6 +3,7 @@
 import {
   type Appointment,
   type CatalogItem,
+  attributionFromParams,
   isCatalogService,
   isReservedSlug,
   isValidSlug,
@@ -21,6 +22,7 @@ import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
 import { getMemberOperationById } from '@/shared/org/member-operation-read'
 import { getOrgBySlug } from '@/shared/org/org'
 import { getUnitById } from '@/shared/org/unit-read'
+import { channelOf, emitClientFunnelEvent } from '@/shared/product'
 
 export type PublicBookingResult =
   | { ok: true; bookingId: string; orgId: string }
@@ -114,12 +116,16 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
   // level (whatsapp is the canonical channel) so the same human re-booking
   // in any org reuses one User doc — see #832. Done BEFORE the booking
   // tx so retries on slot contention don't re-upsert the customer.
+  // Touch attribution (brief 0077 AC-11) from the contextual link's params.
+  const attribution = attributionFromParams((k) => formString(formData, k) || null)
+
   const upsert = await upsertCustomerWithUser({
     orgId: org.id,
     name: customerName,
     whatsappRaw: whatsapp,
     email: isValidEmail(customerEmailRaw) ? customerEmailRaw : null,
     birthDate: null,
+    acquisition: attribution,
   })
   if (!upsert.ok) return upsert
   const customerId = upsert.customerId
@@ -146,6 +152,7 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
     cancellationPolicySnapshot: normalizeCancellationPolicy(unit.agenda.cancellationPolicy),
     customerUserId: userIds.ids.customerUserId,
     memberOperatorUserId: userIds.ids.memberOperatorUserId,
+    attribution,
     createdAt: now,
     updatedAt: now,
   }
@@ -162,6 +169,14 @@ export async function createPublicBooking(formData: FormData): Promise<PublicBoo
   if (!commit.ok) {
     return { ok: false, error: 'Esse horário já está ocupado. Escolha outro.' }
   }
+
+  // Funnel event (brief 0077 AC-12) — PII-zero touch attribution. Best-effort.
+  await emitClientFunnelEvent({
+    event: 'appointment_created',
+    orgId: org.id,
+    customerId,
+    ...channelOf(attribution),
+  })
 
   // Auditoria = stream: `commitAppointmentBooking` já emite `appointment.created`
   // (fonte de verdade). Sem `audit_logs` paralelo (erradicação ES, #1029).

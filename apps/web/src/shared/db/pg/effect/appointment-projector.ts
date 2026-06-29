@@ -41,6 +41,7 @@ export const APPOINTMENT_COLUMNS = [
   'commission_snapshot',
   'cancellation_policy_snapshot',
   'tracking',
+  'attribution',
   'created_at',
   'updated_at',
 ] as const
@@ -92,6 +93,8 @@ export function appointmentColumnValues(
     a.commissionSnapshot,
     a.cancellationPolicySnapshot,
     JSON.stringify(pickTracking(a)),
+    // TOUCH attribution → JSONB (brief 0077 AC-11). Null stays null.
+    a.attribution === null ? null : JSON.stringify(a.attribution),
     a.createdAt,
     a.updatedAt,
   ]
@@ -133,6 +136,7 @@ export type AppointmentRow = {
   commission_snapshot: unknown
   cancellation_policy_snapshot: unknown
   tracking: unknown
+  attribution: unknown
   created_at: string
   updated_at: string
 }
@@ -180,6 +184,7 @@ export function rowToDoc(row: AppointmentRow): FirestoreDoc {
     serviceDurationMinutesSnapshot: Number(row.service_duration_minutes_snapshot),
     commissionSnapshot: row.commission_snapshot,
     cancellationPolicySnapshot: row.cancellation_policy_snapshot,
+    attribution: row.attribution ?? null,
     ...tracking,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

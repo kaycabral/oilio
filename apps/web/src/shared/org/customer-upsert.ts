@@ -20,7 +20,7 @@
 // Public booking is the only un-authenticated caller and is OK on the server
 // path because the action receives no auth surface beyond the form data.
 
-import { normalizeBrazilPhone, StoredCustomer, type User } from '@/domain'
+import { normalizeBrazilPhone, StoredCustomer, type Attribution, type User } from '@/domain'
 import { CustomerConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { rowToDoc, type CustomerRow } from '@/shared/db/pg/effect/customer-projector'
@@ -46,6 +46,9 @@ export type UpsertCustomerInput = {
   whatsappRaw: string
   email: string | null
   birthDate: string | null
+  // Write-once acquisition attribution (brief 0077 AC-10/AC-11) captured when the
+  // Customer is first materialized. Omitted/null on legacy callers.
+  acquisition?: Attribution | null
 }
 
 export type UpsertCustomerResult =
@@ -155,6 +158,7 @@ export async function upsertCustomerWithUser(
     userId,
     archivedAt: null,
     deactivatedAt: null,
+    acquisition: input.acquisition ?? null,
     createdAt: now,
     updatedAt: now,
   }
@@ -186,6 +190,7 @@ export async function upsertCustomerWithUser(
 export async function ensureSelfSignupCustomer(
   orgId: string,
   userId: string,
+  acquisition: Attribution | null = null,
 ): Promise<{ customerId: string; created: boolean }> {
   const existingId = await findCustomerIdByUserId(orgId, userId)
   if (existingId) {
@@ -199,6 +204,9 @@ export async function ensureSelfSignupCustomer(
     userId,
     archivedAt: null,
     deactivatedAt: null,
+    // Write-once acquisition (brief 0077 AC-11): the first touch that created
+    // this org relationship. Null when the signup carried no attribution.
+    acquisition,
     createdAt: now,
     updatedAt: now,
   }

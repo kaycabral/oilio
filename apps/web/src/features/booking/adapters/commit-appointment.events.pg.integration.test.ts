@@ -50,6 +50,7 @@ function buildAppointment(
     cancellationPolicySnapshot: null,
     customerUserId: `u-${id}`,
     memberOperatorUserId: null,
+    attribution: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }

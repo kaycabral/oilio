@@ -85,6 +85,7 @@ function appt(o: Partial<Appointment> = {}): Appointment {
     cancellationPolicySnapshot: null,
     customerUserId: 'u1',
     memberOperatorUserId: null,
+    attribution: null,
     createdAt: '',
     updatedAt: '',
     ...o,

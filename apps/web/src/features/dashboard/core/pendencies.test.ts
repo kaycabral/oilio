@@ -52,6 +52,7 @@ function makeCustomer(p: Partial<Customer> & { createdAt: string; updatedAt: str
     avatarUrl: null,
     archivedAt: null,
     deactivatedAt: null,
+    acquisition: null,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   }

@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { Attribution } from './attribution'
 import { CommissionRule } from './member-operation'
 import { CancellationPolicy } from './unit'
 
@@ -68,6 +69,12 @@ export const Appointment = Schema.mutable(
     rescheduledNoticeMinutes: Schema.optional(Schema.Number),
     noShowMarkedAt: Schema.optional(Schema.String),
     noShowMarkedBy: Schema.optional(Schema.String),
+    // TOUCH attribution (brief 0077, Grupo D — AC-11). The channel/campaign that
+    // produced THIS booking — recorded per-appointment so a returning customer
+    // booking via another channel is captured without clobbering the Customer's
+    // write-once acquisition. PII-zero. Null for legacy/seed appointments created
+    // before the model (greenfield — no migration). Composite → persisted JSONB.
+    attribution: Schema.NullOr(Attribution),
     createdAt: Schema.String,
     updatedAt: Schema.String,
   }),
