@@ -73,7 +73,7 @@ async function memberOperationPiiExists(
   memberOperationId: string,
 ): Promise<boolean> {
   return pgProjectionExists(
-    'professionals_pii',
+    'member_operations_pii',
     aggregateRef(MemberOperationConfig, orgId, memberOperationId),
   )
 }

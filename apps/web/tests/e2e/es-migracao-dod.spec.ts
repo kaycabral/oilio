@@ -56,7 +56,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
   test.describe('Cenário 1 — PII fora de evento imutável', () => {
     test.use({ orgInput: { unitCount: 1, memberOperationCount: 0 } })
 
-    test('member_operation.created não carrega PII; professionals_pii carrega', async ({
+    test('member_operation.created não carrega PII; member_operations_pii carrega', async ({
       org,
       context,
       page,
@@ -115,7 +115,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       // profissional-específica (tax_identity), nunca a identidade pessoal.
       // A tabela sidecar (aggregate_path, org_id, id, tax_identity) não tem
       // sequer coluna pra name/whatsapp/email — o contrato é estrutural.
-      const piiRow = await pgReadProjection('professionals_pii', proRef)
+      const piiRow = await pgReadProjection('member_operations_pii', proRef)
       expect(piiRow).not.toBeNull()
       expect(piiRow?.name).toBeUndefined()
       expect(piiRow?.whatsapp).toBeUndefined()

@@ -185,7 +185,7 @@ test.describe('account-level PII anonymization', () => {
     expect(before?.display_name).toBeTruthy()
     expect(
       await pgProjectionExists(
-        'professionals_pii',
+        'member_operations_pii',
         aggregateRef(MemberOperationConfig, subject.orgId, `e2e-prof-${subject.uid}`),
       ),
     ).toBe(true)
@@ -213,7 +213,7 @@ test.describe('account-level PII anonymization', () => {
     // AC-02: per-org _pii docs scrubbed (deleted).
     expect(
       await pgProjectionExists(
-        'professionals_pii',
+        'member_operations_pii',
         aggregateRef(MemberOperationConfig, subject.orgId, `e2e-prof-${subject.uid}`),
       ),
     ).toBe(false)
