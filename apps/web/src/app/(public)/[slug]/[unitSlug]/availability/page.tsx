@@ -43,7 +43,7 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
   const { slug, unitSlug } = await params
   const sp = await searchParams
   const serviceId = readQuery(sp, 'service')
-  const memberOperationId = readQuery(sp, 'member_operator')
+  const memberOperationId = readQuery(sp, 'memberOperation')
   // Single-day endpoint for V0.1 (issue #842 "Out of scope: month view").
   // Range view (`from` + `to`) ships when the booking wizard (#844) drives it.
   const dateQuery = readQuery(sp, 'from') ?? readQuery(sp, 'date')

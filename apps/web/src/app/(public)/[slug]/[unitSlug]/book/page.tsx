@@ -77,7 +77,7 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
   const sp = await searchParams
   const serviceQ = readQuery(sp, 'service')
   const startQ = readQuery(sp, 'start')
-  const memberOperationQ = readQuery(sp, 'member_operator')
+  const memberOperationQ = readQuery(sp, 'memberOperation')
 
   // Step 1 fallback: no service in URL → bounce to the unit catalog (the
   // canonical "pick a service" surface — #841). Keeps a single source of

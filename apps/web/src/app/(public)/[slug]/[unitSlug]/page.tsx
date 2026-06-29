@@ -21,7 +21,7 @@ function readQuery(sp: Record<string, string | string[] | undefined>, key: strin
 function readMemberOperationQuery(
   sp: Record<string, string | string[] | undefined>,
 ): string | null {
-  return readQuery(sp, 'member_operator')
+  return readQuery(sp, 'memberOperation')
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
