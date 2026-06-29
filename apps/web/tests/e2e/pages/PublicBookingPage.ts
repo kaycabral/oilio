@@ -64,13 +64,16 @@ export class PublicBookingPage {
     return this.page.getByRole('heading', { name: /confirmar agendamento/i })
   }
 
-  async fillContact(opts: { name: string; whatsapp: string }): Promise<void> {
-    await this.page.getByRole('textbox', { name: /seu nome/i }).fill(opts.name)
-    await this.page.getByRole('textbox', { name: /whatsapp/i }).fill(opts.whatsapp)
+  // Since brief 0077 (#1275) the confirm step carries NO PII inputs — login is
+  // required and the Customer is derived from the uid. The CTA reads "Confirmar
+  // agendamento" for a signed-in viewer and "Entrar e confirmar" otherwise.
+  confirmButton(): Locator {
+    return this.page.getByRole('button', { name: /confirmar agendamento|entrar e confirmar/i })
   }
 
-  confirmButton(): Locator {
-    return this.page.getByRole('button', { name: /confirmar agendamento/i })
+  // The "Agendando como <nome>" line a signed-in + completed viewer sees (#1275).
+  bookingAsNotice(): Locator {
+    return this.page.getByText(/agendando como/i)
   }
 
   successHeading(): Locator {
@@ -83,26 +86,24 @@ export class PublicBookingPage {
     return this.page.getByRole('heading', { name: /agendar em/i })
   }
 
+  // Legacy form since #1275: NO customer PII inputs (login required, Customer
+  // derived from the uid). Only service / pro / datetime are typed.
   async fillLegacyForm(opts: {
     serviceIndex?: number
     memberOperationIndex?: number
     dateTimeIso: string
-    name: string
-    whatsapp: string
   }): Promise<void> {
     await chooseOptionByIndex(this.page, /serviço/i, opts.serviceIndex ?? 0)
     await chooseOptionByIndex(this.page, /profissional/i, opts.memberOperationIndex ?? 0)
     await this.page.getByRole('textbox', { name: /data e horário/i }).fill(opts.dateTimeIso)
-    await this.page.getByRole('textbox', { name: /seu nome/i }).fill(opts.name)
-    await this.page.getByRole('textbox', { name: /whatsapp/i }).fill(opts.whatsapp)
   }
 
   legacySubmit(): Locator {
-    return this.page.getByRole('button', { name: /solicitar agendamento/i })
+    return this.page.getByRole('button', { name: /entrar e agendar/i })
   }
 
   legacySuccessHeading(): Locator {
-    return this.page.getByRole('heading', { name: /agendamento solicitado/i })
+    return this.page.getByRole('heading', { name: /agendamento confirmado/i })
   }
 }
 

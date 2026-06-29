@@ -23,7 +23,7 @@ import { nextWeekday } from '../helpers/date'
 import {
   linkMemberOperationToServices,
   seedAppointment,
-  seedCustomer,
+  seedCustomerShadowForUser,
   seedService,
   seedSubscription,
 } from '../helpers/session'
@@ -50,33 +50,14 @@ test.describe(
       })
       await linkMemberOperationToServices(org.orgId, memberOperationId, [serviceId])
 
-      // Assinante = mesma session do org.uid pra customerUserId match.
-      // Sememente o whatsapp pra que o upsertCustomerWithUser durante o
-      // 2º booking encontre o mesmo User → mesmo customerId → existing
-      // appointment é contado pelo checkBookingLimits.
-      //
-      // Whatsapp ÚNICO por run — `upsertCustomerWithUser` busca por
-      // `users.where('whatsapp', '==', ...).limit(1)` e retorna o primeiro
-      // match. Emulator persiste docs entre runs do spec → whatsapp
-      // hardcoded gera colisão com Users de runs anteriores, fazendo o
-      // upsert resolver pra User errado (sem Customer no org atual) e
-      // criar um Customer novo. Resultado: appointment seedado fica
-      // órfão pro `checkBookingLimits`, limit returns `ok`, 2º booking
-      // é criado e o modal nunca aparece (bug #960 retroativo).
-      // The confirmation form's PhoneInput masks to 11 local digits (DDD + 9-digit
-      // mobile) and the server normalizes the submitted value before matching the
-      // User by whatsapp. So the form input must be the 11-digit LOCAL number and
-      // the seeded User must carry its NORMALIZED form (`55` + local). A 13-digit
-      // raw seed truncated under the mask → normalized to a different value → the
-      // upsert found no match, created a new customer, and the existing
-      // appointment went uncounted (modal never appeared).
-      const subscriberWhatsappLocal = `11988${String(Date.now()).slice(-6)}`
-      const subscriberWhatsapp = `55${subscriberWhatsappLocal}`
-      const customerId = await seedCustomer(org.orgId, {
-        name: 'Cliente Limite',
-        userId: org.uid,
-        whatsapp: subscriberWhatsapp,
-      })
+      // Assinante = mesma session do org.uid. Since #1275 the Customer is derived
+      // from the authenticated uid (no whatsapp upsert anymore): the 2nd booking
+      // resolves the SAME customer shadow by userId → the existing appointment is
+      // counted by checkBookingLimits. Use `seedCustomerShadowForUser` (NOT
+      // `seedCustomer`) so the owner's User doc — and its completionCompleted=true
+      // — survives; clobbering it would now trip the #1275 completion gate and
+      // redirect to /onboarding/profile before the modal could appear.
+      const customerId = await seedCustomerShadowForUser(org.orgId, org.uid)
       await seedSubscription(org.orgId, customerId, {
         planName: 'Plano Anti-Vaga',
         bookingLimits: { maxPerDay: 1 },
@@ -112,13 +93,8 @@ test.describe(
       await authedPage.goto(`/${slug}/unidade-1/book?${params.toString()}`)
       await expect(booking.confirmHeading()).toBeVisible()
 
-      // `await seedCustomer({ userId })` reescreve o User stub com completionCompleted=false,
-      // anulando o prefill do #864 — preenche manual. Submete → backend
-      // detecta limit, devolve reschedule-required, UI abre modal.
-      await booking.fillContact({
-        name: 'Cliente Limite',
-        whatsapp: subscriberWhatsappLocal,
-      })
+      // No PII to type (#1275) — one-click confirm. Submete → backend detecta
+      // limit, devolve reschedule-required, UI abre modal.
       await booking.confirmButton().click()
       const dialog = authedPage.getByRole('dialog', {
         name: /você já tem um agendamento neste dia/i,

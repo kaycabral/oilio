@@ -110,9 +110,9 @@ test.describe('Jornada do cliente — caminho feliz', { tag: ['@journey', '@crit
       .slotByMemberOperation(/profissional 1/i)
       .first()
       .click()
-    // Pre-fill from session is the #864 finalize.
-    await expect(page.getByText(/Confirme os dados abaixo/i)).toBeVisible()
-    await expect(page.getByRole('textbox', { name: /seu nome/i })).toHaveValue('Joana Golden')
+    // Since #1275 the confirm step carries no PII — it greets the signed-in
+    // customer by name ("Agendando como Joana Golden") and confirms in one click.
+    await expect(booking.bookingAsNotice()).toContainText(/Joana Golden/)
     await booking.confirmButton().click()
     await expect(page).toHaveURL(new RegExp(`/${slug}/unidade-1/book/success\\?appt=`))
     await expect(booking.successHeading()).toBeVisible()

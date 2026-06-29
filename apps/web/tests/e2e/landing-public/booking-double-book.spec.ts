@@ -1,28 +1,27 @@
-import type { BrowserContext } from '@playwright/test'
+import type { BrowserContext, Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { chooseOptionByIndex } from '../helpers/select'
-import { seedService } from '../helpers/session'
+import { seedService, signInAndAttachSession } from '../helpers/session'
 import { orgSlug } from '../pages'
 
-// Issue #843 — Anti-double-book server-side.
+// Issue #843 + brief 0077 DoD Cenário 4 — Anti-double-book server-side.
 //
-// Two anonymous browser contexts (no shared cookies/session) submit the
-// same slot concurrently. The transactional booking commit must serialize
-// them: one ends with the success card, the other gets the "horário já
-// está ocupado" error. Whichever context wins is implementation-detail —
-// the spec only asserts the 1-success / 1-failure split.
+// Two LOGGED-IN browser contexts submit the same slot concurrently (login is
+// mandatory since #1275 — anonymous booking no longer exists). The transactional
+// booking commit must serialize them: one ends with the success card, the other
+// gets the "horário já está ocupado" error. Whichever context wins is an
+// implementation detail — the spec only asserts the 1-success / 1-failure split.
+//
+// Both contexts authenticate as the same completed user; the per-org Customer is
+// derived from the uid, so they race for the SAME slot as the same subject — the
+// exclusion constraint, not a per-user guard, is what serializes them.
 
-async function fillBookingForm(ctx: BrowserContext, slug: string, startAtLocal: string) {
-  const page = await ctx.newPage()
+async function fillBookingForm(page: Page, slug: string, startAtLocal: string): Promise<void> {
   await page.goto(`/${slug}/book`)
   await chooseOptionByIndex(page, /serviço/i, 0)
   await chooseOptionByIndex(page, /profissional/i, 0)
   await page.getByRole('textbox', { name: /data e horário/i }).fill(startAtLocal)
-  await page.getByRole('textbox', { name: /seu nome/i }).fill(`Cliente ${Math.random()}`)
-  await page
-    .getByRole('textbox', { name: /whatsapp/i })
-    .fill(`119${Math.floor(10000000 + Math.random() * 89999999)}`)
-  return page
+  // No PII inputs since #1275 — service/pro/datetime only.
 }
 
 test.describe('Landing pública — anti-duplo-agendamento', { tag: '@critical' }, () => {
@@ -39,6 +38,7 @@ test.describe('Landing pública — anti-duplo-agendamento', { tag: '@critical' 
   test('dois landings simultâneos no mesmo slot — exatamente um ganha', async ({
     org,
     browser,
+    baseURL,
   }) => {
     const slug = orgSlug(org.orgId)
     await seedService(org.orgId, {
@@ -57,32 +57,39 @@ test.describe('Landing pública — anti-duplo-agendamento', { tag: '@critical' 
     const dd = String(target.getUTCDate()).padStart(2, '0')
     const startAtLocal = `${yyyy}-${mm}-${dd}T14:00`
 
+    // Two authenticated contexts (login required since #1275).
     const ctxA = await browser.newContext()
     const ctxB = await browser.newContext()
     openContexts.push(ctxA, ctxB)
+    await Promise.all([
+      signInAndAttachSession(ctxA, org.email, org.password, baseURL ?? undefined),
+      signInAndAttachSession(ctxB, org.email, org.password, baseURL ?? undefined),
+    ])
+    const pageA = await ctxA.newPage()
+    const pageB = await ctxB.newPage()
 
-    const [pageA, pageB] = await Promise.all([
-      fillBookingForm(ctxA, slug, startAtLocal),
-      fillBookingForm(ctxB, slug, startAtLocal),
+    await Promise.all([
+      fillBookingForm(pageA, slug, startAtLocal),
+      fillBookingForm(pageB, slug, startAtLocal),
     ])
 
     // Submit both as close to simultaneously as `Promise.all` allows.
     await Promise.all([
-      pageA.getByRole('button', { name: /^solicitar agendamento$/i }).click(),
-      pageB.getByRole('button', { name: /^solicitar agendamento$/i }).click(),
+      pageA.getByRole('button', { name: /^entrar e agendar$/i }).click(),
+      pageB.getByRole('button', { name: /^entrar e agendar$/i }).click(),
     ])
 
     // Wait for either the success card or the conflict error on both pages.
     await Promise.all([
-      expect(pageA.getByText(/Agendamento solicitado|já está ocupado/)).toBeVisible(),
-      expect(pageB.getByText(/Agendamento solicitado|já está ocupado/)).toBeVisible(),
+      expect(pageA.getByText(/Agendamento confirmado|já está ocupado/)).toBeVisible(),
+      expect(pageB.getByText(/Agendamento confirmado|já está ocupado/)).toBeVisible(),
     ])
 
     // Exactly one success + exactly one conflict across the two pages — asserted
     // by summing across both pages, so we never branch on which one won.
     const successCount =
-      (await pageA.getByText(/Agendamento solicitado/).count()) +
-      (await pageB.getByText(/Agendamento solicitado/).count())
+      (await pageA.getByText(/Agendamento confirmado/).count()) +
+      (await pageB.getByText(/Agendamento confirmado/).count())
     const conflictCount =
       (await pageA.getByText(/já está ocupado/i).count()) +
       (await pageB.getByText(/já está ocupado/i).count())

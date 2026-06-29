@@ -99,7 +99,9 @@ test.describe('Landing pública — branding + catálogo + agendamento', () => {
     test(
       'renderiza branding + catálogo público e completa booking',
       { tag: '@critical' },
-      async ({ org, page }) => {
+      async ({ org, authedPage: page }) => {
+        // Booking requires login since #1275; the seeded owner (completed) acts
+        // as the signed-in customer. The public catalog renders for them too.
         const slug = orgSlug(org.orgId)
 
         await patchOrgBranding(org.orgId, {
@@ -149,8 +151,6 @@ test.describe('Landing pública — branding + catálogo + agendamento', () => {
         const dd = String(future.getUTCDate()).padStart(2, '0')
         await booking.fillLegacyForm({
           dateTimeIso: `${yyyy}-${mm}-${dd}T14:00`,
-          name: 'Joana Cliente',
-          whatsapp: `119${Math.floor(10000000 + Math.random() * 89999999)}`,
         })
         await booking.legacySubmit().click()
         await expect(booking.legacySuccessHeading()).toBeVisible()

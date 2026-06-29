@@ -10,12 +10,9 @@ import { PublicBookingPage, orgSlug } from '../pages'
 //   2. `/{orgSlug}/{unitSlug}/availability?service=…` — pick slot
 //      (#842 deliverable, reused).
 //   3. `/{orgSlug}/{unitSlug}/book?service=&start=&memberOperation=` —
-//      confirm contact details, submit.
+//      confirm + submit. Since brief 0077 (#1275) login is REQUIRED and the
+//      confirm step carries NO PII — the Customer is derived from the uid.
 //   4. `/{orgSlug}/{unitSlug}/book/success?appt=…` — confirmation page.
-//
-// Anonymous flow (no OAuth gate yet — tracked as follow-up to #844 since
-// the dedupe-by-WA path that #832/865 will leverage is still the wizard's
-// contract for now).
 
 test.describe('Wizard de auto-agendamento (#844)', () => {
   test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
@@ -23,7 +20,9 @@ test.describe('Wizard de auto-agendamento (#844)', () => {
   test(
     'caminho feliz: catálogo → disponibilidade → confirmação → sucesso',
     { tag: '@critical' },
-    async ({ org, page }) => {
+    async ({ org, authedPage }) => {
+      // Logged-in + completed visitor (the seeded owner is a surrogate —
+      // completionCompleted=true). Login is mandatory since #1275.
       const slug = orgSlug(org.orgId)
       const unitId = org.unitIds[0]!
       const serviceId = await seedService(org.orgId, {
@@ -35,13 +34,13 @@ test.describe('Wizard de auto-agendamento (#844)', () => {
       })
       await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
-      const booking = new PublicBookingPage(page, slug)
+      const booking = new PublicBookingPage(authedPage, slug)
 
       // Step 1: catalog → click the service.
       await booking.gotoCatalog()
       await expect(booking.serviceCard('Corte Premium')).toBeVisible()
       await booking.serviceCard('Corte Premium').click()
-      await expect(page).toHaveURL(new RegExp(`/${slug}/unidade-1/availability\\?`))
+      await expect(authedPage).toHaveURL(new RegExp(`/${slug}/unidade-1/availability\\?`))
 
       // Step 2: availability for that service. The default date is "today" and
       // BR business hours are 09–18; if the test runs after 18 BR, today's grid
@@ -52,22 +51,20 @@ test.describe('Wizard de auto-agendamento (#844)', () => {
       const firstSlot = booking.slotByMemberOperation(/profissional 1/i).first()
       await firstSlot.click()
 
-      // Step 3: confirm form pre-filled with service/pro/start.
-      await expect(page).toHaveURL(new RegExp(`/${slug}/unidade-1/book\\?`))
+      // Step 3: confirm step — no PII inputs, just "Agendando como <nome>" + a
+      // one-click confirm (the Customer is derived from the authenticated uid).
+      await expect(authedPage).toHaveURL(new RegExp(`/${slug}/unidade-1/book\\?`))
       await expect(booking.confirmHeading()).toBeVisible()
-      await expect(page.getByText(/Corte Premium/)).toBeVisible()
-      await booking.fillContact({
-        name: 'Joana Cliente',
-        whatsapp: `119${Math.floor(10000000 + Math.random() * 89999999)}`,
-      })
+      await expect(authedPage.getByText(/Corte Premium/)).toBeVisible()
+      await expect(booking.bookingAsNotice()).toBeVisible()
       await booking.confirmButton().click()
 
       // Step 4: success page with snapshot details.
-      await expect(page).toHaveURL(new RegExp(`/${slug}/unidade-1/book/success\\?appt=`))
+      await expect(authedPage).toHaveURL(new RegExp(`/${slug}/unidade-1/book/success\\?appt=`))
       await expect(booking.successHeading()).toBeVisible()
-      await expect(page.getByText(/Corte Premium/)).toBeVisible()
-      await expect(page.getByText(/Profissional 1/)).toBeVisible()
-      await expect(page.getByText(/R\$\s*65,00/)).toBeVisible()
+      await expect(authedPage.getByText(/Corte Premium/)).toBeVisible()
+      await expect(authedPage.getByText(/Profissional 1/)).toBeVisible()
+      await expect(authedPage.getByText(/R\$\s*65,00/)).toBeVisible()
     },
   )
 
