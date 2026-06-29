@@ -135,22 +135,6 @@ export async function putUser(user: User): Promise<void> {
   )
 }
 
-/**
- * Hard-deletes the global `users/{uid}` row. Used by the identity-merge path
- * (#1202) to drop a reconciled STUB user once every FK that referenced it has
- * been re-pointed to the claimer. `users` is the non-aggregate cross-org auth
- * record (no `org_id`, not event-sourced), so it is deleted on the raw pool —
- * NOT under `readUnderRls`. Returns true when a row was removed (idempotent: a
- * second call over an already-deleted uid removes nothing and returns false).
- */
-export async function deleteUser(uid: string): Promise<boolean> {
-  const res: { rowCount: number | null } = await getEventStorePool().query(
-    'DELETE FROM users WHERE uid = $1',
-    [uid],
-  )
-  return (res.rowCount ?? 0) > 0
-}
-
 /** Read one user by uid, or null if absent. */
 export async function getUserById(uid: string): Promise<User | null> {
   const res = await getEventStorePool().query<UserRow>('SELECT * FROM users WHERE uid = $1', [uid])
@@ -187,25 +171,6 @@ export async function findUserByWhatsapp(whatsapp: string): Promise<User | null>
   )
   const row = res.rows[0]
   return row ? rowToUser(row) : null
-}
-
-/**
- * Find an unclaimed "stub" user by whatsapp — the Postgres equivalent of the
- * onboarding dedupe query `users where whatsapp == X and claimedAt == null`
- * (#839). A stub is a User the recepcionista created (random uuid,
- * `claimed_at: null`) when adding a human to her Customer book; when an OAuth
- * user completes their profile with the same whatsapp it gets folded in.
- * Excludes the claimer's own uid; returns the first matching stub uid, or null.
- */
-export async function findClaimableStubByWhatsapp(
-  whatsapp: string,
-  excludeUid: string,
-): Promise<string | null> {
-  const res = await getEventStorePool().query<{ uid: string }>(
-    'SELECT uid FROM users WHERE whatsapp = $1 AND claimed_at IS NULL AND uid <> $2 LIMIT 1',
-    [whatsapp, excludeUid],
-  )
-  return res.rows[0]?.uid ?? null
 }
 
 /**
