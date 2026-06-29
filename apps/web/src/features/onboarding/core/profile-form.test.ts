@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { meetsMinAge, parseProfileForm } from './profile-form'
+import { deriveProfilePrefill, meetsMinAge, parseProfileForm } from './profile-form'
 
 function form(entries: Record<string, string>): FormData {
   const fd = new FormData()
@@ -56,5 +56,50 @@ describe('parseProfileForm', () => {
     expect(parseProfileForm(form({ ...valid, birthDate: `${recent}-01-01` }))).toBe(
       'Idade mínima 13 anos',
     )
+  })
+})
+
+describe('deriveProfilePrefill (progressive profiling — brief 0077 #1277)', () => {
+  it('flags whatsapp + birthDate missing for a fresh Google sign-in', () => {
+    const p = deriveProfilePrefill({
+      name: 'Maria Silva',
+      email: 'maria@gmail.com',
+      whatsapp: null,
+      birthDate: null,
+    })
+    expect(p.name).toBe('Maria Silva')
+    expect(p.email).toBe('maria@gmail.com')
+    expect(p.whatsapp).toBe('')
+    expect(p.birthDate).toBe('')
+    expect(p.missing).toEqual(['whatsapp', 'birthDate'])
+  })
+
+  it('reports nothing missing when every fact is on file', () => {
+    const p = deriveProfilePrefill({
+      name: 'Maria Silva',
+      email: 'maria@gmail.com',
+      whatsapp: '5511990000000',
+      birthDate: '1990-05-05',
+    })
+    expect(p.missing).toEqual([])
+  })
+
+  it('treats a 1-char name as missing (parse requires ≥2)', () => {
+    const p = deriveProfilePrefill({
+      name: 'M',
+      email: null,
+      whatsapp: '5511990000000',
+      birthDate: '1990-05-05',
+    })
+    expect(p.missing).toEqual(['name'])
+    // The single char is still carried so the customer edits rather than retypes.
+    expect(p.name).toBe('M')
+  })
+
+  it('trims whitespace and treats blank facts as missing', () => {
+    const p = deriveProfilePrefill({ name: '  ', email: '  ', whatsapp: '   ', birthDate: '' })
+    expect(p.name).toBe('')
+    expect(p.email).toBe('')
+    expect(p.missing).toEqual(['name', 'whatsapp', 'birthDate'])
   })
 })

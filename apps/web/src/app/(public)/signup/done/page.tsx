@@ -49,6 +49,10 @@ export default async function SignupDonePage({ searchParams }: PageProps) {
     redirect(`/onboarding/profile?next=${encodeURIComponent(buildDoneUrl(from))}`)
   }
 
+  // Customer materialization now happens at completion (#1278) — by the time we
+  // reach this page the shadow already exists. This call is a kept as an
+  // idempotent fallback for the legacy path where someone lands here with a
+  // completed profile but no shadow yet (e.g. completed before #1278 shipped).
   const bundle = from ? await getPublicOrgBundle(from) : null
   if (bundle) {
     await ensureSelfSignupCustomer(bundle.org.id, session.uid)
