@@ -1,5 +1,5 @@
 import { canManageOrg, type Customer } from '@/domain'
-import { filterBySearch } from '@/shared/list/filter-by-search'
+import { searchCustomers } from '@/features/customers/core/search-customers'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
 import { getCustomerById, listActiveCustomersForOrg } from '@/shared/org/customer-read'
 import { requireCapabilityPage } from '@/shared/org/membership'
@@ -28,7 +28,8 @@ export async function loadCustomersPage(
   const allCustomers = (await listActiveCustomersForOrg(ctx.membership.orgId)).sort((a, b) =>
     a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }),
   )
-  const customers = filterBySearch(allCustomers, searchQuery, (c) => [c.name])
+  // Search by name OR WhatsApp (functional core — see `searchCustomers`).
+  const customers = searchCustomers(allCustomers, searchQuery)
   const state = resolveListSurfaceState({
     hasAnyData: allCustomers.length > 0,
     visibleCount: customers.length,
