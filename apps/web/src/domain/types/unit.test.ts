@@ -4,6 +4,7 @@ import {
   type Address,
   appointmentAgenda,
   type BusinessHours,
+  CompleteAddress,
   dayHoursToRanges,
   DEFAULT_CANCELLATION_POLICY,
   DEFAULT_SLOT_MINUTES,
@@ -266,6 +267,36 @@ describe('Unit / StoredUnit schema (v2 — required address/timezone/agenda)', (
 
   it('rejects a Unit with a null address (REQUIRED in v2)', () => {
     expect(() => Schema.decodeUnknownSync(Unit)({ ...VALID_UNIT, address: null })).toThrow()
+  })
+
+  // CompleteAddress is the schema the `unit.created`/`unit.updated` decode runs
+  // through (#1283 / brief 0078 AC-05): a persisted unit must carry a real
+  // address. The base `Address`/`Unit` stays permissive for the INITIAL
+  // zero-value; the tightening lives in the event schema (tested via decode here).
+  describe('CompleteAddress (event-boundary address invariant)', () => {
+    it('decodes a complete address', () => {
+      const decoded = Schema.decodeUnknownSync(CompleteAddress)(VALID_UNIT.address)
+      expect(decoded.street).toBe('Av. Paulista')
+    })
+
+    it('rejects the all-empty EMPTY_ADDRESS zero-value', () => {
+      expect(() => Schema.decodeUnknownSync(CompleteAddress)(EMPTY_ADDRESS)).toThrow()
+    })
+
+    it('rejects an address blank in a single required field (street)', () => {
+      expect(() =>
+        Schema.decodeUnknownSync(CompleteAddress)({ ...VALID_UNIT.address, street: '  ' }),
+      ).toThrow()
+    })
+
+    it('still accepts a complete address missing the optional number/complement', () => {
+      const decoded = Schema.decodeUnknownSync(CompleteAddress)({
+        ...VALID_UNIT.address,
+        number: null,
+        complement: null,
+      })
+      expect(decoded.city).toBe('São Paulo')
+    })
   })
 
   it('rejects a Unit with a null agenda (REQUIRED in v2)', () => {

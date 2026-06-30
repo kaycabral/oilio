@@ -120,6 +120,7 @@ export {
   Address,
   BusinessHours,
   CancellationPolicy,
+  CompleteAddress,
   ConfirmationTemplates,
   DEFAULT_CANCELLATION_POLICY,
   DEFAULT_SLOT_MINUTES,

@@ -1,15 +1,26 @@
 import { CompanyProfile } from '@/domain/types/tax'
-import { StoredUnit } from '@/domain/types/unit'
+import { CompleteAddress, StoredUnit } from '@/domain/types/unit'
 import { Schema } from 'effect'
+
+// `StoredUnit` with the address tightened to `CompleteAddress` (#1283 / brief
+// 0078 AC-05): a PERSISTED unit must carry a real address, so the event decode
+// rejects a blank one. The base `StoredUnit.address` stays permissive for the
+// aggregate's INITIAL zero-value (`EMPTY_ADDRESS`, pre-`unit.created`).
+const StoredUnitWithCompleteAddress = Schema.extend(
+  StoredUnit.pipe(Schema.omit('address')),
+  Schema.Struct({ address: CompleteAddress }),
+)
 
 export const UnitCreatedSchema = Schema.Struct({
   _tag: Schema.Literal('unit.created'),
-  data: StoredUnit,
+  data: StoredUnitWithCompleteAddress,
 })
 
 export const UnitUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('unit.updated'),
-  changes: Schema.partial(StoredUnit),
+  // `address` (when present in a partial update) must still be complete — you
+  // can't edit a unit INTO a blank address.
+  changes: Schema.partial(StoredUnitWithCompleteAddress),
 })
 
 export const UnitDeletedSchema = Schema.Struct({
