@@ -31,10 +31,10 @@ test.describe('Minimização de texto livre — DoD 0040 (#1108)', { tag: '@crit
     await expect(dialog.locator('[name="tags"]')).toHaveCount(0)
     await expect(dialog.locator('textarea[name="notes"]')).toHaveCount(0)
     await expect(dialog.getByText('Observações')).toHaveCount(0)
-    // Fluxo segue: gera o convite só com o número.
+    // Fluxo segue: o link do convite é montado na hora só com o número (sem
+    // submit, sem criar Customer/PII aqui).
     await dialog.locator('input[name="whatsapp"]').fill(`119${String(Date.now()).slice(-8)}`)
-    await dialog.getByRole('button', { name: /enviar convite/i }).click()
-    await expect(dialog.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
+    await expect(dialog.getByRole('textbox', { name: 'Link do convite' })).toHaveValue(/\/signup\?/)
   })
 
   // Cenário 2 — fechar venda sem observações.

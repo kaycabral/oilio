@@ -80,11 +80,14 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
       const dialog = authedPage.getByRole('dialog')
       await expect(dialog.getByRole('heading', { name: 'Convidar cliente' })).toBeVisible()
 
-      // Informa só o número e gera o link contextual (sem criar Customer aqui).
+      // Informa só o número; o link contextual é montado na hora (sem submit,
+      // sem criar Customer aqui) — o número é o único dado dinâmico. A unidade
+      // vem do contexto ativo (sem seletor). O CTA primário abre o WhatsApp.
       await dialog.locator('input[name="whatsapp"]').fill(`11${Date.now().toString().slice(-9)}`)
-      await dialog.getByRole('button', { name: /enviar convite/i }).click()
-      await expect(dialog.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
-      await expect(dialog.getByText(/\/signup\?/)).toBeVisible()
+      await expect(dialog.getByRole('textbox', { name: 'Link do convite' })).toHaveValue(
+        /\/signup\?/,
+      )
+      await expect(dialog.getByRole('button', { name: /abrir no whatsapp/i })).toBeVisible()
     })
   })
 

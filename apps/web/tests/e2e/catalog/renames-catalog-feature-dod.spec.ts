@@ -71,7 +71,7 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
 
       const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: targetDate })
-      await expect(page.getByRole('heading', { name: /disponibilidade/i })).toBeVisible()
+      await expect(page.getByRole('heading', { name: /escolha data e horário/i })).toBeVisible()
 
       // The linked pro's later slots stay available; the taken 09:00 is gone.
       await expect(page.getByText('09:30').first()).toBeVisible()
@@ -95,7 +95,7 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
       // catalogServiceIds, the pro must not be offered for this service.
       const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
-      await expect(page.getByText(/sem horários disponíveis para este dia/i)).toBeVisible()
+      await expect(page.getByText(/sem horários disponíveis nesta data/i)).toBeVisible()
     })
   })
 
