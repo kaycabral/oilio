@@ -423,7 +423,12 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       expect(decodeEventEnvelope(created)._tag).toBe('member_operation.created')
       const envelopeJson = JSON.stringify(created)
       expect(envelopeJson).not.toContain('E2E Invitee')
-      expect(envelopeJson).not.toContain('5511900000000')
+      // WhatsApp é gerado único por run — lê o valor real do User pra provar a
+      // ausência da PII no envelope (em vez de um literal fixo).
+      const inviteeUserRows = await pgQueryProjection('users', 'uid', invitee.uid)
+      const inviteeWhatsapp = inviteeUserRows[0]?.whatsapp
+      expect(inviteeWhatsapp).toMatch(/^5511\d{9}$/)
+      expect(envelopeJson).not.toContain(String(inviteeWhatsapp))
       expect(envelopeJson).not.toContain(invitee.email)
 
       // O created projeta status `incomplete` (perfil ainda incompleto: sem

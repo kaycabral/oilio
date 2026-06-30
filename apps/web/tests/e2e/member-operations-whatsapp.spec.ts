@@ -16,7 +16,9 @@ test.describe('Profissionais — WhatsApp', () => {
     }) => {
       const memberOperations = new MemberOperationsPage(authedPage)
       await memberOperations.gotoById(org.memberOperationIds[0]!)
-      await expect(memberOperations.identityWhatsapp()).toHaveText('(11) 90000-0000')
+      // WhatsApp do pro é gerado único por run (unicidade global) — assert o
+      // formato BR-mascarado, não um literal.
+      await expect(memberOperations.identityWhatsapp()).toHaveText(/^\(\d{2}\) \d{5}-\d{4}$/)
     })
   })
 })

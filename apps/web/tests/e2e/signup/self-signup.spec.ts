@@ -6,6 +6,7 @@ import {
   seedAuthUser,
   seedOrg,
   signInAndAttachSession,
+  uniqueNationalWhatsapp,
 } from '../helpers/session'
 
 // #840 + refator pós-revisão. Signup virou plataforma-canônico em
@@ -57,7 +58,7 @@ test.describe('Auto-cadastro (#840)', () => {
       const next = `/${slug}`
       await page.goto(`/onboarding/profile?next=${encodeURIComponent(next)}`)
       // Identity supplied the name (seedAuthUser displayName) — confirmed, not asked.
-      await page.getByRole('textbox', { name: /whatsapp/i }).fill('11977776666')
+      await page.getByRole('textbox', { name: /whatsapp/i }).fill(uniqueNationalWhatsapp())
       await fillBirthDate(page, '30/06/1988')
       await page.getByRole('button', { name: /continuar/i }).click()
 
@@ -88,7 +89,7 @@ test.describe('Auto-cadastro (#840)', () => {
 
     await page.goto(`/onboarding/profile?next=${encodeURIComponent('/signup/done')}`)
     // Identity supplied the name (seedAuthUser displayName) — confirmed, not asked.
-    await page.getByRole('textbox', { name: /whatsapp/i }).fill('11955554444')
+    await page.getByRole('textbox', { name: /whatsapp/i }).fill(uniqueNationalWhatsapp())
     await fillBirthDate(page, '20/02/1985')
     await page.getByRole('button', { name: /continuar/i }).click()
 

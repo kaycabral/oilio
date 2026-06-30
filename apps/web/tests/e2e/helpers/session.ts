@@ -279,6 +279,14 @@ export function uniqueWhatsapp(): string {
   return `55119${String(subscriber).padStart(8, '0')}`
 }
 
+// National (DDD + number) form the masked PhoneInput accepts when a spec TYPES a
+// WhatsApp into the completion/self-signup form — drop the `55` DDI from the
+// canonical stored number. Unique per run, so a completed profile never collides
+// with another User on the global `users_whatsapp_unique` index.
+export function uniqueNationalWhatsapp(): string {
+  return uniqueWhatsapp().slice(2)
+}
+
 // Seeds a profit Goal projection doc (brief 0042) directly via the emulator —
 // the Copiloto surface reads the projection (`goals/{id}`), so the read-side
 // E2E doesn't need the full event append. Doc id is deterministic per
