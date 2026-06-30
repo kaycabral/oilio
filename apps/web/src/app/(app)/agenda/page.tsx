@@ -5,7 +5,7 @@ import { Main } from '@cbrl/design'
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>
+  searchParams: Promise<{ date?: string; showCancelled?: string }>
 }) {
   const props = await loadAgendaPage(await searchParams)
   return (
