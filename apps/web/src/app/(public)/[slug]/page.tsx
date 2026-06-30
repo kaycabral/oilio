@@ -3,6 +3,7 @@ import { getPublicOrgSummary, getPublicUnitBundle } from '@/features/self-book/a
 import { PlanCoverageBanner } from '@/features/self-book/ui/PlanCoverageBanner'
 import { UnitCatalog } from '@/features/self-book/ui/UnitCatalog'
 import { UnitPicker } from '@/features/self-book/ui/UnitPicker'
+import { getSessionUser } from '@/shared/firebase/admin'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
@@ -58,6 +59,7 @@ export default async function PublicOrgPage({ params }: PageProps) {
     const only = visibleUnits[0]!
     const bundle = await getPublicUnitBundle(slug, only.slug)
     if (!bundle) notFound()
+    const isLoggedIn = (await getSessionUser()) !== null
     return (
       <UnitCatalog
         org={bundle.org}
@@ -66,6 +68,7 @@ export default async function PublicOrgPage({ params }: PageProps) {
         catalogServiceItems={bundle.catalogServiceItems}
         memberOperation={bundle.memberOperation}
         showUnitHeader={false}
+        isLoggedIn={isLoggedIn}
         coverageBanner={coverageBanner}
       />
     )

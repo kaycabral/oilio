@@ -16,6 +16,7 @@ export function UnitCatalog({
   catalogServiceItems,
   memberOperation,
   showUnitHeader,
+  isLoggedIn,
   coverageBanner,
 }: {
   org: Org
@@ -26,6 +27,10 @@ export function UnitCatalog({
   // When true (multi-unit orgs), prepend the unit name + "Trocar unidade".
   // Hidden in single-unit mode where the page is the org landing.
   showUnitHeader: boolean
+  // Whether the visitor already has a session. A logged-in visitor (e.g. one who
+  // just came through the invite → signup) doesn't need the "Cadastrar-se" CTA —
+  // showing it is nonsense. Hide it when logged in.
+  isLoggedIn: boolean
   // Brief 0019 Group D — AC-16. Optional banner rendered between the
   // unit header and the services list when the visitor has scope-bearing
   // subscription on this org. The parent decides what to show — keeps
@@ -97,11 +102,13 @@ export function UnitCatalog({
       <section className="space-y-4 px-4 pt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-lg font-semibold">Serviços</h2>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline">
-              <Link href={`/signup?from=${encodeURIComponent(slug)}`}>Cadastrar-se</Link>
-            </Button>
-          </div>
+          {isLoggedIn ? null : (
+            <div className="flex items-center gap-2">
+              <Button asChild variant="outline">
+                <Link href={`/signup?from=${encodeURIComponent(slug)}`}>Cadastrar-se</Link>
+              </Button>
+            </div>
+          )}
         </div>
         {catalogServiceItems.length > 0 ? (
           <p className="text-muted-foreground text-xs">
