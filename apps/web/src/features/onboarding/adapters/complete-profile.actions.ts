@@ -2,6 +2,7 @@
 
 import { parseProfileForm } from '@/features/onboarding/core/profile-form'
 import { resolveSignupOrgContext } from '@/features/onboarding/core/signup-context'
+import { isUniqueViolation, USERS_WHATSAPP_UNIQUE } from '@/shared/db/pg/unique-violation'
 import { getUserById, patchUser } from '@/shared/db/pg/users-store'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
@@ -44,16 +45,31 @@ export async function completeProfile(formData: FormData): Promise<CompleteProfi
   // stub could silently capture a real login. Each login is its own user — no
   // merge. (Removed `findClaimableStubByWhatsapp` + `mergeStubUserIntoClaimer`.)
 
-  await patchUser(
-    session.uid,
-    {
-      display_name: name,
-      whatsapp,
-      birth_date: birthDate,
-      completion_completed: true,
-    },
-    now,
-  )
+  try {
+    await patchUser(
+      session.uid,
+      {
+        display_name: name,
+        whatsapp,
+        birth_date: birthDate,
+        completion_completed: true,
+      },
+      now,
+    )
+  } catch (err) {
+    // WhatsApp is globally unique (one owner per number). If this number already
+    // backs another account, the DB refuses the write — surface a handled
+    // business error instead of a raw 500. No OTP yet (#1276): we can't verify
+    // ownership, so we ask the person to use their own number / get in touch.
+    if (isUniqueViolation(err, USERS_WHATSAPP_UNIQUE)) {
+      return {
+        ok: false,
+        error:
+          'Esse número de WhatsApp já está em uso por outra conta. Use o seu próprio número ou fale com o estabelecimento.',
+      }
+    }
+    throw err
+  }
 
   // No approval event to emit (#1226 AC-02): `operationalStatus` is derived on
   // read from real facts. Setting `User.whatsapp` above can complete a

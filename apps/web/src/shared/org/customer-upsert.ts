@@ -10,10 +10,15 @@
 // only carries operational data (computed scores) + the
 // userId FK. See https://github.com/cbrl-dev/cbrl/wiki/02-Estrategia-Modelo-Identidade
 //
-// Idempotency: dedupe by whatsapp at the User level (a single User backs
-// the same WhatsApp across every org). A Customer doc is created
-// per-org; if one already exists for the same userId in this org we
-// patch its operational fields instead of inserting a duplicate.
+// NO dedupe by whatsapp (brief 0077, #1276). WhatsApp is now GLOBALLY unique at
+// the database level (`users_whatsapp_unique`), so the front-desk quick-add never
+// folds a typed number into an existing User — folding-by-WhatsApp was the SOURCE
+// of the wrong-number breach the brief kills (a mistyped number silently
+// capturing a real login). The quick-add creates a brand-new stub User; if the
+// number already has an owner the DB refuses the insert (23505) and we surface a
+// handled error pointing the operator at the invite flow (no OTP yet to verify
+// ownership). A Customer doc is created per-org; if one already exists for the
+// same userId in this org we return it instead of inserting a duplicate.
 //
 // Identity (`users`) is a global CRUD record written directly (upsert/patch);
 // the per-org customer shadow is event-sourced (the projection writes the doc).
@@ -24,10 +29,17 @@ import { normalizeBrazilPhone, type Attribution, type StoredCustomer, type User 
 import { CustomerConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
-import { findUserByWhatsapp, patchUser, putUser } from '@/shared/db/pg/users-store'
+import { isUniqueViolation, USERS_WHATSAPP_UNIQUE } from '@/shared/db/pg/unique-violation'
+import { putUser } from '@/shared/db/pg/users-store'
 import { emitEvent } from '@/shared/effect-bridge'
 import { linkCustomerOrg } from '@/shared/identity/org-links'
 import { randomUUID } from 'node:crypto'
+
+// Shown when a quick-add types a WhatsApp that already backs another User. The
+// front desk can't claim someone else's number (one owner per number, no OTP to
+// verify) — it must hand out an invite instead.
+const WHATSAPP_IN_USE_ERROR =
+  'Esse número de WhatsApp já pertence a outro cliente. Envie um convite para que a pessoa faça o próprio cadastro.'
 
 // What we actually persist under `orgs/{t}/customers/{id}`. The PII
 // fields on the public `Customer` type are merged in at read time — see
@@ -51,9 +63,10 @@ export type UpsertCustomerResult =
   | { ok: true; customerId: string; userId: string }
   | { ok: false; error: string }
 
-// Stub User created when no record matches the WhatsApp (no Firebase Auth UID —
-// random UUID doubles as both doc id and `uid`). When the same human signs up
-// via OAuth later, #839 dedupe by whatsapp reconciles the records.
+// Stub User created by a front-desk quick-add (no Firebase Auth UID — a random
+// UUID doubles as both doc id and `uid`). It carries the typed WhatsApp, which
+// the global `users_whatsapp_unique` index keeps singular: if the number already
+// has an owner the insert is refused (no silent fold — brief 0077, #1276).
 function buildUserStub(
   userId: string,
   input: UpsertCustomerInput,
@@ -84,38 +97,6 @@ function buildUserStub(
   }
 }
 
-// Non-destructive PII fill — only on stubs. Once a user claims the doc via OAuth
-// (`claimedAt != null`), the org can't write to the User anymore (data
-// ownership — #832 / #839); the typed-in PII is silently ignored. Patches only
-// the absent fields (snake_case columns) on the global `users` table.
-async function fillStubPii(existing: User, input: UpsertCustomerInput, now: string): Promise<void> {
-  if (existing.claimedAt !== null) return
-  const patch: Record<string, unknown> = {}
-  if (!existing.displayName && input.name) patch.display_name = input.name
-  if (!existing.email && input.email) patch.email = input.email
-  if (!existing.birthDate && input.birthDate) patch.birth_date = input.birthDate
-  if (Object.keys(patch).length === 0) return
-  await patchUser(existing.uid, patch, now)
-}
-
-// Resolve User by whatsapp (PII canonical channel). A match wins regardless of
-// which org first saw the User — the "global User" principle. Returns the
-// userId, creating a stub or filling a matched stub's PII as needed.
-async function resolveUserId(
-  input: UpsertCustomerInput,
-  whatsapp: string,
-  now: string,
-): Promise<string> {
-  const existing = await findUserByWhatsapp(whatsapp)
-  if (!existing) {
-    const userId = randomUUID()
-    await putUser(buildUserStub(userId, input, whatsapp, now))
-    return userId
-  }
-  await fillStubPii(existing, input, now)
-  return existing.uid
-}
-
 // Resolve the existing customer shadow for `userId` in `orgId` (the first match
 // — at most one is created per pair), reading its id under RLS. Returns null
 // when the subject has no shadow in this org yet.
@@ -138,7 +119,18 @@ export async function upsertCustomerWithUser(
 
   const now = new Date().toISOString()
 
-  const userId = await resolveUserId(input, whatsapp, now)
+  // Create a fresh stub User for the typed contact. No find-by-whatsapp fold:
+  // the DB's global uniqueness refuses a number that already has an owner, which
+  // we translate into a handled error pointing at the invite flow.
+  const userId = randomUUID()
+  try {
+    await putUser(buildUserStub(userId, input, whatsapp, now))
+  } catch (err) {
+    if (isUniqueViolation(err, USERS_WHATSAPP_UNIQUE)) {
+      return { ok: false, error: WHATSAPP_IN_USE_ERROR }
+    }
+    throw err
+  }
 
   // Resolve Customer in this org. Re-booking reuses the shadow: no
   // operator-editable fields remain on it.
