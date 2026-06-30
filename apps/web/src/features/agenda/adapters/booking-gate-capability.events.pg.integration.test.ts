@@ -88,7 +88,7 @@ async function seedOperationalMemberOperation(
   const userId = id('user')
   await seedUnit(orgId, unitId)
   await seedService(orgId, serviceId)
-  await putUser(buildUser(userId, TS, { completionCompleted: true, whatsapp: '5511900000000' }))
+  await putUser(buildUser(userId, TS, { completionCompleted: true }))
   await seedMembership(orgId, userId, canBeBooked)
   const proId = id('pro')
   const pro: StoredMemberOperation = {

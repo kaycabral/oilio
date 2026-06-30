@@ -106,7 +106,9 @@ async function seedMemberOperation(
 ): Promise<string> {
   const id = uniqueId('pro')
   // The linked User carries the whatsapp the derive keys on (operational seed).
-  await putUser(buildUser(userId, TS, { completionCompleted: true, whatsapp: '5511900000000' }))
+  // No explicit number — the builder derives a unique one per uid (WhatsApp is
+  // globally unique, so two seeded users can't share a fixed placeholder).
+  await putUser(buildUser(userId, TS, { completionCompleted: true }))
   // One service so the derive's `≥1 service` axis is satisfied for an operational
   // seed; for a non-operational seed (`unitIds: []`) the missing unit floors it.
   const serviceId = unitIds.length > 0 ? uniqueId('svc') : null
