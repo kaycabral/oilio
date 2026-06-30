@@ -129,12 +129,15 @@ test.describe('CUSTOMER erasure cascade', { tag: '@critical' }, () => {
     await expect(page.getByText(customerName).first()).toBeVisible()
     await expect(page.getByText('Cancelada').first()).toBeVisible()
 
-    // Agenda for the future day: the customer's appointment is now CANCELLED —
-    // the agenda retains the block (history) but renders it struck-through
-    // (`line-through`), i.e. no longer an active slot. The block must NOT show
-    // as an active appointment.
+    // Agenda for the future day: the customer's appointment is now CANCELLED.
+    // Cancelled appointments are hidden from the grid by default (brief 0081), so
+    // the slot reads as free — confirm that first, then flip the toggle on
+    // (`?showCancelled=1`) and assert the block is retained as history, rendered
+    // struck-through (`line-through`), i.e. no longer an active slot.
     const futureDate = futureStart.slice(0, 10)
     await page.goto(`/agenda?date=${futureDate}`)
+    await expect(page.getByRole('button', { name: customerName })).toHaveCount(0)
+    await page.goto(`/agenda?date=${futureDate}&showCancelled=1`)
     const cancelledBlock = page.locator('.line-through').filter({ hasText: customerName })
     await expect(cancelledBlock).toHaveCount(1)
     await page.close()
