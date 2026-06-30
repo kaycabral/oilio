@@ -81,6 +81,48 @@ function computeOffHoursBands(dayHours: readonly HoursRange[], hasBusinessHours:
   return bands
 }
 
+// Horizontal split for overlapping appointments (brief 0081 #1312 AC-04):
+// Google-Agenda-style side-by-side. Two appointments in the same column whose
+// time ranges intersect share the width; the cancelled card (toggle on) sits
+// next to the active one instead of covering it.
+//
+// Classic interval-graph lane packing: sweep appointments in start order, assign
+// each the lowest lane index free at its start, and the lane count for its
+// connected overlap cluster — so a 1+1 collision splits 50/50, a lone card keeps
+// the full width, and N>2 degrades gracefully (1/N each, still legible).
+type SlotLane = { lane: number; lanes: number }
+
+function computeSlotLanes(
+  appts: { id: string; startMin: number; endMin: number }[],
+): Map<string, SlotLane> {
+  const result = new Map<string, SlotLane>()
+  const ordered = [...appts].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin)
+
+  let cluster: { id: string; startMin: number; endMin: number; lane: number }[] = []
+  let clusterEnd = -1
+
+  const flush = () => {
+    if (cluster.length === 0) return
+    const lanes = Math.max(...cluster.map((c) => c.lane)) + 1
+    for (const c of cluster) result.set(c.id, { lane: c.lane, lanes })
+    cluster = []
+    clusterEnd = -1
+  }
+
+  for (const a of ordered) {
+    // A gap from the running cluster max-end closes the cluster: nothing after
+    // this point overlaps anything before it.
+    if (a.startMin >= clusterEnd && cluster.length > 0) flush()
+    const taken = new Set(cluster.filter((c) => c.endMin > a.startMin).map((c) => c.lane))
+    let lane = 0
+    while (taken.has(lane)) lane++
+    cluster.push({ ...a, lane })
+    clusterEnd = Math.max(clusterEnd, a.endMin)
+  }
+  flush()
+  return result
+}
+
 const STATUS_STYLES: Record<Appointment['status'], string> = {
   scheduled: 'bg-primary/10 border-primary/40 text-foreground',
   completed: 'bg-emerald-500/10 border-emerald-500/40 text-emerald-900 dark:text-emerald-100',
@@ -300,54 +342,76 @@ function MemberOperationColumn({
         </div>
       ))}
 
-      {appointments.map((a) => {
-        const startMin = minutesFromGridStart(a.startAt, date, timezone)
-        const endMin = minutesFromGridStart(a.endAt, date, timezone)
-        if (startMin < 0 || endMin <= startMin) return null
-        const top = startMin * MINUTE_PX
-        const height = (endMin - startMin) * MINUTE_PX
-        const customer = customersById[a.customerId]
-        const service = servicesById[a.serviceId]
-        const title = `${formatHHmm(a.startAt, timezone)}–${formatHHmm(a.endAt, timezone)} · ${customer?.name ?? 'Cliente'} · ${service?.name ?? 'Serviço'}`
-        const content = (
-          <>
-            <p className="truncate font-medium">
-              {formatHHmm(a.startAt, timezone)} {customer?.name ?? 'Cliente'}
-            </p>
-            <p className="text-muted-foreground truncate">{service?.name ?? 'Serviço'}</p>
-          </>
+      {(() => {
+        // Resolve grid-relative minutes once, drop off-grid cards, then pack
+        // overlapping survivors into horizontal lanes (AC-04).
+        const placed = appointments
+          .map((a) => ({
+            a,
+            startMin: minutesFromGridStart(a.startAt, date, timezone),
+            endMin: minutesFromGridStart(a.endAt, date, timezone),
+          }))
+          .filter((p) => p.startMin >= 0 && p.endMin > p.startMin)
+        const lanes = computeSlotLanes(
+          placed.map((p) => ({ id: p.a.id, startMin: p.startMin, endMin: p.endMin })),
         )
-        if (onSelectAppointment) {
+        return placed.map(({ a, startMin, endMin }) => {
+          const top = startMin * MINUTE_PX
+          const height = (endMin - startMin) * MINUTE_PX
+          // Lane geometry: split the column (minus the existing 4px gutters) into
+          // `lanes` equal tracks. A lone card spans the full width as before.
+          const { lane, lanes: laneCount } = lanes.get(a.id) ?? { lane: 0, lanes: 1 }
+          const widthPct = 100 / laneCount
+          const positioning =
+            laneCount > 1
+              ? {
+                  left: `calc(0.25rem + ${lane * widthPct}% )`,
+                  width: `calc(${widthPct}% - 0.5rem)`,
+                }
+              : { left: '0.25rem', right: '0.25rem' }
+          const customer = customersById[a.customerId]
+          const service = servicesById[a.serviceId]
+          const title = `${formatHHmm(a.startAt, timezone)}–${formatHHmm(a.endAt, timezone)} · ${customer?.name ?? 'Cliente'} · ${service?.name ?? 'Serviço'}`
+          const content = (
+            <>
+              <p className="truncate font-medium">
+                {formatHHmm(a.startAt, timezone)} {customer?.name ?? 'Cliente'}
+              </p>
+              <p className="text-muted-foreground truncate">{service?.name ?? 'Serviço'}</p>
+            </>
+          )
+          if (onSelectAppointment) {
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => onSelectAppointment(a)}
+                className={cn(
+                  'focus-visible:ring-ring absolute overflow-hidden rounded border px-2 py-1 text-left text-xs transition hover:brightness-95 focus:outline-none focus-visible:ring-2',
+                  STATUS_STYLES[a.status],
+                )}
+                style={{ top, height, ...positioning }}
+                title={title}
+              >
+                {content}
+              </button>
+            )
+          }
           return (
-            <button
+            <div
               key={a.id}
-              type="button"
-              onClick={() => onSelectAppointment(a)}
               className={cn(
-                'focus-visible:ring-ring absolute right-1 left-1 overflow-hidden rounded border px-2 py-1 text-left text-xs transition hover:brightness-95 focus:outline-none focus-visible:ring-2',
+                'absolute overflow-hidden rounded border px-2 py-1 text-xs',
                 STATUS_STYLES[a.status],
               )}
-              style={{ top, height }}
+              style={{ top, height, ...positioning }}
               title={title}
             >
               {content}
-            </button>
+            </div>
           )
-        }
-        return (
-          <div
-            key={a.id}
-            className={cn(
-              'absolute right-1 left-1 overflow-hidden rounded border px-2 py-1 text-xs',
-              STATUS_STYLES[a.status],
-            )}
-            style={{ top, height }}
-            title={title}
-          >
-            {content}
-          </div>
-        )
-      })}
+        })
+      })()}
     </div>
   )
 }

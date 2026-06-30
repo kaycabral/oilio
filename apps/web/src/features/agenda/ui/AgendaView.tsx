@@ -62,6 +62,7 @@ export type AgendaViewProps = {
 
 export function AgendaView({
   date,
+  showCancelled,
   timezone,
   slotMinutes,
   units,
@@ -103,9 +104,13 @@ export function AgendaView({
     if (!open) setSelectedAppointment(null)
   }
 
-  function navigate(nextDate: string) {
+  // Date and the `showCancelled` toggle (brief 0081 #1312) are both URL state.
+  // Navigation preserves the other param so toggling cancelled doesn't reset the
+  // day and changing the day doesn't drop the toggle.
+  function navigate(next: { date?: string; showCancelled?: boolean }) {
     const sp = new URLSearchParams()
-    sp.set('date', nextDate)
+    sp.set('date', next.date ?? date)
+    if (next.showCancelled ?? showCancelled) sp.set('showCancelled', '1')
     router.push(`/agenda?${sp.toString()}`)
   }
 
@@ -125,16 +130,25 @@ export function AgendaView({
             + Novo
           </Button>
           <Button
+            variant={showCancelled ? 'secondary' : 'outline'}
+            size="sm"
+            aria-pressed={showCancelled}
+            onClick={() => navigate({ showCancelled: !showCancelled })}
+            title="Exibir também os agendamentos cancelados na grade"
+          >
+            {showCancelled ? 'Ocultar cancelados' : 'Mostrar cancelados'}
+          </Button>
+          <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(shiftDateInOrgTz(date, -1, timezone))}
+            onClick={() => navigate({ date: shiftDateInOrgTz(date, -1, timezone) })}
           >
             ←
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(today)}
+            onClick={() => navigate({ date: today })}
             disabled={date === today}
           >
             Hoje
@@ -142,14 +156,14 @@ export function AgendaView({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(shiftDateInOrgTz(date, 1, timezone))}
+            onClick={() => navigate({ date: shiftDateInOrgTz(date, 1, timezone) })}
           >
             →
           </Button>
           <input
             type="date"
             value={date}
-            onChange={(e) => navigate(e.target.value)}
+            onChange={(e) => navigate({ date: e.target.value })}
             className="border-input bg-background h-9 rounded-md border px-3 text-sm"
           />
         </div>

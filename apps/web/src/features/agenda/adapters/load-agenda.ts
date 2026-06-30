@@ -123,8 +123,10 @@ async function loadAgendaDayData(args: {
       orgId,
       activeUnitId,
       { startUtc: dayStart, endUtc: dayEnd },
-      memberOperationScope,
-      args.includeCancelled,
+      {
+        memberOperationId: memberOperationScope,
+        includeCancelled: args.includeCancelled,
+      },
     ),
     // Backend-aware (brief 0060, Grupo C): Postgres reads the typed
     // `agenda_blocks` table under RLS, Firestore the org-scoped subcollection.
