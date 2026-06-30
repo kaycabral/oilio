@@ -311,10 +311,11 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     })
 
     // NAME preserved (operator delete ≠ LGPD anonymization → no neutral label):
-    // the soft-archived customer still resolves its name on its detail page
-    // (page loads → not hard-deleted; value is the name → not the neutral label).
+    // the soft-archived customer still resolves its name on its read-only detail
+    // page (#1279 — the establishment consults, never edits PII). Page loads and
+    // shows the name as text (not an input, not the neutral label).
     await authedPage.goto(`/customers/${customerId}`)
-    await expect(authedPage.getByRole('textbox', { name: 'Nome' })).toHaveValue(name)
+    await expect(authedPage.getByRole('heading', { name })).toBeVisible()
 
     // Cascade cancelled the active subscription.
     await authedPage.goto('/subscriptions?status=all')
