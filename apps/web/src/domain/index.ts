@@ -1,4 +1,13 @@
 export {
+  AggregateVersion,
+  Money,
+  MoneySchema,
+  NonEmptyString,
+  OrgId,
+  OrgIdSchema,
+} from './value-objects'
+
+export {
   InviteStatus,
   MembershipStatus,
   OPERATIONAL_STATUSES,

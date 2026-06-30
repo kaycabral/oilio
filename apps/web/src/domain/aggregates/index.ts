@@ -1,5 +1,12 @@
 export { buildReactor, type EventReaction } from './_shared/reactions'
-export { AggregateVersion, Money, MoneySchema, OrgId, OrgIdSchema } from './_shared/value-objects'
+export {
+  AggregateVersion,
+  Money,
+  MoneySchema,
+  NonEmptyString,
+  OrgId,
+  OrgIdSchema,
+} from './_shared/value-objects'
 
 // Subscription
 export { SubscriptionConfig } from './subscription/config'
