@@ -13,7 +13,6 @@ import {
   DEFAULT_SLOT_MINUTES,
   DEFAULT_UNIT_TIMEZONE,
   DEFAULT_WHATSAPP_TEMPLATES,
-  EMPTY_ADDRESS,
   INFORMAL_UNIT_FISCAL,
   type Address,
   type AgendaBlock,
@@ -123,7 +122,12 @@ export function buildUnit(
     orgId,
     name: 'Unit',
     slug: id,
-    address: { ...EMPTY_ADDRESS },
+    // Default to a complete, publish-ready address (#1283 / brief 0078 AC-17):
+    // `unit.created` now decodes the address as `CompleteAddress` and the DB has
+    // `units_address_complete`, so the blank `EMPTY_ADDRESS` zero-value can no
+    // longer be persisted. Pass an explicit `address` override for the rare
+    // not-publishable scenario.
+    address: buildAddress(),
     timezone: DEFAULT_UNIT_TIMEZONE,
     agenda: agendaAppointment(),
     archivedAt: null,

@@ -198,7 +198,14 @@ describe('unit projector — pure mapping', () => {
     orgId: 'org-1',
     name: 'Centro',
     slug: 'centro',
-    address: { ...EMPTY_ADDRESS, postalCode: '01001000', state: 'SP', city: 'São Paulo' },
+    address: {
+      ...EMPTY_ADDRESS,
+      postalCode: '01001000',
+      state: 'SP',
+      city: 'São Paulo',
+      neighborhood: 'Centro',
+      street: 'Praça da Sé',
+    },
     timezone: 'America/Sao_Paulo',
     agenda: {
       mode: 'fixed',

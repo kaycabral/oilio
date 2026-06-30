@@ -1,7 +1,6 @@
 import {
   cnpjRaiz,
   DEFAULT_UNIT_FISCAL,
-  EMPTY_ADDRESS,
   EMPTY_AGENDA_CONFIG,
   isMatrizCnpj,
   type CompanyProfile,
@@ -79,7 +78,18 @@ function informalUnit(): StoredUnit {
     orgId: ORG,
     name: 'Centro',
     slug: 'centro',
-    address: EMPTY_ADDRESS,
+    // A complete address (#1283): `unit.created` now decodes `CompleteAddress`
+    // and the DB has `units_address_complete`, so the blank zero-value can't be
+    // persisted. The formalization under test is independent of the address.
+    address: {
+      postalCode: '01310100',
+      state: 'SP',
+      city: 'São Paulo',
+      neighborhood: 'Bela Vista',
+      street: 'Avenida Paulista',
+      number: '1000',
+      complement: null,
+    },
     timezone: 'America/Sao_Paulo',
     agenda: EMPTY_AGENDA_CONFIG,
     archivedAt: null,

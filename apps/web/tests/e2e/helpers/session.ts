@@ -115,7 +115,6 @@ import {
   Appointment as AppointmentSchema,
   CatalogItem as CatalogItemSchema,
   defaultPermissionsForRole,
-  EMPTY_ADDRESS,
   EMPTY_BUSINESS_HOURS,
   goalDocId,
   membershipDocId,
@@ -243,6 +242,7 @@ import { upsertInvitePii, upsertMemberOperationPii } from '@/shared/db/pg/pii-si
 import { upsertUnitsPii } from '@/shared/db/pg/units-pii-store'
 import { getUserById, putUser } from '@/shared/db/pg/users-store'
 import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
+import { buildAddress } from '@/shared/fixtures/seed-domain-builders'
 import { Schema } from 'effect'
 import { createHash, randomBytes } from 'node:crypto'
 import { parseJson } from './rest-json'
@@ -352,20 +352,12 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
   const now = new Date().toISOString()
 
   // Address/hours are required on every Unit (PRD Identidade v2). The
-  // `hasBusinessHours` flag now selects between OPEN hours + a real address
-  // (the "ready for public" publish-gate shape, #988) and the EMPTY (all-closed,
-  // blank-address) zero-value — still a valid Unit, just not publish-ready.
-  const address: StoredUnit['address'] = hasBusinessHours
-    ? {
-        postalCode: '01310100',
-        state: 'SP',
-        city: 'São Paulo',
-        neighborhood: 'Bela Vista',
-        street: 'Avenida Paulista',
-        number: '1000',
-        complement: null,
-      }
-    : EMPTY_ADDRESS
+  // Every Unit now carries a complete address (#1283 / brief 0078): `unit.created`
+  // decodes it as `CompleteAddress` and the DB has `units_address_complete`, so a
+  // blank address can no longer be persisted. `hasBusinessHours` now varies ONLY
+  // the hours — a unit with a real address but empty hours is still a valid Unit,
+  // just not publish-ready.
+  const address: StoredUnit['address'] = buildAddress()
 
   const businessHours: BusinessHours = hasBusinessHours
     ? {
@@ -902,9 +894,9 @@ export async function seedAdditionalOrg(
       orgId,
       name: `${name} Unidade ${i + 1}`,
       slug: `unidade-${i + 1}`,
-      // Address/hours required on every Unit (PRD Identidade v2): extra seeded
-      // units use the EMPTY zero-value (valid Unit, not publish-ready).
-      address: EMPTY_ADDRESS,
+      // Every Unit carries a complete address (#1283); not-publish-ready is now
+      // expressed by the empty hours below, not a blank address.
+      address: buildAddress(),
       timezone: 'America/Sao_Paulo',
       // Appointment agenda (unpublished) — agenda-only configs live here only.
       agenda: {
@@ -1874,9 +1866,9 @@ export async function seedUnit(
     orgId,
     name: opts.name ?? 'Unidade Extra',
     slug,
-    // Address/hours required on every Unit (PRD Identidade v2): the extra
-    // seeded unit uses the EMPTY zero-value (valid Unit, not publish-ready).
-    address: EMPTY_ADDRESS,
+    // Every Unit carries a complete address (#1283); not-publish-ready is now
+    // expressed by the empty hours below, not a blank address.
+    address: buildAddress(),
     timezone: 'America/Sao_Paulo',
     // Appointment agenda (unpublished) — agenda-only configs live here only.
     agenda: {
