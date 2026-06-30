@@ -178,7 +178,7 @@ async function seedParents(): Promise<void> {
   )
   await getEventStorePool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ($1,'unit-a',1,'Unit','unit-a','America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     VALUES ($1,'unit-a',1,'Unit','unit-a','America/Sao_Paulo','always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG],
   )

@@ -124,10 +124,20 @@ function registerGenericTicketProjector(): void {
 
 const run = <A, E>(eff: Effect.Effect<A, E, never>) => Effect.runPromise(eff)
 
-async function seedOrg(): Promise<void> {
-  await getEventStorePool().query(
+async function seedOrgAndUnit(): Promise<void> {
+  const pool = getEventStorePool()
+  await pool.query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug','barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+    [ORG],
+  )
+  // The catalog items below are scoped to `unit-seed` (`unitIds` is non-empty,
+  // #1283), and the projector mirrors that into `catalog_item_units` under a
+  // composite FK → `units`. Seed the unit so the join row resolves; the address
+  // is complete to satisfy `units_address_complete`.
+  await pool.query(
+    `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
+     VALUES ($1,'unit-seed',1,'Unit','unit-seed','America/Sao_Paulo','always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [ORG],
   )
 }
@@ -144,7 +154,10 @@ function serviceDef(
     categoryId: null,
     priceCents,
     commission: null,
-    unitIds: [],
+    // Non-empty (#1283): a catalog item is always scoped to ≥1 unit. This guard
+    // test is about price/discontinuation, not unit scope — any placeholder unit
+    // satisfies the `unitIds` invariant (domain `NonEmptyArray` + DB CHECK).
+    unitIds: ['unit-seed'],
     unitOverrides: null,
     publicVisible: true,
     priceVisibility: 'visible',
@@ -231,8 +244,10 @@ describe('emitEventGuarded — atomic discontinuation + lawful price on Postgres
   })
 
   beforeEach(async () => {
-    await getEventStorePool().query('TRUNCATE events, projections, catalog_items, orgs CASCADE')
-    await seedOrg()
+    await getEventStorePool().query(
+      'TRUNCATE events, projections, catalog_item_units, catalog_items, units, orgs CASCADE',
+    )
+    await seedOrgAndUnit()
   })
 
   afterAll(async () => {

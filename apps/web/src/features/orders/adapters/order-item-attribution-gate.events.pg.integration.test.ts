@@ -61,7 +61,7 @@ async function seedOrg(orgId: string): Promise<void> {
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await pool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, archived_at, created_at, updated_at)
-     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,NULL,$3,$3)
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,NULL,$3,$3)
      ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, unitId, TS],
   )

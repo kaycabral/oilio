@@ -37,8 +37,13 @@ const CatalogItemBaseFields = {
   // Commission rule snapshot template. `null` = no commission (common for
   // products in some orgs).
   commission: Schema.NullOr(CommissionRule),
-  // Where the item is offered/sold. Non-empty for bookable services; products
-  // may be sold org-wide but still carry their unit scope explicitly.
+  // Where the item is offered/sold. The non-empty invariant (#1283 — an item
+  // with no unit is a phantom: in no unit's catalog, unbookable, yet counts as
+  // real data) lives on the EVENT schema (`catalog_item.created`/`.updated`),
+  // not this base type. Like `Address`, the reducer's pre-`created` INITIAL
+  // state carries the empty zero-value transiently; the event boundary
+  // (`UnitScopedCatalogItem`) + the `catalog_items_unit_ids_nonempty` CHECK are
+  // where a real write is refused.
   unitIds: Schema.mutable(Schema.Array(Schema.String)),
   unitOverrides: Schema.NullOr(
     Schema.mutable(Schema.Record({ key: Schema.String, value: CatalogItemUnitOverride })),
