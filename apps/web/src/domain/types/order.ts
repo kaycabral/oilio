@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 
-import { NonNegativeInt } from '@/domain/value-objects'
+import { NonEmptyString, NonNegativeInt } from '@/domain/value-objects'
 import { CommissionRule } from './member-operation'
 
 export const ORDER_STATUSES = ['open', 'closed', 'cancelled'] as const
@@ -35,14 +35,16 @@ export function coverageOf(item: { coverage?: OrderCoverage }): OrderCoverage {
 // o que cliente pagou).
 export const OrderItem = Schema.mutable(
   Schema.Struct({
-    id: Schema.String,
+    // OrderItem vive no JSONB `items` de orders (sem CHECK/FK viável): a defesa
+    // não-vazio (#1283 / brief 0078 AC-13) é só o decode do domínio.
+    id: NonEmptyString,
     kind: OrderItemKind,
     // Referência ao item do catálogo unificado na hora do snapshot: aponta para
     // um doc da coleção `catalog_items` (brief 0023, AC-02). `kind` discrimina
     // serviço/produto, espelhando `CatalogItem.kind`. Itens legados podem ainda
     // apontar para `services`/`products` até a migração de consumidores (#1004).
-    refId: Schema.String,
-    name: Schema.String,
+    refId: NonEmptyString,
+    name: NonEmptyString,
     // quantity fica fora do Grupo G (AC-16 [deferred]): sinal/zero dependem de regra.
     quantity: Schema.Number,
     unitPriceCents: NonNegativeInt,
@@ -57,7 +59,7 @@ export const OrderItem = Schema.mutable(
     // userId do membro que abriu). É o beneficiário da comissão (#1057). UI rotula
     // "Executor" (serviço) / "Vendedor" (produto) por `kind`, mas é um campo só.
     // Distinto do `actorId` do evento (quem operou). Validado no add/update.
-    attributedUserId: Schema.String,
+    attributedUserId: NonEmptyString,
     // Natureza fiscal (brief 0021): `sale` (default) vira receita; `subscription`
     // debita o saldo do plano. Ausente em itens antigos → lido como `sale` via
     // `coverageOf`. `subscriptionId` é a assinatura debitada quando coberto.
