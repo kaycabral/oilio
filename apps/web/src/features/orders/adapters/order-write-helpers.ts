@@ -167,18 +167,28 @@ export async function assertMemberCanOperate({
 // AC-04): the item must be in the frozen snapshot and the plan must have
 // remaining balance (excluding this item, any kind). Returns the subscription id
 // to attach, or an error message.
+// Inputs to the consumption-coverage resolver. `idx` is `target`'s position in
+// `order.items` (excluded from the already-covered balance tally). `catalogHint`
+// lets a caller that already loaded the target's catalog row pass it in to skip
+// a second RLS-scoped SELECT — coverage needs only `id` + `categoryId`.
+type ItemCoverageInput = {
+  orgId: string
+  order: Order
+  target: OrderItem
+  idx: number
+  catalogHint?: { id: string; categoryId: string | null }
+}
+
 export async function resolveItemCoverageSubscription(
-  orgId: string,
-  order: Order,
-  target: OrderItem,
-  idx: number,
+  args: ItemCoverageInput,
 ): Promise<{ subscriptionId: string } | string> {
+  const { orgId, order, target, idx, catalogHint } = args
   // Venda avulsa anônima (brief 0030, AC-02) não tem cliente → sem assinatura.
   if (!order.customerId) return 'Venda sem cliente não pode consumir assinatura'
   const sub = await loadActiveSubscriptionForCustomer(orgId, order.customerId)
   if (!sub) return 'Cliente não possui assinatura ativa'
 
-  const catalogItem = await getCatalogItemById(orgId, target.refId)
+  const catalogItem = catalogHint ?? (await getCatalogItemById(orgId, target.refId))
   if (!catalogItem) return 'Item não encontrado no catálogo'
   if (!isItemCoveredBySubscription(sub.plan, catalogItem)) {
     return 'Item não está coberto pelo plano do cliente'
@@ -191,6 +201,21 @@ export async function resolveItemCoverageSubscription(
     if (remaining < target.quantity) return 'Assinatura sem saldo restante para cobrir este item'
   }
   return { subscriptionId: sub.id }
+}
+
+// Auto-mark coverage default (brief 0079, AC-06). Resolves whether `target`
+// should enter as `subscription` (covered + balance) and, when so, mutates it in
+// place (`coverage`/`subscriptionId`). Returns the subscription id to feed the
+// `order_item_coverage_autoset` analytics event, or null when the item stays
+// `sale` (no customer / not covered / no balance — AC-07). Shared by the two
+// comanda entry points (`startAttendance`'s appointment item and
+// `addItemToOrder`) so the auto-mark rule lives in one place.
+export async function autoMarkCoverageDefault(args: ItemCoverageInput): Promise<string | null> {
+  const resolved = await resolveItemCoverageSubscription(args)
+  if (typeof resolved === 'string') return null
+  args.target.coverage = 'subscription'
+  args.target.subscriptionId = resolved.subscriptionId
+  return resolved.subscriptionId
 }
 
 // Resolução de cobertura no consumo (brief 0024, AC-04): cada item coberto

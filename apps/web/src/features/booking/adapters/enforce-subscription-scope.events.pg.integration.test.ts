@@ -111,6 +111,7 @@ async function seedSubscriptionRow(args: {
   plan: SubscriptionPlanSnapshot
   id?: string
   consumed?: number
+  status?: 'active' | 'past_due'
 }): Promise<void> {
   const now = new Date().toISOString()
   const currentPeriod = {
@@ -120,7 +121,7 @@ async function seedSubscriptionRow(args: {
   }
   await getEventStorePool().query(
     `INSERT INTO subscriptions (org_id, id, unit_id, last_event_version, customer_id, customer_user_id, status, billing_cycle, cancel_at_period_end, next_charge_date, past_due_cycles, past_due_threshold, cancellation_reason, cancelled_at, plan, current_period, created_at, updated_at)
-     VALUES ($1,$2,'unit-a',1,$3,$4,'active',$5,false,NULL,0,2,NULL,NULL,$6::jsonb,$7::jsonb,$8,$8)`,
+     VALUES ($1,$2,'unit-a',1,$3,$4,$9,$5,false,NULL,0,2,NULL,NULL,$6::jsonb,$7::jsonb,$8,$8)`,
     [
       args.orgId,
       args.id ?? 'sub-1',
@@ -130,6 +131,7 @@ async function seedSubscriptionRow(args: {
       JSON.stringify(args.plan),
       JSON.stringify(currentPeriod),
       now,
+      args.status ?? 'active',
     ],
   )
 }
@@ -347,6 +349,28 @@ describe('resolveCustomerSubscriptionScope — coverage (brief 0079)', () => {
     })
     const scope = await resolveCustomerSubscriptionScope(orgId, CUSTOMER_USER_ID)
     expect(scope.coverage[0]?.remaining).toBeNull()
+  })
+
+  it('excludes a past_due subscription from coverage — badge must match the charge', async () => {
+    // A past_due plan (unpaid) still shapes the gating axes (shipped 0019), but
+    // it does NOT feed recognition: the comanda's `active`-only charge would not
+    // honor it, so the wizard must not badge it (brief 0079, review #1335).
+    await seedSubscriptionRow({
+      orgId,
+      customerId: 'c1',
+      customerUserId: CUSTOMER_USER_ID,
+      plan: buildPlanSnapshot({
+        includedItemIds: ['item-corte'],
+        usageLimit: { kind: 'unlimited' },
+      }),
+      status: 'past_due',
+    })
+    const scope = await resolveCustomerSubscriptionScope(orgId, CUSTOMER_USER_ID)
+    // Recognition is empty (no badge), even though the subscription is scope-bearing.
+    expect(scope.coverage).toEqual([])
+    expect(isItemCoveredWithBalance(scope.coverage, { id: 'item-corte', categoryId: null })).toBe(
+      false,
+    )
   })
 
   it('collects one coverage entry per scope-bearing subscription (no early break)', async () => {

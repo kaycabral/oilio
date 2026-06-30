@@ -120,11 +120,20 @@ function foldScope(acc: ScopeAcc, sub: Subscription): ScopeAcc {
   // is collected per-subscription (no union): a covered item draws its balance
   // from the specific snapshot that covers it. `remaining` is `null` for an
   // unlimited plan (always has balance).
-  acc.coverage.push({
-    includedItemIds: sub.plan.includedItemIds,
-    includedCategoryIds: sub.plan.includedCategoryIds,
-    remaining: remainingUsage(sub.currentPeriod.consumed, sub.plan.usageLimit),
-  })
+  //
+  // ONLY `active` subscriptions feed recognition — the badge must agree with the
+  // charge. The comanda auto-mark resolves coverage via the `active`-only
+  // `loadActiveSubscriptionForCustomer`; a `past_due` plan (unpaid) does not pay
+  // for the service, so badging it would promise coverage the close never
+  // honors. Gating axes above intentionally still span `past_due` (shipped 0019
+  // spatial/temporal scope) — recognition is the narrower, charge-aligned slice.
+  if (sub.status === 'active') {
+    acc.coverage.push({
+      includedItemIds: sub.plan.includedItemIds,
+      includedCategoryIds: sub.plan.includedCategoryIds,
+      remaining: remainingUsage(sub.currentPeriod.consumed, sub.plan.usageLimit),
+    })
+  }
 
   return acc
 }
