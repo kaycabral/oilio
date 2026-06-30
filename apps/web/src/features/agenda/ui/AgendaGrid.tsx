@@ -266,6 +266,24 @@ function MemberOperationColumn({
   const offHoursBands = computeOffHoursBands(dayHours, hasBusinessHours)
   const closedAllDay = hasBusinessHours && dayHours.length === 0
 
+  // Resolve grid-relative minutes once, drop off-grid cards, then pack
+  // overlapping survivors into horizontal lanes (AC-04). Memoized so the sort +
+  // interval packing runs only when the column's appointments (or the day) change
+  // — not on every re-render (e.g. opening/closing the appointment dialog).
+  const { placed, lanes } = useMemo(() => {
+    const placedCards = appointments
+      .map((a) => ({
+        a,
+        startMin: minutesFromGridStart(a.startAt, date, timezone),
+        endMin: minutesFromGridStart(a.endAt, date, timezone),
+      }))
+      .filter((p) => p.startMin >= 0 && p.endMin > p.startMin)
+    const laneMap = computeSlotLanes(
+      placedCards.map((p) => ({ id: p.a.id, startMin: p.startMin, endMin: p.endMin })),
+    )
+    return { placed: placedCards, lanes: laneMap }
+  }, [appointments, date, timezone])
+
   const gridStartMin = GRID_START_HOUR * 60
   const gridEndMin = GRID_END_HOUR * 60
   const visibleBlocks = blockSegments
@@ -342,76 +360,62 @@ function MemberOperationColumn({
         </div>
       ))}
 
-      {(() => {
-        // Resolve grid-relative minutes once, drop off-grid cards, then pack
-        // overlapping survivors into horizontal lanes (AC-04).
-        const placed = appointments
-          .map((a) => ({
-            a,
-            startMin: minutesFromGridStart(a.startAt, date, timezone),
-            endMin: minutesFromGridStart(a.endAt, date, timezone),
-          }))
-          .filter((p) => p.startMin >= 0 && p.endMin > p.startMin)
-        const lanes = computeSlotLanes(
-          placed.map((p) => ({ id: p.a.id, startMin: p.startMin, endMin: p.endMin })),
+      {placed.map(({ a, startMin, endMin }) => {
+        const top = startMin * MINUTE_PX
+        const height = (endMin - startMin) * MINUTE_PX
+        // Lane geometry: split the column (minus the existing 4px gutters) into
+        // `lanes` equal tracks. A lone card spans the full width as before.
+        const { lane, lanes: laneCount } = lanes.get(a.id) ?? { lane: 0, lanes: 1 }
+        const widthPct = 100 / laneCount
+        const positioning =
+          laneCount > 1
+            ? {
+                left: `calc(0.25rem + ${lane * widthPct}% )`,
+                width: `calc(${widthPct}% - 0.5rem)`,
+              }
+            : { left: '0.25rem', right: '0.25rem' }
+        const customer = customersById[a.customerId]
+        const service = servicesById[a.serviceId]
+        const title = `${formatHHmm(a.startAt, timezone)}–${formatHHmm(a.endAt, timezone)} · ${customer?.name ?? 'Cliente'} · ${service?.name ?? 'Serviço'}`
+        const content = (
+          <>
+            <p className="truncate font-medium">
+              {formatHHmm(a.startAt, timezone)} {customer?.name ?? 'Cliente'}
+            </p>
+            <p className="text-muted-foreground truncate">{service?.name ?? 'Serviço'}</p>
+          </>
         )
-        return placed.map(({ a, startMin, endMin }) => {
-          const top = startMin * MINUTE_PX
-          const height = (endMin - startMin) * MINUTE_PX
-          // Lane geometry: split the column (minus the existing 4px gutters) into
-          // `lanes` equal tracks. A lone card spans the full width as before.
-          const { lane, lanes: laneCount } = lanes.get(a.id) ?? { lane: 0, lanes: 1 }
-          const widthPct = 100 / laneCount
-          const positioning =
-            laneCount > 1
-              ? {
-                  left: `calc(0.25rem + ${lane * widthPct}% )`,
-                  width: `calc(${widthPct}% - 0.5rem)`,
-                }
-              : { left: '0.25rem', right: '0.25rem' }
-          const customer = customersById[a.customerId]
-          const service = servicesById[a.serviceId]
-          const title = `${formatHHmm(a.startAt, timezone)}–${formatHHmm(a.endAt, timezone)} · ${customer?.name ?? 'Cliente'} · ${service?.name ?? 'Serviço'}`
-          const content = (
-            <>
-              <p className="truncate font-medium">
-                {formatHHmm(a.startAt, timezone)} {customer?.name ?? 'Cliente'}
-              </p>
-              <p className="text-muted-foreground truncate">{service?.name ?? 'Serviço'}</p>
-            </>
-          )
-          if (onSelectAppointment) {
-            return (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => onSelectAppointment(a)}
-                className={cn(
-                  'focus-visible:ring-ring absolute overflow-hidden rounded border px-2 py-1 text-left text-xs transition hover:brightness-95 focus:outline-none focus-visible:ring-2',
-                  STATUS_STYLES[a.status],
-                )}
-                style={{ top, height, ...positioning }}
-                title={title}
-              >
-                {content}
-              </button>
-            )
-          }
+        if (onSelectAppointment) {
           return (
-            <div
+            <button
               key={a.id}
+              type="button"
+              onClick={() => onSelectAppointment(a)}
               className={cn(
-                'absolute overflow-hidden rounded border px-2 py-1 text-xs',
+                'focus-visible:ring-ring absolute overflow-hidden rounded border px-2 py-1 text-left text-xs transition hover:brightness-95 focus:outline-none focus-visible:ring-2',
                 STATUS_STYLES[a.status],
               )}
               style={{ top, height, ...positioning }}
               title={title}
             >
               {content}
-            </div>
+            </button>
           )
-        })
-      })()}
+        }
+        return (
+          <div
+            key={a.id}
+            className={cn(
+              'absolute overflow-hidden rounded border px-2 py-1 text-xs',
+              STATUS_STYLES[a.status],
+            )}
+            style={{ top, height, ...positioning }}
+            title={title}
+          >
+            {content}
+          </div>
+        )
+      })}
     </div>
   )
 }
