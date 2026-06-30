@@ -137,6 +137,7 @@ export {
   UnitPii,
   appointmentAgenda,
   dayHoursToRanges,
+  isAddressComplete,
   isReservedUnitSlug,
   isUnitBookable,
   isValidCancellationNoticeMinutes,

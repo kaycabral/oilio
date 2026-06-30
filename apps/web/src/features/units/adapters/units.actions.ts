@@ -366,7 +366,7 @@ export async function getUnitPublishReadiness(
     )
 
   return computeUnitPublishReadiness({
-    hasAddressAndHours: unit != null && unitHasAddressAndHours(unit.agenda),
+    hasAddressAndHours: unit != null && unitHasAddressAndHours(unit),
     hasPublicService,
     hasOperationalMemberOperation,
   })

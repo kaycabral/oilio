@@ -265,6 +265,25 @@ export const Address = Schema.mutable(
 )
 export type Address = typeof Address.Type
 
+// Whether an address carries the fields a real unit must have. The `Address`
+// schema itself tolerates empty strings because the unit aggregate's INITIAL
+// state (before `unit.created`) needs a zero-value (`EMPTY_ADDRESS`) — so the
+// "is this a real, filled address" invariant lives HERE, as an explicit
+// predicate, not in the bare schema. This is the single source of truth for
+// "address complete": `parseUnitForm` enforces it at the form boundary and
+// publish-readiness uses it to gate the public page. `number`/`complement`
+// stay optional (many addresses legitimately lack them). See the DB-modeling
+// audit issue for hardening this at the `unit.created` schema level too.
+export function isAddressComplete(address: Address): boolean {
+  return (
+    address.postalCode.trim().length > 0 &&
+    address.state.trim().length > 0 &&
+    address.city.trim().length > 0 &&
+    address.neighborhood.trim().length > 0 &&
+    address.street.trim().length > 0
+  )
+}
+
 // All-empty Address. Used only as the zero-value of the unit aggregate's
 // INITIAL state (before any `unit.created` event applies) — never a persisted
 // unit, since `parseUnitForm` requires a real address.
