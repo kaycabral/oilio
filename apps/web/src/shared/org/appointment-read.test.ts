@@ -8,7 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ readUnderRls: vi.fn() }))
 vi.mock('@/shared/db/pg/rls-read', () => ({ readUnderRls: mocks.readUnderRls }))
 
-import { listAppointmentsByMemberOperationId } from './appointment-read'
+import {
+  listAppointmentsByMemberOperationId,
+  listUnitAppointmentsInRange,
+} from './appointment-read'
 
 const APPOINTMENT_ROW = {
   org_id: 'org-1',
@@ -52,5 +55,57 @@ describe('listAppointmentsByMemberOperationId', () => {
   it('returns empty when the memberOperation has none', async () => {
     mocks.readUnderRls.mockResolvedValue([])
     expect(await listAppointmentsByMemberOperationId('org-1', 'pro-1')).toHaveLength(0)
+  })
+})
+
+describe('listUnitAppointmentsInRange', () => {
+  const RANGE = { startUtc: '2026-06-10T00:00:00.000Z', endUtc: '2026-06-10T23:59:59.999Z' }
+
+  // `readUnderRls` is mocked, so the SQL never hits a DB. To prove the status
+  // filter (brief 0081 #1311), run the read callback against a fake client that
+  // captures the query text, then assert on it.
+  function captureQuery(): { sql: () => string } {
+    let captured = ''
+    mocks.readUnderRls.mockImplementation(async (_orgId: string, run: (c: unknown) => unknown) => {
+      const fakeClient = {
+        query: (sql: string) => {
+          captured = sql
+          return Promise.resolve({ rows: [] })
+        },
+      }
+      await run(fakeClient)
+      return []
+    })
+    return { sql: () => captured }
+  }
+
+  it('excludes cancelled by default (AC-01)', async () => {
+    const cap = captureQuery()
+    await listUnitAppointmentsInRange('org-1', 'u1', RANGE)
+    expect(cap.sql()).toContain("status <> 'cancelled'")
+  })
+
+  it('keeps scheduled and other active statuses — filters only cancelled (AC-02)', async () => {
+    const cap = captureQuery()
+    await listUnitAppointmentsInRange('org-1', 'u1', RANGE)
+    const sql = cap.sql()
+    // The only status predicate is the cancelled exclusion — nothing narrows
+    // scheduled/completed/no_show out.
+    expect(sql).toContain("status <> 'cancelled'")
+    expect(sql).not.toMatch(/status\s*=\s*/)
+    expect(sql).not.toContain('no_show')
+  })
+
+  it('includes cancelled when the toggle is on (AC-03)', async () => {
+    const cap = captureQuery()
+    await listUnitAppointmentsInRange('org-1', 'u1', RANGE, '', true)
+    expect(cap.sql()).not.toContain('status')
+  })
+
+  it('maps the typed rows the read returns', async () => {
+    mocks.readUnderRls.mockResolvedValue([APPOINTMENT_ROW])
+    const appts = await listUnitAppointmentsInRange('org-1', 'u1', RANGE)
+    expect(appts).toHaveLength(1)
+    expect(appts[0]).toMatchObject({ id: 'apt-1', unitId: 'u1', status: 'scheduled' })
   })
 })

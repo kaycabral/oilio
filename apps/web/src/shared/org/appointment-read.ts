@@ -46,15 +46,21 @@ export async function listUnitAppointmentsInRange(
   // (the balcão) reads the whole unit. The SQL is unchanged — the database
   // narrows the rows, so a memberOperation can't read a colleague's day.
   memberOperationId = '',
+  // Cancelled visibility (brief 0081, #1311 AC-01/02): by default the agenda grid
+  // hides `cancelled` so freed slots read as empty. Only `cancelled` is filtered —
+  // `scheduled`/`completed`/`no_show` always render (no_show is the day's record).
+  // The toggle (#1312) flips this to `true` to re-surface cancelled appointments.
+  includeCancelled = false,
 ): Promise<Appointment[]> {
   const { startUtc, endUtc } = range
+  const statusFilter = includeCancelled ? '' : ` AND status <> 'cancelled'`
   const rows = await readUnderRls<AppointmentRow>(
     orgId,
     (client) =>
       client
         .query<AppointmentRow>(
           `SELECT * FROM appointments
-             WHERE org_id = $1 AND unit_id = $2 AND start_at >= $3 AND start_at <= $4`,
+             WHERE org_id = $1 AND unit_id = $2 AND start_at >= $3 AND start_at <= $4${statusFilter}`,
           [orgId, unitId, startUtc, endUtc],
         )
         .then((res) => res.rows),

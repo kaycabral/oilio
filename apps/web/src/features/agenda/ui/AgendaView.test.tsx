@@ -44,6 +44,7 @@ function buildUnit(id: string, name = `Unit ${id}`): Unit {
 
 const baseProps = {
   date: '2026-05-15',
+  showCancelled: false,
   timezone: 'America/Sao_Paulo',
   slotMinutes: 15 as const,
   units: [buildUnit('u1')],
