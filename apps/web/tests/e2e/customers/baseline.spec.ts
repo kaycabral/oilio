@@ -46,10 +46,10 @@ test.describe('Customers — baseline (#17)', () => {
     const dialog = authedPage.getByRole('dialog')
     await expect(dialog.getByRole('heading', { name: 'Convidar cliente' })).toBeVisible()
     await dialog.locator('input[name="whatsapp"]').fill(`119${Date.now().toString().slice(-8)}`)
-    await dialog.getByRole('button', { name: /enviar convite/i }).click()
-    // Result panel shows a copyable contextual link carrying `from={slug}`.
-    await expect(dialog.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
-    await expect(dialog.getByText(/\/signup\?/)).toBeVisible()
+    // A copyable contextual link carrying `from={slug}` is built live as the
+    // number becomes valid (no submit) + a "Abrir no WhatsApp" primary action.
+    await expect(dialog.getByRole('textbox', { name: 'Link do convite' })).toHaveValue(/\/signup\?/)
+    await expect(dialog.getByRole('button', { name: /abrir no whatsapp/i })).toBeVisible()
   })
 
   test('listar → ver → excluir (cliente materializado)', async ({ org, authedPage }) => {

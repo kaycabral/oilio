@@ -69,10 +69,11 @@ test.describe('brief 0077 — Feature-level DoD', { tag: '@critical' }, () => {
     await expect(dialog.locator('input[name="email"]')).toHaveCount(0)
     await expect(dialog.locator('input[name="birthDate"]')).toHaveCount(0)
     await dialog.locator('input[name="whatsapp"]').fill(`119${String(Date.now()).slice(-8)}`)
-    await dialog.getByRole('button', { name: /enviar convite/i }).click()
-    // Devolve o link contextual (signup com `from`) — sem criar Customer.
-    await expect(dialog.getByText(/convite gerado/i)).toBeVisible({ timeout: 5000 })
-    await expect(dialog.getByText(/\/signup\?.*from=/)).toBeVisible()
+    // Monta o link contextual (signup com `from`) na hora — sem submit, sem
+    // criar Customer. A unidade vem do contexto ativo (sem seletor).
+    await expect(dialog.getByRole('textbox', { name: 'Link do convite' })).toHaveValue(
+      /\/signup\?.*from=/,
+    )
   })
 
   test('Cenário 5 — logado mas incompleto é mandado completar antes de agendar', async ({
