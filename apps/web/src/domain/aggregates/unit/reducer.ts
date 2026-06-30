@@ -25,26 +25,6 @@ export function applyUnitEvent(state: UnitState, event: UnitEvent, meta: EventMe
           formalizedAt: event.formalizedAt,
         },
       }
-    case 'unit.self_booking_published':
-      // Self-booking publish is an appointment-agenda concern: the publish state
-      // lives ONLY in the `appointment` variant of `Unit.agenda`. A publish event
-      // on a non-appointment unit is a no-op (can't happen via the action, which
-      // guards on mode) — leave the agenda untouched rather than fabricate the
-      // appointment-only fields.
-      return state.agenda.mode === 'appointment'
-        ? {
-            ...base,
-            agenda: {
-              ...state.agenda,
-              selfBookingPublished: true,
-              selfBookingPublishedAt: meta.timestamp,
-            },
-          }
-        : base
-    case 'unit.self_booking_unpublished':
-      return state.agenda.mode === 'appointment'
-        ? { ...base, agenda: { ...state.agenda, selfBookingPublished: false } }
-        : base
     case 'unit.deleted':
       return base
   }

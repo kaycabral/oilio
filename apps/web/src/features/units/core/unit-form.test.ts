@@ -203,9 +203,6 @@ describe('assembleAgenda', () => {
     expect(agenda.slotMinutes).toBe(DEFAULT_SLOT_MINUTES)
     expect(agenda.cancellationPolicy).toEqual(DEFAULT_CANCELLATION_POLICY)
     expect(agenda.confirmationTemplates).toEqual(DEFAULT_WHATSAPP_TEMPLATES)
-    expect(agenda.selfBookingPublished).toBe(false)
-    // No prior publish timestamp → the optional field is omitted.
-    expect('selfBookingPublishedAt' in agenda).toBe(false)
   })
 
   it('uses the inline form config for the appointment-only fields', () => {
@@ -224,24 +221,20 @@ describe('assembleAgenda', () => {
     })
   })
 
-  it('preserves the self-booking publish state from the prior agenda (form does not expose it)', () => {
+  it('takes new form hours + configs over the prior appointment agenda', () => {
     const prior: UnitAgendaAppointment = {
       mode: 'appointment',
       businessHours: HOURS,
       slotMinutes: 30,
       cancellationPolicy: { enabled: true, minNoticeMinutes: 240 },
       confirmationTemplates: { confirmation: 'c', reminder: 'r', cancellation: 'x' },
-      selfBookingPublished: true,
-      selfBookingPublishedAt: '2026-06-18T00:00:00.000Z',
     }
     const newHours: BusinessHours = { ...HOURS, tuesday: { open: '10:00', close: '16:00' } }
     const agenda = assembleAgenda('appointment', newHours, prior, APPOINTMENT_INPUT)
     if (agenda.mode !== 'appointment') throw new Error('expected appointment')
-    // Hours + configs come from the new form input; only the publish state is preserved.
+    // Hours + configs come from the new form input.
     expect(agenda.businessHours).toEqual(newHours)
     expect(agenda.slotMinutes).toBe(15)
-    expect(agenda.selfBookingPublished).toBe(true)
-    expect(agenda.selfBookingPublishedAt).toBe('2026-06-18T00:00:00.000Z')
   })
 
   it('drops the appointment configs when switching appointment → fixed', () => {
@@ -251,7 +244,6 @@ describe('assembleAgenda', () => {
       slotMinutes: 30,
       cancellationPolicy: { enabled: true, minNoticeMinutes: 240 },
       confirmationTemplates: { confirmation: 'c', reminder: 'r', cancellation: 'x' },
-      selfBookingPublished: true,
     }
     expect(assembleAgenda('fixed', HOURS, prior, null)).toEqual({
       mode: 'fixed',

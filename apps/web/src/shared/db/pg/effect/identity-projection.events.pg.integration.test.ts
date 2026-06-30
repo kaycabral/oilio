@@ -184,8 +184,6 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
           slotMinutes: 30,
           cancellationPolicy: { enabled: true, minNoticeMinutes: 120 },
           confirmationTemplates: { confirmation: 'c', reminder: 'r', cancellation: 'x' },
-          selfBookingPublished: true,
-          selfBookingPublishedAt: '2026-06-02T00:00:00.000Z',
         },
       }),
     )
@@ -211,7 +209,6 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
     expect(replayedUnit.agenda.mode).toBe('appointment')
     if (replayedUnit.agenda.mode === 'appointment') {
       expect(replayedUnit.agenda.slotMinutes).toBe(30)
-      expect(replayedUnit.agenda.selfBookingPublished).toBe(true)
     }
 
     const replayedMembership = await Effect.runPromise(

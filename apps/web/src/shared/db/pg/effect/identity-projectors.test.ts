@@ -244,32 +244,50 @@ describe('unit projector — pure mapping', () => {
     expect(doc.archivedAt).toBeNull()
   })
 
-  it('public_visible derives from an appointment unit selfBookingPublished', () => {
+  it('public_visible is true for an appointment unit with a complete address + open hours', () => {
     const appt: StoredUnit = {
       ...baseUnit,
       agenda: {
         mode: 'appointment',
-        businessHours:
-          baseUnit.agenda.mode === 'fixed'
-            ? baseUnit.agenda.businessHours
-            : {
-                monday: null,
-                tuesday: null,
-                wednesday: null,
-                thursday: null,
-                friday: null,
-                saturday: null,
-                sunday: null,
-              },
+        businessHours: {
+          monday: { open: '09:00', close: '18:00' },
+          tuesday: null,
+          wednesday: null,
+          thursday: null,
+          friday: null,
+          saturday: null,
+          sunday: null,
+        },
         slotMinutes: 30,
         cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
         confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-        selfBookingPublished: true,
-        selfBookingPublishedAt: '2026-06-02T00:00:00.000Z',
       },
     }
     const values = unitColumnValues(appt, 1)
     expect(values[UNIT_COLUMNS.indexOf('public_visible')]).toBe(true)
     expect(values[UNIT_COLUMNS.indexOf('agenda_mode')]).toBe('appointment')
+  })
+
+  it('public_visible is false for an appointment unit with no open weekday', () => {
+    const appt: StoredUnit = {
+      ...baseUnit,
+      agenda: {
+        mode: 'appointment',
+        businessHours: {
+          monday: null,
+          tuesday: null,
+          wednesday: null,
+          thursday: null,
+          friday: null,
+          saturday: null,
+          sunday: null,
+        },
+        slotMinutes: 30,
+        cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
+        confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
+      },
+    }
+    const values = unitColumnValues(appt, 1)
+    expect(values[UNIT_COLUMNS.indexOf('public_visible')]).toBe(false)
   })
 })

@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { isBusinessHoursConfigured } from '../utils/business-hours'
 import type { WhatsappTemplates } from '../utils/whatsapp'
 import { isValidSlug, slugify } from './slug'
 import { INFORMAL_UNIT_FISCAL, UnitFiscal } from './tax'
@@ -178,11 +179,6 @@ export const UnitAgendaAppointment = Schema.mutable(
     // Confirmation/reminder/cancellation message templates — only exists in
     // appointment mode (moved from Org).
     confirmationTemplates: ConfirmationTemplates,
-    // Self-booking publication gate (brief 0008 #988): the public page is only
-    // reachable when `selfBookingPublished` is true. Per-unit now (moved from
-    // Org) — event-sourced via `unit.self_booking_published`/`unpublished`.
-    selfBookingPublished: Schema.Boolean,
-    selfBookingPublishedAt: Schema.optional(Schema.NullOr(Schema.String)),
   }),
 )
 export type UnitAgendaAppointment = typeof UnitAgendaAppointment.Type
@@ -235,11 +231,33 @@ export function unitSlotMinutes(agenda: UnitAgendaConfig): SlotMinutes {
   return agenda.mode === 'appointment' ? agenda.slotMinutes : DEFAULT_SLOT_MINUTES
 }
 
-// The self-booking publication state for a unit — only true when the unit is in
-// appointment mode AND published. Non-appointment units are never "published"
-// (the publish state doesn't exist for them).
-export function unitSelfBookingPublished(agenda: UnitAgendaConfig): boolean {
-  return agenda.mode === 'appointment' && agenda.selfBookingPublished
+// A unit has usable hours when it's `always_open` (open by definition) or its
+// agenda carries at least one open weekday. The agenda always holds a
+// `businessHours` object (never null), so the zero-value all-closed week
+// (`EMPTY_BUSINESS_HOURS`) must NOT count as configured — defer to
+// `isBusinessHoursConfigured`.
+export function unitHasUsableHours(agenda: UnitAgendaConfig): boolean {
+  return agenda.mode === 'always_open' || isBusinessHoursConfigured(unitBusinessHours(agenda))
+}
+
+// A unit has the address + hours a public page requires. The address schema
+// tolerates empty strings (the aggregate's zero-value `EMPTY_ADDRESS`), so a unit
+// seeded/built without an address would otherwise slip through as "ready" with a
+// blank address — validate it for real via `isAddressComplete`.
+export function unitHasAddressAndHours(unit: Pick<Unit, 'address' | 'agenda'>): boolean {
+  return isAddressComplete(unit.address) && unitHasUsableHours(unit.agenda)
+}
+
+// Whether a unit's public booking page is live. SPIKE (inferred availability):
+// there is no stored publish flag / publish button — a unit goes public the
+// moment it uses the online agenda (appointment mode) AND has a complete address
+// + operating hours. This is the SINGLE source of truth for "publicly live",
+// shared by the landing/slots, the client invite, the booking wizard and the
+// `public_visible` projection. Service/memberOperation readiness is owner-facing
+// FEEDBACK only and does NOT hard-gate the public page (an appointment unit with
+// hours but no pro simply renders no bookable slots). PRD Identidade v2.
+export function isUnitPubliclyLive(unit: Pick<Unit, 'address' | 'agenda'>): boolean {
+  return isUnitBookable(unit) && unitHasAddressAndHours(unit)
 }
 
 // The cancellation policy to snapshot onto a booking: the appointment-agenda

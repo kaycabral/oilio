@@ -1,6 +1,6 @@
 import { UnitConfig } from '@/domain/aggregates/unit/config'
 import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
-import { StoredUnit } from '@/domain/types/unit'
+import { isUnitPubliclyLive, StoredUnit } from '@/domain/types/unit'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { buildCollectionQueryTail } from './collection-query'
@@ -54,12 +54,12 @@ export const UNIT_COLUMNS = [
  * the E2E seed. Order matches `UNIT_COLUMNS` exactly; `org_id`/`id` come straight
  * off the unit. The union discriminants (`agenda.mode`, `fiscal.kind`) are lifted
  * to columns; the full bodies ride in JSONB. `public_visible` mirrors the unit's
- * bookable state (derived: appointment mode + published) — kept nullable for
- * forward-compat.
+ * inferred public availability (`isUnitPubliclyLive`: appointment mode + complete
+ * address & hours — no stored publish flag, PRD Identidade v2 / SPIKE) — kept
+ * nullable for forward-compat.
  */
 export function unitColumnValues(unit: StoredUnit, lastEventVersion: number): unknown[] {
-  const publicVisible =
-    unit.agenda.mode === 'appointment' ? unit.agenda.selfBookingPublished : false
+  const publicVisible = isUnitPubliclyLive(unit)
   return [
     unit.orgId,
     unit.id,

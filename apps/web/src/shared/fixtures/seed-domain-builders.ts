@@ -57,10 +57,6 @@ export function buildOrg(
 // Canonical agenda configs by hours mode (discriminated union — the agenda-only
 // fields exist ONLY in the appointment variant, by construction). `fixed` and
 // `appointment` open Mon–Fri 09:00–18:00. Realistic defaults a seeded unit needs.
-// Fixed publish timestamp for seeded already-published units — a stable value
-// keeps the seed idempotent (same re-run → same projection).
-const PUBLISHED_AT = '2024-01-01T00:00:00.000Z'
-
 const WEEKDAY_HOURS = {
   monday: { open: '09:00', close: '18:00' },
   tuesday: { open: '09:00', close: '18:00' },
@@ -79,15 +75,13 @@ export function agendaAlwaysOpen(): UnitAgendaConfig {
   return { mode: 'always_open' }
 }
 
-export function agendaAppointment(published = false): UnitAgendaConfig {
+export function agendaAppointment(): UnitAgendaConfig {
   return {
     mode: 'appointment',
     businessHours: { ...WEEKDAY_HOURS },
     slotMinutes: DEFAULT_SLOT_MINUTES,
     cancellationPolicy: { ...DEFAULT_CANCELLATION_POLICY },
     confirmationTemplates: { ...DEFAULT_WHATSAPP_TEMPLATES },
-    selfBookingPublished: published,
-    selfBookingPublishedAt: published ? PUBLISHED_AT : null,
   }
 }
 

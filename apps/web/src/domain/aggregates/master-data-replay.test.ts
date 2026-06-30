@@ -215,15 +215,23 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       changes: { name: 'Barbearia do Zé' },
     }))
 
-  // Dedicated self-booking publish event (brief 0008 #988), now PER-UNIT (PRD
-  // Identidade v2, context 3 — moved Org→Unit): an appointment unit goes
-  // created → published → unpublished. Replay must reconstruct
-  // `agenda.selfBookingPublished` from the stream (event-first; the flag is
-  // never written outside events) and the publish state lives ONLY in the
-  // appointment variant of the agenda union.
-  it('unit — self-booking publish/unpublish (event-first, per-unit)', async () => {
+  // Self-booking publication is INFERRED, not event-sourced (PRD Identidade v2 /
+  // SPIKE "inferred availability"): there is no publish event. A unit goes public
+  // by switching its agenda to `appointment` via `unit.updated`. Replay must
+  // reconstruct the agenda transition from the stream (created walk-in → updated
+  // to appointment); `isUnitPubliclyLive` then derives the public state on read.
+  it('unit — agenda transition to appointment (event-first, per-unit)', async () => {
     const { store, layer } = makeReplayStore()
     const ref = aggregateRef(UnitConfig, 't2', 'u2')
+    const HOURS = {
+      monday: { open: '09:00', close: '18:00' },
+      tuesday: null,
+      wednesday: null,
+      thursday: null,
+      friday: null,
+      saturday: null,
+      sunday: null,
+    }
     await Effect.runPromise(
       Effect.gen(function* () {
         yield* appendEvent(UnitConfig, ref, {
@@ -245,22 +253,7 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
                 complement: null,
               },
               timezone: 'America/Sao_Paulo',
-              agenda: {
-                mode: 'appointment',
-                businessHours: {
-                  monday: { open: '09:00', close: '18:00' },
-                  tuesday: null,
-                  wednesday: null,
-                  thursday: null,
-                  friday: null,
-                  saturday: null,
-                  sunday: null,
-                },
-                slotMinutes: 15,
-                cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
-                confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-                selfBookingPublished: false,
-              },
+              agenda: { mode: 'fixed', businessHours: HOURS },
               archivedAt: null,
               fiscal: { kind: 'informal' },
               createdAt: '2026-06-01T12:00:00.000Z',
@@ -269,39 +262,29 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
           },
         })
         yield* appendEvent(UnitConfig, ref, {
-          _tag: 'unit.self_booking_published',
+          _tag: 'unit.updated',
           actorId: 'owner-2',
-          payload: {},
+          payload: {
+            changes: {
+              agenda: {
+                mode: 'appointment',
+                businessHours: HOURS,
+                slotMinutes: 15,
+                cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
+                confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
+              },
+            },
+          },
         })
       }).pipe(Effect.provide(layer)),
     )
 
-    const afterPublish = await Effect.runPromise(
+    const afterUpdate = await Effect.runPromise(
       replayAggregate(UnitConfig, ref).pipe(Effect.provide(layer)),
     )
-    expect(afterPublish).toEqual(store.get(docKey(ref)))
-    // The publish state lives in the appointment variant of the agenda union.
-    expect(afterPublish.agenda.mode).toBe('appointment')
-    if (afterPublish.agenda.mode !== 'appointment') throw new Error('expected appointment')
-    expect(afterPublish.agenda.selfBookingPublished).toBe(true)
-    expect(afterPublish.agenda.selfBookingPublishedAt).not.toBeNull()
-    expect(afterPublish._version).toBe(2)
-
-    // Unpublish reverses the flag (timestamp left as the last publish moment).
-    await Effect.runPromise(
-      appendEvent(UnitConfig, ref, {
-        _tag: 'unit.self_booking_unpublished',
-        actorId: 'owner-2',
-        payload: {},
-      }).pipe(Effect.provide(layer)),
-    )
-    const afterUnpublish = await Effect.runPromise(
-      replayAggregate(UnitConfig, ref).pipe(Effect.provide(layer)),
-    )
-    expect(afterUnpublish).toEqual(store.get(docKey(ref)))
-    if (afterUnpublish.agenda.mode !== 'appointment') throw new Error('expected appointment')
-    expect(afterUnpublish.agenda.selfBookingPublished).toBe(false)
-    expect(afterUnpublish._version).toBe(3)
+    expect(afterUpdate).toEqual(store.get(docKey(ref)))
+    expect(afterUpdate.agenda.mode).toBe('appointment')
+    expect(afterUpdate._version).toBe(2)
   })
 })
 

@@ -137,16 +137,16 @@ export async function seedBarbearia(): Promise<void> {
   })
 
   // — Units: appointment (Centro/Zona Sul) + always_open (Expresso) —
-  // Centro/Zona Sul are appointment units published for self-booking (real
-  // address + open hours + selfBookingPublished) so the public booking flow is
-  // live out of the box. Every unit carries a COMPLETE address — a unit with a
-  // blank address is not a valid publishable establishment (`isAddressComplete`).
+  // Centro/Zona Sul are appointment units publicly live for self-booking (real
+  // address + open hours → `isUnitPubliclyLive`, no publish flag) so the public
+  // booking flow is live out of the box. Every unit carries a COMPLETE address —
+  // a unit with a blank address is not publicly live (`isAddressComplete`).
   await seedUnit(
     buildUnit(UNIT_CENTRO, ORG_ID, now, {
       name: 'Centro',
       slug: 'centro',
       address: buildAddress({ neighborhood: 'Centro', street: 'Rua XV de Novembro' }),
-      agenda: agendaAppointment(true),
+      agenda: agendaAppointment(),
     }),
     OWNER.uid,
   )
@@ -155,7 +155,7 @@ export async function seedBarbearia(): Promise<void> {
       name: 'Zona Sul',
       slug: 'zona-sul',
       address: buildAddress({ neighborhood: 'Moema', street: 'Avenida Ibirapuera' }),
-      agenda: agendaAppointment(true),
+      agenda: agendaAppointment(),
     }),
     OWNER.uid,
   )

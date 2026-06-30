@@ -9,9 +9,11 @@ import {
   DEFAULT_CANCELLATION_POLICY,
   DEFAULT_SLOT_MINUTES,
   EMPTY_ADDRESS,
+  EMPTY_BUSINESS_HOURS,
   isAddressComplete,
   isReservedUnitSlug,
   isUnitBookable,
+  isUnitPubliclyLive,
   isValidCancellationNoticeMinutes,
   isValidSlotMinutes,
   isValidUnitSlug,
@@ -24,7 +26,6 @@ import {
   unitBusinessHours,
   unitCancellationPolicySnapshot,
   UnitPii,
-  unitSelfBookingPublished,
   unitSlotMinutes,
   unitUsesAgenda,
 } from './unit'
@@ -45,8 +46,6 @@ const APPOINTMENT_AGENDA: UnitAgendaConfig = {
   slotMinutes: 30,
   cancellationPolicy: { enabled: true, minNoticeMinutes: 120 },
   confirmationTemplates: { confirmation: 'c', reminder: 'r', cancellation: 'x' },
-  selfBookingPublished: true,
-  selfBookingPublishedAt: '2026-06-18T00:00:00.000Z',
 }
 
 describe('slugifyUnitName', () => {
@@ -112,6 +111,51 @@ describe('isUnitBookable', () => {
   })
 })
 
+// A unit's public booking page is INFERRED (PRD Identidade v2 / SPIKE: no stored
+// publish flag): live the moment it is in appointment mode AND carries a complete
+// address + at least one open weekday. This is the single gate shared by the
+// landing/slots, the client invite, the booking wizard and `public_visible`.
+describe('isUnitPubliclyLive', () => {
+  const COMPLETE_ADDRESS: Address = {
+    postalCode: '01310-100',
+    state: 'SP',
+    city: 'São Paulo',
+    neighborhood: 'Bela Vista',
+    street: 'Av. Paulista',
+    number: '1000',
+    complement: null,
+  }
+
+  it('is live for an appointment unit with a complete address + open hours', () => {
+    expect(isUnitPubliclyLive({ address: COMPLETE_ADDRESS, agenda: APPOINTMENT_AGENDA })).toBe(true)
+  })
+
+  it('is not live outside appointment mode, even with a complete address', () => {
+    expect(
+      isUnitPubliclyLive({
+        address: COMPLETE_ADDRESS,
+        agenda: { mode: 'fixed', businessHours: HOURS },
+      }),
+    ).toBe(false)
+    expect(isUnitPubliclyLive({ address: COMPLETE_ADDRESS, agenda: { mode: 'always_open' } })).toBe(
+      false,
+    )
+  })
+
+  it('is not live when the appointment agenda has no open weekday (empty hours)', () => {
+    expect(
+      isUnitPubliclyLive({
+        address: COMPLETE_ADDRESS,
+        agenda: { ...APPOINTMENT_AGENDA, businessHours: EMPTY_BUSINESS_HOURS },
+      }),
+    ).toBe(false)
+  })
+
+  it('is not live when the address is the blank zero-value (EMPTY_ADDRESS)', () => {
+    expect(isUnitPubliclyLive({ address: EMPTY_ADDRESS, agenda: APPOINTMENT_AGENDA })).toBe(false)
+  })
+})
+
 describe('unitBusinessHours', () => {
   it('returns the per-day ranges for fixed / appointment', () => {
     expect(unitBusinessHours({ mode: 'fixed', businessHours: HOURS })).toEqual(HOURS)
@@ -134,15 +178,6 @@ describe('appointment-only config accessors', () => {
     expect(unitSlotMinutes(APPOINTMENT_AGENDA)).toBe(30)
     expect(unitSlotMinutes({ mode: 'fixed', businessHours: HOURS })).toBe(DEFAULT_SLOT_MINUTES)
     expect(unitSlotMinutes({ mode: 'always_open' })).toBe(DEFAULT_SLOT_MINUTES)
-  })
-
-  it('unitSelfBookingPublished is true only for a published appointment unit', () => {
-    expect(unitSelfBookingPublished(APPOINTMENT_AGENDA)).toBe(true)
-    expect(unitSelfBookingPublished({ ...APPOINTMENT_AGENDA, selfBookingPublished: false })).toBe(
-      false,
-    )
-    expect(unitSelfBookingPublished({ mode: 'fixed', businessHours: HOURS })).toBe(false)
-    expect(unitSelfBookingPublished({ mode: 'always_open' })).toBe(false)
   })
 
   it('unitCancellationPolicySnapshot reads the appointment policy, else the default', () => {

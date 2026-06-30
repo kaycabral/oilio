@@ -1,5 +1,6 @@
 'use server'
 
+import { isUnitPubliclyLive } from '@/domain'
 import { CustomerConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
@@ -35,11 +36,14 @@ export async function recordClientInviteIssued(input: {
   if (unitSlug.length === 0) return { ok: false, error: 'Selecione a unidade do convite' }
 
   // The invite must target a unit whose public booking is live, else the link
-  // dead-ends on "indisponível". Same gate the dialog checks client-side.
+  // dead-ends on "indisponível". Same gate the dialog checks client-side, and the
+  // same inferred-availability rule the public landing/slots use (no stored
+  // publish flag — PRD Identidade v2 / SPIKE): appointment mode + complete
+  // address & hours.
   const units = await listUnitsForOrg(orgId)
   const unit = units.find((u) => u.slug === unitSlug)
   if (!unit) return { ok: false, error: 'Unidade não encontrada' }
-  if (unit.agenda.mode !== 'appointment' || !unit.agenda.selfBookingPublished) {
+  if (!isUnitPubliclyLive(unit)) {
     return { ok: false, error: 'Essa unidade ainda não está com agendamento público ativo' }
   }
 
