@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
+import { isUnitPubliclyLive } from '../utils/business-hours'
 import {
   type Address,
   appointmentAgenda,
@@ -13,7 +14,6 @@ import {
   isAddressComplete,
   isReservedUnitSlug,
   isUnitBookable,
-  isUnitPubliclyLive,
   isValidCancellationNoticeMinutes,
   isValidSlotMinutes,
   isValidUnitSlug,
