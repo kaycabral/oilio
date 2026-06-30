@@ -1,31 +1,43 @@
 import type { BrowserContext, Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
-import { chooseOptionByIndex } from '../helpers/select'
-import { seedService, signInAndAttachSession } from '../helpers/session'
-import { orgSlug } from '../pages'
+import { nextWeekday } from '../helpers/date'
+import {
+  linkMemberOperationToServices,
+  seedService,
+  signInAndAttachSession,
+} from '../helpers/session'
+import { orgSlug, PublicBookingPage } from '../pages'
 
 // Issue #843 + brief 0077 DoD Cenário 4 — Anti-double-book server-side.
 //
-// Two LOGGED-IN browser contexts submit the same slot concurrently (login is
-// mandatory since #1275 — anonymous booking no longer exists). The transactional
-// booking commit must serialize them: one ends with the success card, the other
-// gets the "horário já está ocupado" error. Whichever context wins is an
-// implementation detail — the spec only asserts the 1-success / 1-failure split.
+// Two LOGGED-IN browser contexts pick the SAME availability slot concurrently
+// (login is mandatory since #1275 — anonymous booking no longer exists). The
+// transactional booking commit must serialize them: one ends with the success
+// card, the other gets the "horário já está ocupado" error. Whichever context
+// wins is an implementation detail — the spec only asserts the 1-success /
+// 1-failure split.
 //
 // Both contexts authenticate as the same completed user; the per-org Customer is
 // derived from the uid, so they race for the SAME slot as the same subject — the
 // exclusion constraint, not a per-user guard, is what serializes them.
 
-async function fillBookingForm(page: Page, slug: string, startAtLocal: string): Promise<void> {
-  await page.goto(`/${slug}/book`)
-  await chooseOptionByIndex(page, /serviço/i, 0)
-  await chooseOptionByIndex(page, /profissional/i, 0)
-  await page.getByRole('textbox', { name: /data e horário/i }).fill(startAtLocal)
-  // No PII inputs since #1275 — service/pro/datetime only.
+// Drive a context through the per-unit wizard up to (but not clicking) confirm:
+// availability for a fixed day → click the first slot of the seeded pro. Both
+// contexts target the same day/pro, so they land on the same slot.
+async function pickSameSlot(page: Page, slug: string, serviceId: string): Promise<void> {
+  const booking = new PublicBookingPage(page, slug)
+  await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
+  await booking
+    .slotByMemberOperation(/profissional 1/i)
+    .first()
+    .click()
+  await expect(booking.confirmButton()).toBeVisible()
 }
 
 test.describe('Landing pública — anti-duplo-agendamento', { tag: '@critical' }, () => {
-  test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
+  test.use({
+    orgInput: { unitCount: 1, memberOperationCount: 1, hasBusinessHours: true, slotMinutes: 30 },
+  })
 
   // Contexts created by the concurrent-booking test, torn down after each test
   // (replaces an in-test try/finally, which the lint bans as conditional-in-test).
@@ -41,21 +53,14 @@ test.describe('Landing pública — anti-duplo-agendamento', { tag: '@critical' 
     baseURL,
   }) => {
     const slug = orgSlug(org.orgId)
-    await seedService(org.orgId, {
+    const serviceId = await seedService(org.orgId, {
       name: 'Corte',
       durationMinutes: 30,
       priceCents: 5000,
       publicVisible: true,
       unitIds: org.unitIds,
     })
-
-    // Slot 4 days ahead at 14:00 local — clear of `Date.now()` and any other
-    // public-booking spec's clock arithmetic.
-    const target = new Date(Date.now() + 4 * 24 * 60 * 60_000)
-    const yyyy = target.getUTCFullYear()
-    const mm = String(target.getUTCMonth() + 1).padStart(2, '0')
-    const dd = String(target.getUTCDate()).padStart(2, '0')
-    const startAtLocal = `${yyyy}-${mm}-${dd}T14:00`
+    await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
     // Two authenticated contexts (login required since #1275).
     const ctxA = await browser.newContext()
@@ -68,31 +73,30 @@ test.describe('Landing pública — anti-duplo-agendamento', { tag: '@critical' 
     const pageA = await ctxA.newPage()
     const pageB = await ctxB.newPage()
 
-    await Promise.all([
-      fillBookingForm(pageA, slug, startAtLocal),
-      fillBookingForm(pageB, slug, startAtLocal),
-    ])
+    await Promise.all([pickSameSlot(pageA, slug, serviceId), pickSameSlot(pageB, slug, serviceId)])
+
+    const bookingA = new PublicBookingPage(pageA, slug)
+    const bookingB = new PublicBookingPage(pageB, slug)
 
     // Submit both as close to simultaneously as `Promise.all` allows.
-    await Promise.all([
-      pageA.getByRole('button', { name: /^entrar e agendar$/i }).click(),
-      pageB.getByRole('button', { name: /^entrar e agendar$/i }).click(),
-    ])
+    await Promise.all([bookingA.confirmButton().click(), bookingB.confirmButton().click()])
 
-    // Wait for either the success card or the conflict error on both pages.
-    await Promise.all([
-      expect(pageA.getByText(/Agendamento confirmado|já está ocupado/)).toBeVisible(),
-      expect(pageB.getByText(/Agendamento confirmado|já está ocupado/)).toBeVisible(),
-    ])
+    // The winner navigates to the success page (/book/success); the loser stays on
+    // the confirm form showing the "acabou de ser ocupado" conflict. Wait for each
+    // page to settle into one of those two terminal states.
+    const settled = (page: Page) =>
+      Promise.race([
+        page.waitForURL(/\/book\/success\?appt=/, { timeout: 15_000 }),
+        page.getByText(/acabou de ser ocupado/i).waitFor({ state: 'visible', timeout: 15_000 }),
+      ])
+    await Promise.all([settled(pageA), settled(pageB)])
 
     // Exactly one success + exactly one conflict across the two pages — asserted
     // by summing across both pages, so we never branch on which one won.
-    const successCount =
-      (await pageA.getByText(/Agendamento confirmado/).count()) +
-      (await pageB.getByText(/Agendamento confirmado/).count())
+    const successCount = [pageA, pageB].filter((p) => p.url().includes('/book/success')).length
     const conflictCount =
-      (await pageA.getByText(/já está ocupado/i).count()) +
-      (await pageB.getByText(/já está ocupado/i).count())
+      (await pageA.getByText(/acabou de ser ocupado/i).count()) +
+      (await pageB.getByText(/acabou de ser ocupado/i).count())
     expect(successCount).toBe(1)
     expect(conflictCount).toBe(1)
   })

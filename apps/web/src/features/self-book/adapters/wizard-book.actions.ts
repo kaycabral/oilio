@@ -35,12 +35,11 @@ import { getOrgBySlug } from '@/shared/org/org'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
 import { channelOf, emitClientFunnelEvent } from '@/shared/product'
 
-// Server action for the unit-scoped wizard (#844). Differs from the legacy
-// `createPublicBooking` (which lives at `/{slug}/book` and accepts free-form
-// datetime input) in three ways:
+// Server action for the unit-scoped booking wizard (#844) — the canonical public
+// booking path. Key traits:
 //   - `unitSlug` comes from the path, not the form.
 //   - `startAt` comes pre-resolved as an ISO UTC instant (from the availability
-//     calendar click) — no parsing of `datetime-local`.
+//     calendar click) — only real, available slots reach here.
 //   - `memberOperationId` is required (the calendar in #842 always assigns a pro).
 
 export type WizardBookingResult =

@@ -1,9 +1,9 @@
 // Single-source helper that creates (or finds) the User + Customer pair
-// behind a customer record. Used by every customer-creation path in V0:
+// behind a customer record. Used by every customer-creation path:
 //
-//   - /(app)/customers/actions.ts (recepcionista form)
+//   - features/onboarding (self-signup completion — #1278)
 //   - features/agenda/adapters/agenda.actions.ts (quick-add from booking dialog)
-//   - /(public)/[slug]/book/actions.ts (public landing booking)
+//   - features/self-book (per-unit public booking confirm)
 //
 // Schema decided in #832 + #836: PII (name, whatsapp, email, birthDate)
 // lives on the global `users/{userId}` doc; per-org `customers/{id}`

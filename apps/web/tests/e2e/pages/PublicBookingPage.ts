@@ -1,18 +1,17 @@
 import type { Locator, Page } from '@playwright/test'
-import { chooseOptionByIndex } from '../helpers/select'
 
 // Encapsulates the public landing + self-book wizard exercised by
 // `landing-public-*` and `self-book-*` specs.
 //
 // The flow has 4 surfaces:
-//   1. `/[slug]`                            — org catalog (legacy aggregate)
+//   1. `/[slug]`                            — org catalog (single-unit shortcut)
 //   2. `/[slug]/[unitSlug]`                 — per-unit catalog (Step 1 of #844)
 //   3. `/[slug]/[unitSlug]/availability`    — slot picker (Step 2)
 //   4. `/[slug]/[unitSlug]/book`            — confirmation form (Step 3)
 //      → `/[slug]/[unitSlug]/book/success`  — confirmation page (Step 4)
 //
-// The legacy single-step `/[slug]/book` form is still routed for backwards
-// compat — methods that target it are suffixed `Legacy`.
+// The legacy single-step org-level `/[slug]/book` form was removed (#1273): all
+// booking goes through the per-unit wizard with real availability slots.
 export class PublicBookingPage {
   constructor(
     private readonly page: Page,
@@ -36,10 +35,6 @@ export class PublicBookingPage {
     const qs = new URLSearchParams({ service: params.serviceId })
     if (params.from) qs.set('from', params.from)
     await this.page.goto(`/${this.slug}/${unitSlug}/availability?${qs.toString()}`)
-  }
-
-  async gotoBookLegacy(): Promise<void> {
-    await this.page.goto(`/${this.slug}/book`)
   }
 
   // ── Catalog assertions ──────────────────────────────────────────────────
@@ -77,32 +72,6 @@ export class PublicBookingPage {
   }
 
   successHeading(): Locator {
-    return this.page.getByRole('heading', { name: /agendamento confirmado/i })
-  }
-
-  // ── Legacy single-step form ─────────────────────────────────────────────
-
-  legacyHeading(): Locator {
-    return this.page.getByRole('heading', { name: /agendar em/i })
-  }
-
-  // Legacy form since #1275: NO customer PII inputs (login required, Customer
-  // derived from the uid). Only service / pro / datetime are typed.
-  async fillLegacyForm(opts: {
-    serviceIndex?: number
-    memberOperationIndex?: number
-    dateTimeIso: string
-  }): Promise<void> {
-    await chooseOptionByIndex(this.page, /serviço/i, opts.serviceIndex ?? 0)
-    await chooseOptionByIndex(this.page, /profissional/i, opts.memberOperationIndex ?? 0)
-    await this.page.getByRole('textbox', { name: /data e horário/i }).fill(opts.dateTimeIso)
-  }
-
-  legacySubmit(): Locator {
-    return this.page.getByRole('button', { name: /entrar e agendar/i })
-  }
-
-  legacySuccessHeading(): Locator {
     return this.page.getByRole('heading', { name: /agendamento confirmado/i })
   }
 }
