@@ -3,6 +3,7 @@ export {
   Money,
   MoneySchema,
   NonEmptyString,
+  NonNegativeInt,
   OrgId,
   OrgIdSchema,
 } from './value-objects'

@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 
-import { NonEmptyString } from '@/domain/value-objects'
+import { NonEmptyString, NonNegativeInt } from '@/domain/value-objects'
 import { AllowedTimeScope, BillingCycle, BookingLimits, UsageLimit } from './subscription-plan'
 
 // Estados de assinatura:
@@ -32,7 +32,7 @@ export const SubscriptionPlanSnapshot = Schema.mutable(
     // defesa é só o decode; `''` deixaria a assinatura sem origem/rótulo de plano.
     planId: NonEmptyString,
     name: NonEmptyString,
-    priceCents: Schema.Number,
+    priceCents: NonNegativeInt,
     billingCycle: BillingCycle,
     // Frozen FK array into `CatalogItem.id` (brief 0024, AC-01). Snapshot of the
     // plan's `includedItemIds` at subscription creation — plan edits never
@@ -105,9 +105,9 @@ export const Subscription = Schema.mutable(
     // Incrementa em cada `transaction.refused`; zera quando volta pra active.
     // Quando alcança `pastDueThreshold`, próxima falha vira
     // `cancelled_for_non_payment`. Default 0.
-    pastDueCycles: Schema.Number,
+    pastDueCycles: NonNegativeInt,
     // Threshold configurável por subscription (snapshot do plan/org). Default 2.
-    pastDueThreshold: Schema.Number,
+    pastDueThreshold: NonNegativeInt,
     // Razão do cancelamento (texto curto opcional do owner ou cliente).
     cancellationReason: Schema.NullOr(Schema.String),
     cancelledAt: Schema.NullOr(Schema.String),

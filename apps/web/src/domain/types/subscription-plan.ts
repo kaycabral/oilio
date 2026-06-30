@@ -1,5 +1,7 @@
 import { Schema } from 'effect'
 
+import { NonNegativeInt } from '@/domain/value-objects'
+
 export const BillingCycle = Schema.Literal('monthly', 'quarterly', 'semiannual', 'annual')
 export type BillingCycle = typeof BillingCycle.Type
 
@@ -70,7 +72,7 @@ export const SubscriptionPlan = Schema.mutable(
     orgId: Schema.String,
     name: Schema.String,
     description: Schema.NullOr(Schema.String),
-    priceCents: Schema.Number,
+    priceCents: NonNegativeInt,
     billingCycle: BillingCycle,
     // FK array into `CatalogItem.id` (brief 0024, AC-01 — #1008). Canonical
     // per-item coverage: each id references a `orgs/{orgId}/catalog_items/

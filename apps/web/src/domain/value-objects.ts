@@ -37,6 +37,15 @@ export const MoneySchema = Schema.Number.pipe(
 
 export const NonEmptyString = Schema.String.pipe(Schema.nonEmptyString())
 
+// NonNegativeInt — the numeric sibling of NonEmptyString for `*Cents` amounts
+// and counters (#1283 / brief 0078 Group G). Mirrors the DB `check(>= 0)` at the
+// read-model boundary: a bare `Schema.Number` accepts negative/fractional, which
+// only the DB CHECK would catch (the `23514`-at-INSERT gap). Unbranded — like
+// NonEmptyString, it's a CONSTRAINT, not a semantic value object, so it keeps
+// `.Type = number` and adds zero blast radius to arithmetic call-sites (unlike
+// the branded `MoneySchema`, reserved for fields that want the `Money` identity).
+export const NonNegativeInt = Schema.Number.pipe(Schema.int(), Schema.nonNegative())
+
 // ---------------------------------------------------------------------------
 // OrgId — non-empty string
 // ---------------------------------------------------------------------------
