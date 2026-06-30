@@ -18,6 +18,7 @@ import { buildAppointment, buildMembership, buildUser } from '@/shared/fixtures/
 import {
   agendaAlwaysOpen,
   agendaAppointment,
+  buildAddress,
   buildAgendaBlockOneOff,
   buildAgendaBlockRecurring,
   buildCategory,
@@ -136,11 +137,16 @@ export async function seedBarbearia(): Promise<void> {
   })
 
   // — Units: appointment (Centro/Zona Sul) + always_open (Expresso) —
+  // Centro/Zona Sul are appointment units published for self-booking (real
+  // address + open hours + selfBookingPublished) so the public booking flow is
+  // live out of the box. Every unit carries a COMPLETE address — a unit with a
+  // blank address is not a valid publishable establishment (`isAddressComplete`).
   await seedUnit(
     buildUnit(UNIT_CENTRO, ORG_ID, now, {
       name: 'Centro',
       slug: 'centro',
-      agenda: agendaAppointment(),
+      address: buildAddress({ neighborhood: 'Centro', street: 'Rua XV de Novembro' }),
+      agenda: agendaAppointment(true),
     }),
     OWNER.uid,
   )
@@ -148,7 +154,8 @@ export async function seedBarbearia(): Promise<void> {
     buildUnit(UNIT_ZONA_SUL, ORG_ID, now, {
       name: 'Zona Sul',
       slug: 'zona-sul',
-      agenda: agendaAppointment(),
+      address: buildAddress({ neighborhood: 'Moema', street: 'Avenida Ibirapuera' }),
+      agenda: agendaAppointment(true),
     }),
     OWNER.uid,
   )
@@ -156,6 +163,7 @@ export async function seedBarbearia(): Promise<void> {
     buildUnit(UNIT_EXPRESSO, ORG_ID, now, {
       name: 'Expresso',
       slug: 'expresso',
+      address: buildAddress({ neighborhood: 'Pinheiros', street: 'Rua dos Pinheiros' }),
       agenda: agendaAlwaysOpen(),
     }),
     OWNER.uid,

@@ -8,6 +8,7 @@
 
 import {
   agendaFixed,
+  buildAddress,
   buildOrderItem,
   buildOrg,
   buildProductItem,
@@ -65,6 +66,7 @@ export async function seedRetailOrg(spec: RetailOrgSpec): Promise<void> {
     buildUnit(spec.unitId, orgId, now, {
       name: spec.unitName,
       slug: spec.unitId,
+      address: buildAddress({ neighborhood: 'Centro', street: 'Rua do Comércio' }),
       agenda: agendaFixed(),
     }),
     owner.uid,

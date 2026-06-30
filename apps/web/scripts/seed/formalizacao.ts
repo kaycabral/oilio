@@ -10,7 +10,12 @@
 
 import type { TaxIdentity } from '@/domain'
 import { upsertUnitsPii, upsertUnitTaxIdentity } from '@/shared/db/pg/units-pii-store'
-import { buildOrg, buildUnit, companyFiscal } from '@/shared/fixtures/seed-domain-builders'
+import {
+  buildAddress,
+  buildOrg,
+  buildUnit,
+  companyFiscal,
+} from '@/shared/fixtures/seed-domain-builders'
 import { ensureAuthIdentity } from './auth'
 import { seedOrgWithOwner, seedUnit } from './org-base'
 import { now } from './runtime'
@@ -41,7 +46,11 @@ export async function seedFormalizacao(): Promise<void> {
     now,
   })
   await seedUnit(
-    buildUnit(UNIT_INFORMAL, ORG_INFORMAL, now, { name: 'Studio', slug: UNIT_INFORMAL }),
+    buildUnit(UNIT_INFORMAL, ORG_INFORMAL, now, {
+      name: 'Studio',
+      slug: UNIT_INFORMAL,
+      address: buildAddress({ neighborhood: 'Vila Madalena', street: 'Rua Harmonia' }),
+    }),
     ANA.uid,
   )
 
@@ -59,6 +68,7 @@ export async function seedFormalizacao(): Promise<void> {
     buildUnit(UNIT_FORMAL, ORG_FORMAL, now, {
       name: 'Matriz',
       slug: UNIT_FORMAL,
+      address: buildAddress({ neighborhood: 'Itaim Bibi', street: 'Rua Joaquim Floriano' }),
       fiscal: companyFiscal('12345678000190', now),
     }),
     ANA.uid,
