@@ -52,7 +52,14 @@ function unit(orgId: string, id: string, overrides: Partial<StoredUnit> = {}): S
     orgId,
     name: 'Centro',
     slug: `unit-${id}`,
-    address: { ...EMPTY_ADDRESS, postalCode: '01001000', state: 'SP', city: 'São Paulo' },
+    address: {
+      ...EMPTY_ADDRESS,
+      postalCode: '01001000',
+      state: 'SP',
+      city: 'São Paulo',
+      neighborhood: 'Centro',
+      street: 'Praça da Sé',
+    },
     timezone: 'America/Sao_Paulo',
     agenda: {
       mode: 'fixed',

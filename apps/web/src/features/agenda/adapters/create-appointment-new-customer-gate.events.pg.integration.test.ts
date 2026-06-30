@@ -11,7 +11,7 @@
 // no `customer.created` event, no User PII sidecar) for the denied member, and
 // proves the happy path (a member WITH the capability) creates the customer.
 
-import { defaultPermissionsForRole, EMPTY_ADDRESS, normalizeBrazilPhone, type Role } from '@/domain'
+import { defaultPermissionsForRole, normalizeBrazilPhone, type Role } from '@/domain'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import type { SessionUser } from '@/shared/firebase/admin'
@@ -62,7 +62,17 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
     [
       orgId,
       unitId,
-      JSON.stringify(EMPTY_ADDRESS),
+      // Complete address (#1283): the new `units_address_complete` CHECK refuses
+      // a blank one. The appointment-gate under test doesn't depend on it.
+      JSON.stringify({
+        postalCode: '01310100',
+        state: 'SP',
+        city: 'São Paulo',
+        neighborhood: 'Bela Vista',
+        street: 'Avenida Paulista',
+        number: '1000',
+        complement: null,
+      }),
       JSON.stringify({ mode: 'always_open' }),
       JSON.stringify({ kind: 'informal' }),
       TS,
