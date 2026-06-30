@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { NonNegativeInt } from '@/domain/value-objects'
 import { CommissionRule } from './member-operation'
 
 export const ORDER_STATUSES = ['open', 'closed', 'cancelled'] as const
@@ -42,8 +43,9 @@ export const OrderItem = Schema.mutable(
     // apontar para `services`/`products` até a migração de consumidores (#1004).
     refId: Schema.String,
     name: Schema.String,
+    // quantity fica fora do Grupo G (AC-16 [deferred]): sinal/zero dependem de regra.
     quantity: Schema.Number,
-    unitPriceCents: Schema.Number,
+    unitPriceCents: NonNegativeInt,
     // Snapshot da regra de comissão. Produtos podem ter comissão nula (depende
     // do org); serviços geralmente têm. `null` = sem comissão pra este item.
     commission: Schema.NullOr(CommissionRule),
@@ -78,11 +80,11 @@ const orderCommonFields = {
   // pro mesmo agendamento.
   appointmentId: Schema.NullOr(Schema.String),
   items: Schema.mutable(Schema.Array(OrderItem)),
-  discountCents: Schema.Number,
+  discountCents: NonNegativeInt,
   // Cache dos totais — não é fonte de verdade (recalculados via
   // computeOrderTotals quando precisar), mas evita N reads pra montar listas.
-  subtotalCents: Schema.Number,
-  totalCents: Schema.Number,
+  subtotalCents: NonNegativeInt,
+  totalCents: NonNegativeInt,
   createdAt: Schema.String,
   updatedAt: Schema.String,
 }

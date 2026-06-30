@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 
-import { NonEmptyString } from '@/domain/value-objects'
+import { NonEmptyString, NonNegativeInt } from '@/domain/value-objects'
 import { Attribution } from './attribution'
 import { CommissionRule } from './member-operation'
 import { CancellationPolicy } from './unit'
@@ -38,8 +38,8 @@ export const Appointment = Schema.mutable(
     // depois. Owner mexer no `unitOverrides` do item de catálogo não afeta
     // histórico (financeiro, comissão e cancellation policy lêem daqui, não do
     // item vivo). Ver #875.
-    servicePriceCentsSnapshot: Schema.Number,
-    serviceDurationMinutesSnapshot: Schema.Number,
+    servicePriceCentsSnapshot: NonNegativeInt,
+    serviceDurationMinutesSnapshot: NonNegativeInt,
     commissionSnapshot: Schema.NullOr(CommissionRule),
     // Snapshot da `Org.cancellationPolicy` NO MOMENTO do booking (#1038,
     // ES-seletivo frente C). O direito do cliente de auto-cancelar é avaliado

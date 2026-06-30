@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 
-import { NonEmptyString } from '@/domain/value-objects'
+import { NonEmptyString, NonNegativeInt } from '@/domain/value-objects'
 import { OrderItemKind } from './order'
 
 // Liquidation status of a commission (brief 0022 #998). Collapsed from the 5
@@ -55,13 +55,13 @@ export const CommissionFields = Schema.mutable(
     // Rótulo do item snapshotado — não-vazio (#1283): linha de comissão sem nome.
     itemName: NonEmptyString,
     // Preço do item × quantidade no momento do fechamento (snapshot).
-    itemTotalCents: Schema.Number,
+    itemTotalCents: NonNegativeInt,
     // Regra aplicada (snapshot). `value` segue convenção do CommissionRule:
     // percentage → 0–100, fixed → centavos.
     commissionKind: Schema.Literal('percentage', 'fixed'),
     commissionValue: Schema.Number,
     // Valor calculado da comissão em centavos.
-    amountCents: Schema.Number,
+    amountCents: NonNegativeInt,
     // Liquidação manual (brief 0022 #998). Nasce `pendente` no fechamento; vira
     // `pago` quando o owner marca como pago (slice 2, #999). Ausente em comissões
     // antigas → lido como `pendente` via `liquidationStatusOf`.

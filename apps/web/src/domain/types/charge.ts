@@ -1,5 +1,7 @@
 import { Schema } from 'effect'
 
+import { NonNegativeInt } from '@/domain/value-objects'
+
 // Ciclo de vida de cada cobrança vinculada a um Subscription.
 // - scheduled: prevista, dueDate no futuro.
 // - paid: liquidada (manual ou retorno do gateway).
@@ -27,7 +29,7 @@ export const Charge = Schema.mutable(
     unitId: Schema.String,
     subscriptionId: Schema.String,
     customerId: Schema.String,
-    amountCents: Schema.Number,
+    amountCents: NonNegativeInt,
     // Janela coberta por essa cobrança (espelha o SubscriptionPeriod aberto
     // quando ela foi criada). Útil pra calendário de recebíveis + tracking
     // de inadimplência (qual ciclo está em recuperação).
@@ -38,7 +40,7 @@ export const Charge = Schema.mutable(
     // dueDate = currentPeriod.endAt + 1 dia.
     dueDate: Schema.String,
     status: ChargeStatus,
-    attempts: Schema.Number,
+    attempts: NonNegativeInt,
     paidAt: Schema.NullOr(Schema.String),
     failedAt: Schema.NullOr(Schema.String),
     failureReason: Schema.NullOr(Schema.String),

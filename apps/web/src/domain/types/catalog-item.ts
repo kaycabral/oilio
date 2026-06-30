@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { NonNegativeInt } from '@/domain/value-objects'
 import { CommissionRule } from './member-operation'
 import {
   ServicePriceVisibility,
@@ -32,7 +33,7 @@ const CatalogItemBaseFields = {
   // `null` when the item is uncategorized.
   categoryId: Schema.NullOr(Schema.String),
   // Base price (cents) used unless overridden per unit.
-  priceCents: Schema.Number,
+  priceCents: NonNegativeInt,
   // Commission rule snapshot template. `null` = no commission (common for
   // products in some orgs).
   commission: Schema.NullOr(CommissionRule),
@@ -61,7 +62,7 @@ export const CatalogServiceItem = Schema.mutable(
     ...CatalogItemBaseFields,
     kind: Schema.Literal('service'),
     // Service-only commercial attributes.
-    durationMinutes: Schema.Number,
+    durationMinutes: NonNegativeInt,
     requiredResources: Schema.mutable(Schema.Array(Schema.String)),
   }),
 )
@@ -109,7 +110,7 @@ export const CatalogItemChanges = Schema.partial(
   Schema.Struct({
     ...CatalogItemBaseFields,
     kind: CatalogItemKind,
-    durationMinutes: Schema.Number,
+    durationMinutes: NonNegativeInt,
     requiredResources: Schema.mutable(Schema.Array(Schema.String)),
     sku: Schema.NullOr(Schema.String),
     stock: Schema.Number,

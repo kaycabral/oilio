@@ -1,6 +1,7 @@
 import { Schema } from 'effect'
 
 import { BillingCycle, Tier } from '@/domain/billing/tiers'
+import { NonNegativeInt } from '@/domain/value-objects'
 
 // SaaS subscription state of a Negócio (Org) with Oilio itself — the "Assinatura
 // Oilio" (PRD-Monetizacao-SaaS; Linguagem § Monetização SaaS). CRUD aggregate, a
@@ -33,7 +34,7 @@ export const StoredOrgBilling = Schema.mutable(
     // null on free (no billing cycle).
     billingCycle: Schema.NullOr(BillingCycle),
     // Charged unit count = active units of the Negócio (graduated pricing). Free = 1.
-    unitQuantity: Schema.Number,
+    unitQuantity: NonNegativeInt,
     // Stripe linkage — null until first checkout (free orgs never get these).
     stripeCustomerId: Schema.NullOr(Schema.String),
     stripeSubscriptionId: Schema.NullOr(Schema.String),
