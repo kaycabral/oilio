@@ -1,42 +1,14 @@
-import { Brand, Schema } from 'effect'
-
-// ---------------------------------------------------------------------------
-// Money — integer cents, non-negative
-// ---------------------------------------------------------------------------
-
-export type Money = number & Brand.Brand<'Money'>
-
-export const Money = Brand.refined<Money>(
-  (cents) => Number.isInteger(cents) && cents >= 0,
-  (cents) => Brand.error(`Money must be a non-negative integer, got ${cents}`),
-)
-
-export const MoneySchema = Schema.Number.pipe(
-  Schema.int(),
-  Schema.nonNegative(),
-  Schema.brand('Money'),
-)
-
-// ---------------------------------------------------------------------------
-// OrgId — non-empty string
-// ---------------------------------------------------------------------------
-
-export type OrgId = string & Brand.Brand<'OrgId'>
-
-export const OrgId = Brand.refined<OrgId>(
-  (s) => typeof s === 'string' && s.length > 0,
-  (s) => Brand.error(`OrgId must be a non-empty string, got '${s}'`),
-)
-
-export const OrgIdSchema = Schema.String.pipe(Schema.nonEmptyString(), Schema.brand('OrgId'))
-
-// ---------------------------------------------------------------------------
-// AggregateVersion — non-negative integer
-// ---------------------------------------------------------------------------
-
-export type AggregateVersion = number & Brand.Brand<'AggregateVersion'>
-
-export const AggregateVersion = Brand.refined<AggregateVersion>(
-  (n) => Number.isInteger(n) && n >= 0,
-  (n) => Brand.error(`AggregateVersion must be a non-negative integer, got ${n}`),
-)
+// Re-export of the domain-root value objects so existing `@/domain/aggregates`
+// call-sites keep working. The canonical home is `src/domain/value-objects.ts`
+// (domain root) — placed below `types/` so a read-model type can import the
+// shared invariants (`NonEmptyString`, `MoneySchema`) without inverting the
+// `aggregates → types` layering. New code should import from `@/domain` or
+// `@/domain/value-objects` directly.
+export {
+  AggregateVersion,
+  Money,
+  MoneySchema,
+  NonEmptyString,
+  OrgId,
+  OrgIdSchema,
+} from '@/domain/value-objects'
