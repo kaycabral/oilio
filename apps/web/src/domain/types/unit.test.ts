@@ -1,11 +1,14 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
+  type Address,
   appointmentAgenda,
   type BusinessHours,
   dayHoursToRanges,
   DEFAULT_CANCELLATION_POLICY,
   DEFAULT_SLOT_MINUTES,
+  EMPTY_ADDRESS,
+  isAddressComplete,
   isReservedUnitSlug,
   isUnitBookable,
   isValidCancellationNoticeMinutes,
@@ -349,5 +352,35 @@ describe('dayHoursToRanges', () => {
       { open: '09:00', close: '12:00' },
       { open: '13:00', close: '18:00' },
     ])
+  })
+})
+
+describe('isAddressComplete', () => {
+  const FULL: Address = {
+    postalCode: '01001-000',
+    state: 'SP',
+    city: 'São Paulo',
+    neighborhood: 'Sé',
+    street: 'Praça da Sé',
+    number: '100',
+    complement: null,
+  }
+
+  it('is true for a fully filled address', () => {
+    expect(isAddressComplete(FULL)).toBe(true)
+  })
+
+  it('is true without number/complement (legitimately optional)', () => {
+    expect(isAddressComplete({ ...FULL, number: null, complement: null })).toBe(true)
+  })
+
+  it('is false for the all-empty zero-value (EMPTY_ADDRESS)', () => {
+    expect(isAddressComplete(EMPTY_ADDRESS)).toBe(false)
+  })
+
+  it('is false when any required field is blank or whitespace-only', () => {
+    expect(isAddressComplete({ ...FULL, postalCode: '' })).toBe(false)
+    expect(isAddressComplete({ ...FULL, city: '   ' })).toBe(false)
+    expect(isAddressComplete({ ...FULL, street: '' })).toBe(false)
   })
 })
