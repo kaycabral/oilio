@@ -17,7 +17,7 @@ import type { Page } from '@playwright/test'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { addCatalogItemToOrder } from '../helpers/orders'
-import { chooseOption, choosePaymentMethod } from '../helpers/select'
+import { choosePaymentMethod } from '../helpers/select'
 import {
   pgReadProjection,
   seedAppointment,
@@ -70,6 +70,10 @@ async function seedServiceFor(
     ? await seedSubscription(org.orgId, customerId, {
         planName: 'Mensal Corte',
         usageLimit: { kind: 'count', quantity: 4 },
+        // Plan covers the SERVICE only (Corte). The product sold in the mixed
+        // scenario (Pomada) must stay `sale` — scoping coverage keeps the
+        // auto-mark (brief 0079) off it.
+        includedItemIds: [serviceId],
       })
     : null
   await seedAppointment({
@@ -141,12 +145,14 @@ test.describe(
       const { subId } = await seedServiceFor(org, 'Cliente Plano', '11944440002', true)
       await startOrderFor(authedPage, 'Cliente Plano')
 
-      // Marca o Corte como consumo do plano → comanda fica 100% coberta.
-      await chooseOption(
-        authedPage.getByRole('listitem').filter({ hasText: 'Corte' }),
-        'Cobertura do item',
-        'Consumo do plano',
-      )
+      // O Corte coberto já entra como consumo do plano (auto-marcação, brief 0079)
+      // → comanda fica 100% coberta sem flip manual.
+      await expect(
+        authedPage
+          .getByRole('listitem')
+          .filter({ hasText: 'Corte' })
+          .getByRole('combobox', { name: 'Cobertura do item' }),
+      ).toHaveText('Consumo do plano')
 
       // Sem item de venda → fecha sem forma de pagamento (AC-06).
       await expect(authedPage.getByText(/100% coberta pelo plano/)).toBeVisible()
@@ -164,13 +170,14 @@ test.describe(
       await seedProduct(org.orgId, { name: 'Pomada', priceCents: 3000 })
       await startOrderFor(authedPage, 'Cliente Misto')
 
-      // Serviço coberto (consumo) → some do total a pagar.
-      await chooseOption(
-        authedPage.getByRole('listitem').filter({ hasText: 'Corte' }),
-        'Cobertura do item',
-        'Consumo do plano',
-      )
-      await expect(authedPage.getByText('Consumo do plano').first()).toBeVisible()
+      // Serviço coberto já entra como consumo (auto-marcação, brief 0079) → some
+      // do total a pagar, sem flip manual.
+      await expect(
+        authedPage
+          .getByRole('listitem')
+          .filter({ hasText: 'Corte' })
+          .getByRole('combobox', { name: 'Cobertura do item' }),
+      ).toHaveText('Consumo do plano')
 
       // Produto vendido (venda real) pelo "Adicionar item" único (#1005).
       await addCatalogItemToOrder(authedPage, 'Pomada')

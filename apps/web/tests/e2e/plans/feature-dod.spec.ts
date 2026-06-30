@@ -16,7 +16,6 @@ import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { rowAction } from '../helpers/list'
 import { addCatalogItemToOrder } from '../helpers/orders'
-import { chooseOption } from '../helpers/select'
 import {
   pgQueryProjection,
   pgReadProjection,
@@ -158,19 +157,21 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
     await expect(authedPage).toHaveURL(/\/orders\/.+/)
     const orderId = authedPage.url().split('/orders/')[1]!.split(/[?#]/)[0]!
 
-    // Serviço coberto.
-    await chooseOption(
-      authedPage.getByRole('listitem').filter({ hasText: `Barba ${ts}` }),
-      'Cobertura do item',
-      'Consumo do plano',
-    )
-    // Produto coberto (via categoria).
+    // Serviço coberto já auto-marca na abertura (brief 0079 AC-06).
+    await expect(
+      authedPage
+        .getByRole('listitem')
+        .filter({ hasText: `Barba ${ts}` })
+        .getByRole('combobox', { name: 'Cobertura do item' }),
+    ).toHaveText('Consumo do plano')
+    // Produto coberto (via categoria) também auto-marca ao ser adicionado (AC-09).
     await addCatalogItemToOrder(authedPage, `Pomada ${ts}`)
-    await chooseOption(
-      authedPage.getByRole('listitem').filter({ hasText: `Pomada ${ts}` }),
-      'Cobertura do item',
-      'Consumo do plano',
-    )
+    await expect(
+      authedPage
+        .getByRole('listitem')
+        .filter({ hasText: `Pomada ${ts}` })
+        .getByRole('combobox', { name: 'Cobertura do item' }),
+    ).toHaveText('Consumo do plano')
 
     await expect(authedPage.getByText(/100% coberta pelo plano/)).toBeVisible()
     await confirmClose(authedPage)

@@ -7,7 +7,7 @@
 
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
-import { chooseOption, choosePaymentMethod } from '../helpers/select'
+import { choosePaymentMethod } from '../helpers/select'
 import {
   seedAppointment,
   seedCustomer,
@@ -142,9 +142,11 @@ test.describe('Order — dialog de confirmação pré-fechamento', { tag: '@crit
     })
     await openSeededOrder(authedPage)
 
-    // Marca o item como consumo do plano (assinatura ativa → marcação passa).
-    await chooseOption(authedPage, /Cobertura do item/, 'Consumo do plano')
-    await expect(authedPage.getByText('Consumo do plano').first()).toBeVisible()
+    // Com assinatura ativa cobrindo o item, a comanda já nasce com ele em
+    // "Consumo do plano" (auto-marcação, brief 0079) — sem flip manual.
+    await expect(
+      authedPage.getByRole('combobox', { name: 'Cobertura do item' }).first(),
+    ).toHaveText('Consumo do plano')
 
     // Assinatura cancelada com a comanda aberta → o fechamento vai falhar.
     await setSubscriptionStatus(org.orgId, subscriptionId, 'cancelled')
