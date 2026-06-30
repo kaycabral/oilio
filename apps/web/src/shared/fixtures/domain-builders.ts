@@ -39,13 +39,23 @@ type BuildUserOverrides = Partial<
 
 // A completed account REQUIRES a real whatsapp + birthDate (the `UserComplete`
 // branch — see `domain/types/user.ts`). When a caller marks `completionCompleted`
-// without supplying them, fall back to these realistic placeholders rather than
-// empty strings: an empty `birthDate`/`whatsapp` is a representable-but-fake
-// "completed" account that turns illegal the moment a test nulls one axis (e.g.
-// stripping whatsapp to simulate an incomplete pro), making the doc fail every
-// union branch and crashing the strict-decoding read boundary.
-const DEFAULT_COMPLETE_WHATSAPP = '5511900000000'
+// without supplying them, fall back to realistic placeholders rather than empty
+// strings: an empty `birthDate`/`whatsapp` is a representable-but-fake "completed"
+// account that turns illegal the moment a test nulls one axis (e.g. stripping
+// whatsapp to simulate an incomplete pro), making the doc fail every union branch
+// and crashing the strict-decoding read boundary.
 const DEFAULT_COMPLETE_BIRTHDATE = '1990-01-01'
+
+// WhatsApp is GLOBALLY unique (`users_whatsapp_unique`), so the default for a
+// completed account MUST be unique per user — a fixed placeholder collided the
+// moment a test (or seed) created two completed users. Derive a valid BR mobile
+// from the uid so every fixture user gets its own number with no caller effort.
+function defaultCompleteWhatsapp(uid: string): string {
+  let hash = 0
+  for (let i = 0; i < uid.length; i++) hash = (hash * 31 + uid.charCodeAt(i)) >>> 0
+  // 8 subscriber digits after the `9` (mobile), behind DDI 55 + DDD 11.
+  return `55119${String(hash % 100_000_000).padStart(8, '0')}`
+}
 
 // Global identity doc (`users/{uid}`). Defaults are an unclaimed, incomplete
 // account with no PII; override what the scenario needs. A completed account
@@ -76,7 +86,7 @@ export function buildUser(uid: string, now: string, overrides: BuildUserOverride
     ? {
         ...common,
         completionCompleted: true,
-        whatsapp: whatsapp ?? DEFAULT_COMPLETE_WHATSAPP,
+        whatsapp: whatsapp ?? defaultCompleteWhatsapp(uid),
         birthDate: birthDate ?? DEFAULT_COMPLETE_BIRTHDATE,
       }
     : { ...common, completionCompleted: false, whatsapp, birthDate }
