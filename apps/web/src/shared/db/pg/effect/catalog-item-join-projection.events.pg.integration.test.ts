@@ -67,7 +67,7 @@ async function seedOrg(): Promise<void> {
 async function seedUnit(id: string): Promise<void> {
   await pool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+     VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
   )
@@ -157,9 +157,20 @@ describe('Postgres join projection — catalog-item ↔ unit (brief 0068 D3)', (
     expect(await unitIds()).toEqual([UNIT_A])
   })
 
-  it('an empty unitIds array writes ZERO rows', async () => {
-    await create(item({ unitIds: [] }))
+  it('an empty unitIds array is refused at the event boundary (#1283), writing nothing', async () => {
+    // A catalog item with no unit is a phantom (#1283): the `catalog_item.created`
+    // event schema filters on a non-empty `unitIds` (`UnitScopedCatalogItem`), so
+    // the payload fails to decode at `appendEvent` — fail-fast at the OUTER
+    // boundary, before the DB CHECK (`catalog_items_unit_ids_nonempty`, proven by
+    // the identity-catalog-nonempty suite). The event never persists, so the join
+    // table stays empty.
+    await expect(create(item({ unitIds: [] }))).rejects.toThrow()
     expect(await unitIds()).toEqual([])
+    const events = await pool().query<{ n: string }>(
+      'SELECT count(*)::text AS n FROM events WHERE org_id = $1 AND aggregate_id = $2',
+      [ORG, ITEM],
+    )
+    expect(events.rows[0]?.n).toBe('0')
   })
 
   it('replay reconstructs the reduced state the join rows derive from', async () => {

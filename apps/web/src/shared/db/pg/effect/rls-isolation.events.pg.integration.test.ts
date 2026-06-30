@@ -42,7 +42,7 @@ async function seedOrg(id: string): Promise<void> {
 async function seedUnit(orgId: string, id: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-     VALUES ($1,$2,1,'U','slug-'||$2,'America/Sao_Paulo','fixed','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+     VALUES ($1,$2,1,'U','slug-'||$2,'America/Sao_Paulo','fixed','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId, id],
   )
 }
@@ -111,7 +111,7 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
       await expect(
         a.query(
           `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-           VALUES ($1,'u',1,'U','u','America/Sao_Paulo','fixed','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+           VALUES ($1,'u',1,'U','u','America/Sao_Paulo','fixed','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
           [ORG_B],
         ),
         // 42501 = insufficient_privilege (RLS WITH CHECK violation)
@@ -202,7 +202,7 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
     ] as const) {
       await pool.query(
         `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, price_cents, price_visibility, active, duration_minutes, unit_ids, public_visible, created_at, updated_at)
-         VALUES ($1,$2,1,'service','S',100,'visible',true,30,'[]'::jsonb,true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+         VALUES ($1,$2,1,'service','S',100,'visible',true,30,'["unit-seed"]'::jsonb,true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [org, id],
       )
     }

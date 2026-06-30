@@ -250,7 +250,7 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
     await expect(
       getEventStorePool().query(
         `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
-         VALUES ('ghost-org','u',1,'C','c','America/Sao_Paulo','fixed','informal','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+         VALUES ('ghost-org','u',1,'C','c','America/Sao_Paulo','fixed','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
       ),
       // 23503 = foreign_key_violation
     ).rejects.toMatchObject({ code: '23503' })

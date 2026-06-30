@@ -204,7 +204,10 @@ export function buildServiceItem(
     categoryId: null,
     priceCents: 4500,
     commission: DEFAULT_SERVICE_COMMISSION,
-    unitIds: [],
+    // Non-empty by default (#1283): a catalog item is always scoped to ≥1 unit,
+    // so a builder consumed through `catalog_item.created` decodes cleanly.
+    // Consumers that project the join table must seed `unit-seed` (composite FK).
+    unitIds: ['unit-seed'],
     unitOverrides: null,
     publicVisible: true,
     priceVisibility: 'visible',
@@ -235,7 +238,9 @@ export function buildProductItem(
     categoryId: null,
     priceCents: 3500,
     commission: null,
-    unitIds: [],
+    // Non-empty by default (#1283): see `buildServiceItem`. A product is sold in
+    // ≥1 unit; consumers that project the join table seed `unit-seed`.
+    unitIds: ['unit-seed'],
     unitOverrides: null,
     publicVisible: true,
     priceVisibility: 'visible',
