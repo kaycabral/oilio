@@ -1,4 +1,5 @@
 import { resolveScopeForSession } from '@/features/booking/adapters/subscription-scope.repo'
+import { resolveCoveredServiceIds } from '@/features/self-book/adapters/covered-services'
 import { getPublicUnitBundle } from '@/features/self-book/adapters/public-org'
 import { PlanCoverageBanner } from '@/features/self-book/ui/PlanCoverageBanner'
 import { UnitCatalog } from '@/features/self-book/ui/UnitCatalog'
@@ -58,7 +59,18 @@ export default async function PublicUnitCatalogPage({ params, searchParams }: Pa
   // A visitor who already has a session (e.g. came through invite → signup)
   // shouldn't see the "Cadastrar-se" CTA. Reading the session opts this page out
   // of static rendering — correct, since the CTA varies per visitor.
-  const isLoggedIn = (await getSessionUser()) !== null
+  const session = await getSessionUser()
+  const isLoggedIn = session !== null
+
+  // Brief 0079 (#1307). Mark plan-covered services so the catalog badges + sorts
+  // them. Resolved server-side; the wizard never sees the balance count.
+  const coveredItemIds = resolveCoveredServiceIds({
+    scope,
+    catalogServiceItems: bundle.catalogServiceItems,
+    orgId: bundle.org.id,
+    unitId: bundle.unit.id,
+    userId: session?.uid ?? null,
+  })
 
   return (
     <UnitCatalog
@@ -69,6 +81,7 @@ export default async function PublicUnitCatalogPage({ params, searchParams }: Pa
       memberOperation={bundle.memberOperation}
       showUnitHeader={bundle.units.length > 1}
       isLoggedIn={isLoggedIn}
+      coveredItemIds={coveredItemIds}
       coverageBanner={
         scope ? (
           <PlanCoverageBanner
