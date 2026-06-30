@@ -42,6 +42,10 @@ export interface RetailOrgSpec {
   unitName: string
   products: RetailProduct[]
   customerCount: number
+  // Per-org base for generated customer WhatsApp numbers. `users.whatsapp` is
+  // GLOBALLY unique (index `users_whatsapp_unique`), so two retail orgs seeded by
+  // this same helper MUST NOT share a range — each caller passes a disjoint base.
+  customerWhatsappBase: number
   sales: RetailSale[]
 }
 
@@ -92,7 +96,7 @@ export async function seedRetailOrg(spec: RetailOrgSpec): Promise<void> {
       orgId,
       userId: `${orgId}-cust-${i}-user`,
       displayName: `Cliente ${i + 1}`,
-      whatsapp: `55119${String(700000 + i).padStart(8, '0')}`,
+      whatsapp: `55119${String(spec.customerWhatsappBase + i).padStart(8, '0')}`,
       birthDate: `198${i % 10}-0${(i % 9) + 1}-1${i % 9}`,
       now,
       actorId: owner.uid,
