@@ -1,0 +1,7 @@
+ALTER TABLE "charges" ADD CONSTRAINT "charges_unit_id_fk" FOREIGN KEY ("org_id","unit_id") REFERENCES "public"."units"("org_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_customer_user_id_nonempty" CHECK (char_length(btrim("appointments"."customer_user_id")) > 0);--> statement-breakpoint
+ALTER TABLE "cash_movements" ADD CONSTRAINT "cash_movements_recorded_by_uid_nonempty" CHECK (char_length(btrim("cash_movements"."recorded_by_uid")) > 0);--> statement-breakpoint
+ALTER TABLE "commissions" ADD CONSTRAINT "commissions_order_item_id_nonempty" CHECK (char_length(btrim("commissions"."order_item_id")) > 0);--> statement-breakpoint
+ALTER TABLE "commissions" ADD CONSTRAINT "commissions_attributed_user_id_nonempty" CHECK (char_length(btrim("commissions"."attributed_user_id")) > 0);--> statement-breakpoint
+ALTER TABLE "commissions" ADD CONSTRAINT "commissions_item_name_nonempty" CHECK (char_length(btrim("commissions"."item_name")) > 0);--> statement-breakpoint
+ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_customer_user_id_nonempty" CHECK ("subscriptions"."customer_user_id" IS NULL OR char_length(btrim("subscriptions"."customer_user_id")) > 0);

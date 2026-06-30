@@ -101,6 +101,17 @@ export const commissions = pgTable(
     // No negative money.
     check('commissions_amount_cents_nonneg', sql`${table.amountCents} >= 0`),
     check('commissions_item_total_cents_nonneg', sql`${table.itemTotalCents} >= 0`),
+    // Non-empty refs with NO FK (#1283 / brief 0078 AC-09): `order_item_id`
+    // (item inside the orders JSONB — no FK) and `attributed_user_id` (global
+    // uid snapshot — `users` is org-neutral, no composite FK). `item_name` is the
+    // snapshotted label. `attributed_member_name` is intentionally NOT here
+    // (blank is legitimate by design — see the type comment).
+    check('commissions_order_item_id_nonempty', sql`char_length(btrim(${table.orderItemId})) > 0`),
+    check(
+      'commissions_attributed_user_id_nonempty',
+      sql`char_length(btrim(${table.attributedUserId})) > 0`,
+    ),
+    check('commissions_item_name_nonempty', sql`char_length(btrim(${table.itemName})) > 0`),
     // The domain refinement, at the DB: paid IFF it carries a paid date.
     check(
       'commissions_paid_at_iff_pago',

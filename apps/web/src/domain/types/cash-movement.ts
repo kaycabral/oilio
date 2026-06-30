@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { NonEmptyString } from '@/domain/value-objects'
 import { PaymentMethod } from './order'
 
 // Financeiro V0 (brief 0031): só movimentos automáticos da venda. A gaveta
@@ -33,7 +34,8 @@ const cashMovementCommonFields = {
   // Sempre positivo. `direction` carrega o sinal.
   amountCents: Schema.Number,
   description: Schema.NullOr(Schema.String),
-  recordedByUid: Schema.String,
+  // Autor do movimento — não-vazio (#1283): sem FK, `''` cega a auditoria de caixa.
+  recordedByUid: NonEmptyString,
   createdAt: Schema.String,
 }
 

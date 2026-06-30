@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { NonEmptyString } from '@/domain/value-objects'
 import { OrderItemKind } from './order'
 
 // Liquidation status of a commission (brief 0022 #998). Collapsed from the 5
@@ -29,14 +30,17 @@ export const CommissionFields = Schema.mutable(
     orgId: Schema.String,
     orderId: Schema.String,
     // Item da order que gerou esta comissão. Permite re-conciliar / auditar.
-    orderItemId: Schema.String,
+    // Não-vazio (#1283): sem FK no banco, é a única defesa contra `''` que
+    // quebraria a reconciliação comissão↔item.
+    orderItemId: NonEmptyString,
     // Membro a quem a comissão é creditada (brief 0030, AC-07). É o `userId` do
     // membro atribuído ao item (`OrderItem.attributedUserId`), NÃO o doc id de um
     // MemberOperation — qualquer papel (recepção, vendedor) pode ser comissionado.
     // Para serviços executados por profissional, este `userId` é a mesma
     // identidade do MemberOperation, então o agrupamento por membro segue exibindo a
-    // linha do profissional.
-    attributedUserId: Schema.String,
+    // linha do profissional. Não-vazio (#1283): sem FK (snapshot global de uid),
+    // `''` agruparia lixo no relatório por membro.
+    attributedUserId: NonEmptyString,
     // Nome identificável do profissional/membro atribuído, SNAPSHOTADO no momento
     // da apuração (brief 0041 AC-11). Registro de RETENÇÃO de vínculo (art. 16): a
     // identidade tem que sobreviver mesmo que o membro seja revogado (offboarding
@@ -48,7 +52,8 @@ export const CommissionFields = Schema.mutable(
     // governa PII de CLIENTE / direito à eliminação; aqui é retenção de vínculo.
     attributedMemberName: Schema.String,
     itemKind: OrderItemKind,
-    itemName: Schema.String,
+    // Rótulo do item snapshotado — não-vazio (#1283): linha de comissão sem nome.
+    itemName: NonEmptyString,
     // Preço do item × quantidade no momento do fechamento (snapshot).
     itemTotalCents: Schema.Number,
     // Regra aplicada (snapshot). `value` segue convenção do CommissionRule:

@@ -111,6 +111,13 @@ export const appointments = pgTable(
       'appointments_status_check',
       sql`${table.status} IN ('scheduled', 'completed', 'cancelled', 'no_show')`,
     ),
+    // The customer's global uid (snapshot, no FK — `users` is org-neutral):
+    // non-empty so `''` can't break the customer's cross-org history (#1283 /
+    // brief 0078 AC-09).
+    check(
+      'appointments_customer_user_id_nonempty',
+      sql`char_length(btrim(${table.customerUserId})) > 0`,
+    ),
     // Non-negative snapshots.
     check('appointments_price_snapshot_nonneg', sql`${table.servicePriceCentsSnapshot} >= 0`),
     check(

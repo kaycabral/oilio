@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { NonEmptyString } from '@/domain/value-objects'
 import { AllowedTimeScope, BillingCycle, BookingLimits, UsageLimit } from './subscription-plan'
 
 // Estados de assinatura:
@@ -27,8 +28,10 @@ export type SubscriptionStatus = typeof SubscriptionStatus.Type
 // preço / limite depois — assinatura ativa congela as condições contratadas.
 export const SubscriptionPlanSnapshot = Schema.mutable(
   Schema.Struct({
-    planId: Schema.String,
-    name: Schema.String,
+    // Snapshot refs/label — não-vazio (#1283): em JSONB (sem CHECK viável), a
+    // defesa é só o decode; `''` deixaria a assinatura sem origem/rótulo de plano.
+    planId: NonEmptyString,
+    name: NonEmptyString,
     priceCents: Schema.Number,
     billingCycle: BillingCycle,
     // Frozen FK array into `CatalogItem.id` (brief 0024, AC-01). Snapshot of the
@@ -83,7 +86,8 @@ export const Subscription = Schema.mutable(
     // via collectionGroup quando customer acessa /me/subscriptions (#651).
     // Pattern espelha Appointment.customerUserId — User é a única bridge
     // de identidade do customer (não tem membership). null em legacy data.
-    customerUserId: Schema.NullOr(Schema.String),
+    // Quando presente, não-vazio (#1283): sem FK, `''` não é identidade válida.
+    customerUserId: Schema.NullOr(NonEmptyString),
     // Snapshot completo do plano no momento da criação (preço/limite imutáveis
     // durante a vigência do ciclo). Renovação reavalia o plano vigente.
     plan: SubscriptionPlanSnapshot,
