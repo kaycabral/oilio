@@ -2,6 +2,7 @@ import { resolveScopeForSession } from '@/features/booking/adapters/subscription
 import { getPublicUnitBundle } from '@/features/self-book/adapters/public-org'
 import { PlanCoverageBanner } from '@/features/self-book/ui/PlanCoverageBanner'
 import { UnitCatalog } from '@/features/self-book/ui/UnitCatalog'
+import { getSessionUser } from '@/shared/firebase/admin'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
@@ -54,6 +55,11 @@ export default async function PublicUnitCatalogPage({ params, searchParams }: Pa
   const scope = await resolveScopeForSession(bundle.org.id)
   if (scope?.unitAllowlist && !scope.unitAllowlist.has(bundle.unit.id)) notFound()
 
+  // A visitor who already has a session (e.g. came through invite → signup)
+  // shouldn't see the "Cadastrar-se" CTA. Reading the session opts this page out
+  // of static rendering — correct, since the CTA varies per visitor.
+  const isLoggedIn = (await getSessionUser()) !== null
+
   return (
     <UnitCatalog
       org={bundle.org}
@@ -62,6 +68,7 @@ export default async function PublicUnitCatalogPage({ params, searchParams }: Pa
       catalogServiceItems={bundle.catalogServiceItems}
       memberOperation={bundle.memberOperation}
       showUnitHeader={bundle.units.length > 1}
+      isLoggedIn={isLoggedIn}
       coverageBanner={
         scope ? (
           <PlanCoverageBanner
