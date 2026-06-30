@@ -44,6 +44,20 @@ export class AgendaPage {
     return this.page.getByText(/cadastro incompleto/i)
   }
 
+  // ── Show-cancelled toggle (brief 0081 #1312) ───────────────────────────
+
+  // The "Mostrar cancelados" / "Ocultar cancelados" toggle in the header. Its
+  // label flips with state, so match either via a stable prefix.
+  showCancelledToggle(): Locator {
+    return this.page.getByRole('button', { name: /cancelados/i })
+  }
+
+  // A rendered appointment card carries the customer name. Cancelled cards add a
+  // strike-through (`line-through`) — scope by it to distinguish from active ones.
+  appointmentCard(customerName: string | RegExp): Locator {
+    return this.page.getByRole('button', { name: customerName })
+  }
+
   // ── New-appointment dialog ──────────────────────────────────────────────
 
   newAppointmentButton(): Locator {

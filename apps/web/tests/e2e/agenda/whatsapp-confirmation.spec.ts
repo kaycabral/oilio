@@ -64,7 +64,10 @@ test.describe('Agenda — link WhatsApp de confirmação', () => {
   test('link some pra agendamento cancelado', async ({ org, authedPage }) => {
     await seedAppointmentForCustomer(org, { whatsapp: uniqueWhatsapp(), status: 'cancelled' })
     const agenda = new AgendaPage(authedPage)
+    // Cancelled is hidden by default (brief 0081); surface it via the toggle so
+    // the card is clickable and we can assert the dialog has no WhatsApp link.
     await agenda.goto('2026-08-12')
+    await agenda.showCancelledToggle().click()
     await authedPage.getByRole('button', { name: /Maria WhatsApp/ }).click()
     await expect(authedPage.getByRole('dialog', { name: 'Editar agendamento' })).toBeVisible()
     await expect(
