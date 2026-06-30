@@ -1,0 +1,2 @@
+ALTER TABLE "users" DROP CONSTRAINT "users_completed_profile_complete";--> statement-breakpoint
+ALTER TABLE "users" ADD CONSTRAINT "users_completed_profile_complete" CHECK ("users"."completion_completed" = false OR "users"."anonymized_at" IS NOT NULL OR ("users"."whatsapp" IS NOT NULL AND char_length(btrim("users"."whatsapp")) > 0 AND "users"."birth_date" IS NOT NULL));
