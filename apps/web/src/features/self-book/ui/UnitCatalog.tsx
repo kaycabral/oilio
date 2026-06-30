@@ -5,6 +5,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 
+// Shared default so the no-coverage path doesn't allocate a Set per render.
+const EMPTY_COVERED: ReadonlySet<string> = new Set()
+
 // Catalog renderer for the public unit page (#841). Shared between
 // `/{orgSlug}` (single-unit short-circuit) and
 // `/{orgSlug}/{unitSlug}` (explicit unit). Pure presentation — all
@@ -18,6 +21,7 @@ export function UnitCatalog({
   showUnitHeader,
   isLoggedIn,
   coverageBanner,
+  coveredItemIds,
 }: {
   org: Org
   unit: Unit
@@ -36,9 +40,25 @@ export function UnitCatalog({
   // subscription on this org. The parent decides what to show — keeps
   // this component pure (no Firestore reads).
   coverageBanner?: ReactNode
+  // Brief 0079 (#1307). Ids of services this signed-in subscriber's plan covers
+  // WITH balance — already resolved server-side (AC-01/AC-02). They earn the "no
+  // seu plano" badge and sort to the top; the raw balance is never passed in, so
+  // no number can leak (AC-02). Empty for avulso/unrestricted visitors — the
+  // catalog renders exactly as before (AC-05).
+  coveredItemIds?: ReadonlySet<string>
 }) {
   const { branding } = org
   const hasBanner = branding.bannerUrl !== null
+  const covered = coveredItemIds ?? EMPTY_COVERED
+  // Covered services bubble to the top, preserving the loader's order within
+  // each group (stable partition — no reshuffle of the avulso list).
+  const sortedServiceItems =
+    covered.size === 0
+      ? catalogServiceItems
+      : [
+          ...catalogServiceItems.filter((s) => covered.has(s.id)),
+          ...catalogServiceItems.filter((s) => !covered.has(s.id)),
+        ]
 
   return (
     <main className="mx-auto max-w-3xl pb-12">
@@ -139,12 +159,13 @@ export function UnitCatalog({
           </p>
         ) : (
           <ul className="border-border divide-border divide-y rounded-md border">
-            {catalogServiceItems.map((s) => {
+            {sortedServiceItems.map((s) => {
               const href =
                 `/${slug}/${unit.slug}/availability?service=${encodeURIComponent(s.id)}` +
                 (memberOperation
                   ? `&memberOperation=${encodeURIComponent(memberOperation.id)}`
                   : '')
+              const isCovered = covered.has(s.id)
               return (
                 <li key={s.id}>
                   <Link
@@ -152,7 +173,14 @@ export function UnitCatalog({
                     className="hover:bg-muted/40 flex items-center justify-between gap-3 px-4 py-3 transition"
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{s.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium">{s.name}</span>
+                        {isCovered ? (
+                          <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700">
+                            no seu plano
+                          </span>
+                        ) : null}
+                      </div>
                       <div className="text-muted-foreground text-xs">
                         {s.durationMinutes !== null ? formatDuration(s.durationMinutes) : ''}
                         {s.categoryId ? ` · ${s.categoryId}` : ''}

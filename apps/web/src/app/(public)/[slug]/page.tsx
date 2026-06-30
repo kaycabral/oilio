@@ -1,4 +1,5 @@
 import { resolveScopeForSession } from '@/features/booking/adapters/subscription-scope.repo'
+import { resolveCoveredServiceIds } from '@/features/self-book/adapters/covered-services'
 import { getPublicOrgSummary, getPublicUnitBundle } from '@/features/self-book/adapters/public-org'
 import { PlanCoverageBanner } from '@/features/self-book/ui/PlanCoverageBanner'
 import { UnitCatalog } from '@/features/self-book/ui/UnitCatalog'
@@ -59,7 +60,16 @@ export default async function PublicOrgPage({ params }: PageProps) {
     const only = visibleUnits[0]!
     const bundle = await getPublicUnitBundle(slug, only.slug)
     if (!bundle) notFound()
-    const isLoggedIn = (await getSessionUser()) !== null
+    const session = await getSessionUser()
+    const isLoggedIn = session !== null
+    // Brief 0079 (#1307). Mark plan-covered services for the badge + sort.
+    const coveredItemIds = resolveCoveredServiceIds({
+      scope,
+      catalogServiceItems: bundle.catalogServiceItems,
+      orgId: bundle.org.id,
+      unitId: bundle.unit.id,
+      userId: session?.uid ?? null,
+    })
     return (
       <UnitCatalog
         org={bundle.org}
@@ -69,6 +79,7 @@ export default async function PublicOrgPage({ params }: PageProps) {
         memberOperation={bundle.memberOperation}
         showUnitHeader={false}
         isLoggedIn={isLoggedIn}
+        coveredItemIds={coveredItemIds}
         coverageBanner={coverageBanner}
       />
     )
