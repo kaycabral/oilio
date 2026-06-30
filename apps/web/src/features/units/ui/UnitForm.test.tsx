@@ -88,7 +88,6 @@ describe('UnitForm — agenda config disclosure (appointment mode, PRD Identidad
               reminder: 'Lembrete!',
               cancellation: 'Cancelado!',
             },
-            selfBookingPublished: false,
           },
         })}
       />,

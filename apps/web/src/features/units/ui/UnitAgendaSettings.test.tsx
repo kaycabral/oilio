@@ -23,7 +23,6 @@ const APPOINTMENT_AGENDA: UnitAgendaConfig = {
     reminder: 'Lembrete do seu horário amanhã.',
     cancellation: 'Seu horário foi cancelado.',
   },
-  selfBookingPublished: false,
 }
 
 function buildUnit(agenda: UnitAgendaConfig): Unit {

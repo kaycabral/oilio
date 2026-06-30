@@ -11,8 +11,8 @@ const META: EventMeta = {
   schemaVersion: 1,
 }
 
-const EMPTY: BusinessHours = {
-  monday: null,
+const HOURS: BusinessHours = {
+  monday: { open: '09:00', close: '18:00' },
   tuesday: null,
   wednesday: null,
   thursday: null,
@@ -21,59 +21,66 @@ const EMPTY: BusinessHours = {
   sunday: null,
 }
 
-const APPOINTMENT_STATE: UnitState = {
+const FIXED_STATE: UnitState = {
   ...INITIAL_UNIT_STATE,
   id: 'u1',
   orgId: 't1',
-  agenda: {
-    mode: 'appointment',
-    businessHours: EMPTY,
-    slotMinutes: 15,
-    cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
-    confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-    selfBookingPublished: false,
-  },
+  agenda: { mode: 'fixed', businessHours: HOURS },
 }
 
-// The self-booking publish state is an appointment-agenda concern (PRD
-// Identidade v2, context 3 — moved Org→Unit). The reducer projects it into the
-// `appointment` variant of `Unit.agenda` and is a NO-OP outside that mode (the
-// flag doesn't exist there) — a branch replay can't exercise directly.
-describe('applyUnitEvent — self-booking publish/unpublish', () => {
-  it('publishes into the appointment agenda variant', () => {
-    const next = applyUnitEvent(APPOINTMENT_STATE, { _tag: 'unit.self_booking_published' }, META)
+// Self-booking publication is NOT event-sourced (PRD Identidade v2 / SPIKE
+// "inferred availability"): there is no publish/unpublish event. A unit goes
+// public by switching its agenda mode to `appointment` via `unit.updated` — the
+// reducer just projects the new agenda, and `isUnitPubliclyLive` derives the
+// public state from it on read.
+describe('applyUnitEvent — agenda transitions (inferred publication)', () => {
+  it('switches the unit into the appointment agenda via unit.updated', () => {
+    const next = applyUnitEvent(
+      FIXED_STATE,
+      {
+        _tag: 'unit.updated',
+        changes: {
+          agenda: {
+            mode: 'appointment',
+            businessHours: HOURS,
+            slotMinutes: 15,
+            cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
+            confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
+          },
+        },
+      },
+      META,
+    )
     expect(next.agenda.mode).toBe('appointment')
-    if (next.agenda.mode !== 'appointment') throw new Error('expected appointment')
-    expect(next.agenda.selfBookingPublished).toBe(true)
-    expect(next.agenda.selfBookingPublishedAt).toBe(META.timestamp)
+    expect(next.updatedAt).toBe(META.timestamp)
+    expect(next._version).toBe(META.version)
   })
 
-  it('unpublishes within the appointment agenda variant', () => {
-    const published: UnitState = {
-      ...APPOINTMENT_STATE,
+  it('switches the unit back to a walk-in agenda via unit.updated', () => {
+    const appointment: UnitState = {
+      ...FIXED_STATE,
       agenda: {
         mode: 'appointment',
-        businessHours: EMPTY,
+        businessHours: HOURS,
         slotMinutes: 15,
         cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
         confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-        selfBookingPublished: true,
       },
     }
-    const next = applyUnitEvent(published, { _tag: 'unit.self_booking_unpublished' }, META)
-    if (next.agenda.mode !== 'appointment') throw new Error('expected appointment')
-    expect(next.agenda.selfBookingPublished).toBe(false)
+    const next = applyUnitEvent(
+      appointment,
+      { _tag: 'unit.updated', changes: { agenda: { mode: 'always_open' } } },
+      META,
+    )
+    expect(next.agenda).toEqual({ mode: 'always_open' })
   })
 
-  it('is a no-op for a non-appointment unit (publish state does not exist there)', () => {
-    const fixed: UnitState = {
-      ...INITIAL_UNIT_STATE,
-      id: 'u1',
-      agenda: { mode: 'fixed', businessHours: EMPTY },
-    }
-    const published = applyUnitEvent(fixed, { _tag: 'unit.self_booking_published' }, META)
-    expect(published.agenda).toEqual({ mode: 'fixed', businessHours: EMPTY })
-    const unpublished = applyUnitEvent(fixed, { _tag: 'unit.self_booking_unpublished' }, META)
-    expect(unpublished.agenda).toEqual({ mode: 'fixed', businessHours: EMPTY })
+  it('archives the unit, stamping archivedAt', () => {
+    const next = applyUnitEvent(
+      FIXED_STATE,
+      { _tag: 'unit.archived', archivedAt: META.timestamp },
+      META,
+    )
+    expect(next.archivedAt).toBe(META.timestamp)
   })
 })

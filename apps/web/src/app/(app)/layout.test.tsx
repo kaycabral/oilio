@@ -146,7 +146,6 @@ describe('AppLayout — auth and org gating', () => {
     mocks.getOrg.mockResolvedValue({
       id: 't1',
       name: 'Test',
-      selfBookingPublished: false,
     })
     // PRD Identidade v2 (simplification): a Negócio with no Unidade is a NORMAL
     // empty state, not a forced onboarding screen. The owner lands in the app and
@@ -175,7 +174,6 @@ describe('AppLayout — auth and org gating', () => {
     mocks.getOrg.mockResolvedValue({
       id: 't1',
       name: 'Test',
-      selfBookingPublished: false,
     })
     await expect(callLayout()).resolves.toBeTruthy()
   })
@@ -201,7 +199,6 @@ describe('AppLayout — auth and org gating', () => {
     mocks.getOrg.mockResolvedValue({
       id: 't1',
       name: 'Test',
-      selfBookingPublished: false,
     })
     mocks.resolveActiveUnit.mockResolvedValue({
       units: [

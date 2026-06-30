@@ -372,59 +372,8 @@ export async function getUnitPublishReadiness(
   })
 }
 
-// --- Per-unit self-booking publication (brief 0008 #988) ----------------------
-//
-// Self-booking publish is a per-unit appointment-agenda concern (PRD Identidade
-// v2 — moved Org→Unit). Replaces the Org-level `org.self_booking_*` events with
-// `unit.self_booking_published`/`unpublished`. The publish state lives in the
-// `appointment` variant of `Unit.agenda`; publishing a unit that isn't in
-// appointment mode is rejected (the flag doesn't exist there).
-
-export type UnitPublishResult = { ok: true } | { ok: false; error: string }
-
-export async function publishUnitSelfBooking(unitId: string): Promise<UnitPublishResult> {
-  const r = await requireOwnerCtx()
-  if (!r.ok) return r
-  const orgId = r.ctx.membership.orgId
-
-  const unit = await getUnitById(orgId, unitId)
-  if (!unit) return { ok: false, error: 'Unidade não encontrada' }
-  if (unit.agenda.mode !== 'appointment') {
-    return { ok: false, error: 'A unidade não usa a agenda online' }
-  }
-  // AC-07: server revalidates the minimum before publishing (defense in depth —
-  // never trust the UI checklist).
-  const readiness = await getUnitPublishReadiness(orgId, unitId)
-  if (!readiness.ready) {
-    return { ok: false, error: `Faltam requisitos: ${readiness.missing.join('; ')}` }
-  }
-
-  // Event-first: the publication state is a dedicated domain event; the reducer
-  // projects `agenda.selfBookingPublished`. Auditoria = stream (actorId no
-  // evento) — sem recordAudit.
-  const published = await emitEvent(UnitConfig, aggregateRef(UnitConfig, orgId, unitId), {
-    _tag: 'unit.self_booking_published',
-    actorId: r.ctx.session.uid,
-    payload: {},
-  })
-  if (!published.ok) return { ok: false, error: published.error }
-
-  revalidatePath('/organizations')
-  return { ok: true }
-}
-
-export async function unpublishUnitSelfBooking(unitId: string): Promise<UnitPublishResult> {
-  const r = await requireOwnerCtx()
-  if (!r.ok) return r
-  const orgId = r.ctx.membership.orgId
-
-  const unpublished = await emitEvent(UnitConfig, aggregateRef(UnitConfig, orgId, unitId), {
-    _tag: 'unit.self_booking_unpublished',
-    actorId: r.ctx.session.uid,
-    payload: {},
-  })
-  if (!unpublished.ok) return { ok: false, error: unpublished.error }
-
-  revalidatePath('/organizations')
-  return { ok: true }
-}
+// Self-booking publication is NOT an action (PRD Identidade v2 / SPIKE "inferred
+// availability"): a unit's public page is live the moment it is in appointment
+// mode with a complete address + hours (`isUnitPubliclyLive`). There is no
+// publish/unpublish step — switching the agenda mode via `updateUnit` is the only
+// control. `getUnitPublishReadiness` above stays as owner-facing FEEDBACK.

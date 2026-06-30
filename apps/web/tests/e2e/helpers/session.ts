@@ -41,10 +41,6 @@ export type SeedOrgInput = {
   memberOperationCount?: number
   memberOperationOperationalStatus?: 'incomplete' | 'operational'
   // Self-booking publication gate (#988) — controls public page visibility.
-  // Default true matches the 99% case where specs target an already-published
-  // unit; pass `false` to seed an unpublished one (public page 404s). Per-unit
-  // now (moved Org→Unit, context 3) — applied to the unit's appointment agenda.
-  selfBookingPublished?: boolean
   vertical?: 'barbershop' | 'auto_wash' | 'auto_detailing' | 'other'
   cancellationPolicy?: { enabled: boolean; minNoticeMinutes: number }
   // Assinatura Oilio tier (brief 0072 gating). Defaults to `advanced` so the
@@ -326,7 +322,6 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
     unitCount = 1,
     memberOperationCount = 1,
     memberOperationOperationalStatus = 'operational',
-    selfBookingPublished = true,
     vertical = 'barbershop',
     cancellationPolicy,
     tier = 'advanced',
@@ -443,8 +438,9 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
       // Default to the appointment agenda so the unit drives the agenda
       // (unitUsesAgenda). The agenda page redirects to /orders when no unit
       // uses scheduling, which most specs depend on. The agenda-only configs
-      // (slotMinutes/cancellationPolicy/templates/self-booking publish) live
-      // ONLY in this appointment variant (moved from Org).
+      // (slotMinutes/cancellationPolicy/templates) live ONLY in this appointment
+      // variant (moved from Org). Public availability is inferred from this
+      // agenda + a complete address (`isUnitPubliclyLive`) — no publish flag.
       agenda: {
         mode: 'appointment',
         businessHours,
@@ -454,8 +450,6 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
           minNoticeMinutes: cancellationPolicy?.minNoticeMinutes ?? 120,
         },
         confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-        selfBookingPublished,
-        selfBookingPublishedAt: selfBookingPublished ? now : null,
       },
       // Uniform delete policy (brief 0027, #1041) — seeds match the new shape.
       archivedAt: null,
@@ -898,15 +892,14 @@ export async function seedAdditionalOrg(
       // expressed by the empty hours below, not a blank address.
       address: buildAddress(),
       timezone: 'America/Sao_Paulo',
-      // Appointment agenda (unpublished) — agenda-only configs live here only.
+      // Appointment agenda but NOT publicly live — expressed by the empty hours
+      // (no open weekday), so `isUnitPubliclyLive` is false without any flag.
       agenda: {
         mode: 'appointment',
         businessHours: EMPTY_BUSINESS_HOURS,
         slotMinutes: 15,
         cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
         confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-        selfBookingPublished: false,
-        selfBookingPublishedAt: null,
       },
       archivedAt: null,
       fiscal: { kind: 'informal' },
@@ -1882,15 +1875,14 @@ export async function seedUnit(
     // expressed by the empty hours below, not a blank address.
     address: buildAddress(),
     timezone: 'America/Sao_Paulo',
-    // Appointment agenda (unpublished) — agenda-only configs live here only.
+    // Appointment agenda but NOT publicly live — expressed by the empty hours
+    // (no open weekday), so `isUnitPubliclyLive` is false without any flag.
     agenda: {
       mode: 'appointment',
       businessHours: EMPTY_BUSINESS_HOURS,
       slotMinutes: 15,
       cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
       confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-      selfBookingPublished: false,
-      selfBookingPublishedAt: null,
     },
     archivedAt: opts.archivedAt ?? null,
     fiscal: { kind: 'informal' },

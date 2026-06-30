@@ -71,10 +71,6 @@ export function assembleAgenda(
         slotMinutes,
         cancellationPolicy,
         confirmationTemplates,
-        selfBookingPublished: prior?.selfBookingPublished ?? false,
-        ...(prior?.selfBookingPublishedAt != null
-          ? { selfBookingPublishedAt: prior.selfBookingPublishedAt }
-          : {}),
       }
     }
   }

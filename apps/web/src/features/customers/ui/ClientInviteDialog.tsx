@@ -1,6 +1,6 @@
 'use client'
 
-import { unitSelfBookingPublished } from '@/domain'
+import { isUnitPubliclyLive } from '@/domain'
 import { useOrg } from '@/shared/org/org-context'
 import { resolveBaseUrlClient } from '@/shared/site-url-client'
 import {
@@ -31,7 +31,7 @@ export function ClientInviteDialog({ trigger }: { trigger?: React.ReactNode }) {
   // The invite only makes sense for a unit whose public booking is live — else
   // the link dead-ends on "indisponível". Mirror the server gate (the action is
   // the real wall) so we don't open a form that's bound to fail.
-  const canInvite = activeUnit !== null && unitSelfBookingPublished(activeUnit.agenda)
+  const canInvite = activeUnit !== null && isUnitPubliclyLive(activeUnit)
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

@@ -83,7 +83,6 @@ describe('unitHasAddressAndHours', () => {
           slotMinutes: 15,
           cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
           confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-          selfBookingPublished: false,
         }),
       ),
     ).toBe(true)
@@ -103,7 +102,6 @@ describe('isUnitPubliclyLive', () => {
           slotMinutes: 15,
           cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
           confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-          selfBookingPublished: false,
         }),
       ),
     ).toBe(true)
@@ -118,7 +116,6 @@ describe('isUnitPubliclyLive', () => {
           slotMinutes: 15,
           cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
           confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-          selfBookingPublished: false,
         }),
       ),
     ).toBe(false)
@@ -133,7 +130,6 @@ describe('isUnitPubliclyLive', () => {
           slotMinutes: 15,
           cancellationPolicy: { enabled: false, minNoticeMinutes: 0 },
           confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-          selfBookingPublished: false,
         }),
       ),
     ).toBe(false)

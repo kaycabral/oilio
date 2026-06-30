@@ -9,10 +9,11 @@ import {
   isOperational,
   isReservedSlug,
   isReservedUnitSlug,
+  isUnitPubliclyLive,
   isValidSlug,
   isValidUnitSlug,
-  normalizeCancellationPolicy,
   resolveCatalogItemForUnit,
+  unitCancellationPolicySnapshot,
   type Appointment,
   type BookingLimits,
   type CatalogItem,
@@ -227,9 +228,11 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   const { unit, service } = entities
 
   // Publish gate, timezone and cancellation policy are the establishment's now
-  // (PRD Identidade v2 — moved Org→Unit): gate on the unit's appointment-agenda
-  // publish state and use the unit's tz for all temporal logic below.
-  if (unit.agenda.mode !== 'appointment' || !unit.agenda.selfBookingPublished) {
+  // (PRD Identidade v2 — moved Org→Unit): gate on the unit's inferred public
+  // availability (appointment mode + complete address & hours — no stored publish
+  // flag, the same rule the landing/slots use) and use the unit's tz for all
+  // temporal logic below.
+  if (!isUnitPubliclyLive(unit)) {
     return { ok: false, error: 'Estabelecimento indisponível.' }
   }
   const unitScope = { id: org.id, timezone: unit.timezone }
@@ -286,8 +289,9 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     servicePriceCentsSnapshot: resolved.priceCents,
     serviceDurationMinutesSnapshot: resolved.durationMinutes,
     commissionSnapshot: resolved.commission,
-    // Snapshot da cancellation policy no commit (#1038).
-    cancellationPolicySnapshot: normalizeCancellationPolicy(unit.agenda.cancellationPolicy),
+    // Snapshot da cancellation policy no commit (#1038). Accessor branch-free —
+    // resolve a policy do appointment ou o default fora dele, já normalizada.
+    cancellationPolicySnapshot: unitCancellationPolicySnapshot(unit.agenda),
     customerUserId: userIds.ids.customerUserId,
     memberOperatorUserId: userIds.ids.memberOperatorUserId,
     // Per-booking touch attribution (brief 0077 AC-11).

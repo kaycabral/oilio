@@ -151,6 +151,7 @@ export {
   isAddressComplete,
   isReservedUnitSlug,
   isUnitBookable,
+  isUnitPubliclyLive,
   isValidCancellationNoticeMinutes,
   isValidSlotMinutes,
   isValidUnitSlug,
@@ -158,7 +159,8 @@ export {
   slugifyUnitName,
   unitBusinessHours,
   unitCancellationPolicySnapshot,
-  unitSelfBookingPublished,
+  unitHasAddressAndHours,
+  unitHasUsableHours,
   unitSlotMinutes,
   unitUsesAgenda,
 } from './types/unit'
