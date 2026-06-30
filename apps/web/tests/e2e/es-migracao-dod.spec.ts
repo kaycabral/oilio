@@ -95,22 +95,24 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       expect(stream.length).toBeGreaterThanOrEqual(1)
       expect(decodeEventTag(stream[0])._tag).toBe('member_operation.created')
 
-      // Serializa cada envelope do stream e garante ausência da PII literal.
-      // Cobre qualquer nível de aninhamento do payload (data.name etc.).
-      const streamJson = JSON.stringify(stream)
-      expect(streamJson).not.toContain('E2E Invitee')
-      expect(streamJson).not.toContain('5511900000000')
-      expect(streamJson).not.toContain(invitee.email)
-
       // Identidade pessoal (name/whatsapp/email) é referência viva ao User
       // global (#1046 / brief 0028 AC-04/AC-05) — não é mais copiada pro
       // doc per-org. Vive — e só vive — na tabela global `users` (chave `uid`).
+      // O whatsapp é gerado único por run (unicidade global), então lemos o
+      // valor real daqui pra provar a ausência no evento logo abaixo.
       const userRows = await pgQueryProjection('users', 'uid', invitee.uid)
       expect(userRows).toHaveLength(1)
       const userRow = userRows[0]
       expect(userRow?.display_name).toBe('E2E Invitee')
-      expect(userRow?.whatsapp).toBe('5511900000000')
+      expect(userRow?.whatsapp).toMatch(/^5511\d{9}$/)
       expect(userRow?.email).toBe(invitee.email)
+
+      // Serializa cada envelope do stream e garante ausência da PII literal.
+      // Cobre qualquer nível de aninhamento do payload (data.name etc.).
+      const streamJson = JSON.stringify(stream)
+      expect(streamJson).not.toContain('E2E Invitee')
+      expect(streamJson).not.toContain(requireString(userRow?.whatsapp))
+      expect(streamJson).not.toContain(invitee.email)
 
       // O doc per-org apagável `member_operations_pii/{id}` guarda só PII
       // profissional-específica (tax_identity), nunca a identidade pessoal.
