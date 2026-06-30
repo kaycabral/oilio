@@ -14,7 +14,13 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { choosePaymentMethod } from '../helpers/select'
-import { seedAppointment, seedCustomer, seedService, type SeededOrg } from '../helpers/session'
+import {
+  seedAppointment,
+  seedCustomer,
+  seedService,
+  uniqueWhatsapp,
+  type SeededOrg,
+} from '../helpers/session'
 import { AgendaPage } from '../pages'
 
 async function seedOrderFixture(org: SeededOrg): Promise<void> {
@@ -26,7 +32,7 @@ async function seedOrderFixture(org: SeededOrg): Promise<void> {
   })
   const customerId = await seedCustomer(org.orgId, {
     name: 'Cliente Undo',
-    whatsapp: '11933332222',
+    whatsapp: uniqueWhatsapp(),
   })
   await seedAppointment({
     orgId: org.orgId,

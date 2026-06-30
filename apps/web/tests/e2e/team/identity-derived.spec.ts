@@ -9,8 +9,10 @@
 // a linked User doc (uid `e2e-prof-user-{pid}`, displayName "Profissional 1",
 // whatsapp 5511900000000) — see helpers/session.ts.
 
+import { formatBrazilPhone } from '@/domain/utils/whatsapp'
 import { patchUser } from '@/shared/db/pg/users-store'
 import { expect, test } from '../fixtures'
+import { uniqueWhatsapp } from '../helpers/session'
 import { MemberOperationsPage } from '../pages'
 
 // The fixture derives each seeded pro's userId as `e2e-prof-user-${pid}`.
@@ -25,12 +27,19 @@ test.describe('Professionals — identidade derivada (#1046)', { tag: '@critical
     org,
     authedPage,
   }) => {
+    // Pin the seeded pro's whatsapp to a known unique value so the read-only
+    // display can be asserted against a deterministic mask (the helper seeds a
+    // per-run unique number we can't hardcode).
+    const proId = org.memberOperationIds[0]!
+    const wa = uniqueWhatsapp()
+    await patchUser(memberOperatorUserId(proId), { whatsapp: wa }, new Date().toISOString())
+
     const pros = new MemberOperationsPage(authedPage)
-    await pros.gotoById(org.memberOperationIds[0]!)
+    await pros.gotoById(proId)
 
     // Identity renders as read-only text sourced from `users/{userId}`.
     await expect(pros.identityName()).toHaveText('Profissional 1')
-    await expect(pros.identityWhatsapp()).toHaveText('(11) 90000-0000')
+    await expect(pros.identityWhatsapp()).toHaveText(formatBrazilPhone(wa))
     await expect(pros.identityEmail()).toContainText('@e2e.local')
 
     // There are NO identity inputs in the operational form (AC-04). Tax
@@ -49,16 +58,21 @@ test.describe('Professionals — identidade derivada (#1046)', { tag: '@critical
     const uid = memberOperatorUserId(proId)
     const pros = new MemberOperationsPage(authedPage)
 
+    // Pin a known starting whatsapp (helper seeds a per-run unique number).
+    const initialWa = uniqueWhatsapp()
+    await patchUser(uid, { whatsapp: initialWa }, new Date().toISOString())
+
     await pros.gotoById(proId)
-    await expect(pros.identityWhatsapp()).toHaveText('(11) 90000-0000')
+    await expect(pros.identityWhatsapp()).toHaveText(formatBrazilPhone(initialWa))
 
     // Mutate ONLY the global User row (`users.whatsapp`) — no touch to the
     // memberOperation projection nor `member_operations_pii`. The single-column patch
     // mirrors the old Firestore `updateMask.fieldPaths=whatsapp`.
-    await patchUser(uid, { whatsapp: '5511955554444' }, new Date().toISOString())
+    const nextWa = uniqueWhatsapp()
+    await patchUser(uid, { whatsapp: nextWa }, new Date().toISOString())
 
     // Re-read the edit view: the new whatsapp surfaces live.
     await pros.gotoById(proId)
-    await expect(pros.identityWhatsapp()).toHaveText('(11) 95555-4444')
+    await expect(pros.identityWhatsapp()).toHaveText(formatBrazilPhone(nextWa))
   })
 })

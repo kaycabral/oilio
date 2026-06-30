@@ -17,6 +17,7 @@ import {
   seedService,
   seedSubscription,
   setSubscriptionStatus,
+  uniqueWhatsapp,
   type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
@@ -33,7 +34,7 @@ async function seedOrderFixture(
   })
   const customerId = await seedCustomer(org.orgId, {
     name: 'Cliente DoD',
-    whatsapp: '11922221111',
+    whatsapp: uniqueWhatsapp(),
   })
   const subId = opts.withSubscription
     ? await seedSubscription(org.orgId, customerId, {

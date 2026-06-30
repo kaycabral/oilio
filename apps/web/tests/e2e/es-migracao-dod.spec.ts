@@ -18,6 +18,7 @@ import {
   seedOrg,
   seedService,
   signInAndAttachSession,
+  uniqueWhatsapp,
 } from './helpers/session'
 import { AgendaPage, MeAppointmentsPage } from './pages'
 
@@ -148,7 +149,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       })
       const customerId = await seedCustomer(org.orgId, {
         name: 'Cliente DoD',
-        whatsapp: '11955551111',
+        whatsapp: uniqueWhatsapp(),
       })
       const appointmentId = await seedAppointment({
         orgId: org.orgId,

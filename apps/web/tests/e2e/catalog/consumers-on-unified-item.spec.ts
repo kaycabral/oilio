@@ -23,6 +23,7 @@ import {
   seedService,
   seedSubscription,
   skipOnPostgres,
+  uniqueWhatsapp,
 } from '../helpers/session'
 import { AgendaPage, PublicBookingPage, orgSlug } from '../pages'
 
@@ -63,7 +64,7 @@ if (!skipOnPostgres()) {
       expect((await readCatalogItem(org.orgId, serviceId))?.kind).toBe('service')
 
       const customerName = `Cliente Unificado ${Date.now()}`
-      await seedCustomer(org.orgId, { name: customerName, whatsapp: '11955551111' })
+      await seedCustomer(org.orgId, { name: customerName, whatsapp: uniqueWhatsapp() })
 
       const agenda = new AgendaPage(authedPage)
       await agenda.goto('2026-08-12')
@@ -109,7 +110,7 @@ if (!skipOnPostgres()) {
       const customerName = `Plano Categoria ${Date.now()}`
       const customerId = await seedCustomer(org.orgId, {
         name: customerName,
-        whatsapp: '11955552222',
+        whatsapp: uniqueWhatsapp(),
       })
       await seedSubscription(org.orgId, customerId, { includedCategoryIds: [coveredCat] })
 
@@ -143,7 +144,7 @@ if (!skipOnPostgres()) {
       await seedProduct(org.orgId, { name: 'Pomada Comanda', priceCents: 3000 })
       const customerId = await seedCustomer(org.orgId, {
         name: 'Cliente Comanda',
-        whatsapp: '11955553333',
+        whatsapp: uniqueWhatsapp(),
       })
       // Seed a scheduled appointment so "Iniciar atendimento" opens the order.
       await seedAppointment({

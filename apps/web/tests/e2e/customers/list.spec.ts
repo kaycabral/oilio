@@ -6,14 +6,14 @@
 // Runs against the emulator (no mocks).
 
 import { expect, test } from '../fixtures'
-import { seedCustomer } from '../helpers/session'
+import { seedCustomer, uniqueWhatsapp } from '../helpers/session'
 
 test.describe('Listagem de clientes (@cbrl/design List)', () => {
   test('renders rows and exposes Ver/Excluir in the ⋯ menu', async ({ org, authedPage }) => {
-    await seedCustomer(org.orgId, { name: 'Maria Silva', whatsapp: '+5511900000000' })
+    await seedCustomer(org.orgId, { name: 'Maria Silva', whatsapp: uniqueWhatsapp() })
     await seedCustomer(org.orgId, {
       name: 'João Souza',
-      whatsapp: '+5511988888888',
+      whatsapp: uniqueWhatsapp(),
       avatarUrl: 'https://example.com/joao.png',
     })
 

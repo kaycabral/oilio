@@ -1,5 +1,10 @@
 import { expect, test } from '../fixtures'
-import { seedCustomer, seedLoginableMemberOperation, seedService } from '../helpers/session'
+import {
+  seedCustomer,
+  seedLoginableMemberOperation,
+  seedService,
+  uniqueWhatsapp,
+} from '../helpers/session'
 import { AgendaPage } from '../pages'
 
 // Retrofit pro PR #724 (issue #636) — internal booking dialog na agenda.
@@ -45,7 +50,7 @@ test.describe('Agenda — diálogo de novo agendamento', () => {
       unitIds: [org.unitIds[0]!],
       catalogServiceIds: [serviceId],
     })
-    await seedCustomer(org.orgId, { name: 'João Teste', whatsapp: '11999990000' })
+    await seedCustomer(org.orgId, { name: 'João Teste', whatsapp: uniqueWhatsapp() })
 
     const agenda = new AgendaPage(authedPage)
     await agenda.goto()

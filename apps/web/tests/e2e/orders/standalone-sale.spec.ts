@@ -14,7 +14,13 @@
 import { expect, test } from '../fixtures'
 import { addCatalogItemToOrder } from '../helpers/orders'
 import { choosePaymentMethod } from '../helpers/select'
-import { seedAppointment, seedCustomer, seedProduct, seedService } from '../helpers/session'
+import {
+  seedAppointment,
+  seedCustomer,
+  seedProduct,
+  seedService,
+  uniqueWhatsapp,
+} from '../helpers/session'
 import { AgendaPage } from '../pages'
 
 test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@critical' }, () => {
@@ -82,7 +88,7 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
     })
     const customerId = await seedCustomer(org.orgId, {
       name: 'Cliente Agendado',
-      whatsapp: '11955554444',
+      whatsapp: uniqueWhatsapp(),
     })
     await seedAppointment({
       orgId: org.orgId,

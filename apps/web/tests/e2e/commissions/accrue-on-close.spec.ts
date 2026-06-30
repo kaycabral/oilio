@@ -17,6 +17,7 @@ import {
   seedCustomer,
   seedProduct,
   seedService,
+  uniqueWhatsapp,
   type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
@@ -32,7 +33,7 @@ async function seedFixture(org: SeededOrg): Promise<void> {
   await seedProduct(org.orgId, { name: 'Pomada Sem Comissao', priceCents: 3000 })
   const customerId = await seedCustomer(org.orgId, {
     name: 'Cliente Accrual',
-    whatsapp: '11955551111',
+    whatsapp: uniqueWhatsapp(),
   })
   await seedAppointment({
     orgId: org.orgId,
