@@ -51,20 +51,20 @@ describe('resolveSignupOrgContext (brief 0077 #1278)', () => {
 
 describe('buildSignupNext (#1273 — completion before booking)', () => {
   it('routes through the completion step before the booking screen', () => {
-    const next = buildSignupNext('/barbearia-x/book?utm_source=whatsapp')
-    // The visitor must hit /onboarding/profile FIRST — never the booking page
-    // directly (which has no completion gate until confirm), or they'd reach the
-    // calendar with an incomplete profile. This was the regression #1273 fixed.
+    const next = buildSignupNext('/barbearia-x/centro?utm_source=whatsapp')
+    // The visitor must hit /onboarding/profile FIRST — never the unit booking
+    // entry directly (which has no completion gate until confirm), or they'd reach
+    // the calendar with an incomplete profile. This was the regression #1273 fixed.
     expect(next).toBe(
-      `/onboarding/profile?next=${encodeURIComponent('/barbearia-x/book?utm_source=whatsapp')}`,
+      `/onboarding/profile?next=${encodeURIComponent('/barbearia-x/centro?utm_source=whatsapp')}`,
     )
   })
 
-  it('preserves the org slug + attribution inside the encoded next', () => {
+  it('preserves the org + unit slug + attribution inside the encoded next', () => {
     const decoded = decodeURIComponent(
-      buildSignupNext('/barbearia-x/book?utm_source=qr&cbrl_intent=signup').split('next=')[1]!,
+      buildSignupNext('/barbearia-x/centro?utm_source=qr&cbrl_intent=signup').split('next=')[1]!,
     )
-    expect(decoded).toBe('/barbearia-x/book?utm_source=qr&cbrl_intent=signup')
+    expect(decoded).toBe('/barbearia-x/centro?utm_source=qr&cbrl_intent=signup')
   })
 
   it('falls back to the platform done page when there is no org context', () => {

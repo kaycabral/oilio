@@ -11,6 +11,7 @@ import { getCustomerUserId } from '@/shared/org/customer-read'
 import { getCustomerDeletionImpact, type CustomerDeletionImpact } from '@/shared/org/delete-guard'
 import { guardCapability, requireManagerCtx } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
+import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { eraseCustomerCascadeInOrg } from '@/shared/privacy/erase-customer-cascade'
 import { emitClientFunnelEvent } from '@/shared/product'
 import { resolveBaseUrl } from '@/shared/site-url'
@@ -41,6 +42,19 @@ export async function generateClientInvite(
   const org = await getOrg(orgId)
   if (!org) return { ok: false, error: 'Estabelecimento não encontrado' }
 
+  // The invite is for a specific unit — the customer lands on that unit's booking
+  // after completing the profile. Resolve the chosen unit by slug and require it
+  // to be bookable (selfBookingPublished), so the recep never hands out a link
+  // that dead-ends on "indisponível". Single-unit orgs auto-select on the form.
+  const unitSlug = formString(formData, 'unit').trim()
+  if (unitSlug.length === 0) return { ok: false, error: 'Selecione a unidade do convite' }
+  const units = await listUnitsForOrg(orgId)
+  const unit = units.find((u) => u.slug === unitSlug)
+  if (!unit) return { ok: false, error: 'Unidade não encontrada' }
+  if (unit.agenda.mode !== 'appointment' || !unit.agenda.selfBookingPublished) {
+    return { ok: false, error: 'Essa unidade ainda não está com agendamento público ativo' }
+  }
+
   const baseUrl = await resolveBaseUrl()
   const built = buildClientInviteWhatsapp({
     rawPhone,
@@ -48,6 +62,7 @@ export async function generateClientInvite(
     orgName: org.name,
     invite: {
       orgSlug: org.slug,
+      unitSlug,
       intent: 'signup',
       attribution: {
         source: 'whatsapp',

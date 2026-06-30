@@ -7,7 +7,9 @@ export default async function CustomersPage({
 }: {
   searchParams: Promise<{ q?: string }>
 }) {
-  const { customers, searchQuery, canDelete, state } = await loadCustomersPage(await searchParams)
+  const { customers, searchQuery, canDelete, state, inviteUnits } = await loadCustomersPage(
+    await searchParams,
+  )
 
   return (
     <Main width="default">
@@ -16,6 +18,7 @@ export default async function CustomersPage({
         searchQuery={searchQuery}
         canDelete={canDelete}
         isFiltered={state === 'filtered-empty'}
+        inviteUnits={inviteUnits}
       />
     </Main>
   )

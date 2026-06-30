@@ -21,10 +21,10 @@ vi.mock('next/navigation', () => ({
 
 // The WhatsApp/birthday markers use Tooltip, which needs a provider (the app
 // shell supplies one in production).
-function renderList(props: Parameters<typeof CustomersList>[0]) {
+function renderList(props: Omit<Parameters<typeof CustomersList>[0], 'inviteUnits'>) {
   return render(
     <TooltipProvider>
-      <CustomersList {...props} />
+      <CustomersList {...props} inviteUnits={[{ slug: 'centro', name: 'Centro' }]} />
     </TooltipProvider>,
   )
 }
