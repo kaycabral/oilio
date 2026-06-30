@@ -105,6 +105,10 @@ export const catalogItems = pgTable(
     check('catalog_items_kind_check', sql`${table.kind} IN ('service', 'product')`),
     // No blank names (trimmed non-empty).
     check('catalog_items_name_nonempty', sql`char_length(btrim(${table.name})) > 0`),
+    // A catalog item is offered in at least one unit (#1283 / brief 0078 AC-06);
+    // `unit_ids = []` is a phantom item — in the catalog but in no unit. The
+    // form already requires >= 1, but the DB must refuse the zero-value too.
+    check('catalog_items_unit_ids_nonempty', sql`jsonb_array_length(${table.unitIds}) > 0`),
     // No negative prices.
     check('catalog_items_price_cents_nonneg', sql`${table.priceCents} >= 0`),
     // The price-visibility enum, as a CHECK.

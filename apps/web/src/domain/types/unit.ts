@@ -270,10 +270,11 @@ export type Address = typeof Address.Type
 // state (before `unit.created`) needs a zero-value (`EMPTY_ADDRESS`) — so the
 // "is this a real, filled address" invariant lives HERE, as an explicit
 // predicate, not in the bare schema. This is the single source of truth for
-// "address complete": `parseUnitForm` enforces it at the form boundary and
-// publish-readiness uses it to gate the public page. `number`/`complement`
-// stay optional (many addresses legitimately lack them). See the DB-modeling
-// audit issue for hardening this at the `unit.created` schema level too.
+// "address complete": `parseUnitForm` enforces it at the form boundary,
+// publish-readiness uses it to gate the public page, and `CompleteAddress`
+// (below) wraps it as a schema filter so the `unit.created`/`unit.updated`
+// event decode rejects a blank address. `number`/`complement` stay optional
+// (many addresses legitimately lack them).
 export function isAddressComplete(address: Address): boolean {
   return (
     address.postalCode.trim().length > 0 &&
@@ -283,6 +284,19 @@ export function isAddressComplete(address: Address): boolean {
     address.street.trim().length > 0
   )
 }
+
+// The `Address` carried by a PERSISTED unit (`unit.created` payload, #1283 /
+// brief 0078 AC-05). `Address` itself stays permissive for the aggregate's
+// INITIAL zero-value (`EMPTY_ADDRESS`); this filtered schema is the boundary the
+// event decode runs through, so a blank address is rejected at `appendEventToTx`
+// — not only by the `parseUnitForm` shell or the DB CHECK.
+export const CompleteAddress = Address.pipe(
+  Schema.filter(isAddressComplete, {
+    identifier: 'CompleteAddress',
+    message: () => 'address must be complete (postalCode, state, city, neighborhood, street)',
+  }),
+)
+export type CompleteAddress = typeof CompleteAddress.Type
 
 // All-empty Address. Used only as the zero-value of the unit aggregate's
 // INITIAL state (before any `unit.created` event applies) — never a persisted

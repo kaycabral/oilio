@@ -98,6 +98,26 @@ export const units = pgTable(
     check('units_name_nonempty', sql`char_length(btrim(${table.name})) > 0`),
     check('units_slug_nonempty', sql`char_length(btrim(${table.slug})) > 0`),
     check('units_timezone_nonempty', sql`char_length(btrim(${table.timezone})) > 0`),
+    // A persisted unit carries a complete address (#1283 / brief 0078 AC-05) —
+    // the DB layer of the invariant the `unit.created` decode (`CompleteAddress`)
+    // already enforces. The required address fields live in the `address` JSONB;
+    // `number`/`complement` stay optional. The aggregate's INITIAL zero-value
+    // (`EMPTY_ADDRESS`) is never persisted, so this never rejects a real write.
+    check(
+      'units_address_complete',
+      sql`char_length(btrim(${table.address} ->> 'postalCode')) > 0
+        AND char_length(btrim(${table.address} ->> 'state')) > 0
+        AND char_length(btrim(${table.address} ->> 'city')) > 0
+        AND char_length(btrim(${table.address} ->> 'neighborhood')) > 0
+        AND char_length(btrim(${table.address} ->> 'street')) > 0`,
+    ),
+    // A `company` unit must carry a non-empty CNPJ-14 in the `fiscal` JSONB
+    // (#1283 / brief 0078 AC-07); an empty `taxId` corrupts `groupUnitsByRaiz`.
+    // Conditional by the `fiscal_kind` discriminant (template: catalog_items_kind_shape).
+    check(
+      'units_company_taxid_nonempty',
+      sql`${table.fiscalKind} <> 'company' OR char_length(btrim(${table.fiscal} ->> 'taxId')) > 0`,
+    ),
     // Every unit belongs to a real org.
     foreignKey({
       name: 'units_org_id_fk',
