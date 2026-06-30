@@ -257,6 +257,19 @@ function uniqueSuffix() {
   return `${Date.now()}-${randomBytes(4).toString('hex')}`
 }
 
+// A unique, well-formed BR mobile number for seeded Users. `users.whatsapp` is
+// now GLOBALLY unique (partial unique index `users_whatsapp_unique`), so two
+// seeded users can no longer share the old hardcoded `5511900000000` — that
+// would violate the constraint the moment a single DB holds both. Shape:
+// `55` (DDI) + `11` (DDD) + `9` + 8 digits derived from a process-wide counter,
+// so every call returns a distinct valid number. Unit-level whatsapp (UnitPii)
+// is NOT under this index and intentionally keeps its fixed seed value.
+let whatsappCounter = 0
+function uniqueWhatsapp(): string {
+  whatsappCounter += 1
+  return `5511${String(900000000 + whatsappCounter).padStart(9, '0')}`
+}
+
 // Seeds a profit Goal projection doc (brief 0042) directly via the emulator —
 // the Copiloto surface reads the projection (`goals/{id}`), so the read-side
 // E2E doesn't need the full event append. Doc id is deterministic per
@@ -398,7 +411,7 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
       displayName: 'E2E Owner',
       emailVerified: true,
       currentOrgId: orgId,
-      whatsapp: '5511900000000',
+      whatsapp: uniqueWhatsapp(),
       birthDate: '1990-01-01',
       completionCompleted: true,
       claimedAt: now,
@@ -491,7 +504,7 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
         displayName: `Profissional ${i + 1}`,
         emailVerified: true,
         currentOrgId: orgId,
-        ...(wantsOperational ? { whatsapp: '5511900000000', completionCompleted: true } : {}),
+        ...(wantsOperational ? { whatsapp: uniqueWhatsapp(), completionCompleted: true } : {}),
         claimedAt: now,
       }),
     )
@@ -650,7 +663,7 @@ export async function seedMember(
       displayName: opts.displayName,
       emailVerified: true,
       currentOrgId: orgId,
-      whatsapp: '5511900000000',
+      whatsapp: uniqueWhatsapp(),
       completionCompleted: true,
       claimedAt: now,
     }),
@@ -2266,7 +2279,7 @@ export async function seedAuthUser(
       email,
       displayName: 'E2E Invitee',
       emailVerified: true,
-      whatsapp: completionCompleted ? '5511900000000' : null,
+      whatsapp: completionCompleted ? uniqueWhatsapp() : null,
       birthDate: completionCompleted ? '1990-01-01' : null,
       completionCompleted,
       claimedAt: now,
