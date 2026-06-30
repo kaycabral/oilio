@@ -9,7 +9,8 @@ import {
 } from '@/shared/db/pg/effect/org-projector'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
-import { seedService } from '../helpers/session'
+import { nextWeekday } from '../helpers/date'
+import { linkMemberOperationToServices, seedService } from '../helpers/session'
 import { orgSlug, PublicBookingPage } from '../pages'
 
 // Épico #672 — Landing pública por estabelecimento.
@@ -111,7 +112,7 @@ test.describe('Landing pública — branding + catálogo + agendamento', () => {
         })
 
         // Serviço visível no catálogo público.
-        await seedService(org.orgId, {
+        const serviceId = await seedService(org.orgId, {
           name: 'Corte Premium',
           durationMinutes: 30,
           priceCents: 6500,
@@ -126,6 +127,8 @@ test.describe('Landing pública — branding + catálogo + agendamento', () => {
           publicVisible: false,
           unitIds: org.unitIds,
         })
+        // O slot de disponibilidade só aparece com o profissional vinculado ao serviço.
+        await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
         const booking = new PublicBookingPage(page, slug)
 
@@ -138,22 +141,15 @@ test.describe('Landing pública — branding + catálogo + agendamento', () => {
         // Service NÃO público fica escondido.
         await expect(page.getByText('Serviço Interno')).toHaveCount(0)
 
-        // Legacy single-step form still works (covered separately from the
-        // #844 wizard) — navigate directly to the legacy URL.
-        await booking.gotoBookLegacy()
-        await expect(booking.legacyHeading()).toBeVisible()
-
-        // Escolhe um horário 3 dias no futuro às 14h pra evitar conflict com testes
-        // próximos e ficar bem após `Date.now()`.
-        const future = new Date(Date.now() + 3 * 24 * 60 * 60_000)
-        const yyyy = future.getUTCFullYear()
-        const mm = String(future.getUTCMonth() + 1).padStart(2, '0')
-        const dd = String(future.getUTCDate()).padStart(2, '0')
-        await booking.fillLegacyForm({
-          dateTimeIso: `${yyyy}-${mm}-${dd}T14:00`,
-        })
-        await booking.legacySubmit().click()
-        await expect(booking.legacySuccessHeading()).toBeVisible()
+        // Booking pelo wizard por-unidade (#844): disponibilidade real → confirmar.
+        // O owner seedado (logado + completo) age como o cliente.
+        await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
+        await booking
+          .slotByMemberOperation(/profissional 1/i)
+          .first()
+          .click()
+        await booking.confirmButton().click()
+        await expect(booking.successHeading()).toBeVisible()
       },
     )
   })

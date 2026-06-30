@@ -1,5 +1,11 @@
 import { expect, test } from '../fixtures'
-import { seedAppointment, seedCustomer, seedService } from '../helpers/session'
+import { nextWeekday } from '../helpers/date'
+import {
+  linkMemberOperationToServices,
+  seedAppointment,
+  seedCustomer,
+  seedService,
+} from '../helpers/session'
 import { AgendaPage, PublicBookingPage, orgSlug } from '../pages'
 
 // Issue #871 — opt-in cancellation policy + no-show flow.
@@ -17,38 +23,59 @@ test.describe('Política de cancelamento — aviso na página pública', () => {
       orgInput: {
         unitCount: 1,
         memberOperationCount: 1,
+        hasBusinessHours: true,
+        slotMinutes: 30,
         cancellationPolicy: { enabled: true, minNoticeMinutes: 60 },
       },
     })
 
-    test('aviso aparece com a antecedência configurada', async ({ org, page }) => {
-      await seedService(org.orgId, {
+    test('aviso aparece com a antecedência configurada', async ({ org, authedPage }) => {
+      const serviceId = await seedService(org.orgId, {
         name: 'Corte',
         durationMinutes: 30,
         priceCents: 5000,
         publicVisible: true,
+        unitIds: org.unitIds,
       })
-      const booking = new PublicBookingPage(page, orgSlug(org.orgId))
-      await booking.gotoBookLegacy()
-      const notice = page.getByText(/Você pode cancelar a qualquer momento pelo app/i)
+      await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
+      const booking = new PublicBookingPage(authedPage, orgSlug(org.orgId))
+      await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
+      await booking
+        .slotByMemberOperation(/profissional 1/i)
+        .first()
+        .click()
+      const notice = authedPage.getByText(/Cancelamentos pedem pelo menos/i)
       await expect(notice).toBeVisible()
       await expect(notice).toContainText(/1 hora/i)
     })
   })
 
   test.describe('política desabilitada', () => {
-    test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
+    test.use({
+      orgInput: {
+        unitCount: 1,
+        memberOperationCount: 1,
+        hasBusinessHours: true,
+        slotMinutes: 30,
+      },
+    })
 
-    test('aviso fica ausente', async ({ org, page }) => {
-      await seedService(org.orgId, {
+    test('aviso fica ausente', async ({ org, authedPage }) => {
+      const serviceId = await seedService(org.orgId, {
         name: 'Corte',
         durationMinutes: 30,
         priceCents: 5000,
         publicVisible: true,
+        unitIds: org.unitIds,
       })
-      const booking = new PublicBookingPage(page, orgSlug(org.orgId))
-      await booking.gotoBookLegacy()
-      await expect(page.getByText(/Você pode cancelar a qualquer momento pelo app/i)).toHaveCount(0)
+      await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
+      const booking = new PublicBookingPage(authedPage, orgSlug(org.orgId))
+      await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
+      await booking
+        .slotByMemberOperation(/profissional 1/i)
+        .first()
+        .click()
+      await expect(authedPage.getByText(/Cancelamentos pedem pelo menos/i)).toHaveCount(0)
     })
   })
 })

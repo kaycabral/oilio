@@ -1,5 +1,5 @@
-// Presentation formatters shared across the self-book UI (BookingForm,
-// ConfirmBookingForm). Pure string derivations — no React/I/O — so they
+// Presentation formatters shared across the self-book UI (ConfirmBookingForm and
+// the availability surfaces). Pure string derivations — no React/I/O — so they
 // live in core and are unit-tested directly.
 
 // "R$ 50,00" — cents to BRL currency.

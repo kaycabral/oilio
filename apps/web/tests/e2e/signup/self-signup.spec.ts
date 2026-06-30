@@ -50,19 +50,20 @@ test.describe('Auto-cadastro (#840)', () => {
       const customer = await seedAuthUser({ completionCompleted: false })
       await signInAndAttachSession(context, customer.email, customer.password, baseURL ?? undefined)
 
-      // O botão OAuth na /signup?from=... navega com next=/{slug}/book, e ao
-      // completar o cadastro o usuário cai direto na tela de agendamento da
-      // empresa (não na antiga /signup/done). Vamos direto pro completion
+      // O botão OAuth na /signup?from=... navega com next apontando pra entrada
+      // de agendamento da empresa (perfil → unidade), e ao completar o cadastro o
+      // usuário cai lá (não na antiga /signup/done). Vamos direto pro completion
       // espelhando esse next.
-      const next = `/${slug}/book`
+      const next = `/${slug}`
       await page.goto(`/onboarding/profile?next=${encodeURIComponent(next)}`)
       // Identity supplied the name (seedAuthUser displayName) — confirmed, not asked.
       await page.getByRole('textbox', { name: /whatsapp/i }).fill('11977776666')
       await fillBirthDate(page, '30/06/1988')
       await page.getByRole('button', { name: /continuar/i }).click()
 
-      // Pós-cadastro abre direto o agendamento na empresa correta (#1273 ajuste).
-      await expect(page).toHaveURL(new RegExp(`/${slug}/book$`), { timeout: 10_000 })
+      // Pós-cadastro abre direto a empresa correta (#1273 ajuste) — não a antiga
+      // tela /signup/done.
+      await expect(page).toHaveURL(new RegExp(`/${slug}(/|$)`), { timeout: 10_000 })
 
       const customers = await listCustomers(seed.orgId)
       expect(customers).toHaveLength(1)

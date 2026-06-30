@@ -1,14 +1,15 @@
 // Feature E2E — the customers page renders the shared `<List>` from
 // `@cbrl/design` (design-system listing adoption). Covers the populated state:
 // one row per customer with name + contact, and the per-row overflow (⋯) menu
-// holding the Editar (detail link) + Excluir actions. Runs against the emulator
-// (no mocks).
+// holding the Ver (read-only detail link) + Excluir actions. The customer fills
+// their own data now (#1279), so the establishment only views — never edits.
+// Runs against the emulator (no mocks).
 
 import { expect, test } from '../fixtures'
 import { seedCustomer } from '../helpers/session'
 
 test.describe('Listagem de clientes (@cbrl/design List)', () => {
-  test('renders rows and exposes Editar/Excluir in the ⋯ menu', async ({ org, authedPage }) => {
+  test('renders rows and exposes Ver/Excluir in the ⋯ menu', async ({ org, authedPage }) => {
     await seedCustomer(org.orgId, { name: 'Maria Silva', whatsapp: '+5511900000000' })
     await seedCustomer(org.orgId, {
       name: 'João Souza',
@@ -31,9 +32,9 @@ test.describe('Listagem de clientes (@cbrl/design List)', () => {
     // Other actions live behind the per-row ⋯ menu.
     await authedPage.getByRole('button', { name: 'Ações de Maria Silva' }).click()
 
-    const editItem = authedPage.getByRole('menuitem', { name: 'Editar' })
-    await expect(editItem).toBeVisible()
-    await expect(editItem).toHaveAttribute('href', /\/customers\/e2e-cust-/)
+    const viewItem = authedPage.getByRole('menuitem', { name: 'Ver' })
+    await expect(viewItem).toBeVisible()
+    await expect(viewItem).toHaveAttribute('href', /\/customers\/e2e-cust-/)
     await expect(authedPage.getByRole('menuitem', { name: 'Excluir' })).toBeVisible()
   })
 })
