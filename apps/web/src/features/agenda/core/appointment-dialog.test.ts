@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildAppointmentWhatsappLink, resolveInitialDateTime } from './appointment-dialog'
+import {
+  buildAppointmentWhatsappLink,
+  gridTimeOptions,
+  resolveInitialDateTime,
+} from './appointment-dialog'
 
 const TZ = 'America/Sao_Paulo'
 const apptArgs = {
@@ -71,5 +75,45 @@ describe('resolveInitialDateTime', () => {
       date: '2026-06-15',
       startTime: '10:00',
     })
+  })
+})
+
+describe('gridTimeOptions', () => {
+  it('steps a single range by slotMinutes, last start before close', () => {
+    expect(gridTimeOptions([{ open: '09:00', close: '11:00' }], 30)).toEqual([
+      '09:00',
+      '09:30',
+      '10:00',
+      '10:30',
+    ])
+  })
+
+  it('covers split shifts as one ascending, de-duped list', () => {
+    expect(
+      gridTimeOptions(
+        [
+          { open: '09:00', close: '10:00' },
+          { open: '14:00', close: '15:00' },
+        ],
+        30,
+      ),
+    ).toEqual(['09:00', '09:30', '14:00', '14:30'])
+  })
+
+  it('returns no options for a closed day', () => {
+    expect(gridTimeOptions([], 30)).toEqual([])
+  })
+
+  it('returns no options for a non-positive grid', () => {
+    expect(gridTimeOptions([{ open: '09:00', close: '12:00' }], 0)).toEqual([])
+  })
+
+  it('respects a finer granularity', () => {
+    expect(gridTimeOptions([{ open: '09:00', close: '10:00' }], 15)).toEqual([
+      '09:00',
+      '09:15',
+      '09:30',
+      '09:45',
+    ])
   })
 })

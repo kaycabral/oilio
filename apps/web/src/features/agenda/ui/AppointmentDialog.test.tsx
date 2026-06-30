@@ -133,6 +133,8 @@ function makeBaseProps() {
     customers: [buildCustomer()],
     date: '2026-05-15',
     timezone: 'America/Sao_Paulo',
+    slotMinutes: 30 as const,
+    dayHours: [{ open: '09:00', close: '12:00' }],
     businessName: 'Test',
     confirmationTemplate: '',
   }
@@ -213,10 +215,11 @@ describe('AppointmentDialog — reschedule (#639)', () => {
     const baseProps = makeBaseProps()
     render(<AppointmentDialog {...baseProps} appointment={buildAppointment()} />)
 
-    // Change the start time as a stand-in for reschedule. Native time inputs
-    // need fireEvent.change to update the value.
-    const time = screen.getByLabelText(/início/i)
-    fireEvent.change(time, { target: { value: '11:00' } })
+    // Reschedule by picking a different grid slot (10:00 → 11:00) from the
+    // start-time Select. Radix opens via Pointer Capture + scrollIntoView, both
+    // stubbed in vitest.setup; click the trigger then the option.
+    fireEvent.click(screen.getByRole('combobox', { name: /início/i }))
+    fireEvent.click(screen.getByRole('option', { name: '11:00' }))
 
     // Save button is associated with the main form via `form="…"` attribute
     // (button sits in DialogFooter outside the form DOM); submit by clicking

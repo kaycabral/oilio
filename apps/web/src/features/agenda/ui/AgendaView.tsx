@@ -253,6 +253,8 @@ export function AgendaView({
           customers={customers}
           date={date}
           timezone={timezone}
+          slotMinutes={slotMinutes}
+          dayHours={dayHours}
           appointment={selectedAppointment}
           businessName={businessName}
           confirmationTemplate={confirmationTemplate}

@@ -23,6 +23,7 @@ import {
 import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointment-user-ids'
 import { checkBookingLimits } from '@/features/booking/adapters/check-booking-limits'
 import { commitAppointmentBooking } from '@/features/booking/adapters/commit-appointment'
+import { enforceSlotGrid } from '@/features/booking/adapters/enforce-slot-grid'
 import { resolveCustomerSubscriptionScope } from '@/features/booking/adapters/subscription-scope.repo'
 import { parseWizardFields, type WizardFields } from '@/features/self-book/core/wizard-fields'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
@@ -236,6 +237,19 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     return { ok: false, error: 'Estabelecimento indisponível.' }
   }
   const unitScope = { id: org.id, timezone: unit.timezone }
+
+  // Brief 0080 (Grupo A) — the backend is authoritative over the grid: a forged
+  // POST whose `startAt` does not land on a configured slot inside business
+  // hours is rejected here, so the `:42-43` "only real slots reach here" trust
+  // in the client is no longer load-bearing.
+  const gridCheck = enforceSlotGrid({
+    unit,
+    startAt: startAtDate.toISOString(),
+    surface: 'self_book',
+    orgId: org.id,
+    userId: session.uid,
+  })
+  if (!gridCheck.ok) return { ok: false, error: gridCheck.error }
 
   const resolved = resolveCatalogItemForUnit(service, unit.id)
   const endAt = new Date(startAtDate.getTime() + resolved.durationMinutes * 60_000)
