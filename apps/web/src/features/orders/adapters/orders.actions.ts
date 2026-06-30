@@ -33,6 +33,7 @@ import type { OrderMutationResult } from '@/features/orders/core/order-results'
 import { findOpenOrderIdForAppointment } from './order-financial-read'
 import {
   assertMemberCanOperate,
+  autoMarkCoverageDefault,
   denyIfCannotAttributeTo,
   denyIfNotOwnOrder,
   genItemId,
@@ -102,7 +103,8 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
   // service is the primary case the DoD calls out: a subscriber's comanda born
   // from `Iniciar atendimento` must already read `Consumo do plano` when the plan
   // covers the service with balance — the operator never flips it. Not covered /
-  // no balance / no customer → stays `sale`. Same resolver as `addItemToOrder`.
+  // no balance / no customer → stays `sale`. Reuses the `service` row already
+  // loaded above as the coverage hint, so no second catalog read.
   const orderId = newId()
   const candidateOrder: Order = {
     id: orderId,
@@ -120,16 +122,13 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
     createdAt: '',
     updatedAt: '',
   }
-  const coverageResolved = await resolveItemCoverageSubscription(
+  const autosetSubscriptionId = await autoMarkCoverageDefault({
     orgId,
-    candidateOrder,
-    initialItem,
-    0,
-  )
-  if (typeof coverageResolved !== 'string') {
-    initialItem.coverage = 'subscription'
-    initialItem.subscriptionId = coverageResolved.subscriptionId
-  }
+    order: candidateOrder,
+    target: initialItem,
+    idx: 0,
+    catalogHint: service,
+  })
 
   const totals = computeOrderTotals([initialItem], 0)
   const now = new Date().toISOString()
@@ -149,13 +148,13 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
   })
   if (!created.ok) return { ok: false, error: created.error }
 
-  if (typeof coverageResolved !== 'string') {
+  if (autosetSubscriptionId) {
     track('order_item_coverage_autoset', {
       org_id: orgId,
       user_id: r.ctx.session.uid,
       order_id: orderId,
       item_ref_id: initialItem.refId,
-      subscription_id: coverageResolved.subscriptionId,
+      subscription_id: autosetSubscriptionId,
     })
   }
 
@@ -284,12 +283,12 @@ export async function addItemToOrder(
     commission: null,
     attributedUserId: parsed.attributedUserId,
   }
-  const coverageResolved = await resolveItemCoverageSubscription(
+  const coverageResolved = await resolveItemCoverageSubscription({
     orgId,
-    { ...loaded.order, items: [...loaded.order.items, candidate] },
-    candidate,
-    loaded.order.items.length,
-  )
+    order: { ...loaded.order, items: [...loaded.order.items, candidate] },
+    target: candidate,
+    idx: loaded.order.items.length,
+  })
   const autosetSubscriptionId =
     typeof coverageResolved === 'string' ? null : coverageResolved.subscriptionId
 
@@ -452,7 +451,12 @@ export async function updateItemCoverage(
 
   let subscriptionId: string | null = null
   if (coverage === 'subscription') {
-    const resolved = await resolveItemCoverageSubscription(orgId, loaded.order, target, idx)
+    const resolved = await resolveItemCoverageSubscription({
+      orgId,
+      order: loaded.order,
+      target,
+      idx,
+    })
     if (typeof resolved === 'string') return { ok: false, error: resolved }
     subscriptionId = resolved.subscriptionId
   }
@@ -461,14 +465,17 @@ export async function updateItemCoverage(
     i === idx ? { ...it, coverage, subscriptionId } : it,
   )
   const patch = recalcAndPatch(items, loaded.order.discountCents)
-  await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
+  const changed = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.item_coverage_changed',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
   })
+  if (!changed.ok) return { ok: false, error: changed.error }
 
-  // Operator overrode the suggested coverage (brief 0079, AC-08). Only a real
-  // change is an override — a no-op call (same coverage) doesn't fire.
+  // Operator overrode the suggested coverage (brief 0079, AC-08). Only a real,
+  // PERSISTED change is an override — a no-op call (same coverage) doesn't fire,
+  // and a failed append above already returned, so the analytics signal can't
+  // count a change that never landed.
   if (from !== coverage) {
     track('order_item_coverage_overridden', {
       org_id: orgId,
