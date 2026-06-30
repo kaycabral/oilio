@@ -108,7 +108,6 @@ async function seedActingUser(orgId: string, userId: string): Promise<void> {
     buildUser(userId, TS, {
       currentOrgId: orgId,
       completionCompleted: true,
-      whatsapp: '5511900000000',
     }),
   )
 }
@@ -134,7 +133,7 @@ async function seedOperationalMemberOperation(
   let userId = actorUserId
   if (!userId) {
     userId = id('pro-user')
-    await putUser(buildUser(userId, TS, { completionCompleted: true, whatsapp: '5511900000001' }))
+    await putUser(buildUser(userId, TS, { completionCompleted: true }))
     await seedMembership(orgId, userId, 'member_operator')
   }
   const proId = id('pro')

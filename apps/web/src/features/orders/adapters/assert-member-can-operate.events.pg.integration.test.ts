@@ -84,9 +84,12 @@ async function seedMemberOperation(
   for (const u of opts.unitIds) await seedUnit(orgId, u)
   for (const s of opts.catalogServiceIds) await seedService(orgId, s)
   await putUser(
+    // When whatsapp is requested, let the builder derive a GLOBALLY UNIQUE BR
+    // mobile from the (unique) uid — `users_whatsapp_unique` forbids two seeded
+    // users sharing a number. The gate keys on PRESENCE, not the literal value.
     buildUser(userId, TS, {
       completionCompleted: opts.whatsapp !== null,
-      whatsapp: opts.whatsapp ?? undefined,
+      whatsapp: opts.whatsapp === null ? null : undefined,
     }),
   )
   await seedMembership(orgId, userId)
