@@ -10,6 +10,10 @@ import { useState, type ComponentProps } from 'react'
 // `Input` on any phone/WhatsApp field.
 type PhoneInputProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange' | 'defaultValue'> & {
   defaultValue?: string
+  // Notifies the parent of the masked value on each keystroke. The field still
+  // owns the masking; this just lets a controlled parent react (e.g. build a
+  // live link as the number becomes valid) without taking over `value`.
+  onValueChange?: (masked: string) => void
 }
 
 export function PhoneInput({
@@ -17,6 +21,7 @@ export function PhoneInput({
   // Default placeholder mirrors the mask the field actually produces — DDD +
   // number, no country code (the `55` is added on normalize, server-side).
   placeholder = '(11) 90000-0000',
+  onValueChange,
   ...props
 }: PhoneInputProps) {
   const [value, setValue] = useState(() => (defaultValue ? formatBrazilPhone(defaultValue) : ''))
@@ -27,7 +32,11 @@ export function PhoneInput({
       autoComplete="tel"
       placeholder={placeholder}
       value={value}
-      onChange={(e) => setValue(maskBrazilPhone(e.target.value))}
+      onChange={(e) => {
+        const masked = maskBrazilPhone(e.target.value)
+        setValue(masked)
+        onValueChange?.(masked)
+      }}
       {...props}
     />
   )
