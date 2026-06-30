@@ -3,29 +3,19 @@
 import { PhoneInput } from '@/components/PhoneInput'
 import { generateClientInvite } from '@/features/customers/adapters/customers.actions'
 import { useFormValidity } from '@/hooks/use-form-validity'
-import {
-  Button,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@cbrl/design'
+import { Button, Label } from '@cbrl/design'
 import { Copy, Send } from 'lucide-react'
 import { useState, useTransition } from 'react'
 
-export type InviteUnitOption = { slug: string; name: string }
-
 // Contextual client-invite surface (brief 0077, Grupo B — #1279). Replaces the
-// "novo cliente" form: the recepcionista informs the WhatsApp number + the unit
-// the invite is for, and the system hands back a contextual signup link + a
-// `wa.me` deep link to send. No Customer with recep-typed PII is created — the
-// customer materializes their own account (login → complete) and lands on that
-// unit's booking. This kills the wrong-number ghost at the source.
-export function ClientInviteForm({ units }: { units: InviteUnitOption[] }) {
-  // Single-unit orgs don't need a chooser — the only unit is implied.
-  const singleUnit = units.length === 1 ? units[0]! : null
+// "novo cliente" form: the recepcionista informs ONLY the WhatsApp number — the
+// invite targets the UNIT THE OWNER IS ALREADY OPERATING (the active unit in the
+// header context, the way the whole app is scoped). The system hands back a
+// contextual signup link + a `wa.me` deep link to send. No Customer with
+// recep-typed PII is created — the customer materializes their own account
+// (login → complete) and lands on that unit's booking. This kills the
+// wrong-number ghost at the source.
+export function ClientInviteForm({ unitSlug }: { unitSlug: string }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ whatsappHref: string; inviteUrl: string } | null>(null)
@@ -64,27 +54,7 @@ export function ClientInviteForm({ units }: { units: InviteUnitOption[] }) {
         onChange={refresh}
         className="flex flex-col gap-3"
       >
-        {singleUnit ? (
-          <input type="hidden" name="unit" value={singleUnit.slug} />
-        ) : (
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="invite-unit" className="text-sm font-medium">
-              Unidade
-            </Label>
-            <Select name="unit" required>
-              <SelectTrigger id="invite-unit">
-                <SelectValue placeholder="Selecione a unidade" />
-              </SelectTrigger>
-              <SelectContent>
-                {units.map((u) => (
-                  <SelectItem key={u.slug} value={u.slug}>
-                    {u.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        <input type="hidden" name="unit" value={unitSlug} />
 
         <div className="flex flex-col gap-1">
           <Label htmlFor="invite-whatsapp" className="text-sm font-medium">

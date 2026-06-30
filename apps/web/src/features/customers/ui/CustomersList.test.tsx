@@ -19,12 +19,29 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }))
 
+// The invite dialog reads the active unit from the org context (the invite
+// targets the unit the owner is operating — no unit chooser). Stub `useOrg` with
+// a single published appointment unit so the dialog renders its enabled state.
+vi.mock('@/shared/org/org-context', () => ({
+  useOrg: () => ({
+    units: [
+      {
+        id: 'u1',
+        slug: 'centro',
+        name: 'Centro',
+        agenda: { mode: 'appointment', selfBookingPublished: true },
+      },
+    ],
+    activeUnitId: 'u1',
+  }),
+}))
+
 // The WhatsApp/birthday markers use Tooltip, which needs a provider (the app
 // shell supplies one in production).
-function renderList(props: Omit<Parameters<typeof CustomersList>[0], 'inviteUnits'>) {
+function renderList(props: Parameters<typeof CustomersList>[0]) {
   return render(
     <TooltipProvider>
-      <CustomersList {...props} inviteUnits={[{ slug: 'centro', name: 'Centro' }]} />
+      <CustomersList {...props} />
     </TooltipProvider>,
   )
 }
