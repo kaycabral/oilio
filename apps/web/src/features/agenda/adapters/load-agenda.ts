@@ -111,6 +111,9 @@ async function loadAgendaDayData(args: {
   dayStart: string
   dayEnd: string
   memberOperationScope: string
+  // Brief 0081 (#1311): forwarded from the `?showCancelled` toggle. Default false
+  // hides `cancelled` from the read so freed slots render empty.
+  includeCancelled: boolean
 }): Promise<AgendaDayData> {
   const { orgId, activeUnitId, date, timezone, dayStart, dayEnd, memberOperationScope } = args
   const [dayAppointments, blocks, catalogItems, enrichedCustomers] = await Promise.all([
@@ -121,6 +124,7 @@ async function loadAgendaDayData(args: {
       activeUnitId,
       { startUtc: dayStart, endUtc: dayEnd },
       memberOperationScope,
+      args.includeCancelled,
     ),
     // Backend-aware (brief 0060, Grupo C): Postgres reads the typed
     // `agenda_blocks` table under RLS, Firestore the org-scoped subcollection.
@@ -160,7 +164,10 @@ async function loadAgendaDayData(args: {
 // `AgendaView` consumes. The route component stays a thin caller (page.tsx). All
 // redirects (auth/org/capability gating) live here — they run during RSC
 // render, so `redirect()` propagates from this helper just as it would inline.
-export async function loadAgendaPage(searchParams: { date?: string }): Promise<AgendaViewProps> {
+export async function loadAgendaPage(searchParams: {
+  date?: string
+  showCancelled?: string
+}): Promise<AgendaViewProps> {
   if (!isFirebaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
@@ -207,6 +214,11 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
       ? searchParams.date
       : getTodayInOrgTz(timezone)
 
+  // Brief 0081 (#1311/#1312): the "mostrar cancelados" toggle is URL-driven
+  // (`?showCancelled=1`), mirroring `?date=`. Off by default — the read hides
+  // `cancelled`; flipping it on re-fetches the day with cancelled included.
+  const showCancelled = searchParams.showCancelled === '1'
+
   // Own-scope (brief 0075, #1256/#1257/#1268): resolves the acting member's scope
   // once and derives every downstream flag from it (column clamp, dialog lock,
   // degraded empty-state, whether to run the day reads). Single source so the
@@ -246,6 +258,7 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
           dayStart,
           dayEnd,
           memberOperationScope: scope.memberOperationScope,
+          includeCancelled: showCancelled,
         })
       : EMPTY_AGENDA_DAY_DATA
 
@@ -253,6 +266,9 @@ export async function loadAgendaPage(searchParams: { date?: string }): Promise<A
 
   return {
     date,
+    // Brief 0081 (#1312): drives the toggle's pressed state + the grid's split
+    // layout (cancelled cards only ever reach the UI when this is on).
+    showCancelled,
     timezone,
     slotMinutes,
     units,

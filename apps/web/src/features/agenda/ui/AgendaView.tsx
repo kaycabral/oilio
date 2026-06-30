@@ -33,6 +33,10 @@ function formatDateLabel(iso: string): string {
 
 export type AgendaViewProps = {
   date: string
+  // Brief 0081 (#1312): URL-driven "mostrar cancelados" state. Off by default —
+  // the read hides `cancelled`; on re-fetches the day with cancelled included so
+  // the grid can split a shared slot.
+  showCancelled: boolean
   timezone: string
   slotMinutes: SlotMinutes
   units: Unit[]
