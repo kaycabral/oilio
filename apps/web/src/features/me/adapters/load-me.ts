@@ -71,6 +71,78 @@ async function loadAppointmentsAcrossOrgs(userId: string): Promise<Appointment[]
 // reverse index (`org_links`) — see #832 and the "Sem cross-org query" carve-out
 // in CLAUDE.md for the customer-history surface (now served by the per-subject
 // link table, not a collectionGroup).
+// Build one display row from an appointment + its hydrated org/service/member/
+// unit. Pure (no I/O) — extracted from the page loader so the loop stays flat
+// and the row shape lives in one place.
+function buildAppointmentRow(
+  a: Appointment,
+  ctx: {
+    orgSlug: string
+    service: CatalogItem | undefined
+    memberOperation: MemberOperation | undefined
+    unit: StoredUnit | undefined
+  },
+): AppointmentRowData {
+  const { unit } = ctx
+  // Snapshot-on-use (#1038): cada linha avalia o cancel contra a policy
+  // congelada no commit; fallback pra policy viva da agenda da unidade (modo
+  // appointment) em agendamentos legados sem snapshot. Config é da Unidade (PRD
+  // Identidade v2 — movida Org→Unit).
+  const livePolicy =
+    unit?.agenda.mode === 'appointment' ? unit.agenda.cancellationPolicy : undefined
+  const policy = a.cancellationPolicySnapshot
+    ? normalizeCancellationPolicy(a.cancellationPolicySnapshot)
+    : normalizeCancellationPolicy(livePolicy)
+  const timeZone = unit?.timezone ?? DEFAULT_UNIT_TIMEZONE
+  const startAtLabel = new Intl.DateTimeFormat('pt-BR', {
+    timeZone,
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(a.startAt))
+  const endAtLabel = new Intl.DateTimeFormat('pt-BR', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(a.endAt))
+  const priceLabel = (a.servicePriceCentsSnapshot / 100).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  })
+
+  const check = canCustomerCancelAppointment(a, policy)
+  const cancelReason = check.ok ? null : describeCancelReason(check, policy)
+
+  // Slot grid for the self-service reschedule picker (brief 0080, Grupo C): only
+  // an appointment-mode unit has a configurable grid; otherwise the picker stays
+  // closed and the customer re-books through the wizard.
+  const agenda = unit?.agenda
+  const reschedule =
+    agenda?.mode === 'appointment'
+      ? { slotMinutes: agenda.slotMinutes, businessHours: agenda.businessHours, timezone: timeZone }
+      : null
+
+  return {
+    orgId: a.orgId,
+    orgSlug: ctx.orgSlug,
+    unitSlug: unit?.slug ?? null,
+    appointmentId: a.id,
+    serviceName: ctx.service?.name ?? 'Serviço',
+    memberOperationName: ctx.memberOperation?.name ?? '—',
+    unitName: unit?.name ?? '—',
+    startAtLabel,
+    endAtLabel,
+    priceLabel,
+    status: a.status,
+    canCancel: check.ok,
+    cancelReason,
+    cancellationPolicy: policy,
+    reschedule,
+  }
+}
+
 export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> {
   const session = await getSessionUser()
   if (!session) {
@@ -112,59 +184,12 @@ export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> 
   for (const a of appointments) {
     const org = orgs.get(a.orgId)
     if (!org) continue
-    const service = services.get(`${a.orgId}:${a.serviceId}`)
-    const memberOperation = memberOperations.get(`${a.orgId}:${a.memberOperationId}`)
-    const unit = units.get(`${a.orgId}:${a.unitId}`)
-    // Timezone + cancellation policy are the establishment's (PRD Identidade v2
-    // — moved Org→Unit). Snapshot-on-use (#1038): cada linha avalia o cancel
-    // contra a policy congelada no commit; fallback pra policy viva da agenda da
-    // unidade (modo appointment) em agendamentos legados sem snapshot.
-    const livePolicy =
-      unit?.agenda.mode === 'appointment' ? unit.agenda.cancellationPolicy : undefined
-    const policy = a.cancellationPolicySnapshot
-      ? normalizeCancellationPolicy(a.cancellationPolicySnapshot)
-      : normalizeCancellationPolicy(livePolicy)
-    const timeZone = unit?.timezone ?? DEFAULT_UNIT_TIMEZONE
-    const fmt = new Intl.DateTimeFormat('pt-BR', {
-      timeZone,
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-    const startAtLabel = fmt.format(new Date(a.startAt))
-    const endFmt = new Intl.DateTimeFormat('pt-BR', {
-      timeZone,
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-    const endAtLabel = endFmt.format(new Date(a.endAt))
-    const priceLabel = (a.servicePriceCentsSnapshot / 100).toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    })
-
-    const check = canCustomerCancelAppointment(a, policy)
-    const cancelReason = check.ok ? null : describeCancelReason(check, policy)
-
-    const row: AppointmentRowData = {
-      orgId: a.orgId,
+    const row = buildAppointmentRow(a, {
       orgSlug: org.slug,
-      unitSlug: unit?.slug ?? null,
-      appointmentId: a.id,
-      serviceName: service?.name ?? 'Serviço',
-      memberOperationName: memberOperation?.name ?? '—',
-      unitName: unit?.name ?? '—',
-      startAtLabel,
-      endAtLabel,
-      priceLabel,
-      status: a.status,
-      canCancel: check.ok,
-      cancelReason,
-      cancellationPolicy: policy,
-    }
-
+      service: services.get(`${a.orgId}:${a.serviceId}`),
+      memberOperation: memberOperations.get(`${a.orgId}:${a.memberOperationId}`),
+      unit: units.get(`${a.orgId}:${a.unitId}`),
+    })
     if (a.status === 'scheduled' && new Date(a.startAt).getTime() > Date.now()) {
       upcoming.push(row)
     } else {
