@@ -17,7 +17,6 @@ import type { Page } from '@playwright/test'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { addCatalogItemToOrder } from '../helpers/orders'
-import { chooseOption } from '../helpers/select'
 import {
   pgQueryProjection,
   pgReadProjection,
@@ -137,21 +136,24 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
     await expect(authedPage).toHaveURL(/\/orders\/.+/)
     const orderId = authedPage.url().split('/orders/')[1]!.split(/[?#]/)[0]!
 
-    // Mark the service as plan consumption.
-    await chooseOption(
-      authedPage.getByRole('listitem').filter({ hasText: `Barba ${ts}` }),
-      'Cobertura do item',
-      'Consumo do plano',
-    )
-    await expect(authedPage.getByText('Consumo do plano').first()).toBeVisible()
+    // The covered service auto-marks as plan consumption on start (brief 0079
+    // AC-06) — no manual flip. The item-by-id coverage + balance is recognized.
+    await expect(
+      authedPage
+        .getByRole('listitem')
+        .filter({ hasText: `Barba ${ts}` })
+        .getByText('Consumo do plano'),
+    ).toBeVisible()
 
-    // Add the product, then mark IT as plan consumption too (covered by category).
+    // The product, covered by category convenience, also auto-marks when added
+    // (brief 0079 AC-09 — kind-agnostic), with balance still available.
     await addCatalogItemToOrder(authedPage, `Pomada ${ts}`)
-    await chooseOption(
-      authedPage.getByRole('listitem').filter({ hasText: `Pomada ${ts}` }),
-      'Cobertura do item',
-      'Consumo do plano',
-    )
+    await expect(
+      authedPage
+        .getByRole('listitem')
+        .filter({ hasText: `Pomada ${ts}` })
+        .getByText('Consumo do plano'),
+    ).toBeVisible()
 
     // 100% covered → closes with no payment method.
     await expect(authedPage.getByText(/100% coberta pelo plano/)).toBeVisible()

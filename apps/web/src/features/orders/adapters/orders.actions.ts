@@ -3,6 +3,7 @@
 import {
   CatalogItem,
   computeOrderTotals,
+  coverageOf,
   type Order,
   type OrderCoverage,
   type OrderItem,
@@ -17,6 +18,7 @@ import {
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { newId } from '@/shared/db/pg/new-id'
 import { formString } from '@/shared/form-data'
+import { track } from '@/shared/lib/track'
 import { Effect } from 'effect'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -95,11 +97,14 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
     // ao `userId` do profissional do appointment — NÃO o doc id de MemberOperation.
     attributedUserId: memberOperation.userId,
   }
-  const totals = computeOrderTotals([initialItem], 0)
 
+  // Subscription-aware coverage default (brief 0079, AC-06). The appointment's
+  // service is the primary case the DoD calls out: a subscriber's comanda born
+  // from `Iniciar atendimento` must already read `Consumo do plano` when the plan
+  // covers the service with balance — the operator never flips it. Not covered /
+  // no balance / no customer → stays `sale`. Same resolver as `addItemToOrder`.
   const orderId = newId()
-  const now = new Date().toISOString()
-  const order: Order = {
+  const candidateOrder: Order = {
     id: orderId,
     orgId,
     unitId: appointment.unitId,
@@ -110,6 +115,26 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
     discountCents: 0,
     closedAt: null,
     paymentMethod: null,
+    subtotalCents: 0,
+    totalCents: 0,
+    createdAt: '',
+    updatedAt: '',
+  }
+  const coverageResolved = await resolveItemCoverageSubscription(
+    orgId,
+    candidateOrder,
+    initialItem,
+    0,
+  )
+  if (typeof coverageResolved !== 'string') {
+    initialItem.coverage = 'subscription'
+    initialItem.subscriptionId = coverageResolved.subscriptionId
+  }
+
+  const totals = computeOrderTotals([initialItem], 0)
+  const now = new Date().toISOString()
+  const order: Order = {
+    ...candidateOrder,
     subtotalCents: totals.subtotalCents,
     totalCents: totals.totalCents,
     createdAt: now,
@@ -123,6 +148,16 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
     payload: { data: order },
   })
   if (!created.ok) return { ok: false, error: created.error }
+
+  if (typeof coverageResolved !== 'string') {
+    track('order_item_coverage_autoset', {
+      org_id: orgId,
+      user_id: r.ctx.session.uid,
+      order_id: orderId,
+      item_ref_id: initialItem.refId,
+      subscription_id: coverageResolved.subscriptionId,
+    })
+  }
 
   revalidatePath('/agenda')
   revalidatePath('/orders')
@@ -225,6 +260,39 @@ export async function addItemToOrder(
   // re-lê o estado fresco. Descontinuado → rejeita; preço = min(exibido, vigente).
   // É leitura de definição pra guardar/snapshotar o WRITE de UM aggregate (a
   // order) — não é saga cross-aggregate.
+  // Subscription-aware coverage default (brief 0079, AC-06/AC-07). When the
+  // comanda belongs to a subscriber and the item is covered by the plan WITH
+  // remaining balance, the item enters as `subscription` (Consumo do plano,
+  // R$ 0,00) instead of the `sale` default — the operator no longer flips it by
+  // hand. No customer / not covered / out of balance → stays `sale` (AC-07).
+  //
+  // Resolved BEFORE the guard: coverage depends only on the customer, the item
+  // ref/quantity and the comanda's existing items — none of which the in-tx
+  // catalog read changes (that read only re-snapshots price/discontinuation).
+  // Keeping it out of the optimistic-lock transaction avoids extra I/O under the
+  // lock; the authoritative balance guard still runs at close
+  // (`validateCoveredItems`). The item id is fixed up front so the candidate
+  // order the resolver sees matches the item the event appends.
+  const newItemId = genItemId()
+  const candidate: OrderItem = {
+    id: newItemId,
+    kind: parsed.kind,
+    refId: parsed.refId,
+    name: '',
+    quantity: parsed.quantity,
+    unitPriceCents: 0,
+    commission: null,
+    attributedUserId: parsed.attributedUserId,
+  }
+  const coverageResolved = await resolveItemCoverageSubscription(
+    orgId,
+    { ...loaded.order, items: [...loaded.order.items, candidate] },
+    candidate,
+    loaded.order.items.length,
+  )
+  const autosetSubscriptionId =
+    typeof coverageResolved === 'string' ? null : coverageResolved.subscriptionId
+
   const catalogRef = aggregateRef(CatalogItemConfig, orgId, parsed.refId)
   const added = await emitEventGuarded({
     config: OrderConfig,
@@ -238,13 +306,27 @@ export async function addItemToOrder(
         if (typeof itemBase === 'string') {
           return { _tag: 'reject' as const, message: itemBase }
         }
-        const newItem: OrderItem = { id: genItemId(), ...itemBase }
+        const newItem: OrderItem = { id: newItemId, ...itemBase }
+        if (autosetSubscriptionId) {
+          newItem.coverage = 'subscription'
+          newItem.subscriptionId = autosetSubscriptionId
+        }
         const items = [...loaded.order.items, newItem]
         const patch = recalcAndPatch(items, loaded.order.discountCents)
         return { _tag: 'ok' as const, payload: { changes: patch } }
       }),
   })
   if (!added.ok) return { ok: false, error: added.error }
+
+  if (autosetSubscriptionId) {
+    track('order_item_coverage_autoset', {
+      org_id: orgId,
+      user_id: r.ctx.session.uid,
+      order_id: orderId,
+      item_ref_id: parsed.refId,
+      subscription_id: autosetSubscriptionId,
+    })
+  }
 
   revalidatePath(`/orders/${orderId}`)
   revalidatePath('/orders')
@@ -366,6 +448,7 @@ export async function updateItemCoverage(
   const idx = loaded.order.items.findIndex((it) => it.id === itemId)
   if (idx < 0) return { ok: false, error: 'Item não encontrado' }
   const target = loaded.order.items[idx]!
+  const from = coverageOf(target)
 
   let subscriptionId: string | null = null
   if (coverage === 'subscription') {
@@ -383,6 +466,19 @@ export async function updateItemCoverage(
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
   })
+
+  // Operator overrode the suggested coverage (brief 0079, AC-08). Only a real
+  // change is an override — a no-op call (same coverage) doesn't fire.
+  if (from !== coverage) {
+    track('order_item_coverage_overridden', {
+      org_id: orgId,
+      user_id: r.ctx.session.uid,
+      order_id: orderId,
+      item_ref_id: target.refId,
+      from,
+      to: coverage,
+    })
+  }
 
   revalidatePath(`/orders/${orderId}`)
   return { ok: true, orderId }
