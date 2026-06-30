@@ -23,8 +23,6 @@ import {
   decideUnmarkNoShow,
 } from '@/features/agenda/core/appointment-transitions'
 import { commitAppointmentBooking } from '@/features/booking/adapters/commit-appointment'
-import { enforceSlotGrid } from '@/features/booking/adapters/enforce-slot-grid'
-import { enforceSubscriptionScope } from '@/features/booking/adapters/enforce-subscription-scope'
 import { revalidatePath } from 'next/cache'
 
 import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointment-user-ids'
@@ -36,7 +34,6 @@ import { resolveWriteSecurity } from '@/shared/org/member-operation-read'
 import { canActOnOwnedResource, requireOrgCtx } from '@/shared/org/membership'
 import { getUnitById } from '@/shared/org/unit-read'
 import {
-  checkSlotConflicts,
   guardCustomerNotBlocked,
   loadActiveCatalogService,
   loadApprovedMemberOperation,
@@ -44,6 +41,7 @@ import {
   resolveAppointmentCustomerId,
   type AppointmentMutationResult,
 } from './appointment-write-helpers'
+import { validateAppointmentWrite } from './validate-appointment-write'
 
 // Own-resource wall (brief 0075, #1257): the balcão (owner/manager/recepção)
 // acts on any appointment; a self-scoped memberOperation only on their own
@@ -243,41 +241,26 @@ export async function updateAppointment(
   if (typeof times === 'string') return { ok: false, error: times }
   const { startAt, endAt } = times
 
-  // Brief 0080 — reception follows the same configured grid as the public
-  // self-book: a move to a `startAt` off the slot grid / outside hours is
-  // rejected on the server, no privileged surface.
-  const gridCheck = enforceSlotGrid({
+  // Single appointment-write validation layer (brief 0080, Grupo B): slot-grid
+  // → overlap → subscription scope. The same call guards create and edit; the
+  // edit passes `excludeAppointmentId` so a pure move doesn't conflict with
+  // itself. Reception follows the same grid as the public self-book — no
+  // privileged surface (Brief 0080), scope reenforced on move (Brief 0019).
+  const validation = await validateAppointmentWrite({
+    orgId: r.ctx.membership.orgId,
     unit,
-    startAt,
-    surface: 'reception',
-    orgId: r.ctx.membership.orgId,
     userId: r.ctx.session.uid,
-  })
-  if (!gridCheck.ok) return { ok: false, error: gridCheck.error }
-
-  const conflict = await checkSlotConflicts({
-    orgId: r.ctx.membership.orgId,
-    org: { timezone: unit.timezone },
+    surface: 'reception',
     parsed,
     startAt,
     endAt,
-    excludeAppointmentId: appointmentId,
-  })
-  if (conflict) return { ok: false, error: conflict.error, conflicts: conflict.conflicts }
-
-  // Brief 0019 — recepção respeita as mesmas regras de plano que o self-book.
-  // Decisão 2026-05-22 (issue #960/#963): nenhum fluxo bypassa scope; reenforça
-  // no update porque staff pode mover um appointment para fora do scope ativo.
-  const scopeCheck = await enforceSubscriptionScope({
-    orgId: r.ctx.membership.orgId,
-    orgTimezone: unit.timezone,
     customerId,
-    unitId: parsed.unitId,
-    startAt,
     serviceCategoryId: item.categoryId,
     excludeAppointmentId: appointmentId,
   })
-  if (!scopeCheck.ok) return { ok: false, error: scopeCheck.error }
+  if (!validation.ok) {
+    return { ok: false, error: validation.error, conflicts: validation.conflicts }
+  }
 
   // Own-scope RLS for the edit write (brief 0075, #1265): same capability-gated
   // scope as the create path, forwarded to every event append.
@@ -327,27 +310,6 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   if (typeof times === 'string') return { ok: false, error: times }
   const { startAt, endAt } = times
 
-  // Brief 0080 — reception follows the same configured grid as the public
-  // self-book: a `startAt` off the slot grid / outside hours is rejected on the
-  // server, no privileged surface, no arbitrary walk-in encaixe.
-  const gridCheck = enforceSlotGrid({
-    unit,
-    startAt,
-    surface: 'reception',
-    orgId: r.ctx.membership.orgId,
-    userId: r.ctx.session.uid,
-  })
-  if (!gridCheck.ok) return { ok: false, error: gridCheck.error }
-
-  const conflict = await checkSlotConflicts({
-    orgId: r.ctx.membership.orgId,
-    org: { timezone: unit.timezone },
-    parsed,
-    startAt,
-    endAt,
-  })
-  if (conflict) return { ok: false, error: conflict.error, conflicts: conflict.conflicts }
-
   // Resolve the target customer — existing pick, or a brand-new one upserted
   // inline (the inline branch is gated server-side on `canManageCustomers`,
   // brief 0075 #1266). Extracted to keep this action under the complexity gate.
@@ -362,18 +324,24 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   const createGuard = await guardCustomerNotBlocked(r.ctx.membership.orgId, customerId)
   if (createGuard) return createGuard
 
-  // Brief 0019 — recepção respeita as mesmas regras de plano que o self-book.
-  // Decisão 2026-05-22 (issue #960/#963): nenhum fluxo bypassa scope; casos
-  // excepcionais resolvem-se via ajuste de Subscription do cliente.
-  const scopeCheck = await enforceSubscriptionScope({
+  // Single appointment-write validation layer (brief 0080, Grupo B): slot-grid
+  // → overlap → subscription scope, the same call the edit path runs. Reception
+  // follows the same grid as the public self-book — no privileged surface, no
+  // arbitrary walk-in encaixe (Brief 0080); scope per Brief 0019.
+  const validation = await validateAppointmentWrite({
     orgId: r.ctx.membership.orgId,
-    orgTimezone: unit.timezone,
-    customerId,
-    unitId: parsed.unitId,
+    unit,
+    userId: r.ctx.session.uid,
+    surface: 'reception',
+    parsed,
     startAt,
+    endAt,
+    customerId,
     serviceCategoryId: item.categoryId,
   })
-  if (!scopeCheck.ok) return { ok: false, error: scopeCheck.error }
+  if (!validation.ok) {
+    return { ok: false, error: validation.error, conflicts: validation.conflicts }
+  }
 
   const userIds = await resolveAppointmentUserIds(
     r.ctx.membership.orgId,
