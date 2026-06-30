@@ -4,7 +4,7 @@ import { BirthdayIndicator } from '@/components/BirthdayIndicator'
 import { RowActions, type RowAction } from '@/components/RowActions'
 import { WhatsappAction } from '@/components/WhatsappAction'
 import type { DeletionImpact } from '@/components/destructive/DeleteAction'
-import type { Customer } from '@/domain'
+import { formatBrazilPhone, type Customer } from '@/domain'
 import {
   deleteCustomer,
   getCustomerDeletionImpactAction,
@@ -140,8 +140,10 @@ export function CustomersList({
             ) : (
               c.name
             ),
-          // No contact line — the exposed WhatsApp action (tooltip reveals the
-          // number) is the contact affordance.
+          // Contact line under the name: the WhatsApp number, masked in the BR
+          // display format. The exposed WhatsApp action stays as the quick "open
+          // chat" affordance; this just makes the number visible + scannable.
+          description: c.whatsapp ? formatBrazilPhone(c.whatsapp) : undefined,
           // Exposed WhatsApp shortcut beside the ⋯ menu (tooltip reveals number).
           actions: (
             <>
