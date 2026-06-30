@@ -55,6 +55,10 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
   const { slug, unitSlug } = await params
   const sp = await searchParams
   const serviceId = readQuery(sp, 'service')
+  // Deep-link to a specific day: `?from=` (range view, when the wizard drives it)
+  // or `?date=`. Honored when valid + not in the past; otherwise we fall back to
+  // the first open day below.
+  const dateQuery = readQuery(sp, 'from') ?? readQuery(sp, 'date')
 
   if (!serviceId) {
     return (
@@ -81,21 +85,32 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
 
   const tz = probe.unit.timezone
   const today = getTodayInOrgTz(tz)
-  const startDate = firstOpenDay(unitBusinessHours(probe.unit.agenda), today, tz)
+  // A valid, non-past `?from=`/`?date=` wins (deep-link / E2E determinism);
+  // otherwise start on the first open day so a closed today never traps anyone.
+  const isValidDate = dateQuery !== null && /^\d{4}-\d{2}-\d{2}$/.test(dateQuery)
+  const startDate =
+    isValidDate && dateQuery >= today
+      ? dateQuery
+      : firstOpenDay(unitBusinessHours(probe.unit.agenda), today, tz)
 
-  // Subscription coverage banner (brief 0019, AC-16) — only when the visitor's
-  // plan actually constrains units; otherwise skip the extra read.
+  // Subscription scope (brief 0019): the time-scope filters the slot grid (AC-07)
+  // and the allowlist drives the coverage banner (AC-16). Resolved here so the
+  // INITIAL grid is already filtered — the action applies the same scope on
+  // subsequent date/pro changes.
   const scope = await resolveScopeForSessionBySlug(slug)
   const summaryUnits =
     scope?.unitAllowlist && scope.unitAllowlist.size > 0
       ? ((await getPublicOrgSummary(slug))?.units ?? [probe.unit])
       : [probe.unit]
 
-  // Load the grid for the starting day (re-query, now in the right tz/day).
+  // Load the grid for the starting day WITH the time-scope (the probe was
+  // scope-less, only used to resolve tz/agenda — never reuse it as the grid).
   const initialBundle =
-    startDate === probe.date
-      ? probe
-      : ((await getPublicAvailability(slug, unitSlug, { serviceId, date: startDate })) ?? probe)
+    (await getPublicAvailability(slug, unitSlug, {
+      serviceId,
+      date: startDate,
+      timeScope: scope?.allowedTimeScope ?? null,
+    })) ?? probe
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 px-4 py-8">

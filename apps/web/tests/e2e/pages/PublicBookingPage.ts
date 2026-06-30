@@ -6,7 +6,8 @@ import type { Locator, Page } from '@playwright/test'
 // The flow has 4 surfaces:
 //   1. `/[slug]`                            — org catalog (single-unit shortcut)
 //   2. `/[slug]/[unitSlug]`                 — per-unit catalog (Step 1 of #844)
-//   3. `/[slug]/[unitSlug]/availability`    — slot picker (Step 2)
+//   3. `/[slug]/[unitSlug]/availability`    — single-page booking wizard (date +
+//                                             professional filter + slot grid)
 //   4. `/[slug]/[unitSlug]/book`            — confirmation form (Step 3)
 //      → `/[slug]/[unitSlug]/book/success`  — confirmation page (Step 4)
 //
@@ -47,10 +48,23 @@ export class PublicBookingPage {
     return this.page.getByText(name)
   }
 
-  // ── Availability ────────────────────────────────────────────────────────
+  // ── Availability (single-page wizard) ───────────────────────────────────
 
+  // The slot grid renders one button per professional per time, each with an
+  // accessible label "Agendar com <pro> às <hh:mm>". Match on that prefix so the
+  // slot button is never confused with the professional FILTER chip above (which
+  // carries the bare name). Now a button (the wizard navigates via router.push).
   slotByMemberOperation(memberOperationName: string | RegExp): Locator {
-    return this.page.getByRole('link', { name: memberOperationName })
+    const namePart =
+      typeof memberOperationName === 'string' ? memberOperationName : memberOperationName.source
+    return this.page.getByRole('button', { name: new RegExp(`agendar com ${namePart}`, 'i') })
+  }
+
+  // Sets the wizard's date picker (the grid re-queries on change). Specs that
+  // need a deterministic day can either pass `from` to `gotoAvailability` (deep
+  // link) or drive the picker directly here.
+  async pickDate(isoDate: string): Promise<void> {
+    await this.page.locator('#booking-date').fill(isoDate)
   }
 
   // ── Confirmation form (wizard Step 3) ───────────────────────────────────

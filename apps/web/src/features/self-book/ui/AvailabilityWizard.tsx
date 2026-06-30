@@ -154,21 +154,26 @@ export function AvailabilityWizard({
               <li key={r.localHHmm} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div className="text-sm font-medium tabular-nums">{r.localHHmm}</div>
                 <ul className="flex flex-wrap items-center justify-end gap-2">
-                  {r.slots.map((s) => (
-                    <li key={`${s.memberOperationId}-${s.startAt}`}>
-                      <button
-                        type="button"
-                        onClick={() => goToConfirm(s.startAt, s.memberOperationId)}
-                        className="border-border hover:bg-muted/40 rounded-md border px-2.5 py-1 text-xs"
-                      >
-                        {/* "Qualquer um" view names the pro on each chip so the
-                            customer still knows who; a filtered view shows the time. */}
-                        {memberOperationId === null
-                          ? (memberNameById.get(s.memberOperationId) ?? 'Profissional')
-                          : 'Agendar'}
-                      </button>
-                    </li>
-                  ))}
+                  {r.slots.map((s) => {
+                    const proName = memberNameById.get(s.memberOperationId) ?? 'Profissional'
+                    return (
+                      <li key={`${s.memberOperationId}-${s.startAt}`}>
+                        <button
+                          type="button"
+                          onClick={() => goToConfirm(s.startAt, s.memberOperationId)}
+                          // Rich label disambiguates the slot button from the
+                          // professional FILTER chip above (same visible name) and
+                          // reads well for screen readers.
+                          aria-label={`Agendar com ${proName} às ${r.localHHmm}`}
+                          className="border-border hover:bg-muted/40 rounded-md border px-2.5 py-1 text-xs"
+                        >
+                          {/* "Qualquer um" view names the pro on each button so the
+                              customer still knows who; a filtered view shows the time. */}
+                          {memberOperationId === null ? proName : 'Agendar'}
+                        </button>
+                      </li>
+                    )
+                  })}
                 </ul>
               </li>
             ))}
