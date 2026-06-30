@@ -1,8 +1,10 @@
 import { canManageOrg, type Customer } from '@/domain'
+import type { InviteUnitOption } from '@/features/customers/ui/ClientInviteForm'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
 import { getCustomerById, listActiveCustomersForOrg } from '@/shared/org/customer-read'
 import { requireCapabilityPage } from '@/shared/org/membership'
+import { listUnitsForOrg } from '@/shared/org/unit-read'
 import 'server-only'
 
 export type CustomersPageData = {
@@ -10,6 +12,8 @@ export type CustomersPageData = {
   searchQuery: string
   canDelete: boolean
   state: ListSurfaceState
+  // Bookable units (selfBookingPublished) the invite can target.
+  inviteUnits: InviteUnitOption[]
 }
 
 // Imperative shell for the customers list route. Active customers only — a
@@ -33,7 +37,14 @@ export async function loadCustomersPage(
     hasAnyData: allCustomers.length > 0,
     visibleCount: customers.length,
   })
-  return { customers, searchQuery, canDelete, state }
+
+  // Only units that are actually bookable can receive an invite (the customer
+  // would dead-end otherwise) — same gate the action re-checks server-side.
+  const inviteUnits: InviteUnitOption[] = (await listUnitsForOrg(ctx.membership.orgId))
+    .filter((u) => u.agenda.mode === 'appointment' && u.agenda.selfBookingPublished)
+    .map((u) => ({ slug: u.slug, name: u.name }))
+
+  return { customers, searchQuery, canDelete, state, inviteUnits }
 }
 
 // Imperative shell for the read-only detail route — resolves the customer or

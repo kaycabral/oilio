@@ -59,7 +59,8 @@ export function resolveSignupOrgContext(next: string | null | undefined): Signup
 // incomplete profile. `/onboarding/profile` passes straight through to `next`
 // when the profile is already complete, so returning visitors aren't re-asked.
 //
-// `bookingTarget` is the absolute booking path (`/{slug}/book?...attribution`).
+// `bookingTarget` is the absolute booking-entry path (`/{org}/{unit}?...` or the
+// org profile `/{org}?...`, both of which lead into the real-availability flow).
 // Returns the platform fallback (`/signup/done`) when there's no org context.
 export function buildSignupNext(bookingTarget: string | null): string {
   if (!bookingTarget) return '/signup/done'

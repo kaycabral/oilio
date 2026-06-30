@@ -17,6 +17,7 @@ import { toRoute } from '@/shared/routes'
 import { Avatar, AvatarFallback, AvatarImage, List } from '@cbrl/design'
 import { Users } from 'lucide-react'
 import { ClientInviteDialog } from './ClientInviteDialog'
+import type { InviteUnitOption } from './ClientInviteForm'
 
 // Maps the server impact into the dialog's "isto vai…" list + blocker. An open
 // comanda is the only hard blocker (brief 0033, AC-07); the active subscription
@@ -64,6 +65,7 @@ export function CustomersList({
   searchQuery,
   canDelete,
   isFiltered,
+  inviteUnits,
 }: {
   customers: Customer[]
   searchQuery: string
@@ -71,6 +73,8 @@ export function CustomersList({
   canDelete: boolean
   // True when data exists but the search slice is empty (filtered-empty).
   isFiltered: boolean
+  // Bookable units the invite dialog can target.
+  inviteUnits: InviteUnitOption[]
 }) {
   const { setParams } = useListUrlControls()
   const { page, pageCount, pageItems, onPageChange } = useClientPagination(customers, {
@@ -85,7 +89,7 @@ export function CustomersList({
       header={
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Clientes</h1>
-          <ClientInviteDialog />
+          <ClientInviteDialog units={inviteUnits} />
         </header>
       }
       search={{
@@ -102,7 +106,7 @@ export function CustomersList({
         // The List hides the header (and its invite button) when truly empty, so
         // the empty state carries its own invite CTA — otherwise the first-client
         // moment would have no way to invite. Same dialog, default trigger.
-        actionSlot: <ClientInviteDialog />,
+        actionSlot: <ClientInviteDialog units={inviteUnits} />,
       }}
       filteredEmpty={{ title: 'Nenhum cliente para esta busca.' }}
       renderItem={(c) => {

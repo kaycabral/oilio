@@ -1,5 +1,10 @@
 import { OAuthSignInButtons } from '@/components/oauth-sign-in-buttons'
-import { attributionFromParams, attributionToSearchParams } from '@/domain'
+import {
+  attributionFromParams,
+  attributionToSearchParams,
+  isReservedUnitSlug,
+  isValidUnitSlug,
+} from '@/domain'
 import { buildSignupNext } from '@/features/onboarding/core/signup-context'
 import { getPublicOrgBundle } from '@/features/self-book/adapters/public-org'
 import type { Metadata } from 'next'
@@ -33,11 +38,10 @@ export default async function PublicSignupPage({ searchParams }: PageProps) {
   const from = params.from
   const bundle = from ? await getPublicOrgBundle(from) : null
 
-  // Post-OAuth target: completion step FIRST, then the establishment's booking
-  // screen (replacing the old dead-end /signup/done). See `buildSignupNext` for
-  // why we never route straight to booking. The booking path carries the org
-  // slug + attribution, which the completion step reads to attribute the Customer.
-  const next = buildSignupNext(bundle ? `/${from}/book${attributionSuffix(params)}` : null)
+  // Post-OAuth target: completion step FIRST (see `buildSignupNext`), then the
+  // booking destination resolved below — its path carries the org slug, which the
+  // completion step reads to attribute the Customer.
+  const next = buildSignupNext(resolveBookingTarget(from, bundle != null, params))
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 px-4 py-12">
@@ -71,6 +75,24 @@ export default async function PublicSignupPage({ searchParams }: PageProps) {
       </p>
     </main>
   )
+}
+
+// Resolve where the visitor lands after completing the profile. The invite
+// targets a specific unit (`unit`), so we route to THAT unit's booking entry
+// (`/{org}/{unit}` → catalog → real availability slots). Without a valid unit we
+// fall back to the org profile (`/{org}`), which itself routes into a unit. We
+// never route to the removed org-level `/{org}/book`. Null when there's no org
+// context (plain platform signup → `buildSignupNext` sends to the done page).
+function resolveBookingTarget(
+  orgSlug: string | undefined,
+  hasOrg: boolean,
+  params: Record<string, string | undefined>,
+): string | null {
+  if (!hasOrg || !orgSlug) return null
+  const unitSlug = params.unit
+  const hasUnit = !!unitSlug && isValidUnitSlug(unitSlug) && !isReservedUnitSlug(unitSlug)
+  const path = hasUnit ? `/${orgSlug}/${unitSlug}` : `/${orgSlug}`
+  return `${path}${attributionSuffix(params)}`
 }
 
 // Re-serialize the captured attribution (sanitized through the domain boundary)

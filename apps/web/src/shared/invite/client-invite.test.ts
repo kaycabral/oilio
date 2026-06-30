@@ -30,6 +30,24 @@ describe('buildClientInvitePath', () => {
     expect(url.searchParams.get('cbrl_intent')).toBe('signup')
   })
 
+  it('carries the unit slug on a signup invite so completion routes to that unit', () => {
+    const path = buildClientInvitePath({
+      orgSlug: 'salao-x',
+      unitSlug: 'centro',
+      intent: 'signup',
+      attribution: ATTR,
+    })
+    const url = new URL(`https://h${path}`)
+    expect(url.pathname).toBe('/signup')
+    expect(url.searchParams.get('from')).toBe('salao-x')
+    expect(url.searchParams.get('unit')).toBe('centro')
+  })
+
+  it('omits unit when none is given (org-only signup invite)', () => {
+    const path = buildClientInvitePath({ orgSlug: 'salao-x', intent: 'signup', attribution: ATTR })
+    expect(new URL(`https://h${path}`).searchParams.get('unit')).toBeNull()
+  })
+
   it('builds a booking invite with service/pro/slot locked', () => {
     const path = buildClientInvitePath({
       orgSlug: 'salao-x',

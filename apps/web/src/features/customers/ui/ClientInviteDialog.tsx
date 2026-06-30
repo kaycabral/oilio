@@ -11,13 +11,21 @@ import {
 } from '@cbrl/design'
 import { UserPlus } from 'lucide-react'
 import { useState } from 'react'
-import { ClientInviteForm } from './ClientInviteForm'
+import { ClientInviteForm, type InviteUnitOption } from './ClientInviteForm'
 
 // "Convidar cliente" opens from the top action of `/customers` as a dialog
 // (mirrors `team/InviteDialog`, brief 0037), instead of a dedicated page. The
-// recepcionista informs only the WhatsApp; the form returns the contextual link
-// in-place, so the dialog stays open to show + copy it.
-export function ClientInviteDialog({ trigger }: { trigger?: React.ReactNode }) {
+// recepcionista informs the WhatsApp + the unit; the form returns the contextual
+// link in-place, so the dialog stays open to show + copy it.
+export function ClientInviteDialog({
+  units,
+  trigger,
+}: {
+  // Bookable units (selfBookingPublished) the invite can target. Empty when none
+  // is published yet — the invite would dead-end, so we explain that instead.
+  units: InviteUnitOption[]
+  trigger?: React.ReactNode
+}) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -34,11 +42,18 @@ export function ClientInviteDialog({ trigger }: { trigger?: React.ReactNode }) {
         <DialogHeader>
           <DialogTitle>Convidar cliente</DialogTitle>
           <DialogDescription>
-            Informe o WhatsApp do cliente e envie o convite. Ele faz o próprio cadastro pelo link —
-            você não digita os dados dele.
+            Informe a unidade e o WhatsApp do cliente e envie o convite. Ele faz o próprio cadastro
+            pelo link — você não digita os dados dele.
           </DialogDescription>
         </DialogHeader>
-        <ClientInviteForm />
+        {units.length === 0 ? (
+          <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
+            Nenhuma unidade com agendamento público ativo. Publique o agendamento de uma unidade pra
+            poder convidar clientes.
+          </p>
+        ) : (
+          <ClientInviteForm units={units} />
+        )}
       </DialogContent>
     </Dialog>
   )
