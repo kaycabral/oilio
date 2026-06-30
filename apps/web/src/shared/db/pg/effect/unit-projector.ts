@@ -1,6 +1,7 @@
 import { UnitConfig } from '@/domain/aggregates/unit/config'
 import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
-import { isUnitPubliclyLive, StoredUnit } from '@/domain/types/unit'
+import { StoredUnit } from '@/domain/types/unit'
+import { isUnitPubliclyLive } from '@/domain/utils/business-hours'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { buildCollectionQueryTail } from './collection-query'

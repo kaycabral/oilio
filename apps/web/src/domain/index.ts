@@ -151,7 +151,6 @@ export {
   isAddressComplete,
   isReservedUnitSlug,
   isUnitBookable,
-  isUnitPubliclyLive,
   isValidCancellationNoticeMinutes,
   isValidSlotMinutes,
   isValidUnitSlug,
@@ -159,8 +158,6 @@ export {
   slugifyUnitName,
   unitBusinessHours,
   unitCancellationPolicySnapshot,
-  unitHasAddressAndHours,
-  unitHasUsableHours,
   unitSlotMinutes,
   unitUsesAgenda,
 } from './types/unit'
@@ -385,8 +382,11 @@ export {
   getWeekdayInOrgTz,
   hhmmToMinutes,
   isBusinessHoursConfigured,
+  isUnitPubliclyLive,
   isValidHHmm,
   minutesToHHmm,
+  unitHasAddressAndHours,
+  unitHasUsableHours,
   validateHoursRange,
 } from './utils/business-hours'
 export type { Weekday } from './utils/business-hours'
