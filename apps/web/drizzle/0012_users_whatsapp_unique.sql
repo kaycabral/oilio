@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "users_whatsapp_unique" ON "users" USING btree ("whatsapp") WHERE "users"."whatsapp" IS NOT NULL;
