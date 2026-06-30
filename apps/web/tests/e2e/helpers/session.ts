@@ -1187,7 +1187,10 @@ async function ensureServiceExists(orgId: string, serviceId: string): Promise<vo
     categoryId: null,
     priceCents: 5000,
     commission: null,
-    unitIds: [],
+    // Non-empty (#1283): a catalog item is always unit-scoped. A placeholder is
+    // fine — this minimal parent only satisfies the appointment service FK; no
+    // unit-scoped read depends on it (the join table isn't written here).
+    unitIds: ['e2e-default-unit'],
     unitOverrides: null,
     publicVisible: false,
     priceVisibility: 'visible',
@@ -1619,7 +1622,13 @@ export async function seedService(
   const id = `e2e-svc-${uniqueSuffix()}`
   const now = new Date().toISOString()
   const commission = opts.commission ?? null
-  const unitIds = [...(opts.unitIds ?? [])]
+  // Non-empty by default (#1283): a catalog item is always scoped to ≥1 unit, so
+  // the `catalog_item.created` event + `catalog_items_unit_ids_nonempty` CHECK
+  // refuse an empty scope. Callers that exercise unit-scoped booking pass real
+  // `unitIds`; the rest (which don't read the scope) get a placeholder — the
+  // catalog-item seed writes only `events` + `catalog_items`, never the
+  // `catalog_item_units` join, so no unit FK is required here.
+  const unitIds = opts.unitIds && opts.unitIds.length > 0 ? [...opts.unitIds] : ['e2e-default-unit']
   // `CatalogServiceItem` per-unit override shape (`CatalogItemUnitOverride` —
   // every sub-field is `Schema.optional`). Build it as a typed record; absent
   // sub-fields stay omitted.
@@ -1713,10 +1722,11 @@ export async function seedProduct(
   // Single catalog representation (brief 0023 #1004 → 0053/B3): order close
   // resolves products from `catalog_items` (decoded as `CatalogItem`). The legacy
   // `products/{id}` doc is gone — this seeds the kind-product catalog item
-  // directly. `unitIds` is empty here; the rule requires non-empty, but these
-  // admin-surface writes bypass rules — and `resolveCatalogItemForUnit` reads the
-  // base price when the unit has no override, so an empty unit scope still
-  // resolves the order item correctly.
+  // directly. `unitIds` is non-empty (#1283): a catalog item is always
+  // unit-scoped, refused empty by the `catalog_item.created` event +
+  // `catalog_items_unit_ids_nonempty` CHECK. A placeholder suffices —
+  // `resolveCatalogItemForUnit` reads the base price when the unit has no
+  // override, so the order item still resolves regardless of the exact scope.
   const catalogDoc: CatalogProductItem = {
     id,
     orgId,
@@ -1725,7 +1735,7 @@ export async function seedProduct(
     categoryId: null,
     priceCents,
     commission: null,
-    unitIds: [],
+    unitIds: ['e2e-default-unit'],
     unitOverrides: null,
     publicVisible: false,
     priceVisibility: 'visible',
@@ -1774,7 +1784,9 @@ export async function seedCatalogItem(
     categoryId: opts.categoryId ?? null,
     priceCents: opts.priceCents ?? (kind === 'service' ? 5000 : 3000),
     commission,
-    unitIds: [...(opts.unitIds ?? [])],
+    // Non-empty by default (#1283): always unit-scoped. Placeholder is fine —
+    // this seed writes only `events` + `catalog_items`, not the join table.
+    unitIds: opts.unitIds && opts.unitIds.length > 0 ? [...opts.unitIds] : ['e2e-default-unit'],
     unitOverrides: null,
     publicVisible: opts.publicVisible ?? false,
     priceVisibility: 'visible' as const,
