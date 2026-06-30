@@ -12,6 +12,7 @@ import {
 import { customers } from './customers'
 import { orgs } from './orgs'
 import { subscriptions } from './subscriptions'
+import { units } from './units'
 
 /**
  * Typed relational projection for the `charge` Event-Sourced aggregate (brief
@@ -104,6 +105,15 @@ export const charges = pgTable(
       name: 'charges_customer_id_fk',
       columns: [table.orgId, table.customerId],
       foreignColumns: [customers.orgId, customers.id],
+    }).onDelete('restrict'),
+    // The unit a charge belongs to (#1283 / brief 0078 AC-10). `charges` was the
+    // only financial table missing `*_unit_id_fk` — every other (orders,
+    // cash_movements, subscriptions, appointments) has it. The composite FK also
+    // refuses a blank/non-existent unit_id, no separate CHECK needed.
+    foreignKey({
+      name: 'charges_unit_id_fk',
+      columns: [table.orgId, table.unitId],
+      foreignColumns: [units.orgId, units.id],
     }).onDelete('restrict'),
     // Charges of a subscription, by org.
     index('charges_org_id_subscription_idx').on(table.orgId, table.subscriptionId),

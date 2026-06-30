@@ -94,6 +94,12 @@ export const subscriptions = pgTable(
     // Non-negative counters.
     check('subscriptions_past_due_cycles_nonneg', sql`${table.pastDueCycles} >= 0`),
     check('subscriptions_past_due_threshold_nonneg', sql`${table.pastDueThreshold} >= 0`),
+    // The customer's global uid (nullable for legacy; no FK — `users` org-neutral):
+    // when present it must be non-empty (#1283 / brief 0078 AC-09).
+    check(
+      'subscriptions_customer_user_id_nonempty',
+      sql`${table.customerUserId} IS NULL OR char_length(btrim(${table.customerUserId})) > 0`,
+    ),
     // Every subscription belongs to a real org.
     foreignKey({
       name: 'subscriptions_org_id_fk',

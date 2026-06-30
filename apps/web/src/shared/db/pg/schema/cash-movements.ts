@@ -76,6 +76,12 @@ export const cashMovements = pgTable(
     check('cash_movements_direction_check', sql`${table.direction} IN ('in', 'out')`),
     // Always positive — `direction` carries the sign.
     check('cash_movements_amount_cents_nonneg', sql`${table.amountCents} >= 0`),
+    // The cash-movement author (global uid, no FK — `users` is org-neutral):
+    // non-empty so `''` can't blind the cash audit (#1283 / brief 0078 AC-09).
+    check(
+      'cash_movements_recorded_by_uid_nonempty',
+      sql`char_length(btrim(${table.recordedByUid})) > 0`,
+    ),
     // Union shape (brief 0031/0015): each kind fixes its direction and which
     // links exist. Mirrors the domain `Schema.Union` discriminated by `kind`.
     check(

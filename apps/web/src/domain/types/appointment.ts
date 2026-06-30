@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { NonEmptyString } from '@/domain/value-objects'
 import { Attribution } from './attribution'
 import { CommissionRule } from './member-operation'
 import { CancellationPolicy } from './unit'
@@ -54,7 +55,9 @@ export const Appointment = Schema.mutable(
     // fields stored *directly* on the doc, not via FK joins, so we copy the
     // canonical userId here. Decided in #832 — wiki:
     // 02-Estrategia-Modelo-Identidade § Visibilidade de histórico.
-    customerUserId: Schema.String,
+    // Não-vazio (#1283): sem FK (snapshot global de uid), `''` quebra o histórico
+    // cross-org do cliente.
+    customerUserId: NonEmptyString,
     // Null when the MemberOperation doc was created without an authenticated user
     // attached (rec-created placeholder before the pro accepts an invite).
     memberOperatorUserId: Schema.NullOr(Schema.String),
