@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm'
-import { boolean, check, index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  check,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 
 /**
  * The global `users` table (migration feature F — cutover, brief 0062).
@@ -78,6 +87,17 @@ export const users = pgTable(
   (table) => [
     // Email lookups (login dedup / support).
     index('users_email_idx').on(table.email),
+    // WhatsApp is GLOBALLY unique per person — a phone number has exactly one
+    // owner, and the User is global (org/unit/role-agnostic), so the same number
+    // can never back two Users. This is the database wall of the
+    // one-owner-per-number rule (mirrored by an app-layer check that turns the
+    // violation into a handled error). Partial: NULL means "no number yet"
+    // (recepcionista stub / anonymized account), which is the absence of the
+    // datum, not a colliding value — Postgres lets multiple NULLs coexist anyway,
+    // and the WHERE makes the intent explicit.
+    uniqueIndex('users_whatsapp_unique')
+      .on(table.whatsapp)
+      .where(sql`${table.whatsapp} IS NOT NULL`),
     // The anonymized invariant, mirrored from the domain union: a non-null
     // `anonymized_at` REQUIRES the PII columns scrubbed to null (the only path
     // that produces a "completed account with no whatsapp").
