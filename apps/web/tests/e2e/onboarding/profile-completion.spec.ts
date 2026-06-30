@@ -6,6 +6,7 @@ import {
   seedInvite,
   seedOrg,
   signInAndAttachSession,
+  uniqueNationalWhatsapp,
 } from '../helpers/session'
 
 // #838 — completion step pós-OAuth: every newly-OAuth'd user lands on
@@ -31,7 +32,7 @@ test.describe('Onboarding — conclusão de perfil', () => {
     // the form confirms it instead of re-asking — only whatsapp + birthDate left.
     await expect(page.getByText(/você é/i)).toBeVisible()
     await expect(page.getByRole('textbox', { name: /nome/i })).toHaveCount(0)
-    await page.getByRole('textbox', { name: /whatsapp/i }).fill('11988887777')
+    await page.getByRole('textbox', { name: /whatsapp/i }).fill(uniqueNationalWhatsapp())
     await fillBirthDate(page, '15/04/1990')
     await page.getByRole('button', { name: /continuar/i }).click()
 
@@ -83,7 +84,7 @@ test.describe('Onboarding — conclusão de perfil', () => {
     await signInAndAttachSession(context, owner.email, owner.password, baseURL ?? undefined)
 
     await page.goto('/onboarding/profile')
-    await page.getByRole('textbox', { name: /whatsapp/i }).fill('11988887777')
+    await page.getByRole('textbox', { name: /whatsapp/i }).fill(uniqueNationalWhatsapp())
     // 5 years ago — well under the 13-year cutoff.
     const fiveYearsAgo = new Date()
     fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5)
@@ -114,7 +115,7 @@ test.describe('Onboarding — conclusão de perfil', () => {
       await expect(page).toHaveURL(/\/onboarding\/profile/)
       await expect(page).toHaveURL(/next=/)
 
-      await page.getByRole('textbox', { name: /whatsapp/i }).fill('11977776666')
+      await page.getByRole('textbox', { name: /whatsapp/i }).fill(uniqueNationalWhatsapp())
       await fillBirthDate(page, '22/07/1992')
       await page.getByRole('button', { name: /continuar/i }).click()
 
