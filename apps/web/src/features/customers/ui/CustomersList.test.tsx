@@ -24,6 +24,8 @@ vi.mock('next/navigation', () => ({
 // a single published appointment unit so the dialog renders its enabled state.
 vi.mock('@/shared/org/org-context', () => ({
   useOrg: () => ({
+    org: { slug: 'barbearia', name: 'Barbearia' },
+    user: { uid: 'u-owner' },
     units: [
       {
         id: 'u1',

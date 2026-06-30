@@ -5,49 +5,37 @@ import { aggregateRef } from '@/domain/effect'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { emitEvent } from '@/shared/effect-bridge'
-import { formString } from '@/shared/form-data'
-import { buildClientInviteWhatsapp } from '@/shared/invite/client-invite'
 import { getCustomerUserId } from '@/shared/org/customer-read'
 import { getCustomerDeletionImpact, type CustomerDeletionImpact } from '@/shared/org/delete-guard'
 import { guardCapability, requireManagerCtx } from '@/shared/org/membership'
-import { getOrg } from '@/shared/org/org'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { eraseCustomerCascadeInOrg } from '@/shared/privacy/erase-customer-cascade'
 import { emitClientFunnelEvent } from '@/shared/product'
-import { resolveBaseUrl } from '@/shared/site-url'
 import { revalidatePath } from 'next/cache'
 
 export type CustomerMutationResult = { ok: true } | { ok: false; error: string }
 
-export type GenerateClientInviteResult =
-  | { ok: true; whatsappHref: string; inviteUrl: string }
-  | { ok: false; error: string }
+export type RecordClientInviteResult = { ok: true } | { ok: false; error: string }
 
-// Contextual client invite (brief 0077, Grupo B — AC-05/AC-06, #1279). The
-// recepcionista informs ONLY the WhatsApp number; the system generates a signup
-// link carrying the org context + attribution and returns the `wa.me` deep link
-// for her to send. NO Customer with her-typed PII is created — the customer
-// materializes their own account on the other side (login → complete). The only
-// datum the recep provides is the destination number, which never persists here.
-export async function generateClientInvite(
-  formData: FormData,
-): Promise<GenerateClientInviteResult> {
+// Contextual client invite — funnel telemetry side (brief 0077, Grupo B —
+// AC-06/AC-12, #1279). The actual link is built CLIENT-SIDE (pure core
+// `buildClientInviteWhatsapp`, reactive to the typed number) so the recep sees it
+// the moment the number is valid. This action only records the PII-zero funnel
+// event when she actually sends it ("Abrir no WhatsApp"), re-checking the
+// capability + that the target unit is publicly bookable (the server wall — the
+// client gate is just UX). NO Customer with recep-typed PII is created.
+export async function recordClientInviteIssued(input: {
+  unitSlug: string
+}): Promise<RecordClientInviteResult> {
   const r = await guardCapability('canManageCustomers')
   if (!r.ok) return r
 
-  const rawPhone = formString(formData, 'whatsapp').trim()
-  if (rawPhone.length === 0) return { ok: false, error: 'Informe o WhatsApp do cliente' }
-
   const orgId = r.ctx.membership.orgId
-  const org = await getOrg(orgId)
-  if (!org) return { ok: false, error: 'Estabelecimento não encontrado' }
-
-  // The invite is for a specific unit — the customer lands on that unit's booking
-  // after completing the profile. Resolve the chosen unit by slug and require it
-  // to be bookable (selfBookingPublished), so the recep never hands out a link
-  // that dead-ends on "indisponível". Single-unit orgs auto-select on the form.
-  const unitSlug = formString(formData, 'unit').trim()
+  const unitSlug = input.unitSlug.trim()
   if (unitSlug.length === 0) return { ok: false, error: 'Selecione a unidade do convite' }
+
+  // The invite must target a unit whose public booking is live, else the link
+  // dead-ends on "indisponível". Same gate the dialog checks client-side.
   const units = await listUnitsForOrg(orgId)
   const unit = units.find((u) => u.slug === unitSlug)
   if (!unit) return { ok: false, error: 'Unidade não encontrada' }
@@ -55,40 +43,19 @@ export async function generateClientInvite(
     return { ok: false, error: 'Essa unidade ainda não está com agendamento público ativo' }
   }
 
-  const baseUrl = await resolveBaseUrl()
-  const built = buildClientInviteWhatsapp({
-    rawPhone,
-    baseUrl,
-    orgName: org.name,
-    invite: {
-      orgSlug: org.slug,
-      unitSlug,
-      intent: 'signup',
-      attribution: {
-        source: 'whatsapp',
-        medium: 'invite',
-        campaign: null,
-        content: null,
-        term: null,
-        actorId: r.ctx.session.uid,
-        intent: 'signup',
-      },
-    },
-  })
-  if (!built.ok) return { ok: false, error: 'Número de WhatsApp inválido' }
-
-  // Funnel event (AC-12) — PII-zero: org/actor ids + channel only, never the
-  // number the recep typed. Best-effort; never traps the invite generation.
+  // Funnel event (AC-12) — PII-zero: org/actor/unit ids + channel only, never the
+  // number the recep typed. Best-effort; never traps the invite send.
   await emitClientFunnelEvent({
     event: 'client_invite_issued',
     orgId,
+    unitId: unit.id,
     actorId: r.ctx.session.uid,
     intent: 'signup',
     source: 'whatsapp',
     medium: 'invite',
   })
 
-  return { ok: true, whatsappHref: built.href, inviteUrl: built.url }
+  return { ok: true }
 }
 
 // NOTE(#1279): `createCustomer` was removed. The establishment no longer registers

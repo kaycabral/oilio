@@ -2,6 +2,7 @@
 
 import { unitSelfBookingPublished } from '@/domain'
 import { useOrg } from '@/shared/org/org-context'
+import { resolveBaseUrlClient } from '@/shared/site-url-client'
 import {
   Button,
   Dialog,
@@ -24,7 +25,7 @@ import { ClientInviteForm } from './ClientInviteForm'
 // in-place, so the dialog stays open to show + copy it.
 export function ClientInviteDialog({ trigger }: { trigger?: React.ReactNode }) {
   const [open, setOpen] = useState(false)
-  const { units, activeUnitId } = useOrg()
+  const { org, user, units, activeUnitId } = useOrg()
 
   const activeUnit = units.find((u) => u.id === activeUnitId) ?? null
   // The invite only makes sense for a unit whose public booking is live — else
@@ -52,7 +53,13 @@ export function ClientInviteDialog({ trigger }: { trigger?: React.ReactNode }) {
           </DialogDescription>
         </DialogHeader>
         {canInvite ? (
-          <ClientInviteForm unitSlug={activeUnit.slug} />
+          <ClientInviteForm
+            unitSlug={activeUnit.slug}
+            baseUrl={resolveBaseUrlClient()}
+            orgSlug={org.slug}
+            orgName={org.name}
+            actorId={user.uid}
+          />
         ) : (
           <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
             A unidade {activeUnit?.name ?? 'ativa'} ainda não está com agendamento público ativo.
