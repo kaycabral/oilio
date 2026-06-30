@@ -1,0 +1,4 @@
+ALTER TABLE "users" DROP CONSTRAINT "users_completed_profile_complete";--> statement-breakpoint
+ALTER TABLE "invites_pii" ADD CONSTRAINT "invites_pii_email_nonempty" CHECK (char_length(btrim("invites_pii"."email")) > 0);--> statement-breakpoint
+ALTER TABLE "units_pii" ADD CONSTRAINT "units_pii_whatsapp_nonempty" CHECK (char_length(btrim("units_pii"."whatsapp")) > 0);--> statement-breakpoint
+ALTER TABLE "users" ADD CONSTRAINT "users_completed_profile_complete" CHECK ("users"."completion_completed" = false OR "users"."anonymized_at" IS NOT NULL OR (char_length(btrim("users"."whatsapp")) > 0 AND "users"."birth_date" IS NOT NULL));

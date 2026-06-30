@@ -127,9 +127,14 @@ export const users = pgTable(
     // anonymized user is allowed null whatsapp/birth_date — without this the
     // erasure cascade would deadlock against this CHECK and
     // `users_anonymized_pii_scrubbed` at once.
+    //
+    // `whatsapp` uses non-empty (`char_length(btrim) > 0`), not `IS NOT NULL`:
+    // `''` satisfies NOT NULL but is not a real contact channel, so a blank
+    // whatsapp would count as "completed" (the zero-value-as-data gap, #1283).
+    // `birth_date` keeps `IS NOT NULL` (it's a date column — `''` can't be stored).
     check(
       'users_completed_profile_complete',
-      sql`${table.completionCompleted} = false OR ${table.anonymizedAt} IS NOT NULL OR (${table.whatsapp} IS NOT NULL AND ${table.birthDate} IS NOT NULL)`,
+      sql`${table.completionCompleted} = false OR ${table.anonymizedAt} IS NOT NULL OR (char_length(btrim(${table.whatsapp})) > 0 AND ${table.birthDate} IS NOT NULL)`,
     ),
   ],
 )

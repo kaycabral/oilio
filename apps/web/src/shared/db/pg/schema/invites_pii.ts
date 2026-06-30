@@ -1,4 +1,5 @@
-import { foreignKey, index, pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { check, foreignKey, index, pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 
 /**
@@ -13,7 +14,10 @@ import { orgs } from './orgs'
  * the PII while the `invites` projection (and its event history) stays intact.
  *
  * Invariants enforced HERE:
- *   - `email` NOT NULL; `org_id` NOT NULL leading column.
+ *   - `email` NOT NULL and non-empty (NOT NULL alone admits `''`; the email is
+ *     the invite-accept match key, so a blank one breaks the accept flow
+ *     silently — #1283).
+ *   - `org_id` NOT NULL leading column.
  *   - FK `org_id → orgs.org_id`.
  */
 export const invitesPii = pgTable(
@@ -31,6 +35,7 @@ export const invitesPii = pgTable(
       foreignColumns: [orgs.orgId],
     }),
     index('invites_pii_org_id_idx').on(table.orgId),
+    check('invites_pii_email_nonempty', sql`char_length(btrim(${table.email})) > 0`),
   ],
 )
 

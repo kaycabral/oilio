@@ -1,4 +1,5 @@
-import { foreignKey, index, pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { check, foreignKey, index, pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
 import { orgs } from './orgs'
 
 /**
@@ -16,6 +17,8 @@ import { orgs } from './orgs'
  *
  * Invariants enforced HERE:
  *   - `org_id` NOT NULL leading column; FK `org_id → orgs.org_id`.
+ *   - `whatsapp` non-empty (NOT NULL alone admits `''`; the unit's public
+ *     contact is required per #822/#1283 — enforced at the DB, not only the form).
  */
 export const unitsPii = pgTable(
   'units_pii',
@@ -33,6 +36,7 @@ export const unitsPii = pgTable(
       foreignColumns: [orgs.orgId],
     }),
     index('units_pii_org_id_idx').on(table.orgId),
+    check('units_pii_whatsapp_nonempty', sql`char_length(btrim(${table.whatsapp})) > 0`),
   ],
 )
 
