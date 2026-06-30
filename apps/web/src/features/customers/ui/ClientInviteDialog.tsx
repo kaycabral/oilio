@@ -1,5 +1,7 @@
 'use client'
 
+import { unitSelfBookingPublished } from '@/domain'
+import { useOrg } from '@/shared/org/org-context'
 import {
   Button,
   Dialog,
@@ -11,22 +13,24 @@ import {
 } from '@cbrl/design'
 import { UserPlus } from 'lucide-react'
 import { useState } from 'react'
-import { ClientInviteForm, type InviteUnitOption } from './ClientInviteForm'
+import { ClientInviteForm } from './ClientInviteForm'
 
 // "Convidar cliente" opens from the top action of `/customers` as a dialog
 // (mirrors `team/InviteDialog`, brief 0037), instead of a dedicated page. The
-// recepcionista informs the WhatsApp + the unit; the form returns the contextual
-// link in-place, so the dialog stays open to show + copy it.
-export function ClientInviteDialog({
-  units,
-  trigger,
-}: {
-  // Bookable units (selfBookingPublished) the invite can target. Empty when none
-  // is published yet — the invite would dead-end, so we explain that instead.
-  units: InviteUnitOption[]
-  trigger?: React.ReactNode
-}) {
+// invite ALWAYS targets the active unit of the header context — the same unit
+// the owner is operating, the way the whole app is scoped. No redundant unit
+// chooser: to invite for another unit, switch units in the top switcher. The
+// recepcionista informs only the WhatsApp; the form returns the contextual link
+// in-place, so the dialog stays open to show + copy it.
+export function ClientInviteDialog({ trigger }: { trigger?: React.ReactNode }) {
   const [open, setOpen] = useState(false)
+  const { units, activeUnitId } = useOrg()
+
+  const activeUnit = units.find((u) => u.id === activeUnitId) ?? null
+  // The invite only makes sense for a unit whose public booking is live — else
+  // the link dead-ends on "indisponível". Mirror the server gate (the action is
+  // the real wall) so we don't open a form that's bound to fail.
+  const canInvite = activeUnit !== null && unitSelfBookingPublished(activeUnit.agenda)
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -42,17 +46,19 @@ export function ClientInviteDialog({
         <DialogHeader>
           <DialogTitle>Convidar cliente</DialogTitle>
           <DialogDescription>
-            Informe a unidade e o WhatsApp do cliente e envie o convite. Ele faz o próprio cadastro
-            pelo link — você não digita os dados dele.
+            {canInvite
+              ? `O convite é para a unidade ${activeUnit.name}. Informe o WhatsApp do cliente — ele faz o próprio cadastro pelo link, você não digita os dados dele.`
+              : 'Para convidar clientes, ative o agendamento público desta unidade.'}
           </DialogDescription>
         </DialogHeader>
-        {units.length === 0 ? (
-          <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
-            Nenhuma unidade com agendamento público ativo. Publique o agendamento de uma unidade pra
-            poder convidar clientes.
-          </p>
+        {canInvite ? (
+          <ClientInviteForm unitSlug={activeUnit.slug} />
         ) : (
-          <ClientInviteForm units={units} />
+          <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
+            A unidade {activeUnit?.name ?? 'ativa'} ainda não está com agendamento público ativo.
+            Publique o agendamento dela pra poder convidar clientes — ou troque de unidade no
+            seletor do topo.
+          </p>
         )}
       </DialogContent>
     </Dialog>
