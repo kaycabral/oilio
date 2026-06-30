@@ -1,13 +1,22 @@
-import { groupAvailabilityByLocalTime } from '@/domain'
+import {
+  getBusinessHoursForDay,
+  getTodayInOrgTz,
+  groupAvailabilityByLocalTime,
+  shiftDateInOrgTz,
+  unitBusinessHours,
+} from '@/domain'
 import { resolveScopeForSessionBySlug } from '@/features/booking/adapters/subscription-scope.repo'
 import { getPublicAvailability } from '@/features/self-book/adapters/availability'
 import { getPublicOrgSummary } from '@/features/self-book/adapters/public-org'
+import { AvailabilityWizard } from '@/features/self-book/ui/AvailabilityWizard'
 import { PlanCoverageBanner } from '@/features/self-book/ui/PlanCoverageBanner'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-export const revalidate = 60
+// Dynamic: availability depends on the visitor's session (subscription scope) and
+// the current day, so it can't be statically cached.
+export const dynamic = 'force-dynamic'
 
 type PageProps = {
   params: Promise<{ slug: string; unitSlug: string }>
@@ -20,38 +29,37 @@ function readQuery(sp: Record<string, string | string[] | undefined>, key: strin
   return typeof v === 'string' && v.length > 0 ? v : null
 }
 
-function todayInOrgTz(tz: string): string {
-  // Render-side ISO date in the org tz. We don't have the org tz until
-  // after the loader, so the page falls back to a sentinel and the loader
-  // returns the validated date.
-  const now = new Date()
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
-  return fmt.format(now)
+// First bookable calendar day on/after `today`: scan up to 2 weeks for a weekday
+// the unit declares open (cheap — business-hours only, no slot compute). The
+// wizard then computes the real grid for whatever day the customer lands on /
+// picks. Falls back to today if the unit declares no open weekday (the grid will
+// just render empty, with the "pick another day" hint).
+function firstOpenDay(
+  businessHours: ReturnType<typeof unitBusinessHours>,
+  today: string,
+  tz: string,
+): string {
+  for (let i = 0; i < 14; i++) {
+    const day = shiftDateInOrgTz(today, i, tz)
+    if (getBusinessHoursForDay(businessHours, day, tz).length > 0) return day
+  }
+  return today
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, unitSlug } = await params
-  return { title: `Disponibilidade — ${unitSlug} — ${slug}` }
+  return { title: `Agendar — ${unitSlug} — ${slug}` }
 }
 
 export default async function PublicAvailabilityPage({ params, searchParams }: PageProps) {
   const { slug, unitSlug } = await params
   const sp = await searchParams
   const serviceId = readQuery(sp, 'service')
-  const memberOperationId = readQuery(sp, 'memberOperation')
-  // Single-day endpoint for V0.1 (issue #842 "Out of scope: month view").
-  // Range view (`from` + `to`) ships when the booking wizard (#844) drives it.
-  const dateQuery = readQuery(sp, 'from') ?? readQuery(sp, 'date')
 
   if (!serviceId) {
     return (
       <main className="mx-auto max-w-2xl space-y-4 px-4 py-12">
-        <h1 className="text-xl font-semibold">Disponibilidade</h1>
+        <h1 className="text-xl font-semibold">Agendar</h1>
         <p className="text-muted-foreground text-sm">
           Selecione um serviço no catálogo para ver os horários disponíveis.
         </p>
@@ -62,52 +70,39 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
     )
   }
 
-  // Fast date fallback: today in the org tz once we have the bundle.
-  // We need the org tz before computing — temporary pass through a
-  // probe call with a sentinel and trust the loader's validation.
-  const probeDate = dateQuery ?? todayInOrgTz('America/Sao_Paulo')
-
-  // Resolve the visitor's subscription scope (brief 0019, Group B — AC-07).
-  // The loader filters slots by `allowedTimeScope` and the unit-slug page
-  // already enforces the spatial axis. We keep the full scope around so
-  // the AC-16 coverage banner can render alongside.
-  const scope = await resolveScopeForSessionBySlug(slug)
-
-  const bundle = await getPublicAvailability(slug, unitSlug, {
+  // Probe once to resolve the unit (tz + business hours) and validate the
+  // service/unit. Use today only to fetch the bundle; the real starting day is
+  // the first OPEN day (so the customer never lands trapped on a closed today).
+  const probe = await getPublicAvailability(slug, unitSlug, {
     serviceId,
-    date: probeDate,
-    memberOperationId,
-    timeScope: scope?.allowedTimeScope ?? null,
+    date: getTodayInOrgTz('America/Sao_Paulo'),
   })
-  if (!bundle) notFound()
+  if (!probe) notFound()
 
-  const date = bundle.date
-  const rows = groupAvailabilityByLocalTime(bundle.slots, bundle.unit.timezone)
-  const proNameById = new Map(bundle.memberOperations.map((p) => [p.id, p.name]))
+  const tz = probe.unit.timezone
+  const today = getTodayInOrgTz(tz)
+  const startDate = firstOpenDay(unitBusinessHours(probe.unit.agenda), today, tz)
 
-  const dateFmt = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: bundle.unit.timezone,
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-  })
-  const dateLabel = dateFmt.format(new Date(`${date}T12:00:00.000Z`))
-
-  // Brief 0019 Group D — AC-16. Resolve unit names for the banner only
-  // when the customer's allowlist actually constrains rendering — an
-  // empty Set means "no axis to display", so we skip the extra read.
-  // Cheap fallback to `[bundle.unit]`.
+  // Subscription coverage banner (brief 0019, AC-16) — only when the visitor's
+  // plan actually constrains units; otherwise skip the extra read.
+  const scope = await resolveScopeForSessionBySlug(slug)
   const summaryUnits =
     scope?.unitAllowlist && scope.unitAllowlist.size > 0
-      ? ((await getPublicOrgSummary(slug))?.units ?? [bundle.unit])
-      : [bundle.unit]
+      ? ((await getPublicOrgSummary(slug))?.units ?? [probe.unit])
+      : [probe.unit]
+
+  // Load the grid for the starting day (re-query, now in the right tz/day).
+  const initialBundle =
+    startDate === probe.date
+      ? probe
+      : ((await getPublicAvailability(slug, unitSlug, { serviceId, date: startDate })) ?? probe)
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 px-4 py-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Disponibilidade</h1>
+        <h1 className="text-2xl font-semibold">Escolha data e horário</h1>
         <p className="text-muted-foreground text-sm">
-          {bundle.service.name} — {bundle.unit.name} — {dateLabel}
+          {probe.service.name} — {probe.unit.name}
         </p>
         <Link
           className="text-primary text-sm underline-offset-2 hover:underline"
@@ -126,31 +121,20 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
         />
       ) : null}
 
-      {rows.length === 0 ? (
-        <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
-          Sem horários disponíveis para este dia.
-        </p>
-      ) : (
-        <ul className="border-border divide-border divide-y rounded-md border">
-          {rows.map((r) => (
-            <li key={r.localHHmm} className="flex items-center justify-between gap-3 px-4 py-3">
-              <div className="text-sm font-medium tabular-nums">{r.localHHmm}</div>
-              <ul className="flex flex-wrap items-center justify-end gap-2">
-                {r.slots.map((s) => (
-                  <li key={`${s.memberOperationId}-${s.startAt}`}>
-                    <Link
-                      href={`/${slug}/${unitSlug}/book?service=${encodeURIComponent(bundle.service.id)}&memberOperation=${encodeURIComponent(s.memberOperationId)}&start=${encodeURIComponent(s.startAt)}`}
-                      className="border-border hover:bg-muted/40 rounded-md border px-2 py-1 text-xs"
-                    >
-                      {proNameById.get(s.memberOperationId) ?? 'Profissional'}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      )}
+      <AvailabilityWizard
+        slug={slug}
+        unitSlug={unitSlug}
+        serviceId={serviceId}
+        serviceName={probe.service.name}
+        unitName={probe.unit.name}
+        timezone={tz}
+        minDate={today}
+        initial={{
+          date: initialBundle.date,
+          rows: groupAvailabilityByLocalTime(initialBundle.slots, tz),
+          memberOperations: initialBundle.memberOperations,
+        }}
+      />
     </main>
   )
 }
