@@ -40,6 +40,7 @@ import {
   seedInvite,
   seedService,
   signInAndAttachSession,
+  uniqueWhatsapp,
 } from '../helpers/session'
 import { MemberOperationsPage, orgSlug, PublicBookingPage } from '../pages'
 
@@ -363,14 +364,18 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       await expect(authedPage.locator('input[name="name"]')).toHaveCount(0)
       await expect(authedPage.locator('input[name="whatsapp"]')).toHaveCount(0)
       await expect(authedPage.locator('input[name="email"]')).toHaveCount(0)
-      await expect(prosPage.identityWhatsapp()).toHaveText('(11) 90000-0000')
+      // WhatsApp inicial do pro é gerado único por run (unicidade global) —
+      // assert o formato BR-mascarado, não um literal.
+      await expect(prosPage.identityWhatsapp()).toHaveText(/^\(\d{2}\) \d{5}-\d{4}$/)
 
-      // Muta SÓ o User global — sem tocar a projeção do profissional.
-      await patchUserWhatsapp(uid, '5511955554444')
+      // Muta SÓ o User global — sem tocar a projeção do profissional. Número
+      // novo gerado único (não pode colidir com outro User sob o índice global).
+      const newWhatsapp = uniqueWhatsapp()
+      await patchUserWhatsapp(uid, newWhatsapp)
 
       // Re-lê o cadastro: o novo WhatsApp aparece ao vivo (leitura derivada).
       await prosPage.gotoById(proId)
-      await expect(prosPage.identityWhatsapp()).toHaveText('(11) 95555-4444')
+      await expect(prosPage.identityWhatsapp()).toHaveText(formatBrazilPhone(newWhatsapp))
     })
   })
 

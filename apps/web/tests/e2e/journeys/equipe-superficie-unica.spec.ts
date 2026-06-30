@@ -71,7 +71,9 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       // Personal identity (name/whatsapp/email) is read-only at the top, from
       // the linked User — never repeated as editable inputs in the form.
       await expect(pros.identityName()).toHaveText('Profissional 1')
-      await expect(pros.identityWhatsapp()).toHaveText('(11) 90000-0000')
+      // WhatsApp do pro é gerado único por run (unicidade global) — assert o
+      // formato BR-mascarado, não um literal.
+      await expect(pros.identityWhatsapp()).toHaveText(/^\(\d{2}\) \d{5}-\d{4}$/)
       await expect(pros.identityEmail()).toContainText('@e2e.local')
       await expect(authedPage.locator('input[name="name"]')).toHaveCount(0)
       await expect(authedPage.locator('input[name="whatsapp"]')).toHaveCount(0)
