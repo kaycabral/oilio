@@ -6,11 +6,14 @@ import {
   type Appointment,
   type CatalogServiceItem,
   type Customer,
+  type HoursRange,
   type MemberOperation,
+  type SlotMinutes,
 } from '@/domain'
 import { createAppointment, updateAppointment } from '@/features/agenda/adapters/agenda.actions'
 import {
   buildAppointmentWhatsappLink,
+  gridTimeOptions,
   resolveInitialDateTime,
 } from '@/features/agenda/core/appointment-dialog'
 import { useFormValidity } from '@/hooks/use-form-validity'
@@ -47,6 +50,8 @@ export function AppointmentDialog({
   customers,
   date,
   timezone,
+  slotMinutes,
+  dayHours,
   defaultMemberOperationId,
   defaultStartTime,
   appointment,
@@ -63,6 +68,10 @@ export function AppointmentDialog({
   customers: Customer[]
   date: string
   timezone: string
+  // The unit's slot grid + the active day's open ranges — drive the time picker
+  // so it only offers grid-valid starts (brief 0080, AC-03b).
+  slotMinutes: SlotMinutes
+  dayHours: readonly HoursRange[]
   defaultMemberOperationId?: string
   defaultStartTime?: string
   // When provided, dialog is in edit mode; submit calls updateAppointment.
@@ -103,6 +112,18 @@ export function AppointmentDialog({
     () => resolveInitialDateTime(appointment, date, defaultStartTime, timezone),
     [appointment, date, defaultStartTime, timezone],
   )
+
+  // Grid-valid start times for the active day (brief 0080, AC-03b). When editing
+  // an appointment whose start no longer matches the grid (policy/hours changed
+  // after it was booked), keep its current time selectable so the edit doesn't
+  // silently drop it.
+  const startTimeOptions = useMemo(() => {
+    const grid = gridTimeOptions(dayHours, slotMinutes)
+    if (initialStartTime && !grid.includes(initialStartTime)) {
+      return [...grid, initialStartTime].sort((a, b) => a.localeCompare(b))
+    }
+    return grid
+  }, [dayHours, slotMinutes, initialStartTime])
 
   const whatsappLink = useMemo(
     () =>
@@ -287,13 +308,24 @@ export function AppointmentDialog({
               <Label htmlFor="appointment-startTime" className="text-sm font-medium">
                 Início
               </Label>
-              <Input
-                id="appointment-startTime"
-                type="time"
-                name="startTime"
-                defaultValue={initialStartTime}
-                required
-              />
+              <Select name="startTime" required defaultValue={initialStartTime || undefined}>
+                <SelectTrigger id="appointment-startTime">
+                  <SelectValue placeholder="Selecione…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {startTimeOptions.length === 0 ? (
+                    <SelectItem value={initialStartTime || '09:00'} disabled>
+                      Sem horários na grade
+                    </SelectItem>
+                  ) : (
+                    startTimeOptions.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

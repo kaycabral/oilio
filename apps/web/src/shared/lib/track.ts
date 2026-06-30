@@ -37,6 +37,24 @@ type AnalyticsEvents = {
     unit_id: string
     item_ref_id: string
   }
+  // Backend rejected an appointment write whose `startAt` fell off the
+  // configured grid / outside business hours (brief 0080 § metrics).
+  appointment_write_rejected_offgrid: {
+    org_id: string
+    user_id: string
+    unit_id: string
+    surface: 'self_book' | 'reception'
+    reason: 'off_grid'
+  }
+  // Customer rescheduled their own appointment from `/me/appointments`
+  // (brief 0080 § metrics).
+  appointment_rescheduled_self_service: {
+    org_id: string
+    user_id: string
+    appointment_id: string
+    from_start: string
+    to_start: string
+  }
 }
 
 export type AnalyticsEventName = keyof AnalyticsEvents

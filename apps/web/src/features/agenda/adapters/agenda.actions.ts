@@ -23,6 +23,7 @@ import {
   decideUnmarkNoShow,
 } from '@/features/agenda/core/appointment-transitions'
 import { commitAppointmentBooking } from '@/features/booking/adapters/commit-appointment'
+import { enforceSlotGrid } from '@/features/booking/adapters/enforce-slot-grid'
 import { enforceSubscriptionScope } from '@/features/booking/adapters/enforce-subscription-scope'
 import { revalidatePath } from 'next/cache'
 
@@ -242,6 +243,18 @@ export async function updateAppointment(
   if (typeof times === 'string') return { ok: false, error: times }
   const { startAt, endAt } = times
 
+  // Brief 0080 — reception follows the same configured grid as the public
+  // self-book: a move to a `startAt` off the slot grid / outside hours is
+  // rejected on the server, no privileged surface.
+  const gridCheck = enforceSlotGrid({
+    unit,
+    startAt,
+    surface: 'reception',
+    orgId: r.ctx.membership.orgId,
+    userId: r.ctx.session.uid,
+  })
+  if (!gridCheck.ok) return { ok: false, error: gridCheck.error }
+
   const conflict = await checkSlotConflicts({
     orgId: r.ctx.membership.orgId,
     org: { timezone: unit.timezone },
@@ -313,6 +326,18 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   const times = resolveStartEnd({ timezone: unit.timezone }, parsed, resolved.durationMinutes)
   if (typeof times === 'string') return { ok: false, error: times }
   const { startAt, endAt } = times
+
+  // Brief 0080 — reception follows the same configured grid as the public
+  // self-book: a `startAt` off the slot grid / outside hours is rejected on the
+  // server, no privileged surface, no arbitrary walk-in encaixe.
+  const gridCheck = enforceSlotGrid({
+    unit,
+    startAt,
+    surface: 'reception',
+    orgId: r.ctx.membership.orgId,
+    userId: r.ctx.session.uid,
+  })
+  if (!gridCheck.ok) return { ok: false, error: gridCheck.error }
 
   const conflict = await checkSlotConflicts({
     orgId: r.ctx.membership.orgId,

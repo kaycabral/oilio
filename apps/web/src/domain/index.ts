@@ -316,6 +316,9 @@ export type {
   ComputeAvailabilityInput,
 } from './utils/availability'
 
+export { isStartAtOnGrid } from './utils/slot-grid'
+export type { SlotGridInput } from './utils/slot-grid'
+
 export { canCustomerCancelAppointment } from './utils/self-cancel'
 export type { SelfCancelCheck } from './utils/self-cancel'
 

@@ -7,8 +7,11 @@ import {
   type Appointment,
   type CatalogServiceItem,
   type Customer,
+  type HoursRange,
   type MemberOperation,
   buildWhatsappLink,
+  hhmmToMinutes,
+  minutesToHHmm,
   renderWhatsappTemplate,
   toOrgTime,
 } from '@/domain'
@@ -65,4 +68,22 @@ export function resolveInitialDateTime(
     return { date: t.dateISO, startTime: hhmm(t) }
   }
   return { date, startTime: defaultStartTime ?? '09:00' }
+}
+
+// The valid grid start times (HH:mm, org-local) for a day — the same grid the
+// backend enforces (brief 0080, AC-03b): each open range stepped by
+// `slotMinutes`, last start strictly before close. Drives the reception time
+// picker so the UI never offers an off-grid `startAt`. Ascending, de-duped
+// across overlapping ranges.
+export function gridTimeOptions(dayHours: readonly HoursRange[], slotMinutes: number): string[] {
+  if (slotMinutes <= 0) return []
+  const minutes = new Set<number>()
+  for (const range of dayHours) {
+    const openMin = hhmmToMinutes(range.open)
+    const closeMin = hhmmToMinutes(range.close)
+    for (let m = openMin; m < closeMin; m += slotMinutes) minutes.add(m)
+  }
+  return Array.from(minutes)
+    .sort((a, b) => a - b)
+    .map(minutesToHHmm)
 }
