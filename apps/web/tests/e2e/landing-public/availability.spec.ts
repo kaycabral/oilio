@@ -43,7 +43,7 @@ test.describe('Landing pública — calendário de disponibilidade', () => {
 
       const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: targetDate })
-      await expect(page.getByRole('heading', { name: /disponibilidade/i })).toBeVisible()
+      await expect(page.getByRole('heading', { name: /escolha data e horário/i })).toBeVisible()
 
       // 09:30 (and later) BR slots stay available; 09:00 is blocked.
       await expect(page.getByText('09:30').first()).toBeVisible()
