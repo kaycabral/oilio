@@ -31,6 +31,7 @@ import {
   seedCustomer,
   seedService,
   skipOnPostgres,
+  uniqueWhatsapp,
 } from '../helpers/session'
 import { AgendaPage, PublicBookingPage, orgSlug } from '../pages'
 
@@ -57,7 +58,7 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
       const targetDate = nextWeekday('Wed')
       // Pre-take 09:00 BR (12:00 UTC) so that slot is dropped — proves the
       // renamed field still feeds allocation, not just rendering.
-      const cust = await seedCustomer(org.orgId, { name: 'Tomado', whatsapp: '11900000001' })
+      const cust = await seedCustomer(org.orgId, { name: 'Tomado', whatsapp: uniqueWhatsapp() })
       await seedAppointment({
         orgId: org.orgId,
         unitId,
@@ -130,7 +131,7 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
         const customerName = `Cliente Com ${Date.now()}`
         const customerId = await seedCustomer(org.orgId, {
           name: customerName,
-          whatsapp: '11955553333',
+          whatsapp: uniqueWhatsapp(),
         })
         await seedAppointment({
           orgId: org.orgId,

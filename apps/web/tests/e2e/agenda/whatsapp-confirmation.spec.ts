@@ -1,5 +1,11 @@
 import { expect, test } from '../fixtures'
-import { seedAppointment, seedCustomer, seedService, type SeededOrg } from '../helpers/session'
+import {
+  seedAppointment,
+  seedCustomer,
+  seedService,
+  uniqueWhatsapp,
+  type SeededOrg,
+} from '../helpers/session'
 import { AgendaPage } from '../pages'
 
 // Retrofit pro PR #726 (issue #638) — link "Enviar confirmação por
@@ -44,7 +50,7 @@ test.describe('Agenda — link WhatsApp de confirmação', () => {
   })
 
   test('link aparece pra agendamento agendado com WhatsApp', async ({ org, authedPage }) => {
-    await seedAppointmentForCustomer(org, { whatsapp: '11988887777' })
+    await seedAppointmentForCustomer(org, { whatsapp: uniqueWhatsapp() })
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-08-12')
     await authedPage.getByRole('button', { name: /Maria WhatsApp/ }).click()
@@ -56,7 +62,7 @@ test.describe('Agenda — link WhatsApp de confirmação', () => {
   })
 
   test('link some pra agendamento cancelado', async ({ org, authedPage }) => {
-    await seedAppointmentForCustomer(org, { whatsapp: '11988887777', status: 'cancelled' })
+    await seedAppointmentForCustomer(org, { whatsapp: uniqueWhatsapp(), status: 'cancelled' })
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-08-12')
     await authedPage.getByRole('button', { name: /Maria WhatsApp/ }).click()

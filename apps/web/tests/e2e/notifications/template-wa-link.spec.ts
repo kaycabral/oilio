@@ -17,7 +17,7 @@ import { randomBytes } from 'node:crypto'
 import { expect, test } from '../fixtures'
 import { fillStable } from '../helpers/hydration'
 import { parseJson } from '../helpers/rest-json'
-import { pgReadProjection, seedCustomer } from '../helpers/session'
+import { pgReadProjection, seedCustomer, uniqueWhatsapp } from '../helpers/session'
 
 // Seeds a `birthday` notification straight into the Postgres event store
 // (post-cutover): one tx writing the `notification.created` event (version 1)
@@ -135,7 +135,8 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
     org,
     authedPage,
   }) => {
-    const customerId = await seedCustomer(org.orgId, { name: 'Maria', whatsapp: '11999998888' })
+    const wa = uniqueWhatsapp()
+    const customerId = await seedCustomer(org.orgId, { name: 'Maria', whatsapp: wa })
     const notifId = await seedBirthdayNotification(org.orgId, org.unitIds[0]!, customerId)
 
     await authedPage.goto('/agenda')
@@ -163,7 +164,7 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
       await res.text(),
       Schema.decodeUnknownSync(Schema.Struct({ link: Schema.String })),
     )
-    expect(body.link).toContain('https://wa.me/5511999998888')
+    expect(body.link).toContain(`https://wa.me/${wa}`)
     expect(body.link).toContain('Maria')
 
     // Postgres: dispatchedAt + snapshot (channel/body) na projeção `notifications`.

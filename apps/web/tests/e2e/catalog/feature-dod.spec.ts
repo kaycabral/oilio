@@ -28,6 +28,7 @@ import {
   seedService,
   seedSubscriptionPlan,
   skipOnPostgres,
+  uniqueWhatsapp,
 } from '../helpers/session'
 import { AgendaPage, PublicBookingPage, orgSlug } from '../pages'
 
@@ -171,7 +172,7 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
       const customerName = `Cliente Cons ${Date.now()}`
       const customerId = await seedCustomer(org.orgId, {
         name: customerName,
-        whatsapp: '11955552222',
+        whatsapp: uniqueWhatsapp(),
       })
       await seedAppointment({
         orgId: org.orgId,

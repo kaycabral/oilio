@@ -24,6 +24,7 @@ import {
   seedMember,
   seedProduct,
   seedService,
+  uniqueWhatsapp,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
@@ -128,7 +129,7 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
     })
     const customerId = await seedCustomer(org.orgId, {
       name: 'Cliente Servico',
-      whatsapp: '11955551111',
+      whatsapp: uniqueWhatsapp(),
     })
     await seedAppointment({
       orgId: org.orgId,

@@ -261,13 +261,22 @@ function uniqueSuffix() {
 // now GLOBALLY unique (partial unique index `users_whatsapp_unique`), so two
 // seeded users can no longer share the old hardcoded `5511900000000` — that
 // would violate the constraint the moment a single DB holds both. Shape:
-// `55` (DDI) + `11` (DDD) + `9` + 8 digits derived from a process-wide counter,
-// so every call returns a distinct valid number. Unit-level whatsapp (UnitPii)
-// is NOT under this index and intentionally keeps its fixed seed value.
+// `55` (DDI) + `11` (DDD) + `9` (mobile) + 8 digits.
+//
+// The E2E DB is NOT truncated between tests, and Playwright re-evaluates this
+// module per spec file inside a worker, so a plain process counter RESETS per
+// spec and collides across specs on the shared DB. Anchor the digits in real
+// entropy (random bytes) + a counter so every call is unique within AND across
+// specs/processes — same robustness as `uniqueSuffix`. Unit-level whatsapp
+// (UnitPii) is NOT under this index and keeps its fixed seed value.
 let whatsappCounter = 0
-function uniqueWhatsapp(): string {
+export function uniqueWhatsapp(): string {
   whatsappCounter += 1
-  return `5511${String(900000000 + whatsappCounter).padStart(9, '0')}`
+  // 8 subscriber digits after the mobile `9`: blend entropy with the counter so
+  // two calls in the same millisecond still differ.
+  const rand = randomBytes(4).readUInt32BE(0)
+  const subscriber = (rand + whatsappCounter) % 100_000_000
+  return `55119${String(subscriber).padStart(8, '0')}`
 }
 
 // Seeds a profit Goal projection doc (brief 0042) directly via the emulator —
@@ -754,7 +763,7 @@ export async function seedLoginableMemberOperation(
       displayName: opts.displayName ?? 'E2E Profissional',
       emailVerified: true,
       currentOrgId: orgId,
-      whatsapp: '5511900000001',
+      whatsapp: uniqueWhatsapp(),
       birthDate: '1990-01-01',
       completionCompleted: true,
       claimedAt: now,
@@ -812,7 +821,7 @@ export async function seedLoginableMemberWithoutProfile(
       displayName: opts.displayName ?? 'E2E Sem Perfil',
       emailVerified: true,
       currentOrgId: orgId,
-      whatsapp: '5511900000002',
+      whatsapp: uniqueWhatsapp(),
       birthDate: '1990-01-01',
       completionCompleted: true,
       claimedAt: now,

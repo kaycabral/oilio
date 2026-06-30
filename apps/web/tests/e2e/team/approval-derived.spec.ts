@@ -14,7 +14,7 @@
 import { patchUser } from '@/shared/db/pg/users-store'
 import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
-import { seedService } from '../helpers/session'
+import { seedService, uniqueWhatsapp } from '../helpers/session'
 import { MemberOperationsPage, PublicBookingPage, orgSlug } from '../pages'
 
 function memberOperatorUserId(memberOperationId: string): string {
@@ -115,7 +115,7 @@ test.describe(
       // derive keys on whatsapp presence, not on `completionCompleted`.
       await patchUser(
         memberOperatorUserId(proId),
-        { whatsapp: '5511900000000' },
+        { whatsapp: uniqueWhatsapp() },
         new Date().toISOString(),
       )
 

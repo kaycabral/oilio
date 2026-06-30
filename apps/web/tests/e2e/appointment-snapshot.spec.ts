@@ -5,6 +5,7 @@ import {
   seedAppointment,
   seedCustomer,
   seedService,
+  uniqueWhatsapp,
 } from './helpers/session'
 import { AgendaPage, ServicesPage } from './pages'
 
@@ -37,7 +38,7 @@ test.describe('Snapshot do agendamento', () => {
     })
     const customerId = await seedCustomer(org.orgId, {
       name: 'Cliente Snapshot',
-      whatsapp: '11988887777',
+      whatsapp: uniqueWhatsapp(),
     })
     // Appointment seeded with snapshot = 5000 cents (booking-time price).
     await seedAppointment({
@@ -105,7 +106,7 @@ test.describe('Snapshot do agendamento', () => {
     })
     const customerId = await seedCustomer(org.orgId, {
       name: 'Cliente Drift',
-      whatsapp: '11955552222',
+      whatsapp: uniqueWhatsapp(),
     })
     const appointmentId = await seedAppointment({
       orgId: org.orgId,

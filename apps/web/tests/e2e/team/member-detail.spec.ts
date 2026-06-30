@@ -53,7 +53,9 @@ test.describe('Equipe — detalhe do membro (#1085)', { tag: '@critical' }, () =
       // Refino B: identity is read-only at the TOP (header), not repeated in the
       // form. No identity inputs anywhere.
       await expect(pros.identityName()).toHaveText('Profissional 1')
-      await expect(pros.identityWhatsapp()).toHaveText('(11) 90000-0000')
+      // The seeded pro's WhatsApp is generated unique per run (global uniqueness),
+      // so assert the read-only field carries a BR-masked number, not a literal.
+      await expect(pros.identityWhatsapp()).toHaveText(/^\(\d{2}\) \d{5}-\d{4}$/)
       await expect(pros.identityEmail()).toContainText('@e2e.local')
       // Identity is not duplicated inside the operational form: no name/whatsapp/
       // email inputs render anywhere on the page.

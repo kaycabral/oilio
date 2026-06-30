@@ -1,5 +1,11 @@
 import { expect, test } from '../fixtures'
-import { seedAppointment, seedCustomer, seedService, type SeededOrg } from '../helpers/session'
+import {
+  seedAppointment,
+  seedCustomer,
+  seedService,
+  uniqueWhatsapp,
+  type SeededOrg,
+} from '../helpers/session'
 import { AgendaPage } from '../pages'
 
 // Retrofit pros PRs #725/#724 (issue #639) — cancel + reschedule via
@@ -15,7 +21,7 @@ async function seedAppointmentForOrg(org: SeededOrg): Promise<void> {
   })
   const customerId = await seedCustomer(org.orgId, {
     name: 'Maria Cliente',
-    whatsapp: '11988887777',
+    whatsapp: uniqueWhatsapp(),
   })
   // BR is UTC-3. 14:00–14:30 BR == 17:00–17:30 UTC on 2026-08-12.
   await seedAppointment({

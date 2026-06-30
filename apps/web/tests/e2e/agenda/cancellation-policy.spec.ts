@@ -5,6 +5,7 @@ import {
   seedAppointment,
   seedCustomer,
   seedService,
+  uniqueWhatsapp,
 } from '../helpers/session'
 import { AgendaPage, PublicBookingPage, orgSlug } from '../pages'
 
@@ -99,7 +100,7 @@ test.describe('Não-comparecimento — marcar e desmarcar', () => {
     })
     const customerId = await seedCustomer(org.orgId, {
       name: 'Cliente NoShow',
-      whatsapp: '11988887777',
+      whatsapp: uniqueWhatsapp(),
     })
     // Fixed past instant inside business hours BR (Tue 2024-01-16 10:00 BR
     // = 13:00 UTC). The "Marcar não compareceu" gate only requires

@@ -18,7 +18,12 @@ import { Schema } from 'effect'
 import { randomBytes } from 'node:crypto'
 import { expect, test } from '../fixtures'
 import { parseJson } from '../helpers/rest-json'
-import { pgReadProjection, seedCustomer, setActiveUnitCookie } from '../helpers/session'
+import {
+  pgReadProjection,
+  seedCustomer,
+  setActiveUnitCookie,
+  uniqueWhatsapp,
+} from '../helpers/session'
 
 // Org com 2 unidades pra validar isolamento por unidade (Cenário 1).
 test.use({ orgInput: { unitCount: 2 } })
@@ -110,7 +115,8 @@ test.describe.serial('Brief 0018 — Definition of Done (Feature-level)', () => 
   }) => {
     const unitA = org.unitIds[0]!
     const unitB = org.unitIds[1]!
-    const customerId = await seedCustomer(org.orgId, { name: 'Maria', whatsapp: '11999998888' })
+    const wa = uniqueWhatsapp()
+    const customerId = await seedCustomer(org.orgId, { name: 'Maria', whatsapp: wa })
 
     const birthdayNotif = await seedNotification(org.orgId, unitA, 'birthday', customerId)
     await seedNotification(org.orgId, unitB, 'new_customer', customerId)
@@ -151,7 +157,7 @@ test.describe.serial('Brief 0018 — Definition of Done (Feature-level)', () => 
     expect(
       parseJson(await res.text(), Schema.decodeUnknownSync(Schema.Struct({ link: Schema.String })))
         .link,
-    ).toContain('https://wa.me/5511999998888')
+    ).toContain(`https://wa.me/${wa}`)
 
     const notif = await pgReadProjection(
       'notifications',

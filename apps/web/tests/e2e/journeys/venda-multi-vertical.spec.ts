@@ -46,6 +46,7 @@ import {
   seedMember,
   seedProduct,
   seedService,
+  uniqueWhatsapp,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
@@ -217,7 +218,7 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       })
       const customerId = await seedCustomer(org.orgId, {
         name: 'Cliente Agendado',
-        whatsapp: '11955554444',
+        whatsapp: uniqueWhatsapp(),
       })
       await seedAppointment({
         orgId: org.orgId,
@@ -284,7 +285,7 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       const gerente = await seedMember(org.orgId, { role: 'manager', displayName: 'Gerente Loja' })
       const customerId = await seedCustomer(org.orgId, {
         name: 'Cliente Default',
-        whatsapp: '11955552222',
+        whatsapp: uniqueWhatsapp(),
       })
       await seedAppointment({
         orgId: org.orgId,
