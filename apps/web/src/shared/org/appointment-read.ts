@@ -41,17 +41,20 @@ export async function listUnitAppointmentsInRange(
   orgId: string,
   unitId: string,
   range: { startUtc: string; endUtc: string },
-  // Own-scope (brief 0075, #1256): pass a memberOperation's id to restrict the read
-  // to THEIR appointments via the `app.current_member_operation` RLS predicate; `''`
-  // (the balcão) reads the whole unit. The SQL is unchanged — the database
-  // narrows the rows, so a memberOperation can't read a colleague's day.
-  memberOperationId = '',
-  // Cancelled visibility (brief 0081, #1311 AC-01/02): by default the agenda grid
-  // hides `cancelled` so freed slots read as empty. Only `cancelled` is filtered —
-  // `scheduled`/`completed`/`no_show` always render (no_show is the day's record).
-  // The toggle (#1312) flips this to `true` to re-surface cancelled appointments.
-  includeCancelled = false,
+  options: {
+    // Own-scope (brief 0075, #1256): pass a memberOperation's id to restrict the read
+    // to THEIR appointments via the `app.current_member_operation` RLS predicate; `''`
+    // (the balcão) reads the whole unit. The SQL is unchanged — the database
+    // narrows the rows, so a memberOperation can't read a colleague's day.
+    memberOperationId?: string
+    // Cancelled visibility (brief 0081, #1311 AC-01/02): by default the agenda grid
+    // hides `cancelled` so freed slots read as empty. Only `cancelled` is filtered —
+    // `scheduled`/`completed`/`no_show` always render (no_show is the day's record).
+    // The toggle (#1312) flips this to `true` to re-surface cancelled appointments.
+    includeCancelled?: boolean
+  } = {},
 ): Promise<Appointment[]> {
+  const { memberOperationId = '', includeCancelled = false } = options
   const { startUtc, endUtc } = range
   const statusFilter = includeCancelled ? '' : ` AND status <> 'cancelled'`
   const rows = await readUnderRls<AppointmentRow>(

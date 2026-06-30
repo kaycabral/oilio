@@ -98,7 +98,7 @@ describe('listUnitAppointmentsInRange', () => {
 
   it('includes cancelled when the toggle is on (AC-03)', async () => {
     const cap = captureQuery()
-    await listUnitAppointmentsInRange('org-1', 'u1', RANGE, '', true)
+    await listUnitAppointmentsInRange('org-1', 'u1', RANGE, { includeCancelled: true })
     expect(cap.sql()).not.toContain('status')
   })
 

@@ -170,3 +170,36 @@ describe('AgendaView — missing operational profile empty-state (#1268)', () =>
     expect(screen.getByRole('grid', { name: 'agenda-grid' })).toBeInTheDocument()
   })
 })
+
+// Brief 0081 (#1312 AC-03): the "mostrar cancelados" toggle is URL-driven.
+// Off by default; clicking it pushes `?showCancelled=1` (preserving the day);
+// clicking it while on drops the param. The day nav must carry the toggle along.
+describe('AgendaView — show-cancelled toggle (#1312)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('renders the toggle in the off state by default', () => {
+    render(<AgendaView {...baseProps} hasBusinessHours canManage />)
+    const toggle = screen.getByRole('button', { name: /mostrar cancelados/i })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('turning it on pushes ?showCancelled=1 while keeping the day', () => {
+    render(<AgendaView {...baseProps} hasBusinessHours canManage />)
+    fireEvent.click(screen.getByRole('button', { name: /mostrar cancelados/i }))
+    expect(mocks.routerPush).toHaveBeenCalledWith('/agenda?date=2026-05-15&showCancelled=1')
+  })
+
+  it('reflects the on state and lets you turn it off (drops the param)', () => {
+    render(<AgendaView {...baseProps} showCancelled hasBusinessHours canManage />)
+    const toggle = screen.getByRole('button', { name: /ocultar cancelados/i })
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(toggle)
+    expect(mocks.routerPush).toHaveBeenCalledWith('/agenda?date=2026-05-15')
+  })
+
+  it('changing the day preserves the toggle when it is on', () => {
+    render(<AgendaView {...baseProps} showCancelled hasBusinessHours canManage />)
+    fireEvent.click(screen.getByRole('button', { name: '→' }))
+    expect(mocks.routerPush).toHaveBeenCalledWith(expect.stringContaining('showCancelled=1'))
+  })
+})
