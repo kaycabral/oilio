@@ -1,9 +1,11 @@
 import {
   mergeAllowedTimeScopes,
   mergeBookingLimits,
+  remainingUsage,
   Subscription,
   type AllowedTimeScope,
   type BookingLimits,
+  type SubscriptionCoverageEntry,
 } from '@/domain'
 import {
   rowToDoc as subscriptionRowToDoc,
@@ -53,6 +55,14 @@ export type CustomerSubscriptionScope = {
   // = unrestricted, mirroring the avulso path). A non-null set restricts
   // self-book/agenda coverage to services whose `categoryId` ∈ the set.
   includedCategoryIds: Set<string> | null
+  // Recognition layer (brief 0079, Grupo A — AC-01/AC-02). One entry per
+  // scope-bearing subscription, carrying its frozen item/category coverage plus
+  // the period balance (`remaining`). Additive to the gating axes above — the
+  // wizard and the comanda derive "covered with balance" from this via
+  // `isItemCoveredWithBalance`, while the `remaining` count stays internal
+  // (decides badge/auto-mark presence, never rendered as a number — AC-02).
+  // Empty for visitors with no scope-bearing subscription.
+  coverage: SubscriptionCoverageEntry[]
 }
 
 // Mutable accumulator while folding the scope-bearing subscriptions. The
@@ -65,6 +75,7 @@ type ScopeAcc = {
   bookingLimits: BookingLimits | null
   bookingLimitsStarted: boolean
   includedCategoryIds: Set<string> | null
+  coverage: SubscriptionCoverageEntry[]
 }
 
 // Set-union axis (unitAllowlist / includedCategoryIds): union the ids, but any
@@ -105,16 +116,17 @@ function foldScope(acc: ScopeAcc, sub: Subscription): ScopeAcc {
   // Category coverage axis (brief 0023, AC-04/AC-06). Empty = covers everything.
   acc.includedCategoryIds = foldSetAxis(acc.includedCategoryIds, sub.plan.includedCategoryIds, true)
 
-  return acc
-}
+  // Recognition axis (brief 0079, Grupo A). Unlike the gating axes above, this
+  // is collected per-subscription (no union): a covered item draws its balance
+  // from the specific snapshot that covers it. `remaining` is `null` for an
+  // unlimited plan (always has balance).
+  acc.coverage.push({
+    includedItemIds: sub.plan.includedItemIds,
+    includedCategoryIds: sub.plan.includedCategoryIds,
+    remaining: remainingUsage(sub.currentPeriod.consumed, sub.plan.usageLimit),
+  })
 
-function allAxesUnrestricted(acc: ScopeAcc): boolean {
-  return (
-    acc.unitAllowlist === null &&
-    acc.allowedTimeScope === null &&
-    acc.bookingLimits === null &&
-    acc.includedCategoryIds === null
-  )
+  return acc
 }
 
 async function fetchCustomerScope(
@@ -130,6 +142,7 @@ async function fetchCustomerScope(
     bookingLimits: null,
     bookingLimitsStarted: false,
     includedCategoryIds: new Set<string>(),
+    coverage: [],
   }
 
   if (subscriptions.length === 0) {
@@ -138,13 +151,14 @@ async function fetchCustomerScope(
       allowedTimeScope: null,
       bookingLimits: null,
       includedCategoryIds: null,
+      coverage: [],
     }
   }
 
+  // No early break: every scope-bearing subscription contributes a recognition
+  // entry (brief 0079), even once the gating axes have collapsed to unrestricted.
   for (const sub of subscriptions) {
     foldScope(acc, sub)
-    // Every axis already collapsed to unrestricted — no further doc can tighten.
-    if (allAxesUnrestricted(acc)) break
   }
 
   return {
@@ -152,6 +166,7 @@ async function fetchCustomerScope(
     allowedTimeScope: acc.allowedTimeScope,
     bookingLimits: acc.bookingLimits,
     includedCategoryIds: acc.includedCategoryIds,
+    coverage: acc.coverage,
   }
 }
 

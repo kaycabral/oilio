@@ -34,3 +34,30 @@ export function isItemCoveredBySubscription(
   // uncategorized item (`null`) can only be covered by a direct item match.
   return item.categoryId !== null && snapshot.includedCategoryIds.includes(item.categoryId)
 }
+
+// One scope-bearing subscription's coverage shape, as resolved at booking time
+// (brief 0079, Grupo A — #1305). `remaining` is the period balance: `null` for
+// an unlimited plan (always has balance), a count otherwise. Carries only what
+// the recognition layer needs — the raw number never reaches the customer UI.
+export type SubscriptionCoverageEntry = Pick<
+  SubscriptionPlanSnapshot,
+  'includedItemIds' | 'includedCategoryIds'
+> & {
+  remaining: number | null
+}
+
+// Booking-time recognition predicate (brief 0079, Grupo A — AC-01/AC-02). An
+// item earns the "no seu plano" badge / coverage auto-mark only when SOME
+// scope-bearing subscription both COVERS it (`isItemCoveredBySubscription`) and
+// still has cycle balance (`remaining > 0`, or unlimited). A covered item whose
+// every covering subscription is out of balance falls back to avulso (no badge,
+// full price) — AC-04. The balance is consumed only to decide presence here; it
+// is never rendered as a number (AC-02).
+export function isItemCoveredWithBalance(
+  entries: readonly SubscriptionCoverageEntry[],
+  item: { id: string; categoryId: string | null },
+): boolean {
+  return entries.some(
+    (e) => (e.remaining === null || e.remaining > 0) && isItemCoveredBySubscription(e, item),
+  )
+}
