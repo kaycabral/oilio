@@ -111,16 +111,14 @@ test.describe('Feature 0002 — Definition of Done', () => {
   })
 
   test('Cenário 2: erro de backend tratado inline no dialog', async ({ org, authedPage }) => {
-    // Cliente com assinatura ativa: marca o serviço como consumo do plano, mas a
-    // assinatura é cancelada antes do fechamento → closeOrder rejeita o consumo
-    // (erro de backend determinístico), e o dialog mostra o erro inline.
+    // Cliente com assinatura ativa cujo plano cobre o serviço: a comanda nasce
+    // com o item já em "Consumo do plano" (auto-marcação, brief 0079) — sem flip
+    // manual. A assinatura é então cancelada antes do fechamento → closeOrder
+    // rejeita o consumo (erro de backend determinístico) e o dialog mostra inline.
     const { subId } = await openOrder(authedPage, org, { withSubscription: true })
 
-    await chooseOption(
-      authedPage.getByRole('listitem').filter({ hasText: 'Corte' }),
-      'Cobertura do item',
-      'Consumo do plano',
-    )
+    // Auto-marcado na abertura (brief 0079 AC-06): o item coberto + saldo entra
+    // como "Consumo do plano" sem o operador tocar no seletor.
     await expect(authedPage.getByText('Consumo do plano').first()).toBeVisible()
 
     // Cancela a assinatura direto no store (só o campo status) — força um erro
