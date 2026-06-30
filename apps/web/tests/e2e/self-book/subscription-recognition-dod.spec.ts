@@ -140,13 +140,15 @@ test.describe(
       await authedPage.getByRole('button', { name: /Iniciar atendimento/ }).click()
       await expect(authedPage).toHaveURL(/\/orders\/.+/)
 
-      // The covered item is ALREADY plan consumption — no operator flip.
+      // The covered item is ALREADY plan consumption — no operator flip. The
+      // coverage combobox shows "Consumo do plano" as its selected value (the
+      // emerald badge also carries the text, so target the select-value role).
       await expect(
         authedPage
           .getByRole('listitem')
           .filter({ hasText: `Corte ${ts}` })
-          .getByText('Consumo do plano'),
-      ).toBeVisible()
+          .getByRole('combobox', { name: 'Cobertura do item' }),
+      ).toHaveText('Consumo do plano')
       // 100% covered → closes with no payment method.
       await expect(authedPage.getByText(/100% coberta pelo plano/)).toBeVisible()
       await confirmClose(authedPage)

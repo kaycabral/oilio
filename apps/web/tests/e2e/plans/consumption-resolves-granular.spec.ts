@@ -137,13 +137,14 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
     const orderId = authedPage.url().split('/orders/')[1]!.split(/[?#]/)[0]!
 
     // The covered service auto-marks as plan consumption on start (brief 0079
-    // AC-06) — no manual flip. The item-by-id coverage + balance is recognized.
+    // AC-06) — no manual flip. Target the coverage combobox's selected value
+    // (the emerald badge also carries the text).
     await expect(
       authedPage
         .getByRole('listitem')
         .filter({ hasText: `Barba ${ts}` })
-        .getByText('Consumo do plano'),
-    ).toBeVisible()
+        .getByRole('combobox', { name: 'Cobertura do item' }),
+    ).toHaveText('Consumo do plano')
 
     // The product, covered by category convenience, also auto-marks when added
     // (brief 0079 AC-09 — kind-agnostic), with balance still available.
@@ -152,8 +153,8 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
       authedPage
         .getByRole('listitem')
         .filter({ hasText: `Pomada ${ts}` })
-        .getByText('Consumo do plano'),
-    ).toBeVisible()
+        .getByRole('combobox', { name: 'Cobertura do item' }),
+    ).toHaveText('Consumo do plano')
 
     // 100% covered → closes with no payment method.
     await expect(authedPage.getByText(/100% coberta pelo plano/)).toBeVisible()
