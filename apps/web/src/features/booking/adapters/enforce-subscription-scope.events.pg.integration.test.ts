@@ -12,10 +12,11 @@
 // seeded directly over the superuser pool (the runtime RLS shape is proven in
 // the dedicated isolation suites).
 
-import type { SubscriptionPlanSnapshot } from '@/domain'
+import { isItemCoveredWithBalance, type SubscriptionPlanSnapshot } from '@/domain'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { enforceSubscriptionScope } from './enforce-subscription-scope'
+import { resolveCustomerSubscriptionScope } from './subscription-scope.repo'
 
 const TZ = 'America/Sao_Paulo'
 const CUSTOMER_USER_ID = 'u-1'
@@ -91,24 +92,42 @@ async function seedCustomer(orgId: string, customerId: string, userId: string): 
   )
 }
 
+// Brief 0079 coverage tests need >1 subscription per customer and a non-zero
+// consumed count. `id`/`consumed` default to the historical values, so the
+// gating tests keep calling with the same 4 positional args.
 async function seedSubscription(
   orgId: string,
   customerId: string,
   customerUserId: string,
   plan: SubscriptionPlanSnapshot,
 ): Promise<void> {
+  await seedSubscriptionRow({ orgId, customerId, customerUserId, plan })
+}
+
+async function seedSubscriptionRow(args: {
+  orgId: string
+  customerId: string
+  customerUserId: string
+  plan: SubscriptionPlanSnapshot
+  id?: string
+  consumed?: number
+}): Promise<void> {
   const now = new Date().toISOString()
-  const currentPeriod = { startAt: now, endAt: '2099-01-01T00:00:00.000Z', consumed: 0 }
+  const currentPeriod = {
+    startAt: now,
+    endAt: '2099-01-01T00:00:00.000Z',
+    consumed: args.consumed ?? 0,
+  }
   await getEventStorePool().query(
     `INSERT INTO subscriptions (org_id, id, unit_id, last_event_version, customer_id, customer_user_id, status, billing_cycle, cancel_at_period_end, next_charge_date, past_due_cycles, past_due_threshold, cancellation_reason, cancelled_at, plan, current_period, created_at, updated_at)
      VALUES ($1,$2,'unit-a',1,$3,$4,'active',$5,false,NULL,0,2,NULL,NULL,$6::jsonb,$7::jsonb,$8,$8)`,
     [
-      orgId,
-      'sub-1',
-      customerId,
-      customerUserId,
-      plan.billingCycle,
-      JSON.stringify(plan),
+      args.orgId,
+      args.id ?? 'sub-1',
+      args.customerId,
+      args.customerUserId,
+      args.plan.billingCycle,
+      JSON.stringify(args.plan),
       JSON.stringify(currentPeriod),
       now,
     ],
@@ -243,5 +262,123 @@ describe('enforceSubscriptionScope — Postgres', () => {
       excludeAppointmentId: 'a-moving',
     })
     expect(res).toEqual({ ok: true })
+  })
+})
+
+// Brief 0079, Grupo A (#1305). The resolver now exposes, on top of the gating
+// axes, a `coverage[]` entry per scope-bearing subscription (frozen item/category
+// snapshot + period balance). The recognition layer derives "covered with
+// balance" from it; the gating result must stay byte-for-byte the same (additive).
+describe('resolveCustomerSubscriptionScope — coverage (brief 0079)', () => {
+  let orgId: string
+
+  beforeEach(async () => {
+    await getEventStorePool().query(
+      'TRUNCATE appointments, subscriptions, customers, catalog_items, member_operations, units, orgs CASCADE',
+    )
+    orgId = uniqueOrgId('cov')
+    await seedOrg(orgId)
+    await seedUnit(orgId, 'unit-a')
+    await seedCustomer(orgId, 'c1', CUSTOMER_USER_ID)
+  })
+
+  afterAll(async () => {
+    await closeEventStoreDb()
+  })
+
+  it('returns an empty coverage list when the customer has no subscription', async () => {
+    const scope = await resolveCustomerSubscriptionScope(orgId, CUSTOMER_USER_ID)
+    expect(scope.coverage).toEqual([])
+  })
+
+  it('exposes the frozen item/category snapshot + remaining balance per subscription', async () => {
+    await seedSubscriptionRow({
+      orgId,
+      customerId: 'c1',
+      customerUserId: CUSTOMER_USER_ID,
+      plan: buildPlanSnapshot({
+        includedItemIds: ['item-corte'],
+        includedCategoryIds: ['cat-cabelo'],
+        usageLimit: { kind: 'count', quantity: 4 },
+      }),
+      consumed: 1,
+    })
+    const scope = await resolveCustomerSubscriptionScope(orgId, CUSTOMER_USER_ID)
+    expect(scope.coverage).toEqual([
+      {
+        includedItemIds: ['item-corte'],
+        includedCategoryIds: ['cat-cabelo'],
+        remaining: 3,
+      },
+    ])
+    // Recognition predicate sees the item as covered-with-balance.
+    expect(
+      isItemCoveredWithBalance(scope.coverage, { id: 'item-corte', categoryId: 'cat-x' }),
+    ).toBe(true)
+  })
+
+  it('reports remaining 0 for an exhausted plan (→ item falls back to avulso)', async () => {
+    await seedSubscriptionRow({
+      orgId,
+      customerId: 'c1',
+      customerUserId: CUSTOMER_USER_ID,
+      plan: buildPlanSnapshot({
+        includedItemIds: ['item-corte'],
+        usageLimit: { kind: 'count', quantity: 4 },
+      }),
+      consumed: 4,
+    })
+    const scope = await resolveCustomerSubscriptionScope(orgId, CUSTOMER_USER_ID)
+    expect(scope.coverage[0]?.remaining).toBe(0)
+    expect(isItemCoveredWithBalance(scope.coverage, { id: 'item-corte', categoryId: null })).toBe(
+      false,
+    )
+  })
+
+  it('reports remaining null for an unlimited plan (always has balance)', async () => {
+    await seedSubscriptionRow({
+      orgId,
+      customerId: 'c1',
+      customerUserId: CUSTOMER_USER_ID,
+      plan: buildPlanSnapshot({
+        includedItemIds: ['item-corte'],
+        usageLimit: { kind: 'unlimited' },
+      }),
+    })
+    const scope = await resolveCustomerSubscriptionScope(orgId, CUSTOMER_USER_ID)
+    expect(scope.coverage[0]?.remaining).toBeNull()
+  })
+
+  it('collects one coverage entry per scope-bearing subscription (no early break)', async () => {
+    await seedSubscriptionRow({
+      orgId,
+      customerId: 'c1',
+      customerUserId: CUSTOMER_USER_ID,
+      plan: buildPlanSnapshot({
+        includedItemIds: ['item-corte'],
+        usageLimit: { kind: 'unlimited' },
+      }),
+      id: 'sub-1',
+    })
+    await seedSubscriptionRow({
+      orgId,
+      customerId: 'c1',
+      customerUserId: CUSTOMER_USER_ID,
+      plan: buildPlanSnapshot({
+        includedItemIds: ['item-barba'],
+        usageLimit: { kind: 'count', quantity: 2 },
+      }),
+      id: 'sub-2',
+      consumed: 2,
+    })
+    const scope = await resolveCustomerSubscriptionScope(orgId, CUSTOMER_USER_ID)
+    expect(scope.coverage).toHaveLength(2)
+    // Corte: covered with balance (unlimited). Barba: covered but exhausted.
+    expect(isItemCoveredWithBalance(scope.coverage, { id: 'item-corte', categoryId: null })).toBe(
+      true,
+    )
+    expect(isItemCoveredWithBalance(scope.coverage, { id: 'item-barba', categoryId: null })).toBe(
+      false,
+    )
   })
 })
