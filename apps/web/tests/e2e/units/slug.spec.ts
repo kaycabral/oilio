@@ -39,10 +39,29 @@ test.describe('Unidades — slug público', () => {
       )
       await expect(dialog.getByText(/disponível/i)).toBeVisible()
 
+      // #1295: the slug input's HTML `pattern` must be the `v`-safe form (hyphen
+      // escaped as `\-`), so Safari/iOS — which compile the attribute under the
+      // `v` (unicodeSets) flag — don't throw and block submit. Assert the exact
+      // escaped attribute is on the input (that the source is valid under `v` is
+      // proven in slug.test.ts); `\-` in the DOM attribute is a literal backslash.
+      await expect(dialog.getByRole('textbox', { name: 'Slug público' })).toHaveAttribute(
+        'pattern',
+        '[a-z0-9](?:[a-z0-9\\-]*[a-z0-9])?',
+      )
+
       await dialog.getByRole('textbox', { name: 'WhatsApp' }).fill('11955554444')
       await dialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
       await expect(dialog.getByText(/São Paulo\/SP/)).toBeVisible()
+
+      // #1296: the CEP lookup revealed a required `Número` field. Until it's
+      // filled the submit stays disabled — and the form must SAY which field is
+      // pending, not leave a dead button. The hint names the revealed field.
+      await expect(dialog.getByRole('button', { name: 'Criar' })).toBeDisabled()
+      await expect(dialog.getByText(/Preencha .*Número.* para criar/i)).toBeVisible()
+
       await dialog.getByRole('textbox', { name: 'Número' }).fill('200')
+      // Hint clears once the pending field is filled.
+      await expect(dialog.getByText(/Preencha .*Número.* para criar/i)).toHaveCount(0)
       // v2: horário de funcionamento é obrigatório — habilita um dia.
       await enableUnitBusinessHours(dialog)
       await dialog.getByRole('button', { name: 'Criar' }).click()

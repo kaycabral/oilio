@@ -6,6 +6,7 @@ import {
   appointmentAgenda,
   type BusinessHours,
   isValidUnitSlug,
+  SLUG_HTML_PATTERN,
   slugifyUnitName,
   type Unit,
   unitBusinessHours,
@@ -56,7 +57,7 @@ type UnitFormDefaults = {
 export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormDefaults }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const { formRef, isValid, refresh } = useFormValidity()
+  const { formRef, isValid, firstInvalidLabel, refresh } = useFormValidity()
   const [name, setName] = useState(unit?.name ?? defaults?.name ?? '')
   const [slug, setSlug] = useState(unit?.slug ?? '')
   const [slugTouched, setSlugTouched] = useState(false)
@@ -166,7 +167,7 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
               placeholder="filial-centro"
               minLength={3}
               maxLength={64}
-              pattern="[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
+              pattern={SLUG_HTML_PATTERN}
               required
               aria-invalid={slugState.kind === 'taken' || slugState.kind === 'invalid'}
             />
@@ -227,6 +228,15 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
           </>
         ) : null}
         {error ? <FieldError>{error}</FieldError> : null}
+        {/* When the submit is gated only by an unfilled required field, name it
+            so the user isn't left with a dead button and no clue which field is
+            pending — the culprit is often the address `Número` revealed after the
+            CEP lookup, which may sit below the fold (#1296). */}
+        {!isValid && !pending && !submitBlocked && firstInvalidLabel ? (
+          <FieldDescription className="text-right">
+            Preencha “{firstInvalidLabel}” para {unit ? 'salvar' : 'criar'}.
+          </FieldDescription>
+        ) : null}
         <Field orientation="horizontal" className="justify-end">
           <Button type="submit" disabled={pending || !isValid || submitBlocked}>
             {(() => {
