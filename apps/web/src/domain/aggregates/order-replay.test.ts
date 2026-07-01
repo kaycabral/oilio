@@ -174,4 +174,53 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
     expect(replayed.items[0]!.subscriptionId).toBe('sub1')
     expect(replayed.totalCents).toBe(0)
   })
+
+  it('customer_assigned: avulsa anônima → vincula → replay reconstrói o customerId (#1321)', async () => {
+    const { store, layer } = makeReplayStore()
+    const ref = aggregateRef(OrderConfig, 't1', 'o3')
+    // Venda avulsa nasce anônima (customerId: null, brief 0030).
+    const data = {
+      id: 'o3',
+      orgId: 't1',
+      unitId: 'u1',
+      customerId: null,
+      appointmentId: null,
+      status: 'open',
+      items: [],
+      discountCents: 0,
+      notes: null,
+      closedAt: null,
+      paymentMethod: null,
+      subtotalCents: 0,
+      totalCents: 0,
+      createdAt: '2026-06-01T12:00:00.000Z',
+      updatedAt: '2026-06-01T12:00:00.000Z',
+    }
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* appendEvent(OrderConfig, ref, {
+          _tag: 'order.created',
+          actorId: 'staff-1',
+          payload: { data },
+        })
+        // Vincula um cliente pós-abertura (o evento novo do 0081).
+        yield* appendEvent(OrderConfig, ref, {
+          _tag: 'order.customer_assigned',
+          actorId: 'staff-1',
+          payload: { customerId: 'c1' },
+        })
+      }).pipe(Effect.provide(layer)),
+    )
+
+    const projection = store.get(docKey(ref))!
+    const replayed = await Effect.runPromise(
+      replayAggregate(OrderConfig, ref).pipe(Effect.provide(layer)),
+    )
+
+    // O customerId reconstrói SÓ pelos eventos (nasceu null, o assign o setou).
+    expect(replayed).toEqual(projection)
+    expect(replayed._version).toBe(2)
+    expect(replayed.customerId).toBe('c1')
+  })
 })

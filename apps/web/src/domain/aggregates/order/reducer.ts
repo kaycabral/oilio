@@ -19,6 +19,15 @@ export function applyOrderEvent(state: OrderState, event: OrderEvent, meta: Even
         throw new Error(`${event._tag} aplicado a order ${state.status} (${state.id})`)
       }
       return { ...state, ...event.changes, _version }
+    case 'order.customer_assigned':
+      // Vincular/desvincular/trocar o cliente só enquanto aberta (#1321) — mesma
+      // invariante de sequência dos eventos de item/meta. Projeta o `customerId`
+      // (nullable) num campo que já existe no read-model; a cobertura é reavaliada
+      // no adapter, não aqui (o reducer é puro).
+      if (state.status !== 'open') {
+        throw new Error(`${event._tag} aplicado a order ${state.status} (${state.id})`)
+      }
+      return { ...state, customerId: event.customerId, updatedAt: meta.timestamp, _version }
     case 'order.cancelled':
       return {
         ...state,
