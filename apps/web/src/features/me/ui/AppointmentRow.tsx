@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@cbrl/design'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
 
 // Slot-grid source for the self-service reschedule picker (brief 0080, Grupo C).
@@ -235,8 +236,8 @@ function ScheduledActions({
 }
 
 export function AppointmentRow({ data }: { data: AppointmentRowData }) {
+  const router = useRouter()
   const [cancelled, setCancelled] = useState(data.status === 'cancelled')
-  const [rescheduled, setRescheduled] = useState(false)
   const effectiveStatus = cancelled ? 'cancelled' : data.status
 
   return (
@@ -256,17 +257,16 @@ export function AppointmentRow({ data }: { data: AppointmentRowData }) {
       </p>
       <p className="text-muted-foreground text-xs">{data.priceLabel}</p>
 
-      {rescheduled ? (
-        <p className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
-          Agendamento reagendado. Atualize a página para ver o novo horário.
-        </p>
-      ) : null}
-
-      {effectiveStatus === 'scheduled' && !rescheduled ? (
+      {effectiveStatus === 'scheduled' ? (
         <ScheduledActions
           data={data}
           onCancelled={() => setCancelled(true)}
-          onRescheduled={() => setRescheduled(true)}
+          // A successful reschedule changes a server-projected value (the new
+          // start/end labels), which optimistic client state can't produce —
+          // refresh so the Server Component re-renders with the new time and
+          // the panel closes (mirrors ConfirmBookingForm). Fixes the stale
+          // "atualize a página" banner that showed the OLD time (#B9).
+          onRescheduled={() => router.refresh()}
         />
       ) : null}
     </li>
