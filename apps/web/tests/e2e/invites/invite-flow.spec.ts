@@ -41,7 +41,10 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
 
     await expect(page.getByRole('heading', { name: /convite para/i })).toBeVisible()
-    await expect(page.getByText(new RegExp(`papel proposto`, 'i'))).toBeVisible()
+    // The proposed role shows the human label, never the raw enum key (#1299).
+    // A `manager` invite must read "Gerente" — asserting the label here would
+    // have caught the pre-fix render that leaked the key ("manager").
+    await expect(page.getByText(/papel proposto/i)).toContainText('Gerente')
 
     await page.getByRole('button', { name: /aceitar convite/i }).click()
 

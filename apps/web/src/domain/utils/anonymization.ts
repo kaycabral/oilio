@@ -45,7 +45,7 @@ export function anonymizedSubjectCode(userId: string): string {
 // The role noun used to build the neutral label per surface (#1095, AC-03).
 // Owner/manager surfaces still read as the operational noun a screen shows
 // (member lists are role-keyed, customer lists are always "Cliente"). Kept
-// in sync with the human-facing ROLE_LABELS used across the app.
+// in sync with the human-facing `roleLabel` used across the app.
 export const ROLE_SUBJECT_NOUN: Record<Role, string> = {
   owner: 'Dono',
   manager: 'Gerente',

@@ -104,6 +104,23 @@ export function roleDescription(role: Role): string {
   }
 }
 
+// Short, human-facing name for each role — the label shown in role pickers, the
+// team list, and the invite/accept screens. Single source so the copy can't
+// drift across surfaces (it was duplicated verbatim in InviteForm, TeamList and
+// the accept page, which showed the raw enum key — #1299). Copy is pt-BR.
+export function roleLabel(role: Role): string {
+  switch (role) {
+    case 'owner':
+      return 'Dono'
+    case 'manager':
+      return 'Gerente'
+    case 'member_operator':
+      return 'Profissional'
+    case 'receptionist':
+      return 'Recepção'
+  }
+}
+
 // Default permission set per role. Owner gets everything; manager mirrors
 // owner minus financial-sensitive bits (kept open here for V0 simplicity
 // but easy to tighten); memberOperation gets agenda + appointments;

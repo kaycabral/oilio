@@ -90,6 +90,7 @@ export {
   membershipDocId,
   operatesCrossUnit,
   roleDescription,
+  roleLabel,
 } from './types/membership'
 export {
   DEFAULT_NOTIFICATION_TEMPLATES,
