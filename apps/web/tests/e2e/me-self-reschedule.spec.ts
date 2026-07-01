@@ -78,8 +78,13 @@ test.describe('Me — reagendamento self-service do cliente', { tag: '@critical'
     await me.pickTime(time)
     await me.confirmRescheduleButton().click()
 
-    // The row swaps to the "reagendado" confirmation.
-    await expect(page.getByText(/reagendado/i)).toBeVisible()
+    // On success the panel closes and the Server Component re-renders with the
+    // new (server-projected) time via `router.refresh()` — there is no longer a
+    // stale "atualize a página" banner showing the OLD time (#B9). Assert the
+    // reschedule panel is gone and the appointment still shows, scheduled.
+    await expect(me.confirmRescheduleButton()).toBeHidden()
+    await expect(me.appointmentByService('Corte Reagendável')).toBeVisible()
+    await expect(page.getByText(/atualize a página/i)).toHaveCount(0)
 
     // Projection moved: the appointment's start_at is now the chosen slot, and a
     // `appointment.rescheduled` event was emitted by the customer.
