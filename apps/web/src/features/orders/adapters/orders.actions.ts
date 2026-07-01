@@ -10,6 +10,7 @@ import {
 } from '@/domain'
 import { CatalogItemConfig, OrderConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
+import { parseAssignCustomerForm } from '@/features/orders/core/assign-customer-form'
 import {
   parseItemForm,
   recalcAndPatch,
@@ -38,6 +39,8 @@ import {
   denyIfNotOwnOrder,
   genItemId,
   loadOpenOrder,
+  reevaluateCoverageForItems,
+  resolveAssignedCustomerId,
   resolveItemCoverageSubscription,
 } from './order-write-helpers'
 
@@ -486,6 +489,62 @@ export async function updateItemCoverage(
       to: coverage,
     })
   }
+
+  revalidatePath(`/orders/${orderId}`)
+  return { ok: true, orderId }
+}
+
+// Link / swap / unlink the customer on an OPEN order (brief 0081 / #1323). A
+// walk-in sale is born anonymous; this lets the front desk attach a customer
+// after opening, so the balcão inherits the 0079 subscription-coverage machine.
+// After the assign, EVERY item's coverage is re-evaluated (Cenário 4): a linked
+// subscriber's covered items auto-mark `subscription` (Cenário 2), and items that
+// lost coverage (unlink / swap to a non-subscriber / no balance) fall back to
+// `sale` — never left covered against a customer that can't cover them. The two
+// appends (assign + coverage patch) are on the SAME `order` aggregate, so this
+// stays a single-aggregate write, not a cross-aggregate saga.
+export async function assignCustomerToOrder(
+  orderId: string,
+  formData: FormData,
+): Promise<OrderMutationResult> {
+  const r = await requireOrgCtx()
+  if (!r.ok) return { ok: false, error: r.error }
+
+  const parsed = parseAssignCustomerForm(formData)
+  if (typeof parsed === 'string') return { ok: false, error: parsed }
+
+  const orgId = r.ctx.membership.orgId
+  const loaded = await loadOpenOrder(orgId, orderId)
+  if (typeof loaded === 'string') return { ok: false, error: loaded }
+
+  // Own-resource (brief 0075, #1257): only the order's own memberOperation or the
+  // balcão may touch this comanda — never a colleague's.
+  const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
+  if (denied) return denied
+
+  // Resolve the target customer id: existing / new-inline / null (unlink).
+  const resolvedId = await resolveAssignedCustomerId(orgId, r.ctx.membership, parsed)
+  if ('error' in resolvedId) return { ok: false, error: resolvedId.error }
+  const customerId = resolvedId.customerId
+
+  // 1st append: the customer link/unlink (nullable — one event, brief 0081 A).
+  const assigned = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
+    _tag: 'order.customer_assigned',
+    actorId: r.ctx.session.uid,
+    payload: { customerId },
+  })
+  if (!assigned.ok) return { ok: false, error: assigned.error }
+
+  // 2nd append: re-evaluate every item's coverage against the new customer and
+  // persist the recalculated items + totals (Cenário 2 + Cenário 4).
+  const reevaluated = await reevaluateCoverageForItems(orgId, { ...loaded.order, customerId })
+  const patch = recalcAndPatch(reevaluated, loaded.order.discountCents)
+  const changed = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
+    _tag: 'order.item_coverage_changed',
+    actorId: r.ctx.session.uid,
+    payload: { changes: patch },
+  })
+  if (!changed.ok) return { ok: false, error: changed.error }
 
   revalidatePath(`/orders/${orderId}`)
   return { ok: true, orderId }
