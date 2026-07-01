@@ -11,6 +11,7 @@ import {
 import { CatalogItemConfig, OrderConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { parseAssignCustomerForm } from '@/features/orders/core/assign-customer-form'
+import { coverageDenialMessage } from '@/features/orders/core/coverage-result'
 import {
   parseItemForm,
   recalcAndPatch,
@@ -125,13 +126,14 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
     createdAt: '',
     updatedAt: '',
   }
-  const autosetSubscriptionId = await autoMarkCoverageDefault({
+  const coverage = await autoMarkCoverageDefault({
     orgId,
     order: candidateOrder,
     target: initialItem,
     idx: 0,
     catalogHint: service,
   })
+  const autosetSubscriptionId = coverage.covered ? coverage.subscriptionId : null
 
   const totals = computeOrderTotals([initialItem], 0)
   const now = new Date().toISOString()
@@ -292,8 +294,15 @@ export async function addItemToOrder(
     target: candidate,
     idx: loaded.order.items.length,
   })
-  const autosetSubscriptionId =
-    typeof coverageResolved === 'string' ? null : coverageResolved.subscriptionId
+  const autosetSubscriptionId = coverageResolved.covered ? coverageResolved.subscriptionId : null
+  // AC-06: when the item entered `sale` but the customer HAS a subscription that
+  // just couldn't cover it (not in plan / no balance / expired), surface the
+  // specific reason so the operator sees WHY — never a silent full-price fallback.
+  // `no_customer` is a plain anonymous sale, not a denial worth explaining.
+  const coverageNotice =
+    !coverageResolved.covered && coverageResolved.reason !== 'no_customer'
+      ? coverageDenialMessage(coverageResolved.reason)
+      : undefined
 
   const catalogRef = aggregateRef(CatalogItemConfig, orgId, parsed.refId)
   const added = await emitEventGuarded({
@@ -332,7 +341,7 @@ export async function addItemToOrder(
 
   revalidatePath(`/orders/${orderId}`)
   revalidatePath('/orders')
-  return { ok: true, orderId }
+  return { ok: true, orderId, coverageNotice }
 }
 
 export async function removeItemFromOrder(
@@ -460,7 +469,9 @@ export async function updateItemCoverage(
       target,
       idx,
     })
-    if (typeof resolved === 'string') return { ok: false, error: resolved }
+    if (!resolved.covered) {
+      return { ok: false, error: coverageDenialMessage(resolved.reason) }
+    }
     subscriptionId = resolved.subscriptionId
   }
 

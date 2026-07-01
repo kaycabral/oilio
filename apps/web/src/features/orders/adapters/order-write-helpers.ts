@@ -19,6 +19,7 @@ import {
   type Subscription,
 } from '@/domain'
 import type { ParsedAssignCustomer } from '@/features/orders/core/assign-customer-form'
+import type { CoverageResult } from '@/features/orders/core/coverage-result'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { newId } from '@/shared/db/pg/new-id'
 
@@ -177,43 +178,50 @@ type ItemCoverageInput = {
   catalogHint?: { id: string; categoryId: string | null }
 }
 
+// Resolves whether `target` can be covered by the customer's active subscription
+// (brief 0021/0024). Returns a discriminated `CoverageResult` (#1324, AC-06): a
+// covered result carries the subscription id; a denial carries a TAGGED reason
+// (`no_customer` / `no_subscription` / `not_in_plan` / `no_balance`), so callers
+// surface WHY the item stays `sale` instead of discarding the reason. `expirada`
+// collapses into `no_subscription` (an expired sub isn't returned as active).
 export async function resolveItemCoverageSubscription(
   args: ItemCoverageInput,
-): Promise<{ subscriptionId: string } | string> {
+): Promise<CoverageResult> {
   const { orgId, order, target, idx, catalogHint } = args
   // Venda avulsa anônima (brief 0030, AC-02) não tem cliente → sem assinatura.
-  if (!order.customerId) return 'Venda sem cliente não pode consumir assinatura'
+  if (!order.customerId) return { covered: false, reason: 'no_customer' }
   const sub = await loadActiveSubscriptionForCustomer(orgId, order.customerId)
-  if (!sub) return 'Cliente não possui assinatura ativa'
+  if (!sub) return { covered: false, reason: 'no_subscription' }
 
   const catalogItem = catalogHint ?? (await getCatalogItemById(orgId, target.refId))
-  if (!catalogItem) return 'Item não encontrado no catálogo'
+  if (!catalogItem) return { covered: false, reason: 'not_in_catalog' }
   if (!isItemCoveredBySubscription(sub.plan, catalogItem)) {
-    return 'Item não está coberto pelo plano do cliente'
+    return { covered: false, reason: 'not_in_plan' }
   }
 
   // Saldo restante = limite − consumido − já coberto nesta comanda (exceto este).
   if (sub.plan.usageLimit.kind === 'count') {
     const alreadyCovered = coveredItemQuantity(order.items.filter((_, i) => i !== idx))
     const remaining = sub.plan.usageLimit.quantity - sub.currentPeriod.consumed - alreadyCovered
-    if (remaining < target.quantity) return 'Assinatura sem saldo restante para cobrir este item'
+    if (remaining < target.quantity) return { covered: false, reason: 'no_balance' }
   }
-  return { subscriptionId: sub.id }
+  return { covered: true, subscriptionId: sub.id }
 }
 
 // Auto-mark coverage default (brief 0079, AC-06). Resolves whether `target`
 // should enter as `subscription` (covered + balance) and, when so, mutates it in
-// place (`coverage`/`subscriptionId`). Returns the subscription id to feed the
-// `order_item_coverage_autoset` analytics event, or null when the item stays
-// `sale` (no customer / not covered / no balance — AC-07). Shared by the two
-// comanda entry points (`startAttendance`'s appointment item and
+// place (`coverage`/`subscriptionId`). Returns the FULL `CoverageResult` so the
+// caller can both feed the `order_item_coverage_autoset` analytics on a hit AND
+// surface the tagged denial reason on a miss (#1324) — no silent `sale` fallback.
+// Shared by the two comanda entry points (`startAttendance`'s appointment item and
 // `addItemToOrder`) so the auto-mark rule lives in one place.
-export async function autoMarkCoverageDefault(args: ItemCoverageInput): Promise<string | null> {
+export async function autoMarkCoverageDefault(args: ItemCoverageInput): Promise<CoverageResult> {
   const resolved = await resolveItemCoverageSubscription(args)
-  if (typeof resolved === 'string') return null
-  args.target.coverage = 'subscription'
-  args.target.subscriptionId = resolved.subscriptionId
-  return resolved.subscriptionId
+  if (resolved.covered) {
+    args.target.coverage = 'subscription'
+    args.target.subscriptionId = resolved.subscriptionId
+  }
+  return resolved
 }
 
 // Resolves the customer id to assign to a walk-in order from the parsed selector
@@ -267,10 +275,10 @@ export async function reevaluateCoverageForItems(
       target: item,
       idx,
     })
-    if (typeof resolved === 'string') {
-      next.push({ ...item, coverage: 'sale', subscriptionId: null })
-    } else {
+    if (resolved.covered) {
       next.push({ ...item, coverage: 'subscription', subscriptionId: resolved.subscriptionId })
+    } else {
+      next.push({ ...item, coverage: 'sale', subscriptionId: null })
     }
   }
   return next
@@ -328,8 +336,9 @@ export async function resolveSubscriptionConsumption(
   const stockDecrements = stockDecrementTargets(order.items)
 
   if (coveredQty === 0) return { subscriptionToConsume: null, stockDecrements }
-  // Consumo de cota exige cliente — venda avulsa anônima (brief 0030) nunca marca
-  // item como `subscription`, então nunca chega aqui com coveredQty > 0.
+  // Consumo de cota exige cliente. Uma avulsa que vinculou cliente (brief 0081)
+  // PODE ter item coberto, então este guard deixou de ser defensivo — protege o
+  // caso de a comanda perder o cliente com item ainda marcado `subscription`.
   if (!order.customerId) return 'Venda sem cliente não pode consumir assinatura'
   const sub = await loadActiveSubscriptionForCustomer(orgId, order.customerId)
   if (!sub) return 'Cliente não possui assinatura ativa para o consumo marcado'
