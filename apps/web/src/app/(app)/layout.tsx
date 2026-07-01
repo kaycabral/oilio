@@ -1,6 +1,7 @@
 import { AppShell } from '@/components/app-shell'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { listLinkedOrgIds } from '@/shared/identity/org-links'
 import { needsUnitSelection, resolveActiveUnit } from '@/shared/org/active-unit'
 import { getOrgTier } from '@/shared/org/billing-read'
 import { getActiveOrgContext, listAccessibleOrgs } from '@/shared/org/membership'
@@ -15,7 +16,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session) redirect('/login')
 
   const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
+  if (!ctx) {
+    // No active org membership. Before offering to create a business, check
+    // whether this user is a CUSTOMER of some org (self-booking / self-signup —
+    // brief 0077): their identity carries `org_links` but no membership. Send
+    // them to their own area instead of the "create a business" onboarding
+    // (#1317). Only a user who is neither member nor customer starts onboarding.
+    const linkedOrgIds = await listLinkedOrgIds(session.uid)
+    if (linkedOrgIds.length > 0) redirect('/me/appointments')
+    redirect('/onboarding')
+  }
 
   // #838 — every user must complete the post-OAuth profile step before any
   // app surface. Gate at the layout so client-side nav can't slip past.

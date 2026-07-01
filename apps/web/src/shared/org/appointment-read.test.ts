@@ -10,6 +10,7 @@ vi.mock('@/shared/db/pg/rls-read', () => ({ readUnderRls: mocks.readUnderRls }))
 
 import {
   listAppointmentsByMemberOperationId,
+  listMemberOperationAppointmentsInRange,
   listUnitAppointmentsInRange,
 } from './appointment-read'
 
@@ -107,5 +108,44 @@ describe('listUnitAppointmentsInRange', () => {
     const appts = await listUnitAppointmentsInRange('org-1', 'u1', RANGE)
     expect(appts).toHaveLength(1)
     expect(appts[0]).toMatchObject({ id: 'apt-1', unitId: 'u1', status: 'scheduled' })
+  })
+})
+
+describe('listMemberOperationAppointmentsInRange (#1313 — cross-unit)', () => {
+  const RANGE = { startUtc: '2026-06-10T00:00:00.000Z', endUtc: '2026-06-10T23:59:59.999Z' }
+
+  function captureQuery(): { sql: () => string; params: () => unknown[] } {
+    let sql = ''
+    let params: unknown[] = []
+    mocks.readUnderRls.mockImplementation(async (_orgId: string, run: (c: unknown) => unknown) => {
+      const fakeClient = {
+        query: (q: string, p: unknown[]) => {
+          sql = q
+          params = p
+          return Promise.resolve({ rows: [] })
+        },
+      }
+      await run(fakeClient)
+      return []
+    })
+    return { sql: () => sql, params: () => params }
+  }
+
+  it('filters by member_operation_id and NOT by unit_id (the whole point)', async () => {
+    const cap = captureQuery()
+    await listMemberOperationAppointmentsInRange('org-1', 'pro-1', RANGE)
+    const sql = cap.sql()
+    expect(sql).toContain('member_operation_id = $2')
+    // Cross-unit: no unit pin — a slot the pro fills in another unit must surface.
+    expect(sql).not.toContain('unit_id')
+    expect(sql).toContain("status <> 'cancelled'")
+    expect(cap.params()).toEqual(['org-1', 'pro-1', RANGE.startUtc, RANGE.endUtc])
+  })
+
+  it('maps the typed rows the read returns', async () => {
+    mocks.readUnderRls.mockResolvedValue([APPOINTMENT_ROW])
+    const appts = await listMemberOperationAppointmentsInRange('org-1', 'pro-1', RANGE)
+    expect(appts).toHaveLength(1)
+    expect(appts[0]).toMatchObject({ id: 'apt-1', memberOperationId: 'pro-1', status: 'scheduled' })
   })
 })

@@ -322,7 +322,10 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     via: 'self_book_wizard',
   })
   if (!commit.ok) {
-    return { ok: false, error: 'Esse horário acabou de ser ocupado. Volte e escolha outro.' }
+    return {
+      ok: false,
+      error: 'Esse horário não está mais disponível. Volte e escolha outro.',
+    }
   }
 
   // Funnel event (brief 0077 AC-12) — PII-zero touch attribution. Best-effort.

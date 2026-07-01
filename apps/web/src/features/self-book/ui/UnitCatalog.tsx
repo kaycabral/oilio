@@ -183,7 +183,7 @@ export function UnitCatalog({
                       </div>
                       <div className="text-muted-foreground text-xs">
                         {s.durationMinutes !== null ? formatDuration(s.durationMinutes) : ''}
-                        {s.categoryId ? ` · ${s.categoryId}` : ''}
+                        {s.categoryName ? ` · ${s.categoryName}` : ''}
                       </div>
                     </div>
                     <div className="text-right text-sm font-medium tabular-nums">

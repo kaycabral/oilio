@@ -36,12 +36,18 @@ const UNIT: Unit = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
-function service(id: string, name: string, priceCents: number): PublicCatalogItem {
+function service(
+  id: string,
+  name: string,
+  priceCents: number,
+  categoryName: string | null = null,
+): PublicCatalogItem {
   return {
     id,
     kind: 'service',
     name,
-    categoryId: null,
+    categoryId: categoryName ? `cat-${id}` : null,
+    categoryName,
     requiredResources: [],
     priceCents,
     durationMinutes: 30,
@@ -116,5 +122,39 @@ describe('UnitCatalog — plan coverage (brief 0079)', () => {
     // R$ 45,00 — the wizard does not zero the price; balance/consumption is a
     // comanda concern (brief 0079: cota baixa só no fechamento).
     expect(screen.getByText(/R\$\s*45,00/)).toBeInTheDocument()
+  })
+})
+
+describe('UnitCatalog — category label (#1315)', () => {
+  it('renders the category NAME, never the raw id', () => {
+    render(
+      <UnitCatalog
+        org={ORG}
+        unit={UNIT}
+        slug="barbearia"
+        catalogServiceItems={[service('s-corte', 'Corte', 4500, 'Cabelo')]}
+        memberOperation={null}
+        showUnitHeader={false}
+        isLoggedIn={true}
+      />,
+    )
+    expect(screen.getByText(/·\s*Cabelo/)).toBeInTheDocument()
+    expect(screen.queryByText(/cat-s-corte/)).not.toBeInTheDocument()
+  })
+
+  it('omits the category label when there is no category', () => {
+    render(
+      <UnitCatalog
+        org={ORG}
+        unit={UNIT}
+        slug="barbearia"
+        catalogServiceItems={[service('s-corte', 'Corte', 4500, null)]}
+        memberOperation={null}
+        showUnitHeader={false}
+        isLoggedIn={true}
+      />,
+    )
+    // "30 min" shows, but no trailing " · <category>".
+    expect(screen.queryByText(/·/)).not.toBeInTheDocument()
   })
 })

@@ -4,13 +4,23 @@ import { ConfirmBookingForm } from './ConfirmBookingForm'
 
 const createWizardBooking = vi.fn()
 const push = vi.fn()
+const refresh = vi.fn()
+const signOut = vi.fn()
 
 vi.mock('@/features/self-book/adapters/wizard-book.actions', () => ({
   createWizardBooking: (fd: FormData): unknown => createWizardBooking(fd),
 }))
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, refresh }),
+}))
+
+vi.mock('@/shared/firebase/client', () => ({
+  getClientAuth: () => ({}),
+}))
+
+vi.mock('firebase/auth', () => ({
+  signOut: (auth: unknown): unknown => signOut(auth),
 }))
 
 const baseProps = {
@@ -41,6 +51,13 @@ describe('ConfirmBookingForm — login gate (brief 0077 #1275)', () => {
   beforeEach(() => {
     createWizardBooking.mockReset()
     push.mockReset()
+    refresh.mockReset()
+    signOut.mockReset()
+    signOut.mockResolvedValue(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response(null, { status: 200 }))),
+    )
   })
 
   it('carries NO customer PII inputs — name/whatsapp/email are removed', () => {
@@ -75,6 +92,25 @@ describe('ConfirmBookingForm — login gate (brief 0077 #1275)', () => {
     submitForm()
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1))
     expect(push.mock.calls[0]![0]).toMatch(/^\/onboarding\/profile\?next=/)
+  })
+
+  // #1316 — a visitor on an inherited session can bail out of the wrong
+  // identity: logout (session cookie + firebase) then back to /login with this
+  // booking URL as `next` so re-auth resumes on the confirm step.
+  it('offers "Trocar de conta" to a signed-in viewer and logs out to /login?next=', async () => {
+    render(<ConfirmBookingForm {...baseProps} viewerName="Maria Silva" />)
+    const link = screen.getByRole('button', { name: /não é você\? trocar de conta/i })
+    fireEvent.click(link)
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1))
+    expect(fetch).toHaveBeenCalledWith('/api/session', { method: 'DELETE' })
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(push.mock.calls[0]![0]).toMatch(/^\/login\?next=/)
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows no "Trocar de conta" affordance for an anonymous viewer', () => {
+    render(<ConfirmBookingForm {...baseProps} viewerName={null} />)
+    expect(screen.queryByRole('button', { name: /trocar de conta/i })).not.toBeInTheDocument()
   })
 
   it('navigates to success on a confirmed booking', async () => {

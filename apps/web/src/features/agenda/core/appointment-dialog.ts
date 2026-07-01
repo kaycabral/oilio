@@ -10,6 +10,7 @@ import {
   type HoursRange,
   type MemberOperation,
   buildWhatsappLink,
+  fromOrgTime,
   hhmmToMinutes,
   minutesToHHmm,
   renderWhatsappTemplate,
@@ -76,10 +77,17 @@ export function resolveInitialDateTime(
 // appointment must END within hours, mirroring availability's `close -
 // duration`). Drives the reception time picker so the UI never offers an
 // off-grid or overrunning `startAt`. Ascending, de-duped across ranges.
+//
+// `pastCutoff` (optional) drops slots whose start is already in the past for the
+// given day — same rule the availability generator applies (`startMs < nowMs`,
+// via `fromOrgTime`), so the picker on the current day never offers a slot the
+// write path would reject as past. `nowMs` is passed in (never `Date.now()`
+// here) to keep this core pure/deterministic.
 export function gridTimeOptions(
   dayHours: readonly HoursRange[],
   slotMinutes: number,
   durationMinutes: number,
+  pastCutoff?: { date: string; timezone: string; nowMs: number },
 ): string[] {
   if (slotMinutes <= 0 || durationMinutes <= 0) return []
   const minutes = new Set<number>()
@@ -90,5 +98,15 @@ export function gridTimeOptions(
   }
   return Array.from(minutes)
     .sort((a, b) => a - b)
+    .filter((m) => {
+      if (!pastCutoff) return true
+      const startMs = new Date(
+        fromOrgTime(
+          { date: pastCutoff.date, hour: Math.floor(m / 60), minute: m % 60 },
+          pastCutoff.timezone,
+        ),
+      ).getTime()
+      return startMs >= pastCutoff.nowMs
+    })
     .map(minutesToHHmm)
 }

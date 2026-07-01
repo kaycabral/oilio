@@ -26,7 +26,7 @@ import { resolveAppointmentUserIds } from '@/features/booking/adapters/appointme
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { emitEvent, type WriteSecurity } from '@/shared/effect-bridge'
 import { listAgendaBlocksForUnit } from '@/shared/org/agenda-block-read'
-import { listUnitAppointmentsInRange } from '@/shared/org/appointment-read'
+import { listMemberOperationAppointmentsInRange } from '@/shared/org/appointment-read'
 import { upsertCustomerWithUser } from '@/shared/org/customer-upsert'
 import { getMemberOperationById } from '@/shared/org/member-operation-read'
 import { assertCustomerIdNotBlocked } from '@/shared/privacy/assert-customer-not-blocked'
@@ -136,9 +136,16 @@ export async function checkSlotConflicts(args: {
   const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(parsed.date, org.timezone)
   const [existing, blocks] = await Promise.all([
     // The authoritative anti-double-book is the DB exclusion constraint at commit
-    // time; this is the staff-friendly pre-flight. Reads the day's unit
-    // appointments from the typed `appointments` projection under RLS.
-    listUnitAppointmentsInRange(orgId, parsed.unitId, { startUtc: dayStart, endUtc: dayEnd }),
+    // time; this is the staff-friendly pre-flight. Reads the professional's day
+    // CROSS-UNIT (#1313): the constraint scopes by member_operation regardless of
+    // unit, so a slot they already fill in another unit must conflict here too —
+    // otherwise the picker offers it and the commit rejects with a misleading
+    // "just taken" error. `findAppointmentConflicts` filters by memberOperation.
+    listMemberOperationAppointmentsInRange(orgId, parsed.memberOperationId, {
+      startUtc: dayStart,
+      endUtc: dayEnd,
+    }),
+    // Blocks stay unit-scoped — a block is a physical closure of THIS unit.
     listAgendaBlocksForUnit(orgId, parsed.unitId),
   ])
   const blockSegments = getBlockSegmentsForDay(blocks, parsed.date, org.timezone)

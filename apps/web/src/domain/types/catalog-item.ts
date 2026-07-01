@@ -179,6 +179,10 @@ export const PublicCatalogItem = Schema.mutable(
     kind: CatalogItemKind,
     name: Schema.String,
     categoryId: Schema.NullOr(Schema.String),
+    // Resolved, render-ready category label. `null` when the item has no
+    // category, or when the id no longer resolves to an active category
+    // (archived/deleted) — the public UI omits it rather than leaking the id.
+    categoryName: Schema.NullOr(Schema.String),
     requiredResources: Schema.mutable(Schema.Array(Schema.String)),
     priceCents: Schema.NullOr(Schema.Number),
     durationMinutes: Schema.NullOr(Schema.Number),
@@ -186,7 +190,14 @@ export const PublicCatalogItem = Schema.mutable(
 )
 export type PublicCatalogItem = typeof PublicCatalogItem.Type
 
-export function toPublicCatalogItem(item: CatalogItem, unitId: string): PublicCatalogItem {
+export function toPublicCatalogItem(
+  item: CatalogItem,
+  unitId: string,
+  // Labels of the org's active categories (id → name). Omitted by callers that
+  // don't render category labels; an id absent from the map resolves to `null`
+  // (archived/deleted category → the UI drops the label instead of the raw id).
+  categoryNameById?: ReadonlyMap<string, string>,
+): PublicCatalogItem {
   const resolved = resolveCatalogItemForUnit(item, unitId)
   const priceVisibility = normalizeServicePriceVisibility(item.priceVisibility)
   return {
@@ -194,6 +205,8 @@ export function toPublicCatalogItem(item: CatalogItem, unitId: string): PublicCa
     kind: item.kind,
     name: item.name,
     categoryId: item.categoryId,
+    categoryName:
+      item.categoryId !== null ? (categoryNameById?.get(item.categoryId) ?? null) : null,
     requiredResources: isCatalogService(item) ? item.requiredResources : [],
     priceCents: priceVisibility === 'on_request' ? null : resolved.priceCents,
     durationMinutes: isCatalogService(item) ? resolved.durationMinutes : null,

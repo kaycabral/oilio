@@ -14,6 +14,7 @@ import {
 } from '@/domain'
 import { isUnitPubliclyLive } from '@/features/units/core/publish-readiness'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
+import { listCategoriesForOrg } from '@/shared/org/category-read'
 import { listMemberOperationsForOrg } from '@/shared/org/member-operation-read'
 import { getOrgBySlug } from '@/shared/org/org'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
@@ -120,12 +121,15 @@ export async function getPublicUnitBundle(
   const org = await getOrgBySlug(slug)
   if (!org) return null
 
-  const [units, serviceItems, memberOperations] = await Promise.all([
+  const [units, serviceItems, memberOperations, categories] = await Promise.all([
     loadOrgUnits(org.id),
     loadPublicCatalogServiceItems(org.id),
     // Backend-aware read (Postgres typed table under RLS / Firestore); enriched
     // with PII (name from `member_operations_pii`/User), so no separate merge below.
     listMemberOperationsForOrg(org.id),
+    // Categories (org-wide, RLS-scoped) resolve each item's `categoryId` to a
+    // render-ready name for the public catalog — see the label map below.
+    listCategoriesForOrg(org.id),
   ])
 
   const unit = units.find((u) => u.slug === unitSlug)
@@ -155,10 +159,20 @@ export async function getPublicUnitBundle(
     }
   }
 
+  // Category-label resolution covers only ACTIVE categories (mirrors the
+  // owner-facing catalog, brief 0033 AC-11): an item pointing at an
+  // archived/deleted category resolves to `null` → the public UI omits the
+  // label rather than leaking the raw id.
+  const categoryNameById = new Map(
+    categories.filter((c) => !c.archivedAt).map((c) => [c.id, c.name]),
+  )
+
   // Unified public projection (brief 0023, AC-08 → 0053/B3): the unit's
   // kind-service items projected via `toPublicCatalogItem` — one shape for the
   // public catalog, sanitized + per-unit resolved.
-  const catalogServiceItems = unitServices.map((s) => toPublicCatalogItem(s, unit.id))
+  const catalogServiceItems = unitServices.map((s) =>
+    toPublicCatalogItem(s, unit.id, categoryNameById),
+  )
   return {
     org,
     unit,

@@ -36,6 +36,7 @@ import {
   UnitConfig,
 } from '@/domain/aggregates'
 import { appendEventToTx, aggregateRef as ref, type SagaStep } from '@/domain/effect'
+import { getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import { commitSaga } from '@/shared/effect-bridge'
 import { buildMembership, buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
@@ -178,6 +179,37 @@ export async function seedCustomer(args: {
     actorId: args.actorId,
     payload: { data: buildStoredCustomer(args.id, args.orgId, args.userId, args.now) },
   })
+  // Mirror the production customer-creation saga (brief 0032 / #1097): record the
+  // identity→org reverse link so "where am I a customer?" resolves. Without it a
+  // seeded customer who logs in has no membership AND no org_link, so the app
+  // layout can't route them to /me and falls through to business onboarding
+  // (#1317). The canonical writer is `linkCustomerOrg` in
+  // `@/shared/identity/org-links`, but that module is `server-only` (unimportable
+  // from this tsx seed); we replay the exact same per-subject-RLS INSERT here.
+  await linkSubjectToOrg(args.userId, args.orgId)
+}
+
+// Seed-side twin of `linkCustomerOrg` (see caller): the org-links module is
+// `server-only`, so we issue the identical idempotent, RLS-guarded INSERT.
+async function linkSubjectToOrg(userId: string, orgId: string): Promise<void> {
+  const client = await getEventStorePool().connect()
+  try {
+    await client.query('BEGIN')
+    // Per-subject RLS WITH CHECK requires the subject GUC to match `user_id`.
+    await client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', userId])
+    await client.query(
+      `INSERT INTO org_links (user_id, org_id, linked_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, org_id) DO NOTHING`,
+      [userId, orgId, new Date().toISOString()],
+    )
+    await client.query('COMMIT')
+  } catch (err) {
+    await client.query('ROLLBACK')
+    throw err
+  } finally {
+    client.release()
+  }
 }
 
 // Active subscription — the `subscription.created` payload is FLAT (not `{ data

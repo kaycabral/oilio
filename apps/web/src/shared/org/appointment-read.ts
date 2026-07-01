@@ -73,6 +73,34 @@ export async function listUnitAppointmentsInRange(
   return rows.map((row) => decodeAppointment(appointmentRowToDoc(row)))
 }
 
+// Every appointment of a memberOperation whose `startAt` falls within
+// `[startUtc, endUtc]` — CROSS-UNIT (no `unit_id` filter), because the same
+// memberOperation may serve several units and the anti-double-book invariant is
+// per-professional, not per-unit (constraint `appointments_no_double_book`
+// scopes by `(org_id, member_operation_id, tstzrange)`). Used by the booking
+// availability + conflict pre-flight so a slot the professional already fills in
+// ANOTHER unit is neither offered nor accepted (#1313). Org-wide read (no
+// `app.current_unit` pin — same as `listAppointmentsByMemberOperationId`);
+// `cancelled` is excluded so freed slots read as free.
+export async function listMemberOperationAppointmentsInRange(
+  orgId: string,
+  memberOperationId: string,
+  range: { startUtc: string; endUtc: string },
+): Promise<Appointment[]> {
+  const { startUtc, endUtc } = range
+  const rows = await readUnderRls<AppointmentRow>(orgId, (client) =>
+    client
+      .query<AppointmentRow>(
+        `SELECT * FROM appointments
+           WHERE org_id = $1 AND member_operation_id = $2
+             AND start_at >= $3 AND start_at <= $4 AND status <> 'cancelled'`,
+        [orgId, memberOperationId, startUtc, endUtc],
+      )
+      .then((res) => res.rows),
+  )
+  return rows.map((row) => decodeAppointment(appointmentRowToDoc(row)))
+}
+
 // Every appointment owned by a memberOperation in an org (any status). The caller
 // filters the future/scheduled subset — kept org-wide (no `app.current_unit`
 // pin) because a memberOperation may serve multiple units.

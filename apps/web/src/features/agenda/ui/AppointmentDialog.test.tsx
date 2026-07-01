@@ -1,6 +1,6 @@
 import type { Appointment, CatalogServiceItem, Customer, MemberOperation } from '@/domain'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppointmentDialog } from './AppointmentDialog'
 
 // The action-form wrappers (`*FormAction`) are what the dialog dispatches
@@ -172,6 +172,16 @@ beforeEach(() => {
   mocks.startAttendanceFormAction.mockReset()
   mocks.routerPush.mockReset()
   mocks.routerRefresh.mockReset()
+  // #1314 — the start-time grid now drops past slots relative to `Date.now()`.
+  // Fixtures live on 2026-05-15 (10:00/11:00 SP); pin "now" to 08:00 SP that
+  // day so those slots stay in the future and remain offerable. The no-show
+  // fixtures use 2020/2099 explicitly, so they're unaffected by this clock.
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  vi.setSystemTime(new Date('2026-05-15T11:00:00.000Z'))
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('AppointmentDialog — cancel flow (#639)', () => {
