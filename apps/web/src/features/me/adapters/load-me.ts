@@ -7,12 +7,15 @@ import {
   normalizeCancellationPolicy,
   type CatalogItem,
   type MemberOperation,
+  type Order,
   type Org,
   type StoredUnit,
 } from '@/domain'
+import { appointmentPriceLabel } from '@/features/me/core/appointment-price'
 import { describeCancelReason } from '@/features/me/core/cancel-notice'
 import type { AppointmentRowData } from '@/features/me/ui/AppointmentRow'
 import type { SubscriptionRowData } from '@/features/me/ui/SubscriptionRow'
+import { loadClosedOrdersByAppointmentForOrg } from '@/features/orders/adapters/order-financial-read'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
 import {
   rowToDoc as appointmentRowToDoc,
@@ -81,6 +84,10 @@ function buildAppointmentRow(
     service: CatalogItem | undefined
     memberOperation: MemberOperation | undefined
     unit: StoredUnit | undefined
+    // The order this appointment closed into, if any (#1329). Present only for
+    // completed appointments that were closed as an order — used to show the
+    // real charged value instead of the service price snapshot.
+    closedOrder: Order | null
   },
 ): AppointmentRowData {
   const { unit } = ctx
@@ -107,9 +114,13 @@ function buildAppointmentRow(
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(a.endAt))
-  const priceLabel = (a.servicePriceCentsSnapshot / 100).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
+  // #1329: a completed appointment that closed into an order shows the REAL
+  // charged value ("Coberto pelo plano" when the plan absorbed it, or the amount
+  // actually charged), not the service list price. A scheduled appointment has
+  // no order yet, so the price snapshot stands as the estimate.
+  const priceLabel = appointmentPriceLabel({
+    servicePriceCentsSnapshot: a.servicePriceCentsSnapshot,
+    closedOrder: ctx.closedOrder,
   })
 
   const check = canCustomerCancelAppointment(a, policy)
@@ -168,20 +179,28 @@ export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> 
   const services = new Map<string, CatalogItem>()
   const memberOperations = new Map<string, MemberOperation>()
   const units = new Map<string, StoredUnit>()
+  // #1329: closed orders keyed by `${orgId}:${appointmentId}` so a completed
+  // appointment resolves the order it closed into and shows the real value.
+  const closedOrders = new Map<string, Order>()
 
   await Promise.all(
     orgIds.map(async (tid) => {
-      const [org, catalogItems, enrichedPros, storedUnits] = await Promise.all([
-        getOrg(tid),
-        listCatalogItems(tid),
-        // MemberOperation PII (name) is merged from the global User on read (#1046).
-        listMemberOperationsForOrg(tid),
-        listStoredUnitsForOrg(tid),
-      ])
+      const [org, catalogItems, enrichedPros, storedUnits, ordersByAppointment] = await Promise.all(
+        [
+          getOrg(tid),
+          listCatalogItems(tid),
+          // MemberOperation PII (name) is merged from the global User on read (#1046).
+          listMemberOperationsForOrg(tid),
+          listStoredUnitsForOrg(tid),
+          loadClosedOrdersByAppointmentForOrg(tid),
+        ],
+      )
       if (org) orgs.set(tid, org)
       for (const item of catalogItems) services.set(`${tid}:${item.id}`, item)
       for (const p of enrichedPros) memberOperations.set(`${tid}:${p.id}`, p)
       for (const u of storedUnits) units.set(`${tid}:${u.id}`, u)
+      for (const [appointmentId, order] of ordersByAppointment)
+        closedOrders.set(`${tid}:${appointmentId}`, order)
     }),
   )
 
@@ -196,6 +215,9 @@ export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> 
       service: services.get(`${a.orgId}:${a.serviceId}`),
       memberOperation: memberOperations.get(`${a.orgId}:${a.memberOperationId}`),
       unit: units.get(`${a.orgId}:${a.unitId}`),
+      // Only a completed appointment resolves to a closed order; scheduled ones
+      // keep the price snapshot as the estimate.
+      closedOrder: closedOrders.get(`${a.orgId}:${a.id}`) ?? null,
     })
     if (a.status === 'scheduled' && new Date(a.startAt).getTime() > Date.now()) {
       upcoming.push(row)
