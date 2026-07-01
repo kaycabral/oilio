@@ -6,6 +6,7 @@ import { assignCustomerToOrder } from '@/features/orders/adapters/orders.actions
 import {
   Button,
   Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -73,6 +74,9 @@ export function OrderCustomerSelector({
 
       <form action={onSubmit} className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="customerMode" value={mode} />
+        <Label htmlFor="order-customer" className="sr-only">
+          Cliente
+        </Label>
         {mode === 'existing' ? (
           <Select name="customerId" required>
             <SelectTrigger id="order-customer" className="w-56">
