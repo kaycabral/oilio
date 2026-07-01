@@ -87,14 +87,36 @@ describe('commitSaga', () => {
     expect(store.get(docKey(cashMovementRef))).toBeUndefined()
   })
 
-  it('maps a DB-level DEFECT (e.g. unique-violation) to a graceful {ok:false}', async () => {
-    // A pg constraint refusal surfaces as a thrown defect, not a typed failure
-    // (the layer throws inside Effect.promise). commitSaga must catch it and
-    // return {ok:false} instead of rejecting → no unhandled 500.
-    const result = await commitSaga([
-      () => Effect.die(new Error('duplicate key value violates unique constraint (23505)')),
-    ])
+  // A pg constraint refusal surfaces as a thrown defect, not a typed failure
+  // (the layer throws inside Effect.promise). commitSaga must catch it and return
+  // {ok:false} instead of rejecting → no unhandled 500. The message must be
+  // HONEST about which kind it was (#1320): only a 23505 version clash is a
+  // retriable concurrency conflict; a FK/CHECK/RLS refusal is deterministic.
+  function pgDefect(code: string): Error {
+    // Shape a pg `DatabaseError`-like object (carries `code`) the guards inspect.
+    return Object.assign(new Error(`pg error ${code}`), { code })
+  }
+
+  it('maps a 23505 version clash to the concurrency-conflict message (retriable)', async () => {
+    const result = await commitSaga([() => Effect.die(pgDefect('23505'))])
     expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toMatch(/conflito de concorrência/i)
+  })
+
+  it('maps a FK violation (23503) to the integrity message, NOT concurrency (#1320)', async () => {
+    const result = await commitSaga([() => Effect.die(pgDefect('23503'))])
+    expect(result.ok).toBe(false)
+    // The bug this fixes: a FK refusal used to masquerade as "tente de novo".
+    if (!result.ok) {
+      expect(result.error).toMatch(/restrição de integridade/i)
+      expect(result.error).not.toMatch(/concorrência/i)
+    }
+  })
+
+  it('maps a CHECK violation (23514) to the integrity message, not concurrency', async () => {
+    const result = await commitSaga([() => Effect.die(pgDefect('23514'))])
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).not.toMatch(/concorrência/i)
   })
 })
 
