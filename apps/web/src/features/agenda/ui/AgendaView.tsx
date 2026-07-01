@@ -226,12 +226,23 @@ export function AgendaView({
           )
         }
         if (memberOperations.length === 0) {
-          return (
+          // #1326 AC2/AC3: the empty-state must not leak a management CTA to a
+          // non-manager. A professional/receptionist who lands here (their own
+          // profile exists but isn't linked to this unit) gets a neutral state,
+          // not "convide um profissional" — inviting isn't their action, and
+          // `/team` would reject them anyway. Managers keep the actionable CTA.
+          return canManage ? (
             <EmptyState
               icon={<CalendarDays />}
               title="Nenhum profissional nesta unidade"
               description="Vincule ao menos um profissional a esta unidade para abrir a agenda."
               actionSlot={<Link href={'/team'}>Convidar profissional</Link>}
+            />
+          ) : (
+            <EmptyState
+              icon={<CalendarDays />}
+              title="Você ainda não atende nesta unidade"
+              description="Seu perfil não está vinculado a esta unidade. Troque de unidade acima ou fale com a recepção para ser incluído aqui."
             />
           )
         }
