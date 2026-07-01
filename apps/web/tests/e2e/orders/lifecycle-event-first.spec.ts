@@ -92,6 +92,20 @@ test.describe('Order — ciclo de vida event-first (#1018)', { tag: '@critical' 
     await authedPage.getByRole('button', { name: 'Salvar' }).click()
     await expect(authedPage.getByText('R$ 70,00').first()).toBeVisible()
 
+    // #1319 — desconto acima do subtotal é REJEITADO com mensagem, e o total
+    // NÃO é corrompido (segue R$ 70, não vai a R$ 0). Teto = subtotal vendável.
+    await authedPage.locator('input[name="discount"]').fill('9999')
+    await authedPage.getByRole('button', { name: 'Salvar' }).click()
+    // A mensagem aparece inline (<p>) e no toast — `.first()` desambigua.
+    await expect(
+      authedPage.getByText(/desconto não pode ser maior que o subtotal/i).first(),
+    ).toBeVisible()
+    await expect(authedPage.getByText('R$ 70,00').first()).toBeVisible()
+
+    // Volta pra um desconto válido antes de seguir o fluxo.
+    await authedPage.locator('input[name="discount"]').fill('10')
+    await authedPage.getByRole('button', { name: 'Salvar' }).click()
+
     // order.item_removed — remove a Pomada → subtotal 5000 − desconto 1000 = R$ 40.
     await authedPage
       .getByRole('listitem')

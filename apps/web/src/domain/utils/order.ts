@@ -20,15 +20,18 @@ export function computeOrderTotals(
   const subtotalCents = items
     .filter((it) => coverageOf(it) === 'sale')
     .reduce((acc, it) => acc + computeItemLineTotal(it), 0)
-  // Desconto nunca pode deixar total negativo — clamp em zero.
+  // Desconto nunca excede o subtotal (#1319): clampa a invariante no núcleo puro
+  // — imune a qualquer call-site (action, recalc, read model, seed, replay) que
+  // persista um `discountCents` maior. O reject com mensagem vive na action
+  // (UX); aqui é defesa em profundidade pra receita nunca ficar inconsistente.
   const totalCents = Math.max(0, subtotalCents - discountCents)
   return { subtotalCents, totalCents }
 }
 
 // Quantidade de serviços cobertos por assinatura (consumo) numa comanda —
 // base da contagem de atendimentos cobertos por profissional (brief 0022) e do
-// relatório. Produto coberto não é atendimento (baixa estoque, ver
-// `coveredItemQuantity`).
+// relatório. Produto coberto conta cota mas não é atendimento; o decremento de
+// estoque é regra à parte, desacoplada de coverage (ver `stockDecrementTargets`).
 export function coveredServiceQuantity(
   items: readonly Pick<OrderItem, 'quantity' | 'kind' | 'coverage'>[],
 ): number {
@@ -41,7 +44,8 @@ export function coveredServiceQuantity(
 // qualquer kind (brief 0024, Grupo B — AC-04/05). É a base do decremento do
 // saldo do plano (`currentPeriod.consumed`): a cota do plano vale para qualquer
 // item coberto (serviço OU produto), não só serviços. O `usageLimit` é avaliado
-// contra esta soma. Produtos cobertos, além de contar a cota, baixam estoque.
+// contra esta soma. (O decremento de estoque é regra separada — todo produto
+// baixa, coberto ou não, ver `stockDecrementTargets`.)
 export function coveredItemQuantity(
   items: readonly Pick<OrderItem, 'quantity' | 'coverage'>[],
 ): number {
@@ -50,14 +54,22 @@ export function coveredItemQuantity(
     .reduce((acc, it) => acc + it.quantity, 0)
 }
 
-// Produtos cobertos por assinatura numa comanda — baixam estoque/COGS no
-// fechamento (brief 0024, AC-05). Serviços cobertos NÃO baixam estoque (entram
-// na contagem de atendimentos via `coveredServiceQuantity`).
-export function coveredProducts(
+// FONTE ÚNICA do decremento de estoque no fechamento (#B4). Estoque é físico:
+// TODO produto vendido sai do prateleira, independente de `coverage` — venda
+// avulsa (`sale`) e consumo de plano (`subscription`) baixam igual. Serviço nunca
+// tem estoque, então nunca entra. A regra é `kind==='product'`, DESACOPLADA de
+// coverage (que governa só cota do plano, receita e comissão).
+//
+// Invariante de consistência: o close E o undo derivam AMBOS desta função sobre
+// os mesmos itens (a comanda fechada é imutável), então o que o fechamento baixa
+// é exatamente o que a reabertura devolve — por construção, não por disciplina.
+// Mudar a regra de estoque = editar SÓ aqui; os dois lados mudam juntos. Travado
+// pelos testes de simetria close/undo e cross-entry (order-closure-invariants).
+export function stockDecrementTargets(
   items: readonly OrderItem[],
 ): { refId: string; quantity: number }[] {
   return items
-    .filter((it) => it.kind === 'product' && coverageOf(it) === 'subscription')
+    .filter((it) => it.kind === 'product')
     .map((it) => ({ refId: it.refId, quantity: it.quantity }))
 }
 

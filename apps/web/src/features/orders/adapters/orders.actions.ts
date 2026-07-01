@@ -512,6 +512,15 @@ export async function updateOrderMeta(
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
 
+  // Desconto não excede o subtotal vendável (#1319). Teto = subtotal só de itens
+  // `sale` (itens cobertos por assinatura não compõem receita, então não podem
+  // ser "descontados"). Reject com mensagem à recepção; o core ainda clampa o
+  // total como defesa em profundidade (ver `computeOrderTotals`).
+  const { subtotalCents } = computeOrderTotals(loaded.order.items, 0)
+  if (discountCents > subtotalCents) {
+    return { ok: false, error: 'Desconto não pode ser maior que o subtotal da venda' }
+  }
+
   const patch = recalcAndPatch(loaded.order.items, discountCents)
   // Event-first: `order.meta_updated` carrega o patch (desconto + totais).
   await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
