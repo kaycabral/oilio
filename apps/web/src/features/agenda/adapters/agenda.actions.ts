@@ -397,7 +397,8 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   if (!commit.ok) {
     return {
       ok: false,
-      error: 'Esse horário acabou de ser ocupado. Recarregue a agenda e tente outro.',
+      error:
+        'O profissional já tem um atendimento nesse horário (pode ser em outra unidade). Recarregue a agenda e escolha outro.',
       conflicts: ['agendamento existente'],
     }
   }

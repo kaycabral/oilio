@@ -3,6 +3,7 @@
 import { buildWhatsappLink, type CancellationPolicy } from '@/domain'
 import { createWizardBooking } from '@/features/self-book/adapters/wizard-book.actions'
 import { formatNoticeWindow } from '@/features/self-book/core/format'
+import { getClientAuth } from '@/shared/firebase/client'
 import { toRoute } from '@/shared/routes'
 import {
   Button,
@@ -13,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@cbrl/design'
+import { signOut } from 'firebase/auth'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
@@ -61,6 +63,7 @@ export function ConfirmBookingForm({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [switching, setSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Brief 0019 Group D — AC-17. Tracked separately from `error` so the
   // UI can swap the generic error pill for a friendly message + WA CTA
@@ -89,6 +92,22 @@ export function ConfirmBookingForm({
   let submitLabel = 'Confirmar agendamento'
   if (pending) submitLabel = 'Confirmando…'
   else if (!viewerName) submitLabel = 'Entrar e confirmar'
+
+  // #1316 — the confirm screen inherits whatever session is already signed in.
+  // A visitor booking on a shared/borrowed device (or the shop's own phone)
+  // must be able to bail out of the wrong identity. Logging out mirrors the
+  // user-menu logout, then routes back to /login with this booking URL as
+  // `next`, so re-authenticating drops them right back on this confirm step.
+  function onSwitchAccount() {
+    setSwitching(true)
+    const next = encodeURIComponent(window.location.pathname + window.location.search)
+    startTransition(async () => {
+      await fetch('/api/session', { method: 'DELETE' })
+      await signOut(getClientAuth()).catch(() => {})
+      router.push(`/login?next=${next}`)
+      router.refresh()
+    })
+  }
 
   function onSubmit(formData: FormData) {
     setError(null)
@@ -157,9 +176,20 @@ export function ConfirmBookingForm({
           are agendando como; the rest get routed to login/completar cadastro on
           submit (the server action is the authority either way). */}
       {viewerName ? (
-        <p className="text-muted-foreground border-border bg-muted/40 rounded-md border px-3 py-2 text-xs">
-          Agendando como <strong>{viewerName}</strong>.
-        </p>
+        <div className="text-muted-foreground border-border bg-muted/40 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-xs">
+          <span>
+            Agendando como <strong>{viewerName}</strong>.
+          </span>
+          {/* #1316 — escape hatch out of an inherited session. */}
+          <button
+            type="button"
+            onClick={onSwitchAccount}
+            disabled={pending}
+            className="text-primary self-start underline-offset-2 hover:underline disabled:opacity-60"
+          >
+            {switching ? 'Saindo…' : 'Não é você? Trocar de conta'}
+          </button>
+        </div>
       ) : (
         <p className="text-muted-foreground border-border bg-muted/40 rounded-md border px-3 py-2 text-xs">
           Você precisa entrar com sua conta pra confirmar. É rápido — seguimos do mesmo ponto.

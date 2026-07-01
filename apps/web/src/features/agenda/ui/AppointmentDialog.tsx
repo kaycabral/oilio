@@ -141,7 +141,14 @@ export function AppointmentDialog({
   const startTimeOptions = useMemo(() => {
     if (!appointmentGrid) return []
     const dayHours = getBusinessHoursForDay(appointmentGrid.businessHours, selectedDate, timezone)
-    const grid = gridTimeOptions(dayHours, appointmentGrid.slotMinutes, selectedDuration)
+    // Drop already-past slots on the current day so the picker never offers a
+    // start the write path would reject as past (#1314). `Date.now()` lives here
+    // in the shell; the core stays pure via the injected `nowMs`.
+    const grid = gridTimeOptions(dayHours, appointmentGrid.slotMinutes, selectedDuration, {
+      date: selectedDate,
+      timezone,
+      nowMs: Date.now(),
+    })
     if (initialStartTime && selectedDate === initialDate && !grid.includes(initialStartTime)) {
       return [...grid, initialStartTime].sort((a, b) => a.localeCompare(b))
     }

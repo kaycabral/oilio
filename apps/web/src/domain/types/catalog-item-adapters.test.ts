@@ -107,6 +107,7 @@ describe('toPublicCatalogItem', () => {
     expect(Object.keys(pub).sort()).toEqual(
       [
         'categoryId',
+        'categoryName',
         'durationMinutes',
         'id',
         'kind',
@@ -118,6 +119,36 @@ describe('toPublicCatalogItem', () => {
     expect(pub.kind).toBe('service')
     expect(pub.priceCents).toBe(7000)
     expect(pub.durationMinutes).toBe(30)
+  })
+
+  it('resolves categoryName from the label map', () => {
+    const pub = toPublicCatalogItem(buildServiceItem(), 'u1', new Map([['cat-cabelo', 'Cabelo']]))
+    expect(pub.categoryId).toBe('cat-cabelo')
+    expect(pub.categoryName).toBe('Cabelo')
+  })
+
+  it('leaves categoryName null when the item has no category', () => {
+    const pub = toPublicCatalogItem(
+      buildProductItem({ categoryId: null }),
+      'u1',
+      new Map([['cat-cabelo', 'Cabelo']]),
+    )
+    expect(pub.categoryName).toBeNull()
+  })
+
+  it('leaves categoryName null when the id is absent from the map (archived/deleted)', () => {
+    const pub = toPublicCatalogItem(
+      buildServiceItem({ categoryId: 'cat-gone' }),
+      'u1',
+      new Map([['cat-cabelo', 'Cabelo']]),
+    )
+    // Never leaks the raw id — the UI drops the label instead.
+    expect(pub.categoryName).toBeNull()
+  })
+
+  it('leaves categoryName null when no label map is provided (legacy callers)', () => {
+    const pub = toPublicCatalogItem(buildServiceItem(), 'u1')
+    expect(pub.categoryName).toBeNull()
   })
 
   it('projects a product with null durationMinutes and empty requiredResources', () => {

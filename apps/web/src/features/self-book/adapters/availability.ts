@@ -20,7 +20,7 @@ import {
 } from '@/domain'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { listAgendaBlocksForUnit } from '@/shared/org/agenda-block-read'
-import { listUnitAppointmentsInRange } from '@/shared/org/appointment-read'
+import { listMemberOperationAppointmentsInRange } from '@/shared/org/appointment-read'
 import { listMemberOperationsForServiceInUnit } from '@/shared/org/member-operation-read'
 import { getOrgBySlug } from '@/shared/org/org'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
@@ -105,10 +105,23 @@ export async function getPublicAvailability(
   // Org→Unit). The unit is bookable (appointment mode) by the guard above.
   const timezone = unit.timezone
   const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(opts.date, timezone)
-  const [appointments, blocks] = await Promise.all([
-    listUnitAppointmentsInRange(org.id, unit.id, { startUtc: dayStart, endUtc: dayEnd }),
+  // Appointments are read CROSS-UNIT per candidate professional (#1313): the
+  // anti-double-book invariant is per-member_operation, so a slot a candidate
+  // already fills in ANOTHER unit must not be offered here. Each appointment
+  // belongs to exactly one member_operation, and `computeAvailabilityForDay`
+  // filters per `pro.id`, so concatenating the per-candidate reads needs no dedup.
+  const [appointmentsPerCandidate, blocks] = await Promise.all([
+    Promise.all(
+      candidates.map((c) =>
+        listMemberOperationAppointmentsInRange(org.id, c.id, {
+          startUtc: dayStart,
+          endUtc: dayEnd,
+        }),
+      ),
+    ),
     listAgendaBlocksForUnit(org.id, unit.id),
   ])
+  const appointments = appointmentsPerCandidate.flat()
   const blockSegments = getBlockSegmentsForDay(blocks, opts.date, timezone)
 
   const rawSlots = computeAvailabilityForDay({

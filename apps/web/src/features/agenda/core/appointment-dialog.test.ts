@@ -1,3 +1,4 @@
+import { fromOrgTime } from '@/domain'
 import { describe, expect, it } from 'vitest'
 import {
   buildAppointmentWhatsappLink,
@@ -130,5 +131,41 @@ describe('gridTimeOptions', () => {
       '09:30',
       '09:45',
     ])
+  })
+
+  describe('pastCutoff (#1314 — drop past slots on the current day)', () => {
+    const DATE = '2026-07-01'
+    // nowMs anchored to 10:00 org-local on DATE.
+    const nowMs = new Date(fromOrgTime({ date: DATE, hour: 10, minute: 0 }, TZ)).getTime()
+
+    it('omits slots before nowMs, keeps the rest', () => {
+      expect(
+        gridTimeOptions([{ open: '09:00', close: '12:00' }], 30, 30, {
+          date: DATE,
+          timezone: TZ,
+          nowMs,
+        }),
+      ).toEqual(['10:00', '10:30', '11:00', '11:30'])
+    })
+
+    it('keeps the slot whose start equals nowMs (>= cutoff)', () => {
+      // 10:00 starts exactly at nowMs and must remain (rule is `startMs >= nowMs`).
+      const opts = gridTimeOptions([{ open: '09:00', close: '12:00' }], 30, 30, {
+        date: DATE,
+        timezone: TZ,
+        nowMs,
+      })
+      expect(opts).toContain('10:00')
+      expect(opts).not.toContain('09:30')
+    })
+
+    it('is unchanged when no cutoff is passed (retro-compatible)', () => {
+      expect(gridTimeOptions([{ open: '09:00', close: '11:00' }], 30, 30)).toEqual([
+        '09:00',
+        '09:30',
+        '10:00',
+        '10:30',
+      ])
+    })
   })
 })

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   resolveActiveUnit: vi.fn(
     (): Promise<ActiveUnitContext> => Promise.resolve({ units: [], activeUnitId: null }),
   ),
+  listLinkedOrgIds: vi.fn((): Promise<string[]> => Promise.resolve([])),
 }))
 
 vi.mock('@/shared/firebase/admin', () => ({
@@ -28,6 +29,13 @@ vi.mock('@/shared/org/membership', () => ({
 
 vi.mock('@/shared/org/org', () => ({
   getOrg: mocks.getOrg,
+}))
+
+// #1317 — a user with no membership might still be a CUSTOMER of some org
+// (self-signup, brief 0077). The layout consults `listLinkedOrgIds` to route
+// them to their own area instead of the "create a business" onboarding.
+vi.mock('@/shared/identity/org-links', () => ({
+  listLinkedOrgIds: mocks.listLinkedOrgIds,
 }))
 
 // The layout reads the active Negócio's Plano Oilio tier to seed OrgProvider
@@ -99,6 +107,7 @@ beforeEach(() => {
   mocks.getOrg.mockReset()
   mocks.needsUnitSelection.mockReset().mockResolvedValue(false)
   mocks.resolveActiveUnit.mockReset().mockResolvedValue({ units: [], activeUnitId: null })
+  mocks.listLinkedOrgIds.mockReset().mockResolvedValue([])
 })
 
 describe('AppLayout — auth and org gating', () => {
@@ -123,6 +132,20 @@ describe('AppLayout — auth and org gating', () => {
     })
     mocks.getActiveOrgContext.mockResolvedValue(null)
     await expect(captureRedirect()).resolves.toBe('/onboarding')
+  })
+
+  it('sends a customer (no membership, but linked orgs) to their own area, not onboarding (#1317)', async () => {
+    mocks.getSessionUser.mockResolvedValue({
+      uid: 'u1',
+      email: 'a@b.com',
+      displayName: null,
+      picture: null,
+      emailVerified: true,
+    })
+    mocks.getActiveOrgContext.mockResolvedValue(null)
+    // Self-signup customer: no membership, but `org_links` to an org they book at.
+    mocks.listLinkedOrgIds.mockResolvedValue(['org-9'])
+    await expect(captureRedirect()).resolves.toBe('/me/appointments')
   })
 
   it('renders the app shell for an owner with no units (no first-unit gate)', async () => {
