@@ -149,7 +149,10 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
     await expect(authedPage.getByText(/100% coberta pelo plano/)).toBeVisible()
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
     const dialog = authedPage.getByRole('dialog', { name: 'Confirmar fechamento' })
-    await expect(dialog.getByText('Consumo do plano')).toBeVisible()
+    // `exact` so this matches only the item's coverage label, not the new
+    // no-sale DialogDescription ("...consumo do plano, sem cobrança nem
+    // comissão") — that substring would otherwise resolve two elements (#1328).
+    await expect(dialog.getByText('Consumo do plano', { exact: true })).toBeVisible()
     await dialog.getByRole('button', { name: /Confirmar fechamento/ }).click()
 
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible()
