@@ -91,6 +91,12 @@ export function OrderAddItemForm({
         toast.error(res.error)
         return
       }
+      // AC-06 (#1324): o item entrou como venda mas o assinante não pôde consumir
+      // (sem saldo / fora do plano / expirada) — mostra o MOTIVO específico, sem
+      // silenciar o fallback pra preço cheio.
+      if (res.coverageNotice) {
+        toast.warning(res.coverageNotice)
+      }
       // Reset POS state ao sucesso pra encadear vendas rápidas (AC-10).
       setSelected(null)
       setSearch('')
