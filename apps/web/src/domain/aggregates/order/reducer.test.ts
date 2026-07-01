@@ -101,6 +101,47 @@ describe('Order reducer', () => {
     expect(s2.discountCents).toBe(1000)
   })
 
+  it('customer_assigned vincula/troca/desvincula o cliente numa comanda aberta (#1321)', () => {
+    const open = { ...INITIAL_ORDER_STATE, status: 'open' as const, customerId: null, _version: 1 }
+
+    // vincula
+    const linked = applyOrderEvent(
+      open,
+      { _tag: 'order.customer_assigned', customerId: 'c1' },
+      meta(2),
+    )
+    expect(linked.customerId).toBe('c1')
+    // troca
+    const swapped = applyOrderEvent(
+      linked,
+      { _tag: 'order.customer_assigned', customerId: 'c2' },
+      meta(3),
+    )
+    expect(swapped.customerId).toBe('c2')
+    // desvincula (nullable — mesmo evento)
+    const unlinked = applyOrderEvent(
+      swapped,
+      { _tag: 'order.customer_assigned', customerId: null },
+      meta(4),
+    )
+    expect(unlinked.customerId).toBeNull()
+    expect(unlinked.status).toBe('open')
+  })
+
+  it('customer_assigned numa comanda não-aberta é sequência inválida (throw)', () => {
+    const closed = {
+      ...INITIAL_ORDER_STATE,
+      status: 'closed' as const,
+      id: 'o9',
+      closedAt: '2026-06-01T12:00:00Z',
+      paymentMethod: 'pix' as const,
+      _version: 4,
+    }
+    expect(() =>
+      applyOrderEvent(closed, { _tag: 'order.customer_assigned', customerId: 'c1' }, meta(5)),
+    ).toThrow(/order.customer_assigned aplicado a order closed/)
+  })
+
   it('cancelled marca o status', () => {
     const open = { ...INITIAL_ORDER_STATE, status: 'open' as const, items: [ITEM], _version: 2 }
     const state = applyOrderEvent(open, { _tag: 'order.cancelled' }, meta(3))
