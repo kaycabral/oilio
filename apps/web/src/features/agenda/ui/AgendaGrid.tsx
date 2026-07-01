@@ -123,11 +123,18 @@ function computeSlotLanes(
   return result
 }
 
+// Status carries a left accent stripe (border-l-4) so it reads at a glance
+// against the muted lunch/break bands. `scheduled` is the operational state the
+// user acts on, so it's the most present (solid fill + accent); terminal states
+// (completed/no_show/cancelled) stay softer. Fixes the washed-out scheduled card
+// that looked disabled (bg-primary/10 was nearly invisible over bg-muted/30).
 const STATUS_STYLES: Record<Appointment['status'], string> = {
-  scheduled: 'bg-primary/10 border-primary/40 text-foreground',
-  completed: 'bg-emerald-500/10 border-emerald-500/40 text-emerald-900 dark:text-emerald-100',
+  scheduled: 'bg-primary/15 border-primary/40 border-l-4 border-l-primary text-foreground',
+  completed:
+    'bg-emerald-500/10 border-emerald-500/40 border-l-4 border-l-emerald-500 text-emerald-900 dark:text-emerald-100',
   cancelled: 'bg-muted border-muted-foreground/30 text-muted-foreground line-through opacity-60',
-  no_show: 'bg-destructive/10 border-destructive/40 text-destructive',
+  no_show:
+    'bg-destructive/10 border-destructive/40 border-l-4 border-l-destructive text-destructive',
 }
 
 export function AgendaGrid({
