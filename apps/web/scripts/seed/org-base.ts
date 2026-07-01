@@ -254,6 +254,43 @@ export function seedAppointment(appointment: Appointment, actorId: string): Prom
   })
 }
 
+// A past appointment must carry a terminal outcome, not linger `scheduled` (#B2).
+// `appointment.created` ALWAYS projects `scheduled` (the reducer hardcodes it),
+// so a realistic past needs the transition event emitted as a second version on
+// the same aggregate — exactly as production does when the operator marks the
+// outcome. `scheduled` outcomes are a no-op (the created state already stands).
+export async function seedAppointmentOutcome(args: {
+  orgId: string
+  appointmentId: string
+  outcome: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+  atIso: string
+  actorId: string
+}): Promise<void> {
+  const { orgId, appointmentId, outcome, atIso, actorId } = args
+  if (outcome === 'scheduled') return
+  if (outcome === 'completed') {
+    await emitOne(AppointmentConfig, orgId, appointmentId, {
+      _tag: 'appointment.completed',
+      actorId,
+      payload: {},
+    })
+    return
+  }
+  if (outcome === 'no_show') {
+    await emitOne(AppointmentConfig, orgId, appointmentId, {
+      _tag: 'appointment.no_show',
+      actorId,
+      payload: { markedAt: atIso, markedBy: actorId },
+    })
+    return
+  }
+  await emitOne(AppointmentConfig, orgId, appointmentId, {
+    _tag: 'appointment.cancelled',
+    actorId,
+    payload: { cancelledBy: 'staff', cancelledAt: atIso, noticeMinutes: 0 },
+  })
+}
+
 export function seedAgendaBlock(block: AgendaBlock, actorId: string): Promise<void> {
   return emitOne(AgendaBlockConfig, block.orgId, block.id, {
     _tag: 'agenda_block.created',

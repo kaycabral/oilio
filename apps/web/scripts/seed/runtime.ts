@@ -11,11 +11,18 @@
 import { closeEventStoreDb, getEventStorePool, initEventStore } from '@/shared/db/pg/pool'
 import type { Pool } from 'pg'
 
-// One frozen ISO clock for the whole run, so re-running the seed reproduces the
-// exact same timestamps (idempotency) and every aggregate in a saga shares one
-// `createdAt`. Date-relative scenarios (yesterday/today/tomorrow appointments)
-// derive from this anchor via `daysFromNow`.
-export const NOW = new Date('2026-06-26T12:00:00.000Z')
+// One frozen ISO clock for the whole run, captured ONCE at module load, so every
+// aggregate in a saga shares one `createdAt` and the run is internally
+// deterministic (no `Date.now()` drift between emits). Anchored to noon UTC of
+// the REAL day (#B2): the demo/dev agenda is alive around "today" instead of
+// frozen in a past date that leaves the current day empty. Re-running on the same
+// day reproduces the same timestamps; a different day naturally shifts the
+// scenarios forward — which is the point.
+export const NOW = (() => {
+  const d = new Date()
+  d.setUTCHours(12, 0, 0, 0)
+  return d
+})()
 export const now = NOW.toISOString()
 
 // An ISO timestamp `days` away from the seed anchor (negative = past). Keeps the

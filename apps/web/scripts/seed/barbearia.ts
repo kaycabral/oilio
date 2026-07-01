@@ -39,6 +39,7 @@ import { seedMemberOperation } from './member-operation-saga'
 import {
   seedAgendaBlock,
   seedAppointment,
+  seedAppointmentOutcome,
   seedCashMovement,
   seedCatalogItem,
   seedCategory,
@@ -429,42 +430,96 @@ export async function seedBarbearia(): Promise<void> {
   // — Appointments spread across yesterday / today / tomorrow —
   // `memberOperationId` references `member_operations.id` (FK), NOT the user id;
   // `memberOperatorUserId` carries the global user id (the agenda's "mine" bridge).
+  // Agenda realista ao redor do dia real (#B2): o passado carrega SEMPRE um
+  // desfecho terminal (atendido/ausente/cancelado) — nunca `scheduled` no
+  // passado, que seria o furo "passou da hora e ninguém marcou"; hoje mistura os
+  // horários da manhã já atendidos (`completed`) com os da tarde ainda por vir
+  // (`scheduled`); o futuro é `scheduled`. `outcome` é aplicado como transição
+  // pós-`created` (o create sozinho sempre projeta `scheduled`).
   const appts = [
+    // — Passado (anteontem): dia cheio, majoritariamente atendido + 1 ausência —
     {
-      id: 'seed-appt-1',
+      id: 'seed-appt-p1',
       pro: proZeId,
       proUser: PRO_ZE,
       cust: 'seed-cust-1',
       custUser: 'seed-cust-1-user',
       svc: SVC_CORTE,
-      day: -1,
-      hour: 10,
-      status: 'completed' as const,
+      day: -2,
+      hour: 9,
+      outcome: 'completed' as const,
     },
     {
-      id: 'seed-appt-2',
+      id: 'seed-appt-p2',
+      pro: proMariaId,
+      proUser: PRO_MARIA,
+      cust: 'seed-cust-2',
+      custUser: 'seed-cust-2-user',
+      svc: SVC_SOBRANCELHA,
+      day: -2,
+      hour: 15,
+      outcome: 'no_show' as const,
+    },
+    // — Passado (ontem): atendido + 1 cancelamento —
+    {
+      id: 'seed-appt-p3',
+      pro: proZeId,
+      proUser: PRO_ZE,
+      cust: 'seed-cust-3',
+      custUser: 'seed-cust-3-user',
+      svc: SVC_COMBO,
+      day: -1,
+      hour: 10,
+      outcome: 'completed' as const,
+    },
+    {
+      id: 'seed-appt-p4',
+      pro: proJoaoId,
+      proUser: PRO_JOAO,
+      cust: 'seed-cust-4',
+      custUser: 'seed-cust-4-user',
+      svc: SVC_BARBA,
+      day: -1,
+      hour: 14,
+      outcome: 'cancelled' as const,
+    },
+    // — Hoje: manhã já atendida, tarde ainda agendada —
+    {
+      id: 'seed-appt-t1',
+      pro: proZeId,
+      proUser: PRO_ZE,
+      cust: 'seed-cust-1',
+      custUser: 'seed-cust-1-user',
+      svc: SVC_CORTE,
+      day: 0,
+      hour: 9,
+      outcome: 'completed' as const,
+    },
+    {
+      id: 'seed-appt-t2',
       pro: proMariaId,
       proUser: PRO_MARIA,
       cust: 'seed-cust-2',
       custUser: 'seed-cust-2-user',
       svc: SVC_SOBRANCELHA,
       day: 0,
-      hour: 11,
-      status: 'scheduled' as const,
+      hour: 15,
+      outcome: 'scheduled' as const,
     },
     {
-      id: 'seed-appt-3',
+      id: 'seed-appt-t3',
       pro: proZeId,
       proUser: PRO_ZE,
       cust: 'seed-cust-3',
       custUser: 'seed-cust-3-user',
       svc: SVC_COMBO,
       day: 0,
-      hour: 14,
-      status: 'scheduled' as const,
+      hour: 17,
+      outcome: 'scheduled' as const,
     },
+    // — Futuro: amanhã + depois —
     {
-      id: 'seed-appt-4',
+      id: 'seed-appt-f1',
       pro: proJoaoId,
       proUser: PRO_JOAO,
       cust: 'seed-cust-4',
@@ -472,18 +527,18 @@ export async function seedBarbearia(): Promise<void> {
       svc: SVC_BARBA,
       day: 1,
       hour: 9,
-      status: 'scheduled' as const,
+      outcome: 'scheduled' as const,
     },
     {
-      id: 'seed-appt-5',
+      id: 'seed-appt-f2',
       pro: proMariaId,
       proUser: PRO_MARIA,
       cust: 'seed-cust-1',
       custUser: 'seed-cust-1-user',
       svc: SVC_CORTE,
-      day: 1,
+      day: 2,
       hour: 16,
-      status: 'scheduled' as const,
+      outcome: 'scheduled' as const,
     },
   ]
   for (const a of appts) {
@@ -498,12 +553,23 @@ export async function seedBarbearia(): Promise<void> {
         serviceId: a.svc,
         startAt,
         endAt: daysFromNow(a.day, a.hour + 1),
-        status: a.status,
+        // `created` always projects `scheduled`; the terminal outcome is applied
+        // right after via `seedAppointmentOutcome` (event-first, like production).
+        status: 'scheduled',
         servicePriceCentsSnapshot: 4500,
         serviceDurationMinutesSnapshot: 30,
       }),
       OWNER.uid,
     )
+    // The outcome is timestamped at the appointment's end (a plausible moment for
+    // the operator to have marked it).
+    await seedAppointmentOutcome({
+      orgId: ORG_ID,
+      appointmentId: a.id,
+      outcome: a.outcome,
+      atIso: daysFromNow(a.day, a.hour + 1),
+      actorId: OWNER.uid,
+    })
   }
 
   // — Agenda blocks: recurring lunch (Mon/Wed/Fri) + a one-off tomorrow —
