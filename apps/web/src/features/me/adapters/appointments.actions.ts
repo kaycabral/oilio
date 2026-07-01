@@ -9,7 +9,7 @@ import {
   normalizeCancellationPolicy,
 } from '@/domain'
 import { AppointmentConfig } from '@/domain/aggregates'
-import { aggregateRef } from '@/domain/effect'
+import { aggregateRef, appendEventToTx } from '@/domain/effect'
 import { loadActiveCatalogService } from '@/features/agenda/adapters/appointment-write-helpers'
 import { validateAppointmentWrite } from '@/features/agenda/adapters/validate-appointment-write'
 import { formatNoticeWindow } from '@/features/me/core/cancel-notice'
@@ -18,7 +18,7 @@ import {
   rowToDoc as apptRowToDoc,
 } from '@/shared/db/pg/effect/appointment-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
-import { emitEvent } from '@/shared/effect-bridge'
+import { commitSaga, emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { track } from '@/shared/lib/track'
 import { getUnitById } from '@/shared/org/unit-read'
@@ -219,10 +219,12 @@ export async function rescheduleOwnAppointment(input: {
     new Date(newStartAt).getTime() + appointment.serviceDurationMinutesSnapshot * 60_000,
   ).toISOString()
 
-  // The booked service's category drives subscription-scope coverage (brief
-  // 0019). Resolved from the snapshot's `serviceId`.
+  // The booked service must still be active — a deactivated/deleted service
+  // can't be rebooked (hard-reject, same posture as reception; brief 0080). Its
+  // category drives subscription-scope coverage (brief 0019).
   const item = await loadActiveCatalogService(input.orgId, appointment.serviceId)
-  const serviceCategoryId = typeof item === 'string' ? null : item.categoryId
+  if (typeof item === 'string') return { ok: false, error: item }
+  const serviceCategoryId = item.categoryId
 
   // Reenter the FULL validation layer — slot-grid + overlap + scope — for the
   // new slot. `excludeAppointmentId` lets the move not conflict with itself.
@@ -248,28 +250,42 @@ export async function rescheduleOwnAppointment(input: {
 
   const now = new Date().toISOString()
   const apptRef = aggregateRef(AppointmentConfig, input.orgId, input.appointmentId)
-  // Event-first move: `appointment.updated` carries the new instant; the
-  // projection (startAt/endAt) derives from it.
-  const updated = await emitEvent(AppointmentConfig, apptRef, {
-    _tag: 'appointment.updated',
-    actorId: session.uid,
-    payload: { changes: { startAt: newStartAt, endAt: newEndAt } },
-  })
-  if (!updated.ok) return { ok: false, error: updated.error }
-
   const rescheduledBy: AppointmentActorRole = 'customer'
-  const resched = await emitEvent(AppointmentConfig, apptRef, {
-    _tag: 'appointment.rescheduled',
-    actorId: session.uid,
-    payload: {
-      newStartAt,
-      newEndAt,
-      rescheduledBy,
-      rescheduledAt: now,
-      noticeMinutes: computeNoticeMinutes(appointment.startAt, now),
-    },
-  })
-  if (!resched.ok) return { ok: false, error: resched.error }
+  // Atomic move: `appointment.updated` (new instant, the projection derives from
+  // it) + `appointment.rescheduled` (audit) commit as ONE transaction. A failure
+  // on either rolls both back, so the appointment never moves without a
+  // reschedule record (same aggregate, ordered under one tx via commitSaga).
+  const moved = await commitSaga([
+    (tx) =>
+      appendEventToTx(
+        AppointmentConfig,
+        apptRef,
+        {
+          _tag: 'appointment.updated',
+          actorId: session.uid,
+          payload: { changes: { startAt: newStartAt, endAt: newEndAt } },
+        },
+        tx,
+      ),
+    (tx) =>
+      appendEventToTx(
+        AppointmentConfig,
+        apptRef,
+        {
+          _tag: 'appointment.rescheduled',
+          actorId: session.uid,
+          payload: {
+            newStartAt,
+            newEndAt,
+            rescheduledBy,
+            rescheduledAt: now,
+            noticeMinutes: computeNoticeMinutes(appointment.startAt, now),
+          },
+        },
+        tx,
+      ),
+  ])
+  if (!moved.ok) return { ok: false, error: moved.error }
 
   track('appointment_rescheduled_self_service', {
     org_id: input.orgId,

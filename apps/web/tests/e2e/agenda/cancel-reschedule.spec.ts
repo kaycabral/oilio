@@ -90,6 +90,8 @@ test.describe('Agenda — cancelar + reagendar', { tag: '@critical' }, () => {
     // Date input pre-populated with the appointment's org-tz date.
     await expect(dialog.locator('input[name="date"]')).toHaveValue('2026-08-12')
     // Start time pre-populated with the appointment's org-tz time (14:00 BR).
-    await expect(dialog.locator('input[name="startTime"]')).toHaveValue('14:00')
+    // The time picker is now a grid Select (brief 0080) — the chosen value shows
+    // on the combobox trigger.
+    await expect(dialog.getByRole('combobox', { name: 'Início' })).toContainText('14:00')
   })
 })

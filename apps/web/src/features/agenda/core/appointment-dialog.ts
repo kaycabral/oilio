@@ -72,16 +72,21 @@ export function resolveInitialDateTime(
 
 // The valid grid start times (HH:mm, org-local) for a day — the same grid the
 // backend enforces (brief 0080, AC-03b): each open range stepped by
-// `slotMinutes`, last start strictly before close. Drives the reception time
-// picker so the UI never offers an off-grid `startAt`. Ascending, de-duped
-// across overlapping ranges.
-export function gridTimeOptions(dayHours: readonly HoursRange[], slotMinutes: number): string[] {
-  if (slotMinutes <= 0) return []
+// `slotMinutes`, last start such that `start + durationMinutes <= close` (the
+// appointment must END within hours, mirroring availability's `close -
+// duration`). Drives the reception time picker so the UI never offers an
+// off-grid or overrunning `startAt`. Ascending, de-duped across ranges.
+export function gridTimeOptions(
+  dayHours: readonly HoursRange[],
+  slotMinutes: number,
+  durationMinutes: number,
+): string[] {
+  if (slotMinutes <= 0 || durationMinutes <= 0) return []
   const minutes = new Set<number>()
   for (const range of dayHours) {
     const openMin = hhmmToMinutes(range.open)
     const closeMin = hhmmToMinutes(range.close)
-    for (let m = openMin; m < closeMin; m += slotMinutes) minutes.add(m)
+    for (let m = openMin; m + durationMinutes <= closeMin; m += slotMinutes) minutes.add(m)
   }
   return Array.from(minutes)
     .sort((a, b) => a - b)

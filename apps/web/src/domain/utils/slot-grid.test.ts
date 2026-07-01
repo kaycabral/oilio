@@ -28,6 +28,7 @@ describe('isStartAtOnGrid', () => {
         // 10:00 BR
         startAt: '2026-08-17T13:00:00.000Z',
         slotMinutes: 30,
+        durationMinutes: 30,
         businessHours: bh(),
         timezone: BR,
       }),
@@ -40,6 +41,7 @@ describe('isStartAtOnGrid', () => {
         // 09:00 BR (open)
         startAt: '2026-08-17T12:00:00.000Z',
         slotMinutes: 30,
+        durationMinutes: 30,
         businessHours: bh(),
         timezone: BR,
       }),
@@ -52,6 +54,7 @@ describe('isStartAtOnGrid', () => {
         // 09:15 BR (off the 30-min grid)
         startAt: '2026-08-17T12:15:00.000Z',
         slotMinutes: 30,
+        durationMinutes: 30,
         businessHours: bh(),
         timezone: BR,
       }),
@@ -64,6 +67,7 @@ describe('isStartAtOnGrid', () => {
         // 08:30 BR (before 09:00)
         startAt: '2026-08-17T11:30:00.000Z',
         slotMinutes: 30,
+        durationMinutes: 30,
         businessHours: bh(),
         timezone: BR,
       }),
@@ -76,6 +80,7 @@ describe('isStartAtOnGrid', () => {
         // 12:00 BR (close)
         startAt: '2026-08-17T15:00:00.000Z',
         slotMinutes: 30,
+        durationMinutes: 30,
         businessHours: bh(),
         timezone: BR,
       }),
@@ -88,6 +93,7 @@ describe('isStartAtOnGrid', () => {
         // Sunday 10:00 BR
         startAt: '2026-08-16T13:00:00.000Z',
         slotMinutes: 30,
+        durationMinutes: 30,
         businessHours: bh(),
         timezone: BR,
       }),
@@ -99,6 +105,7 @@ describe('isStartAtOnGrid', () => {
       isStartAtOnGrid({
         startAt: '2026-08-17T13:00:00.000Z',
         slotMinutes: 30,
+        durationMinutes: 30,
         businessHours: null,
         timezone: BR,
       }),
@@ -111,6 +118,7 @@ describe('isStartAtOnGrid', () => {
         // 10:00:30 BR — off-grid by seconds
         startAt: '2026-08-17T13:00:30.000Z',
         slotMinutes: 30,
+        durationMinutes: 30,
         businessHours: bh(),
         timezone: BR,
       }),
@@ -129,6 +137,7 @@ describe('isStartAtOnGrid', () => {
       isStartAtOnGrid({
         startAt: '2026-08-17T17:00:00.000Z',
         slotMinutes: 30,
+        durationMinutes: 30,
         businessHours: split,
         timezone: BR,
       }),
@@ -138,6 +147,7 @@ describe('isStartAtOnGrid', () => {
       isStartAtOnGrid({
         startAt: '2026-08-17T15:30:00.000Z',
         slotMinutes: 30,
+        durationMinutes: 30,
         businessHours: split,
         timezone: BR,
       }),
@@ -150,6 +160,7 @@ describe('isStartAtOnGrid', () => {
         // 09:15 BR — valid on a 15-min grid
         startAt: '2026-08-17T12:15:00.000Z',
         slotMinutes: 15,
+        durationMinutes: 30,
         businessHours: bh(),
         timezone: BR,
       }),
@@ -161,9 +172,59 @@ describe('isStartAtOnGrid', () => {
       isStartAtOnGrid({
         startAt: '2026-08-17T13:00:00.000Z',
         slotMinutes: 0,
+        durationMinutes: 30,
         businessHours: bh(),
         timezone: BR,
       }),
     ).toBe(false)
+  })
+
+  it('rejects a start whose service overruns the closing time', () => {
+    // 11:30 BR = 14:30 UTC is on the 30-min grid, but a 60-min service ends at
+    // 12:30 — past the 12:00 close. Must be rejected (ends within hours).
+    expect(
+      isStartAtOnGrid({
+        startAt: '2026-08-17T14:30:00.000Z',
+        slotMinutes: 30,
+        durationMinutes: 60,
+        businessHours: bh(),
+        timezone: BR,
+      }),
+    ).toBe(false)
+    // The same start with a 30-min service fits (ends 12:00, the close).
+    expect(
+      isStartAtOnGrid({
+        startAt: '2026-08-17T14:30:00.000Z',
+        slotMinutes: 30,
+        durationMinutes: 30,
+        businessHours: bh(),
+        timezone: BR,
+      }),
+    ).toBe(true)
+  })
+
+  it('rejects a start strictly before the nowMs cutoff (past slot)', () => {
+    // 10:00 BR, on-grid
+    const start = '2026-08-17T13:00:00.000Z'
+    expect(
+      isStartAtOnGrid({
+        startAt: start,
+        slotMinutes: 30,
+        durationMinutes: 30,
+        businessHours: bh(),
+        timezone: BR,
+        nowMs: new Date('2026-08-17T13:30:00.000Z').getTime(),
+      }),
+    ).toBe(false)
+    expect(
+      isStartAtOnGrid({
+        startAt: start,
+        slotMinutes: 30,
+        durationMinutes: 30,
+        businessHours: bh(),
+        timezone: BR,
+        nowMs: new Date('2026-08-17T12:00:00.000Z').getTime(),
+      }),
+    ).toBe(true)
   })
 })

@@ -60,8 +60,6 @@ const APPOINTMENT_AGENDA = {
   slotMinutes: 30,
   cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
   confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-  selfBookingPublished: false,
-  selfBookingPublishedAt: null,
 }
 
 async function seedOrg(orgId: string): Promise<void> {
@@ -311,6 +309,28 @@ describe('rescheduleOwnAppointment — customer self-service (brief 0080, Grupo 
     expect(result.ok).toBe(false)
     expect(await countEventsByTag(orgId, 'appointment.rescheduled')).toBe(0)
     // The original 10:00 BR = 13:00 UTC slot is untouched.
+    expect(await readStartAt(orgId, appointmentId)).toBe('2026-07-06T13:00:00.000Z')
+  })
+
+  it('refuses the move when the booked service was deactivated — no event', async () => {
+    const orgId = uniqueOrg()
+    const { appointmentId } = await bookAsReceptionThenBecomeCustomer(orgId)
+    // Deactivate the booked service after the appointment was created.
+    await pool().query('UPDATE catalog_items SET active = false WHERE org_id = $1 AND id = $2', [
+      orgId,
+      SERVICE,
+    ])
+
+    const result = await rescheduleOwnAppointment({
+      orgId,
+      appointmentId,
+      date: BOOKING_DATE,
+      startTime: TO_TIME,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(await countEventsByTag(orgId, 'appointment.rescheduled')).toBe(0)
+    // Original slot untouched.
     expect(await readStartAt(orgId, appointmentId)).toBe('2026-07-06T13:00:00.000Z')
   })
 

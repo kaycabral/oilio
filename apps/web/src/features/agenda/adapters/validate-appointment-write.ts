@@ -44,9 +44,15 @@ export async function validateAppointmentWrite(args: {
   // Set on an edit so the appointment being moved doesn't conflict with itself.
   excludeAppointmentId?: string
 }): Promise<AppointmentWriteValidation> {
+  // Duration from the resolved slot — drives the "ends within hours" check and
+  // stays consistent with the overlap window below.
+  const durationMinutes = Math.round(
+    (new Date(args.endAt).getTime() - new Date(args.startAt).getTime()) / 60_000,
+  )
   const grid = enforceSlotGrid({
     unit: args.unit,
     startAt: args.startAt,
+    durationMinutes,
     surface: args.surface,
     orgId: args.orgId,
     userId: args.userId,

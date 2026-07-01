@@ -133,8 +133,18 @@ function makeBaseProps() {
     customers: [buildCustomer()],
     date: '2026-05-15',
     timezone: 'America/Sao_Paulo',
-    slotMinutes: 30 as const,
-    dayHours: [{ open: '09:00', close: '12:00' }],
+    appointmentGrid: {
+      slotMinutes: 30 as const,
+      businessHours: {
+        monday: { open: '09:00', close: '12:00' },
+        tuesday: { open: '09:00', close: '12:00' },
+        wednesday: { open: '09:00', close: '12:00' },
+        thursday: { open: '09:00', close: '12:00' },
+        friday: { open: '09:00', close: '12:00' },
+        saturday: null,
+        sunday: null,
+      },
+    },
     businessName: 'Test',
     confirmationTemplate: '',
   }
