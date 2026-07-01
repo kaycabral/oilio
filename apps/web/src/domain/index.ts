@@ -264,6 +264,7 @@ export {
 } from './types/service'
 export {
   SUBSCRIPTION_STATUSES,
+  SUBSCRIPTION_STATUS_LABEL,
   Subscription,
   SubscriptionPeriod,
   SubscriptionPlanSnapshot,

@@ -9,6 +9,7 @@ import {
   type SubscriptionPlan,
   type SubscriptionStatus,
   remainingUsage,
+  SUBSCRIPTION_STATUS_LABEL,
 } from '@/domain'
 import {
   markChargeFailed,
@@ -31,15 +32,6 @@ import {
 } from '@cbrl/design'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-
-const STATUS_LABEL: Record<SubscriptionStatus, string> = {
-  pending: 'Aguardando 1ª cobrança',
-  active: 'Ativa',
-  past_due: 'Em recuperação',
-  suspended: 'Suspensa',
-  cancelled: 'Cancelada',
-  cancelled_for_non_payment: 'Cancelada por inadimplência',
-}
 
 const STATUS_CLASS: Record<SubscriptionStatus, string> = {
   pending: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
@@ -253,7 +245,7 @@ export function SubscriptionDetail({
           <span
             className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_CLASS[subscription.status]}`}
           >
-            {STATUS_LABEL[subscription.status]}
+            {SUBSCRIPTION_STATUS_LABEL[subscription.status]}
           </span>
           {subscription.cancelAtPeriodEnd && subscription.status !== 'cancelled' ? (
             <span className="bg-muted text-muted-foreground rounded-full px-3 py-1 text-xs">

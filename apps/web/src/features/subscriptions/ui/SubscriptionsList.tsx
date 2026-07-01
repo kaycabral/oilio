@@ -3,6 +3,7 @@
 import { RowActions } from '@/components/RowActions'
 import { StatusBadge, type StatusTone } from '@/components/StatusBadge'
 import type { BillingCycle, Customer, Subscription, SubscriptionStatus } from '@/domain'
+import { SUBSCRIPTION_STATUS_LABEL } from '@/domain'
 import type { SubscriptionsFilter } from '@/features/subscriptions/adapters/load-subscriptions'
 import { PAGINATION_LABELS_PTBR } from '@/shared/list/pagination-labels'
 import { useClientPagination } from '@/shared/list/use-client-pagination'
@@ -12,15 +13,6 @@ import { toRoute } from '@/shared/routes'
 import { Button, List } from '@cbrl/design'
 import { CreditCard, RotateCw } from 'lucide-react'
 import Link from 'next/link'
-
-const STATUS_LABEL: Record<SubscriptionStatus, string> = {
-  pending: 'Aguardando 1ª cobrança',
-  active: 'Ativa',
-  past_due: 'Em recuperação',
-  suspended: 'Suspensa',
-  cancelled: 'Cancelada',
-  cancelled_for_non_payment: 'Cancelada por inadimplência',
-}
 
 const STATUS_TONE: Record<SubscriptionStatus, StatusTone> = {
   pending: 'warning',
@@ -54,7 +46,7 @@ function formatDate(iso: string | null): string {
 function StatusBadges({ s }: { s: Subscription }) {
   return (
     <span className="flex items-center gap-1.5">
-      <StatusBadge tone={STATUS_TONE[s.status]}>{STATUS_LABEL[s.status]}</StatusBadge>
+      <StatusBadge tone={STATUS_TONE[s.status]}>{SUBSCRIPTION_STATUS_LABEL[s.status]}</StatusBadge>
       {s.cancelAtPeriodEnd && s.status !== 'cancelled' ? (
         <StatusBadge tone="neutral">Cancela ao fim do ciclo</StatusBadge>
       ) : null}
