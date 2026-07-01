@@ -62,7 +62,10 @@ export function OrderItemRow({
         </div>
         <div className="text-muted-foreground mt-0.5 text-xs">
           {item.quantity} × {formatBRL(item.unitPriceCents)}
-          {item.commission ? (
+          {/* Item coberto pelo plano não gera comissão (brief 0079 — covered
+              service: no commission). Não anunciar "comissão X%" que não vai
+              existir — confundia o operador (#1328). */}
+          {item.commission && !covered ? (
             <>
               {' · comissão '}
               {item.commission.kind === 'percentage'

@@ -102,7 +102,9 @@ export function OrderClosePanel({
           <DialogHeader>
             <DialogTitle>Confirmar fechamento</DialogTitle>
             <DialogDescription>
-              Revise antes de fechar — gera comissões e registro de venda no caixa.
+              {sale
+                ? 'Revise antes de fechar — gera comissões e registro de venda no caixa.'
+                : 'Revise antes de fechar — consumo do plano, sem cobrança nem comissão.'}
             </DialogDescription>
           </DialogHeader>
 
