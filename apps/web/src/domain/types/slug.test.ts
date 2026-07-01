@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isReservedSlug, isValidSlug, SLUG_PATTERN, slugify } from './slug'
+import { isReservedSlug, isValidSlug, SLUG_HTML_PATTERN, SLUG_PATTERN, slugify } from './slug'
 
 // Hardcoded (NOT derived from the source Set/Map) so a blanked entry is caught:
 // iterating the mutated collection would assert against the mutated value and
@@ -101,6 +101,43 @@ describe('SLUG_PATTERN', () => {
     expect(SLUG_PATTERN.test('-a')).toBe(false)
     expect(SLUG_PATTERN.test('a-')).toBe(false)
     expect(SLUG_PATTERN.test('a b')).toBe(false)
+  })
+
+  it('compiles under the default engine flags (runtime .test path)', () => {
+    // The runtime literal is compiled with default flags, never `v` — that's why
+    // the unescaped trailing `-` is fine here. The HTML attribute (compiled under
+    // `v` by Safari/iOS) is the one that needs escaping — see SLUG_HTML_PATTERN.
+    expect(() => new RegExp(SLUG_PATTERN.source)).not.toThrow()
+    expect(() => new RegExp(SLUG_PATTERN.source, 'u')).not.toThrow()
+  })
+})
+
+describe('SLUG_HTML_PATTERN', () => {
+  it('is the pattern source, anchors stripped and hyphen escaped for the v flag', () => {
+    expect(SLUG_HTML_PATTERN).toBe('[a-z0-9](?:[a-z0-9\\-]*[a-z0-9])?')
+    expect(SLUG_HTML_PATTERN.startsWith('^')).toBe(false)
+    expect(SLUG_HTML_PATTERN.endsWith('$')).toBe(false)
+  })
+
+  it('compiles under the v (unicodeSets) flag, unlike the raw SLUG_PATTERN source (#1295)', () => {
+    // This is the crux of the bug: the raw source throws under `v` (the flag
+    // Safari/iOS uses for the HTML `pattern` attribute), the escaped HTML form
+    // does not. If SLUG_HTML_PATTERN ever regresses to an unescaped `-`, this
+    // fails — catching the exact defect the smoke found.
+    expect(() => new RegExp(SLUG_PATTERN.source, 'v')).toThrow()
+    expect(() => new RegExp(SLUG_HTML_PATTERN, 'v')).not.toThrow()
+  })
+
+  it('accepts/rejects the same values as SLUG_PATTERN when anchored', () => {
+    const asAttr = new RegExp(`^(?:${SLUG_HTML_PATTERN})$`, 'v')
+    for (const good of ['a', 'ab', 'barbearia-joao', '1-2-3']) {
+      expect(asAttr.test(good)).toBe(SLUG_PATTERN.test(good))
+      expect(asAttr.test(good)).toBe(true)
+    }
+    for (const bad of ['-a', 'a-', 'a b', 'UPPER']) {
+      expect(asAttr.test(bad)).toBe(SLUG_PATTERN.test(bad))
+      expect(asAttr.test(bad)).toBe(false)
+    }
   })
 })
 

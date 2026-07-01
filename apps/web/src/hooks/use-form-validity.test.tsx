@@ -23,6 +23,24 @@ function Harness({ onValidity }: { onValidity: (v: boolean) => void }) {
   )
 }
 
+// A two-field form with associated <label>s, so the test can assert that
+// `firstInvalidLabel` reports the human label of the FIRST invalid field in DOM
+// order (#1296 — a disabled submit must name the pending field).
+function LabeledHarness({ onLabel }: { onLabel: (label: string | null) => void }) {
+  const { formRef, firstInvalidLabel } = useFormValidity()
+  useEffect(() => {
+    onLabel(firstInvalidLabel)
+  }, [firstInvalidLabel, onLabel])
+  return (
+    <form ref={formRef} aria-label="labeled">
+      <label htmlFor="f-name">Nome</label>
+      <input id="f-name" name="name" required defaultValue="ok" />
+      <label htmlFor="f-number">Número</label>
+      <input id="f-number" name="number" required defaultValue="" />
+    </form>
+  )
+}
+
 describe('useFormValidity', () => {
   it('starts invalid when a required field is empty', async () => {
     const seen: boolean[] = []
@@ -65,5 +83,24 @@ describe('useFormValidity', () => {
       setTimeout(resolve, 50)
     })
     expect(seen.length).toBe(before)
+  })
+
+  it('reports the label of the first invalid field, null once valid (#1296)', async () => {
+    const seen: (string | null)[] = []
+    render(<LabeledHarness onLabel={(l) => seen.push(l)} />)
+
+    // `Nome` is pre-filled, `Número` is empty+required ⇒ the first (and only)
+    // invalid field is Número, reported by its associated <label> text.
+    await waitFor(() => expect(seen.at(-1)).toBe('Número'))
+
+    const number = screen.getByLabelText('Número')
+    if (!(number instanceof HTMLInputElement)) throw new Error('expected input')
+    act(() => {
+      // Fill it → form becomes valid → no pending field to name.
+      number.value = 'wired'
+      number.dispatchEvent(new Event('input', { bubbles: true }))
+      number.setAttribute('value', 'wired')
+    })
+    await waitFor(() => expect(seen.at(-1)).toBeNull())
   })
 })

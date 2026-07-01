@@ -59,7 +59,14 @@ export type {
   MemberCommissionSummary,
 } from './utils/commission-report'
 
-export { RESERVED_SLUGS, SLUG_PATTERN, isReservedSlug, isValidSlug, slugify } from './types/slug'
+export {
+  RESERVED_SLUGS,
+  SLUG_HTML_PATTERN,
+  SLUG_PATTERN,
+  isReservedSlug,
+  isValidSlug,
+  slugify,
+} from './types/slug'
 
 export {
   BirthDateParseResult,

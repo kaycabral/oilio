@@ -1,4 +1,19 @@
+// Canonical slug rule, used at runtime via `.test()`. The JS engine compiles this
+// literal with default flags (never `v`), so the trailing `-` in the class is
+// valid and lint-clean here; see `SLUG_HTML_PATTERN` for the `v`-safe HTML form.
 export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
+
+// The same rule as an HTML `pattern` attribute value: the `SLUG_PATTERN` source
+// without the `^…$` anchors (the attribute is implicitly anchored to the whole
+// value), with the class hyphen ESCAPED (`\-`). Modern engines (Safari/iOS)
+// compile the `pattern` attribute with the `v` (unicodeSets) flag, under which an
+// unescaped trailing `-` in a class is a SyntaxError that breaks form submission
+// (#1295). `\-` matches an identical literal hyphen and is valid under `u` and
+// `v`. Derived from `SLUG_PATTERN` so the two can never drift.
+export const SLUG_HTML_PATTERN = SLUG_PATTERN.source
+  .replace(/^\^/, '')
+  .replace(/\$$/, '')
+  .replace('[a-z0-9-]', '[a-z0-9\\-]')
 
 // Slugs reservados — usados por rotas top-level do app, não podem virar slug
 // público de org (causaria conflito de rota no Next.js, com a rota
