@@ -171,6 +171,31 @@ describe('AgendaView — missing operational profile empty-state (#1268)', () =>
   })
 })
 
+// #1326 AC2/AC3: when the active unit has no linked professional, the empty-state
+// must not leak a management CTA to a non-manager. Managers get the actionable
+// "Convidar profissional"; a professional/receptionist gets a neutral state
+// explaining they're not linked to this unit — inviting isn't their action.
+describe('AgendaView — no-professional empty-state gating (#1326)', () => {
+  const noProProps = { ...baseProps, memberOperations: [], hasBusinessHours: true }
+
+  it('shows the management CTA to a manager', () => {
+    render(<AgendaView {...noProProps} canManage />)
+    expect(screen.getByText(/nenhum profissional nesta unidade/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /convidar profissional/i })).toHaveAttribute(
+      'href',
+      '/team',
+    )
+  })
+
+  it('shows a neutral state (no invite CTA) to a non-manager', () => {
+    render(<AgendaView {...noProProps} canManage={false} />)
+    expect(screen.getByText(/você ainda não atende nesta unidade/i)).toBeInTheDocument()
+    // The management CTA and the manager-facing copy must not leak.
+    expect(screen.queryByRole('link', { name: /convidar profissional/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(/nenhum profissional nesta unidade/i)).not.toBeInTheDocument()
+  })
+})
+
 // Brief 0081 (#1312 AC-03): the "mostrar cancelados" toggle is URL-driven.
 // Off by default; clicking it pushes `?showCancelled=1` (preserving the day);
 // clicking it while on drops the param. The day nav must carry the toggle along.
