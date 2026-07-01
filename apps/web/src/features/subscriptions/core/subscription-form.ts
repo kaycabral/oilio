@@ -14,7 +14,7 @@ export type CreatePayload = {
 
 export type CreatePayloadWithDisplay = CreatePayload & { displayedPriceCents: number | null }
 
-function isBillingCycle(value: string): value is BillingCycle {
+export function isBillingCycle(value: string): value is BillingCycle {
   return (BILLING_CYCLES as readonly string[]).includes(value)
 }
 

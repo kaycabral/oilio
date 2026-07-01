@@ -110,3 +110,25 @@ export function gridTimeOptions(
     })
     .map(minutesToHHmm)
 }
+
+// The reception start-time picker's options + default, given the filtered
+// `grid` (already past-cut). EDIT preserves the appointment's own start even
+// when it fell off the grid (business hours changed after the booking) so the
+// edit doesn't silently drop it; NEW never re-injects — if the fallback start
+// landed in the past, `gridTimeOptions` already dropped it and it must not come
+// back as a selectable option nor as the default (#1314). NEW defaults to the
+// first grid-valid future slot, never the raw fallback.
+export function resolveStartTimePicker(args: {
+  grid: readonly string[]
+  editMode: boolean
+  initialStartTime: string
+  keepInitial: boolean
+}): { options: string[]; defaultValue: string | undefined } {
+  const { grid, editMode, initialStartTime, keepInitial } = args
+  if (editMode && keepInitial && initialStartTime && !grid.includes(initialStartTime)) {
+    const options = [...grid, initialStartTime].sort((a, b) => a.localeCompare(b))
+    return { options, defaultValue: initialStartTime }
+  }
+  const defaultValue = editMode ? initialStartTime || undefined : grid[0]
+  return { options: [...grid], defaultValue }
+}

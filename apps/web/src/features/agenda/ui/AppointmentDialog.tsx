@@ -17,6 +17,7 @@ import {
   buildAppointmentWhatsappLink,
   gridTimeOptions,
   resolveInitialDateTime,
+  resolveStartTimePicker,
 } from '@/features/agenda/core/appointment-dialog'
 import { useFormValidity } from '@/hooks/use-form-validity'
 import {
@@ -134,26 +135,33 @@ export function AppointmentDialog({
     return svc ? resolveCatalogItemForUnit(svc, unitId).durationMinutes : 0
   }, [activeServices, selectedServiceId, unitId])
 
-  // Grid-valid start times for the selected day + service duration (brief 0080,
-  // AC-03b). When editing an appointment whose start no longer matches the grid
-  // (hours/service changed after booking), keep its current time selectable so
-  // the edit doesn't silently drop it.
-  const startTimeOptions = useMemo(() => {
-    if (!appointmentGrid) return []
+  // Grid-valid start times + the picker default for the selected day + service
+  // duration (brief 0080, AC-03b; past-cut #1314). The EDIT-preserve / NEW-first
+  // -future-slot logic lives in the (mutation-tested) core `resolveStartTimePicker`.
+  const { options: startTimeOptions, defaultValue: startTimeDefault } = useMemo(() => {
+    if (!appointmentGrid) return { options: [] as string[], defaultValue: undefined }
     const dayHours = getBusinessHoursForDay(appointmentGrid.businessHours, selectedDate, timezone)
-    // Drop already-past slots on the current day so the picker never offers a
-    // start the write path would reject as past (#1314). `Date.now()` lives here
-    // in the shell; the core stays pure via the injected `nowMs`.
+    // `Date.now()` lives here in the shell; the core stays pure via `nowMs`.
     const grid = gridTimeOptions(dayHours, appointmentGrid.slotMinutes, selectedDuration, {
       date: selectedDate,
       timezone,
       nowMs: Date.now(),
     })
-    if (initialStartTime && selectedDate === initialDate && !grid.includes(initialStartTime)) {
-      return [...grid, initialStartTime].sort((a, b) => a.localeCompare(b))
-    }
-    return grid
-  }, [appointmentGrid, selectedDate, selectedDuration, initialStartTime, initialDate, timezone])
+    return resolveStartTimePicker({
+      grid,
+      editMode,
+      initialStartTime,
+      keepInitial: selectedDate === initialDate,
+    })
+  }, [
+    appointmentGrid,
+    selectedDate,
+    selectedDuration,
+    initialStartTime,
+    initialDate,
+    timezone,
+    editMode,
+  ])
 
   const whatsappLink = useMemo(
     () =>
@@ -347,7 +355,7 @@ export function AppointmentDialog({
               {appointmentGrid ? (
                 // Appointment mode: only grid-valid, duration-fitting slots for
                 // the selected day (brief 0080, AC-03b).
-                <Select name="startTime" required defaultValue={initialStartTime || undefined}>
+                <Select name="startTime" required defaultValue={startTimeDefault}>
                   <SelectTrigger id="appointment-startTime">
                     <SelectValue placeholder="Selecione…" />
                   </SelectTrigger>
