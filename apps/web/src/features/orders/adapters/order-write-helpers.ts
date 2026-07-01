@@ -18,9 +18,11 @@ import {
   stockDecrementTargets,
   type Subscription,
 } from '@/domain'
+import type { ParsedAssignCustomer } from '@/features/orders/core/assign-customer-form'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { newId } from '@/shared/db/pg/new-id'
 
+import { getCustomerById } from '@/shared/org/customer-read'
 import { getMemberOperationByUserId } from '@/shared/org/member-operation-read'
 import {
   canActOnOwnedResource,
@@ -28,6 +30,7 @@ import {
   listOrgMembers,
   operatesFrontDesk,
 } from '@/shared/org/membership'
+import { resolveCustomerIdForWrite } from '@/shared/org/resolve-customer-for-write'
 import { loadActiveSubscriptionForCustomer, loadOrderById } from './order-financial-read'
 
 // Own-resource policy for an OPEN order (brief 0075, #1257): the balcão
@@ -211,6 +214,66 @@ export async function autoMarkCoverageDefault(args: ItemCoverageInput): Promise<
   args.target.coverage = 'subscription'
   args.target.subscriptionId = resolved.subscriptionId
   return resolved.subscriptionId
+}
+
+// Resolves the customer id to assign to a walk-in order from the parsed selector
+// intent (brief 0081 / #1323): `none` → null (unlink); `new` → upsert inline via
+// the shared resolver (gated on canManageCustomers); `existing` → the picked id,
+// guarded to exist under THIS org (RLS-scoped read blocks a cross-org id smuggled
+// in the form). Extracted from the action to keep it under the complexity gate.
+// Returns `{ customerId }` or `{ error }` to early-return.
+export async function resolveAssignedCustomerId(
+  orgId: string,
+  membership: Membership,
+  parsed: ParsedAssignCustomer,
+): Promise<{ customerId: string | null } | { error: string }> {
+  if (parsed.mode === 'none') return { customerId: null }
+  const resolved = await resolveCustomerIdForWrite(
+    membership,
+    parsed.mode === 'new'
+      ? { customerId: null, newCustomer: parsed.newCustomer }
+      : { customerId: parsed.customerId, newCustomer: null },
+  )
+  if (!resolved.ok) return { error: resolved.error }
+  if (parsed.mode === 'existing') {
+    const customer = await getCustomerById(orgId, resolved.customerId)
+    if (!customer) return { error: 'Cliente não encontrado neste estabelecimento' }
+  }
+  return { customerId: resolved.customerId }
+}
+
+// Re-evaluates subscription coverage for EVERY item after the order's customer
+// changed (link / swap / unlink — brief 0081 Cenário 4). Runs the SAME per-item
+// rule as `autoMarkCoverageDefault`, so a walk-in that links a subscriber sees the
+// covered items auto-marked exactly as if they'd been added after the link
+// (Cenário 2), and an item that lost its coverage (customer removed / swapped to a
+// non-subscriber / no balance) falls back to `sale` — never stays covered against
+// a customer that can't cover it. Returns a fresh item array (pure w.r.t. the
+// input); the caller recomputes totals + emits. The balance tally is greedy in
+// item order: each item is resolved as if the earlier ones already took their
+// share (via `idx`), so the plan quota isn't double-counted across the comanda.
+export async function reevaluateCoverageForItems(
+  orgId: string,
+  order: Order,
+): Promise<OrderItem[]> {
+  const next: OrderItem[] = []
+  for (let idx = 0; idx < order.items.length; idx++) {
+    const item = order.items[idx]!
+    // Resolve against the running `next` (already-reevaluated) items so the
+    // remaining-balance tally reflects what earlier items just consumed.
+    const resolved = await resolveItemCoverageSubscription({
+      orgId,
+      order: { ...order, items: [...next, ...order.items.slice(idx)] },
+      target: item,
+      idx,
+    })
+    if (typeof resolved === 'string') {
+      next.push({ ...item, coverage: 'sale', subscriptionId: null })
+    } else {
+      next.push({ ...item, coverage: 'subscription', subscriptionId: resolved.subscriptionId })
+    }
+  }
+  return next
 }
 
 // Resolução de cobertura no consumo (brief 0024, AC-04): cada item coberto

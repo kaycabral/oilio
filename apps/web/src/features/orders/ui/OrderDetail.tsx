@@ -30,6 +30,7 @@ import { toast } from 'sonner'
 import { OrderAddItemForm } from './OrderAddItemForm'
 import { OrderClosePanel, UndoClosePanel } from './OrderClosePanel'
 import { OrderCommissionsTable } from './OrderCommissionsTable'
+import { OrderCustomerSelector } from './OrderCustomerSelector'
 import { OrderItemRow } from './OrderItemRow'
 
 export type OrderDetailProps = {
@@ -49,6 +50,11 @@ export type OrderDetailProps = {
   // null = sem assinatura ativa → cobertura indisponível.
   subscriptionCoverage: { remaining: number | null } | null
   canCancel: boolean
+  // Clientes ativos do org — opções do seletor da comanda avulsa (brief 0081).
+  customers: Customer[]
+  // Gate do cadastro inline de cliente (canManageCustomers): esconde o modo "novo"
+  // pra quem só opera a própria agenda — a action recusa o POST de qualquer forma.
+  canRegisterCustomer: boolean
 }
 
 export function OrderDetail({
@@ -61,6 +67,8 @@ export function OrderDetail({
   commissions,
   subscriptionCoverage,
   canCancel,
+  customers,
+  canRegisterCustomer,
 }: OrderDetailProps) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -129,6 +137,19 @@ export function OrderDetail({
                 balcão; com customerId mas sem doc é "Cliente removido". */}
             {order.customerId ? (customer?.name ?? 'Cliente removido') : 'Venda avulsa'}
           </h1>
+          {/* Seletor de cliente da comanda avulsa (brief 0081): vincular/trocar/
+              remover enquanto editável. Ao vincular um assinante, a cobertura é
+              reavaliada no servidor e os itens cobertos auto-marcam. */}
+          {editable ? (
+            <div className="mt-2">
+              <OrderCustomerSelector
+                orderId={order.id}
+                customer={customer}
+                customers={customers}
+                canRegisterCustomer={canRegisterCustomer}
+              />
+            </div>
+          ) : null}
           <p className="text-muted-foreground mt-1 text-sm">
             {statusLine(order)}
             {order.appointmentId ? (

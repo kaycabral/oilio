@@ -1,4 +1,4 @@
-import { isCatalogProduct, isCatalogService, Subscription } from '@/domain'
+import { isCatalogProduct, isCatalogService, isOrderEditable, Subscription } from '@/domain'
 import {
   loadCommissionsForOrder,
   loadOrderById,
@@ -12,8 +12,12 @@ import {
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { getCustomerById } from '@/shared/org/customer-read'
-import { getActiveOrgContext, listOrgMembers } from '@/shared/org/membership'
+import { getCustomerById, listActiveCustomersForOrg } from '@/shared/org/customer-read'
+import {
+  getActiveOrgContext,
+  hasMembershipCapability,
+  listOrgMembers,
+} from '@/shared/org/membership'
 import { Schema } from 'effect'
 import { notFound, redirect } from 'next/navigation'
 import 'server-only'
@@ -81,6 +85,14 @@ export async function loadOrderDetailPage(orderId: string): Promise<OrderDetailP
   const services = catalogItems.filter(isCatalogService)
   const products = catalogItems.filter(isCatalogProduct)
 
+  // Clientes ativos p/ o seletor da comanda avulsa (brief 0081) — só quando a
+  // comanda ainda é editável (comanda fechada não vincula cliente). O gate do
+  // cadastro inline espelha o `resolveCustomerIdForWrite` da action.
+  const customers = isOrderEditable(order)
+    ? await listActiveCustomersForOrg(ctx.membership.orgId)
+    : []
+  const canRegisterCustomer = hasMembershipCapability(ctx.membership, 'canManageCustomers')
+
   // Cobertura disponível: `remaining` é null pra plano ilimitado, ou saldo do
   // ciclo pra plano por contagem; null quando não há assinatura ativa.
   const subscriptionCoverage = activeSub
@@ -104,5 +116,7 @@ export async function loadOrderDetailPage(orderId: string): Promise<OrderDetailP
     commissions,
     subscriptionCoverage,
     canCancel,
+    customers,
+    canRegisterCustomer,
   }
 }
