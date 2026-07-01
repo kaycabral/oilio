@@ -1704,7 +1704,13 @@ export async function linkMemberOperationToServices(
 
 export async function seedProduct(
   orgId: string,
-  opts: { name?: string; priceCents?: number; stock?: number; sku?: string } = {},
+  opts: {
+    name?: string
+    priceCents?: number
+    stock?: number
+    sku?: string
+    unitIds?: string[]
+  } = {},
 ): Promise<string> {
   const id = `e2e-prod-${uniqueSuffix()}`
   const now = new Date().toISOString()
@@ -1717,9 +1723,14 @@ export async function seedProduct(
   // `products/{id}` doc is gone — this seeds the kind-product catalog item
   // directly. `unitIds` is non-empty (#1283): a catalog item is always
   // unit-scoped, refused empty by the `catalog_item.created` event +
-  // `catalog_items_unit_ids_nonempty` CHECK. A placeholder suffices —
-  // `resolveCatalogItemForUnit` reads the base price when the unit has no
-  // override, so the order item still resolves regardless of the exact scope.
+  // `catalog_items_unit_ids_nonempty` CHECK. Default resolves the org's REAL
+  // first unit (`firstUnitIdForOrg`), NOT a fantasy placeholder: any test that
+  // RE-PROJECTS the item (e.g. closing a comanda that decrements its stock, #B4)
+  // makes the projector re-mirror the join table `catalog_item_units`, whose FK →
+  // `units` would reject a placeholder and roll the whole close saga back
+  // (surfaced misleadingly as a concurrency conflict, #1320). A caller may still
+  // pass explicit `unitIds` to scope to specific units.
+  const unitIds = opts.unitIds ?? [await firstUnitIdForOrg(orgId)]
   const catalogDoc: CatalogProductItem = {
     id,
     orgId,
@@ -1728,7 +1739,7 @@ export async function seedProduct(
     categoryId: null,
     priceCents,
     commission: null,
-    unitIds: ['e2e-default-unit'],
+    unitIds,
     unitOverrides: null,
     publicVisible: false,
     priceVisibility: 'visible',

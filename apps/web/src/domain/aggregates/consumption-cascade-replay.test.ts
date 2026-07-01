@@ -15,7 +15,7 @@ import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
 import { isCatalogProduct } from '../types/catalog-item'
 import type { SubscriptionPlanSnapshot } from '../types/subscription'
-import { coveredItemQuantity, coveredProducts } from '../utils/order'
+import { coveredItemQuantity, stockDecrementTargets } from '../utils/order'
 import { isItemCoveredBySubscription } from '../utils/subscription-coverage'
 import { CatalogItemConfig } from './catalog-item/config'
 import { SubscriptionConfig } from './subscription/config'
@@ -54,6 +54,20 @@ const COVERED_PRODUCT = {
   coverage: 'subscription' as const,
   subscriptionId: 'sub-1',
 }
+// Produto vendido AVULSO (venda de balcão comum): não consome plano, mas baixa
+// estoque igual — a regra de estoque é desacoplada de coverage (#B4).
+const SALE_PRODUCT = {
+  id: 'oi-3',
+  kind: 'product' as const,
+  refId: 'prod-shampoo',
+  name: 'Shampoo',
+  quantity: 3,
+  unitPriceCents: 2000,
+  commission: null,
+  attributedUserId: 'p1',
+  coverage: 'sale' as const,
+  subscriptionId: null,
+}
 
 describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => {
   it('resolve serviço (item direto) e produto (categoria expandida) como cobertos', () => {
@@ -70,12 +84,25 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
     )
   })
 
-  it('a cota debitada conta serviço + produto; só produto baixa estoque', () => {
-    const items = [COVERED_SERVICE, COVERED_PRODUCT]
-    // 1 serviço (qty 1) + 1 produto (qty 2) = 3 usos da cota.
+  it('a cota conta só itens cobertos; TODO produto baixa estoque (coberto ou avulso, #B4)', () => {
+    const items = [COVERED_SERVICE, COVERED_PRODUCT, SALE_PRODUCT]
+    // Cota: 1 serviço coberto (qty 1) + 1 produto coberto (qty 2) = 3. O produto
+    // avulso (SALE_PRODUCT) NÃO conta cota — coverage governa a cota.
     expect(coveredItemQuantity(items)).toBe(3)
-    // Só o produto baixa estoque, com a quantidade da linha.
-    expect(coveredProducts(items)).toEqual([{ refId: 'prod-pomada', quantity: 2 }])
+    // Estoque: os DOIS produtos baixam — o coberto E o avulso —, cada um com a
+    // quantidade da linha. O serviço nunca baixa (não tem estoque). Coverage NÃO
+    // governa estoque (#B4): a venda de balcão comum agora reduz o inventário.
+    expect(stockDecrementTargets(items)).toEqual([
+      { refId: 'prod-pomada', quantity: 2 },
+      { refId: 'prod-shampoo', quantity: 3 },
+    ])
+  })
+
+  it('produto AVULSO sozinho baixa estoque (venda de balcão, sem assinatura)', () => {
+    // A rede que faltava: antes do #B4 uma comanda 100% avulsa saía com estoque
+    // intacto. Agora o produto de venda baixa como qualquer outro.
+    expect(coveredItemQuantity([SALE_PRODUCT])).toBe(0)
+    expect(stockDecrementTargets([SALE_PRODUCT])).toEqual([{ refId: 'prod-shampoo', quantity: 3 }])
   })
 
   it('subscription: usage_incremented (cota = soma de itens cobertos) → replay == projeção', async () => {
@@ -127,7 +154,7 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
   it('catalog_item (produto): updated baixa estoque → replay == projeção', async () => {
     const { store, layer } = makeReplayStore()
     const ref = aggregateRef(CatalogItemConfig, 't1', 'prod-pomada')
-    const dec = coveredProducts([COVERED_PRODUCT])[0]!
+    const dec = stockDecrementTargets([COVERED_PRODUCT])[0]!
 
     await Effect.runPromise(
       Effect.gen(function* () {

@@ -32,12 +32,12 @@ import 'server-only'
 
 import { type ConsumptionPlan } from './order-write-helpers'
 
-// Resolves the absolute target stock for each covered product BEFORE the close
-// runs, reading the live catalog stock and clamping at 0 — the same computation
-// `emitStockDecrements` does inline, lifted out so the Postgres saga can append
-// the resolved value as a pure step (no read needed inside the cascade). Returns
-// the `{ refId, nextStock }` list (skipping non-product / missing refs, which
-// don't decrement), so the saga step set is deterministic.
+// Resolves the absolute target stock for each product BEFORE the close runs,
+// reading the live catalog stock and clamping at 0, lifted out so the Postgres
+// saga can append the resolved value as a pure step (no read needed inside the
+// cascade). The `stockDecrements` list already came from the single-source
+// `stockDecrementTargets` (every product, regardless of coverage — #B4). Skips
+// non-product / missing refs, so the saga step set is deterministic.
 async function resolveStockTargets(
   orgId: string,
   stockDecrements: { refId: string; quantity: number }[],

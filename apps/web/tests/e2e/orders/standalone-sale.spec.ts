@@ -11,10 +11,13 @@
 // que abriu a venda (o owner seedado). O caso de varejo puro — recepção sem
 // MemberOperation vendendo balcão — é coberto em member-attribution.spec.ts.
 
+import { CatalogItemConfig } from '@/domain/aggregates'
+import { aggregateRef } from '@/domain/effect'
 import { expect, test } from '../fixtures'
 import { addCatalogItemToOrder } from '../helpers/orders'
 import { choosePaymentMethod } from '../helpers/select'
 import {
+  pgReadProjection,
   seedAppointment,
   seedCustomer,
   seedProduct,
@@ -22,6 +25,17 @@ import {
   uniqueWhatsapp,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
+
+// Reads the live stock off the `catalog_items` projection — the source of truth
+// the close saga decrements. Shared shape with the plans consumption spec.
+async function readStock(orgId: string, itemId: string): Promise<number> {
+  const row = await pgReadProjection(
+    'catalog_items',
+    aggregateRef(CatalogItemConfig, orgId, itemId),
+  )
+  if (!row) throw new Error(`readStock: catalog item ${itemId} not found`)
+  return Number(row.stock ?? 0)
+}
 
 test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@critical' }, () => {
   test.use({
@@ -49,7 +63,17 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
     authedPage,
   }) => {
     // Produto comissionável (50% de R$ 30 = R$ 15) atribuível ao profissional.
-    await seedProduct(org.orgId, { name: 'Cimento CP-II', priceCents: 3000 })
+    // Estoque inicial conhecido (7) para provar o decremento no fechamento (#B4).
+    const productId = await seedProduct(org.orgId, {
+      name: 'Cimento CP-II',
+      priceCents: 3000,
+      stock: 7,
+      // Unit REAL da org: o fechamento re-projeta o produto (baixa estoque), e o
+      // espelho `catalog_item_units` tem FK → `units`. Placeholder faria a saga
+      // dar rollback (#B4 — ver comentário em `seedProduct`).
+      unitIds: [org.unitIds[0]!],
+    })
+    expect(await readStock(org.orgId, productId)).toBe(7)
 
     await authedPage.goto('/orders')
     await authedPage.getByRole('button', { name: 'Nova venda' }).click()
@@ -72,6 +96,11 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
     await expect(dialog).toBeVisible()
     await dialog.getByRole('button', { name: /Confirmar fechamento/ }).click()
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible({ timeout: 5000 })
+
+    // #B4 — o produto vendido AVULSO baixa estoque no fechamento (7 − 1 = 6),
+    // igual a um consumo por assinatura. Antes do fix a venda de balcão nunca
+    // decrementava; esta é a prova ponta-a-ponta do desacoplamento estoque↔coverage.
+    expect(await readStock(org.orgId, productId)).toBe(6)
 
     // Aparece na lista de fechadas rotulada como "Venda avulsa".
     await authedPage.goto('/orders?status=closed')

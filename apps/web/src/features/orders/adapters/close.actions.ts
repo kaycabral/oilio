@@ -8,9 +8,9 @@ import {
   type PaymentMethod,
   computeOrderTotals,
   coveredItemQuantity,
-  coveredProducts,
   hasSaleItem,
   liquidationStatusOf,
+  stockDecrementTargets,
 } from '@/domain'
 import { newId } from '@/shared/db/pg/new-id'
 
@@ -165,10 +165,11 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
     if (subId) subscriptionRestore = { id: subId, amount: coveredQty }
   }
 
-  // Devolve o estoque baixado pelos produtos cobertos no fechamento (brief 0024,
-  // AC-05). Compensação event-first: `catalog_item.updated` somando de volta a
-  // quantidade — espelha o decremento do close.
-  const stockRestores = coveredProducts(order.items)
+  // Devolve o estoque baixado no fechamento. MESMA fonte única do decremento
+  // (`stockDecrementTargets`) sobre a comanda fechada (imutável) → o que o close
+  // baixou é exatamente o que o undo devolve, por construção (#B4). Compensação
+  // event-first: `catalog_item.updated` somando de volta a quantidade.
+  const stockRestores = stockDecrementTargets(order.items)
 
   // AC-08: estorno do caixa. Nunca deletamos o `sale` — appendamos um
   // `sale_reversal` standalone (brief 0015 — caixa sem sessão) que neta a venda.

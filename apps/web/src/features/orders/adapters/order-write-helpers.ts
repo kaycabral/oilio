@@ -7,8 +7,6 @@ import {
   type Commission,
   coverageOf,
   coveredItemQuantity,
-  coveredProducts,
-  isCatalogProduct,
   isItemCoveredBySubscription,
   isOperational,
   type LiquidationStatus,
@@ -17,14 +15,11 @@ import {
   type OrderItem,
   type OrderItemKind,
   type PaymentMethod,
+  stockDecrementTargets,
   type Subscription,
 } from '@/domain'
-import { CatalogItemConfig } from '@/domain/aggregates'
-import { aggregateRef } from '@/domain/effect'
-
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { newId } from '@/shared/db/pg/new-id'
-import { emitEvent } from '@/shared/effect-bridge'
 
 import { getMemberOperationByUserId } from '@/shared/org/member-operation-read'
 import {
@@ -251,9 +246,11 @@ export type ConsumptionPlan = {
   stockDecrements: { refId: string; quantity: number }[]
 }
 
-// Consumo de assinatura por item (brief 0024, Grupo B): valida cobertura + saldo
-// e resolve o que decrementar (cota + estoque dos produtos cobertos). Retorna o
-// plano de consumo, ou uma mensagem de erro.
+// Consumo no fechamento (brief 0024, Grupo B): resolve o que decrementar — cota
+// de assinatura E estoque — em UM lugar. As duas regras são independentes por
+// design (#B4): estoque baixa para TODO produto (`stockDecrementTargets`, imune a
+// coverage); a cota só debita quando há item coberto e assinatura ativa com
+// saldo. Retorna o plano de consumo, ou uma mensagem de erro.
 export async function resolveSubscriptionConsumption(
   orgId: string,
   order: Order,
@@ -261,8 +258,15 @@ export async function resolveSubscriptionConsumption(
 ): Promise<ConsumptionPlan | string> {
   const coveredQty = coveredItemQuantity(order.items)
   if (!sale && coveredQty === 0) return 'Venda sem itens de venda nem consumo de assinatura'
-  if (coveredQty === 0) return { subscriptionToConsume: null, stockDecrements: [] }
-  // Consumo exige cliente — venda avulsa anônima (brief 0030) nunca chega aqui.
+  // Estoque é desacoplado de coverage: computado SEMPRE, mesmo em venda 100%
+  // avulsa (que antes retornava cedo sem baixar — a raiz do #B4). Fonte única
+  // compartilhada com o undo (`stockDecrementTargets`) → o que baixa é o que
+  // devolve, por construção.
+  const stockDecrements = stockDecrementTargets(order.items)
+
+  if (coveredQty === 0) return { subscriptionToConsume: null, stockDecrements }
+  // Consumo de cota exige cliente — venda avulsa anônima (brief 0030) nunca marca
+  // item como `subscription`, então nunca chega aqui com coveredQty > 0.
   if (!order.customerId) return 'Venda sem cliente não pode consumir assinatura'
   const sub = await loadActiveSubscriptionForCustomer(orgId, order.customerId)
   if (!sub) return 'Cliente não possui assinatura ativa para o consumo marcado'
@@ -282,8 +286,7 @@ export async function resolveSubscriptionConsumption(
   }
   return {
     subscriptionToConsume: { id: sub.id, amount: coveredQty },
-    // Produtos cobertos baixam estoque/COGS (AC-05); serviços cobertos não.
-    stockDecrements: coveredProducts(order.items),
+    stockDecrements,
   }
 }
 
@@ -325,30 +328,4 @@ export async function buildOrderCommissions(args: {
     })
   }
   return commissions
-}
-
-// Produto coberto baixa estoque (brief 0024, AC-05): `catalog_item.updated` com
-// o novo `stock` (event-first). Lê o estoque vivo no fechamento, clamp em 0.
-export async function emitStockDecrements(
-  orgId: string,
-  actorUid: string,
-  stockDecrements: { refId: string; quantity: number }[],
-): Promise<string | null> {
-  for (const dec of stockDecrements) {
-    const item = await getCatalogItemById(orgId, dec.refId)
-    if (!item) continue
-    if (!isCatalogProduct(item)) continue
-    const nextStock = Math.max(0, item.stock - dec.quantity)
-    const stockUpdated = await emitEvent(
-      CatalogItemConfig,
-      aggregateRef(CatalogItemConfig, orgId, dec.refId),
-      {
-        _tag: 'catalog_item.updated',
-        actorId: actorUid,
-        payload: { changes: { stock: nextStock } },
-      },
-    )
-    if (!stockUpdated.ok) return stockUpdated.error
-  }
-  return null
 }

@@ -339,10 +339,10 @@ export {
   computeItemLineTotal,
   computeOrderTotals,
   coveredItemQuantity,
-  coveredProducts,
   coveredServiceQuantity,
   hasSaleItem,
   isOrderEditable,
+  stockDecrementTargets,
 } from './utils/order'
 export type { CommissionAccrual, OrderTotals } from './utils/order'
 
