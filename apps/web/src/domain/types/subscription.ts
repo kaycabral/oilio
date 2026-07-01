@@ -24,6 +24,19 @@ export const SUBSCRIPTION_STATUSES = [
 export const SubscriptionStatus = Schema.Literal(...SUBSCRIPTION_STATUSES)
 export type SubscriptionStatus = typeof SubscriptionStatus.Type
 
+// Canonical pt-BR label per status — the single source shown wherever a
+// subscription status is surfaced (owner list/detail AND the customer's own
+// area). Prevents the raw enum (`active`) leaking to a human, and kills the
+// duplicated maps that lived in SubscriptionsList/SubscriptionDetail.
+export const SUBSCRIPTION_STATUS_LABEL: Record<SubscriptionStatus, string> = {
+  pending: 'Aguardando 1ª cobrança',
+  active: 'Ativa',
+  past_due: 'Em recuperação',
+  suspended: 'Suspensa',
+  cancelled: 'Cancelada',
+  cancelled_for_non_payment: 'Cancelada por inadimplência',
+}
+
 // Snapshot do plano no momento que a assinatura foi criada. Plano pode mudar
 // preço / limite depois — assinatura ativa congela as condições contratadas.
 export const SubscriptionPlanSnapshot = Schema.mutable(

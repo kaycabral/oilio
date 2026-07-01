@@ -1,7 +1,7 @@
 'use client'
 
 import type { CustomerCancelReason, Subscription } from '@/domain'
-import { CUSTOMER_CANCEL_REASON_MESSAGES } from '@/domain'
+import { CUSTOMER_CANCEL_REASON_MESSAGES, SUBSCRIPTION_STATUS_LABEL } from '@/domain'
 import { cancelOwnSubscription } from '@/features/me/adapters/subscriptions.actions'
 import { Button } from '@cbrl/design'
 import { useState, useTransition } from 'react'
@@ -51,7 +51,7 @@ export function SubscriptionRow({ data }: { data: SubscriptionRowData }) {
       <p className="font-medium">{orgName}</p>
       <p className="text-muted-foreground text-sm">{subscription.plan.name}</p>
       <p className="text-muted-foreground mt-1 text-xs">
-        Status: {subscription.status}
+        Status: {SUBSCRIPTION_STATUS_LABEL[subscription.status]}
         {subscription.cancelAtPeriodEnd ? ' · cancela ao fim do ciclo' : ''}
       </p>
       <div className="mt-3 flex items-center gap-3">
