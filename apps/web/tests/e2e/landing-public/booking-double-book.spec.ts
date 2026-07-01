@@ -13,7 +13,7 @@ import { orgSlug, PublicBookingPage } from '../pages'
 // Two LOGGED-IN browser contexts pick the SAME availability slot concurrently
 // (login is mandatory since #1275 — anonymous booking no longer exists). The
 // transactional booking commit must serialize them: one ends with the success
-// card, the other gets the "horário já está ocupado" error. Whichever context
+// card, the other gets the "não está mais disponível" error. Whichever context
 // wins is an implementation detail — the spec only asserts the 1-success /
 // 1-failure split.
 //
@@ -82,12 +82,12 @@ test.describe('Landing pública — anti-duplo-agendamento', { tag: '@critical' 
     await Promise.all([bookingA.confirmButton().click(), bookingB.confirmButton().click()])
 
     // The winner navigates to the success page (/book/success); the loser stays on
-    // the confirm form showing the "acabou de ser ocupado" conflict. Wait for each
-    // page to settle into one of those two terminal states.
+    // the confirm form showing the "não está mais disponível" conflict. Wait for
+    // each page to settle into one of those two terminal states.
     const settled = (page: Page) =>
       Promise.race([
         page.waitForURL(/\/book\/success\?appt=/, { timeout: 15_000 }),
-        page.getByText(/acabou de ser ocupado/i).waitFor({ state: 'visible', timeout: 15_000 }),
+        page.getByText(/não está mais disponível/i).waitFor({ state: 'visible', timeout: 15_000 }),
       ])
     await Promise.all([settled(pageA), settled(pageB)])
 
@@ -95,8 +95,8 @@ test.describe('Landing pública — anti-duplo-agendamento', { tag: '@critical' 
     // by summing across both pages, so we never branch on which one won.
     const successCount = [pageA, pageB].filter((p) => p.url().includes('/book/success')).length
     const conflictCount =
-      (await pageA.getByText(/acabou de ser ocupado/i).count()) +
-      (await pageB.getByText(/acabou de ser ocupado/i).count())
+      (await pageA.getByText(/não está mais disponível/i).count()) +
+      (await pageB.getByText(/não está mais disponível/i).count())
     expect(successCount).toBe(1)
     expect(conflictCount).toBe(1)
   })
