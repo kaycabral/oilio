@@ -4,6 +4,7 @@ import {
   buildAppointmentWhatsappLink,
   gridTimeOptions,
   resolveInitialDateTime,
+  resolveStartTimePicker,
 } from './appointment-dialog'
 
 const TZ = 'America/Sao_Paulo'
@@ -167,5 +168,67 @@ describe('gridTimeOptions', () => {
         '10:30',
       ])
     })
+  })
+})
+
+describe('resolveStartTimePicker (#1314 — NEW never preselects a past slot)', () => {
+  // already past-cut (09:00/09:30 dropped)
+  const GRID = ['10:00', '10:30', '11:00']
+
+  it('NEW defaults to the first grid slot and never re-injects the fallback', () => {
+    const r = resolveStartTimePicker({
+      grid: GRID,
+      editMode: false,
+      // '09:00' is the past fallback
+      initialStartTime: '09:00',
+      keepInitial: true,
+    })
+    expect(r.options).toEqual(['10:00', '10:30', '11:00'])
+    expect(r.options).not.toContain('09:00')
+    expect(r.defaultValue).toBe('10:00')
+  })
+
+  it('NEW with an empty grid has no default (nothing to offer)', () => {
+    const r = resolveStartTimePicker({
+      grid: [],
+      editMode: false,
+      initialStartTime: '09:00',
+      keepInitial: true,
+    })
+    expect(r.options).toEqual([])
+    expect(r.defaultValue).toBeUndefined()
+  })
+
+  it('EDIT re-injects the appointment start when it fell off the grid', () => {
+    const r = resolveStartTimePicker({
+      grid: GRID,
+      editMode: true,
+      // '08:00' is off-grid (before open)
+      initialStartTime: '08:00',
+      keepInitial: true,
+    })
+    expect(r.options).toEqual(['08:00', '10:00', '10:30', '11:00'])
+    expect(r.defaultValue).toBe('08:00')
+  })
+
+  it('EDIT keeps the on-grid start as default without duplicating it', () => {
+    const r = resolveStartTimePicker({
+      grid: GRID,
+      editMode: true,
+      initialStartTime: '10:30',
+      keepInitial: true,
+    })
+    expect(r.options).toEqual(['10:00', '10:30', '11:00'])
+    expect(r.defaultValue).toBe('10:30')
+  })
+
+  it('EDIT does not re-inject when the day changed (keepInitial false)', () => {
+    const r = resolveStartTimePicker({
+      grid: GRID,
+      editMode: true,
+      initialStartTime: '08:00',
+      keepInitial: false,
+    })
+    expect(r.options).toEqual(['10:00', '10:30', '11:00'])
   })
 })

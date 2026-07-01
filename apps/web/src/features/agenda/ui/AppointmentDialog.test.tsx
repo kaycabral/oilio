@@ -280,6 +280,46 @@ describe('AppointmentDialog — reschedule (#639)', () => {
   })
 })
 
+describe('AppointmentDialog — past-slot preselection (#1314)', () => {
+  // businessHours 09:00–12:00, slotMinutes 30, service 30min → grid 09:00…11:30.
+  it('NEW after 09:00 does not offer or preselect a past slot; default is the first future slot', () => {
+    // "now" = 2026-05-15 10:00 SP (13:00 UTC): 09:00/09:30 are past, 10:00+ future.
+    vi.setSystemTime(new Date('2026-05-15T13:00:00.000Z'))
+    const baseProps = makeBaseProps()
+    // NEW: no appointment. The fallback initial start is '09:00' — already past.
+    render(<AppointmentDialog {...baseProps} appointment={null} />)
+    // The trigger shows the default-selected value; it must be the first future
+    // slot (10:00), never the past 09:00 (which the write path would reject).
+    const combobox = screen.getByRole('combobox', { name: /início/i })
+    expect(combobox).toHaveTextContent('10:00')
+    expect(combobox).not.toHaveTextContent('09:00')
+    // And the past 09:00/09:30 must NOT be re-injected into the options either.
+    fireEvent.click(combobox)
+    expect(screen.queryByRole('option', { name: '09:00' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: '09:30' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '10:00' })).toBeInTheDocument()
+  })
+
+  it('EDIT preserves the appointment start even when it fell off the grid', () => {
+    // "now" = 08:00 SP so nothing is past. Appointment starts 08:00 SP (11:00
+    // UTC) — before the 09:00 open, so it is NOT a grid slot; edit must keep it.
+    vi.setSystemTime(new Date('2026-05-15T10:00:00.000Z'))
+    const baseProps = makeBaseProps()
+    render(
+      <AppointmentDialog
+        {...baseProps}
+        appointment={buildAppointment({
+          startAt: '2026-05-15T11:00:00.000Z',
+          endAt: '2026-05-15T11:30:00.000Z',
+        })}
+      />,
+    )
+    fireEvent.click(screen.getByRole('combobox', { name: /início/i }))
+    // The off-grid start (08:00) is re-injected so the edit doesn't drop it.
+    expect(screen.getByRole('option', { name: '08:00' })).toBeInTheDocument()
+  })
+})
+
 describe('AppointmentDialog — no-show flow (#871)', () => {
   const PAST_START = '2020-01-01T13:00:00.000Z'
   const FUTURE_START = '2099-01-01T13:00:00.000Z'

@@ -6,6 +6,7 @@ import type {
   PlanLite,
 } from '@/features/subscriptions/adapters/load-subscription-form'
 import { createSubscription } from '@/features/subscriptions/adapters/subscriptions.actions'
+import { isBillingCycle } from '@/features/subscriptions/core/subscription-form'
 import { useFormValidity } from '@/hooks/use-form-validity'
 import {
   Button,
@@ -50,6 +51,12 @@ export function SubscriptionForm({
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [planId, setPlanId] = useState<string>(plans[0]?.id ?? '')
+  // Billing cycle follows the selected plan's default (re-derived on plan change)
+  // while staying overridable — the plan Select drove the cycle only on mount
+  // before, so switching to a monthly plan kept the initial plan's annual cycle.
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>(
+    plans[0]?.billingCycle ?? 'monthly',
+  )
   const { formRef, isValid, refresh } = useFormValidity()
 
   const selectedPlan = plans.find((p) => p.id === planId)
@@ -97,7 +104,16 @@ export function SubscriptionForm({
         <Label htmlFor="subscription-plan" className="text-sm font-medium">
           Plano
         </Label>
-        <Select name="planId" required value={planId} onValueChange={(value) => setPlanId(value)}>
+        <Select
+          name="planId"
+          required
+          value={planId}
+          onValueChange={(value) => {
+            setPlanId(value)
+            const next = plans.find((p) => p.id === value)
+            if (next) setBillingCycle(next.billingCycle)
+          }}
+        >
           <SelectTrigger id="subscription-plan">
             <SelectValue placeholder="Selecione…" />
           </SelectTrigger>
@@ -119,7 +135,14 @@ export function SubscriptionForm({
         <Label htmlFor="subscription-billing-cycle" className="text-sm font-medium">
           Ciclo de cobrança
         </Label>
-        <Select name="billingCycle" required defaultValue={selectedPlan?.billingCycle ?? 'monthly'}>
+        <Select
+          name="billingCycle"
+          required
+          value={billingCycle}
+          onValueChange={(value) => {
+            if (isBillingCycle(value)) setBillingCycle(value)
+          }}
+        >
           <SelectTrigger id="subscription-billing-cycle">
             <SelectValue placeholder="Selecione…" />
           </SelectTrigger>
