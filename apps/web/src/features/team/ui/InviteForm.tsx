@@ -1,6 +1,6 @@
 'use client'
 
-import { type Role, roleDescription } from '@/domain'
+import { type Role, roleDescription, roleLabel } from '@/domain'
 import { createInvite } from '@/features/team/adapters/team.actions'
 import { useFormValidity } from '@/hooks/use-form-validity'
 import {
@@ -16,13 +16,6 @@ import {
 import { useState, useTransition } from 'react'
 
 const INVITABLE_ROLES: Role[] = ['manager', 'member_operator', 'receptionist']
-
-const ROLE_LABELS: Record<Role, string> = {
-  owner: 'Dono',
-  manager: 'Gerente',
-  member_operator: 'Profissional',
-  receptionist: 'Recepção',
-}
 
 export function InviteForm() {
   const [pending, startTransition] = useTransition()
@@ -77,7 +70,7 @@ export function InviteForm() {
           <SelectContent>
             {INVITABLE_ROLES.map((r) => (
               <SelectItem key={r} value={r}>
-                {ROLE_LABELS[r]}
+                {roleLabel(r)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -91,7 +84,7 @@ export function InviteForm() {
           be able to do, updating with the selected role. */}
       {role ? (
         <p className="text-muted-foreground text-sm" role="note" aria-label="Permissões do papel">
-          <span className="font-medium">{ROLE_LABELS[role]}:</span> {roleDescription(role)}
+          <span className="font-medium">{roleLabel(role)}:</span> {roleDescription(role)}
         </p>
       ) : (
         <p className="text-muted-foreground text-sm">

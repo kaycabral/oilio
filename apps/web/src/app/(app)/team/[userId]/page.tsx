@@ -1,5 +1,5 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
-import { formatBrazilPhone, type Membership, type Role } from '@/domain'
+import { formatBrazilPhone, roleLabel, type Membership, type Role } from '@/domain'
 import { BlocksSection } from '@/features/agenda/ui/BlocksSection'
 import {
   loadMemberDetailPage,
@@ -9,13 +9,6 @@ import { MemberDetailForm } from '@/features/team/ui/MemberDetailForm'
 import { MemberStatusToggle } from '@/features/team/ui/MemberStatusToggle'
 import { RemoveMemberButton } from '@/features/team/ui/RemoveMemberButton'
 import { Main } from '@cbrl/design'
-
-const ROLE_LABELS: Record<Role, string> = {
-  owner: 'Dono',
-  manager: 'Gerente',
-  member_operator: 'Profissional',
-  receptionist: 'Recepção',
-}
 
 const STATUS_LABELS: Record<Membership['status'], string> = {
   active: 'Ativo',
@@ -90,7 +83,7 @@ export default async function MemberDetailPage({
           <div className="flex flex-col gap-0.5">
             <span className="text-muted-foreground text-xs">Papel</span>
             <span className="text-sm" role="group" aria-label="Papel">
-              {ROLE_LABELS[member.role]}
+              {roleLabel(member.role)}
             </span>
           </div>
           <div className="flex flex-col gap-0.5">

@@ -1,4 +1,5 @@
 import { CenteredScreen } from '@/components/centered-screen'
+import { roleLabel } from '@/domain'
 import { verifyInviteToken } from '@/features/invites/adapters/invite-token'
 import { checkInviteEligibility } from '@/features/invites/core/invite-acceptance'
 import { AcceptInviteForm } from '@/features/invites/ui/AcceptInviteForm'
@@ -113,7 +114,7 @@ export default async function AcceptInvitePage({
     <CenteredScreen>
       <h1 className="mb-2 text-xl font-semibold">Convite para {orgName}</h1>
       <p className="text-muted-foreground mb-4 text-sm">
-        Papel proposto: <strong>{invite.role}</strong>
+        Papel proposto: <strong>{roleLabel(invite.role)}</strong>
       </p>
       <AcceptInviteForm orgId={orgId} inviteId={inviteId} token={token} />
     </CenteredScreen>

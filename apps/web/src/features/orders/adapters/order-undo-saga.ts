@@ -38,8 +38,12 @@ type UndoCloseArgs = {
   }
 }
 
-// Resolves the absolute restored stock for each covered product, reading live
-// catalog stock, lifted so the Postgres saga can append it as a pure step.
+// Resolves the absolute restored stock for each product (every kind==='product',
+// coverage-agnostic — #B4), reading live catalog stock, lifted so the Postgres
+// saga can append it as a pure step. The input comes from `stockDecrementTargets`
+// on close, so the undo restores EXACTLY what the close decremented — symmetry by
+// construction. Never narrow this to "covered products": that reintroduces the B4
+// hole (stock coupled to coverage) and desyncs close vs undo.
 async function resolveStockRestoreTargets(
   orgId: string,
   stockRestores: { refId: string; quantity: number }[],

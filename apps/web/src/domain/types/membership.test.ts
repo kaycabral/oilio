@@ -8,6 +8,7 @@ import {
   membershipDocId,
   operatesCrossUnit,
   roleDescription,
+  roleLabel,
 } from './membership'
 
 function makeMembership(role: Role, rlsUnitScope: string | null): Membership {
@@ -149,6 +150,23 @@ describe('roleDescription', () => {
   for (const role of ROLES) {
     it(`returns the exact copy for ${role}`, () => {
       expect(roleDescription(role)).toBe(EXPECTED[role])
+    })
+  }
+})
+
+describe('roleLabel', () => {
+  // Pin the exact label per role: single source for the copy shown in the role
+  // picker, the team list and the accept screen (#1299). Every branch exercised.
+  const EXPECTED: Record<Role, string> = {
+    owner: 'Dono',
+    manager: 'Gerente',
+    member_operator: 'Profissional',
+    receptionist: 'Recepção',
+  }
+
+  for (const role of ROLES) {
+    it(`returns the exact label for ${role}`, () => {
+      expect(roleLabel(role)).toBe(EXPECTED[role])
     })
   }
 })

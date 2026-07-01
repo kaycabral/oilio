@@ -4,7 +4,7 @@ import { BirthdayIndicator } from '@/components/BirthdayIndicator'
 import { RowActions, type RowAction } from '@/components/RowActions'
 import { IncompleteProfileBadge, StatusBadge, type StatusTone } from '@/components/StatusBadge'
 import { WhatsappAction } from '@/components/WhatsappAction'
-import { isOperational, type MembershipStatus, type OperationalStatus, type Role } from '@/domain'
+import { isOperational, roleLabel, type MembershipStatus, type OperationalStatus } from '@/domain'
 import type { TeamEntry, TeamViewFilter } from '@/features/team/adapters/load-team'
 import { isBirthdayToday } from '@/shared/birthday'
 import { PAGINATION_LABELS_PTBR } from '@/shared/list/pagination-labels'
@@ -14,13 +14,6 @@ import { toRoute } from '@/shared/routes'
 import { Avatar, AvatarFallback, List, type ListItemDescriptor } from '@cbrl/design'
 import { Mail } from 'lucide-react'
 import type { ReactNode } from 'react'
-
-const ROLE_LABELS: Record<Role, string> = {
-  owner: 'Dono',
-  manager: 'Gerente',
-  member_operator: 'Profissional',
-  receptionist: 'Recepção',
-}
 
 const STATUS_LABEL: Record<MembershipStatus, string> = {
   active: 'Ativo',
@@ -150,7 +143,7 @@ export function TeamList({
             icon: <Mail />,
             title: invite.email,
             badge: <StatusBadge tone="info">Pendente</StatusBadge>,
-            description: `${ROLE_LABELS[invite.role]} · expira em ${new Date(
+            description: `${roleLabel(invite.role)} · expira em ${new Date(
               invite.expiresAt,
             ).toLocaleDateString('pt-BR')}`,
           }
@@ -197,7 +190,7 @@ export function TeamList({
             </span>
           ),
           badge: memberBadges(member.status, showStatus, incompleteProfile),
-          description: ROLE_LABELS[member.role],
+          description: roleLabel(member.role),
           actions: (
             <>
               {whatsapp ? <WhatsappAction phone={whatsapp} label={`WhatsApp de ${label}`} /> : null}

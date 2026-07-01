@@ -32,6 +32,7 @@ import {
   requireManagerCtx,
   requireOwnerCtx,
 } from '@/shared/org/membership'
+import { resolveBaseUrl } from '@/shared/site-url'
 import { revalidatePath } from 'next/cache'
 
 import {
@@ -94,6 +95,13 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
     createdAt: new Date(now).toISOString(),
     updatedAt: new Date(now).toISOString(),
   }
+  // Resolve the invite-link base BEFORE emitting `invite.created` (#1297): the old
+  // order emitted first and only then read the origin, so a missing env threw AFTER
+  // the event was persisted, leaving an orphan invite the operator couldn't see a
+  // link for. `resolveBaseUrl` is the canonical helper (NEXT_PUBLIC_SITE_URL →
+  // forwarded headers → localhost) and never throws, so the link always builds.
+  const base = await resolveBaseUrl()
+
   await writeInvitePii(ctx.membership.orgId, inviteId, { email })
   const created = await emitEvent(
     InviteConfig,
@@ -102,11 +110,6 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
   )
   if (!created.ok) return { ok: false, error: created.error }
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL
-  if (!origin) {
-    throw new Error('NEXT_PUBLIC_APP_URL (or VERCEL_URL) must be set to build invite links')
-  }
-  const base = origin.startsWith('http') ? origin : `https://${origin}`
   const inviteLink = `${base}/invites/${ctx.membership.orgId}/${stored.id}?token=${raw}`
 
   revalidatePath('/team')
