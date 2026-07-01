@@ -14,6 +14,7 @@ import {
   type TransactionContext,
 } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
+import { isUniqueViolation } from '@/shared/db/pg/unique-violation'
 import { Effect, Layer } from 'effect'
 
 /**
@@ -112,12 +113,28 @@ export async function emitEventGuarded<
 // `{ok:false}` the typed rejects return, so a real conflict (invite double-accept,
 // org-slug race, version clash) yields the caller's error path instead of an
 // unhandled 500. The tx already rolled back; this only maps the outcome.
+// A version clash on `UNIQUE(aggregate_id, version)` (23505) is the ONLY genuine
+// concurrency conflict — two writers raced the same aggregate version, and
+// retrying resolves it. Everything else that rolls the tx back (a FK/CHECK/RLS
+// refusal) is a deterministic integrity failure: "tente de novo" would be a lie
+// and, worse, hides a real bug behind a flake-shaped message (#1320). So we
+// discriminate the SQLSTATE (reusing the FiberFailure-unwrapping guards) and only
+// call 23505 a concurrency conflict.
 const SAGA_CONFLICT_ERROR =
   'Não foi possível concluir a operação (conflito de concorrência). Tente de novo.'
+const SAGA_INTEGRITY_ERROR =
+  'Não foi possível concluir a operação por uma restrição de integridade dos dados.'
 function catchSagaDefect(defect: unknown) {
   return Effect.sync(() => {
     console.error('[commitSaga] transaction defect', defect)
-    return { ok: false as const, error: SAGA_CONFLICT_ERROR }
+    // 23505 = optimistic-concurrency version clash → genuinely retriable.
+    if (isUniqueViolation(defect)) {
+      return { ok: false as const, error: SAGA_CONFLICT_ERROR }
+    }
+    // FK/CHECK/RLS/unknown → deterministic; never a concurrency conflict. The raw
+    // defect is already logged above for diagnosis; the user gets an honest,
+    // non-retriable message instead of a misleading "tente de novo".
+    return { ok: false as const, error: SAGA_INTEGRITY_ERROR }
   })
 }
 
