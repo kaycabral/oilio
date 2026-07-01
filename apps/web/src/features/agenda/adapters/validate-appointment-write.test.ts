@@ -43,8 +43,6 @@ const UNIT: WriteArgs['unit'] = {
     slotMinutes: 30,
     cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
     confirmationTemplates: { confirmation: '', reminder: '', cancellation: '' },
-    selfBookingPublished: false,
-    selfBookingPublishedAt: null,
   },
 }
 

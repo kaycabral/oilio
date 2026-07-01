@@ -3,10 +3,12 @@
 import { PhoneInput } from '@/components/PhoneInput'
 import {
   formatBrazilPhone,
+  getBusinessHoursForDay,
+  resolveCatalogItemForUnit,
   type Appointment,
+  type BusinessHours,
   type CatalogServiceItem,
   type Customer,
-  type HoursRange,
   type MemberOperation,
   type SlotMinutes,
 } from '@/domain'
@@ -50,8 +52,7 @@ export function AppointmentDialog({
   customers,
   date,
   timezone,
-  slotMinutes,
-  dayHours,
+  appointmentGrid,
   defaultMemberOperationId,
   defaultStartTime,
   appointment,
@@ -68,10 +69,11 @@ export function AppointmentDialog({
   customers: Customer[]
   date: string
   timezone: string
-  // The unit's slot grid + the active day's open ranges — drive the time picker
-  // so it only offers grid-valid starts (brief 0080, AC-03b).
-  slotMinutes: SlotMinutes
-  dayHours: readonly HoursRange[]
+  // The active unit's slot grid when it's in appointment mode, else null. When
+  // present, the time picker offers only grid-valid, duration-fitting starts for
+  // the selected date + service (brief 0080, AC-03b); when null (always_open/
+  // fixed, where the backend enforces no grid), a free time input is shown.
+  appointmentGrid: { slotMinutes: SlotMinutes; businessHours: BusinessHours } | null
   defaultMemberOperationId?: string
   defaultStartTime?: string
   // When provided, dialog is in edit mode; submit calls updateAppointment.
@@ -113,17 +115,38 @@ export function AppointmentDialog({
     [appointment, date, defaultStartTime, timezone],
   )
 
-  // Grid-valid start times for the active day (brief 0080, AC-03b). When editing
-  // an appointment whose start no longer matches the grid (policy/hours changed
-  // after it was booked), keep its current time selectable so the edit doesn't
-  // silently drop it.
+  // Controlled date + service so the grid picker recomputes for the day the user
+  // actually picks (fixes the stale-day desync) and the selected service's
+  // duration (so it never offers an overrunning start).
+  const [selectedDate, setSelectedDate] = useState(initialDate)
+  const [selectedServiceId, setSelectedServiceId] = useState(
+    appointment?.serviceId ?? activeServices[0]?.id ?? '',
+  )
+  useEffect(() => {
+    if (open) {
+      setSelectedDate(initialDate)
+      setSelectedServiceId(appointment?.serviceId ?? activeServices[0]?.id ?? '')
+    }
+  }, [open, initialDate, appointment?.serviceId, activeServices])
+
+  const selectedDuration = useMemo(() => {
+    const svc = activeServices.find((s) => s.id === selectedServiceId)
+    return svc ? resolveCatalogItemForUnit(svc, unitId).durationMinutes : 0
+  }, [activeServices, selectedServiceId, unitId])
+
+  // Grid-valid start times for the selected day + service duration (brief 0080,
+  // AC-03b). When editing an appointment whose start no longer matches the grid
+  // (hours/service changed after booking), keep its current time selectable so
+  // the edit doesn't silently drop it.
   const startTimeOptions = useMemo(() => {
-    const grid = gridTimeOptions(dayHours, slotMinutes)
-    if (initialStartTime && !grid.includes(initialStartTime)) {
+    if (!appointmentGrid) return []
+    const dayHours = getBusinessHoursForDay(appointmentGrid.businessHours, selectedDate, timezone)
+    const grid = gridTimeOptions(dayHours, appointmentGrid.slotMinutes, selectedDuration)
+    if (initialStartTime && selectedDate === initialDate && !grid.includes(initialStartTime)) {
       return [...grid, initialStartTime].sort((a, b) => a.localeCompare(b))
     }
     return grid
-  }, [dayHours, slotMinutes, initialStartTime])
+  }, [appointmentGrid, selectedDate, selectedDuration, initialStartTime, initialDate, timezone])
 
   const whatsappLink = useMemo(
     () =>
@@ -207,7 +230,12 @@ export function AppointmentDialog({
             <Label htmlFor="appointment-service" className="text-sm font-medium">
               Serviço
             </Label>
-            <Select name="serviceId" required defaultValue={appointment?.serviceId || undefined}>
+            <Select
+              name="serviceId"
+              required
+              value={selectedServiceId || undefined}
+              onValueChange={setSelectedServiceId}
+            >
               <SelectTrigger id="appointment-service">
                 <SelectValue placeholder="Selecione…" />
               </SelectTrigger>
@@ -300,7 +328,8 @@ export function AppointmentDialog({
                 id="appointment-date"
                 type="date"
                 name="date"
-                defaultValue={initialDate}
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
                 required
               />
             </div>
@@ -308,24 +337,38 @@ export function AppointmentDialog({
               <Label htmlFor="appointment-startTime" className="text-sm font-medium">
                 Início
               </Label>
-              <Select name="startTime" required defaultValue={initialStartTime || undefined}>
-                <SelectTrigger id="appointment-startTime">
-                  <SelectValue placeholder="Selecione…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {startTimeOptions.length === 0 ? (
-                    <SelectItem value={initialStartTime || '09:00'} disabled>
-                      Sem horários na grade
-                    </SelectItem>
-                  ) : (
-                    startTimeOptions.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
+              {appointmentGrid ? (
+                // Appointment mode: only grid-valid, duration-fitting slots for
+                // the selected day (brief 0080, AC-03b).
+                <Select name="startTime" required defaultValue={initialStartTime || undefined}>
+                  <SelectTrigger id="appointment-startTime">
+                    <SelectValue placeholder="Selecione…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {startTimeOptions.length === 0 ? (
+                      <SelectItem value={initialStartTime || '09:00'} disabled>
+                        Sem horários na grade
                       </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+                    ) : (
+                      startTimeOptions.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              ) : (
+                // always_open / fixed: no configured grid — free time input, the
+                // backend enforces no slot-grid for these modes.
+                <Input
+                  id="appointment-startTime"
+                  type="time"
+                  name="startTime"
+                  defaultValue={initialStartTime}
+                  required
+                />
+              )}
             </div>
           </div>
 

@@ -121,7 +121,14 @@ function buildAppointmentRow(
   const agenda = unit?.agenda
   const reschedule =
     agenda?.mode === 'appointment'
-      ? { slotMinutes: agenda.slotMinutes, businessHours: agenda.businessHours, timezone: timeZone }
+      ? {
+          slotMinutes: agenda.slotMinutes,
+          businessHours: agenda.businessHours,
+          timezone: timeZone,
+          // The move keeps the booked service, so the picker uses its snapshot
+          // duration (same value the reschedule action recomputes endAt with).
+          durationMinutes: a.serviceDurationMinutesSnapshot,
+        }
       : null
 
   return {

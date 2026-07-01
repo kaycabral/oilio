@@ -75,7 +75,7 @@ test.describe(
 
       // Outro horário do mesmo dia (15:00 BR = 18:00 UTC), ainda livre.
       await dialog.locator('input[name="date"]').fill('2026-08-12')
-      await dialog.locator('input[name="startTime"]').fill('15:00')
+      await chooseOption(dialog, 'Início', '15:00')
 
       await dialog.getByRole('button', { name: /^Agendar$/ }).click()
 

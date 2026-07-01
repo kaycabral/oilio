@@ -31,6 +31,9 @@ export type RescheduleConfig = {
   slotMinutes: number
   businessHours: BusinessHours | null
   timezone: string
+  // The booked service's duration — the picker only offers starts that fit
+  // within business hours (brief 0080).
+  durationMinutes: number
 }
 
 export type AppointmentRowData = {
@@ -75,7 +78,7 @@ function ReschedulePanel({
   const timeOptions = useMemo(() => {
     if (!date) return []
     const dayHours = getBusinessHoursForDay(config.businessHours, date, config.timezone)
-    return gridTimeOptions(dayHours, config.slotMinutes)
+    return gridTimeOptions(dayHours, config.slotMinutes, config.durationMinutes)
   }, [config, date])
 
   function onConfirm() {

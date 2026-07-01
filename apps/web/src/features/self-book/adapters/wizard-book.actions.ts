@@ -238,21 +238,22 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   }
   const unitScope = { id: org.id, timezone: unit.timezone }
 
+  const resolved = resolveCatalogItemForUnit(service, unit.id)
+  const endAt = new Date(startAtDate.getTime() + resolved.durationMinutes * 60_000)
+
   // Brief 0080 (Grupo A) — the backend is authoritative over the grid: a forged
-  // POST whose `startAt` does not land on a configured slot inside business
-  // hours is rejected here, so the `:42-43` "only real slots reach here" trust
-  // in the client is no longer load-bearing.
+  // POST whose `startAt` is off the slot grid, outside hours, past, or whose
+  // service overruns close is rejected here, so the `:42-43` "only real slots
+  // reach here" trust in the client is no longer load-bearing.
   const gridCheck = enforceSlotGrid({
     unit,
     startAt: startAtDate.toISOString(),
+    durationMinutes: resolved.durationMinutes,
     surface: 'self_book',
     orgId: org.id,
     userId: session.uid,
   })
   if (!gridCheck.ok) return { ok: false, error: gridCheck.error }
-
-  const resolved = resolveCatalogItemForUnit(service, unit.id)
-  const endAt = new Date(startAtDate.getTime() + resolved.durationMinutes * 60_000)
 
   // Behavioral scope (brief 0019, Group C — AC-12..14) reuses the same resolver;
   // hoist the booking limits to enforce below once the customer is materialized.

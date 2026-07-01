@@ -16,7 +16,7 @@ import { Button, EmptyState } from '@cbrl/design'
 import { CalendarDays } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AgendaGrid } from './AgendaGrid'
 import { AppointmentDialog } from './AppointmentDialog'
 
@@ -88,6 +88,15 @@ export function AgendaView({
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const canCreate = activeUnitId !== null && memberOperations.length > 0 && services.length > 0
+
+  // The appointment-mode grid config for the active unit, or null when the unit
+  // isn't in appointment mode (always_open/fixed) — there the dialog keeps a
+  // free time input, since the backend enforces no grid there (brief 0080).
+  const appointmentGrid = useMemo(() => {
+    const active = units.find((u) => u.id === activeUnitId)
+    if (!active || active.agenda.mode !== 'appointment') return null
+    return { slotMinutes: active.agenda.slotMinutes, businessHours: active.agenda.businessHours }
+  }, [units, activeUnitId])
 
   function openCreateDialog() {
     setSelectedAppointment(null)
@@ -253,8 +262,7 @@ export function AgendaView({
           customers={customers}
           date={date}
           timezone={timezone}
-          slotMinutes={slotMinutes}
-          dayHours={dayHours}
+          appointmentGrid={appointmentGrid}
           appointment={selectedAppointment}
           businessName={businessName}
           confirmationTemplate={confirmationTemplate}

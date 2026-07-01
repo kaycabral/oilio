@@ -27,10 +27,14 @@ const OFF_GRID_MESSAGE =
 export function enforceSlotGrid(args: {
   unit: GridUnit
   startAt: string
+  // The booked service's duration — the appointment must end within hours.
+  durationMinutes: number
   surface: 'self_book' | 'reception'
   orgId: string
   // Acting user — the operator for reception, the customer for self-book.
   userId: string
+  // Cutoff for the past-slot guard (UTC ms); defaults to now. Tests override.
+  nowMs?: number
 }): SlotGridResult {
   // The slot grid is an appointment-mode concept: `slotMinutes` + business hours
   // only exist there. `always_open`/`fixed` units have no bookable grid to align
@@ -40,8 +44,10 @@ export function enforceSlotGrid(args: {
   const onGrid = isStartAtOnGrid({
     startAt: args.startAt,
     slotMinutes: unitSlotMinutes(args.unit.agenda),
+    durationMinutes: args.durationMinutes,
     businessHours: unitBusinessHours(args.unit.agenda),
     timezone: args.unit.timezone,
+    nowMs: args.nowMs ?? Date.now(),
   })
   if (onGrid) return { ok: true }
 

@@ -75,7 +75,7 @@ if (!skipOnPostgres()) {
       await chooseOptionByIndex(dialog, 'Profissional', 0)
       await chooseOption(dialog, 'Cliente', customerName)
       await dialog.locator('input[name="date"]').fill('2026-08-12')
-      await dialog.locator('input[name="startTime"]').fill('10:00')
+      await chooseOption(dialog, 'Início', '10:00')
       await dialog.getByRole('button', { name: /^Agendar$/ }).click()
 
       // Dialog closes on success.
@@ -122,7 +122,7 @@ if (!skipOnPostgres()) {
       await chooseOptionByIndex(dialog, 'Profissional', 0)
       await chooseOption(dialog, 'Cliente', customerName)
       await dialog.locator('input[name="date"]').fill('2026-08-13')
-      await dialog.locator('input[name="startTime"]').fill('10:00')
+      await chooseOption(dialog, 'Início', '10:00')
       await dialog.getByRole('button', { name: /^Agendar$/ }).click()
 
       await expect(dialog.getByText(/fora das categorias cobertas pelo plano/i)).toBeVisible()

@@ -79,12 +79,22 @@ describe('resolveInitialDateTime', () => {
 })
 
 describe('gridTimeOptions', () => {
-  it('steps a single range by slotMinutes, last start before close', () => {
-    expect(gridTimeOptions([{ open: '09:00', close: '11:00' }], 30)).toEqual([
+  it('steps a single range by slotMinutes, last start fits the duration', () => {
+    expect(gridTimeOptions([{ open: '09:00', close: '11:00' }], 30, 30)).toEqual([
       '09:00',
       '09:30',
       '10:00',
       '10:30',
+    ])
+  })
+
+  it('trims the tail when the service overruns the close', () => {
+    // 60-min service in a 09:00–11:00 window on a 30-min grid: last valid start
+    // is 10:00 (ends 11:00); 10:30 would end 11:30, past close.
+    expect(gridTimeOptions([{ open: '09:00', close: '11:00' }], 30, 60)).toEqual([
+      '09:00',
+      '09:30',
+      '10:00',
     ])
   })
 
@@ -96,20 +106,25 @@ describe('gridTimeOptions', () => {
           { open: '14:00', close: '15:00' },
         ],
         30,
+        30,
       ),
     ).toEqual(['09:00', '09:30', '14:00', '14:30'])
   })
 
   it('returns no options for a closed day', () => {
-    expect(gridTimeOptions([], 30)).toEqual([])
+    expect(gridTimeOptions([], 30, 30)).toEqual([])
   })
 
   it('returns no options for a non-positive grid', () => {
-    expect(gridTimeOptions([{ open: '09:00', close: '12:00' }], 0)).toEqual([])
+    expect(gridTimeOptions([{ open: '09:00', close: '12:00' }], 0, 30)).toEqual([])
+  })
+
+  it('returns no options for a non-positive duration', () => {
+    expect(gridTimeOptions([{ open: '09:00', close: '12:00' }], 30, 0)).toEqual([])
   })
 
   it('respects a finer granularity', () => {
-    expect(gridTimeOptions([{ open: '09:00', close: '10:00' }], 15)).toEqual([
+    expect(gridTimeOptions([{ open: '09:00', close: '10:00' }], 15, 15)).toEqual([
       '09:00',
       '09:15',
       '09:30',
