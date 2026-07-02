@@ -95,9 +95,10 @@ async function seedServiceFor(
 async function startOrderFor(authedPage: Page, customerName: string): Promise<void> {
   const agenda = new AgendaPage(authedPage)
   await agenda.goto('2026-09-08')
-  await authedPage.getByRole('button', { name: new RegExp(customerName) }).click()
-  await authedPage.getByRole('button', { name: /Iniciar atendimento/ }).click()
-  await expect(authedPage).toHaveURL(/\/orders\/.+/)
+  // Resilient card-open → "Iniciar atendimento" → order URL. The naive
+  // card-click + button-click sequence dropped the pre-hydration click and
+  // flaked under parallel load; startAttendance retries the dialog open.
+  await agenda.startAttendance(new RegExp(customerName))
 }
 
 async function confirmClose(authedPage: Page): Promise<void> {

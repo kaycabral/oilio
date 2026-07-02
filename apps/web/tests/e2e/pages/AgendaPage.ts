@@ -84,4 +84,37 @@ export class AgendaPage {
     }).toPass({ timeout: 20_000 })
     return dialog
   }
+
+  // ── Existing-appointment dialog ─────────────────────────────────────────
+
+  editAppointmentDialog(): Locator {
+    return this.page.getByRole('dialog', { name: 'Editar agendamento' })
+  }
+
+  // Open an existing appointment's dialog by clicking its card. The card is a
+  // client-only <button onClick> (AgendaGrid → AppointmentDialog via React
+  // state) — same pre-hydration drop hazard as "+ Novo": a click before
+  // hydration is silently lost and the dialog never opens, so the follow-up
+  // ("Iniciar atendimento") never appears and its caller times out. Retry the
+  // open until the dialog is actually visible. Mirrors openNewAppointmentDialog.
+  async openAppointmentDialog(customerName: string | RegExp): Promise<Locator> {
+    const dialog = this.editAppointmentDialog()
+    await expect(async () => {
+      if (!(await dialog.isVisible())) {
+        await this.appointmentCard(customerName).click()
+      }
+      await expect(dialog).toBeVisible({ timeout: 2000 })
+    }).toPass({ timeout: 20_000 })
+    return dialog
+  }
+
+  // Full "start attendance" move used by order specs: open the appointment
+  // dialog resiliently, click "Iniciar atendimento", and land on the order.
+  // Encapsulates the whole flow so specs don't re-implement the fragile
+  // card-click → button sequence (the shared root cause of order-spec flakes).
+  async startAttendance(customerName: string | RegExp): Promise<void> {
+    const dialog = await this.openAppointmentDialog(customerName)
+    await dialog.getByRole('button', { name: /Iniciar atendimento/ }).click()
+    await expect(this.page).toHaveURL(/\/orders\/.+/)
+  }
 }
