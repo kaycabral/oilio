@@ -95,9 +95,10 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
   async function startOrder(authedPage: Page) {
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-09-08')
-    await authedPage.getByRole('button', { name: /Cliente Plano/ }).click()
-    await authedPage.getByRole('button', { name: /Iniciar atendimento/ }).click()
-    await expect(authedPage).toHaveURL(/\/orders\/.+/)
+    // Resilient card-open → "Iniciar atendimento" → order URL (see AgendaPage).
+    // The naive card-click + button-click dropped the pre-hydration click and
+    // flaked; startAttendance retries the dialog open until it's visible.
+    await agenda.startAttendance(/Cliente Plano/)
   }
 
   test('comanda mista: serviço coberto + produto vendido → paga só o produto, consome 1', async ({
