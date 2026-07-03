@@ -23,6 +23,7 @@
     "db:start": "npx -y firebase-tools emulators:start --project scheduling-local --config ../firebase.local.json",
     "db:stop": "pkill -f 'firebase-tools.*emulators:start' || true",
     "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
+    "stripe:sync-catalog": "tsx --env-file-if-exists=.env.local scripts/sync-stripe-catalog.ts",
     "oilio:db:up": "node ../../../scripts/oilio-db-up.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
