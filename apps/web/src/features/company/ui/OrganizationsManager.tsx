@@ -14,7 +14,7 @@ import { deleteUnit } from '@/features/units/adapters/units.actions'
 import { UnitFormDialog } from '@/features/units/ui/UnitFormDialog'
 import type { WithCanDelete } from '@/shared/org/delete-guard'
 import type { OrgOption } from '@/shared/org/org-context'
-import { useOrg } from '@/shared/org/org-context'
+import { useCapability, useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import {
   Badge,
@@ -70,6 +70,11 @@ export function OrganizationsManager({
 }) {
   const { setActiveOrg } = useOrg()
   const otherOrgs = orgs.filter((o) => o.id !== org.id)
+  // Free unlocks the FIRST unit (gracious floor); a 2nd needs `units.unlimited`
+  // (Pro+). So offer "+ Nova unidade" only when the tier is unlimited OR there
+  // are no units yet; otherwise show the upgrade CTA instead of a dialog that
+  // createUnit would reject at submit (brief 0082).
+  const canAddUnit = useCapability('units.unlimited') || units.length === 0
 
   return (
     <div className="space-y-6">
@@ -77,7 +82,13 @@ export function OrganizationsManager({
         <h1 className="text-2xl font-semibold">Negócios</h1>
         {canManage ? (
           <div className="flex items-center gap-2">
-            <UnitFormDialog />
+            {canAddUnit ? (
+              <UnitFormDialog />
+            ) : (
+              <Button asChild variant="outline">
+                <Link href={toRoute('/billing')}>Fazer upgrade para nova unidade</Link>
+              </Button>
+            )}
             <NewOrgDialog />
           </div>
         ) : null}

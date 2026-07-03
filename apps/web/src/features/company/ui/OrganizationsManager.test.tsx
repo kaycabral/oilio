@@ -10,8 +10,12 @@ import { OrganizationsManager } from './OrganizationsManager'
 // (UnitFormDialog + per-row delete) — mock the server actions those reach for so
 // the tree mounts in jsdom.
 const setActiveOrg = vi.fn<(orgId: string) => Promise<void>>()
+const useCapability = vi.fn<(cap: string) => boolean>(() => true)
 vi.mock('@/shared/org/org-context', () => ({
   useOrg: (): Pick<OrgContextValue, 'setActiveOrg'> => ({ setActiveOrg }),
+  // Default to unlocked so the existing tests keep rendering the "+ Nova
+  // unidade" dialog; the tier-gated CTA branch is covered separately below.
+  useCapability: (cap: string) => useCapability(cap),
 }))
 vi.mock('@/features/company/adapters/company.actions', () => ({ updateCompany: vi.fn() }))
 vi.mock('@/features/onboarding/adapters/onboarding.actions', () => ({ createOrg: vi.fn() }))
@@ -191,5 +195,41 @@ describe('OrganizationsManager — Negócios surface (PRD Identidade v2, F5)', (
     )
     expect(screen.queryByRole('button', { name: '+ Nova unidade' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '+ Novo negócio' })).not.toBeInTheDocument()
+  })
+
+  // Tier gate (brief 0082): Free unlocks the 1st unit (gracious floor) but not a
+  // 2nd — so with a unit already present and no `units.unlimited`, offer the
+  // upgrade CTA instead of a "+ Nova unidade" dialog that createUnit rejects.
+  it('shows the upgrade CTA (not the unit dialog) when Free already has a unit', () => {
+    useCapability.mockReturnValue(false)
+    render(
+      <OrganizationsManager
+        org={buildOrg()}
+        units={[buildUnit()]}
+        orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}
+        canManage
+        canDelete
+      />,
+    )
+    expect(screen.queryByRole('button', { name: '+ Nova unidade' })).not.toBeInTheDocument()
+    const cta = screen.getByRole('link', { name: /Fazer upgrade/ })
+    expect(cta).toHaveAttribute('href', '/billing')
+    useCapability.mockReturnValue(true)
+  })
+
+  it('still offers "+ Nova unidade" for a Free org with zero units (1st is free)', () => {
+    useCapability.mockReturnValue(false)
+    render(
+      <OrganizationsManager
+        org={buildOrg()}
+        units={[]}
+        orgs={[{ id: 't1', name: 'Barbearia do Bairro' }]}
+        canManage
+        canDelete
+      />,
+    )
+    expect(screen.getByRole('button', { name: '+ Nova unidade' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Fazer upgrade/ })).not.toBeInTheDocument()
+    useCapability.mockReturnValue(true)
   })
 })
