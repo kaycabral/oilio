@@ -6,6 +6,8 @@ import { aggregateRef } from '@/domain/effect'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { emitEvent } from '@/shared/effect-bridge'
+import { classifyError } from '@/shared/errors/classify'
+import { messageForCategory } from '@/shared/errors/messages'
 import { getCustomerUserId } from '@/shared/org/customer-read'
 import { getCustomerDeletionImpact, type CustomerDeletionImpact } from '@/shared/org/delete-guard'
 import { guardCapability, requireManagerCtx } from '@/shared/org/membership'
@@ -139,7 +141,9 @@ export async function deleteCustomer(customerId: string): Promise<CustomerMutati
             'Não é possível excluir este cliente: há registros vinculados a ele (vendas, cobranças, assinaturas ou agendamentos).',
         }
       }
-      throw err
+      // A non-FK defect (CHECK/RLS/unknown) would otherwise escape as a raw
+      // 500; map it to the canonical generic message (detail stays in the log).
+      return { ok: false as const, error: messageForCategory(classifyError(err)) }
     }
     revalidatePath('/customers')
     return { ok: true }

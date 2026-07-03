@@ -26,6 +26,8 @@ import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { newId } from '@/shared/db/pg/new-id'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { commitSaga, emitEvent } from '@/shared/effect-bridge'
+import { classifyError } from '@/shared/errors/classify'
+import { messageForCategory } from '@/shared/errors/messages'
 import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
 import { Schema } from 'effect'
 
@@ -277,7 +279,9 @@ export async function deleteSubscription(subscriptionId: string): Promise<Charge
         error: 'Não é possível excluir esta assinatura: há cobranças vinculadas a ela.',
       }
     }
-    throw err
+    // A non-FK defect (CHECK/RLS/unknown) would otherwise escape as a raw
+    // 500; map it to the canonical generic message (detail stays in the log).
+    return { ok: false as const, error: messageForCategory(classifyError(err)) }
   }
 
   revalidatePath('/subscriptions')
