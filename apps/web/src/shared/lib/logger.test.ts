@@ -118,12 +118,16 @@ describe('logger', () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     logger.error('leak?', {
       whatsapp: '+5511999999999',
+      mobile: '5511988887777',
       email: 'a@b.com',
       orgId: 'org-1',
       nested: { email: 'deep@b.com', ok: 'keep' },
     })
     const entry = parseLine(err.mock.calls[0]?.[0])
     expect(entry.whatsapp).toBe('[redacted]')
+    // `mobile` is the renamed person-number field (brief 0087); the backstop
+    // must redact it too or the rename would open a new disclosure vector.
+    expect(entry.mobile).toBe('[redacted]')
     expect(entry.email).toBe('[redacted]')
     // Nested PII is redacted too (key-only top-level check would miss this).
     const nested = entry.nested
