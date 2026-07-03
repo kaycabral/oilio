@@ -50,13 +50,13 @@ describe('PII contact non-empty constraints (#1283 Group B)', () => {
         `INSERT INTO units_pii (org_id, id, mobile, email) VALUES ($1,'unit-1','',NULL)`,
         [ORG],
       ),
-    ).rejects.toThrow(/units_pii_mobile_nonempty/)
+    ).rejects.toThrow(/units_pii_mobile_(nonempty|br_format)/)
   })
 
   it('accepts a real units_pii.mobile', async () => {
     await expect(
       getEventStorePool().query(
-        `INSERT INTO units_pii (org_id, id, mobile, email) VALUES ($1,'unit-2','+5511999990000',NULL)`,
+        `INSERT INTO units_pii (org_id, id, mobile, email) VALUES ($1,'unit-2','5511999990000',NULL)`,
         [ORG],
       ),
     ).resolves.toBeDefined()
@@ -68,7 +68,7 @@ describe('PII contact non-empty constraints (#1283 Group B)', () => {
         `INSERT INTO invites_pii (org_id, id, mobile) VALUES ($1,'inv-1','')`,
         [ORG],
       ),
-    ).rejects.toThrow(/invites_pii_mobile_nonempty/)
+    ).rejects.toThrow(/invites_pii_mobile_(nonempty|br_format)/)
   })
 
   it('rejects a completed user with an empty mobile (AC-04)', async () => {
@@ -84,7 +84,7 @@ describe('PII contact non-empty constraints (#1283 Group B)', () => {
     await expect(
       getEventStorePool().query(
         `INSERT INTO users (uid, email_verified, completion_completed, mobile, birth_date, created_at, updated_at)
-         VALUES ('u-nonempty-2', true, true, '+5511988887777', '1990-01-01', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+         VALUES ('u-nonempty-2', true, true, '5511977776666', '1990-01-01', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
       ),
     ).resolves.toBeDefined()
   })
