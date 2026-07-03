@@ -37,15 +37,15 @@ export interface RetailOrgSpec {
   orgId: string
   orgName: string
   slug: string
-  owner: { uid: string; email: string; displayName: string; whatsapp: string; login: boolean }
+  owner: { uid: string; email: string; displayName: string; mobile: string; login: boolean }
   unitId: string
   unitName: string
   products: RetailProduct[]
   customerCount: number
-  // Per-org base for generated customer WhatsApp numbers. `users.whatsapp` is
-  // GLOBALLY unique (index `users_whatsapp_unique`), so two retail orgs seeded by
+  // Per-org base for generated customer mobile numbers. `users.mobile` is
+  // GLOBALLY unique (index `users_mobile_unique`), so two retail orgs seeded by
   // this same helper MUST NOT share a range — each caller passes a disjoint base.
-  customerWhatsappBase: number
+  customerMobileBase: number
   sales: RetailSale[]
 }
 
@@ -61,7 +61,7 @@ export async function seedRetailOrg(spec: RetailOrgSpec): Promise<void> {
       slug: spec.slug,
       vertical: 'other',
     }),
-    owner: { uid: owner.uid, displayName: owner.displayName, whatsapp: owner.whatsapp },
+    owner: { uid: owner.uid, displayName: owner.displayName, mobile: owner.mobile },
     now,
   })
 
@@ -96,7 +96,7 @@ export async function seedRetailOrg(spec: RetailOrgSpec): Promise<void> {
       orgId,
       userId: `${orgId}-cust-${i}-user`,
       displayName: `Cliente ${i + 1}`,
-      whatsapp: `55119${String(spec.customerWhatsappBase + i).padStart(8, '0')}`,
+      mobile: `55119${String(spec.customerMobileBase + i).padStart(8, '0')}`,
       birthDate: `198${i % 10}-0${(i % 9) + 1}-1${i % 9}`,
       now,
       actorId: owner.uid,

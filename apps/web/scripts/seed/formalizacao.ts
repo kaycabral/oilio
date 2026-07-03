@@ -3,7 +3,7 @@
 //   • an INFORMAL org   — its unit has `fiscal: { kind: 'informal' }` (no CNPJ).
 //   • a FORMALIZED org   — its unit carries a `company` UnitFiscal (CNPJ-14 +
 //     the public-registry CompanyProfile, NON-PII, in the event payload) PLUS
-//     the deletable PII sidecars: `units_pii` (whatsapp) and `unit_tax_identity`
+//     the deletable PII sidecars: `units_pii` (mobile) and `unit_tax_identity`
 //     (the razão social / nome fantasia, which embed a civil name → PII).
 //
 // Ana logs in, so a tester can switch owners and see both fiscal states.
@@ -24,7 +24,7 @@ const ANA = {
   uid: 'seed-owner-ana',
   email: 'ana.fiscal@cbrl.local',
   displayName: 'Ana Fiscal',
-  whatsapp: '5511933330000',
+  mobile: '5511933330000',
 }
 
 const ORG_INFORMAL = 'seed-org-informal'
@@ -76,7 +76,7 @@ export async function seedFormalizacao(): Promise<void> {
 
   // PII sidecars for the formalized unit (deletable, off the event payload).
   await upsertUnitsPii(ORG_FORMAL, UNIT_FORMAL, {
-    whatsapp: ANA.whatsapp,
+    mobile: ANA.mobile,
     email: 'contato@anafiscal.com.br',
   })
   const companyTaxIdentity: TaxIdentity = {

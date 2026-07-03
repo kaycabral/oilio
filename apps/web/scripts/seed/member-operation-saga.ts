@@ -6,8 +6,8 @@
 // event-store tx).
 //
 // Note: `member_operation.activated` is NOT emitted — operational readiness is
-// DERIVED on read (whatsapp present ∧ ≥1 unit ∧ ≥1 service), never an event
-// (brief 0068 D4 / #1226). So an "incomplete" operator (no whatsapp on its User)
+// DERIVED on read (mobile present ∧ ≥1 unit ∧ ≥1 service), never an event
+// (brief 0068 D4 / #1226). So an "incomplete" operator (no mobile on its User)
 // is simply one whose derived status is not-ready — no separate activation step.
 
 import type { CommissionRule, StoredMemberOperation, TaxIdentity } from '@/domain'
@@ -28,9 +28,9 @@ export interface SeedMemberOperationInput {
   memberOperationId?: string
   userId: string
   displayName: string
-  // A complete operator has a real whatsapp; omit (null) to seed the
+  // A complete operator has a real mobile; omit (null) to seed the
   // "incomplete" operator whose derived operational status is not-ready.
-  whatsapp: string | null
+  mobile: string | null
   unitIds: string[]
   catalogServiceIds: string[]
   defaultCommission?: CommissionRule | null
@@ -39,7 +39,7 @@ export interface SeedMemberOperationInput {
   now: string
 }
 
-// Persists the global `users/{uid}` identity (PII: displayName/whatsapp), then
+// Persists the global `users/{uid}` identity (PII: displayName/mobile), then
 // runs the membership+member-operation cascade, then the PII sidecar +
 // currentOrgId patch — mirroring the production accept-invite ordering. Returns
 // the new member-operation id.
@@ -48,8 +48,8 @@ export async function seedMemberOperation(input: SeedMemberOperationInput): Prom
   await putUser(
     buildUser(input.userId, input.now, {
       displayName: input.displayName,
-      completionCompleted: input.whatsapp !== null,
-      whatsapp: input.whatsapp,
+      completionCompleted: input.mobile !== null,
+      mobile: input.mobile,
       currentOrgId: input.orgId,
     }),
   )

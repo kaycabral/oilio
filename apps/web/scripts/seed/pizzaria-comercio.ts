@@ -17,13 +17,13 @@ export async function seedPizzaria(): Promise<void> {
       uid: 'seed-owner-pizzaria',
       email: 'tonho@cbrl.local',
       displayName: 'Tonho',
-      whatsapp: '5511955550000',
+      mobile: '5511955550000',
       login: false,
     },
     unitId: 'seed-unit-pizzaria',
     unitName: 'Salão',
-    // Disjoint WhatsApp range per org (global uniqueness on users.whatsapp).
-    customerWhatsappBase: 700000,
+    // Disjoint mobile range per org (global uniqueness on users.mobile).
+    customerMobileBase: 700000,
     products: [
       { id: 'pizza-marguerita', name: 'Pizza Marguerita', priceCents: 4500, stock: 100 },
       { id: 'pizza-calabresa', name: 'Pizza Calabresa', priceCents: 4800, stock: 100 },
@@ -66,13 +66,13 @@ export async function seedComercio(): Promise<void> {
       uid: 'seed-owner-comercio',
       email: 'esquina@cbrl.local',
       displayName: 'Dona Esquina',
-      whatsapp: '5511944440000',
+      mobile: '5511944440000',
       login: false,
     },
     unitId: 'seed-unit-comercio',
     unitName: 'Loja',
-    // Disjoint WhatsApp range per org (global uniqueness on users.whatsapp).
-    customerWhatsappBase: 710000,
+    // Disjoint mobile range per org (global uniqueness on users.mobile).
+    customerMobileBase: 710000,
     products: [
       { id: 'arroz-5kg', name: 'Arroz 5kg', priceCents: 2500, stock: 80 },
       { id: 'feijao-1kg', name: 'Feijão 1kg', priceCents: 900, stock: 120 },

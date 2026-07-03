@@ -57,7 +57,7 @@ const OWNER = {
   uid: 'seed-owner',
   email: 'dev@cbrl.local',
   displayName: 'Zé Owner',
-  whatsapp: '5511999990000',
+  mobile: '5511999990000',
 }
 
 const UNIT_CENTRO = 'seed-unit-centro'
@@ -273,7 +273,7 @@ export async function seedBarbearia(): Promise<void> {
   )
 
   // — Member operations via the invite-accept cascade —
-  // Zé, Maria, João are complete; "Novo" is incomplete (no whatsapp → derived
+  // Zé, Maria, João are complete; "Novo" is incomplete (no mobile → derived
   // operational status not-ready). The receptionist gets a membership only.
   await ensureAuthIdentity({ uid: PRO_ZE, email: 'ze.pro@cbrl.local', displayName: 'Zé Barbeiro' })
   const proZeId = await seedMemberOperation({
@@ -281,7 +281,7 @@ export async function seedBarbearia(): Promise<void> {
     memberOperationId: 'seed-pro-ze',
     userId: PRO_ZE,
     displayName: 'Zé Barbeiro',
-    whatsapp: '5511988880001',
+    mobile: '5511988880001',
     unitIds: [UNIT_CENTRO, UNIT_ZONA_SUL],
     catalogServiceIds: [SVC_CORTE, SVC_BARBA, SVC_COMBO],
     defaultCommission: { kind: 'percentage', value: 50 },
@@ -293,7 +293,7 @@ export async function seedBarbearia(): Promise<void> {
     memberOperationId: 'seed-pro-maria',
     userId: PRO_MARIA,
     displayName: 'Maria Tesoura',
-    whatsapp: '5511988880002',
+    mobile: '5511988880002',
     unitIds: [UNIT_CENTRO],
     catalogServiceIds: [SVC_CORTE, SVC_SOBRANCELHA],
     defaultCommission: { kind: 'percentage', value: 45 },
@@ -305,7 +305,7 @@ export async function seedBarbearia(): Promise<void> {
     memberOperationId: 'seed-pro-joao',
     userId: PRO_JOAO,
     displayName: 'João Navalha',
-    whatsapp: '5511988880003',
+    mobile: '5511988880003',
     unitIds: [UNIT_ZONA_SUL, UNIT_EXPRESSO],
     catalogServiceIds: [SVC_BARBA, SVC_COMBO],
     defaultCommission: { kind: 'fixed', value: 1500 },
@@ -317,7 +317,7 @@ export async function seedBarbearia(): Promise<void> {
     memberOperationId: 'seed-pro-novo',
     userId: PRO_NOVO,
     displayName: 'Novo Recruta',
-    whatsapp: null,
+    mobile: null,
     unitIds: [],
     catalogServiceIds: [],
     invitedBy: OWNER.uid,
@@ -344,7 +344,7 @@ export async function seedBarbearia(): Promise<void> {
     buildUser(RECEP, now, {
       displayName: 'Paula Recepção',
       completionCompleted: true,
-      whatsapp: '5511977770000',
+      mobile: '5511977770000',
       currentOrgId: ORG_ID,
     }),
   )
@@ -360,28 +360,28 @@ export async function seedBarbearia(): Promise<void> {
       id: 'seed-cust-1',
       user: 'seed-cust-1-user',
       name: 'Cliente Demo',
-      whatsapp: '5511966660001',
+      mobile: '5511966660001',
       birthDate: '1990-03-15',
     },
     {
       id: 'seed-cust-2',
       user: 'seed-cust-2-user',
       name: 'Roberto Cliente',
-      whatsapp: '5511966660002',
+      mobile: '5511966660002',
       birthDate: '1985-07-22',
     },
     {
       id: 'seed-cust-3',
       user: 'seed-cust-3-user',
       name: 'Fernanda Souza',
-      whatsapp: '5511966660003',
+      mobile: '5511966660003',
       birthDate: '1995-11-08',
     },
     {
       id: 'seed-cust-4',
       user: 'seed-cust-4-user',
       name: 'Carlos Pereira',
-      whatsapp: '5511966660004',
+      mobile: '5511966660004',
       birthDate: '1978-01-30',
     },
   ]
@@ -391,7 +391,7 @@ export async function seedBarbearia(): Promise<void> {
       orgId: ORG_ID,
       userId: c.user,
       displayName: c.name,
-      whatsapp: c.whatsapp,
+      mobile: c.mobile,
       birthDate: c.birthDate,
       now,
       actorId: OWNER.uid,
@@ -406,7 +406,7 @@ export async function seedBarbearia(): Promise<void> {
       orgId: ORG_ID,
       userId: `seed-cust-gen-${i}-user`,
       displayName: name,
-      whatsapp: `55119${String(100000 + i).padStart(8, '0')}`,
+      mobile: `55119${String(100000 + i).padStart(8, '0')}`,
       birthDate: `199${i % 10}-${month}-${day}`,
       now,
       actorId: OWNER.uid,

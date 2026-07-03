@@ -47,7 +47,7 @@ import { emitOne } from './emit'
 // The owner's global `users` identity (PII) is written post-commit.
 export async function seedOrgWithOwner(args: {
   org: StoredOrg
-  owner: { uid: string; displayName: string; whatsapp: string }
+  owner: { uid: string; displayName: string; mobile: string }
   now: string
 }): Promise<void> {
   const { org, owner, now } = args
@@ -75,7 +75,7 @@ export async function seedOrgWithOwner(args: {
     buildUser(owner.uid, now, {
       displayName: owner.displayName,
       completionCompleted: true,
-      whatsapp: owner.whatsapp,
+      mobile: owner.mobile,
       currentOrgId: org.id,
     }),
   )
@@ -161,7 +161,7 @@ export async function seedCustomer(args: {
   orgId: string
   userId: string
   displayName: string
-  whatsapp: string | null
+  mobile: string | null
   birthDate: string | null
   now: string
   actorId: string
@@ -169,8 +169,8 @@ export async function seedCustomer(args: {
   await putUser(
     buildUser(args.userId, args.now, {
       displayName: args.displayName,
-      completionCompleted: args.whatsapp !== null && args.birthDate !== null,
-      whatsapp: args.whatsapp,
+      completionCompleted: args.mobile !== null && args.birthDate !== null,
+      mobile: args.mobile,
       birthDate: args.birthDate,
     }),
   )
