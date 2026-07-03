@@ -118,6 +118,26 @@ describe('commitSaga', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).not.toMatch(/concorrência/i)
   })
+
+  it('maps an RLS refusal (42501) to a neutral permission message, not integrity/concurrency', async () => {
+    const result = await commitSaga([() => Effect.die(pgDefect('42501'))])
+    expect(result.ok).toBe(false)
+    // RLS is `forbidden`, distinct from `integrity` — and never confirms row state.
+    if (!result.ok) {
+      expect(result.error).toMatch(/permissão/i)
+      expect(result.error).not.toMatch(/concorrência/i)
+    }
+  })
+
+  it('never leaks the raw SQLSTATE or pg error text to the client', async () => {
+    const result = await commitSaga([() => Effect.die(pgDefect('23503'))])
+    expect(result.ok).toBe(false)
+    // The generic message must not carry the code or the "pg error ..." text.
+    if (!result.ok) {
+      expect(result.error).not.toMatch(/23503/)
+      expect(result.error).not.toMatch(/pg error/i)
+    }
+  })
 })
 
 describe('commitGuardedThenAppend', () => {
