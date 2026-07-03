@@ -19,18 +19,46 @@ const SEVERITY: Record<Level, string> = {
 // primary guard is the call sites; this is the backstop.
 const PII_KEYS = new Set(['whatsapp', 'email', 'document', 'cpf', 'cnpj', 'phone'])
 
-function redactPii(meta: Record<string, unknown>): Record<string, unknown> {
-  let hit = false
-  const safe: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(meta)) {
-    if (PII_KEYS.has(key.toLowerCase()) && value != null) {
-      safe[key] = '[redacted]'
-      hit = true
-    } else {
-      safe[key] = value
-    }
+// An `Error` serialises to `{}` under JSON.stringify because `message`/`stack`
+// are non-enumerable — which would silently drop the very cause the log exists to
+// capture. Normalise any Error (at any depth) to a plain object carrying its
+// name/message/stack (+ a pg `code`/SQLSTATE when present) BEFORE serialising.
+function normalizeError(err: Error): Record<string, unknown> {
+  const out: Record<string, unknown> = { name: err.name, message: err.message }
+  if (err.stack) out.stack = err.stack
+  // pg `DatabaseError` carries `code` (SQLSTATE); surface it for diagnosis. Its
+  // `detail`/`where` may embed PII, so they are deliberately NOT copied here.
+  // `in` + a `Record` read (no assertion): Error has no static `code` field.
+  if ('code' in err) {
+    const code: unknown = Reflect.get(err, 'code')
+    if (typeof code === 'string') out.code = code
   }
-  return hit ? safe : meta
+  return out
+}
+
+// One recursive pass over `meta`: normalise Errors and redact known-PII keys at
+// any depth. A PII value nested inside a non-PII key (e.g. a pg error's `detail`
+// under `err`) is why redaction must recurse, not just check top-level keys.
+function sanitize(value: unknown, keyIsPii: boolean): unknown {
+  if (keyIsPii && value != null) return '[redacted]'
+  if (value instanceof Error) return sanitize(normalizeError(value), false)
+  if (Array.isArray(value)) return value.map((v) => sanitize(v, false))
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = sanitize(v, PII_KEYS.has(k.toLowerCase()))
+    }
+    return out
+  }
+  return value
+}
+
+function sanitizeMeta(meta: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(meta)) {
+    out[key] = sanitize(value, PII_KEYS.has(key.toLowerCase()))
+  }
+  return out
 }
 
 // In production (Cloud Run) emit one JSON line per entry: Cloud Logging renders it
@@ -74,7 +102,7 @@ function emit(level: Level, message: string, meta?: Record<string, unknown>) {
   const context: Record<string, unknown> = {}
   if (ctx?.correlationId) context.correlationId = ctx.correlationId
   if (ctx?.orgId) context.orgId = ctx.orgId
-  const safeMeta = meta ? redactPii(meta) : {}
+  const safeMeta = meta ? sanitizeMeta(meta) : {}
 
   const out = level === 'error' || level === 'warn' ? console.error : console.log
   if (jsonOutput()) {

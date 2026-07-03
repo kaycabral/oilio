@@ -84,12 +84,52 @@ describe('logger', () => {
     expect(entry).not.toHaveProperty('orgId')
   })
 
-  it('redacts known PII keys in meta (defence in depth)', () => {
+  it('serializes an Error in meta to name/message/stack instead of {}', () => {
+    // A bare Error's own props are non-enumerable, so JSON.stringify would drop
+    // message/stack — defeating the whole point of the wave. It must be normalized.
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
-    logger.error('leak?', { whatsapp: '+5511999999999', email: 'a@b.com', orgId: 'org-1' })
+    const boom = new Error('duplicate key on org_links_pkey')
+    logger.error('transaction defect', { scope: 'commitSaga', defect: boom })
+    const entry = parseLine(err.mock.calls[0]?.[0])
+    const defect = entry.defect
+    if (!isRecord(defect)) throw new Error('defect should serialize to an object')
+    expect(defect.message).toBe('duplicate key on org_links_pkey')
+    expect(defect.name).toBe('Error')
+    expect(typeof defect.stack).toBe('string')
+  })
+
+  it('surfaces a pg SQLSTATE (code) but never the PII-bearing detail', () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const pgErr = Object.assign(new Error('unique violation'), {
+      code: '23505',
+      detail: 'Key (whatsapp)=(+5511999999999) already exists',
+    })
+    logger.error('write failed', { scope: 'x', err: pgErr })
+    const entry = parseLine(err.mock.calls[0]?.[0])
+    const serialized = entry.err
+    if (!isRecord(serialized)) throw new Error('err should serialize to an object')
+    expect(serialized.code).toBe('23505')
+    // `detail` (which embeds the whatsapp PII) must NOT be copied.
+    expect(serialized).not.toHaveProperty('detail')
+    expect(JSON.stringify(entry)).not.toContain('5511999999999')
+  })
+
+  it('redacts known PII keys in meta (defence in depth), recursively', () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    logger.error('leak?', {
+      whatsapp: '+5511999999999',
+      email: 'a@b.com',
+      orgId: 'org-1',
+      nested: { email: 'deep@b.com', ok: 'keep' },
+    })
     const entry = parseLine(err.mock.calls[0]?.[0])
     expect(entry.whatsapp).toBe('[redacted]')
     expect(entry.email).toBe('[redacted]')
+    // Nested PII is redacted too (key-only top-level check would miss this).
+    const nested = entry.nested
+    if (!isRecord(nested)) throw new Error('nested should be an object')
+    expect(nested.email).toBe('[redacted]')
+    expect(nested.ok).toBe('keep')
     // Non-PII context is preserved.
     expect(entry.orgId).toBe('org-1')
   })

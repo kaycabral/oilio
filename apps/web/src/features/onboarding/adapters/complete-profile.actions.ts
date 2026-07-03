@@ -7,6 +7,7 @@ import { getUserById, patchUser } from '@/shared/db/pg/users-store'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
 import { logger } from '@/shared/lib/logger'
+import { withActionContext } from '@/shared/lib/request-context'
 import { ensureSelfSignupCustomer } from '@/shared/org/customer-upsert'
 import { getOrgBySlug } from '@/shared/org/org'
 import { emitClientFunnelEvent } from '@/shared/product'
@@ -21,72 +22,74 @@ export type CompleteProfileResult = { ok: true } | { ok: false; error: string }
 // name override. Idempotent: if the user already finished completion, the
 // action refuses to overwrite — that gate also lives in the page render
 // path, but server actions must defend themselves (don't trust the UI).
-export async function completeProfile(formData: FormData): Promise<CompleteProfileResult> {
-  const session = await getSessionUser()
-  if (!session) return { ok: false, error: 'Sessão expirada' }
+export const completeProfile = withActionContext(
+  async (formData: FormData): Promise<CompleteProfileResult> => {
+    const session = await getSessionUser()
+    if (!session) return { ok: false, error: 'Sessão expirada' }
 
-  const user = await getUserById(session.uid)
-  if (!user) return { ok: false, error: 'Usuário não encontrado' }
-  if (user.completionCompleted) {
-    // Idempotent — already done. Don't error; just fall through to the
-    // redirect so a stale tab doesn't trap the user.
-    redirect(safeNext(formData.get('next')))
-  }
-
-  const parsed = parseProfileForm(formData)
-  if (typeof parsed === 'string') return { ok: false, error: parsed }
-  const { name, whatsapp, birthDate } = parsed
-
-  const now = new Date().toISOString()
-
-  // No stub dedupe (brief 0077, Grupo C — #1276). The recepcionista no longer
-  // creates stub Users by typing PII (the convite-contextual flow #1279 hands
-  // out a link instead), so there is no stub to fold in. Folding-by-WhatsApp was
-  // the SOURCE of the wrong-number breach the brief kills: a mistyped number on a
-  // stub could silently capture a real login. Each login is its own user — no
-  // merge. (Removed `findClaimableStubByWhatsapp` + `mergeStubUserIntoClaimer`.)
-
-  try {
-    await patchUser(
-      session.uid,
-      {
-        display_name: name,
-        whatsapp,
-        birth_date: birthDate,
-        completion_completed: true,
-      },
-      now,
-    )
-  } catch (err) {
-    // WhatsApp is globally unique (one owner per number). If this number already
-    // backs another account, the DB refuses the write — surface a handled
-    // business error instead of a raw 500. No OTP yet (#1276): we can't verify
-    // ownership, so we ask the person to use their own number / get in touch.
-    if (isUniqueViolation(err, USERS_WHATSAPP_UNIQUE)) {
-      return {
-        ok: false,
-        error:
-          'Esse número de WhatsApp já está em uso por outra conta. Use o seu próprio número ou fale com o estabelecimento.',
-      }
+    const user = await getUserById(session.uid)
+    if (!user) return { ok: false, error: 'Usuário não encontrado' }
+    if (user.completionCompleted) {
+      // Idempotent — already done. Don't error; just fall through to the
+      // redirect so a stale tab doesn't trap the user.
+      redirect(safeNext(formData.get('next')))
     }
-    throw err
-  }
 
-  // No approval event to emit (#1226 AC-02): `operationalStatus` is derived on
-  // read from real facts. Setting `User.whatsapp` above can complete a
-  // memberOperation's profile, but readiness is recomputed on the next enriched
-  // read — there is nothing to materialize there.
+    const parsed = parseProfileForm(formData)
+    if (typeof parsed === 'string') return { ok: false, error: parsed }
+    const { name, whatsapp, birthDate } = parsed
 
-  // Materialize the Customer at completion (brief 0077 Grupo E / Cenário 3 —
-  // #1278). The visitor becomes a Customer of the establishment the moment they
-  // finish their profile, even before booking — satisfying intent=signup. This
-  // revises [[0001]]'s deferred materialization (which only created on the 1st
-  // booking). Best-effort + idempotent: a missing/unpublished org or a returning
-  // customer never blocks completion. The funnel touch is PII-zero throughout.
-  await materializeSelfSignupCustomer(formData, session.uid)
+    const now = new Date().toISOString()
 
-  redirect(safeNext(formData.get('next')))
-}
+    // No stub dedupe (brief 0077, Grupo C — #1276). The recepcionista no longer
+    // creates stub Users by typing PII (the convite-contextual flow #1279 hands
+    // out a link instead), so there is no stub to fold in. Folding-by-WhatsApp was
+    // the SOURCE of the wrong-number breach the brief kills: a mistyped number on a
+    // stub could silently capture a real login. Each login is its own user — no
+    // merge. (Removed `findClaimableStubByWhatsapp` + `mergeStubUserIntoClaimer`.)
+
+    try {
+      await patchUser(
+        session.uid,
+        {
+          display_name: name,
+          whatsapp,
+          birth_date: birthDate,
+          completion_completed: true,
+        },
+        now,
+      )
+    } catch (err) {
+      // WhatsApp is globally unique (one owner per number). If this number already
+      // backs another account, the DB refuses the write — surface a handled
+      // business error instead of a raw 500. No OTP yet (#1276): we can't verify
+      // ownership, so we ask the person to use their own number / get in touch.
+      if (isUniqueViolation(err, USERS_WHATSAPP_UNIQUE)) {
+        return {
+          ok: false,
+          error:
+            'Esse número de WhatsApp já está em uso por outra conta. Use o seu próprio número ou fale com o estabelecimento.',
+        }
+      }
+      throw err
+    }
+
+    // No approval event to emit (#1226 AC-02): `operationalStatus` is derived on
+    // read from real facts. Setting `User.whatsapp` above can complete a
+    // memberOperation's profile, but readiness is recomputed on the next enriched
+    // read — there is nothing to materialize there.
+
+    // Materialize the Customer at completion (brief 0077 Grupo E / Cenário 3 —
+    // #1278). The visitor becomes a Customer of the establishment the moment they
+    // finish their profile, even before booking — satisfying intent=signup. This
+    // revises [[0001]]'s deferred materialization (which only created on the 1st
+    // booking). Best-effort + idempotent: a missing/unpublished org or a returning
+    // customer never blocks completion. The funnel touch is PII-zero throughout.
+    await materializeSelfSignupCustomer(formData, session.uid)
+
+    redirect(safeNext(formData.get('next')))
+  },
+)
 
 // Resolve the establishment from the forwarded `context` query string and create
 // (idempotently) the Customer shadow + emit the funnel events. Swallows its own

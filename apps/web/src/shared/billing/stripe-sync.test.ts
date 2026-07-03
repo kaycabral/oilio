@@ -132,7 +132,15 @@ describe('syncStripeSubscriptionQuantity', () => {
     const errSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
 
     await expect(syncStripeSubscriptionQuantity('org-1')).resolves.toBeUndefined()
-    expect(errSpy).toHaveBeenCalled()
+    // Assert WHAT is logged, not just that it logged: the failure cause (the
+    // caught Error) must reach the log as meta — the logger normalizes it so the
+    // message survives (a plain JSON.stringify would drop it to `{}`).
+    expect(errSpy).toHaveBeenCalledWith(
+      'failed',
+      expect.objectContaining({ scope: 'syncStripeSubscriptionQuantity', orgId: 'org-1' }),
+    )
+    const meta = errSpy.mock.calls[0]?.[1]
+    expect(meta?.err).toBeInstanceOf(Error)
 
     errSpy.mockRestore()
   })
