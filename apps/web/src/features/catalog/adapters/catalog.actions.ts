@@ -20,6 +20,8 @@ import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
+import { classifyError } from '@/shared/errors/classify'
+import { messageForCategory } from '@/shared/errors/messages'
 import { formString } from '@/shared/form-data'
 import { getCategoryById } from '@/shared/org/category-read'
 import { canDeleteCatalogItem } from '@/shared/org/delete-guard'
@@ -269,7 +271,9 @@ export async function deleteCatalogItem(catalogItemId: string): Promise<CatalogI
         error: 'Não é possível excluir este item: há agendamentos vinculados a ele.',
       }
     }
-    throw err
+    // A non-FK defect (CHECK/RLS/unknown) would otherwise escape as a raw
+    // 500; map it to the canonical generic message (detail stays in the log).
+    return { ok: false as const, error: messageForCategory(classifyError(err)) }
   }
   revalidatePath('/catalog')
   return { ok: true }

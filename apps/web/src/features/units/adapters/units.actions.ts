@@ -27,6 +27,8 @@ import { deletePostgresProjection } from '@/shared/db/pg/effect/postgres-layer'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
+import { classifyError } from '@/shared/errors/classify'
+import { messageForCategory } from '@/shared/errors/messages'
 import { getOrgTier } from '@/shared/org/billing-read'
 import { canDeleteUnit } from '@/shared/org/delete-guard'
 import { hasOperationalMemberOperationInUnit } from '@/shared/org/member-operation-read'
@@ -300,7 +302,9 @@ export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
           'Não é possível excluir esta unidade: há registros vinculados a ela (vendas, assinaturas, agendamentos ou caixa). Arquive-a ou remova os dependentes primeiro.',
       }
     }
-    throw err
+    // A non-FK defect (CHECK/RLS/unknown) would otherwise escape as a raw
+    // 500; map it to the canonical generic message (detail stays in the log).
+    return { ok: false as const, error: messageForCategory(classifyError(err)) }
   }
   // LGPD erasure — drop the PII doc alongside the projection.
   await deleteUnitPii(orgId, unitId)

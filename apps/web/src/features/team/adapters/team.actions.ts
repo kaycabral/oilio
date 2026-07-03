@@ -19,6 +19,8 @@ import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
+import { classifyError } from '@/shared/errors/classify'
+import { messageForCategory } from '@/shared/errors/messages'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
 import { canDeleteMemberOperation } from '@/shared/org/delete-guard'
@@ -229,7 +231,9 @@ export async function deleteMemberOperation(
         error: 'Não é possível excluir este profissional: há agendamentos vinculados a ele.',
       }
     }
-    throw err
+    // A non-FK defect (CHECK/RLS/unknown) would otherwise escape as a raw
+    // 500; map it to the canonical generic message (detail stays in the log).
+    return { ok: false as const, error: messageForCategory(classifyError(err)) }
   }
   // LGPD erasure — drop the PII doc alongside the projection.
   await deleteMemberOperationPii(r.ctx.membership.orgId, memberOperationId)
