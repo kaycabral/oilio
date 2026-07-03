@@ -11,10 +11,21 @@ import {
   signInAndAttachSession,
 } from '../helpers/session'
 
-// Invite-flow E2E (#786). Drives the happy path + the two guards that
-// would silently let a wrong person in if they regressed: tampered token
-// and email mismatch. Exercises real Firestore + the server action against
-// the emulator, no mocks.
+// Invite-flow E2E (#786, channel normalized to WhatsApp in brief 0084). Drives
+// the happy path + the guards that would silently let a wrong person in if they
+// regressed: tampered token + already-consumed (1-use). The strict email match
+// (#827) is GONE — identity binding is first-accept-wins, so a covering test
+// proves ANY authenticated Google account can accept a valid-token invite and
+// the first one claims it. Exercises the real accept action against the emulator.
+
+// A unique, already-normalized BR mobile so the seeded `invites_pii.whatsapp`
+// is stable across the run. The number is only the delivery channel — the
+// accept flow never matches on it.
+let phoneSeq = 0
+function uniqueWhatsapp(): string {
+  phoneSeq += 1
+  return `5511${String(900000000 + phoneSeq).slice(0, 9)}`
+}
 
 test.describe('Fluxo de convite', { tag: '@critical' }, () => {
   test('usuário convidado por owner aceita convite → vínculo criado → redireciona pra /dashboard', async ({
@@ -22,16 +33,12 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    // Owner seeds a org; we don't sign in as them — we only need their
-    // org ID and uid to create the invite.
     const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
-
-    // Invitee is a second auth user with verified email.
     const invitee = await seedAuthUser()
 
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      email: invitee.email,
+      whatsapp: uniqueWhatsapp(),
       role: 'manager',
       invitedBy: owner.uid,
     })
@@ -42,8 +49,6 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
 
     await expect(page.getByRole('heading', { name: /convite para/i })).toBeVisible()
     // The proposed role shows the human label, never the raw enum key (#1299).
-    // A `manager` invite must read "Gerente" — asserting the label here would
-    // have caught the pre-fix render that leaked the key ("manager").
     await expect(page.getByText(/papel proposto/i)).toContainText('Gerente')
 
     await page.getByRole('button', { name: /aceitar convite/i }).click()
@@ -52,7 +57,8 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
 
     // Invite is marked accepted; membership exists with the proposed role.
-    // #827: acceptedByUid + acceptedAt are populated atomically with status.
+    // acceptedByUid + acceptedAt are populated atomically with status (the
+    // first-accept-wins write-once binding).
     const acceptedInvite = await readInvite(owner.orgId, inviteId)
     expect(acceptedInvite?.status).toBe('accepted')
     expect(acceptedInvite?.acceptedByUid).toBe(invitee.uid)
@@ -63,21 +69,10 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     expect(m!.role).toBe('manager')
     expect(m!.status).toBe('active')
 
-    // #852 schema foundation: new memberships populate `rlsUnitScope` and
-    // `permissions` on creation (null when not applicable), so legacy code that
-    // calls `resolveMembershipPermissions` returns the stored set, not the role
-    // default. This locks the contract that the invite-accept path keeps writing
-    // the field — drift here would silently downgrade new memberships to
-    // "permissions = null = role-default" and mask refinements we apply to
-    // defaults later.
+    // #852: new memberships populate `rlsUnitScope` + `permissions` on creation.
     expect(m!.rlsUnitScope).toBeNull()
     expect(m!.permissions).toEqual(defaultPermissionsForRole('manager'))
 
-    // The invitee already had a User doc from sign-in; the new fields exist
-    // with their initial values (null / false). Asserting one is enough — the
-    // signal we want is "session route writes the new shape on first login",
-    // which would fail typecheck before reaching here, but a smoke assertion
-    // catches drift if someone hand-edits the doc and forgets a field.
     const u = await readUser(invitee.uid)
     expect(u).not.toBeNull()
     expect(u).toHaveProperty('completionCompleted')
@@ -92,7 +87,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     const invitee = await seedAuthUser()
     const { inviteId } = await seedInvite({
       orgId: owner.orgId,
-      email: invitee.email,
+      whatsapp: uniqueWhatsapp(),
       role: 'manager',
       invitedBy: owner.uid,
     })
@@ -104,40 +99,51 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     expect(await readInviteStatus(owner.orgId, inviteId)).toBe('pending')
   })
 
-  test('rejeita convite quando email da sessão não bate com o do convite', async ({
+  test('first-accept-wins: qualquer conta Google com token válido aceita (sem match de email)', async ({
     context,
     page,
     baseURL,
   }) => {
+    // Brief 0084: the invite no longer binds to a typed email/phone. A Google
+    // account that was NOT pre-named on the invite still accepts it, because the
+    // signed token is the only barrier and the first accepter claims it. Under
+    // the old #827 rule this would have shown "e-mail diferente" and refused.
     const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
-    const wrongUser = await seedAuthUser()
+    const anyAccount = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      email: 'someone-else@example.com',
+      whatsapp: uniqueWhatsapp(),
       role: 'manager',
       invitedBy: owner.uid,
     })
-    await signInAndAttachSession(context, wrongUser.email, wrongUser.password, baseURL ?? undefined)
+    await signInAndAttachSession(
+      context,
+      anyAccount.email,
+      anyAccount.password,
+      baseURL ?? undefined,
+    )
 
     await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
-    await expect(page.getByRole('heading', { name: /e-?mail diferente/i })).toBeVisible()
-    expect(await readInviteStatus(owner.orgId, inviteId)).toBe('pending')
-    // The retry affordance is rendered — user can drop the wrong session.
-    await expect(page.getByRole('button', { name: /sair e relogar/i })).toBeVisible()
+    await page.getByRole('button', { name: /aceitar convite/i }).click()
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
+
+    const accepted = await readInvite(owner.orgId, inviteId)
+    expect(accepted?.status).toBe('accepted')
+    expect(accepted?.acceptedByUid).toBe(anyAccount.uid)
+    const m = await readMembership(membershipDocId(owner.orgId, anyAccount.uid))
+    expect(m?.role).toBe('manager')
   })
 
-  test('aceita convite quando case + whitespace diferem entre email OAuth e email do convite (#827)', async ({
+  test('member_operator aceita → redireciona pra home operacional', async ({
     context,
     page,
     baseURL,
   }) => {
     const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
     const invitee = await seedAuthUser()
-    // Seed the invite with an upper-cased / padded version of the OAuth email.
-    // `inviteEmailsMatch` should normalize both sides and still match.
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      email: `  ${invitee.email.toUpperCase()}  `,
+      whatsapp: uniqueWhatsapp(),
       role: 'member_operator',
       invitedBy: owner.uid,
     })
@@ -146,10 +152,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await page.getByRole('button', { name: /aceitar convite/i }).click()
     // A memberOperation is NOT a manager, so the post-accept redirect targets
-    // `/agenda` instead of the manager-only Dashboard. This org has no
-    // appointment unit (unitCount: 0), so `/agenda` itself forwards to `/orders`
-    // (its no-agenda fallback) — the operational home a non-manager lands on
-    // here. A manager invite → `/dashboard` is covered by the first test.
+    // `/agenda`; with no appointment unit it forwards to `/orders`.
     await expect(page).toHaveURL(/\/orders/, { timeout: 10_000 })
 
     const accepted = await readInvite(owner.orgId, inviteId)
@@ -157,12 +160,12 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     expect(accepted?.acceptedByUid).toBe(invitee.uid)
   })
 
-  test('rejeita convite já consumido (#827 uso único)', async ({ context, page, baseURL }) => {
+  test('rejeita convite já consumido (uso único)', async ({ context, page, baseURL }) => {
     const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      email: invitee.email,
+      whatsapp: uniqueWhatsapp(),
       role: 'manager',
       invitedBy: owner.uid,
       status: 'accepted',
@@ -173,7 +176,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     await expect(page.getByRole('heading', { name: /convite já utilizado/i })).toBeVisible()
   })
 
-  test('mostra mensagem de expirado quando data de expiração já passou (#827)', async ({
+  test('mostra mensagem de expirado quando data de expiração já passou', async ({
     context,
     page,
     baseURL,
@@ -182,7 +185,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      email: invitee.email,
+      whatsapp: uniqueWhatsapp(),
       role: 'manager',
       invitedBy: owner.uid,
       expiresAt: new Date(Date.now() - 60_000).toISOString(),

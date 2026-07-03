@@ -1,14 +1,13 @@
 import { CenteredScreen } from '@/components/centered-screen'
 import { roleLabel } from '@/domain'
 import { verifyInviteToken } from '@/features/invites/adapters/invite-token'
-import { checkInviteEligibility } from '@/features/invites/core/invite-acceptance'
 import { AcceptInviteForm } from '@/features/invites/ui/AcceptInviteForm'
-import { LogoutAndRetryButton } from '@/features/invites/ui/LogoutAndRetryButton'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { getInviteById } from '@/shared/org/invite-read'
 import { getUserDoc } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
+import { emitMemberFunnelEvent } from '@/shared/product/member-funnel-events'
 import { redirect } from 'next/navigation'
 
 type Params = Promise<{ orgId: string; inviteId: string }>
@@ -35,7 +34,7 @@ export default async function AcceptInvitePage({
     )
   }
 
-  // PII (invitee email) merged from `invites_pii` on read (#1036).
+  // PII (invitee WhatsApp) merged from `invites_pii` on read (#1036).
   const invite = await getInviteById(orgId, inviteId)
   if (!invite) {
     return (
@@ -68,6 +67,10 @@ export default async function AcceptInvitePage({
     )
   }
 
+  // Funnel telemetry (brief 0084, Grupo D): the invitee opened a valid invite
+  // link. PII-zero, best-effort — never traps the render.
+  await emitMemberFunnelEvent({ event: 'member_invite_opened', orgId })
+
   const org = await getOrg(orgId)
   const orgName = org?.name ?? 'esta empresa'
 
@@ -78,7 +81,7 @@ export default async function AcceptInvitePage({
       <CenteredScreen>
         <h1 className="mb-2 text-xl font-semibold">Convite para {orgName}</h1>
         <p className="text-muted-foreground mb-4 text-sm">
-          Continue com Google usando a conta do email <strong>{invite.email}</strong>.
+          Entre com sua conta Google para aceitar o convite.
         </p>
         <a className="text-sm underline" href={`/login?next=${next}`}>
           Ir para login
@@ -87,20 +90,7 @@ export default async function AcceptInvitePage({
     )
   }
 
-  if (!checkInviteEligibility(invite, session.email ?? null).ok) {
-    return (
-      <CenteredScreen>
-        <h1 className="mb-2 text-xl font-semibold">E-mail diferente</h1>
-        <p className="text-muted-foreground mb-4 text-sm">
-          Use a conta do email <strong>{invite.email}</strong>. A conta logada é{' '}
-          <strong>{session.email ?? '(sem email)'}</strong>.
-        </p>
-        <LogoutAndRetryButton nextUrl={`/invites/${orgId}/${inviteId}?token=${token}`} />
-      </CenteredScreen>
-    )
-  }
-
-  // #838 — even with the correct OAuth identity, the invitee must complete
+  // #838 — even when authenticated, the invitee must complete
   // their profile (WhatsApp + birthDate) before consuming the invite. Send
   // them through completion with `next=` pointing back to this URL so the
   // accept-flow resumes exactly where they were.
