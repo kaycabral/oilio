@@ -43,10 +43,12 @@ export function OAuthSignInButtons({
       const credential = await signInWithPopup(auth, buildProvider())
       await createSession(await credential.user.getIdToken())
       window.location.replace(next)
-    } catch (err) {
+    } catch {
       started.current = false
       setPending(false)
-      toast.error(err instanceof Error ? err.message : 'Não foi possível entrar.')
+      // Firebase Auth errors carry technical text (`auth/...`); show a fixed
+      // friendly message instead of echoing the raw error.
+      toast.error('Não foi possível entrar. Tente novamente.')
     }
   }
 

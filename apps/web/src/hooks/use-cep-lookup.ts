@@ -66,19 +66,24 @@ export function useCepLookup(cep: string): CepLookupResult {
     fetch(`/api/postal-code/${digits}`)
       .then(async (r) => {
         if (!r.ok) {
+          // The API's own `error` is a curated business message ("CEP não
+          // encontrado.") — safe to show. A missing body is a technical failure
+          // (status/network) whose raw text must not leak.
           const body = await readJson(r, validateErrorBody).catch((): { error?: string } => ({}))
-          throw new Error(body.error ?? `CEP lookup failed (${r.status})`)
+          setData(null)
+          setError(body.error ?? 'Não foi possível consultar o CEP. Tente novamente.')
+          return
         }
-        return readJson(r, validatePostalCodeLookup)
-      })
-      .then((d) => {
+        const d = await readJson(r, validatePostalCodeLookup)
         if (cancelled) return
         setData(d)
+        setError(null)
       })
-      .catch((err: Error) => {
+      .catch(() => {
+        // A thrown error here is technical (network / parse) — never user-facing.
         if (cancelled) return
         setData(null)
-        setError(err.message)
+        setError('Não foi possível consultar o CEP. Tente novamente.')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
