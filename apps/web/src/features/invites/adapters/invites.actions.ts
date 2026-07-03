@@ -41,8 +41,9 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
   if (!session) return { ok: false, error: 'Sign in first' }
   if (!session.emailVerified) return { ok: false, error: 'Email not verified' }
 
-  // PII (invitee email) merged from `invites_pii` on read (#1036) — the email
-  // match below needs it.
+  // Read the invite (PII WhatsApp merged from `invites_pii` on read, #1036 —
+  // not used at accept time; the accept binds by token + first-accept, not by
+  // contact, brief 0084).
   const invite = await getInviteById(orgId, inviteId)
   if (!invite) return { ok: false, error: 'Invite not found' }
   if (invite.status !== 'pending') return { ok: false, error: 'Invite already used' }
