@@ -16,7 +16,7 @@ import { InviteForm } from './InviteForm'
 // AC-07 (brief 0037): "Convidar" is the primary action at the top of `/team`.
 // The invite form opens from this top action (dialog) instead of sinking below
 // the members list. Pending invites live in their own tab.
-export function InviteDialog() {
+export function InviteDialog({ orgId, baseUrl }: { orgId: string; baseUrl: string }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -32,7 +32,7 @@ export function InviteDialog() {
           <DialogTitle>Convidar membro</DialogTitle>
           <DialogDescription>Gere um link de convite com o papel do novo membro.</DialogDescription>
         </DialogHeader>
-        <InviteForm />
+        <InviteForm orgId={orgId} baseUrl={baseUrl} />
       </DialogContent>
     </Dialog>
   )

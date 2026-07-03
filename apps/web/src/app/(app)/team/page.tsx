@@ -11,9 +11,11 @@ export default async function TeamPage({
   const {
     canManage,
     currentUserId,
+    orgId,
+    baseUrl,
     entries,
     displayNameByUserId,
-    whatsappByUserId,
+    mobileByUserId,
     birthDateByUserId,
     operationalByUserId,
     viewFilter,
@@ -31,7 +33,7 @@ export default async function TeamPage({
         header={
           <header className="flex items-center justify-between gap-4">
             <h1 className="text-2xl font-semibold">Equipe</h1>
-            {canManage ? <InviteDialog /> : null}
+            {canManage ? <InviteDialog orgId={orgId} baseUrl={baseUrl} /> : null}
           </header>
         }
         currentUserId={currentUserId}
@@ -41,7 +43,7 @@ export default async function TeamPage({
         searchQuery={searchQuery}
         isFiltered={state === 'filtered-empty'}
         displayNameByUserId={displayNameByUserId}
-        whatsappByUserId={whatsappByUserId}
+        mobileByUserId={mobileByUserId}
         birthDateByUserId={birthDateByUserId}
         operationalByUserId={operationalByUserId}
       />

@@ -78,7 +78,7 @@ export function TeamList({
   searchQuery,
   isFiltered,
   displayNameByUserId,
-  whatsappByUserId,
+  mobileByUserId,
   birthDateByUserId,
   operationalByUserId,
 }: {
@@ -92,7 +92,7 @@ export function TeamList({
   // True when the team has data but the current view/search slice is empty.
   isFiltered: boolean
   displayNameByUserId: Record<string, string>
-  whatsappByUserId: Record<string, string>
+  mobileByUserId: Record<string, string>
   birthDateByUserId: Record<string, string>
   operationalByUserId: Record<string, OperationalStatus>
 }) {
@@ -160,7 +160,7 @@ export function TeamList({
         const isSelf = member.userId === currentUserId
         const isOwner = member.role === 'owner'
         // No point WhatsApp-ing yourself.
-        const whatsapp = isSelf ? undefined : whatsappByUserId[member.userId]
+        const whatsapp = isSelf ? undefined : mobileByUserId[member.userId]
         const birthDate = birthDateByUserId[member.userId]
         // The owner is read-only (refino): its detail carries no actions.
         const linkable = canManage && !isOwner
