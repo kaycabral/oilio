@@ -90,8 +90,13 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
       await chooseOption(dialog, 'Papel', 'Recepção')
       await dialog.getByRole('button', { name: /Convidar|Convidando/ }).click()
 
-      // Success surfaces the WhatsApp send affordance + the copyable link.
-      await expect(dialog.getByRole('link', { name: /Enviar convite por WhatsApp/i })).toBeVisible()
+      // Success surfaces the WhatsApp send affordance (the primary channel) with
+      // an href to the accept link; the raw link sits behind a "copiar" details.
+      const waLink = dialog.getByRole('link', { name: /Enviar convite por WhatsApp/i })
+      await expect(waLink).toBeVisible()
+      await expect(waLink).toHaveAttribute('href', /wa\.me\//)
+      // Expand the collapsed "Ou copie o link" to reveal the raw accept link.
+      await dialog.getByText(/Ou copie o link/i).click()
       await expect(dialog.getByText(/\/invites\//)).toBeVisible()
     })
 
