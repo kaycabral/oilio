@@ -14,7 +14,7 @@ import {
   isValidCancellationNoticeMinutes,
   isValidSlotMinutes,
   isValidUnitSlug,
-  normalizeBrazilPhone,
+  normalizeBrazilMobile,
   resolveWhatsappTemplates,
   type SlotMinutes,
   UNIT_HOURS_MODES,
@@ -209,10 +209,15 @@ export function parseUnitForm(formData: FormData): ParsedUnit | string {
     return 'Slug inválido. Use letras minúsculas, números e hífens (3–64 caracteres). Alguns nomes são reservados.'
   }
 
+  // A unit's contact must be a WhatsApp-capable mobile (its wa.me deep link is
+  // how customers reach the establishment). Enforce a strict BR mobile (DDD + 9th
+  // digit) at the boundary — matching the `units_pii_mobile_br_format` CHECK — so
+  // a landline typed from a CNPJ import is rejected here with a handled message
+  // instead of blowing up as a 500 at INSERT time (brief 0087).
   const mobileRaw = formString(formData, 'mobile').trim()
   if (mobileRaw.length === 0) return 'WhatsApp é obrigatório'
-  const mobile = normalizeBrazilPhone(mobileRaw)
-  if (!mobile) return 'WhatsApp inválido'
+  const mobile = normalizeBrazilMobile(mobileRaw)
+  if (!mobile) return 'Informe um celular com DDD e 9 dígitos (ex.: 11 91234-5678)'
 
   const email = formString(formData, 'email').trim() || null
 

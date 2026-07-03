@@ -137,6 +137,16 @@ describe('parseUnitForm', () => {
     expect(typeof parseUnitForm(fd(rest))).toBe('string')
   })
 
+  it('rejects a landline at the boundary (strict BR mobile, 9th digit)', () => {
+    // A CNPJ import may bring a fixed line. The unit contact must be a
+    // WhatsApp-capable mobile (brief 0087) — the boundary rejects a 10-digit
+    // landline with a handled error rather than letting it reach the INSERT and
+    // violate the `units_pii_mobile_br_format` CHECK (a raw 500).
+    const result = parseUnitForm(fd({ ...VALID_UNIT, mobile: '1133334444' }))
+    expect(typeof result).toBe('string')
+    expect(result).toMatch(/9 dígitos/)
+  })
+
   it('propagates an address error', () => {
     expect(typeof parseUnitForm(fd({ ...VALID_UNIT, postalCode: '1' }))).toBe('string')
   })
