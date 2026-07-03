@@ -3,22 +3,15 @@ import { isCapabilityLocked } from '@/features/billing/adapters/capability-lock'
 import { UpgradeCta } from '@/features/billing/ui/UpgradeGate'
 import { loadCustomersAndPlans } from '@/features/subscriptions/adapters/load-subscription-form'
 import { SubscriptionForm } from '@/features/subscriptions/ui/SubscriptionForm'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { getActiveOrgContext } from '@/shared/org/membership'
+import { requireCapabilityPage } from '@/shared/org/membership'
 import { Button, Main } from '@cbrl/design'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 
 export default async function NewSubscriptionPage() {
-  if (!isFirebaseConfigured()) redirect('/')
-  const session = await getSessionUser()
-  if (!session) redirect('/login')
-  const ctx = await getActiveOrgContext(session.uid)
-  if (!ctx) redirect('/onboarding')
-  if (ctx.membership.role !== 'owner' && ctx.membership.role !== 'manager') {
-    redirect('/subscriptions')
-  }
+  // Same canonical role guard the sibling loaders use (load-subscriptions) —
+  // gate by the `canManageSubscriptions` capability, never by role directly, so
+  // this page stays in lockstep with the permission matrix (brief 0075).
+  const ctx = await requireCapabilityPage('canManageSubscriptions', '/subscriptions')
 
   // Assinaturas exigem `plans.recurring` (uma assinatura consome um plano
   // recorrente). No Free, a página inteira mostra o CTA de upgrade em vez de
