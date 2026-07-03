@@ -1,12 +1,6 @@
 'use server'
 
-import {
-  canManageOrg,
-  defaultPermissionsForRole,
-  inviteEmailsMatch,
-  type Membership,
-  membershipDocId,
-} from '@/domain'
+import { canManageOrg, defaultPermissionsForRole, type Membership, membershipDocId } from '@/domain'
 import { InviteConfig, MemberOperationConfig, MembershipConfig } from '@/domain/aggregates'
 import {
   aggregateRef,
@@ -25,6 +19,7 @@ import {
   type StoredMemberOperation,
   writeMemberOperationPii,
 } from '@/shared/org/member-operation-read'
+import { emitMemberFunnelEvent } from '@/shared/product/member-funnel-events'
 import { redirect } from 'next/navigation'
 
 export type AcceptInviteResult = { ok: true; orgId: string } | { ok: false; error: string }
@@ -63,14 +58,15 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
   if (!verifyInviteToken(token, invite.tokenHash)) {
     return { ok: false, error: 'Invalid invite token' }
   }
-  // Strict email match (#827): OAuth identity email must equal the invite
-  // email after trim + lowercase. Anything else is a security regression.
-  if (!session.email || !inviteEmailsMatch(session.email, invite.email)) {
-    return {
-      ok: false,
-      error: `Use a conta do email ${invite.email}. A conta logada é ${session.email ?? '(sem email)'}.`,
-    }
-  }
+  // First-accept-wins (brief 0084): the invite grants a role, so the signed
+  // token above is the access barrier — but there is NO email match (#827 is
+  // gone). Google login yields an email, not a verified phone, so the invite
+  // can't bind to the typed WhatsApp. The first authenticated account that
+  // presents a valid token claims it: the saga stamps `acceptedByUid` +
+  // `status: accepted` write-once (the `invites_acceptance_consistency` CHECK
+  // guarantees a pending invite has no accepter), so a second accept of the same
+  // link fails the pending guard above. `emailVerified` still gates (checked
+  // earlier) — that's account hygiene, orthogonal to the invite identity.
 
   const now = new Date().toISOString()
   const membershipId = membershipDocId(invite.orgId, session.uid)
@@ -183,6 +179,14 @@ async function acceptInviteSaga(args: AcceptInviteSagaArgs): Promise<AcceptInvit
 
   if (proId) await writeMemberOperationPii(orgId, proId, { taxIdentity: null })
   await patchUser(actorUid, { current_org_id: inviteOrgId }, now)
+  // Funnel telemetry (brief 0084, Grupo D) — PII-zero, best-effort. Before the
+  // redirect (which throws) so it still records on the happy path.
+  await emitMemberFunnelEvent({
+    event: 'member_invite_accepted',
+    orgId,
+    memberUid: actorUid,
+    role: membership.role,
+  })
   // Land on a surface the new member can actually see: the Dashboard is
   // manager-only (server-side wall on `/dashboard`), so a memberOperation/
   // receptionist must go to `/agenda` — mirrors `requireManagerPage`'s
