@@ -1,6 +1,7 @@
 'use server'
 
 import { changedProfileFields, parseProfileForm } from '@/features/settings/core/profile-form'
+import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/unique-violation'
 import { getUserById, patchUser } from '@/shared/db/pg/users-store'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { emitPiiEvent } from '@/shared/privacy/pii-events'
@@ -30,15 +31,29 @@ export async function updateProfile(formData: FormData): Promise<UpdateProfileRe
   const now = new Date().toISOString()
   // Merge-patch the global `users` doc (snake_case columns). Identity is by
   // reference everywhere, so this single write reflects across every screen/org.
-  await patchUser(
-    session.uid,
-    {
-      display_name: parsed.name,
-      mobile: parsed.mobile,
-      birth_date: parsed.birthDate,
-    },
-    now,
-  )
+  try {
+    await patchUser(
+      session.uid,
+      {
+        display_name: parsed.name,
+        mobile: parsed.mobile,
+        birth_date: parsed.birthDate,
+      },
+      now,
+    )
+  } catch (err) {
+    // The mobile number is globally unique (one owner per number). Editing it to
+    // one already backing another account trips `users_mobile_unique` — surface a
+    // handled business error instead of a raw 500 (same guard as complete-profile).
+    if (isUniqueViolation(err, USERS_MOBILE_UNIQUE)) {
+      return {
+        ok: false,
+        error:
+          'Esse número de WhatsApp já está em uso por outra conta. Use o seu próprio número ou fale com o estabelecimento.',
+      }
+    }
+    throw err
+  }
 
   // `pii_rectified` (AC-07) — PII-free: opaque subject_ref + the NAMES of the
   // fields that changed (never their values). Rectification is global.

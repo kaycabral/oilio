@@ -109,4 +109,29 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
     )
     expect(owners.rows.map((r) => r.uid)).toEqual([existingUid])
   })
+
+  it('rejects a non-strict-mobile number at the DB (users_mobile_br_format CHECK)', async () => {
+    // brief 0087: `users.mobile` carries a CHECK matching BRAZIL_MOBILE_E164_REGEX
+    // (`^55[0-9]{2}9[0-9]{8}$` — DDD + 9th digit). A landline (10 domestic digits,
+    // no 9th digit) must be refused at the DB, so any write path that skips
+    // `normalizeBrazilMobile` (a stale caller) surfaces as a handled 23514 rather
+    // than corrupting the column. The person flows validate upstream; this proves
+    // the last line of defence.
+    const uid = uniqueUid('landline')
+    let refused = false
+    try {
+      // '551133334444' = 55 + DDD 11 + 3333-4444 (landline, no 9th digit).
+      await putUser(buildUser(uid, TS, { mobile: '551133334444', displayName: 'Landline' }))
+    } catch (err) {
+      // A CHECK violation is SQLSTATE 23514 (not 23505), so match the constraint
+      // name on the raised error rather than reusing the unique-violation helper.
+      refused = /users_mobile_br_format/.test(String(err))
+      if (!refused) throw err
+    }
+    expect(refused).toBe(true)
+
+    // Nothing was written — the column stays clean.
+    const rows = await getEventStorePool().query('SELECT uid FROM users WHERE uid = $1', [uid])
+    expect(rows.rowCount).toBe(0)
+  })
 })
