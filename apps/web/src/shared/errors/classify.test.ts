@@ -34,8 +34,25 @@ describe('classifyError', () => {
     expect(classifyError(pgError('42501'))).toBe('forbidden')
   })
 
+  it('classifies a 23P01 exclusion (double-book) violation as integrity, not unknown', () => {
+    // Deterministic refusal (the no-double-book GiST constraint) — must NOT fall
+    // into `unknown`, whose message would (wrongly) not read as an integrity error.
+    expect(classifyError(pgError('23P01'))).toBe('integrity')
+  })
+
   it('classifies an unrecognised SQLSTATE as unknown', () => {
     expect(classifyError(pgError('08006'))).toBe('unknown')
+  })
+
+  it('does not let a wrapper error with a non-SQLSTATE code shadow the real pg error', () => {
+    // An outer error (e.g. a Node system error) carries a non-SQLSTATE string
+    // `code`; the real pg DatabaseError sits deeper on the chain. The walk must
+    // skip the wrapper and find the SQLSTATE, not stop at 'ECONNRESET'.
+    const wrapped = Object.assign(new Error('socket hang up'), {
+      code: 'ECONNRESET',
+      cause: pgError('23505'),
+    })
+    expect(classifyError(wrapped)).toBe('conflict')
   })
 
   it('classifies a non-pg value (no SQLSTATE) as unknown', () => {

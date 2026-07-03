@@ -22,15 +22,15 @@ Durante a fatia de unicidade global de WhatsApp (brief 0077 / #1273 / #1276) sur
 
 Todo defect que chega ao boundary é **classificado** por `classifyError(defect) → ErrorCategory` (`shared/errors/classify.ts`), e a categoria mapeia pra **uma** mensagem genérica segura (`shared/errors/messages.ts`). Categorias:
 
-| Categoria    | Origem                                  | Retriável? | Mensagem (natureza)                                              |
-| ------------ | --------------------------------------- | ---------- | ---------------------------------------------------------------- |
-| `conflict`   | 23505 (version clash do event store)    | **sim**    | "conflito de concorrência, tente de novo"                        |
-| `integrity`  | 23503 (FK), 23514 (CHECK)               | não        | "restrição de integridade dos dados"                             |
-| `forbidden`  | 42501 (RLS / insufficient privilege)    | não        | "você não tem permissão" (neutra — não confirma estado da linha) |
-| `validation` | `EventValidationError` / schema invalid | não        | "os dados enviados são inválidos"                                |
-| `unknown`    | qualquer outro                          | não        | "tente novamente em instantes"                                   |
+| Categoria    | Origem                                                   | Retriável? | Mensagem (natureza)                                              |
+| ------------ | -------------------------------------------------------- | ---------- | ---------------------------------------------------------------- |
+| `conflict`   | 23505 (version clash do event store)                     | **sim**    | "conflito de concorrência, tente de novo"                        |
+| `integrity`  | 23503 (FK), 23514 (CHECK), 23P01 (EXCLUDE / double-book) | não        | "restrição de integridade dos dados"                             |
+| `forbidden`  | 42501 (RLS / insufficient privilege)                     | não        | "você não tem permissão" (neutra — não confirma estado da linha) |
+| `validation` | `EventValidationError` / schema invalid                  | não        | "os dados enviados são inválidos"                                |
+| `unknown`    | qualquer outro                                           | não        | "não foi possível concluir" (NÃO convida retry)                  |
 
-**Invariante:** nenhuma mensagem ao cliente carrega **SQLSTATE, nome de constraint, stack, ou nome de evento/tag interno**. Só 23505 convida a retry — dizer "tente de novo" para um erro determinístico seria mentira e esconderia bug atrás de uma mensagem com cara de flake (#1320). A classificação desembrulha o `FiberFailure` sob o qual o layer Postgres estaciona o erro de DB (idiom consolidado em `shared/db/pg/unwrap-pg-error.ts`, antes duplicado em três lugares).
+**Invariante:** nenhuma mensagem ao cliente carrega **SQLSTATE, nome de constraint, stack, ou nome de evento/tag interno**. Só 23505 convida a retry — dizer "tente de novo" para um erro determinístico seria mentira e esconderia bug atrás de uma mensagem com cara de flake (#1320). A classificação desembrulha o `FiberFailure` sob o qual o layer Postgres estaciona o erro de DB (idiom em `shared/db/pg/unwrap-pg-error.ts`, consumido por `unique-violation` e `fk-violation`; `commit-appointment` mantém a própria cópia — sua checagem de double-book casa também o **nome** da constraint — e é dobrada na Onda 2·B).
 
 ### 2. Regra log × usuário
 

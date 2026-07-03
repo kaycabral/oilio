@@ -26,22 +26,33 @@ export type PgErrorShape = {
  * `constraint`, unwrapping any `FiberFailure` layers on the way. Returns an empty
  * shape when `err` is not (and does not wrap) a pg error.
  *
- * This is the single home of the FiberFailure-unwrapping idiom that
- * `unique-violation`, `fk-violation` and `commit-appointment` used to each
- * re-implement. Two write paths surface pg errors two ways — direct pool writes
+ * This is the shared home of the FiberFailure-unwrapping idiom: `unique-violation`
+ * and `fk-violation` now consume it. `commit-appointment` still carries its own
+ * copy (its double-book check also matches a constraint NAME, not just SQLSTATE);
+ * folding it in is deferred to Onda 2·B (ADR 0015). Two write paths surface pg
+ * errors two ways — direct pool writes
  * (`patchUser`/`putUser`, `deletePostgresProjection`) throw the pg error bare,
  * while event-store / saga writes park it under a `FiberFailure` — and this walk
  * covers both: it checks the current value, then follows the parked `Cause`
  * (squashing, since a doubly-wrapped failure squashes to another `FiberFailure`)
  * and finally a plain `.cause`.
  */
+// A Postgres SQLSTATE is exactly five uppercase-alphanumeric characters (class +
+// subclass, e.g. `23505`, `42501`, `23P01`). Requiring this shape means a wrapper
+// error carrying its OWN non-SQLSTATE `code` (a Node system error's `ECONNRESET`,
+// a driver/pool code) does NOT shadow the real pg `DatabaseError` deeper in the
+// chain — the walk continues until it finds the SQLSTATE-shaped node, matching the
+// old per-helper walkers that compared each node against the target SQLSTATE and
+// stepped past non-matches.
+const SQLSTATE_SHAPE = /^[0-9A-Z]{5}$/
+
 export function unwrapPgError(err: unknown): PgErrorShape {
   let current: unknown = err
   const seen = new Set<unknown>()
   while (typeof current === 'object' && current !== null && !seen.has(current)) {
     seen.add(current)
     const { code, constraint } = current as { code?: unknown; constraint?: unknown }
-    if (typeof code === 'string') {
+    if (typeof code === 'string' && SQLSTATE_SHAPE.test(code)) {
       return {
         code,
         constraint: typeof constraint === 'string' ? constraint : undefined,
