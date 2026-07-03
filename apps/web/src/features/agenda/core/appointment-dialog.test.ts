@@ -2,6 +2,7 @@ import { fromOrgTime } from '@/domain'
 import { describe, expect, it } from 'vitest'
 import {
   buildAppointmentWhatsappLink,
+  filterGridByBusy,
   gridTimeOptions,
   resolveInitialDateTime,
   resolveStartTimePicker,
@@ -230,5 +231,61 @@ describe('resolveStartTimePicker (#1314 — NEW never preselects a past slot)', 
       keepInitial: false,
     })
     expect(r.options).toEqual(['10:00', '10:30', '11:00'])
+  })
+})
+
+describe('filterGridByBusy (#1318 — omit slots the professional is already busy in)', () => {
+  const DATE = '2026-06-15'
+  const GRID = ['09:00', '09:30', '10:00', '10:30', '11:00']
+  // 10:00–10:30 in São Paulo (13:00–13:30 UTC).
+  const busyAt10 = {
+    id: 'a1',
+    memberOperationId: 'p1',
+    startAt: fromOrgTime({ date: DATE, hour: 10, minute: 0 }, TZ),
+    endAt: fromOrgTime({ date: DATE, hour: 10, minute: 30 }, TZ),
+    status: 'scheduled',
+  }
+
+  it('drops the exact overlapping slot, keeping back-to-back neighbours (half-open)', () => {
+    // 10:00 collides; 09:30 (ends 10:00) and 10:30 (starts at boundary) do NOT.
+    expect(
+      filterGridByBusy(GRID, [busyAt10], { date: DATE, timezone: TZ, durationMinutes: 30 }),
+    ).toEqual(['09:00', '09:30', '10:30', '11:00'])
+  })
+
+  it('drops every slot a longer service would overrun into the busy window', () => {
+    // 60-min service: 09:30 (09:30–10:30) and 10:00 (10:00–11:00) both hit 10:00–10:30.
+    expect(
+      filterGridByBusy(GRID, [busyAt10], { date: DATE, timezone: TZ, durationMinutes: 60 }),
+    ).toEqual(['09:00', '10:30', '11:00'])
+  })
+
+  it('ignores cancelled appointments', () => {
+    const cancelled = { ...busyAt10, status: 'cancelled' }
+    expect(
+      filterGridByBusy(GRID, [cancelled], { date: DATE, timezone: TZ, durationMinutes: 30 }),
+    ).toEqual(GRID)
+  })
+
+  it('keeps the appointment being edited (excludeAppointmentId)', () => {
+    expect(
+      filterGridByBusy(GRID, [busyAt10], {
+        date: DATE,
+        timezone: TZ,
+        durationMinutes: 30,
+        excludeAppointmentId: 'a1',
+      }),
+    ).toEqual(GRID)
+  })
+
+  it('is a no-op when there is no busy interval', () => {
+    expect(filterGridByBusy(GRID, [], { date: DATE, timezone: TZ, durationMinutes: 30 })).toEqual(
+      GRID,
+    )
+  })
+
+  it('returns a copy, never the same reference', () => {
+    const out = filterGridByBusy(GRID, [], { date: DATE, timezone: TZ, durationMinutes: 30 })
+    expect(out).not.toBe(GRID)
   })
 })
