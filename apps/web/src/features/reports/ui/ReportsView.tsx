@@ -1,4 +1,5 @@
 import type { ReportsPageProps } from '@/features/reports/adapters/load-reports'
+import { UpgradeCta } from '@/features/billing/ui/UpgradeGate'
 import { CommissionReport } from './CommissionReport'
 import { SalesReport } from './SalesReport'
 
@@ -14,30 +15,38 @@ export function ReportsView({ range, sales, commissions, canMarkPaid }: ReportsP
         </div>
       </header>
 
-      <SalesReport
-        movements={sales.movements}
-        totals={sales.totals}
-        unitNameById={sales.unitNameById}
-        period={range.period}
-        fromDate={range.fromDate}
-        toDate={range.toDate}
-      />
+      {sales ? (
+        <SalesReport
+          movements={sales.movements}
+          totals={sales.totals}
+          unitNameById={sales.unitNameById}
+          period={range.period}
+          fromDate={range.fromDate}
+          toDate={range.toDate}
+        />
+      ) : (
+        <UpgradeCta capability="reports.sales" />
+      )}
 
-      <CommissionReport
-        commissions={commissions.commissions}
-        summary={commissions.summary}
-        byMember={commissions.byMember}
-        coveredByMember={commissions.coveredByMember}
-        members={commissions.members}
-        memberNameByUserId={commissions.memberNameByUserId}
-        fromDate={range.fromDate}
-        toDate={range.toDate}
-        fromIso={range.fromIso}
-        toIso={range.toIso}
-        memberFilter={commissions.memberFilter}
-        statusFilter={commissions.statusFilter}
-        canMarkPaid={canMarkPaid}
-      />
+      {commissions ? (
+        <CommissionReport
+          commissions={commissions.commissions}
+          summary={commissions.summary}
+          byMember={commissions.byMember}
+          coveredByMember={commissions.coveredByMember}
+          members={commissions.members}
+          memberNameByUserId={commissions.memberNameByUserId}
+          fromDate={range.fromDate}
+          toDate={range.toDate}
+          fromIso={range.fromIso}
+          toIso={range.toIso}
+          memberFilter={commissions.memberFilter}
+          statusFilter={commissions.statusFilter}
+          canMarkPaid={canMarkPaid}
+        />
+      ) : (
+        <UpgradeCta capability="commissions" />
+      )}
     </div>
   )
 }
