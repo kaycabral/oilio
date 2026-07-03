@@ -25,6 +25,11 @@ export { goals, type NewGoalRow, type StoredGoalRow } from './goals'
 export { invites, type NewInviteRow, type StoredInviteRow } from './invites'
 export { invitesPii, type NewInvitePiiRow, type StoredInvitePiiRow } from './invites_pii'
 export {
+  memberFunnelEvents,
+  type NewMemberFunnelEventRow,
+  type StoredMemberFunnelEventRow,
+} from './member_funnel_events'
+export {
   memberOperationServices,
   type NewMemberOperationServiceRow,
   type StoredMemberOperationServiceRow,
