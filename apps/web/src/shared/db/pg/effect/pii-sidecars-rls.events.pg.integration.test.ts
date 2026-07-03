@@ -48,8 +48,8 @@ async function seedRow(table: PiiSidecar, orgId: string, id: string): Promise<vo
   switch (table) {
     case 'invites_pii':
       await pool.query(
-        `INSERT INTO invites_pii (org_id, id, email)
-         VALUES ($1,$2,'invitee@example.com')`,
+        `INSERT INTO invites_pii (org_id, id, whatsapp)
+         VALUES ($1,$2,'5511900000000')`,
         [orgId, id],
       )
       return
@@ -87,7 +87,7 @@ function foreignInsert(
   switch (table) {
     case 'invites_pii':
       return {
-        sql: `INSERT INTO invites_pii (org_id, id, email) VALUES ($1,$2,'e@example.com')`,
+        sql: `INSERT INTO invites_pii (org_id, id, whatsapp) VALUES ($1,$2,'5511900000000')`,
         params: [orgId, id],
       }
     case 'member_operations_pii':
