@@ -70,6 +70,9 @@ export function useCepLookup(cep: string): CepLookupResult {
           // encontrado.") — safe to show. A missing body is a technical failure
           // (status/network) whose raw text must not leak.
           const body = await readJson(r, validateErrorBody).catch((): { error?: string } => ({}))
+          // A superseded lookup must not clobber the current one (the guard the
+          // old shared `.catch` enforced for every error path).
+          if (cancelled) return
           setData(null)
           setError(body.error ?? 'Não foi possível consultar o CEP. Tente novamente.')
           return
