@@ -42,6 +42,11 @@ export const invitesPii = pgTable(
     }),
     index('invites_pii_org_id_idx').on(table.orgId),
     check('invites_pii_mobile_nonempty', sql`char_length(btrim(${table.mobile})) > 0`),
+    // The invitee's number is a person's mobile — enforce the strict BR mobile
+    // format (brief 0087): 55 + DDD + leading 9 + 8 digits. NOT NULL column, so
+    // no null-guard needed (a blank/short number is refused here, not just at
+    // the action).
+    check('invites_pii_mobile_br_format', sql`${table.mobile} ~ '^55[0-9]{2}9[0-9]{8}$'`),
   ],
 )
 

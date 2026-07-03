@@ -37,6 +37,11 @@ export const unitsPii = pgTable(
     }),
     index('units_pii_org_id_idx').on(table.orgId),
     check('units_pii_mobile_nonempty', sql`char_length(btrim(${table.mobile})) > 0`),
+    // The unit's contact number is required to be a valid BR mobile (brief
+    // 0087): the establishment reaches customers over WhatsApp (wa.me
+    // confirmations/reminders), which needs a real mobile — a landline can't
+    // receive them. If a CNPJ import brings a landline, the owner corrects it.
+    check('units_pii_mobile_br_format', sql`${table.mobile} ~ '^55[0-9]{2}9[0-9]{8}$'`),
   ],
 )
 
