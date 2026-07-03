@@ -86,9 +86,12 @@ Detalhes (helpers, invariants, limitações) em [`docs/timezone.md`](../docs/tim
 
 ## Invite flow
 
-1. Owner/manager cria invite via `/(app)/team` → server action gera token random e persiste o invite (hash sha256 + role + expiresAt) escopado por `org_id`; o email (PII) vai no sidecar apagável `invites_pii`, fora do payload de evento (ADR 0010 D2).
+Canal normalizado para **WhatsApp** (brief 0084) — o convite de membro concede papel (privilégio), então o **token assinado permanece** a trava (ao contrário do convite de cliente, público não-assinado).
+
+1. Owner/manager cria invite via `/(app)/team` → informa só o **WhatsApp**; a server action gera token random e persiste o invite (hash sha256 + role + `expiresAt = now + 48h`) escopado por `org_id`; o **WhatsApp** (PII) vai no sidecar apagável `invites_pii`, fora do payload de evento (ADR 0010 D2). Entrega via `wa.me` (reusa `@/features/team/core/member-invite`).
 2. Link: `/invites/{orgId}/{inviteId}?token={raw}`.
-3. Aceitar valida hash + expiry + email match e cria Membership server-side.
+3. Aceitar valida hash + expiry (+ `emailVerified` da conta Google, higiene) e cria Membership server-side. **Sem match por email/telefone** — identidade é **first-accept-wins**: o primeiro Google que aceita com token válido fica amarrado (`acceptedByUid` write-once, 1-uso), garantido pela CHECK `invites_acceptance_consistency`. O WhatsApp é canal de entrega, não chave de aceite.
+4. Telemetria de funil PII-zero (`member_invite_issued`/`_opened`/`_accepted`, tabela `member_funnel_events`).
 
 ## Forms + Server Actions
 
