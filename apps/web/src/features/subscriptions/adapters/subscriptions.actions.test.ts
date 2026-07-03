@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   requireManagerCtx: vi.fn(),
   readUnderRls: vi.fn(),
   getSubscriptionPlanById: vi.fn(),
+  getOrgTier: vi.fn<() => Promise<'free' | 'pro' | 'advanced'>>(() => Promise.resolve('advanced')),
   emitEvent: vi.fn((..._args: EmitArgs) => Promise.resolve({ ok: true as const })),
 }))
 
@@ -27,6 +28,7 @@ vi.mock('@/shared/org/membership', () => ({
   requireOwnerCtx: vi.fn(),
 }))
 
+vi.mock('@/shared/org/billing-read', () => ({ getOrgTier: mocks.getOrgTier }))
 vi.mock('@/shared/db/pg/rls-read', () => ({ readUnderRls: mocks.readUnderRls }))
 vi.mock('@/shared/org/subscription-plan-read', () => ({
   getSubscriptionPlanById: mocks.getSubscriptionPlanById,
@@ -37,7 +39,7 @@ vi.mock('@/features/notifications/adapters/reactor-dispatch', () => ({
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { changeSubscriptionPlan } from './subscriptions.actions'
+import { changeSubscriptionPlan, createSubscription } from './subscriptions.actions'
 
 function makeCtx() {
   return {
@@ -105,6 +107,27 @@ function stubReads({ subscription, plan }: { subscription: unknown; plan?: unkno
 
 beforeEach(() => {
   vi.clearAllMocks()
+})
+
+describe('createSubscription — tier gate (brief 0082)', () => {
+  it('rejeita no tier Free: assinar CONSOME plans.recurring (parede de backend)', async () => {
+    // A Pro→Free downgrade keeps the plan rows; the server action is the real
+    // wall, so a Free tier must be rejected BEFORE any plan/customer read — even
+    // with a valid manager ctx and a still-present plan.
+    mocks.requireManagerCtx.mockResolvedValue(makeCtx())
+    mocks.getOrgTier.mockResolvedValue('free')
+
+    const form = new FormData()
+    form.set('customerId', 'c1')
+    form.set('planId', 'plan-a')
+    const r = await createSubscription(form)
+
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toContain('Pro')
+    // The gate short-circuits: no plan/customer read, no event.
+    expect(mocks.getSubscriptionPlanById).not.toHaveBeenCalled()
+    expect(mocks.emitEvent).not.toHaveBeenCalled()
+  })
 })
 
 describe('changeSubscriptionPlan', () => {
