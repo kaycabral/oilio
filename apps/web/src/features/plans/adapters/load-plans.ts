@@ -7,6 +7,7 @@ import {
   type StoredUnit,
   type SubscriptionPlan,
 } from '@/domain'
+import { isCapabilityLocked } from '@/features/billing/adapters/capability-lock'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/list-page-state'
@@ -16,7 +17,6 @@ import {
   planHasActiveReference,
   type WithCanDelete,
 } from '@/shared/org/delete-guard'
-import { isCapabilityLocked } from '@/features/billing/adapters/capability-lock'
 import { requireCapabilityPage } from '@/shared/org/membership'
 import {
   getSubscriptionPlanById,
@@ -115,9 +115,14 @@ export type PlanFormPageData = PlanMasterData & { locked: boolean }
 // the coverage-picker master data.
 export async function loadNewPlanPage(): Promise<PlanFormPageData> {
   const ctx = await requireCapabilityPage('canManagePlans')
-  const locked = await isCapabilityLocked(ctx.membership.orgId, 'plans.recurring')
+  // Tier gate (brief 0082): on a locked tier the page renders the CTA and the
+  // form never mounts, so skip the coverage-picker master-data reads entirely —
+  // same "do not fetch gated data" pattern as load-copilot / load-reports.
+  if (await isCapabilityLocked(ctx.membership.orgId, 'plans.recurring')) {
+    return { units: [], catalogItems: [], categories: [], locked: true }
+  }
   const masterData = await loadPlanMasterData(ctx.membership.orgId)
-  return { ...masterData, locked }
+  return { ...masterData, locked: false }
 }
 
 export type EditPlanPageData = PlanMasterData & { plan: SubscriptionPlan; locked: boolean }
@@ -126,9 +131,17 @@ export type EditPlanPageData = PlanMasterData & { plan: SubscriptionPlan; locked
 // coverage-picker master data.
 export async function loadEditPlanPage(planId: string): Promise<EditPlanPageData> {
   const ctx = await requireCapabilityPage('canManagePlans')
-  const locked = await isCapabilityLocked(ctx.membership.orgId, 'plans.recurring')
-  const plan = await getSubscriptionPlanById(ctx.membership.orgId, planId)
+  const orgId = ctx.membership.orgId
+  // The tier check and the plan read are independent — run them together. The
+  // plan is still resolved when locked (the page renders its name in the
+  // breadcrumb above the CTA), but the coverage-picker master data is skipped
+  // on a locked tier (the form never mounts) — same pattern as load-copilot.
+  const [locked, plan] = await Promise.all([
+    isCapabilityLocked(orgId, 'plans.recurring'),
+    getSubscriptionPlanById(orgId, planId),
+  ])
   if (!plan) notFound()
-  const masterData = await loadPlanMasterData(ctx.membership.orgId)
-  return { plan, ...masterData, locked }
+  if (locked) return { plan, units: [], catalogItems: [], categories: [], locked: true }
+  const masterData = await loadPlanMasterData(orgId)
+  return { plan, ...masterData, locked: false }
 }
