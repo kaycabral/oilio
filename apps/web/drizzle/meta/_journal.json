@@ -120,6 +120,20 @@
       "when": 1782825168443,
       "tag": "0016_fix_users_whatsapp_null_check",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783082489134,
+      "tag": "0017_member_invite_whatsapp",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783083386623,
+      "tag": "0018_member_funnel_events",
+      "breakpoints": true
     }
   ]
 }

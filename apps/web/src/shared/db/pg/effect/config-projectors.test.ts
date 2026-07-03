@@ -216,7 +216,7 @@ describe('invite projector — pure mapping', () => {
   const pendingInvite: Invite = {
     id: 'inv-1',
     orgId: 'org-1',
-    email: 'invitee@x.com',
+    whatsapp: '5511990000001',
     role: 'member_operator',
     tokenHash: 'hash-abc',
     expiresAt: '2026-06-08T00:00:00.000Z',

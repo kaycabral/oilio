@@ -70,7 +70,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       const invitee = await seedAuthUser()
       const { inviteId, rawToken } = await seedInvite({
         orgId: org.orgId,
-        email: invitee.email,
+        whatsapp: '5511990001234',
         role: 'member_operator',
         invitedBy: org.uid,
       })

@@ -263,7 +263,7 @@ export function buildInvite(
   const base: Invite = {
     id,
     orgId,
-    email: 'invitee@example.com',
+    whatsapp: '5511990000000',
     role: 'member_operator',
     tokenHash: 'hash',
     expiresAt: now,

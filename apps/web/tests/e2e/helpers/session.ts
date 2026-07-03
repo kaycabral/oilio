@@ -2315,10 +2315,10 @@ export async function seedAuthUser(
 
 export type SeedInviteInput = {
   orgId: string
-  email: string
+  whatsapp: string
   role: 'manager' | 'member_operator' | 'receptionist'
   invitedBy: string
-  // Defaults to now + 7d. Pass a past ISO to seed an expired invite.
+  // Defaults to now + 48h. Pass a past ISO to seed an expired invite.
   expiresAt?: string
   status?: 'pending' | 'accepted' | 'revoked' | 'expired'
 }
@@ -2332,8 +2332,8 @@ export async function seedInvite(
   const rawToken = randomBytes(32).toString('base64url')
   const tokenHash = createHash('sha256').update(rawToken).digest('hex')
   const now = new Date().toISOString()
-  const expiresAt = input.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-  // Invite projection — decoded as `StoredInvite` (omits the PII `email`, which
+  const expiresAt = input.expiresAt ?? new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+  // Invite projection — decoded as `StoredInvite` (omits the PII `whatsapp`, which
   // lives in `invites_pii/{id}` and is merged at read time). The schema enforces
   // `acceptedByUid`/`acceptedAt` present iff `status === 'accepted'`, so an
   // accepted seed must carry both (else it fails to decode and crashes reads).
@@ -2353,13 +2353,13 @@ export async function seedInvite(
     updatedAt: now,
   }
   await seedInviteDoc(input.orgId, inviteDoc)
-  // The invitee email is PII (#1036, ADR 0010): it lives in the deletable
+  // The invitee WhatsApp is PII (#1036, ADR 0010): it lives in the deletable
   // `invites_pii` sidecar table, NOT on the invite projection (merged at read
-  // time, kept separate so erasure is a row delete). The product read path
-  // (`getInviteById`) merges it from here — without it, `invite.email` reads as
-  // '' and the accept-flow email match always fails. Mirrors `writeInvitePii`.
-  const invitePii: InvitePii = { email: input.email }
-  await upsertInvitePii({ orgId: input.orgId, id: inviteId, email: invitePii.email })
+  // time, kept separate so erasure is a row delete). It is the delivery channel,
+  // not an accept-time match key (brief 0084 — first-accept-wins). Mirrors
+  // `writeInvitePii`.
+  const invitePii: InvitePii = { whatsapp: input.whatsapp }
+  await upsertInvitePii({ orgId: input.orgId, id: inviteId, whatsapp: invitePii.whatsapp })
   return { inviteId, rawToken }
 }
 

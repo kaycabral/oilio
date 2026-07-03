@@ -20,7 +20,7 @@ const INVITABLE_ROLES: Role[] = ['manager', 'member_operator', 'receptionist']
 export function InviteForm() {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [link, setLink] = useState<string | null>(null)
+  const [invite, setInvite] = useState<{ link: string; whatsappHref: string } | null>(null)
   const { formRef, isValid, refresh } = useFormValidity()
   // Track the selected role so the dialog can explain what the invitee will be
   // able to do (refino): the privileges granted update with the selection.
@@ -28,11 +28,11 @@ export function InviteForm() {
 
   function onSubmit(formData: FormData) {
     setError(null)
-    setLink(null)
+    setInvite(null)
     startTransition(async () => {
       const result = await createInvite(formData)
       if (!result.ok) setError(result.error)
-      else setLink(result.inviteLink)
+      else setInvite({ link: result.inviteLink, whatsappHref: result.whatsappHref })
     })
   }
 
@@ -46,10 +46,10 @@ export function InviteForm() {
     >
       <div className="flex gap-2">
         <Input
-          name="email"
-          type="email"
+          name="whatsapp"
+          type="tel"
           required
-          placeholder="email@empresa.com"
+          placeholder="WhatsApp — (11) 90000-0000"
           className="flex-1"
         />
         <Label htmlFor="invite-role" className="sr-only">
@@ -93,10 +93,21 @@ export function InviteForm() {
       )}
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      {link ? (
-        <div className="border-border rounded-md border p-3 text-sm">
-          <p className="text-muted-foreground mb-1">Compartilhe o link com o convidado:</p>
-          <code className="break-all">{link}</code>
+      {invite ? (
+        <div className="border-border flex flex-col gap-2 rounded-md border p-3 text-sm">
+          <p className="text-muted-foreground">Convite criado. Envie pelo WhatsApp:</p>
+          <a
+            href={invite.whatsappHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex w-fit items-center gap-2 rounded-md px-3 py-2 font-medium"
+          >
+            Enviar convite por WhatsApp
+          </a>
+          <details className="text-muted-foreground">
+            <summary className="cursor-pointer">Ou copie o link</summary>
+            <code className="mt-1 block break-all">{invite.link}</code>
+          </details>
         </div>
       ) : null}
     </form>

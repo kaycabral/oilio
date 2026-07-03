@@ -6,7 +6,7 @@ const InviteFields = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
     orgId: Schema.String,
-    email: Schema.String,
+    whatsapp: Schema.String,
     role: Role,
     tokenHash: Schema.String,
     expiresAt: Schema.String,
@@ -41,12 +41,12 @@ export const Invite = InviteFields.pipe(
 )
 export type Invite = typeof Invite.Type
 
-// Base sem PII (email) para os EVENTOS: `Schema.partial` não atravessa um
+// Base sem PII (whatsapp) para os EVENTOS: `Schema.partial` não atravessa um
 // refinement, então os eventos usam esta forma não-filtrada.
-export const StoredInviteFields = InviteFields.pipe(Schema.omit('email'))
+export const StoredInviteFields = InviteFields.pipe(Schema.omit('whatsapp'))
 
 // Storage projection of `Invite`: the per-org `invites/{id}` doc that OMITS
-// the PII (email), which lives in the deletable `invites_pii/{id}` doc and is
+// the PII (whatsapp), which lives in the deletable `invites_pii/{id}` doc and is
 // merged at read time. Decode raw `invites` docs against this (com refinamento).
 export const StoredInvite = StoredInviteFields.pipe(
   Schema.filter(inviteAcceptanceConsistent, inviteAcceptanceFilter),
@@ -55,21 +55,11 @@ export type StoredInvite = typeof StoredInvite.Type
 
 // The complement of `StoredInvite`: the deletable `invites_pii/{id}` doc.
 // Picked from the same base so storage and PII sidecar can't drift.
-export const InvitePii = InviteFields.pipe(Schema.pick('email'))
+export const InvitePii = InviteFields.pipe(Schema.pick('whatsapp'))
 export type InvitePii = typeof InvitePii.Type
 
-export const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7
-
-// Strict invite email comparison (#827): the OAuth identity email must
-// match the invite email exactly after trim + lowercase. We deliberately do
-// not strip dots/`+tag` suffixes — those are real distinct addresses at the
-// provider level and an "Alice's Gmail" and "Alice+work's Gmail" can sit in
-// different inboxes. False negatives are fine ("ask for a new invite");
-// false positives are not.
-export function normalizeInviteEmail(email: string): string {
-  return email.trim().toLowerCase()
-}
-
-export function inviteEmailsMatch(sessionEmail: string, inviteEmail: string): boolean {
-  return normalizeInviteEmail(sessionEmail) === normalizeInviteEmail(inviteEmail)
-}
+// 48h (brief 0084): the signed token is the invite's primary access lock, so a
+// short window is direct defense against a forwarded/leaked link. Was 7d when
+// the strict email match (#827) also bound the invite to one identity; with the
+// match gone (first-accept-wins), the tighter expiry carries that weight.
+export const INVITE_TTL_MS = 1000 * 60 * 60 * 48
