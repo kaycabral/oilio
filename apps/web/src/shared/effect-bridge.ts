@@ -14,7 +14,8 @@ import {
   type TransactionContext,
 } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
-import { isUniqueViolation } from '@/shared/db/pg/unique-violation'
+import { classifyError } from '@/shared/errors/classify'
+import { messageForCategory } from '@/shared/errors/messages'
 import { Effect, Layer } from 'effect'
 
 /**
@@ -60,8 +61,11 @@ export async function emitEvent<
   return Effect.runPromise(
     appendEvent(config, ref, input).pipe(
       Effect.map(() => ({ ok: true as const })),
-      Effect.catchTag('EventValidationError', (e) =>
-        Effect.succeed({ ok: false as const, error: e.message }),
+      Effect.catchTag('EventValidationError', () =>
+        // A schema-validation reject's raw text can carry the internal event tag
+        // ("Invalid event '<tag>': schema validation failed"); the client gets the
+        // generic `validation` message instead. The typed error is still the log's.
+        Effect.succeed({ ok: false as const, error: messageForCategory('validation') }),
       ),
       // The event store runs over the Postgres `PersistencePort` — the sole
       // backend after the cutover (#1202); the OILIO_PERSISTENCE flag is gone.
@@ -88,8 +92,11 @@ export async function emitEventGuarded<
   return Effect.runPromise(
     appendEventGuarded(append).pipe(
       Effect.map((envelope) => ({ ok: true as const, payload: envelope.payload })),
-      Effect.catchTag('EventValidationError', (e) =>
-        Effect.succeed({ ok: false as const, error: e.message }),
+      Effect.catchTag('EventValidationError', () =>
+        // A schema-validation reject's raw text can carry the internal event tag
+        // ("Invalid event '<tag>': schema validation failed"); the client gets the
+        // generic `validation` message instead. The typed error is still the log's.
+        Effect.succeed({ ok: false as const, error: messageForCategory('validation') }),
       ),
       Effect.catchTag('GuardRejectedError', (e) =>
         Effect.succeed({ ok: false as const, error: e.message }),
@@ -113,28 +120,18 @@ export async function emitEventGuarded<
 // `{ok:false}` the typed rejects return, so a real conflict (invite double-accept,
 // org-slug race, version clash) yields the caller's error path instead of an
 // unhandled 500. The tx already rolled back; this only maps the outcome.
-// A version clash on `UNIQUE(aggregate_id, version)` (23505) is the ONLY genuine
-// concurrency conflict — two writers raced the same aggregate version, and
-// retrying resolves it. Everything else that rolls the tx back (a FK/CHECK/RLS
-// refusal) is a deterministic integrity failure: "tente de novo" would be a lie
-// and, worse, hides a real bug behind a flake-shaped message (#1320). So we
-// discriminate the SQLSTATE (reusing the FiberFailure-unwrapping guards) and only
-// call 23505 a concurrency conflict.
-const SAGA_CONFLICT_ERROR =
-  'Não foi possível concluir a operação (conflito de concorrência). Tente de novo.'
-const SAGA_INTEGRITY_ERROR =
-  'Não foi possível concluir a operação por uma restrição de integridade dos dados.'
+// A DB refusal that rolls the tx back is classified by the canonical error
+// contract (`classifyError` → category → generic message): a 23505 version clash
+// is the ONLY retriable `conflict` (two writers raced the same aggregate version);
+// FK/CHECK are deterministic `integrity`, RLS is `forbidden`, the rest `unknown`.
+// "Tente de novo" for a deterministic refusal would be a lie and hide a real bug
+// behind a flake-shaped message (#1320) — the contract keeps the honest wording
+// per category. The raw defect is logged server-side; the client only ever sees
+// the generic message (no SQLSTATE / constraint name / stack).
 function catchSagaDefect(defect: unknown) {
   return Effect.sync(() => {
     console.error('[commitSaga] transaction defect', defect)
-    // 23505 = optimistic-concurrency version clash → genuinely retriable.
-    if (isUniqueViolation(defect)) {
-      return { ok: false as const, error: SAGA_CONFLICT_ERROR }
-    }
-    // FK/CHECK/RLS/unknown → deterministic; never a concurrency conflict. The raw
-    // defect is already logged above for diagnosis; the user gets an honest,
-    // non-retriable message instead of a misleading "tente de novo".
-    return { ok: false as const, error: SAGA_INTEGRITY_ERROR }
+    return { ok: false as const, error: messageForCategory(classifyError(defect)) }
   })
 }
 
@@ -145,8 +142,11 @@ export async function commitSaga(
   return Effect.runPromise(
     runSaga(steps).pipe(
       Effect.map(() => ({ ok: true as const })),
-      Effect.catchTag('EventValidationError', (e) =>
-        Effect.succeed({ ok: false as const, error: e.message }),
+      Effect.catchTag('EventValidationError', () =>
+        // A schema-validation reject's raw text can carry the internal event tag
+        // ("Invalid event '<tag>': schema validation failed"); the client gets the
+        // generic `validation` message instead. The typed error is still the log's.
+        Effect.succeed({ ok: false as const, error: messageForCategory('validation') }),
       ),
       Effect.catchTag('GuardRejectedError', (e) =>
         Effect.succeed({ ok: false as const, error: e.message }),
@@ -193,18 +193,24 @@ export async function commitGuardedThenAppend<
         }),
       )
       if (outcome._tag === 'reject') {
+        // A guard REJECT is a domain business rule ("discontinued", "plan full"):
+        // the message is curated by the domain, is meant for the user, and carries
+        // no technical detail — so the contract preserves it verbatim. (The trust
+        // boundary is the message's ORIGIN — domain-authored, not infra — not the
+        // error's type. See ADR 0015.)
         return { ok: false as const, error: outcome.message }
       }
       if (outcome._tag === 'invalid') {
-        return {
-          ok: false as const,
-          error: `Invalid event '${guarded.tag}': schema validation failed`,
-        }
+        // A schema INVALID would expose the internal event tag; generic instead.
+        return { ok: false as const, error: messageForCategory('validation') }
       }
       return { ok: true as const }
     }).pipe(
-      Effect.catchTag('EventValidationError', (e) =>
-        Effect.succeed({ ok: false as const, error: e.message }),
+      Effect.catchTag('EventValidationError', () =>
+        // A schema-validation reject's raw text can carry the internal event tag
+        // ("Invalid event '<tag>': schema validation failed"); the client gets the
+        // generic `validation` message instead. The typed error is still the log's.
+        Effect.succeed({ ok: false as const, error: messageForCategory('validation') }),
       ),
       Effect.catchAllDefect(catchSagaDefect),
       Effect.provide(PostgresPersistenceLayer),
