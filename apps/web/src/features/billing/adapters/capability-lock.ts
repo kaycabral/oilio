@@ -12,10 +12,7 @@ import 'server-only'
  * server action is the real wall (brief 0072). This only shapes what the page
  * renders, so a Free org never reaches a form that would only fail on submit.
  */
-export async function isCapabilityLocked(
-  orgId: string,
-  capability: Capability,
-): Promise<boolean> {
+export async function isCapabilityLocked(orgId: string, capability: Capability): Promise<boolean> {
   const tier = await getOrgTier(orgId)
   return !hasCapability(tier, capability)
 }

@@ -1,4 +1,5 @@
 import { DEFAULT_UNIT_TIMEZONE, type Goal } from '@/domain'
+import { isCapabilityLocked } from '@/features/billing/adapters/capability-lock'
 import { getGoalForPeriod } from '@/features/copilot/adapters/goals.repo'
 import { loadGoalActuals } from '@/features/copilot/adapters/tracking.repo'
 import { currentPeriod } from '@/features/copilot/core/period'
@@ -7,7 +8,6 @@ import {
   computeGoalTracking,
   resolveGoalPeriodWindow,
 } from '@/features/copilot/core/tracking'
-import { isCapabilityLocked } from '@/features/billing/adapters/capability-lock'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { requireManagerPage } from '@/shared/org/membership'
 import 'server-only'

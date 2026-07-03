@@ -1,5 +1,5 @@
-import type { ReportsPageProps } from '@/features/reports/adapters/load-reports'
 import { UpgradeCta } from '@/features/billing/ui/UpgradeGate'
+import type { ReportsPageProps } from '@/features/reports/adapters/load-reports'
 import { CommissionReport } from './CommissionReport'
 import { SalesReport } from './SalesReport'
 
