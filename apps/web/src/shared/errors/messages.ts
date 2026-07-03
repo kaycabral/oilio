@@ -23,8 +23,11 @@ export const ERROR_MESSAGES: Record<ErrorCategory, string> = {
   // A schema rejection surfaced as a typed failure whose raw text can carry an
   // internal event tag — replaced by this generic message (the tag stays in the log).
   validation: 'Não foi possível concluir a operação: os dados enviados são inválidos.',
-  // Anything unrecognised. Generic; the full defect is in the server log.
-  unknown: 'Não foi possível concluir a operação. Tente novamente em instantes.',
+  // Anything unrecognised. Generic + NON-retriable: an unrecognised rolled-back
+  // defect is still deterministic from the caller's side, so the message must not
+  // invite a retry (that would reintroduce the flake-shaped "try again" #1320
+  // forbids for a non-conflict). The full defect is in the server log.
+  unknown: 'Não foi possível concluir a operação.',
 }
 
 /** The generic message for a classified category. */

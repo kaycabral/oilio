@@ -129,6 +129,17 @@ describe('commitSaga', () => {
     }
   })
 
+  it('maps a 23P01 double-book exclusion to integrity, never a retriable message', async () => {
+    // The no-double-book GiST constraint is a deterministic refusal (a concurrent
+    // reschedule taking the slot). It must NOT read as "tente de novo" (#1320).
+    const result = await commitSaga([() => Effect.die(pgDefect('23P01'))])
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toMatch(/restrição de integridade/i)
+      expect(result.error).not.toMatch(/de novo/i)
+    }
+  })
+
   it('never leaks the raw SQLSTATE or pg error text to the client', async () => {
     const result = await commitSaga([() => Effect.die(pgDefect('23503'))])
     expect(result.ok).toBe(false)
@@ -137,6 +148,13 @@ describe('commitSaga', () => {
       expect(result.error).not.toMatch(/23503/)
       expect(result.error).not.toMatch(/pg error/i)
     }
+  })
+
+  it('an unrecognised defect does not invite a retry (non-conflict = honest)', async () => {
+    const result = await commitSaga([() => Effect.die(pgDefect('08006'))])
+    expect(result.ok).toBe(false)
+    // `unknown` must not say "tente de novo" — only a real 23505 conflict does.
+    if (!result.ok) expect(result.error).not.toMatch(/de novo/i)
   })
 })
 

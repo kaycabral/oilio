@@ -1,3 +1,5 @@
+import { FOREIGN_KEY_VIOLATION } from '@/shared/db/pg/fk-violation'
+import { UNIQUE_VIOLATION } from '@/shared/db/pg/unique-violation'
 import { unwrapPgError } from '@/shared/db/pg/unwrap-pg-error'
 
 /**
@@ -23,12 +25,13 @@ import { unwrapPgError } from '@/shared/db/pg/unwrap-pg-error'
  */
 export type ErrorCategory = 'conflict' | 'integrity' | 'forbidden' | 'validation' | 'unknown'
 
+// `UNIQUE_VIOLATION` (23505) and `FOREIGN_KEY_VIOLATION` (23503) are imported from
+// their existing helpers (DRY — one home per SQLSTATE constant). The remaining
+// codes this contract classifies are declared here.
 /** Postgres SQLSTATE for a CHECK-constraint violation (deterministic integrity). */
 export const CHECK_VIOLATION = '23514'
-/** Postgres SQLSTATE for a unique-constraint violation (concurrency conflict when it's the version guard). */
-export const UNIQUE_VIOLATION = '23505'
-/** Postgres SQLSTATE for a foreign-key violation (deterministic integrity). */
-export const FOREIGN_KEY_VIOLATION = '23503'
+/** Postgres SQLSTATE for an exclusion violation — the no-double-book GiST constraint (deterministic integrity). */
+export const EXCLUSION_VIOLATION = '23P01'
 /** Postgres SQLSTATE for an RLS / insufficient-privilege refusal. */
 export const INSUFFICIENT_PRIVILEGE = '42501'
 
@@ -38,9 +41,11 @@ export const INSUFFICIENT_PRIVILEGE = '42501'
  * The defect is inspected via `unwrapPgError`, which peels any `FiberFailure`
  * layers the Effect runtime parks a pg error under (the saga path) and reads the
  * `DatabaseError` SQLSTATE — so the classifier works whether the pg error arrives
- * bare or wrapped. Only `23505` is a retriable `conflict`; FK/CHECK are
+ * bare or wrapped. Only `23505` is a retriable `conflict`; FK/CHECK/EXCLUSION are
  * deterministic `integrity`; RLS is `forbidden`; anything without a recognised
- * SQLSTATE is `unknown`.
+ * SQLSTATE is `unknown` — and `unknown` is NOT retriable either (its message must
+ * not invite a retry): an unrecognised rolled-back defect is still deterministic
+ * from the caller's side. Only a real 23505 version clash earns "try again".
  *
  * Typed domain failures (`EventValidationError` → `validation`) are NOT routed
  * here — the boundary maps those by their tag, because they never carry a pg
@@ -54,6 +59,7 @@ export function classifyError(defect: unknown): ErrorCategory {
       return 'conflict'
     case FOREIGN_KEY_VIOLATION:
     case CHECK_VIOLATION:
+    case EXCLUSION_VIOLATION:
       return 'integrity'
     case INSUFFICIENT_PRIVILEGE:
       return 'forbidden'
