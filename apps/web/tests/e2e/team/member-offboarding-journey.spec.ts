@@ -48,6 +48,7 @@ import {
   pgProjectionExists,
   pgReadProjection,
   readMemberOperationByUserId,
+  readUser,
   seedAppointment,
   seedBlock,
   seedClosedOrder,
@@ -217,7 +218,6 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     const membershipId = membershipDocId(org.orgId, proUserId)
     // O fixture seed o User do profissional com displayName "Profissional 1".
     const realName = 'Profissional 1'
-    const proEmail = `prof-1-${proId}@e2e.local`
     const customerId = await seedCustomer(org.orgId, { name: 'Cliente Jornada' })
 
     const future = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString()
@@ -261,10 +261,14 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
       endAt: new Date(new Date(future).getTime() + 60 * 60_000).toISOString(),
       reason: 'feriado',
     })
-    // The member's pending invite (must be cleaned by email).
+    // The member's pending invite (must be cleaned by WhatsApp — brief 0084).
+    // The operational-pro fixture seeded a WhatsApp on the member's User; read
+    // it back so the invite carries the same number the offboard matches on.
+    const proUser = await readUser(proUserId)
+    expect(proUser?.whatsapp, 'operational pro must have a seeded WhatsApp').toBeTruthy()
     const { inviteId } = await seedInvite({
       orgId: org.orgId,
-      email: proEmail,
+      whatsapp: proUser!.whatsapp!,
       role: 'member_operator',
       invitedBy: org.uid,
       status: 'pending',
