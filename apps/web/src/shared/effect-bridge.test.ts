@@ -27,7 +27,7 @@ vi.mock('@/shared/db/pg/effect/postgres-layer', () => ({
 const commissionRef = aggregateRef(CommissionConfig, 't1', 'c1')
 const cashMovementRef = aggregateRef(CashMovementConfig, 't1', 'm1')
 
-import { commitGuardedThenAppend, commitSaga } from './effect-bridge'
+import { catchWriteDefect, commitGuardedThenAppend, commitSaga } from './effect-bridge'
 
 const commission = {
   id: 'c1',
@@ -48,6 +48,34 @@ const commission = {
 
 beforeEach(() => {
   store.clear()
+})
+
+describe('catchWriteDefect', () => {
+  // The write-boundary defect mapper shared by the sagas AND the single-aggregate
+  // writes (emitEvent/emitEventGuarded). The classification itself is exhaustively
+  // covered via commitSaga below + classify.test.ts; here we prove the mapper
+  // returns the graceful contract shape (never re-throws → no 500) and logs the
+  // raw defect server-side under the given context.
+  function pgDefectFor(code: string): Error {
+    return Object.assign(new Error(`pg error ${code}`), { code })
+  }
+
+  it('maps a defect to {ok:false} with the generic message, never re-throwing', async () => {
+    const result = await Effect.runPromise(catchWriteDefect('emitEvent')(pgDefectFor('23503')))
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toMatch(/restrição de integridade/i)
+      expect(result.error).not.toMatch(/23503|pg error/i)
+    }
+  })
+
+  it('logs the raw defect server-side under the given context', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const defect = pgDefectFor('42501')
+    await Effect.runPromise(catchWriteDefect('emitEventGuarded')(defect))
+    expect(spy).toHaveBeenCalledWith('[emitEventGuarded] write defect', defect)
+    spy.mockRestore()
+  })
 })
 
 describe('commitSaga', () => {
