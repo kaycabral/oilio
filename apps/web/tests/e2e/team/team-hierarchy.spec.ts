@@ -12,7 +12,7 @@ import { formatBrazilPhone, roleDescription } from '@/domain'
 import { expect, test } from '../fixtures'
 import { listItem } from '../helpers/list'
 import { chooseOption } from '../helpers/select'
-import { seedInvite } from '../helpers/session'
+import { seedInvite, uniqueWhatsapp } from '../helpers/session'
 
 test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () => {
   test.describe('org com membros + convites', () => {
@@ -24,8 +24,10 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
       org,
       authedPage,
     }) => {
-      // A pre-seeded pending invite so the Pendentes filter has content.
-      const pendingWhatsapp = `5511${String(Date.now()).slice(-9)}`
+      // A pre-seeded pending invite so the Pendentes filter has content. Use the
+      // canonical generator so the number is a valid BR mobile (9th digit) and
+      // clears the invites_pii mobile_br_format CHECK (brief 0087).
+      const pendingWhatsapp = uniqueWhatsapp()
       const pendingDisplay = formatBrazilPhone(pendingWhatsapp)
       await seedInvite({
         orgId: org.orgId,
@@ -88,7 +90,9 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
       // affordances; "Gerar e abrir no WhatsApp" mints the invite (server round-
       // trip) and opens wa.me. The channel is WhatsApp (brief 0084), the number a
       // strict BR mobile (9th digit — brief 0087).
-      const mobile = `(11) 9${String(Date.now()).slice(-8)}`
+      // National form (drop the 55 country code) so the masked field receives
+      // exactly DDD + 9 + 8 digits — a valid BR mobile (brief 0087).
+      const mobile = uniqueWhatsapp().slice(2)
       await dialog.getByLabel(/WhatsApp do convidado/i).fill(mobile)
       await chooseOption(dialog, 'Papel', 'Recepção')
 

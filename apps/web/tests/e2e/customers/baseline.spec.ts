@@ -13,7 +13,7 @@
 
 import { expect, test } from '../fixtures'
 import { listItem, rowAction } from '../helpers/list'
-import { seedCustomer, seedCustomerShadowForUser } from '../helpers/session'
+import { seedCustomer, seedCustomerShadowForUser, uniqueWhatsapp } from '../helpers/session'
 
 // Semeia um cliente "degenerado": um Customer shadow schema-completo cujo
 // `userId` aponta pra um User que NÃO existe (avulso sem user resolvível) —
@@ -59,7 +59,7 @@ test.describe('Customers — baseline (#17)', () => {
     // customer (#1278). Unique per run (User is deduped by whatsapp globally).
     await seedCustomer(org.orgId, {
       name: 'Cliente Baseline',
-      mobile: `5511${String(Date.now()).slice(-9)}`,
+      mobile: uniqueWhatsapp(),
     })
 
     await authedPage.goto('/customers')

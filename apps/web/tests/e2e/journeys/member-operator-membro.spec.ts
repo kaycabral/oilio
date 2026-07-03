@@ -174,7 +174,7 @@ async function inviteAccept(opts: {
 }): Promise<void> {
   const { inviteId, rawToken } = await seedInvite({
     orgId: opts.org.orgId,
-    mobile: `5511${String(Date.now()).slice(-9)}`,
+    mobile: uniqueWhatsapp(),
     role: opts.role,
     invitedBy: opts.org.uid,
   })
