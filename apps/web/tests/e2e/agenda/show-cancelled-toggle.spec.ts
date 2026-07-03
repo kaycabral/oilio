@@ -25,11 +25,11 @@ async function seedSharedSlot(
   const cancelledName = 'Cancelado Slot'
   const activeCustomerId = await seedCustomer(org.orgId, {
     name: activeName,
-    whatsapp: uniqueWhatsapp(),
+    mobile: uniqueWhatsapp(),
   })
   const cancelledCustomerId = await seedCustomer(org.orgId, {
     name: cancelledName,
-    whatsapp: uniqueWhatsapp(),
+    mobile: uniqueWhatsapp(),
   })
   // SAME slot: 14:00–14:30 BR == 17:00–17:30 UTC on 2026-08-12. The cancelled
   // one freed it (so booking the active one is legal); the grid must show both

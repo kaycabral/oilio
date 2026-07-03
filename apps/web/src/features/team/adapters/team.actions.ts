@@ -110,7 +110,7 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
   // forwarded headers → localhost) and never throws, so the link always builds.
   const base = await resolveBaseUrl()
 
-  await writeInvitePii(ctx.membership.orgId, inviteId, { whatsapp })
+  await writeInvitePii(ctx.membership.orgId, inviteId, { mobile: whatsapp })
   const created = await emitEvent(
     InviteConfig,
     aggregateRef(InviteConfig, ctx.membership.orgId, stored.id),

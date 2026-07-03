@@ -145,7 +145,7 @@ async function anonymizeUser(uid: string): Promise<void> {
     uid,
     {
       display_name: scrub.displayName,
-      whatsapp: scrub.whatsapp,
+      mobile: scrub.mobile,
       email: scrub.email,
       birth_date: scrub.birthDate,
       tax_identity: scrub.taxIdentity,

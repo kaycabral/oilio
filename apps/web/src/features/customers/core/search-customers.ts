@@ -12,7 +12,7 @@ export function searchCustomers(customers: readonly Customer[], query: string): 
   const queryDigits = query.replace(/\D/g, '')
   if (queryDigits.length > 0) {
     for (const c of customers) {
-      if (c.whatsapp.replace(/\D/g, '').includes(queryDigits)) merged.add(c)
+      if (c.mobile.replace(/\D/g, '').includes(queryDigits)) merged.add(c)
     }
   }
   // Always name-sorted (pt-BR, accent-insensitive) so the core owns the order —

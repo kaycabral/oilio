@@ -25,7 +25,7 @@ export type UserRow = {
   avatar_url: string | null
   email_verified: boolean
   current_org_id: string | null
-  whatsapp: string | null
+  mobile: string | null
   birth_date: string | null
   bio: string | null
   completion_completed: boolean
@@ -51,7 +51,7 @@ export function rowToUser(row: UserRow): User {
     avatarUrl: row.avatar_url,
     emailVerified: row.email_verified,
     currentOrgId: row.current_org_id,
-    whatsapp: row.whatsapp,
+    mobile: row.mobile,
     birthDate: row.birth_date,
     bio: row.bio,
     specialties: row.specialties ?? null,
@@ -79,7 +79,7 @@ const USER_COLUMNS = [
   'avatar_url',
   'email_verified',
   'current_org_id',
-  'whatsapp',
+  'mobile',
   'birth_date',
   'bio',
   'completion_completed',
@@ -103,7 +103,7 @@ function userColumnValues(user: User): unknown[] {
     user.avatarUrl,
     user.emailVerified,
     user.currentOrgId,
-    user.whatsapp,
+    user.mobile,
     user.birthDate,
     user.bio,
     user.completionCompleted,
@@ -159,15 +159,15 @@ export async function getUsersByIds(
 }
 
 /**
- * Find the FIRST user matching `whatsapp` (any claim state) — the Postgres
- * equivalent of the customer-upsert dedupe `users where whatsapp == X` (#832/
- * #839). WhatsApp is the canonical PII channel: a match wins regardless of which
+ * Find the FIRST user matching `mobile` (any claim state) — the Postgres
+ * equivalent of the customer-upsert dedupe `users where mobile == X` (#832/
+ * #839). The mobile is the canonical PII contact: a match wins regardless of which
  * org first saw the user (the "global User" principle). Returns null when none.
  */
-export async function findUserByWhatsapp(whatsapp: string): Promise<User | null> {
+export async function findUserByMobile(mobile: string): Promise<User | null> {
   const res = await getEventStorePool().query<UserRow>(
-    'SELECT * FROM users WHERE whatsapp = $1 LIMIT 1',
-    [whatsapp],
+    'SELECT * FROM users WHERE mobile = $1 LIMIT 1',
+    [mobile],
   )
   const row = res.rows[0]
   return row ? rowToUser(row) : null

@@ -34,7 +34,7 @@ export async function updateProfile(formData: FormData): Promise<UpdateProfileRe
     session.uid,
     {
       display_name: parsed.name,
-      whatsapp: parsed.whatsapp,
+      mobile: parsed.mobile,
       birth_date: parsed.birthDate,
     },
     now,

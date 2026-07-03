@@ -2,11 +2,11 @@
 // SERVICE items, proven against REAL Postgres after `operationalStatus` became
 // DERIVED on read (#1226 AC-02). The gate must NOT regress: a memberOperation whose
 // readiness no longer materializes on a column is still refused a service unless
-// the DERIVED status is `operational` (whatsapp present ∧ ≥1 unit ∧ ≥1 service).
+// the DERIVED status is `operational` (mobile present ∧ ≥1 unit ∧ ≥1 service).
 //
 // The memberOperation is minted through the real write path (`appendEvent`), so the
 // projector mirrors `unit_ids`/`catalog_service_ids` into the join tables; the
-// linked `users` row carries (or omits) the whatsapp the derive keys on. The gate
+// linked `users` row carries (or omits) the mobile the derive keys on. The gate
 // reads the enriched `MemberOperation` via `getMemberOperationByUserId`, which derives
 // the status — exactly the production read path.
 
@@ -75,21 +75,21 @@ async function seedMembership(orgId: string, userId: string): Promise<void> {
 }
 
 // Mint a memberOperation through the real write path (projector mirrors the join
-// tables) + its linked User. `whatsapp` controls the derived readiness.
+// tables) + its linked User. `mobile` controls the derived readiness.
 async function seedMemberOperation(
   orgId: string,
-  opts: { whatsapp: string | null; unitIds: string[]; catalogServiceIds: string[] },
+  opts: { mobile: string | null; unitIds: string[]; catalogServiceIds: string[] },
 ): Promise<string> {
   const userId = id('user')
   for (const u of opts.unitIds) await seedUnit(orgId, u)
   for (const s of opts.catalogServiceIds) await seedService(orgId, s)
   await putUser(
-    // When whatsapp is requested, let the builder derive a GLOBALLY UNIQUE BR
-    // mobile from the (unique) uid — `users_whatsapp_unique` forbids two seeded
+    // When mobile is requested, let the builder derive a GLOBALLY UNIQUE BR
+    // mobile from the (unique) uid — `users_mobile_unique` forbids two seeded
     // users sharing a number. The gate keys on PRESENCE, not the literal value.
     buildUser(userId, TS, {
-      completionCompleted: opts.whatsapp !== null,
-      whatsapp: opts.whatsapp === null ? null : undefined,
+      completionCompleted: opts.mobile !== null,
+      mobile: opts.mobile === null ? null : undefined,
     }),
   )
   await seedMembership(orgId, userId)
@@ -128,11 +128,11 @@ describe('assertMemberCanOperate — SERVICE gate over DERIVED operationalStatus
   const UNIT = 'unit-1'
   const SERVICE = 'svc-1'
 
-  it('complete profile (whatsapp ∧ unit ∧ service) → derives operational → ACCEPTS the service', async () => {
+  it('complete profile (mobile ∧ unit ∧ service) → derives operational → ACCEPTS the service', async () => {
     const orgId = uniqueOrg()
     await seedOrg(orgId)
     const userId = await seedMemberOperation(orgId, {
-      whatsapp: '5511900000000',
+      mobile: '5511900000000',
       unitIds: [UNIT],
       catalogServiceIds: [SERVICE],
     })
@@ -145,11 +145,11 @@ describe('assertMemberCanOperate — SERVICE gate over DERIVED operationalStatus
     expect(err).toBeNull()
   })
 
-  it('NO whatsapp → derives incomplete → REFUSES the service', async () => {
+  it('NO mobile → derives incomplete → REFUSES the service', async () => {
     const orgId = uniqueOrg()
     await seedOrg(orgId)
     const userId = await seedMemberOperation(orgId, {
-      whatsapp: null,
+      mobile: null,
       unitIds: [UNIT],
       catalogServiceIds: [SERVICE],
     })
@@ -167,7 +167,7 @@ describe('assertMemberCanOperate — SERVICE gate over DERIVED operationalStatus
     const orgId = uniqueOrg()
     await seedOrg(orgId)
     const userId = await seedMemberOperation(orgId, {
-      whatsapp: '5511900000000',
+      mobile: '5511900000000',
       unitIds: [],
       catalogServiceIds: [SERVICE],
     })
@@ -185,7 +185,7 @@ describe('assertMemberCanOperate — SERVICE gate over DERIVED operationalStatus
     const orgId = uniqueOrg()
     await seedOrg(orgId)
     const userId = await seedMemberOperation(orgId, {
-      whatsapp: '5511900000000',
+      mobile: '5511900000000',
       unitIds: [UNIT],
       catalogServiceIds: [],
     })

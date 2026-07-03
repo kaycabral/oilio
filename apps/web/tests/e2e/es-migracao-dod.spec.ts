@@ -70,7 +70,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       const invitee = await seedAuthUser()
       const { inviteId, rawToken } = await seedInvite({
         orgId: org.orgId,
-        whatsapp: '5511990001234',
+        mobile: '5511990001234',
         role: 'member_operator',
         invitedBy: org.uid,
       })
@@ -104,14 +104,14 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       expect(userRows).toHaveLength(1)
       const userRow = userRows[0]
       expect(userRow?.display_name).toBe('E2E Invitee')
-      expect(userRow?.whatsapp).toMatch(/^5511\d{9}$/)
+      expect(userRow?.mobile).toMatch(/^5511\d{9}$/)
       expect(userRow?.email).toBe(invitee.email)
 
       // Serializa cada envelope do stream e garante ausência da PII literal.
       // Cobre qualquer nível de aninhamento do payload (data.name etc.).
       const streamJson = JSON.stringify(stream)
       expect(streamJson).not.toContain('E2E Invitee')
-      expect(streamJson).not.toContain(requireString(userRow?.whatsapp))
+      expect(streamJson).not.toContain(requireString(userRow?.mobile))
       expect(streamJson).not.toContain(invitee.email)
 
       // O doc per-org apagável `member_operations_pii/{id}` guarda só PII
@@ -121,7 +121,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       const piiRow = await pgReadProjection('member_operations_pii', proRef)
       expect(piiRow).not.toBeNull()
       expect(piiRow?.name).toBeUndefined()
-      expect(piiRow?.whatsapp).toBeUndefined()
+      expect(piiRow?.mobile).toBeUndefined()
       expect(piiRow?.email).toBeUndefined()
       expect('tax_identity' in (piiRow ?? {})).toBe(true)
     })
@@ -151,7 +151,7 @@ test.describe('Migração ES seletivo 0027 — Definition of Done', () => {
       })
       const customerId = await seedCustomer(org.orgId, {
         name: 'Cliente DoD',
-        whatsapp: uniqueWhatsapp(),
+        mobile: uniqueWhatsapp(),
       })
       const appointmentId = await seedAppointment({
         orgId: org.orgId,

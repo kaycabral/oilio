@@ -43,7 +43,7 @@ export default async function CompleteProfilePage({
   const prefill = deriveProfilePrefill({
     name: user?.displayName ?? session.displayName,
     email: user?.email ?? session.email ?? null,
-    whatsapp: user?.whatsapp ?? null,
+    mobile: user?.mobile ?? null,
     birthDate: user?.birthDate ?? null,
   })
 

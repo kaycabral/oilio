@@ -10,7 +10,7 @@ export const MIN_AGE_YEARS = 13
 
 export type ProfileFormPayload = {
   name: string
-  whatsapp: string
+  mobile: string
   birthDate: string
 }
 
@@ -18,10 +18,10 @@ export function parseProfileForm(formData: FormData): ProfileFormPayload | strin
   const name = formString(formData, 'name').trim()
   if (name.length < 2) return 'Nome é obrigatório'
 
-  const whatsappRaw = formString(formData, 'whatsapp').trim()
-  if (whatsappRaw.length === 0) return 'WhatsApp é obrigatório'
-  const whatsapp = normalizeBrazilPhone(whatsappRaw)
-  if (!whatsapp) return 'WhatsApp inválido'
+  const mobileRaw = formString(formData, 'mobile').trim()
+  if (mobileRaw.length === 0) return 'WhatsApp é obrigatório'
+  const mobile = normalizeBrazilPhone(mobileRaw)
+  if (!mobile) return 'WhatsApp inválido'
 
   const birthDateResult = parseBirthDate(formString(formData, 'birthDate'))
   if (!birthDateResult.ok) return birthDateResult.error
@@ -30,7 +30,7 @@ export function parseProfileForm(formData: FormData): ProfileFormPayload | strin
     return `Idade mínima ${MIN_AGE_YEARS} anos`
   }
 
-  return { name, whatsapp, birthDate: birthDateResult.value }
+  return { name, mobile, birthDate: birthDateResult.value }
 }
 
 // True when `birthDate` is at least `minYears` ago. ISO `YYYY-MM-DD`.
@@ -48,11 +48,11 @@ export function meetsMinAge(
 // PII event carries field NAMES only, never their values (AC-07).
 export function changedProfileFields(
   payload: ProfileFormPayload,
-  current: { displayName?: string | null; whatsapp?: string | null; birthDate?: string | null },
+  current: { displayName?: string | null; mobile?: string | null; birthDate?: string | null },
 ): string[] {
   const fieldsChanged: string[] = []
   if (payload.name !== (current.displayName ?? '')) fieldsChanged.push('displayName')
-  if (payload.whatsapp !== (current.whatsapp ?? '')) fieldsChanged.push('whatsapp')
+  if (payload.mobile !== (current.mobile ?? '')) fieldsChanged.push('mobile')
   if (payload.birthDate !== (current.birthDate ?? '')) fieldsChanged.push('birthDate')
   return fieldsChanged
 }

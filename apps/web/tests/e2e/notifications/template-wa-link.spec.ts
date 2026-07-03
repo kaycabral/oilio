@@ -136,7 +136,7 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
     authedPage,
   }) => {
     const wa = uniqueWhatsapp()
-    const customerId = await seedCustomer(org.orgId, { name: 'Maria', whatsapp: wa })
+    const customerId = await seedCustomer(org.orgId, { name: 'Maria', mobile: wa })
     const notifId = await seedBirthdayNotification(org.orgId, org.unitIds[0]!, customerId)
 
     await authedPage.goto('/agenda')

@@ -180,7 +180,7 @@ describe('buildUserAnonymizationScrub', () => {
     const scrub = buildUserAnonymizationScrub(now)
     expect(scrub).toEqual({
       displayName: null,
-      whatsapp: null,
+      mobile: null,
       email: null,
       birthDate: null,
       taxIdentity: null,
@@ -194,7 +194,7 @@ describe('buildUserAnonymizationScrub', () => {
 
   it('holds no field that could reconstruct the old identity', () => {
     const scrub = buildUserAnonymizationScrub('2026-06-03T12:00:00.000Z')
-    const piiFields = ['displayName', 'whatsapp', 'email', 'birthDate', 'taxIdentity'] as const
+    const piiFields = ['displayName', 'mobile', 'email', 'birthDate', 'taxIdentity'] as const
     for (const field of piiFields) {
       expect(scrub[field]).toBeNull()
     }

@@ -25,12 +25,12 @@ describe('meetsMinAge', () => {
 })
 
 describe('parseProfileForm', () => {
-  const valid = { name: 'Joana', whatsapp: '+55 11 90000-0000', birthDate: '1990-05-05' }
+  const valid = { name: 'Joana', mobile: '+55 11 90000-0000', birthDate: '1990-05-05' }
 
   it('parses a valid form into a normalized payload', () => {
     const parsed = parseProfileForm(form(valid))
     expect(parsed).toMatchObject({ name: 'Joana', birthDate: '1990-05-05' })
-    expect(typeof parsed === 'object' && parsed.whatsapp).toMatch(/^\+?55/)
+    expect(typeof parsed === 'object' && parsed.mobile).toMatch(/^\+?55/)
   })
 
   it('rejects a short name', () => {
@@ -38,11 +38,11 @@ describe('parseProfileForm', () => {
   })
 
   it('rejects an empty WhatsApp', () => {
-    expect(parseProfileForm(form({ ...valid, whatsapp: '' }))).toBe('WhatsApp é obrigatório')
+    expect(parseProfileForm(form({ ...valid, mobile: '' }))).toBe('WhatsApp é obrigatório')
   })
 
   it('rejects an invalid WhatsApp', () => {
-    expect(parseProfileForm(form({ ...valid, whatsapp: '123' }))).toBe('WhatsApp inválido')
+    expect(parseProfileForm(form({ ...valid, mobile: '123' }))).toBe('WhatsApp inválido')
   })
 
   it('rejects a missing birthDate', () => {
@@ -64,21 +64,21 @@ describe('deriveProfilePrefill (progressive profiling — brief 0077 #1277)', ()
     const p = deriveProfilePrefill({
       name: 'Maria Silva',
       email: 'maria@gmail.com',
-      whatsapp: null,
+      mobile: null,
       birthDate: null,
     })
     expect(p.name).toBe('Maria Silva')
     expect(p.email).toBe('maria@gmail.com')
-    expect(p.whatsapp).toBe('')
+    expect(p.mobile).toBe('')
     expect(p.birthDate).toBe('')
-    expect(p.missing).toEqual(['whatsapp', 'birthDate'])
+    expect(p.missing).toEqual(['mobile', 'birthDate'])
   })
 
   it('reports nothing missing when every fact is on file', () => {
     const p = deriveProfilePrefill({
       name: 'Maria Silva',
       email: 'maria@gmail.com',
-      whatsapp: '5511990000000',
+      mobile: '5511990000000',
       birthDate: '1990-05-05',
     })
     expect(p.missing).toEqual([])
@@ -88,7 +88,7 @@ describe('deriveProfilePrefill (progressive profiling — brief 0077 #1277)', ()
     const p = deriveProfilePrefill({
       name: 'M',
       email: null,
-      whatsapp: '5511990000000',
+      mobile: '5511990000000',
       birthDate: '1990-05-05',
     })
     expect(p.missing).toEqual(['name'])
@@ -97,9 +97,9 @@ describe('deriveProfilePrefill (progressive profiling — brief 0077 #1277)', ()
   })
 
   it('trims whitespace and treats blank facts as missing', () => {
-    const p = deriveProfilePrefill({ name: '  ', email: '  ', whatsapp: '   ', birthDate: '' })
+    const p = deriveProfilePrefill({ name: '  ', email: '  ', mobile: '   ', birthDate: '' })
     expect(p.name).toBe('')
     expect(p.email).toBe('')
-    expect(p.missing).toEqual(['name', 'whatsapp', 'birthDate'])
+    expect(p.missing).toEqual(['name', 'mobile', 'birthDate'])
   })
 })

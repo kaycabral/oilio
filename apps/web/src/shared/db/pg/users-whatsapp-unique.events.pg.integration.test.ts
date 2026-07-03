@@ -5,8 +5,8 @@ import { closeEventStoreDb, getEventStorePool } from './pool'
  * Global WhatsApp uniqueness on `users` against REAL Postgres — the DATABASE
  * wall of the one-owner-per-number rule. A phone number has exactly one owner and
  * the User is global (org/unit/role-agnostic), so the same `whatsapp` can never
- * back two Users. Enforced by the partial unique index `users_whatsapp_unique`
- * (migration 0012), `WHERE whatsapp IS NOT NULL` — multiple NULLs (stubs /
+ * back two Users. Enforced by the partial unique index `users_mobile_unique`
+ * (migration 0012), `WHERE mobile IS NOT NULL` — multiple NULLs (stubs /
  * anonymized accounts) coexist because absence-of-datum is not a colliding value.
  *
  * Proven directly at the DB (raw INSERT/UPDATE on the event-store pool, no domain
@@ -20,7 +20,7 @@ import { closeEventStoreDb, getEventStorePool } from './pool'
  */
 
 const UNIQUE_VIOLATION = '23505'
-const CONSTRAINT = 'users_whatsapp_unique'
+const CONSTRAINT = 'users_mobile_unique'
 const TS = '2026-06-01T12:00:00.000Z'
 
 let seq = 0
@@ -39,16 +39,16 @@ function uniqueWa(): string {
 // sibling `users_completed_profile_complete` CHECK is satisfied), so this suite
 // isolates the unique index. `completion_completed` defaults false (no CHECK in
 // play); pass a whatsapp to exercise the index.
-async function insertUser(uid: string, whatsapp: string | null): Promise<void> {
+async function insertUser(uid: string, mobile: string | null): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO users
-       (uid, email_verified, completion_completed, whatsapp, created_at, updated_at)
+       (uid, email_verified, completion_completed, mobile, created_at, updated_at)
      VALUES ($1, false, false, $2, $3, $3)`,
-    [uid, whatsapp, TS],
+    [uid, mobile, TS],
   )
 }
 
-describe('users_whatsapp_unique (global one-owner-per-number)', () => {
+describe('users_mobile_unique (global one-owner-per-number)', () => {
   beforeEach(async () => {
     // Clean only the rows this file makes (per-run-unique uids), keeping the
     // shared DB intact for sibling suites.
@@ -74,7 +74,7 @@ describe('users_whatsapp_unique (global one-owner-per-number)', () => {
     const otherUid = uniqueUid('claimant')
     await insertUser(otherUid, uniqueWa())
     await expect(
-      getEventStorePool().query('UPDATE users SET whatsapp = $1 WHERE uid = $2', [wa, otherUid]),
+      getEventStorePool().query('UPDATE users SET mobile = $1 WHERE uid = $2', [wa, otherUid]),
     ).rejects.toMatchObject({ code: UNIQUE_VIOLATION, constraint: CONSTRAINT })
   })
 

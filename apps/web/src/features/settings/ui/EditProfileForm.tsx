@@ -13,11 +13,11 @@ import { toast } from 'sonner'
 // (identity by reference). Pre-filled with the current values.
 export function EditProfileForm({
   defaultName,
-  defaultWhatsapp,
+  defaultMobile,
   defaultBirthDate,
 }: {
   defaultName: string
-  defaultWhatsapp: string
+  defaultMobile: string
   defaultBirthDate: string
 }) {
   const router = useRouter()
@@ -55,10 +55,10 @@ export function EditProfileForm({
         <Input id="profile-name" name="name" defaultValue={defaultName} required minLength={2} />
       </div>
       <div className="flex flex-col gap-1">
-        <Label htmlFor="profile-whatsapp" className="text-sm font-medium">
+        <Label htmlFor="profile-mobile" className="text-sm font-medium">
           WhatsApp
         </Label>
-        <PhoneInput id="profile-whatsapp" name="whatsapp" defaultValue={defaultWhatsapp} required />
+        <PhoneInput id="profile-mobile" name="mobile" defaultValue={defaultMobile} required />
       </div>
       <div className="flex flex-col gap-1">
         <Label htmlFor="profile-birthDate" className="text-sm font-medium">

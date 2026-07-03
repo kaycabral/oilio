@@ -14,7 +14,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
  *
  * Also pins the post-#1276 contract: `upsertCustomerWithUser` no longer folds by
  * WhatsApp — a quick-add typing a number that already has an owner is REFUSED
- * (the global `users_whatsapp_unique` index), surfaced as a handled error.
+ * (the global `users_mobile_unique` index), surfaced as a handled error.
  *
  * Per-run-unique org so cases never collide on the shared database.
  */
@@ -58,7 +58,7 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
   // across cases OR across runs on the shared DB (the global uniqueness index is
   // exactly what's under test). Stub Users persist (no cleanup), so the number
   // must be unique per run — derive the trailing digits from the wall clock.
-  function uniqueWhatsappRaw(): string {
+  function uniqueMobileRaw(): string {
     seq += 1
     const tail = String((Date.now() + seq) % 1_000_000_000).padStart(9, '0')
     return `11${tail}`
@@ -74,7 +74,7 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
     const r = await upsertCustomerWithUser({
       orgId,
       name: 'Cliente',
-      whatsappRaw: uniqueWhatsappRaw(),
+      mobileRaw: uniqueMobileRaw(),
       email: null,
       birthDate: null,
       acquisition: QR_ACQUISITION,
@@ -93,7 +93,7 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
     const first = await upsertCustomerWithUser({
       orgId,
       name: 'Cliente',
-      whatsappRaw: uniqueWhatsappRaw(),
+      mobileRaw: uniqueMobileRaw(),
       email: null,
       birthDate: null,
       acquisition: QR_ACQUISITION,
@@ -124,11 +124,11 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
   it('REFUSES a quick-add whose WhatsApp already has an owner (no silent fold)', async () => {
     const orgId = uniq('org-acq')
     await seedOrg(orgId)
-    const sharedNumber = uniqueWhatsappRaw()
+    const sharedNumber = uniqueMobileRaw()
     const first = await upsertCustomerWithUser({
       orgId,
       name: 'Dona do Número',
-      whatsappRaw: sharedNumber,
+      mobileRaw: sharedNumber,
       email: null,
       birthDate: null,
     })
@@ -139,7 +139,7 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
     const second = await upsertCustomerWithUser({
       orgId,
       name: 'Outra Pessoa',
-      whatsappRaw: sharedNumber,
+      mobileRaw: sharedNumber,
       email: null,
       birthDate: null,
     })
@@ -154,7 +154,7 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
     const r = await upsertCustomerWithUser({
       orgId,
       name: 'Cliente',
-      whatsappRaw: uniqueWhatsappRaw(),
+      mobileRaw: uniqueMobileRaw(),
       email: null,
       birthDate: null,
     })

@@ -14,7 +14,7 @@ function form(fields: Record<string, string>): FormData {
 
 const VALID = {
   name: 'Maria Silva',
-  whatsapp: '+55 11 90000-0000',
+  mobile: '+55 11 90000-0000',
   birthDate: '1990-01-01',
 }
 
@@ -25,7 +25,7 @@ describe('parseProfileForm', () => {
     if (typeof payload === 'string') throw new Error(`expected a parsed profile, got: ${payload}`)
     expect(payload.name).toBe('Maria Silva')
     expect(payload.birthDate).toBe('1990-01-01')
-    expect(payload.whatsapp.length).toBeGreaterThan(0)
+    expect(payload.mobile.length).toBeGreaterThan(0)
   })
 
   it('rejects a short name', () => {
@@ -33,11 +33,11 @@ describe('parseProfileForm', () => {
   })
 
   it('rejects an empty whatsapp', () => {
-    expect(parseProfileForm(form({ ...VALID, whatsapp: '' }))).toBe('WhatsApp é obrigatório')
+    expect(parseProfileForm(form({ ...VALID, mobile: '' }))).toBe('WhatsApp é obrigatório')
   })
 
   it('rejects an invalid whatsapp', () => {
-    expect(parseProfileForm(form({ ...VALID, whatsapp: '123' }))).toBe('WhatsApp inválido')
+    expect(parseProfileForm(form({ ...VALID, mobile: '123' }))).toBe('WhatsApp inválido')
   })
 
   it('rejects a missing birth date', () => {
@@ -74,7 +74,7 @@ describe('meetsMinAge', () => {
 describe('changedProfileFields', () => {
   const payload: ProfileFormPayload = {
     name: 'Maria',
-    whatsapp: '5511999999999',
+    mobile: '5511999999999',
     birthDate: '1990-01-01',
   }
 
@@ -82,21 +82,21 @@ describe('changedProfileFields', () => {
     expect(
       changedProfileFields(payload, {
         displayName: 'Joana',
-        whatsapp: '5511999999999',
+        mobile: '5511999999999',
         birthDate: '1990-01-01',
       }),
     ).toEqual(['displayName'])
   })
 
   it('reports all fields when current is empty', () => {
-    expect(changedProfileFields(payload, {})).toEqual(['displayName', 'whatsapp', 'birthDate'])
+    expect(changedProfileFields(payload, {})).toEqual(['displayName', 'mobile', 'birthDate'])
   })
 
   it('reports nothing when identical', () => {
     expect(
       changedProfileFields(payload, {
         displayName: 'Maria',
-        whatsapp: '5511999999999',
+        mobile: '5511999999999',
         birthDate: '1990-01-01',
       }),
     ).toEqual([])

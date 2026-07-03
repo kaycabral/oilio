@@ -45,7 +45,7 @@ async function anonymizeUser(userId: string): Promise<void> {
     taxIdentity: scrub.taxIdentity,
     bio: scrub.bio,
     specialties: scrub.specialties,
-    whatsapp: null,
+    mobile: null,
     birthDate: null,
     anonymizedAt: now,
     updatedAt: now,

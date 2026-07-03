@@ -241,7 +241,7 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       const pendingDisplay = formatBrazilPhone(pendingWhatsapp)
       await seedInvite({
         orgId: org.orgId,
-        whatsapp: pendingWhatsapp,
+        mobile: pendingWhatsapp,
         role: 'receptionist',
         invitedBy: org.uid,
       })

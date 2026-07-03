@@ -49,12 +49,12 @@ describe('parseAppointmentForm', () => {
         ...BASE,
         customerMode: 'new',
         newCustomerName: 'Ana',
-        newCustomerWhatsapp: '5511999',
+        newCustomerMobile: '5511999',
       }),
     )
     const parsed = asParsed(r)
     expect(parsed.customerId).toBeNull()
-    expect(parsed.newCustomer).toEqual({ name: 'Ana', whatsapp: '5511999' })
+    expect(parsed.newCustomer).toEqual({ name: 'Ana', mobile: '5511999' })
   })
 
   it.each([
@@ -76,7 +76,7 @@ describe('parseAppointmentForm', () => {
   it('rejects a new customer without whatsapp', () => {
     expect(
       parseAppointmentForm(
-        form({ ...BASE, customerMode: 'new', newCustomerName: 'Ana', newCustomerWhatsapp: '' }),
+        form({ ...BASE, customerMode: 'new', newCustomerName: 'Ana', newCustomerMobile: '' }),
       ),
     ).toBe('WhatsApp do cliente é obrigatório')
   })

@@ -81,9 +81,9 @@ export function UnitPicker({
                       .join(', ')}
                   </p>
                 ) : null}
-                {u.whatsapp ? (
+                {u.mobile ? (
                   <p className="text-muted-foreground text-xs">
-                    WhatsApp · {formatBrazilPhone(u.whatsapp)}
+                    WhatsApp · {formatBrazilPhone(u.mobile)}
                   </p>
                 ) : null}
               </Link>

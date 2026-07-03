@@ -144,7 +144,7 @@ test.describe('Atribuição de item por membro (brief 0030, #1056)', { tag: '@cr
     await seedProduct(org.orgId, { name: 'Pomada', priceCents: 2000 })
     const customerId = await seedCustomer(org.orgId, {
       name: 'Cliente Agendado',
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
     })
     await seedAppointment({
       orgId: org.orgId,

@@ -101,7 +101,7 @@ export function buildAddress(overrides: Partial<Address> = {}): Address {
   }
 }
 
-// Unit projection (`unit.created`). PII contact channels (whatsapp/email) are
+// Unit projection (`unit.created`). PII contact channels (mobile/email) are
 // omitted from `StoredUnit` by design — they ride the deletable `units_pii`
 // sidecar. Defaults to an informal `appointment` unit (Mon–Fri hours); override
 // `agenda`/`fiscal` for retail (`fixed`/`always_open`) or formalized units.

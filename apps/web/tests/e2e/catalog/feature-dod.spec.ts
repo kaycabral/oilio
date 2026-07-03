@@ -172,7 +172,7 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
       const customerName = `Cliente Cons ${Date.now()}`
       const customerId = await seedCustomer(org.orgId, {
         name: customerName,
-        whatsapp: uniqueWhatsapp(),
+        mobile: uniqueWhatsapp(),
       })
       await seedAppointment({
         orgId: org.orgId,

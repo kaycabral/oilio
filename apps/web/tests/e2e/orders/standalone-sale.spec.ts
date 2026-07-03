@@ -117,7 +117,7 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
     })
     const customerId = await seedCustomer(org.orgId, {
       name: 'Cliente Agendado',
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
     })
     await seedAppointment({
       orgId: org.orgId,

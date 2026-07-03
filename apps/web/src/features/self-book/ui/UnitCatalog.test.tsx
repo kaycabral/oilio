@@ -25,7 +25,7 @@ const UNIT: Unit = {
   orgId: 't1',
   name: 'Centro',
   slug: 'centro',
-  whatsapp: '5511900000000',
+  mobile: '5511900000000',
   email: null,
   address: EMPTY_ADDRESS,
   timezone: 'America/Sao_Paulo',

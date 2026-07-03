@@ -59,7 +59,7 @@ test.describe('Customers — baseline (#17)', () => {
     // customer (#1278). Unique per run (User is deduped by whatsapp globally).
     await seedCustomer(org.orgId, {
       name: 'Cliente Baseline',
-      whatsapp: `5511${String(Date.now()).slice(-9)}`,
+      mobile: `5511${String(Date.now()).slice(-9)}`,
     })
 
     await authedPage.goto('/customers')

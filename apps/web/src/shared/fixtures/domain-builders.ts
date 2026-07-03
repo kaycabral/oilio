@@ -26,31 +26,31 @@ import {
   membershipDocId,
 } from '@/domain'
 
-// Flat override surface: the common fields plus `completionCompleted`/whatsapp/
+// Flat override surface: the common fields plus `completionCompleted`/mobile/
 // birthDate kept loose so a caller can pass them dynamically. `buildUser` only
 // builds LIVE (non-anonymized) accounts, so `anonymizedAt` is not overridable.
 type BuildUserOverrides = Partial<
-  Omit<User, 'completionCompleted' | 'whatsapp' | 'birthDate' | 'anonymizedAt'>
+  Omit<User, 'completionCompleted' | 'mobile' | 'birthDate' | 'anonymizedAt'>
 > & {
   completionCompleted?: boolean
-  whatsapp?: string | null
+  mobile?: string | null
   birthDate?: string | null
 }
 
-// A completed account REQUIRES a real whatsapp + birthDate (the `UserComplete`
+// A completed account REQUIRES a real mobile + birthDate (the `UserComplete`
 // branch — see `domain/types/user.ts`). When a caller marks `completionCompleted`
 // without supplying them, fall back to realistic placeholders rather than empty
-// strings: an empty `birthDate`/`whatsapp` is a representable-but-fake "completed"
+// strings: an empty `birthDate`/`mobile` is a representable-but-fake "completed"
 // account that turns illegal the moment a test nulls one axis (e.g. stripping
-// whatsapp to simulate an incomplete pro), making the doc fail every union branch
+// mobile to simulate an incomplete pro), making the doc fail every union branch
 // and crashing the strict-decoding read boundary.
 const DEFAULT_COMPLETE_BIRTHDATE = '1990-01-01'
 
-// WhatsApp is GLOBALLY unique (`users_whatsapp_unique`), so the default for a
+// The mobile is GLOBALLY unique (`users_mobile_unique`), so the default for a
 // completed account MUST be unique per user — a fixed placeholder collided the
 // moment a test (or seed) created two completed users. Derive a valid BR mobile
 // from the uid so every fixture user gets its own number with no caller effort.
-function defaultCompleteWhatsapp(uid: string): string {
+function defaultCompleteMobile(uid: string): string {
   let hash = 0
   for (let i = 0; i < uid.length; i++) hash = (hash * 31 + uid.charCodeAt(i)) >>> 0
   // 8 subscriber digits after the `9` (mobile), behind DDI 55 + DDD 11.
@@ -59,9 +59,9 @@ function defaultCompleteWhatsapp(uid: string): string {
 
 // Global identity doc (`users/{uid}`). Defaults are an unclaimed, incomplete
 // account with no PII; override what the scenario needs. A completed account
-// always carries a real whatsapp + birthDate so it stays a legal `UserComplete`.
+// always carries a real mobile + birthDate so it stays a legal `UserComplete`.
 export function buildUser(uid: string, now: string, overrides: BuildUserOverrides = {}): User {
-  const { completionCompleted = false, whatsapp = null, birthDate = null, ...rest } = overrides
+  const { completionCompleted = false, mobile = null, birthDate = null, ...rest } = overrides
   const common = {
     uid,
     email: null,
@@ -86,10 +86,10 @@ export function buildUser(uid: string, now: string, overrides: BuildUserOverride
     ? {
         ...common,
         completionCompleted: true,
-        whatsapp: whatsapp ?? defaultCompleteWhatsapp(uid),
+        mobile: mobile ?? defaultCompleteMobile(uid),
         birthDate: birthDate ?? DEFAULT_COMPLETE_BIRTHDATE,
       }
-    : { ...common, completionCompleted: false, whatsapp, birthDate }
+    : { ...common, completionCompleted: false, mobile, birthDate }
 }
 
 // Per-org Customer shadow (`orgs/{tid}/customers/{id}`). PII lives on the
@@ -263,7 +263,7 @@ export function buildInvite(
   const base: Invite = {
     id,
     orgId,
-    whatsapp: '5511990000000',
+    mobile: '5511990000000',
     role: 'member_operator',
     tokenHash: 'hash',
     expiresAt: now,

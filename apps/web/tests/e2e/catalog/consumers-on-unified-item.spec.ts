@@ -64,7 +64,7 @@ if (!skipOnPostgres()) {
       expect((await readCatalogItem(org.orgId, serviceId))?.kind).toBe('service')
 
       const customerName = `Cliente Unificado ${Date.now()}`
-      await seedCustomer(org.orgId, { name: customerName, whatsapp: uniqueWhatsapp() })
+      await seedCustomer(org.orgId, { name: customerName, mobile: uniqueWhatsapp() })
 
       const agenda = new AgendaPage(authedPage)
       await agenda.goto('2026-08-12')
@@ -110,7 +110,7 @@ if (!skipOnPostgres()) {
       const customerName = `Plano Categoria ${Date.now()}`
       const customerId = await seedCustomer(org.orgId, {
         name: customerName,
-        whatsapp: uniqueWhatsapp(),
+        mobile: uniqueWhatsapp(),
       })
       await seedSubscription(org.orgId, customerId, { includedCategoryIds: [coveredCat] })
 
@@ -144,7 +144,7 @@ if (!skipOnPostgres()) {
       await seedProduct(org.orgId, { name: 'Pomada Comanda', priceCents: 3000 })
       const customerId = await seedCustomer(org.orgId, {
         name: 'Cliente Comanda',
-        whatsapp: uniqueWhatsapp(),
+        mobile: uniqueWhatsapp(),
       })
       // Seed a scheduled appointment so "Iniciar atendimento" opens the order.
       await seedAppointment({

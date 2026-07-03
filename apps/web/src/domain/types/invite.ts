@@ -6,7 +6,7 @@ const InviteFields = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
     orgId: Schema.String,
-    whatsapp: Schema.String,
+    mobile: Schema.String,
     role: Role,
     tokenHash: Schema.String,
     expiresAt: Schema.String,
@@ -41,12 +41,12 @@ export const Invite = InviteFields.pipe(
 )
 export type Invite = typeof Invite.Type
 
-// Base sem PII (whatsapp) para os EVENTOS: `Schema.partial` não atravessa um
+// Base sem PII (mobile) para os EVENTOS: `Schema.partial` não atravessa um
 // refinement, então os eventos usam esta forma não-filtrada.
-export const StoredInviteFields = InviteFields.pipe(Schema.omit('whatsapp'))
+export const StoredInviteFields = InviteFields.pipe(Schema.omit('mobile'))
 
 // Storage projection of `Invite`: the per-org `invites/{id}` doc that OMITS
-// the PII (whatsapp), which lives in the deletable `invites_pii/{id}` doc and is
+// the PII (mobile), which lives in the deletable `invites_pii/{id}` doc and is
 // merged at read time. Decode raw `invites` docs against this (com refinamento).
 export const StoredInvite = StoredInviteFields.pipe(
   Schema.filter(inviteAcceptanceConsistent, inviteAcceptanceFilter),
@@ -55,7 +55,7 @@ export type StoredInvite = typeof StoredInvite.Type
 
 // The complement of `StoredInvite`: the deletable `invites_pii/{id}` doc.
 // Picked from the same base so storage and PII sidecar can't drift.
-export const InvitePii = InviteFields.pipe(Schema.pick('whatsapp'))
+export const InvitePii = InviteFields.pipe(Schema.pick('mobile'))
 export type InvitePii = typeof InvitePii.Type
 
 // 48h (brief 0084): the signed token is the invite's primary access lock, so a

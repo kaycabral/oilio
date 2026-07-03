@@ -46,7 +46,7 @@ function uniqueId(prefix: string): string {
 }
 
 // A unique, already-normalized BR mobile (`55` + DDD + 9 digits) so that
-// `normalizeBrazilPhone(x) === x` and `users_whatsapp_unique` never collides
+// `normalizeBrazilPhone(x) === x` and `users_mobile_unique` never collides
 // across seeded rows. 9 trailing digits derived from a monotonic counter.
 function uniquePhone(): string {
   seq += 1
@@ -105,8 +105,8 @@ async function seedMembership(orgId: string, userId: string, role: Role): Promis
 
 // MemberOperation projection + its retained PII sidecar (must survive offboarding).
 // `operationalStatus` is DERIVED on read (#1226 AC-02): operational ⇔ the linked
-// User has a whatsapp ∧ ≥1 unit ∧ ≥1 service. So an OPERATIONAL seed must wire a
-// whatsapp-bearing User + a service + the join rows; pass an empty `unitIds` (no
+// User has a mobile ∧ ≥1 unit ∧ ≥1 service. So an OPERATIONAL seed must wire a
+// mobile-bearing User + a service + the join rows; pass an empty `unitIds` (no
 // units ⇒ derives `incomplete`) for a non-operational seed.
 async function seedMemberOperation(
   orgId: string,
@@ -114,7 +114,7 @@ async function seedMemberOperation(
   unitIds: string[] = [],
 ): Promise<string> {
   const id = uniqueId('pro')
-  // The linked User carries the whatsapp the derive keys on (operational seed).
+  // The linked User carries the mobile the derive keys on (operational seed).
   // No explicit number — the builder derives a unique one per uid (WhatsApp is
   // globally unique, so two seeded users can't share a fixed placeholder).
   await putUser(buildUser(userId, TS, { completionCompleted: true }))
@@ -259,13 +259,13 @@ async function seedOpenOrder(
   )
 }
 
-async function seedUser(userId: string, whatsapp: string): Promise<void> {
-  await putUser(buildUser(userId, TS, { whatsapp, displayName: 'Member' }))
+async function seedUser(userId: string, mobile: string): Promise<void> {
+  await putUser(buildUser(userId, TS, { mobile, displayName: 'Member' }))
 }
 
 async function seedInvite(
   orgId: string,
-  whatsapp: string,
+  mobile: string,
   status: 'pending' | 'accepted' = 'pending',
 ): Promise<string> {
   const id = uniqueId('inv')
@@ -283,7 +283,7 @@ async function seedInvite(
       TS,
     ],
   )
-  await upsertInvitePii({ orgId, id, whatsapp })
+  await upsertInvitePii({ orgId, id, mobile })
   return id
 }
 
@@ -565,15 +565,15 @@ describe('offboardMemberInOrg — capacity/invites (Postgres)', () => {
     // Distinct BR mobiles: the member's number vs. an unrelated invitee's. The
     // offboard matches a pending invite to the member by normalized WhatsApp
     // (brief 0084) — the accept-flow no longer keys on email.
-    const memberWhatsapp = uniquePhone()
-    const otherWhatsapp = uniquePhone()
+    const memberMobile = uniquePhone()
+    const otherMobile = uniquePhone()
     await seedOrg(orgId)
     await seedMembership(orgId, userId, 'member_operator')
     await seedMemberOperation(orgId, userId)
-    await seedUser(userId, memberWhatsapp)
-    const pendingInvite = await seedInvite(orgId, memberWhatsapp, 'pending')
-    const otherInvite = await seedInvite(orgId, otherWhatsapp, 'pending')
-    const acceptedInvite = await seedInvite(orgId, memberWhatsapp, 'accepted')
+    await seedUser(userId, memberMobile)
+    const pendingInvite = await seedInvite(orgId, memberMobile, 'pending')
+    const otherInvite = await seedInvite(orgId, otherMobile, 'pending')
+    const acceptedInvite = await seedInvite(orgId, memberMobile, 'accepted')
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
     expect(res.ok).toBe(true)
@@ -591,12 +591,12 @@ describe('offboardMemberInOrg — capacity/invites (Postgres)', () => {
     const orgId = uniqueId('org')
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
-    const memberWhatsapp = uniquePhone()
+    const memberMobile = uniquePhone()
     await seedOrg(orgId)
     await seedMembership(orgId, userId, 'member_operator')
     await seedMemberOperation(orgId, userId)
-    await seedUser(userId, memberWhatsapp)
-    const pendingInvite = await seedInvite(orgId, memberWhatsapp, 'pending')
+    await seedUser(userId, memberMobile)
+    const pendingInvite = await seedInvite(orgId, memberMobile, 'pending')
 
     expect((await offboardMemberInOrg(orgId, userId, actorId)).ok).toBe(true)
     expect((await offboardMemberInOrg(orgId, userId, actorId)).ok).toBe(true)

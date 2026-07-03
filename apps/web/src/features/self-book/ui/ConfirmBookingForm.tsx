@@ -35,7 +35,7 @@ export function ConfirmBookingForm({
   cancellationPolicy,
   changeSlotHref,
   viewerName,
-  unitWhatsapp,
+  unitMobile,
   unitName,
 }: {
   slug: string
@@ -53,12 +53,12 @@ export function ConfirmBookingForm({
   // `null` means the viewer isn't logged in (or hasn't completed) — the action
   // returns `needs-login`/`needs-completion` and we route them to fix it.
   viewerName: string | null
-  // Brief 0019 Group D — AC-17. Unit WhatsApp (normalized E.164 digits)
+  // Brief 0019 Group D — AC-17. Unit mobile (normalized E.164 digits)
   // used to build the "Falar no WhatsApp" CTA shown when the booking
   // attempt is rejected because it's outside the customer's plan scope.
   // Unit name is interpolated into the pre-filled message so the
   // operator on the other end sees which shop the request belongs to.
-  unitWhatsapp: string
+  unitMobile: string
   unitName: string
 }) {
   const router = useRouter()
@@ -83,7 +83,7 @@ export function ConfirmBookingForm({
   // operator. `null` when the unit has no normalizable WhatsApp number
   // (the form then falls back to a plain message — no broken link).
   const whatsappHref = buildWhatsappLink(
-    unitWhatsapp,
+    unitMobile,
     `Oi! Sou cliente assinante e gostaria de agendar em ${unitName} fora do meu plano. Pode me ajudar?`,
   )
 

@@ -12,7 +12,7 @@ function makeUnit(id: string, name: string): Unit {
     orgId: 't1',
     name,
     slug: id,
-    whatsapp: '5511900000000',
+    mobile: '5511900000000',
     email: null,
     address: EMPTY_ADDRESS,
     timezone: 'America/Sao_Paulo',

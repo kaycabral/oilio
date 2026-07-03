@@ -21,7 +21,7 @@ async function seedAppointmentForOrg(org: SeededOrg): Promise<void> {
   })
   const customerId = await seedCustomer(org.orgId, {
     name: 'Maria Cliente',
-    whatsapp: uniqueWhatsapp(),
+    mobile: uniqueWhatsapp(),
   })
   // BR is UTC-3. 14:00–14:30 BR == 17:00–17:30 UTC on 2026-08-12.
   await seedAppointment({

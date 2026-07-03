@@ -10,10 +10,7 @@ export function CustomerDetail({ customer }: { customer: Customer }) {
   return (
     <dl className="divide-border divide-y rounded-md border">
       <Row label="Nome" value={customer.name} />
-      <Row
-        label="WhatsApp"
-        value={customer.whatsapp ? formatBrazilPhone(customer.whatsapp) : '—'}
-      />
+      <Row label="WhatsApp" value={customer.mobile ? formatBrazilPhone(customer.mobile) : '—'} />
       <Row label="Data de nascimento" value={formatBirthDate(customer.birthDate)} />
     </dl>
   )

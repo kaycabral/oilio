@@ -16,7 +16,7 @@ function buildPro(overrides: Partial<MemberOperation> = {}): MemberOperation {
     orgId: 't1',
     userId: 'u-ana',
     name: 'Ana',
-    whatsapp: '5511900000000',
+    mobile: '5511900000000',
     email: null,
     taxIdentity: null,
     operationalStatus: 'operational',

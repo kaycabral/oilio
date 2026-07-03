@@ -1,13 +1,13 @@
 // Feature E2E for #1046 (brief 0028 AC-04/AC-05 · DoD Cenário 3; surface moved
 // to the member detail by brief 0037 #1085): a
-// MemberOperation's personal identity (name/whatsapp/email) is read LIVE from the
+// MemberOperation's personal identity (name/mobile/email) is read LIVE from the
 // global `users/{userId}` doc — a reference, not a stored copy. The operational
 // edit form renders these read-only (no inputs), and mutating the User's
-// whatsapp reflects on the memberOperation without any re-write of the projection.
+// mobile reflects on the memberOperation without any re-write of the projection.
 //
 // Runs against the emulator (no mocks). The fixture seeds one memberOperation with
 // a linked User doc (uid `e2e-prof-user-{pid}`, displayName "Profissional 1",
-// whatsapp 5511900000000) — see helpers/session.ts.
+// mobile 5511900000000) — see helpers/session.ts.
 
 import { formatBrazilPhone } from '@/domain/utils/phone'
 import { patchUser } from '@/shared/db/pg/users-store'
@@ -27,12 +27,12 @@ test.describe('Professionals — identidade derivada (#1046)', { tag: '@critical
     org,
     authedPage,
   }) => {
-    // Pin the seeded pro's whatsapp to a known unique value so the read-only
+    // Pin the seeded pro's mobile to a known unique value so the read-only
     // display can be asserted against a deterministic mask (the helper seeds a
     // per-run unique number we can't hardcode).
     const proId = org.memberOperationIds[0]!
     const wa = uniqueWhatsapp()
-    await patchUser(memberOperatorUserId(proId), { whatsapp: wa }, new Date().toISOString())
+    await patchUser(memberOperatorUserId(proId), { mobile: wa }, new Date().toISOString())
 
     const pros = new MemberOperationsPage(authedPage)
     await pros.gotoById(proId)
@@ -46,7 +46,7 @@ test.describe('Professionals — identidade derivada (#1046)', { tag: '@critical
     // identity / commission / units / services stay editable, but personal
     // identity is reference-only.
     await expect(authedPage.locator('input[name="name"]')).toHaveCount(0)
-    await expect(authedPage.locator('input[name="whatsapp"]')).toHaveCount(0)
+    await expect(authedPage.locator('input[name="mobile"]')).toHaveCount(0)
     await expect(authedPage.locator('input[name="email"]')).toHaveCount(0)
   })
 
@@ -58,20 +58,20 @@ test.describe('Professionals — identidade derivada (#1046)', { tag: '@critical
     const uid = memberOperatorUserId(proId)
     const pros = new MemberOperationsPage(authedPage)
 
-    // Pin a known starting whatsapp (helper seeds a per-run unique number).
+    // Pin a known starting mobile (helper seeds a per-run unique number).
     const initialWa = uniqueWhatsapp()
-    await patchUser(uid, { whatsapp: initialWa }, new Date().toISOString())
+    await patchUser(uid, { mobile: initialWa }, new Date().toISOString())
 
     await pros.gotoById(proId)
     await expect(pros.identityWhatsapp()).toHaveText(formatBrazilPhone(initialWa))
 
-    // Mutate ONLY the global User row (`users.whatsapp`) — no touch to the
+    // Mutate ONLY the global User row (`users.mobile`) — no touch to the
     // memberOperation projection nor `member_operations_pii`. The single-column patch
-    // mirrors the old Firestore `updateMask.fieldPaths=whatsapp`.
+    // mirrors the old Firestore `updateMask.fieldPaths=mobile`.
     const nextWa = uniqueWhatsapp()
-    await patchUser(uid, { whatsapp: nextWa }, new Date().toISOString())
+    await patchUser(uid, { mobile: nextWa }, new Date().toISOString())
 
-    // Re-read the edit view: the new whatsapp surfaces live.
+    // Re-read the edit view: the new mobile surfaces live.
     await pros.gotoById(proId)
     await expect(pros.identityWhatsapp()).toHaveText(formatBrazilPhone(nextWa))
   })

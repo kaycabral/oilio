@@ -252,7 +252,7 @@ describe('Unit / StoredUnit schema (v2 — required address/timezone/agenda)', (
     orgId: 't1',
     name: 'Centro',
     slug: 'centro',
-    whatsapp: '5511999998888',
+    mobile: '5511999998888',
     email: null,
     address: {
       postalCode: '01310-100',
@@ -348,11 +348,11 @@ describe('Unit / StoredUnit schema (v2 — required address/timezone/agenda)', (
   })
 
   it('StoredUnit omits the PII channels; UnitPii carries them', () => {
-    const { whatsapp, email, ...stored } = VALID_UNIT
+    const { mobile, email, ...stored } = VALID_UNIT
     const decodedStored = Schema.decodeUnknownSync(StoredUnit)(stored)
-    expect('whatsapp' in decodedStored).toBe(false)
-    const decodedPii = Schema.decodeUnknownSync(UnitPii)({ whatsapp, email })
-    expect(decodedPii.whatsapp).toBe('5511999998888')
+    expect('mobile' in decodedStored).toBe(false)
+    const decodedPii = Schema.decodeUnknownSync(UnitPii)({ mobile, email })
+    expect(decodedPii.mobile).toBe('5511999998888')
   })
 
   it('a new Unit is born informal (fiscal default)', () => {
@@ -381,8 +381,8 @@ describe('Unit / StoredUnit schema (v2 — required address/timezone/agenda)', (
         formalizedAt: '2026-06-18T00:00:00.000Z',
       },
     }
-    const { whatsapp, email, ...stored } = company
-    void whatsapp
+    const { mobile, email, ...stored } = company
+    void mobile
     void email
     const decoded = Schema.decodeUnknownSync(StoredUnit)(stored)
     expect(decoded.fiscal.kind).toBe('company')

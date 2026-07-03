@@ -1,4 +1,4 @@
-// Server-side reads that hydrate Unit docs with PII (whatsapp/email) from the
+// Server-side reads that hydrate Unit docs with PII (mobile/email) from the
 // per-org `units_pii/{id}` collection so callers consume a single `Unit`
 // shape. Mirrors `customer-read.ts`/`memberOperation-read.ts` (the reference LGPD
 // pattern): the immutable event payload + projection carry NO PII; PII lives
@@ -31,7 +31,7 @@ export type { StoredUnit, UnitPii } from '@/domain'
 function mergeWithPii(u: StoredUnit, pii: UnitPii | undefined): Unit {
   return {
     ...u,
-    whatsapp: pii?.whatsapp ?? '',
+    mobile: pii?.mobile ?? '',
     email: pii?.email ?? null,
   }
 }
@@ -64,7 +64,7 @@ export async function listUnitsForOrg(orgId: string): Promise<Unit[]> {
 
 // All units of an org as the non-PII `StoredUnit` (no `units_pii` merge),
 // ordered by name, INCLUDING archived units. For PUBLIC surfaces (self-book
-// availability) that must NOT leak the unit's contact PII (whatsapp/email) and
+// availability) that must NOT leak the unit's contact PII (mobile/email) and
 // resolve the bookable unit themselves via `isUnitBookable`. The PII-enriched
 // `Unit` is for operator surfaces — use `listUnitsForOrg` there.
 export async function listStoredUnitsForOrg(orgId: string): Promise<StoredUnit[]> {

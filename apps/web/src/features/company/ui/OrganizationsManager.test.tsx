@@ -63,7 +63,7 @@ function buildUnit(overrides: Partial<Unit> = {}): WithCanDelete<Unit> {
     orgId: 't1',
     name: 'Unidade Centro',
     slug: 'centro',
-    whatsapp: '5511999999999',
+    mobile: '5511999999999',
     email: null,
     address: {
       postalCode: '01000-000',

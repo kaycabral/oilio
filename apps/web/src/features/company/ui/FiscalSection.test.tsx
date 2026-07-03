@@ -34,7 +34,7 @@ function companyUnit(fiscal: UnitFiscal = COMPANY_FISCAL): Unit {
     orgId: 't1',
     name: 'Centro',
     slug: 'centro',
-    whatsapp: '5511999990000',
+    mobile: '5511999990000',
     email: null,
     address: {
       postalCode: '01310-100',

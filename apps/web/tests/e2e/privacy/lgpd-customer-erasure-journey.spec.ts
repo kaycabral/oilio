@@ -58,7 +58,7 @@ async function anonymizeUser(userId: string): Promise<void> {
     await client.query(
       `UPDATE users
          SET display_name = NULL,
-             whatsapp = NULL,
+             mobile = NULL,
              email = NULL,
              birth_date = NULL,
              avatar_url = NULL,
@@ -137,7 +137,7 @@ test.describe(
       expect(after).not.toBeNull()
       expect(after?.display_name).toBeNull()
       expect(after?.email).toBeNull()
-      expect(after?.whatsapp).toBeNull()
+      expect(after?.mobile).toBeNull()
       // `anonymized_at` is `timestamptz` (brief 0068 D1): the pg driver returns
       // a `Date` on this raw read, which `asStr` would drop. Normalize to ISO
       // first so the `isAnonymized` resolver sees the stamped instant.

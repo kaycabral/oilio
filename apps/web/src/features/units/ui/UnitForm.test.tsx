@@ -19,7 +19,7 @@ function buildUnit(overrides: Partial<Unit> = {}): Unit {
     orgId: 't1',
     name: 'Matriz',
     slug: 'matriz',
-    whatsapp: '5511900000000',
+    mobile: '5511900000000',
     email: null,
     address: EMPTY_ADDRESS,
     timezone: 'America/Sao_Paulo',
@@ -37,7 +37,7 @@ describe('UnitForm — WhatsApp + email (#825)', () => {
     render(<UnitForm />)
     const wa = screen.getByLabelText(/whatsapp/i)
     const email = screen.getByLabelText(/email/i)
-    expect(wa).toHaveAttribute('name', 'whatsapp')
+    expect(wa).toHaveAttribute('name', 'mobile')
     expect(wa).toBeRequired()
     expect(email).toHaveAttribute('name', 'email')
     expect(email).toHaveAttribute('type', 'email')
@@ -45,7 +45,7 @@ describe('UnitForm — WhatsApp + email (#825)', () => {
   })
 
   it('pre-fills whatsapp (masked) and email when editing', () => {
-    render(<UnitForm unit={buildUnit({ whatsapp: '5511988887777', email: 'contato@x.com' })} />)
+    render(<UnitForm unit={buildUnit({ mobile: '5511988887777', email: 'contato@x.com' })} />)
     // The phone field masks the stored number for display.
     expect(screen.getByLabelText(/whatsapp/i)).toHaveValue('(11) 98888-7777')
     expect(screen.getByLabelText(/email/i)).toHaveValue('contato@x.com')

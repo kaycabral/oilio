@@ -1,6 +1,6 @@
 // #1226 AC-02 (DoD § Replay) — `operationalStatus` is NO LONGER materialized on
 // the memberOperation projection: it is DERIVED on read from real facts
-// (whatsapp ∧ ≥1 unit ∧ ≥1 service). The `member_operation.activated` /
+// (mobile ∧ ≥1 unit ∧ ≥1 service). The `member_operation.activated` /
 // `member_operation.suspended` events are no longer emitted, but HISTORICAL streams
 // that emitted them must still REPLAY without breaking — the reducer treats them
 // as no-ops. This test proves the replay-safety contract:
@@ -11,7 +11,7 @@
 //     `operationalStatus` decodes (excess property ignored).
 //
 // Also exercises the pure derivation rule (the read-layer gate) so the
-// "operational when accepted ∧ whatsapp ∧ ≥1 unit ∧ ≥1 service" rule stays pinned.
+// "operational when accepted ∧ mobile ∧ ≥1 unit ∧ ≥1 service" rule stays pinned.
 
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
@@ -110,7 +110,7 @@ describe('deriveOperationalStatus — regra V0 (read-layer gate, #1226 AC-02)', 
     expect(
       deriveOperationalStatus({
         inviteAccepted: false,
-        whatsapp: '5511999999999',
+        mobile: '5511999999999',
         unitIds: ['u1'],
         catalogServiceIds: ['s1'],
       }),
@@ -121,7 +121,7 @@ describe('deriveOperationalStatus — regra V0 (read-layer gate, #1226 AC-02)', 
     expect(
       deriveOperationalStatus({
         inviteAccepted: true,
-        whatsapp: null,
+        mobile: null,
         unitIds: ['u1'],
         catalogServiceIds: ['s1'],
       }),
@@ -129,7 +129,7 @@ describe('deriveOperationalStatus — regra V0 (read-layer gate, #1226 AC-02)', 
     expect(
       deriveOperationalStatus({
         inviteAccepted: true,
-        whatsapp: '5511999999999',
+        mobile: '5511999999999',
         unitIds: [],
         catalogServiceIds: ['s1'],
       }),
@@ -137,7 +137,7 @@ describe('deriveOperationalStatus — regra V0 (read-layer gate, #1226 AC-02)', 
     expect(
       deriveOperationalStatus({
         inviteAccepted: true,
-        whatsapp: '5511999999999',
+        mobile: '5511999999999',
         unitIds: ['u1'],
         catalogServiceIds: [],
       }),
@@ -145,18 +145,18 @@ describe('deriveOperationalStatus — regra V0 (read-layer gate, #1226 AC-02)', 
     expect(
       deriveOperationalStatus({
         inviteAccepted: true,
-        whatsapp: '   ',
+        mobile: '   ',
         unitIds: ['u1'],
         catalogServiceIds: ['s1'],
       }),
     ).toBe('incomplete')
   })
 
-  it('operational quando aceito ∧ whatsapp ∧ ≥1 unidade ∧ ≥1 serviço', () => {
+  it('operational quando aceito ∧ mobile ∧ ≥1 unidade ∧ ≥1 serviço', () => {
     expect(
       deriveOperationalStatus({
         inviteAccepted: true,
-        whatsapp: '5511999999999',
+        mobile: '5511999999999',
         unitIds: ['u1'],
         catalogServiceIds: ['s1'],
       }),

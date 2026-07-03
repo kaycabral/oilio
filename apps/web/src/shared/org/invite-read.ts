@@ -1,7 +1,7 @@
-// Server-side reads that hydrate Invite docs with the invitee WhatsApp from the
+// Server-side reads that hydrate Invite docs with the invitee mobile from the
 // per-org `invites_pii/{id}` collection. Mirrors `customer-read.ts` (the
 // reference LGPD pattern): the immutable event payload + projection carry NO
-// PII; the WhatsApp lives in a separate mutable/deletable doc and is merged at
+// PII; the mobile lives in a separate mutable/deletable doc and is merged at
 // read time. See #1036 + ADR 0010 (PII fora de evento — direito à
 // eliminação / LGPD). Channel normalized to WhatsApp in brief 0084.
 
@@ -17,7 +17,7 @@ import { Schema } from 'effect'
 
 // What we actually persist under `orgs/{t}/invites/{id}` (the event
 // projection) + the deletable PII doc at `invites_pii/{id}` (`InvitePii`,
-// holding `whatsapp`). Both re-exported from `@/domain` (read-model
+// holding `mobile`). Both re-exported from `@/domain` (read-model
 // source-of-truth) so existing importers (`team.actions`, `offboard-member`)
 // keep resolving them from here.
 export type { InvitePii, StoredInvite } from '@/domain'
@@ -25,10 +25,10 @@ export type { InvitePii, StoredInvite } from '@/domain'
 const decodeStoredInvite = Schema.decodeUnknownSync(StoredInvite)
 
 function mergeWithPii(i: StoredInvite, pii: InvitePii | undefined): Invite {
-  return { ...i, whatsapp: pii?.whatsapp ?? '' }
+  return { ...i, mobile: pii?.mobile ?? '' }
 }
 
-// Hydrate the deletable invite WhatsApp sidecar by invite id — the typed
+// Hydrate the deletable invite mobile sidecar by invite id — the typed
 // `invites_pii` table under org RLS (cutover, brief 0062). Empty ids filtered.
 async function fetchPiiByIds(
   orgId: string,
@@ -100,10 +100,10 @@ export async function writeInvitePii(
   inviteId: string,
   pii: InvitePii,
 ): Promise<void> {
-  await upsertInvitePii({ orgId, id: inviteId, whatsapp: pii.whatsapp })
+  await upsertInvitePii({ orgId, id: inviteId, mobile: pii.mobile })
 }
 
-// Delete the PII sidecar (LGPD erasure) — the invitee WhatsApp is the only PII it
+// Delete the PII sidecar (LGPD erasure) — the invitee mobile is the only PII it
 // holds and it is deletable / not replayed. Used by the account anonymization
 // flow (brief 0032 / #1093) to scrub the subject's invite contacts.
 export async function deleteInvitePii(orgId: string, inviteId: string): Promise<void> {

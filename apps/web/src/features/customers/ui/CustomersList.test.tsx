@@ -77,7 +77,7 @@ function makeCustomer(over: Partial<Customer>): Customer {
     orgId: 't1',
     userId: 'u1',
     name: 'Maria Silva',
-    whatsapp: '+5511900000000',
+    mobile: '+5511900000000',
     birthDate: null,
     avatarUrl: null,
     archivedAt: null,
@@ -93,10 +93,10 @@ const customers: Customer[] = [
   makeCustomer({
     id: 'c1',
     name: 'Maria Silva',
-    whatsapp: '+5511900000000',
+    mobile: '+5511900000000',
     birthDate: '1990-05-16',
   }),
-  makeCustomer({ id: 'c2', name: 'João Souza', whatsapp: '+5511988888888' }),
+  makeCustomer({ id: 'c2', name: 'João Souza', mobile: '+5511988888888' }),
 ]
 
 describe('CustomersList', () => {

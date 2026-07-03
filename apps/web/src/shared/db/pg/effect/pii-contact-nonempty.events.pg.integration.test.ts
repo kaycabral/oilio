@@ -4,8 +4,8 @@ import { closeEventStoreDb, getEventStorePool } from '../pool'
 
 /**
  * Proof that the DB rejects an empty required contact PII (#1283, brief 0078
- * Group B). `units_pii.whatsapp` and `invites_pii.whatsapp` are NOT NULL but a bare
- * `''` satisfied NOT NULL before the `*_nonempty` CHECK; and a `''` whatsapp on a
+ * Group B). `units_pii.mobile` and `invites_pii.mobile` are NOT NULL but a bare
+ * `''` satisfied NOT NULL before the `*_nonempty` CHECK; and a `''` mobile on a
  * `completion_completed` user satisfied the old `IS NOT NULL` branch of
  * `users_completed_profile_complete`. These run against the ephemeral Postgres
  * over the superuser pool (the CHECK is enforced regardless of RLS role).
@@ -44,46 +44,46 @@ afterAll(async () => {
 })
 
 describe('PII contact non-empty constraints (#1283 Group B)', () => {
-  it('rejects an empty units_pii.whatsapp (AC-03)', async () => {
+  it('rejects an empty units_pii.mobile (AC-03)', async () => {
     await expect(
       getEventStorePool().query(
-        `INSERT INTO units_pii (org_id, id, whatsapp, email) VALUES ($1,'unit-1','',NULL)`,
+        `INSERT INTO units_pii (org_id, id, mobile, email) VALUES ($1,'unit-1','',NULL)`,
         [ORG],
       ),
-    ).rejects.toThrow(/units_pii_whatsapp_nonempty/)
+    ).rejects.toThrow(/units_pii_mobile_nonempty/)
   })
 
-  it('accepts a real units_pii.whatsapp', async () => {
+  it('accepts a real units_pii.mobile', async () => {
     await expect(
       getEventStorePool().query(
-        `INSERT INTO units_pii (org_id, id, whatsapp, email) VALUES ($1,'unit-2','+5511999990000',NULL)`,
+        `INSERT INTO units_pii (org_id, id, mobile, email) VALUES ($1,'unit-2','+5511999990000',NULL)`,
         [ORG],
       ),
     ).resolves.toBeDefined()
   })
 
-  it('rejects an empty invites_pii.whatsapp (AC-03)', async () => {
+  it('rejects an empty invites_pii.mobile (AC-03)', async () => {
     await expect(
       getEventStorePool().query(
-        `INSERT INTO invites_pii (org_id, id, whatsapp) VALUES ($1,'inv-1','')`,
+        `INSERT INTO invites_pii (org_id, id, mobile) VALUES ($1,'inv-1','')`,
         [ORG],
       ),
-    ).rejects.toThrow(/invites_pii_whatsapp_nonempty/)
+    ).rejects.toThrow(/invites_pii_mobile_nonempty/)
   })
 
-  it('rejects a completed user with an empty whatsapp (AC-04)', async () => {
+  it('rejects a completed user with an empty mobile (AC-04)', async () => {
     await expect(
       getEventStorePool().query(
-        `INSERT INTO users (uid, email_verified, completion_completed, whatsapp, birth_date, created_at, updated_at)
+        `INSERT INTO users (uid, email_verified, completion_completed, mobile, birth_date, created_at, updated_at)
          VALUES ('u-nonempty-1', true, true, '', '1990-01-01', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
       ),
     ).rejects.toThrow(/users_completed_profile_complete/)
   })
 
-  it('accepts a completed user with a real whatsapp', async () => {
+  it('accepts a completed user with a real mobile', async () => {
     await expect(
       getEventStorePool().query(
-        `INSERT INTO users (uid, email_verified, completion_completed, whatsapp, birth_date, created_at, updated_at)
+        `INSERT INTO users (uid, email_verified, completion_completed, mobile, birth_date, created_at, updated_at)
          VALUES ('u-nonempty-2', true, true, '+5511988887777', '1990-01-01', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
       ),
     ).resolves.toBeDefined()

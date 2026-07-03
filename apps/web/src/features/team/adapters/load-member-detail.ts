@@ -113,7 +113,7 @@ export async function loadMemberDetailPage(userId: string): Promise<MemberDetail
     resolveSubjectName(userId, user ?? undefined, ROLE_SUBJECT_NOUN[member.role]) ||
     '(membro sem dados)'
   const memberEmail = user?.email ?? ''
-  const memberWhatsapp = user?.whatsapp ?? ''
+  const memberWhatsapp = user?.mobile ?? ''
 
   const isMemberOperator = member.role === 'member_operator'
   // The owner is never editable (immutable identity, refino), and a manager

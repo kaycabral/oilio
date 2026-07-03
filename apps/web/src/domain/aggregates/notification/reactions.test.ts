@@ -95,7 +95,7 @@ describe('Notification reactions', () => {
       timestamp: '2026-06-01T10:00:00Z',
       actorId: 'c1',
       schemaVersion: 1,
-      payload: { orgId: 't1', name: 'João', whatsapp: '5511999999999' },
+      payload: { orgId: 't1', name: 'João', mobile: '5511999999999' },
     }
 
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))
@@ -113,7 +113,7 @@ describe('Notification reactions', () => {
     expect(u1['subscriptionId']).toBeNull()
     expect(u1['validUntil']).toBeNull()
     expect(u1['eventKey']).toBe('new_customer-c1-unit-u1')
-    expect(u1['payload']).toEqual({ customerName: 'João', customerWhatsapp: '5511999999999' })
+    expect(u1['payload']).toEqual({ customerName: 'João', customerMobile: '5511999999999' })
   })
 
   it('customer.created is idempotent — does not duplicate', async () => {
@@ -129,7 +129,7 @@ describe('Notification reactions', () => {
       timestamp: '2026-06-01T10:00:00Z',
       actorId: 'c1',
       schemaVersion: 1,
-      payload: { orgId: 't1', name: 'João', whatsapp: '5511999999999' },
+      payload: { orgId: 't1', name: 'João', mobile: '5511999999999' },
     }
 
     await Effect.runPromise(reactor(envelope).pipe(Effect.provide(layer)))

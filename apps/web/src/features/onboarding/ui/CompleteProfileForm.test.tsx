@@ -11,9 +11,9 @@ function prefill(over: Partial<ProfilePrefill> = {}): ProfilePrefill {
   return {
     name: '',
     email: '',
-    whatsapp: '',
+    mobile: '',
     birthDate: '',
-    missing: ['name', 'whatsapp', 'birthDate'],
+    missing: ['name', 'mobile', 'birthDate'],
     ...over,
   }
 }
@@ -22,7 +22,7 @@ describe('CompleteProfileForm — progressive profiling (brief 0077 #1277)', () 
   it('confirms the name the identity gave us instead of re-asking it', () => {
     render(
       <CompleteProfileForm
-        prefill={prefill({ name: 'Maria Silva', missing: ['whatsapp', 'birthDate'] })}
+        prefill={prefill({ name: 'Maria Silva', missing: ['mobile', 'birthDate'] })}
         next="/dashboard"
       />,
     )
@@ -33,7 +33,7 @@ describe('CompleteProfileForm — progressive profiling (brief 0077 #1277)', () 
   it('asks for the name only when the identity gave us none', () => {
     render(
       <CompleteProfileForm
-        prefill={prefill({ name: '', missing: ['name', 'whatsapp', 'birthDate'] })}
+        prefill={prefill({ name: '', missing: ['name', 'mobile', 'birthDate'] })}
         next="/dashboard"
       />,
     )
@@ -45,7 +45,7 @@ describe('CompleteProfileForm — progressive profiling (brief 0077 #1277)', () 
   it('marks every required field with the asterisk — name confirmed, no extra input', () => {
     render(
       <CompleteProfileForm
-        prefill={prefill({ name: 'Maria Silva', missing: ['whatsapp', 'birthDate'] })}
+        prefill={prefill({ name: 'Maria Silva', missing: ['mobile', 'birthDate'] })}
         next="/dashboard"
       />,
     )
@@ -56,7 +56,7 @@ describe('CompleteProfileForm — progressive profiling (brief 0077 #1277)', () 
   it('marks the name field required too when it has to be asked', () => {
     render(
       <CompleteProfileForm
-        prefill={prefill({ name: '', missing: ['name', 'whatsapp', 'birthDate'] })}
+        prefill={prefill({ name: '', missing: ['name', 'mobile', 'birthDate'] })}
         next="/dashboard"
       />,
     )

@@ -36,7 +36,7 @@ export async function dispatchNotificationWhatsapp(
 
   const customer = await getCustomerById(orgId, customerId)
   if (!customer) return { ok: false, error: 'Cliente não encontrado' }
-  if (!customer.whatsapp) return { ok: false, error: 'Cliente sem WhatsApp cadastrado' }
+  if (!customer.mobile) return { ok: false, error: 'Cliente sem WhatsApp cadastrado' }
 
   const body = await resolveTemplateBody(orgId, dispatchableType)
 
@@ -59,7 +59,7 @@ export async function dispatchNotificationWhatsapp(
   }
 
   const rendered = renderNotificationTemplate(body, vars)
-  const link = buildWhatsappLink(customer.whatsapp, rendered)
+  const link = buildWhatsappLink(customer.mobile, rendered)
   if (!link) return { ok: false, error: 'WhatsApp do cliente é inválido' }
 
   // Snapshot: body NÃO-renderizado (chave de variante) + canal.

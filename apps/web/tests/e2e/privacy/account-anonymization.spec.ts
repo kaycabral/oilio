@@ -40,7 +40,7 @@ import {
 
 // Reads the global `users` row (snake_case columns) — null when absent. Replaces
 // the Firestore `users/{uid}` typed-value read; the columns the assertions touch
-// are `display_name`, `whatsapp`, `email`, `birth_date`, `anonymized_at`.
+// are `display_name`, `mobile`, `email`, `birth_date`, `anonymized_at`.
 async function readUserRow(uid: string): Promise<Record<string, unknown> | null> {
   const rows = await pgQueryProjection('users', 'uid', uid)
   return rows[0] ?? null
@@ -167,7 +167,7 @@ test.describe('account-level PII anonymization', () => {
     await seedMemberOperationPiiFor(subject.orgId, subject.uid, subject.unitIds)
     const { inviteId } = await seedInvite({
       orgId: subject.orgId,
-      whatsapp: '5511990003456',
+      mobile: '5511990003456',
       role: 'member_operator',
       invitedBy: subject.uid,
       status: 'accepted',
@@ -201,7 +201,7 @@ test.describe('account-level PII anonymization', () => {
     const after = await readUserRow(subject.uid)
     expect(after).not.toBeNull()
     expect(after?.display_name).toBeNull()
-    expect(after?.whatsapp).toBeNull()
+    expect(after?.mobile).toBeNull()
     expect(after?.email).toBeNull()
     expect(after?.birth_date).toBeNull()
     expect(timestamptzToIso(after?.anonymized_at)).toBeTruthy()

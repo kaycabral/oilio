@@ -32,7 +32,7 @@ function emptyEnrichment(c: StoredCustomer): Customer {
   return {
     ...c,
     name: '(usuário não encontrado)',
-    whatsapp: '',
+    mobile: '',
     birthDate: null,
     avatarUrl: null,
     archivedAt: c.archivedAt ?? null,
@@ -53,7 +53,7 @@ function mergeWithUser(c: StoredCustomer, u: User | undefined): Customer {
   return {
     ...c,
     name,
-    whatsapp: blockedInOrg ? '' : (u.whatsapp ?? ''),
+    mobile: blockedInOrg ? '' : (u.mobile ?? ''),
     birthDate: blockedInOrg ? null : u.birthDate,
     // Avatar neutralized (AC-13) when blocked — the photo is a re-identification
     // vector. The global User keeps its avatar; only this org blanks it.

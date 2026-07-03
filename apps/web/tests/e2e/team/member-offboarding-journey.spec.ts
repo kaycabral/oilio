@@ -141,7 +141,7 @@ async function anonymizeUser(uid: string): Promise<void> {
     uid,
     {
       display_name: scrub.displayName,
-      whatsapp: scrub.whatsapp,
+      mobile: scrub.mobile,
       email: scrub.email,
       birth_date: scrub.birthDate,
       tax_identity: scrub.taxIdentity,
@@ -265,10 +265,10 @@ test.describe('Offboarding de membro — jornada Feature-level (#1102)', { tag: 
     // The operational-pro fixture seeded a WhatsApp on the member's User; read
     // it back so the invite carries the same number the offboard matches on.
     const proUser = await readUser(proUserId)
-    expect(proUser?.whatsapp, 'operational pro must have a seeded WhatsApp').toBeTruthy()
+    expect(proUser?.mobile, 'operational pro must have a seeded WhatsApp').toBeTruthy()
     const { inviteId } = await seedInvite({
       orgId: org.orgId,
-      whatsapp: proUser!.whatsapp!,
+      mobile: proUser!.mobile!,
       role: 'member_operator',
       invitedBy: org.uid,
       status: 'pending',

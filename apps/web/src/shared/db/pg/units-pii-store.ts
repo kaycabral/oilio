@@ -8,7 +8,7 @@ const decodeTaxIdentity = Schema.decodeUnknownSync(Schema.NullOr(TaxIdentitySche
 
 /**
  * CRUD helpers for the deletable unit PII sidecars `units_pii` (contact PII:
- * whatsapp/email) and `unit_tax_identity` (fiscal PII: the name-bearing
+ * mobile/email) and `unit_tax_identity` (fiscal PII: the name-bearing
  * legalName/tradeName of a formalized unit) — migration feature F (cutover,
  * brief 0062). Both are org-scoped (org RLS), so reads go through
  * `readUnderRls(orgId, …)` and writes set `app.current_org` inside their
@@ -25,30 +25,30 @@ export async function getUnitsPiiByIds(
 ): Promise<Map<string, UnitPii>> {
   const unique = [...new Set(ids.filter((id) => Boolean(id)))]
   if (unique.length === 0) return new Map()
-  const rows = await readUnderRls<{ id: string; whatsapp: string; email: string | null }>(
+  const rows = await readUnderRls<{ id: string; mobile: string; email: string | null }>(
     orgId,
     (client) =>
       client
         .query<{
           id: string
-          whatsapp: string
+          mobile: string
           email: string | null
-        }>('SELECT id, whatsapp, email FROM units_pii WHERE org_id = $1 AND id = ANY($2)', [
+        }>('SELECT id, mobile, email FROM units_pii WHERE org_id = $1 AND id = ANY($2)', [
           orgId,
           unique,
         ])
         .then((res) => res.rows),
   )
-  return new Map(rows.map((r) => [r.id, { whatsapp: r.whatsapp, email: r.email }] as const))
+  return new Map(rows.map((r) => [r.id, { mobile: r.mobile, email: r.email }] as const))
 }
 
 export async function upsertUnitsPii(orgId: string, unitId: string, pii: UnitPii): Promise<void> {
   await writeUnderOrg(orgId, (client) =>
     client.query(
-      `INSERT INTO units_pii (org_id, id, whatsapp, email)
+      `INSERT INTO units_pii (org_id, id, mobile, email)
        VALUES ($1, $2, $3, $4)
-       ON CONFLICT (org_id, id) DO UPDATE SET whatsapp = EXCLUDED.whatsapp, email = EXCLUDED.email`,
-      [orgId, unitId, pii.whatsapp, pii.email],
+       ON CONFLICT (org_id, id) DO UPDATE SET mobile = EXCLUDED.mobile, email = EXCLUDED.email`,
+      [orgId, unitId, pii.mobile, pii.email],
     ),
   )
 }

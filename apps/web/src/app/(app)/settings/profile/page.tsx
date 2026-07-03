@@ -30,7 +30,7 @@ export default async function ProfileSettingsPage() {
       <section className="rounded-lg border p-6">
         <EditProfileForm
           defaultName={ctx.user.displayName ?? ''}
-          defaultWhatsapp={ctx.user.whatsapp ?? ''}
+          defaultMobile={ctx.user.mobile ?? ''}
           defaultBirthDate={ctx.user.birthDate ?? ''}
         />
       </section>

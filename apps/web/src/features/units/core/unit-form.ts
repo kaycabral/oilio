@@ -104,7 +104,7 @@ export function parseAppointmentConfig(formData: FormData): AppointmentConfigInp
 export type ParsedUnit = {
   name: string
   slug: string
-  whatsapp: string
+  mobile: string
   email: string | null
   address: Address
   // REQUIRED (PRD Identidade v2 § Contrato de tipagem): the establishment's
@@ -209,10 +209,10 @@ export function parseUnitForm(formData: FormData): ParsedUnit | string {
     return 'Slug inválido. Use letras minúsculas, números e hífens (3–64 caracteres). Alguns nomes são reservados.'
   }
 
-  const whatsappRaw = formString(formData, 'whatsapp').trim()
-  if (whatsappRaw.length === 0) return 'WhatsApp é obrigatório'
-  const whatsapp = normalizeBrazilPhone(whatsappRaw)
-  if (!whatsapp) return 'WhatsApp inválido'
+  const mobileRaw = formString(formData, 'mobile').trim()
+  if (mobileRaw.length === 0) return 'WhatsApp é obrigatório'
+  const mobile = normalizeBrazilPhone(mobileRaw)
+  if (!mobile) return 'WhatsApp inválido'
 
   const email = formString(formData, 'email').trim() || null
 
@@ -225,5 +225,5 @@ export function parseUnitForm(formData: FormData): ParsedUnit | string {
   // Identidade v2). An empty hours config is rejected at the boundary so
   // `businessHours` is never null on the constructed unit.
   if (businessHours === null) return 'Informe ao menos um dia de funcionamento'
-  return { name, slug: slugRaw, whatsapp, email, address, businessHours, hoursMode }
+  return { name, slug: slugRaw, mobile, email, address, businessHours, hoursMode }
 }

@@ -10,10 +10,10 @@ import { seedCustomer, uniqueWhatsapp } from '../helpers/session'
 
 test.describe('Listagem de clientes (@cbrl/design List)', () => {
   test('renders rows and exposes Ver/Excluir in the ⋯ menu', async ({ org, authedPage }) => {
-    await seedCustomer(org.orgId, { name: 'Maria Silva', whatsapp: uniqueWhatsapp() })
+    await seedCustomer(org.orgId, { name: 'Maria Silva', mobile: uniqueWhatsapp() })
     await seedCustomer(org.orgId, {
       name: 'João Souza',
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
       avatarUrl: 'https://example.com/joao.png',
     })
 

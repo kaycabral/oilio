@@ -127,7 +127,7 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
     })
     const customerId = await seedCustomer(org.orgId, {
       name: `Cliente DoD ${ts}`,
-      whatsapp: `1199${ts.slice(-7)}`,
+      mobile: `1199${ts.slice(-7)}`,
     })
     // Snapshot congelado: serviço coberto por item, produto por categoria.
     const subId = await seedSubscription(org.orgId, customerId, {

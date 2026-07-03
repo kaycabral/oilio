@@ -16,7 +16,7 @@ function unit(over: Partial<Unit> = {}): Unit {
     orgId: 't1',
     name: 'Centro',
     slug: 'centro',
-    whatsapp: '5511999990000',
+    mobile: '5511999990000',
     email: null,
     address: EMPTY_ADDRESS,
     timezone: 'America/Sao_Paulo',

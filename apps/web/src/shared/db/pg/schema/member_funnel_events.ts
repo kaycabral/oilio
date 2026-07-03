@@ -10,7 +10,7 @@ import { bigint, check, index, pgTable, text, timestamp } from 'drizzle-orm/pg-c
  *
  * PII-ZERO by construction (the parede PII↔analytics): every column is an opaque
  * id (org/actor/member) or the role enum — NEVER a name, phone or email. The
- * invitee's WhatsApp lives only on the apagável `invites_pii` sidecar; the funnel
+ * invitee's mobile lives only on the apagável `invites_pii` sidecar; the funnel
  * reasons over references. This is the transport described by brief 0026's
  * vendor-neutral `track()`: an append-only table now, one adapter behind `track()`
  * when that layer ships — call-sites depend only on `emitMemberFunnelEvent`.

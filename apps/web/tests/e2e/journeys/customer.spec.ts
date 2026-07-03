@@ -62,7 +62,7 @@ async function createCustomerUser() {
       displayName: 'Joana Golden',
       emailVerified: true,
       currentOrgId: null,
-      whatsapp: `5511${Math.floor(900000000 + Math.random() * 99999999)}`,
+      mobile: `5511${Math.floor(900000000 + Math.random() * 99999999)}`,
       birthDate: '1990-01-01',
       completionCompleted: true,
       claimedAt: now,

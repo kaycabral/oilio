@@ -8,7 +8,7 @@ import { formString } from '@/shared/form-data'
 
 export type ParsedNewCustomer = {
   name: string
-  whatsapp: string
+  mobile: string
 }
 
 export type ParsedAppointment = {
@@ -43,9 +43,9 @@ export function parseAppointmentForm(formData: FormData): ParsedAppointment | st
   if (customerMode === 'new') {
     const name = formString(formData, 'newCustomerName').trim()
     if (name.length < 2) return 'Nome do cliente é obrigatório'
-    const whatsapp = formString(formData, 'newCustomerWhatsapp').trim()
-    if (whatsapp.length === 0) return 'WhatsApp do cliente é obrigatório'
-    newCustomer = { name, whatsapp }
+    const mobile = formString(formData, 'newCustomerMobile').trim()
+    if (mobile.length === 0) return 'WhatsApp do cliente é obrigatório'
+    newCustomer = { name, mobile }
   } else {
     customerId = formString(formData, 'customerId').trim()
     if (!customerId) return 'Cliente é obrigatório'

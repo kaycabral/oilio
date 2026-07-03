@@ -1,7 +1,7 @@
 import type { StoredMemberOperation } from '@/domain/types/member-operation'
 
 // Projeção event-sourced = o doc operacional `StoredMemberOperation` (sem PII —
-// name/whatsapp/email lidos de `users/{userId}`, taxIdentity de
+// name/mobile/email lidos de `users/{userId}`, taxIdentity de
 // `member_operations_pii`, materializados na leitura) + a versão do stream.
 
 export type MemberOperationState = StoredMemberOperation & { readonly _version: number }

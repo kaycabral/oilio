@@ -45,7 +45,7 @@ const rejects = (schema: Schema.Schema.AnyNoContext, value: unknown): void => {
 describe('domain builders produce schema-valid docs', () => {
   it('buildUser — incomplete default and completed branch', () => {
     decodes(User, buildUser('u1', NOW))
-    decodes(User, buildUser('u1', NOW, { completionCompleted: true, whatsapp: '5511999990000' }))
+    decodes(User, buildUser('u1', NOW, { completionCompleted: true, mobile: '5511999990000' }))
   })
 
   it('buildStoredCustomer', () => {

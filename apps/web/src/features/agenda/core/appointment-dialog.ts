@@ -32,7 +32,7 @@ export function buildAppointmentWhatsappLink(args: {
     | Pick<Appointment, 'customerId' | 'serviceId' | 'memberOperationId' | 'startAt'>
     | null
     | undefined
-  customers: Pick<Customer, 'id' | 'name' | 'whatsapp'>[]
+  customers: Pick<Customer, 'id' | 'name' | 'mobile'>[]
   services: Pick<CatalogServiceItem, 'id' | 'name'>[]
   memberOperations: Pick<MemberOperation, 'id' | 'name'>[]
   timezone: string
@@ -54,7 +54,7 @@ export function buildAppointmentWhatsappLink(args: {
     date: t.dateISO.split('-').reverse().join('/'),
     time: hhmm(t),
   })
-  return buildWhatsappLink(customer.whatsapp, message)
+  return buildWhatsappLink(customer.mobile, message)
 }
 
 // The date + start-time the form opens with: an edit reads them off the

@@ -15,7 +15,7 @@ import { hasMembershipCapability } from '@/shared/org/membership'
 // to early-return. The customer projection event is emitted by the upsert layer.
 export async function resolveCustomerIdForWrite(
   membership: Membership,
-  parsed: { customerId: string | null; newCustomer: { name: string; whatsapp: string } | null },
+  parsed: { customerId: string | null; newCustomer: { name: string; mobile: string } | null },
 ): Promise<{ ok: true; customerId: string } | { ok: false; error: string }> {
   if (parsed.newCustomer) {
     if (!hasMembershipCapability(membership, 'canManageCustomers')) {
@@ -24,7 +24,7 @@ export async function resolveCustomerIdForWrite(
     const upsert = await upsertCustomerWithUser({
       orgId: membership.orgId,
       name: parsed.newCustomer.name,
-      whatsappRaw: parsed.newCustomer.whatsapp,
+      mobileRaw: parsed.newCustomer.mobile,
       email: null,
       birthDate: null,
     })
