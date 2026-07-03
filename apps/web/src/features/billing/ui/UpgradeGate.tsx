@@ -3,7 +3,7 @@
 import { type Capability } from '@/domain/billing/capabilities'
 import { useCapability } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
-import { Button, EmptyState } from '@cbrl/design'
+import { EmptyState } from '@cbrl/design'
 import { Lock } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode } from 'react'
