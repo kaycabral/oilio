@@ -67,11 +67,6 @@ export async function emitEvent<
         // generic `validation` message instead. The typed error is still the log's.
         Effect.succeed({ ok: false as const, error: messageForCategory('validation') }),
       ),
-      // A pg refusal (FK/CHECK/RLS/23505) surfaces as a DEFECT, not a typed
-      // failure, so `catchTag` misses it — without this it escapes as an unhandled
-      // 500. Map it to the same graceful `{ok:false}` + generic message the sagas
-      // use, keeping single-aggregate writes behind the same disclosure wall.
-      Effect.catchAllDefect(catchWriteDefect('emitEvent')),
       // The event store runs over the Postgres `PersistencePort` — the sole
       // backend after the cutover (#1202); the OILIO_PERSISTENCE flag is gone.
       // `securityLayer` supplies own-scope RLS when the actor is self-scoped (#1265);
@@ -106,9 +101,6 @@ export async function emitEventGuarded<
       Effect.catchTag('GuardRejectedError', (e) =>
         Effect.succeed({ ok: false as const, error: e.message }),
       ),
-      // A pg refusal surfaces as a DEFECT (not a typed failure) → generic message
-      // instead of an unhandled 500. Same disclosure wall as the sagas.
-      Effect.catchAllDefect(catchWriteDefect('emitEventGuarded')),
       Effect.provide(PostgresPersistenceLayer),
     ),
   )
@@ -128,7 +120,7 @@ export async function emitEventGuarded<
 // `{ok:false}` the typed rejects return, so a real conflict (invite double-accept,
 // org-slug race, version clash) yields the caller's error path instead of an
 // unhandled 500. The tx already rolled back; this only maps the outcome.
-// A DB refusal that rolls the write back is classified by the canonical error
+// A DB refusal that rolls the tx back is classified by the canonical error
 // contract (`classifyError` → category → generic message): a 23505 version clash
 // is the ONLY retriable `conflict` (two writers raced the same aggregate version);
 // FK/CHECK are deterministic `integrity`, RLS is `forbidden`, the rest `unknown`.
@@ -136,18 +128,11 @@ export async function emitEventGuarded<
 // behind a flake-shaped message (#1320) — the contract keeps the honest wording
 // per category. The raw defect is logged server-side; the client only ever sees
 // the generic message (no SQLSTATE / constraint name / stack).
-//
-// Used by every write boundary here — the cross-aggregate sagas AND the
-// single-aggregate `emitEvent`/`emitEventGuarded`: a pg refusal surfaces as a
-// DEFECT (thrown inside the layer's `Effect.promise`), so `catchTag` misses it;
-// without this it escapes as an unhandled 500. `context` labels the log line by
-// the write path so a defect is traceable to its origin.
-export function catchWriteDefect(context: string) {
-  return (defect: unknown) =>
-    Effect.sync(() => {
-      console.error(`[${context}] write defect`, defect)
-      return { ok: false as const, error: messageForCategory(classifyError(defect)) }
-    })
+function catchSagaDefect(defect: unknown) {
+  return Effect.sync(() => {
+    console.error('[commitSaga] transaction defect', defect)
+    return { ok: false as const, error: messageForCategory(classifyError(defect)) }
+  })
 }
 
 export async function commitSaga(
@@ -166,7 +151,7 @@ export async function commitSaga(
       Effect.catchTag('GuardRejectedError', (e) =>
         Effect.succeed({ ok: false as const, error: e.message }),
       ),
-      Effect.catchAllDefect(catchWriteDefect('commitSaga')),
+      Effect.catchAllDefect(catchSagaDefect),
       // Own-scope RLS for a self-scoped saga actor (#1265); empty for the balcão.
       Effect.provide(Layer.merge(PostgresPersistenceLayer, securityLayer(security))),
     ),
@@ -227,7 +212,7 @@ export async function commitGuardedThenAppend<
         // generic `validation` message instead. The typed error is still the log's.
         Effect.succeed({ ok: false as const, error: messageForCategory('validation') }),
       ),
-      Effect.catchAllDefect(catchWriteDefect('commitGuardedThenAppend')),
+      Effect.catchAllDefect(catchSagaDefect),
       Effect.provide(PostgresPersistenceLayer),
     ),
   )
