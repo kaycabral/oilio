@@ -1,9 +1,10 @@
 import { markNotificationRead } from '@/features/notifications/adapters/mark'
 import { getSessionUser } from '@/shared/firebase/admin'
+import { withRequestContext } from '@/shared/lib/request-context'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { NextResponse } from 'next/server'
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function postHandler(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSessionUser()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -16,3 +17,5 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   return NextResponse.json({ ok: true })
 }
+
+export const POST = withRequestContext(postHandler)

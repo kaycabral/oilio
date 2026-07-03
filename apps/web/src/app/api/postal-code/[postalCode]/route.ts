@@ -1,4 +1,5 @@
 import { readJson } from '@/shared/http'
+import { withRequestContext } from '@/shared/lib/request-context'
 import { Schema } from 'effect'
 import { NextResponse } from 'next/server'
 
@@ -23,7 +24,7 @@ export type PostalCodeLookup = {
 // 7d cache — endereço muda raramente. Pattern copiado de apps/tekoa.
 export const revalidate = 604800
 
-export async function GET(_req: Request, { params }: { params: Promise<{ postalCode: string }> }) {
+async function getHandler(_req: Request, { params }: { params: Promise<{ postalCode: string }> }) {
   const { postalCode: raw } = await params
   const normalized = raw.replace(/\D/g, '')
   if (!/^\d{8}$/.test(normalized)) {
@@ -50,3 +51,5 @@ export async function GET(_req: Request, { params }: { params: Promise<{ postalC
   }
   return NextResponse.json(result)
 }
+
+export const GET = withRequestContext(getHandler)

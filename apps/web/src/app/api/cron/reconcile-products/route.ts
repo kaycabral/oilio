@@ -1,5 +1,6 @@
 import { reconcilePendingProducts } from '@/features/catalog/adapters/reconcile-products'
 import { PostgresLayerLive } from '@/shared/db/effect'
+import { withRequestContext } from '@/shared/lib/request-context'
 import { Effect } from 'effect'
 import { NextResponse } from 'next/server'
 
@@ -15,7 +16,7 @@ function verifyCronSecret(request: Request): boolean {
   return header === secret
 }
 
-export async function POST(request: Request) {
+async function postHandler(request: Request) {
   if (!verifyCronSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -36,3 +37,5 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true, reconciled })
 }
+
+export const POST = withRequestContext(postHandler)

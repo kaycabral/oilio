@@ -1,6 +1,7 @@
 import { handleStripeEvent } from '@/features/billing/adapters/stripe-webhook'
 import { getStripe } from '@/shared/billing/stripe-client'
 import { getEventStorePool } from '@/shared/db/pg/pool'
+import { withRequestContext } from '@/shared/lib/request-context'
 import { requireEnv } from '@cbrl/env'
 import { NextResponse } from 'next/server'
 
@@ -28,7 +29,7 @@ async function releaseEvent(eventId: string): Promise<void> {
     .catch(() => {})
 }
 
-export async function POST(request: Request): Promise<Response> {
+async function postHandler(request: Request): Promise<Response> {
   const signature = request.headers.get('stripe-signature')
   if (!signature) {
     return NextResponse.json({ error: 'Missing stripe-signature' }, { status: 400 })
@@ -64,3 +65,6 @@ export async function POST(request: Request): Promise<Response> {
 
   return NextResponse.json({ received: true })
 }
+
+// Wrap so the whole handler runs inside a correlation-id scope (brief 0086 AC-04).
+export const POST = withRequestContext(postHandler)

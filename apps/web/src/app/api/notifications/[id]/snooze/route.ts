@@ -2,6 +2,7 @@ import { snoozeNotification } from '@/features/notifications/adapters/mark'
 import { isSnoozeOption } from '@/features/notifications/core/snooze'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { readJson } from '@/shared/http'
+import { withRequestContext } from '@/shared/lib/request-context'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { getOrgRepresentativeTimezone } from '@/shared/org/org'
 import { Schema } from 'effect'
@@ -12,7 +13,7 @@ const SnoozeBodySchema = Schema.Struct({
   option: Schema.optional(Schema.String),
 })
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function postHandler(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSessionUser()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -42,3 +43,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   return NextResponse.json({ ok: true })
 }
+
+export const POST = withRequestContext(postHandler)
