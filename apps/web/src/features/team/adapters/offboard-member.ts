@@ -1,4 +1,4 @@
-import { type Membership, membershipDocId } from '@/domain'
+import { type Membership, membershipDocId, normalizeBrazilPhone } from '@/domain'
 import {
   AgendaBlockConfig,
   AppointmentConfig,
@@ -167,11 +167,14 @@ export type ResolvedOffboard = {
   inviteIds: string[]
 }
 
-// Resolves the member's email (for invite matching) from the live User row.
-async function resolveMemberEmail(targetUserId: string): Promise<string | null> {
+// Resolves the member's WhatsApp (for pending-invite matching) from the live
+// User row. Brief 0084: the member invite channel is WhatsApp, so a pending
+// invite is matched to the offboarded member by normalized phone (the sidecar
+// stores the same normalized form the create-invite action wrote).
+async function resolveMemberWhatsapp(targetUserId: string): Promise<string | null> {
   const user = await getUserById(targetUserId)
-  const email = user?.email ?? null
-  return email ? email.trim().toLowerCase() : null
+  const raw = user?.whatsapp ?? null
+  return raw ? normalizeBrazilPhone(raw) : null
 }
 
 // Builds the offboard cascade as ACID saga steps (brief 0061 § Grupo C / AC-03):
@@ -282,10 +285,10 @@ async function offboardMemberPostgres(args: {
   const agendaBlocks = memberOperationId
     ? await listAgendaBlocksByMemberOperationId(orgId, memberOperationId)
     : []
-  const email = await resolveMemberEmail(targetUserId)
-  const pendingInvites = email
+  const whatsapp = await resolveMemberWhatsapp(targetUserId)
+  const pendingInvites = whatsapp
     ? (await listInvitesByStatus(orgId, 'pending')).filter(
-        (invite) => invite.email && invite.email.trim().toLowerCase() === email,
+        (invite) => invite.whatsapp && normalizeBrazilPhone(invite.whatsapp) === whatsapp,
       )
     : []
 

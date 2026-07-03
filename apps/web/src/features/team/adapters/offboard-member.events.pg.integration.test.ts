@@ -45,6 +45,15 @@ function uniqueId(prefix: string): string {
   return `${prefix}-${Date.now()}-${seq}`
 }
 
+// A unique, already-normalized BR mobile (`55` + DDD + 9 digits) so that
+// `normalizeBrazilPhone(x) === x` and `users_whatsapp_unique` never collides
+// across seeded rows. 9 trailing digits derived from a monotonic counter.
+function uniquePhone(): string {
+  seq += 1
+  const suffix = String(seq).padStart(8, '0').slice(-8)
+  return `5511 9${suffix}`.replace(/\s/g, '')
+}
+
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
@@ -250,13 +259,13 @@ async function seedOpenOrder(
   )
 }
 
-async function seedUser(userId: string, email: string): Promise<void> {
-  await putUser(buildUser(userId, TS, { email, displayName: 'Member' }))
+async function seedUser(userId: string, whatsapp: string): Promise<void> {
+  await putUser(buildUser(userId, TS, { whatsapp, displayName: 'Member' }))
 }
 
 async function seedInvite(
   orgId: string,
-  email: string,
+  whatsapp: string,
   status: 'pending' | 'accepted' = 'pending',
 ): Promise<string> {
   const id = uniqueId('inv')
@@ -274,7 +283,7 @@ async function seedInvite(
       TS,
     ],
   )
-  await upsertInvitePii({ orgId, id, email })
+  await upsertInvitePii({ orgId, id, whatsapp })
   return id
 }
 
@@ -549,18 +558,22 @@ describe('offboardMemberInOrg — capacity/invites (Postgres)', () => {
     if (res.ok) expect(res.warnings).toEqual([])
   })
 
-  it('AC-09: cleans the member PENDING invite (matched by email) + its PII, leaves accepted', async () => {
+  it('AC-09: cleans the member PENDING invite (matched by WhatsApp) + its PII, leaves accepted', async () => {
     const orgId = uniqueId('org')
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
-    const email = `${uniqueId('member')}@example.com`
+    // Distinct BR mobiles: the member's number vs. an unrelated invitee's. The
+    // offboard matches a pending invite to the member by normalized WhatsApp
+    // (brief 0084) — the accept-flow no longer keys on email.
+    const memberWhatsapp = uniquePhone()
+    const otherWhatsapp = uniquePhone()
     await seedOrg(orgId)
     await seedMembership(orgId, userId, 'member_operator')
     await seedMemberOperation(orgId, userId)
-    await seedUser(userId, email)
-    const pendingInvite = await seedInvite(orgId, email, 'pending')
-    const otherInvite = await seedInvite(orgId, `${uniqueId('other')}@example.com`, 'pending')
-    const acceptedInvite = await seedInvite(orgId, email, 'accepted')
+    await seedUser(userId, memberWhatsapp)
+    const pendingInvite = await seedInvite(orgId, memberWhatsapp, 'pending')
+    const otherInvite = await seedInvite(orgId, otherWhatsapp, 'pending')
+    const acceptedInvite = await seedInvite(orgId, memberWhatsapp, 'accepted')
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
     expect(res.ok).toBe(true)
@@ -568,9 +581,9 @@ describe('offboardMemberInOrg — capacity/invites (Postgres)', () => {
     // The member's pending invite + its PII are gone.
     expect(await rowExists('invites', orgId, pendingInvite)).toBe(false)
     expect(await piiExists('invites_pii', orgId, pendingInvite)).toBe(false)
-    // Another member's pending invite is untouched.
+    // Another invitee's pending invite is untouched.
     expect(await rowExists('invites', orgId, otherInvite)).toBe(true)
-    // An accepted (historical) invite for the same email is LEFT.
+    // An accepted (historical) invite for the same WhatsApp is LEFT.
     expect(await rowExists('invites', orgId, acceptedInvite)).toBe(true)
   })
 
@@ -578,12 +591,12 @@ describe('offboardMemberInOrg — capacity/invites (Postgres)', () => {
     const orgId = uniqueId('org')
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
-    const email = `${uniqueId('member')}@example.com`
+    const memberWhatsapp = uniquePhone()
     await seedOrg(orgId)
     await seedMembership(orgId, userId, 'member_operator')
     await seedMemberOperation(orgId, userId)
-    await seedUser(userId, email)
-    const pendingInvite = await seedInvite(orgId, email, 'pending')
+    await seedUser(userId, memberWhatsapp)
+    const pendingInvite = await seedInvite(orgId, memberWhatsapp, 'pending')
 
     expect((await offboardMemberInOrg(orgId, userId, actorId)).ok).toBe(true)
     expect((await offboardMemberInOrg(orgId, userId, actorId)).ok).toBe(true)

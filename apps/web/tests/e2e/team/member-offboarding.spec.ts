@@ -36,6 +36,7 @@ import {
   pgReadEventStream,
   pgReadProjection,
   readMemberOperationByUserId,
+  readUser,
   seedAppointment,
   seedBlock,
   seedClosedOrder,
@@ -390,26 +391,31 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
   })
 
-  test('AC-09: invite pendente do membro (por email) é limpo na remoção', async ({
+  test('AC-09: invite pendente do membro (por WhatsApp) é limpo na remoção', async ({
     org,
     authedPage,
   }) => {
     const proId = org.memberOperationIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
-    // The fixture seeds the memberOperation's User email as `prof-{n}-{pid}@e2e.local`.
-    const proEmail = `prof-1-${proId}@e2e.local`
+    // Brief 0084: the offboard matches a pending invite to the member by
+    // normalized WhatsApp (the accept-flow no longer keys on email). The
+    // operational-pro fixture seeded a WhatsApp on the member's User — read it
+    // back so the seeded invite carries the same number.
+    const proUser = await readUser(proUserId)
+    const proWhatsapp = proUser?.whatsapp
+    expect(proWhatsapp, 'operational pro must have a seeded WhatsApp').toBeTruthy()
 
     const { inviteId } = await seedInvite({
       orgId: org.orgId,
-      email: proEmail,
+      whatsapp: proWhatsapp!,
       role: 'member_operator',
       invitedBy: org.uid,
       status: 'pending',
     })
     const { inviteId: otherInviteId } = await seedInvite({
       orgId: org.orgId,
-      email: `someone-else-${proId}@e2e.local`,
+      whatsapp: `5511977${proId.replace(/\D/g, '').slice(-6).padStart(6, '0')}`,
       role: 'receptionist',
       invitedBy: org.uid,
       status: 'pending',
