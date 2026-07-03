@@ -17,7 +17,7 @@ const SEVERITY: Record<Level, string> = {
 // `meta`, but if a known-PII key slips through we redact its value rather than
 // serialise it — the log must not become a new disclosure vector (LGPD). The
 // primary guard is the call sites; this is the backstop.
-const PII_KEYS = new Set(['whatsapp', 'email', 'document', 'cpf', 'cnpj', 'phone'])
+const PII_KEYS = new Set(['whatsapp', 'mobile', 'email', 'document', 'cpf', 'cnpj', 'phone'])
 
 // An `Error` serialises to `{}` under JSON.stringify because `message`/`stack`
 // are non-enumerable — which would silently drop the very cause the log exists to

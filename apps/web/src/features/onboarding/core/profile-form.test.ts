@@ -42,7 +42,7 @@ describe('parseProfileForm', () => {
   })
 
   it('rejects an invalid WhatsApp', () => {
-    expect(parseProfileForm(form({ ...valid, mobile: '123' }))).toBe('WhatsApp inválido')
+    expect(parseProfileForm(form({ ...valid, mobile: '123' }))).toMatch(/9 dígitos/)
   })
 
   it('rejects a missing birthDate', () => {

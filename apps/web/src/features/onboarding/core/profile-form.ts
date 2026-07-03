@@ -21,7 +21,7 @@ export function parseProfileForm(formData: FormData): ProfileFormPayload | strin
   const mobileRaw = formString(formData, 'mobile').trim()
   if (mobileRaw.length === 0) return 'WhatsApp é obrigatório'
   const mobile = normalizeBrazilMobile(mobileRaw)
-  if (!mobile) return 'WhatsApp inválido'
+  if (!mobile) return 'Informe um celular com DDD e 9 dígitos (ex.: 11 91234-5678)'
 
   const birthDateResult = parseBirthDate(formString(formData, 'birthDate'))
   if (!birthDateResult.ok) return birthDateResult.error

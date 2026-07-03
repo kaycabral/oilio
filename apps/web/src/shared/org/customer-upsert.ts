@@ -115,7 +115,9 @@ export async function upsertCustomerWithUser(
   input: UpsertCustomerInput,
 ): Promise<UpsertCustomerResult> {
   const mobile = normalizeBrazilMobile(input.mobileRaw)
-  if (!mobile) return { ok: false, error: 'WhatsApp inválido' }
+  if (!mobile) {
+    return { ok: false, error: 'Informe um celular com DDD e 9 dígitos (ex.: 11 91234-5678)' }
+  }
 
   const now = new Date().toISOString()
 
