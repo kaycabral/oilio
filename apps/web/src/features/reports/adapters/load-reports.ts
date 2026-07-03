@@ -1,8 +1,10 @@
 import { type LiquidationStatus, DEFAULT_UNIT_TIMEZONE } from '@/domain'
+import { hasCapability } from '@/domain/billing/capabilities'
 import { type CashReportRange, resolveCashReportRange } from '@/features/cash/core/range'
 import { loadCommissionsSectionData } from '@/features/reports/adapters/commissions.repo'
 import { type SalesSectionData, loadSalesSectionData } from '@/features/reports/adapters/sales.repo'
 import { type CommissionsSectionData } from '@/features/reports/core/commissions'
+import { getOrgTier } from '@/shared/org/billing-read'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
@@ -14,8 +16,11 @@ type SearchParams = Record<string, string | string[] | undefined>
 
 export type ReportsPageProps = {
   range: CashReportRange
-  sales: SalesSectionData
-  commissions: CommissionsSectionData
+  // `null` when the active Negócio's tier does not unlock the section — the
+  // data is NOT loaded (real gate, brief 0082 AC-01), so nothing to render or
+  // export. The UI shows the upgrade CTA in its place.
+  sales: SalesSectionData | null
+  commissions: CommissionsSectionData | null
   canMarkPaid: boolean
 }
 
@@ -66,15 +71,28 @@ export async function loadReportsPage(params: SearchParams): Promise<ReportsPage
   const statusFilter: LiquidationStatus | null =
     rawStatus === 'pendente' || rawStatus === 'pago' ? rawStatus : null
 
+  // Tier gate (brief 0082 AC-01): each section is a paid capability. Load a
+  // section's data ONLY when the tier unlocks it — a Free org must not receive
+  // sales rows or commission rows at all (the CSV export is built client-side
+  // from `sales`, so not loading it is what actually closes the leak). The UI
+  // renders the upgrade CTA where a `null` section would have been.
+  const tier = await getOrgTier(ctx.membership.orgId)
+  const salesUnlocked = hasCapability(tier, 'reports.sales')
+  const commissionsUnlocked = hasCapability(tier, 'commissions')
+
   const [sales, commissions] = await Promise.all([
-    loadSalesSectionData({ orgId: ctx.membership.orgId, range, unitId: activeUnitId }),
-    loadCommissionsSectionData({
-      orgId: ctx.membership.orgId,
-      range,
-      unitId: activeUnitId,
-      memberFilter,
-      statusFilter,
-    }),
+    salesUnlocked
+      ? loadSalesSectionData({ orgId: ctx.membership.orgId, range, unitId: activeUnitId })
+      : Promise.resolve(null),
+    commissionsUnlocked
+      ? loadCommissionsSectionData({
+          orgId: ctx.membership.orgId,
+          range,
+          unitId: activeUnitId,
+          memberFilter,
+          statusFilter,
+        })
+      : Promise.resolve(null),
   ])
 
   return { range, sales, commissions, canMarkPaid }
