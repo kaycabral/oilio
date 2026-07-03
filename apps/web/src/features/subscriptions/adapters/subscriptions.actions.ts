@@ -22,8 +22,10 @@ import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { commitGuardedThenAppend, emitEvent } from '@/shared/effect-bridge'
 import { Effect, Schema } from 'effect'
 
+import { hasCapability } from '@/domain/billing/capabilities'
 import { parseCreateForm } from '@/features/subscriptions/core/subscription-form'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
+import { getOrgTier } from '@/shared/org/billing-read'
 import { getCustomerUserId } from '@/shared/org/customer-read'
 import { requireManagerCtx } from '@/shared/org/membership'
 import { getSubscriptionPlanById } from '@/shared/org/subscription-plan-read'
@@ -75,6 +77,19 @@ async function customerHasActiveSubscription(orgId: string, customerId: string):
 export async function createSubscription(formData: FormData): Promise<SubscriptionMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
+  // Plano Oilio gate (brief 0072/0082): a subscription CONSUMES the recurring
+  // capability just as creating the plan does — so the tier wall belongs here
+  // too, not only on `createPlan`. A Pro→Free downgrade leaves the plan rows in
+  // place; without this an org off the Pro tier could still adopt a plan via a
+  // stale form / direct call. Server-side is the real boundary; the UI CTA is
+  // defense-in-depth (brief 0082).
+  const tier = await getOrgTier(r.ctx.membership.orgId)
+  if (!hasCapability(tier, 'plans.recurring')) {
+    return {
+      ok: false,
+      error: 'Assinaturas estão disponíveis no plano Pro. Faça upgrade para assinar planos.',
+    }
+  }
   const parsed = parseCreateForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
