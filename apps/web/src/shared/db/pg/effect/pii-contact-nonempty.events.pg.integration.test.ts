@@ -4,7 +4,7 @@ import { closeEventStoreDb, getEventStorePool } from '../pool'
 
 /**
  * Proof that the DB rejects an empty required contact PII (#1283, brief 0078
- * Group B). `units_pii.whatsapp` and `invites_pii.email` are NOT NULL but a bare
+ * Group B). `units_pii.whatsapp` and `invites_pii.whatsapp` are NOT NULL but a bare
  * `''` satisfied NOT NULL before the `*_nonempty` CHECK; and a `''` whatsapp on a
  * `completion_completed` user satisfied the old `IS NOT NULL` branch of
  * `users_completed_profile_complete`. These run against the ephemeral Postgres
@@ -62,13 +62,13 @@ describe('PII contact non-empty constraints (#1283 Group B)', () => {
     ).resolves.toBeDefined()
   })
 
-  it('rejects an empty invites_pii.email (AC-03)', async () => {
+  it('rejects an empty invites_pii.whatsapp (AC-03)', async () => {
     await expect(
       getEventStorePool().query(
-        `INSERT INTO invites_pii (org_id, id, email) VALUES ($1,'inv-1','')`,
+        `INSERT INTO invites_pii (org_id, id, whatsapp) VALUES ($1,'inv-1','')`,
         [ORG],
       ),
-    ).rejects.toThrow(/invites_pii_email_nonempty/)
+    ).rejects.toThrow(/invites_pii_whatsapp_nonempty/)
   })
 
   it('rejects a completed user with an empty whatsapp (AC-04)', async () => {
