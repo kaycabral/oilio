@@ -5,7 +5,7 @@ import { PhoneInput } from '@/components/PhoneInput'
 import { normalizeBrazilMobile, type Role, roleDescription, roleLabel } from '@/domain'
 import { createInvite } from '@/features/team/adapters/team.actions'
 import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cbrl/design'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 const INVITABLE_ROLES: Role[] = ['manager', 'member_operator', 'receptionist']
 
@@ -24,8 +24,12 @@ export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string 
   const [rawPhone, setRawPhone] = useState('')
   const [role, setRole] = useState<Role | ''>('')
   const [error, setError] = useState<string | null>(null)
-  // The minted invite (real token) — null until the owner generates it.
+  // The minted invite (real token) — null until the owner generates it. Kept in
+  // BOTH state (drives the link-preview render) and a ref: `onSend` fires in the
+  // same click that mints the link, before the state re-render lands, so it must
+  // read the fresh href synchronously (the ref), not the stale state.
   const [invite, setInvite] = useState<{ link: string; whatsappHref: string } | null>(null)
+  const inviteRef = useRef<{ link: string; whatsappHref: string } | null>(null)
 
   // Ready = a valid BR mobile is typed AND a role is picked. Same threshold the
   // old form used to enable submit; here it enables the affordances.
@@ -46,7 +50,8 @@ export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string 
   // Mint the invite server-side (round-trip) and cache it. Returns the real link
   // or null on failure. Called by copy/send before doing their thing.
   async function ensureLink(): Promise<string | null> {
-    if (invite) return invite.link
+    const current = inviteRef.current
+    if (current) return current.link
     if (!ready) return null
     setError(null)
     const formData = new FormData()
@@ -57,14 +62,18 @@ export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string 
       setError(result.error)
       return null
     }
-    setInvite({ link: result.inviteLink, whatsappHref: result.whatsappHref })
+    const minted = { link: result.inviteLink, whatsappHref: result.whatsappHref }
+    inviteRef.current = minted
+    setInvite(minted)
     return result.inviteLink
   }
 
   function onSend(): void {
-    // The minted invite exists by the time send runs (InviteLinkActions ensures
-    // first). Open WhatsApp inside the click to dodge popup blockers.
-    if (invite) window.open(invite.whatsappHref, '_blank', 'noopener,noreferrer')
+    // Read the ref, not the state: `ensureLink` just set it synchronously in this
+    // same click, whereas the `invite` state re-render hasn't landed yet. Open
+    // WhatsApp inside the click to dodge popup blockers.
+    const minted = inviteRef.current
+    if (minted) window.open(minted.whatsappHref, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -80,6 +89,7 @@ export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string 
             onValueChange={(masked) => {
               setRawPhone(masked)
               // A new number invalidates any already-minted link.
+              inviteRef.current = null
               setInvite(null)
             }}
           />
@@ -94,6 +104,7 @@ export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string 
               const next = INVITABLE_ROLES.find((r) => r === value)
               if (next) {
                 setRole(next)
+                inviteRef.current = null
                 setInvite(null)
               }
             }}
