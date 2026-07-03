@@ -1,14 +1,16 @@
 'use client'
 
 import {
+  type AppointmentForOverlap,
   type BusinessHours,
   type CancellationPolicy,
   getBusinessHoursForDay,
   getTodayInOrgTz,
 } from '@/domain'
-import { gridTimeOptions } from '@/features/agenda/core/appointment-dialog'
+import { filterGridByBusy, gridTimeOptions } from '@/features/agenda/core/appointment-dialog'
 import {
   cancelOwnAppointment,
+  loadOwnRescheduleBusy,
   rescheduleOwnAppointment,
 } from '@/features/me/adapters/appointments.actions'
 import {
@@ -23,7 +25,7 @@ import {
 } from '@cbrl/design'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 
 // Slot-grid source for the self-service reschedule picker (brief 0080, Grupo C).
 // Null outside appointment mode — the picker stays closed and the customer
@@ -75,12 +77,42 @@ function ReschedulePanel({
   const today = getTodayInOrgTz(config.timezone)
   const [date, setDate] = useState(today)
   const [startTime, setStartTime] = useState('')
+  // #1318: the professional's CROSS-UNIT busy intervals for the selected day,
+  // fetched server-side (the client can pick any future date, so it re-queries
+  // per date — same shape as the public wizard, #1313). Empty until it lands.
+  const [busy, setBusy] = useState<AppointmentForOverlap[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!date) {
+      setBusy([])
+      return
+    }
+    void loadOwnRescheduleBusy({
+      orgId: data.orgId,
+      appointmentId: data.appointmentId,
+      date,
+    }).then((res) => {
+      if (!cancelled) setBusy(res.ok ? res.busy : [])
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [data.orgId, data.appointmentId, date])
 
   const timeOptions = useMemo(() => {
     if (!date) return []
     const dayHours = getBusinessHoursForDay(config.businessHours, date, config.timezone)
-    return gridTimeOptions(dayHours, config.slotMinutes, config.durationMinutes)
-  }, [config, date])
+    const grid = gridTimeOptions(dayHours, config.slotMinutes, config.durationMinutes)
+    // Omit the starts the professional is already busy in (#1318); the customer's
+    // own appointment is excluded so its current slot never disappears mid-move.
+    return filterGridByBusy(grid, busy, {
+      date,
+      timezone: config.timezone,
+      durationMinutes: config.durationMinutes,
+      excludeAppointmentId: data.appointmentId,
+    })
+  }, [config, date, busy, data.appointmentId])
 
   function onConfirm() {
     onError('')
