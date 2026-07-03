@@ -16,7 +16,7 @@ const apptArgs = {
     memberOperationId: 'p1',
     startAt: '2026-06-15T13:00:00.000Z',
   },
-  customers: [{ id: 'c1', name: 'Ana', whatsapp: '5511999990000' }],
+  customers: [{ id: 'c1', name: 'Ana', mobile: '5511999990000' }],
   services: [{ id: 's1', name: 'Corte' }],
   memberOperations: [{ id: 'p1', name: 'Bruno' }],
   timezone: TZ,

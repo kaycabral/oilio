@@ -30,7 +30,7 @@ const BOOKING_DATE = '2026-07-06'
 const FROM_TIME = '10:00'
 const TO_TIME = '11:00'
 const OFF_GRID_TIME = '10:45'
-const CUSTOMER_WHATSAPP = '11999990003'
+const CUSTOMER_MOBILE = '11999990003'
 
 let seq = 0
 function uniqueOrg(): string {
@@ -130,7 +130,7 @@ async function seedCustomer(orgId: string, customerId: string): Promise<string> 
   await putUser(
     buildUser(userId, TS, {
       completionCompleted: true,
-      whatsapp: normalizeBrazilPhone(CUSTOMER_WHATSAPP),
+      mobile: normalizeBrazilPhone(CUSTOMER_MOBILE),
     }),
   )
   const { CustomerConfig } = await import('@/domain/aggregates')

@@ -232,7 +232,7 @@ describe('AppLayout — auth and org gating', () => {
           slug: 'matriz',
           timezone: 'America/Sao_Paulo',
           archivedAt: null,
-          whatsapp: '',
+          mobile: '',
           email: null,
           agenda: { mode: 'always_open' },
           fiscal: { kind: 'informal' },

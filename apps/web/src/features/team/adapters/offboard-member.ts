@@ -173,7 +173,7 @@ export type ResolvedOffboard = {
 // stores the same normalized form the create-invite action wrote).
 async function resolveMemberWhatsapp(targetUserId: string): Promise<string | null> {
   const user = await getUserById(targetUserId)
-  const raw = user?.whatsapp ?? null
+  const raw = user?.mobile ?? null
   return raw ? normalizeBrazilPhone(raw) : null
 }
 
@@ -288,7 +288,7 @@ async function offboardMemberPostgres(args: {
   const whatsapp = await resolveMemberWhatsapp(targetUserId)
   const pendingInvites = whatsapp
     ? (await listInvitesByStatus(orgId, 'pending')).filter(
-        (invite) => invite.whatsapp && normalizeBrazilPhone(invite.whatsapp) === whatsapp,
+        (invite) => invite.mobile && normalizeBrazilPhone(invite.mobile) === whatsapp,
       )
     : []
 

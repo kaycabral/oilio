@@ -48,7 +48,7 @@ async function seedRow(table: PiiSidecar, orgId: string, id: string): Promise<vo
   switch (table) {
     case 'invites_pii':
       await pool.query(
-        `INSERT INTO invites_pii (org_id, id, whatsapp)
+        `INSERT INTO invites_pii (org_id, id, mobile)
          VALUES ($1,$2,'5511900000000')`,
         [orgId, id],
       )
@@ -62,7 +62,7 @@ async function seedRow(table: PiiSidecar, orgId: string, id: string): Promise<vo
       return
     case 'units_pii':
       await pool.query(
-        `INSERT INTO units_pii (org_id, id, whatsapp, email)
+        `INSERT INTO units_pii (org_id, id, mobile, email)
          VALUES ($1,$2,'5511999990000',NULL)`,
         [orgId, id],
       )
@@ -87,7 +87,7 @@ function foreignInsert(
   switch (table) {
     case 'invites_pii':
       return {
-        sql: `INSERT INTO invites_pii (org_id, id, whatsapp) VALUES ($1,$2,'5511900000000')`,
+        sql: `INSERT INTO invites_pii (org_id, id, mobile) VALUES ($1,$2,'5511900000000')`,
         params: [orgId, id],
       }
     case 'member_operations_pii':
@@ -97,7 +97,7 @@ function foreignInsert(
       }
     case 'units_pii':
       return {
-        sql: `INSERT INTO units_pii (org_id, id, whatsapp, email) VALUES ($1,$2,'5511000000000',NULL)`,
+        sql: `INSERT INTO units_pii (org_id, id, mobile, email) VALUES ($1,$2,'5511000000000',NULL)`,
         params: [orgId, id],
       }
     case 'unit_tax_identity':

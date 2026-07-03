@@ -6,7 +6,7 @@ import { orgs } from './orgs'
  * cutover, brief 0062; renamed from `professionals_pii` in #1271). Mirrors the
  * Firestore `orgs/{orgId}/professionals_pii/{id}` doc: it holds the
  * operation-scoped PII (`taxIdentity`) separate from the `member_operations`
- * projection (which omits it). Personal identity (name/whatsapp/email) is NOT
+ * projection (which omits it). Personal identity (name/mobile/email) is NOT
  * here — that is read LIVE from the global `users` table (#1046). Only
  * `taxIdentity` (which can diverge per org and is severable for LGPD per-org
  * anonymization, brief 0032) lives in this deletable sidecar.

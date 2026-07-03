@@ -123,7 +123,7 @@ export function resolveSubjectAvatar(
 export type UserAnonymizationScrub = Pick<
   User,
   | 'displayName'
-  | 'whatsapp'
+  | 'mobile'
   | 'email'
   | 'birthDate'
   | 'taxIdentity'
@@ -140,7 +140,7 @@ export type UserAnonymizationScrub = Pick<
 export function buildUserAnonymizationScrub(now: string): UserAnonymizationScrub {
   return {
     displayName: null,
-    whatsapp: null,
+    mobile: null,
     email: null,
     birthDate: null,
     taxIdentity: null,

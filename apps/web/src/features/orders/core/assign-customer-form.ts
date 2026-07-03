@@ -7,7 +7,7 @@ import { formString } from '@/shared/form-data'
 // a `customerId: null` assign event (link/unlink/swap are one nullable event).
 export type ParsedAssignCustomer =
   | { mode: 'existing'; customerId: string }
-  | { mode: 'new'; newCustomer: { name: string; whatsapp: string } }
+  | { mode: 'new'; newCustomer: { name: string; mobile: string } }
   | { mode: 'none' }
 
 export function parseAssignCustomerForm(formData: FormData): ParsedAssignCustomer | string {
@@ -16,9 +16,9 @@ export function parseAssignCustomerForm(formData: FormData): ParsedAssignCustome
   if (mode === 'new') {
     const name = formString(formData, 'newCustomerName').trim()
     if (name.length < 2) return 'Nome do cliente é obrigatório'
-    const whatsapp = formString(formData, 'newCustomerWhatsapp').trim()
-    if (whatsapp.length === 0) return 'WhatsApp do cliente é obrigatório'
-    return { mode: 'new', newCustomer: { name, whatsapp } }
+    const mobile = formString(formData, 'newCustomerMobile').trim()
+    if (mobile.length === 0) return 'WhatsApp do cliente é obrigatório'
+    return { mode: 'new', newCustomer: { name, mobile } }
   }
   const customerId = formString(formData, 'customerId').trim()
   if (!customerId) return 'Cliente é obrigatório'

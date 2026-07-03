@@ -218,7 +218,7 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       })
       const customerId = await seedCustomer(org.orgId, {
         name: 'Cliente Agendado',
-        whatsapp: uniqueWhatsapp(),
+        mobile: uniqueWhatsapp(),
       })
       await seedAppointment({
         orgId: org.orgId,
@@ -285,7 +285,7 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       const gerente = await seedMember(org.orgId, { role: 'manager', displayName: 'Gerente Loja' })
       const customerId = await seedCustomer(org.orgId, {
         name: 'Cliente Default',
-        whatsapp: uniqueWhatsapp(),
+        mobile: uniqueWhatsapp(),
       })
       await seedAppointment({
         orgId: org.orgId,

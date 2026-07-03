@@ -19,7 +19,7 @@ import type { NotificationType } from './types'
 const NewCustomerPayload = Schema.Struct({
   orgId: Schema.String,
   name: Schema.String,
-  whatsapp: Schema.String,
+  mobile: Schema.String,
 })
 const ChargeFailedPayload = Schema.Struct({
   reason: Schema.String,
@@ -78,7 +78,7 @@ export const newCustomerReaction: EventReaction<PersistencePort, EventValidation
       customerId: envelope.actorId,
       subscriptionId: null,
       eventKeyPrefix: `new_customer-${envelope.actorId}`,
-      payload: { customerName: p.name, customerWhatsapp: p.whatsapp },
+      payload: { customerName: p.name, customerMobile: p.mobile },
       validUntil: null,
     })
   },

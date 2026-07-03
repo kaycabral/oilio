@@ -25,7 +25,7 @@ async function seedScopeFixture(org: SeededOrg): Promise<{ customerName: string 
   const customerName = `Plano Limitado ${Date.now()}`
   const customerId = await seedCustomer(org.orgId, {
     name: customerName,
-    whatsapp: uniqueWhatsapp(),
+    mobile: uniqueWhatsapp(),
   })
   // Plano com maxPerDay = 1 — qualquer 2ª criação no mesmo dia deve cair.
   await seedSubscription(org.orgId, customerId, { bookingLimits: { maxPerDay: 1 } })

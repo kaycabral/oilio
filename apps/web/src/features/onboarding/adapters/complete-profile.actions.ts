@@ -2,7 +2,7 @@
 
 import { parseProfileForm } from '@/features/onboarding/core/profile-form'
 import { resolveSignupOrgContext } from '@/features/onboarding/core/signup-context'
-import { isUniqueViolation, USERS_WHATSAPP_UNIQUE } from '@/shared/db/pg/unique-violation'
+import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/unique-violation'
 import { getUserById, patchUser } from '@/shared/db/pg/users-store'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
@@ -18,7 +18,7 @@ import { redirect } from 'next/navigation'
 export type CompleteProfileResult = { ok: true } | { ok: false; error: string }
 
 // Server action backing the post-OAuth completion step (#838). Captures
-// what the OAuth identity doesn't give us (WhatsApp, birthDate) plus a
+// what the OAuth identity doesn't give us (mobile, birthDate) plus a
 // name override. Idempotent: if the user already finished completion, the
 // action refuses to overwrite — that gate also lives in the page render
 // path, but server actions must defend themselves (don't trust the UI).
@@ -37,13 +37,13 @@ export const completeProfile = withActionContext(
 
     const parsed = parseProfileForm(formData)
     if (typeof parsed === 'string') return { ok: false, error: parsed }
-    const { name, whatsapp, birthDate } = parsed
+    const { name, mobile, birthDate } = parsed
 
     const now = new Date().toISOString()
 
     // No stub dedupe (brief 0077, Grupo C — #1276). The recepcionista no longer
     // creates stub Users by typing PII (the convite-contextual flow #1279 hands
-    // out a link instead), so there is no stub to fold in. Folding-by-WhatsApp was
+    // out a link instead), so there is no stub to fold in. Folding-by-mobile was
     // the SOURCE of the wrong-number breach the brief kills: a mistyped number on a
     // stub could silently capture a real login. Each login is its own user — no
     // merge. (Removed `findClaimableStubByWhatsapp` + `mergeStubUserIntoClaimer`.)
@@ -53,18 +53,19 @@ export const completeProfile = withActionContext(
         session.uid,
         {
           display_name: name,
-          whatsapp,
+          mobile,
           birth_date: birthDate,
           completion_completed: true,
         },
         now,
       )
     } catch (err) {
-      // WhatsApp is globally unique (one owner per number). If this number already
-      // backs another account, the DB refuses the write — surface a handled
-      // business error instead of a raw 500. No OTP yet (#1276): we can't verify
-      // ownership, so we ask the person to use their own number / get in touch.
-      if (isUniqueViolation(err, USERS_WHATSAPP_UNIQUE)) {
+      // The mobile number is globally unique (one owner per number). If this
+      // number already backs another account, the DB refuses the write — surface
+      // a handled business error instead of a raw 500. No OTP yet (#1276): we
+      // can't verify ownership, so we ask the person to use their own number /
+      // get in touch.
+      if (isUniqueViolation(err, USERS_MOBILE_UNIQUE)) {
         return {
           ok: false,
           error:
@@ -75,7 +76,7 @@ export const completeProfile = withActionContext(
     }
 
     // No approval event to emit (#1226 AC-02): `operationalStatus` is derived on
-    // read from real facts. Setting `User.whatsapp` above can complete a
+    // read from real facts. Setting `User.mobile` above can complete a
     // memberOperation's profile, but readiness is recomputed on the next enriched
     // read — there is nothing to materialize there.
 
@@ -120,7 +121,7 @@ async function materializeSelfSignupCustomer(formData: FormData, uid: string): P
       event: 'client_profile_completed',
       orgId: org.id,
       customerId,
-      fieldsFilled: ['name', 'whatsapp', 'birthDate'],
+      fieldsFilled: ['name', 'mobile', 'birthDate'],
     })
   } catch (err) {
     logger.error('self-signup customer materialization failed', { scope: 'completeProfile', err })

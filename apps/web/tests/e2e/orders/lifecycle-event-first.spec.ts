@@ -27,7 +27,7 @@ async function seedFixture(org: SeededOrg): Promise<void> {
   await seedProduct(org.orgId, { name: 'Pomada', priceCents: 3000 })
   const customerId = await seedCustomer(org.orgId, {
     name: 'Cliente Ciclo',
-    whatsapp: uniqueWhatsapp(),
+    mobile: uniqueWhatsapp(),
   })
   await seedAppointment({
     orgId: org.orgId,

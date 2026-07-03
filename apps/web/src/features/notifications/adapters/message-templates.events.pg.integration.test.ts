@@ -12,7 +12,7 @@
 // - AC-14: dispatchNotificationWhatsapp renderiza + retorna link + grava
 //   notification.dispatched com snapshot (channel + body NÃO-renderizado). The
 //   notification is created through the event store; the customer's PII (name +
-//   whatsapp) lives on the global `users` row (materialized at read time).
+//   mobile) lives on the global `users` row (materialized at read time).
 
 import { DEFAULT_NOTIFICATION_TEMPLATES } from '@/domain'
 import { NotificationConfig } from '@/domain/aggregates'
@@ -110,7 +110,7 @@ describe('dispatchNotificationWhatsapp (AC-14) — Postgres', () => {
     await closeEventStoreDb()
   })
 
-  // Seeds the customer's global `users` row (PII: name + whatsapp), the per-org
+  // Seeds the customer's global `users` row (PII: name + mobile), the per-org
   // `customers` shadow (id-ref only), and the notification through the event
   // store — the live shape `dispatchNotificationWhatsapp` reads.
   async function seedCustomerAndNotification(orgId: string): Promise<{ notifId: string }> {
@@ -119,7 +119,7 @@ describe('dispatchNotificationWhatsapp (AC-14) — Postgres', () => {
     const notifId = `n-${Math.random().toString(36).slice(2, 8)}`
 
     await putUser(
-      buildUser(uid, '2026-06-01T10:00:00Z', { displayName: 'Maria', whatsapp: '11999998888' }),
+      buildUser(uid, '2026-06-01T10:00:00Z', { displayName: 'Maria', mobile: '11999998888' }),
     )
     await getEventStorePool().query(
       `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)

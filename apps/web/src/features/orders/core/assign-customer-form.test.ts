@@ -24,15 +24,15 @@ describe('parseAssignCustomerForm', () => {
   it('new: registers a customer inline (name + whatsapp)', () => {
     expect(
       parseAssignCustomerForm(
-        fd({ customerMode: 'new', newCustomerName: 'João', newCustomerWhatsapp: '11999998888' }),
+        fd({ customerMode: 'new', newCustomerName: 'João', newCustomerMobile: '11999998888' }),
       ),
-    ).toEqual({ mode: 'new', newCustomer: { name: 'João', whatsapp: '11999998888' } })
+    ).toEqual({ mode: 'new', newCustomer: { name: 'João', mobile: '11999998888' } })
   })
 
   it('new: name shorter than 2 chars is rejected', () => {
     expect(
       parseAssignCustomerForm(
-        fd({ customerMode: 'new', newCustomerName: 'A', newCustomerWhatsapp: '1' }),
+        fd({ customerMode: 'new', newCustomerName: 'A', newCustomerMobile: '1' }),
       ),
     ).toBe('Nome do cliente é obrigatório')
   })
@@ -40,7 +40,7 @@ describe('parseAssignCustomerForm', () => {
   it('new: missing whatsapp is rejected', () => {
     expect(
       parseAssignCustomerForm(
-        fd({ customerMode: 'new', newCustomerName: 'João', newCustomerWhatsapp: '' }),
+        fd({ customerMode: 'new', newCustomerName: 'João', newCustomerMobile: '' }),
       ),
     ).toBe('WhatsApp do cliente é obrigatório')
   })

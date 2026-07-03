@@ -100,7 +100,7 @@ test.describe('Não-comparecimento — marcar e desmarcar', () => {
     })
     const customerId = await seedCustomer(org.orgId, {
       name: 'Cliente NoShow',
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
     })
     // Fixed past instant inside business hours BR (Tue 2024-01-16 10:00 BR
     // = 13:00 UTC). The "Marcar não compareceu" gate only requires

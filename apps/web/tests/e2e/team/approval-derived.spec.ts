@@ -27,13 +27,9 @@ function memberOperatorUserId(memberOperationId: string): string {
 // the row fails every union branch and the strict-decoding read crashes the page.
 // Post-cutover this is a merge-style column patch on the global `users` row
 // (`patchUser` keys are snake_case columns), mirroring the old updateMask PATCH:
-// only `whatsapp` + `completion_completed` change, every other field stays.
-async function patchUserWhatsapp(uid: string, whatsapp: string | null): Promise<void> {
-  await patchUser(
-    uid,
-    { whatsapp, completion_completed: whatsapp !== null },
-    new Date().toISOString(),
-  )
+// only `mobile` + `completion_completed` change, every other field stays.
+async function patchUserMobile(uid: string, mobile: string | null): Promise<void> {
+  await patchUser(uid, { mobile, completion_completed: mobile !== null }, new Date().toISOString())
 }
 
 test.describe(
@@ -75,7 +71,7 @@ test.describe(
 
       // Strip the linked User's WhatsApp — profile is now incomplete on two
       // axes (no whatsapp, no service).
-      await patchUserWhatsapp(memberOperatorUserId(proId), null)
+      await patchUserMobile(memberOperatorUserId(proId), null)
 
       // A public service exists in the unit, but the pro executes none of it
       // (catalogServiceIds empty) — so they're off the public agenda regardless.
@@ -115,7 +111,7 @@ test.describe(
       // derive keys on whatsapp presence, not on `completionCompleted`.
       await patchUser(
         memberOperatorUserId(proId),
-        { whatsapp: uniqueWhatsapp() },
+        { mobile: uniqueWhatsapp() },
         new Date().toISOString(),
       )
 

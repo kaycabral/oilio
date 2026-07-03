@@ -49,12 +49,12 @@ import { MemberOperationsPage, orgSlug, PublicBookingPage } from '../pages'
 // Schemas decode only the columns the asserts touch; excess columns are ignored,
 // so the richer real rows decode fine while staying fully typed (no `as`).
 
-// The `users` global identity table — PII (display_name/whatsapp/email) lives here
+// The `users` global identity table — PII (display_name/mobile/email) lives here
 // and the memberOperation detail page reads it live.
 const UserRowSchema = Schema.Struct({
   uid: Schema.String,
   display_name: Schema.NullOr(Schema.String),
-  whatsapp: Schema.NullOr(Schema.String),
+  mobile: Schema.NullOr(Schema.String),
   email: Schema.NullOr(Schema.String),
 })
 const decodeUserRow = Schema.decodeUnknownSync(UserRowSchema)
@@ -94,23 +94,23 @@ type StoredPro = { id: string; userId: string | null; operationalStatus: string 
 // `uid`, not an aggregate path). Returns null when absent.
 async function readUserRow(uid: string): Promise<{
   displayName: string | null
-  whatsapp: string | null
+  mobile: string | null
   email: string | null
 } | null> {
   const rows = await pgQueryProjection('users', 'uid', uid)
   const match = rows.find((r) => r.uid === uid)
   if (!match) return null
   const decoded = decodeUserRow(match)
-  return { displayName: decoded.display_name, whatsapp: decoded.whatsapp, email: decoded.email }
+  return { displayName: decoded.display_name, mobile: decoded.mobile, email: decoded.email }
 }
 
 // Reads a required identity string off the `users/{uid}` row. Module-level (not a
 // closure inside the test) so the presence guard isn't a conditional-in-test;
 // throws when the field is absent/null, surfacing a seeding/derivation bug.
 function requireUserStr(
-  user: { displayName: string | null; whatsapp: string | null; email: string | null },
+  user: { displayName: string | null; mobile: string | null; email: string | null },
   uid: string,
-  key: 'displayName' | 'whatsapp' | 'email',
+  key: 'displayName' | 'mobile' | 'email',
 ): string {
   const value = user[key]
   if (value === null) {
@@ -121,7 +121,7 @@ function requireUserStr(
 
 // Lists the org's MemberOperation projection rows from Postgres, mapped to the
 // camelCase shape the asserts use. `operationalStatus` is DERIVED on read (#1226
-// AC-02) from the linked User's whatsapp + the projection's units/services —
+// AC-02) from the linked User's mobile + the projection's units/services —
 // exactly like the production read layer.
 async function listMemberOperations(orgId: string): Promise<StoredPro[]> {
   const rows = await pgListByOrg('member_operations', orgId)
@@ -131,7 +131,7 @@ async function listMemberOperations(orgId: string): Promise<StoredPro[]> {
     const user = decoded.user_id ? await readUserRow(decoded.user_id) : null
     const operationalStatus = deriveOperationalStatus({
       inviteAccepted: true,
-      whatsapp: user?.whatsapp ?? null,
+      mobile: user?.mobile ?? null,
       unitIds: asStringArray(decoded.unit_ids),
       catalogServiceIds: asStringArray(decoded.catalog_service_ids),
     })
@@ -140,20 +140,20 @@ async function listMemberOperations(orgId: string): Promise<StoredPro[]> {
   return out
 }
 
-// PATCH the linked User's whatsapp directly on the Postgres `users` table. The
-// `User` union forbids a COMPLETED account with a null whatsapp, so nulling
-// whatsapp must also flip `completion_completed` back to false (a legal
-// `UserIncomplete`); restoring a whatsapp re-completes the account. Without this
+// PATCH the linked User's mobile directly on the Postgres `users` table. The
+// `User` union forbids a COMPLETED account with a null mobile, so nulling
+// mobile must also flip `completion_completed` back to false (a legal
+// `UserIncomplete`); restoring a mobile re-completes the account. Without this
 // the row fails every union branch and the strict-decoding read boundary crashes
 // the page.
-async function patchUserWhatsapp(uid: string, whatsapp: string | null): Promise<void> {
+async function patchUserMobile(uid: string, mobile: string | null): Promise<void> {
   const { Client } = await import('pg')
   const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
   await client.connect()
   try {
-    await client.query('UPDATE users SET whatsapp = $1, completion_completed = $2 WHERE uid = $3', [
-      whatsapp,
-      whatsapp !== null,
+    await client.query('UPDATE users SET mobile = $1, completion_completed = $2 WHERE uid = $3', [
+      mobile,
+      mobile !== null,
       uid,
     ])
   } finally {
@@ -174,7 +174,7 @@ async function inviteAccept(opts: {
 }): Promise<void> {
   const { inviteId, rawToken } = await seedInvite({
     orgId: opts.org.orgId,
-    whatsapp: `5511${String(Date.now()).slice(-9)}`,
+    mobile: `5511${String(Date.now()).slice(-9)}`,
     role: opts.role,
     invitedBy: opts.org.uid,
   })
@@ -255,12 +255,12 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       await prosPage.gotoByUserId(maria.uid)
       const user = await readUserRow(maria.uid)
       expect(user).not.toBeNull()
-      const identity = user ?? { displayName: null, whatsapp: null, email: null }
+      const identity = user ?? { displayName: null, mobile: null, email: null }
       await expect(prosPage.identityName()).toHaveText(
         requireUserStr(identity, maria.uid, 'displayName'),
       )
       await expect(prosPage.identityWhatsapp()).toHaveText(
-        formatBrazilPhone(requireUserStr(identity, maria.uid, 'whatsapp')),
+        formatBrazilPhone(requireUserStr(identity, maria.uid, 'mobile')),
       )
       await expect(prosPage.identityEmail()).toContainText(
         requireUserStr(identity, maria.uid, 'email'),
@@ -318,7 +318,7 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       const proId = org.memberOperationIds[0]!
       const unitId = org.unitIds[0]!
       // Tira o WhatsApp do User vinculado — perfil incompleto em dois eixos.
-      await patchUserWhatsapp(`e2e-prof-user-${proId}`, null)
+      await patchUserMobile(`e2e-prof-user-${proId}`, null)
 
       const serviceId = await seedService(org.orgId, {
         name: 'Corte',
@@ -351,7 +351,7 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
   test.describe('Cenário 3 — identidade derivada, sem divergência', () => {
     test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
-    test('identidade read-only espelha users/{userId}; alterar User.whatsapp reflete sem reescrever a projeção', async ({
+    test('identidade read-only espelha users/{userId}; alterar User.mobile reflete sem reescrever a projeção', async ({
       org,
       authedPage,
     }) => {
@@ -362,7 +362,7 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       await prosPage.gotoById(proId)
       // Identidade pessoal não é editável (sem inputs); fica read-only.
       await expect(authedPage.locator('input[name="name"]')).toHaveCount(0)
-      await expect(authedPage.locator('input[name="whatsapp"]')).toHaveCount(0)
+      await expect(authedPage.locator('input[name="mobile"]')).toHaveCount(0)
       await expect(authedPage.locator('input[name="email"]')).toHaveCount(0)
       // WhatsApp inicial do pro é gerado único por run (unicidade global) —
       // assert o formato BR-mascarado, não um literal.
@@ -370,12 +370,12 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
 
       // Muta SÓ o User global — sem tocar a projeção do profissional. Número
       // novo gerado único (não pode colidir com outro User sob o índice global).
-      const newWhatsapp = uniqueWhatsapp()
-      await patchUserWhatsapp(uid, newWhatsapp)
+      const newMobile = uniqueWhatsapp()
+      await patchUserMobile(uid, newMobile)
 
       // Re-lê o cadastro: o novo WhatsApp aparece ao vivo (leitura derivada).
       await prosPage.gotoById(proId)
-      await expect(prosPage.identityWhatsapp()).toHaveText(formatBrazilPhone(newWhatsapp))
+      await expect(prosPage.identityWhatsapp()).toHaveText(formatBrazilPhone(newMobile))
     })
   })
 
@@ -413,7 +413,7 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       expect(pros[0]!.userId).not.toBeNull()
 
       // O evento `member_operation.created` (v000001) é a fonte de verdade — append-only.
-      // PII (name/whatsapp/email) NUNCA entra no envelope (ADR 0010); a identidade
+      // PII (name/mobile/email) NUNCA entra no envelope (ADR 0010); a identidade
       // vive só em users/{userId} (lida ao vivo). operationalStatus NÃO é hardcoded:
       // o created nasce `incomplete` e a transição é por evento derivado.
       const eventStream = await pgReadEventStream(
@@ -426,9 +426,9 @@ test.describe('Profissional = membro — Definition of Done (#1044)', { tag: '@j
       // WhatsApp é gerado único por run — lê o valor real do User pra provar a
       // ausência da PII no envelope (em vez de um literal fixo).
       const inviteeUserRows = await pgQueryProjection('users', 'uid', invitee.uid)
-      const inviteeWhatsapp = inviteeUserRows[0]?.whatsapp
-      expect(inviteeWhatsapp).toMatch(/^5511\d{9}$/)
-      expect(envelopeJson).not.toContain(String(inviteeWhatsapp))
+      const inviteeMobile = inviteeUserRows[0]?.mobile
+      expect(inviteeMobile).toMatch(/^5511\d{9}$/)
+      expect(envelopeJson).not.toContain(String(inviteeMobile))
       expect(envelopeJson).not.toContain(invitee.email)
 
       // O created projeta status `incomplete` (perfil ainda incompleto: sem

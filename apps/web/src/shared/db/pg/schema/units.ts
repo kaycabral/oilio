@@ -36,7 +36,7 @@ import { orgs } from './orgs'
  *     formalizedAt). A unit is born `informal` and becomes `company` via
  *     `unit.formalized`.
  *
- * PII (whatsapp/email per `UnitPii`, and the fiscal civil-name nuance) does NOT
+ * PII (mobile/email per `UnitPii`, and the fiscal civil-name nuance) does NOT
  * enter this typed table — it stays in the deletable `units_pii` / `private`
  * sidecars (LGPD contract, ADR 0010), exactly as the Firestore layer keeps it.
  * The typed projection decodes against `StoredUnit` (the PII-omitted shape).
@@ -72,7 +72,7 @@ export const units = pgTable(
     fiscalKind: text('fiscal_kind').notNull(),
 
     // ── Composite / structural state (JSONB; not primary-metric invariants) ──
-    // PII (whatsapp/email) intentionally ABSENT — sidecar `units_pii` (LGPD).
+    // PII (mobile/email) intentionally ABSENT — sidecar `units_pii` (LGPD).
     address: jsonb('address').notNull(),
     // The full agenda variant body (businessHours + appointment-only configs).
     agenda: jsonb('agenda').notNull(),

@@ -186,15 +186,10 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
         </Field>
         <div className="grid grid-cols-2 gap-4">
           <Field>
-            <FieldLabel htmlFor="unit-whatsapp" required>
+            <FieldLabel htmlFor="unit-mobile" required>
               WhatsApp
             </FieldLabel>
-            <PhoneInput
-              id="unit-whatsapp"
-              name="whatsapp"
-              defaultValue={unit?.whatsapp ?? ''}
-              required
-            />
+            <PhoneInput id="unit-mobile" name="mobile" defaultValue={unit?.mobile ?? ''} required />
           </Field>
           <Field>
             <FieldLabel htmlFor="unit-email">Email</FieldLabel>

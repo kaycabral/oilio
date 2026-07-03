@@ -2,7 +2,7 @@ import { Schema } from 'effect'
 import { Attribution } from './attribution'
 
 // `Customer` is the **conceptual entity** of a person known to a org —
-// what every read site and UI component handles. PII (name, whatsapp,
+// what every read site and UI component handles. PII (name, mobile,
 // birthDate) is materialized into this shape at read time by the
 // server, but the canonical storage lives on the global `users/{userId}`
 // doc (referenced via `userId`). The account `email` is NOT materialized
@@ -27,7 +27,7 @@ export const Customer = Schema.mutable(
     // Materialized from `User` at read time. UI components consume these
     // directly and don't need to know about the User/Customer split.
     name: Schema.String,
-    whatsapp: Schema.String,
+    mobile: Schema.String,
     birthDate: Schema.NullOr(Schema.String),
     // Materialized from `User.avatarUrl` at read time. Neutralized (null) for a
     // customer blocked in this org (LGPD art. 18 — brief 0032, AC-13: the
@@ -67,9 +67,7 @@ export type Customer = typeof Customer.Type
 // OMITS the PII (name/whatsapp/birthDate/avatarUrl) materialized from
 // `users/` at read time. Decode raw `customers` docs against this — decoding
 // against the full `Customer` would fail by design (the PII isn't stored).
-export const StoredCustomer = Customer.pipe(
-  Schema.omit('name', 'whatsapp', 'birthDate', 'avatarUrl'),
-)
+export const StoredCustomer = Customer.pipe(Schema.omit('name', 'mobile', 'birthDate', 'avatarUrl'))
 export type StoredCustomer = typeof StoredCustomer.Type
 
 export const BirthDateParseResult = Schema.Union(

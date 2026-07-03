@@ -253,8 +253,8 @@ function uniqueSuffix() {
   return `${Date.now()}-${randomBytes(4).toString('hex')}`
 }
 
-// A unique, well-formed BR mobile number for seeded Users. `users.whatsapp` is
-// now GLOBALLY unique (partial unique index `users_whatsapp_unique`), so two
+// A unique, well-formed BR mobile number for seeded Users. `users.mobile` is
+// now GLOBALLY unique (partial unique index `users_mobile_unique`), so two
 // seeded users can no longer share the old hardcoded `5511900000000` — that
 // would violate the constraint the moment a single DB holds both. Shape:
 // `55` (DDI) + `11` (DDD) + `9` (mobile) + 8 digits.
@@ -278,7 +278,7 @@ export function uniqueWhatsapp(): string {
 // National (DDD + number) form the masked PhoneInput accepts when a spec TYPES a
 // WhatsApp into the completion/self-signup form — drop the `55` DDI from the
 // canonical stored number. Unique per run, so a completed profile never collides
-// with another User on the global `users_whatsapp_unique` index.
+// with another User on the global `users_mobile_unique` index.
 export function uniqueNationalWhatsapp(): string {
   return uniqueWhatsapp().slice(2)
 }
@@ -415,7 +415,7 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
       displayName: 'E2E Owner',
       emailVerified: true,
       currentOrgId: orgId,
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
       birthDate: '1990-01-01',
       completionCompleted: true,
       claimedAt: now,
@@ -459,18 +459,18 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
       updatedAt: now,
     }
     await seedUnitDoc(orgId, unitId, unitDoc)
-    // PII lives out of the unit projection (#1036 / ADR 0010): whatsapp/email
+    // PII lives out of the unit projection (#1036 / ADR 0010): mobile/email
     // are stored in the `units_pii` sidecar table and merged at read time (the
     // PII contract — the typed projection has no PII columns). Mirror the product
     // write path so listings/details surface the contact channels.
-    const unitPii: UnitPii = { whatsapp: '5511900000000', email: null }
+    const unitPii: UnitPii = { mobile: '5511900000000', email: null }
     await upsertUnitsPii(orgId, unitId, unitPii)
   }
 
-  // Post-D4 (#1226 AC-02) `operationalStatus` is DERIVED on read from whatsapp ∧
+  // Post-D4 (#1226 AC-02) `operationalStatus` is DERIVED on read from mobile ∧
   // ≥1 unit ∧ ≥1 service. So an `operational` memberOperation needs a REAL service
   // linked in the `member_operation_services` join (brief 0068 D3) — not just
-  // whatsapp + units. Seed one org service first (FK target must exist before the
+  // mobile + units. Seed one org service first (FK target must exist before the
   // join insert) and link it below. Named distinctly so it never collides with a
   // spec's own `'Corte'` assertion. Incomplete pros get none (they must derive
   // `incomplete`). Specs that drive incomplete→operational through the UI pass
@@ -493,12 +493,12 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
     memberOperationIds.push(pid)
     const proUid = `e2e-prof-user-${pid}`
     // Identity source of truth (#1046 / brief 0028 AC-04/AC-05): the global
-    // User doc. The read path merges name/whatsapp/email LIVE from here.
+    // User doc. The read path merges name/mobile/email LIVE from here.
     //
-    // `operationalStatus` is DERIVED on read (#1226 AC-02) from whatsapp ∧ ≥1
-    // unit ∧ ≥1 service. The seed controls the whatsapp axis here: an
-    // `incomplete` memberOperation is seeded WITHOUT whatsapp (so the derive floors
-    // at incomplete); an `operational` one has whatsapp + ≥1 unit (below) and
+    // `operationalStatus` is DERIVED on read (#1226 AC-02) from mobile ∧ ≥1
+    // unit ∧ ≥1 service. The seed controls the mobile axis here: an
+    // `incomplete` memberOperation is seeded WITHOUT mobile (so the derive floors
+    // at incomplete); an `operational` one has mobile + ≥1 unit (below) and
     // expects the spec to attach ≥1 service via `linkMemberOperationToServices`.
     const wantsOperational = memberOperationOperationalStatus !== 'incomplete'
     await putUserDoc(
@@ -507,12 +507,12 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
         displayName: `Profissional ${i + 1}`,
         emailVerified: true,
         currentOrgId: orgId,
-        ...(wantsOperational ? { whatsapp: uniqueWhatsapp(), completionCompleted: true } : {}),
+        ...(wantsOperational ? { mobile: uniqueWhatsapp(), completionCompleted: true } : {}),
         claimedAt: now,
       }),
     )
     // MemberOperation projection — decoded as `StoredMemberOperation` (omits the PII
-    // name/whatsapp/email/taxIdentity, merged from `users/` + `member_operations_pii`,
+    // name/mobile/email/taxIdentity, merged from `users/` + `member_operations_pii`,
     // and `operationalStatus`, derived on read — #1226 AC-02).
     const proDoc: StoredMemberOperation = {
       id: pid,
@@ -555,7 +555,7 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
     await seedMembershipDoc(proMembership)
     await seedMemberOperationDoc(orgId, proDoc)
     // Per-org PII (#1036, ADR 0010) — after #1046 only `taxIdentity`.
-    // Identity (name/whatsapp/email) lives on the global User (read live).
+    // Identity (name/mobile/email) lives on the global User (read live).
     const proPii: MemberOperationPii = { taxIdentity: null }
     await upsertMemberOperationPii({ orgId, id: pid, taxIdentity: proPii.taxIdentity })
   }
@@ -666,7 +666,7 @@ export async function seedMember(
       displayName: opts.displayName,
       emailVerified: true,
       currentOrgId: orgId,
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
       completionCompleted: true,
       claimedAt: now,
     }),
@@ -738,7 +738,7 @@ export async function seedMembershipFor(
 // `member_operations` projection + a `memberOperation`-role membership + PII. Unlike
 // the synthetic `e2e-prof-user-*` seeded by `seedOrg`, this user can mint a
 // session — needed to prove own-scope (RLS + capability gates) from the
-// memberOperation's own session. Operational (whatsapp + units + services) so it
+// memberOperation's own session. Operational (mobile + units + services) so it
 // is bookable on the agenda. Returns the auth credentials + projection id.
 export async function seedLoginableMemberOperation(
   orgId: string,
@@ -748,7 +748,7 @@ export async function seedLoginableMemberOperation(
   const now = new Date().toISOString()
   const memberOperationId = `e2e-prof-${uniqueSuffix()}`
 
-  // Refresh the global User doc to carry whatsapp + currentOrgId so the
+  // Refresh the global User doc to carry mobile + currentOrgId so the
   // operational-status derive (#1226 AC-02) floors at operational and the app
   // resolves this org on login.
   await putUserDoc(
@@ -757,7 +757,7 @@ export async function seedLoginableMemberOperation(
       displayName: opts.displayName ?? 'E2E Profissional',
       emailVerified: true,
       currentOrgId: orgId,
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
       birthDate: '1990-01-01',
       completionCompleted: true,
       claimedAt: now,
@@ -815,7 +815,7 @@ export async function seedLoginableMemberWithoutProfile(
       displayName: opts.displayName ?? 'E2E Sem Perfil',
       emailVerified: true,
       currentOrgId: orgId,
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
       birthDate: '1990-01-01',
       completionCompleted: true,
       claimedAt: now,
@@ -908,8 +908,8 @@ export async function seedAdditionalOrg(
     }
     await seedUnitDoc(orgId, unitId, unitDoc)
     // PII out of the unit projection (#1036 / ADR 0010) — mirror the product
-    // write path so reads merge whatsapp/email from `units_pii/{id}`.
-    const unitPii: UnitPii = { whatsapp: '5511900000000', email: null }
+    // write path so reads merge mobile/email from `units_pii/{id}`.
+    const unitPii: UnitPii = { mobile: '5511900000000', email: null }
     await upsertUnitsPii(orgId, unitId, unitPii)
   }
 
@@ -1079,7 +1079,7 @@ const MembershipRowSchema = Schema.Struct({
 // Postgres. Returns the projection id + the DERIVED `operationalStatus` (#1226
 // AC-02 — no longer a stored column), or null when no projection exists. Used by
 // the role-edit lifecycle spec (#1086) to assert materialization (projection
-// appears) and operability (status derives from whatsapp ∧ units ∧ services).
+// appears) and operability (status derives from mobile ∧ units ∧ services).
 export type ReadMemberOperationResult = { id: string; operationalStatus: string }
 
 export async function readMemberOperationByUserId(
@@ -1100,13 +1100,12 @@ export async function readMemberOperationByUserId(
     memberOperationRowToDoc(typedRow),
   )
   // Derive on read exactly like the production read layer: the projection
-  // existing ⇒ invite accepted; whatsapp comes from the linked global User.
+  // existing ⇒ invite accepted; mobile comes from the linked global User.
   const user = await readUser(stored.userId)
-  const whatsapp =
-    user && 'whatsapp' in user && typeof user.whatsapp === 'string' ? user.whatsapp : null
+  const mobile = user && 'mobile' in user && typeof user.mobile === 'string' ? user.mobile : null
   const operationalStatus = deriveOperationalStatus({
     inviteAccepted: true,
-    whatsapp,
+    mobile,
     unitIds: stored.unitIds,
     catalogServiceIds: stored.catalogServiceIds,
   })
@@ -1249,7 +1248,7 @@ export async function seedCustomer(
   orgId: string,
   opts: {
     name?: string
-    whatsapp?: string | null
+    mobile?: string | null
     email?: string | null
     /** CPF do titular — necessário pra activateGatewayCharging (brief 0003). */
     document?: string | null
@@ -1276,12 +1275,12 @@ export async function seedCustomer(
       email: opts.email ?? null,
       displayName: name,
       avatarUrl: opts.avatarUrl ?? null,
-      whatsapp: opts.whatsapp ?? null,
+      mobile: opts.mobile ?? null,
     }),
   )
 
   // Per-org Customer shadow. Decoded as `StoredCustomer` (omits the PII
-  // name/whatsapp/email/birthDate/avatarUrl, merged from `users/`).
+  // name/mobile/email/birthDate/avatarUrl, merged from `users/`).
   const customerDoc: StoredCustomer = buildStoredCustomer(customerId, orgId, userId, now)
   await seedCustomerDoc(orgId, customerDoc)
   // Reverse-index link (`org_links`) — the create-customer saga writes this in
@@ -1901,7 +1900,7 @@ export async function seedUnit(
     updatedAt: now,
   }
   await seedUnitDoc(orgId, id, unitDoc)
-  const unitPii: UnitPii = { whatsapp: '5511900000000', email: null }
+  const unitPii: UnitPii = { mobile: '5511900000000', email: null }
   await upsertUnitsPii(orgId, id, unitPii)
   return id
 }
@@ -2303,7 +2302,7 @@ export async function seedAuthUser(
       email,
       displayName: 'E2E Invitee',
       emailVerified: true,
-      whatsapp: completionCompleted ? uniqueWhatsapp() : null,
+      mobile: completionCompleted ? uniqueWhatsapp() : null,
       birthDate: completionCompleted ? '1990-01-01' : null,
       completionCompleted,
       claimedAt: now,
@@ -2315,7 +2314,7 @@ export async function seedAuthUser(
 
 export type SeedInviteInput = {
   orgId: string
-  whatsapp: string
+  mobile: string
   role: 'manager' | 'member_operator' | 'receptionist'
   invitedBy: string
   // Defaults to now + 48h. Pass a past ISO to seed an expired invite.
@@ -2333,7 +2332,7 @@ export async function seedInvite(
   const tokenHash = createHash('sha256').update(rawToken).digest('hex')
   const now = new Date().toISOString()
   const expiresAt = input.expiresAt ?? new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
-  // Invite projection — decoded as `StoredInvite` (omits the PII `whatsapp`, which
+  // Invite projection — decoded as `StoredInvite` (omits the PII `mobile`, which
   // lives in `invites_pii/{id}` and is merged at read time). The schema enforces
   // `acceptedByUid`/`acceptedAt` present iff `status === 'accepted'`, so an
   // accepted seed must carry both (else it fails to decode and crashes reads).
@@ -2358,8 +2357,8 @@ export async function seedInvite(
   // time, kept separate so erasure is a row delete). It is the delivery channel,
   // not an accept-time match key (brief 0084 — first-accept-wins). Mirrors
   // `writeInvitePii`.
-  const invitePii: InvitePii = { whatsapp: input.whatsapp }
-  await upsertInvitePii({ orgId: input.orgId, id: inviteId, whatsapp: invitePii.whatsapp })
+  const invitePii: InvitePii = { mobile: input.mobile }
+  await upsertInvitePii({ orgId: input.orgId, id: inviteId, mobile: invitePii.mobile })
   return { inviteId, rawToken }
 }
 

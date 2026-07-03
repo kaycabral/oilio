@@ -204,7 +204,7 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
         }
         changeSlotHref={changeSlotHref}
         viewerName={viewerName}
-        unitWhatsapp={bundle.unit.whatsapp}
+        unitMobile={bundle.unit.mobile}
         unitName={bundle.unit.name}
       />
     </main>

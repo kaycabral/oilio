@@ -29,7 +29,7 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
       const pendingDisplay = formatBrazilPhone(pendingWhatsapp)
       await seedInvite({
         orgId: org.orgId,
-        whatsapp: pendingWhatsapp,
+        mobile: pendingWhatsapp,
         role: 'receptionist',
         invitedBy: org.uid,
       })

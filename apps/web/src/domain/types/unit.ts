@@ -317,12 +317,12 @@ export const Unit = Schema.mutable(
     // Unique within org (cross-org collisions are allowed — two orgs
     // can each have a `centro`). See #873.
     slug: Schema.String,
-    // Public-facing WhatsApp for confirmations, reminders and customer fallback
+    // Public-facing mobile for confirmations, reminders and customer fallback
     // contact. Stored normalized via `normalizeBrazilPhone`. Required — decided
-    // in #822: per-unit WA, no Org-level WA.
-    whatsapp: Schema.String,
+    // in #822: per-unit number, no Org-level number.
+    mobile: Schema.String,
     // Optional second channel (docs, corporate contact). null when absent.
-    // Genuinely a second channel — `whatsapp` is the required primary contact;
+    // Genuinely a second channel — `mobile` is the required primary contact;
     // an email is nice-to-have, not an obligation of being an establishment.
     email: Schema.NullOr(Schema.String),
     // REQUIRED (PRD Identidade § Contrato de tipagem, v2): a Unidade is a real,
@@ -363,15 +363,15 @@ export const Unit = Schema.mutable(
 export type Unit = typeof Unit.Type
 
 // Storage projection of `Unit`: the per-org `units/{id}` doc that OMITS the
-// PII contact channels (whatsapp/email), which live in the deletable
+// PII contact channels (mobile/email), which live in the deletable
 // `units_pii/{id}` doc and are merged at read time. Decode raw `units` docs
 // against this.
-export const StoredUnit = Unit.pipe(Schema.omit('whatsapp', 'email'))
+export const StoredUnit = Unit.pipe(Schema.omit('mobile', 'email'))
 export type StoredUnit = typeof StoredUnit.Type
 
 // The complement of `StoredUnit`: the deletable `units_pii/{id}` doc. Defined
 // from the same base so the omit (storage) and pick (PII sidecar) can't drift.
-export const UnitPii = Unit.pipe(Schema.pick('whatsapp', 'email'))
+export const UnitPii = Unit.pipe(Schema.pick('mobile', 'email'))
 export type UnitPii = typeof UnitPii.Type
 
 // A new unit is born informal — no CNPJ until the owner formalizes it (brief

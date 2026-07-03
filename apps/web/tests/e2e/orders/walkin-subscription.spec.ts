@@ -40,7 +40,7 @@ test.describe(
       })
       const customerId = await seedCustomer(org.orgId, {
         name: 'Walk-in Assinante',
-        whatsapp: uniqueWhatsapp(),
+        mobile: uniqueWhatsapp(),
       })
       // Assinatura ativa cujo plano cobre o serviço, com saldo (1 de 4).
       await seedSubscription(org.orgId, customerId, {
@@ -81,7 +81,7 @@ test.describe(
       })
       const customerId = await seedCustomer(org.orgId, {
         name: 'Sem Saldo',
-        whatsapp: uniqueWhatsapp(),
+        mobile: uniqueWhatsapp(),
       })
       // Plano por contagem JÁ ESGOTADO (consumed == quantity) → sem saldo restante.
       await seedSubscription(org.orgId, customerId, {
@@ -117,7 +117,7 @@ test.describe(
       })
       const customerId = await seedCustomer(org.orgId, {
         name: 'Vai Sair',
-        whatsapp: uniqueWhatsapp(),
+        mobile: uniqueWhatsapp(),
       })
       await seedSubscription(org.orgId, customerId, {
         planName: 'Mensal Corte',

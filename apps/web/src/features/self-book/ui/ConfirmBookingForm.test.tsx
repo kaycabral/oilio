@@ -34,7 +34,7 @@ const baseProps = {
   startAtLabel: 'qua, 11 de março, 09:00',
   cancellationPolicy: { enabled: false, minNoticeMinutes: 120 },
   changeSlotHref: '/acme/centro/availability?service=s1',
-  unitWhatsapp: '5511999999999',
+  unitMobile: '5511999999999',
   unitName: 'Centro',
 }
 

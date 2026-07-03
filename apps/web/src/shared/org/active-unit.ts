@@ -54,7 +54,7 @@ export async function needsUnitSelection(membership: Membership): Promise<boolea
  * cross-org collectionGroup (multi-org invariant).
  */
 export async function listAccessibleUnits(membership: Membership): Promise<Unit[]> {
-  // The stored `units` projection carries NO PII (whatsapp/email live in
+  // The stored `units` projection carries NO PII (mobile/email live in
   // `units_pii`, merged at read time — see unit-read.ts). This selector only
   // needs id/name/archivedAt, so it decodes the stored projection and fills the
   // contact channels with the same neutral defaults `enrichUnits` uses for an
@@ -64,7 +64,7 @@ export async function listAccessibleUnits(membership: Membership): Promise<Unit[
   // a deleted unit must not be switchable to nor operable in. Mirrors
   // `listUnitsForOrg` (unit-read.ts). Filtered in-memory (truthy `archivedAt`)
   // so legacy docs without the field still surface.
-  const withDefaultPii = (u: StoredUnit): Unit => ({ ...u, whatsapp: '', email: null })
+  const withDefaultPii = (u: StoredUnit): Unit => ({ ...u, mobile: '', email: null })
 
   const rows = await readUnderRls<UnitRow>(membership.orgId, (client) =>
     client

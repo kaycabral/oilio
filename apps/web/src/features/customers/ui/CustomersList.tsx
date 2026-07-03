@@ -143,11 +143,11 @@ export function CustomersList({
           // Contact line under the name: the WhatsApp number, masked in the BR
           // display format. The exposed WhatsApp action stays as the quick "open
           // chat" affordance; this just makes the number visible + scannable.
-          description: c.whatsapp ? formatBrazilPhone(c.whatsapp) : undefined,
+          description: c.mobile ? formatBrazilPhone(c.mobile) : undefined,
           // Exposed WhatsApp shortcut beside the ⋯ menu (tooltip reveals number).
           actions: (
             <>
-              <WhatsappAction phone={c.whatsapp} label={`WhatsApp de ${c.name}`} />
+              <WhatsappAction phone={c.mobile} label={`WhatsApp de ${c.name}`} />
               <RowActions actions={actions} label={`Ações de ${c.name}`} />
             </>
           ),

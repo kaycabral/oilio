@@ -38,7 +38,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
 
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
       role: 'manager',
       invitedBy: owner.uid,
     })
@@ -87,7 +87,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     const invitee = await seedAuthUser()
     const { inviteId } = await seedInvite({
       orgId: owner.orgId,
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
       role: 'manager',
       invitedBy: owner.uid,
     })
@@ -112,7 +112,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     const anyAccount = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
       role: 'manager',
       invitedBy: owner.uid,
     })
@@ -143,7 +143,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
       role: 'member_operator',
       invitedBy: owner.uid,
     })
@@ -165,7 +165,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
       role: 'manager',
       invitedBy: owner.uid,
       status: 'accepted',
@@ -185,7 +185,7 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
       role: 'manager',
       invitedBy: owner.uid,
       expiresAt: new Date(Date.now() - 60_000).toISOString(),

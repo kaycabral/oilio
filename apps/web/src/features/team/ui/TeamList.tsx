@@ -147,7 +147,7 @@ export function TeamList({
           const { invite } = entry
           return {
             icon: <MessageCircle />,
-            title: formatBrazilPhone(invite.whatsapp),
+            title: formatBrazilPhone(invite.mobile),
             badge: <StatusBadge tone="info">Pendente</StatusBadge>,
             description: `${roleLabel(invite.role)} · expira em ${new Date(
               invite.expiresAt,

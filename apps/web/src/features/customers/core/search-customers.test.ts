@@ -2,15 +2,15 @@ import type { Customer } from '@/domain'
 import { describe, expect, it } from 'vitest'
 import { searchCustomers } from './search-customers'
 
-// Customer factory — the search only reads name/whatsapp, but we build a fully
+// Customer factory — the search only reads name/mobile, but we build a fully
 // valid Customer (no cast) so the test never drifts from the schema.
-function customer(args: { id: string; name: string; whatsapp: string }): Customer {
+function customer(args: { id: string; name: string; mobile: string }): Customer {
   return {
     id: args.id,
     orgId: 'org-1',
     userId: `u-${args.id}`,
     name: args.name,
-    whatsapp: args.whatsapp,
+    mobile: args.mobile,
     birthDate: null,
     avatarUrl: null,
     archivedAt: null,
@@ -21,9 +21,9 @@ function customer(args: { id: string; name: string; whatsapp: string }): Custome
   }
 }
 
-const ana = customer({ id: '1', name: 'Ana Souza', whatsapp: '5592900000000' })
-const bruno = customer({ id: '2', name: 'Bruno Lima', whatsapp: '5511988887777' })
-const carla = customer({ id: '3', name: 'Carla Árvore', whatsapp: '5511999990000' })
+const ana = customer({ id: '1', name: 'Ana Souza', mobile: '5592900000000' })
+const bruno = customer({ id: '2', name: 'Bruno Lima', mobile: '5511988887777' })
+const carla = customer({ id: '3', name: 'Carla Árvore', mobile: '5511999990000' })
 
 const all = [carla, ana, bruno]
 

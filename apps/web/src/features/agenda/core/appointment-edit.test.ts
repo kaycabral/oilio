@@ -4,7 +4,7 @@ import { decideSnapshotRefresh, validateEditableCustomer } from './appointment-e
 describe('validateEditableCustomer', () => {
   it('rejects creating a new customer during an edit', () => {
     expect(
-      validateEditableCustomer({ newCustomer: { name: 'X', whatsapp: '11999' }, customerId: null }),
+      validateEditableCustomer({ newCustomer: { name: 'X', mobile: '11999' }, customerId: null }),
     ).toEqual({ ok: false, error: 'Cadastrar cliente novo só ao criar agendamento' })
   })
 

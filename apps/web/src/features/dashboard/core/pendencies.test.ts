@@ -46,7 +46,7 @@ function makeCustomer(p: Partial<Customer> & { createdAt: string; updatedAt: str
     orgId: 't',
     userId: 'user',
     name: 'Alice',
-    whatsapp: '1',
+    mobile: '1',
     birthDate: null,
     avatarUrl: null,
     archivedAt: null,

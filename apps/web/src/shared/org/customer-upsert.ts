@@ -5,14 +5,14 @@
 //   - features/agenda/adapters/agenda.actions.ts (quick-add from booking dialog)
 //   - features/self-book (per-unit public booking confirm)
 //
-// Schema decided in #832 + #836: PII (name, whatsapp, email, birthDate)
+// Schema decided in #832 + #836: PII (name, mobile, email, birthDate)
 // lives on the global `users/{userId}` doc; per-org `customers/{id}`
 // only carries operational data (computed scores) + the
 // userId FK. See https://github.com/cbrl-dev/cbrl/wiki/02-Estrategia-Modelo-Identidade
 //
-// NO dedupe by whatsapp (brief 0077, #1276). WhatsApp is now GLOBALLY unique at
-// the database level (`users_whatsapp_unique`), so the front-desk quick-add never
-// folds a typed number into an existing User — folding-by-WhatsApp was the SOURCE
+// NO dedupe by mobile (brief 0077, #1276). The mobile is now GLOBALLY unique at
+// the database level (`users_mobile_unique`), so the front-desk quick-add never
+// folds a typed number into an existing User — folding-by-mobile was the SOURCE
 // of the wrong-number breach the brief kills (a mistyped number silently
 // capturing a real login). The quick-add creates a brand-new stub User; if the
 // number already has an owner the DB refuses the insert (23505) and we surface a
@@ -29,7 +29,7 @@ import { normalizeBrazilPhone, type Attribution, type StoredCustomer, type User 
 import { CustomerConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
-import { isUniqueViolation, USERS_WHATSAPP_UNIQUE } from '@/shared/db/pg/unique-violation'
+import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/unique-violation'
 import { putUser } from '@/shared/db/pg/users-store'
 import { emitEvent } from '@/shared/effect-bridge'
 import { linkCustomerOrg } from '@/shared/identity/org-links'
@@ -51,7 +51,7 @@ export type { StoredCustomer } from '@/domain'
 export type UpsertCustomerInput = {
   orgId: string
   name: string
-  whatsappRaw: string
+  mobileRaw: string
   email: string | null
   birthDate: string | null
   // Write-once acquisition attribution (brief 0077 AC-10/AC-11) captured when the
@@ -64,13 +64,13 @@ export type UpsertCustomerResult =
   | { ok: false; error: string }
 
 // Stub User created by a front-desk quick-add (no Firebase Auth UID — a random
-// UUID doubles as both doc id and `uid`). It carries the typed WhatsApp, which
-// the global `users_whatsapp_unique` index keeps singular: if the number already
+// UUID doubles as both doc id and `uid`). It carries the typed mobile, which
+// the global `users_mobile_unique` index keeps singular: if the number already
 // has an owner the insert is refused (no silent fold — brief 0077, #1276).
 function buildUserStub(
   userId: string,
   input: UpsertCustomerInput,
-  whatsapp: string,
+  mobile: string,
   now: string,
 ): User {
   return {
@@ -80,7 +80,7 @@ function buildUserStub(
     avatarUrl: null,
     emailVerified: false,
     currentOrgId: null,
-    whatsapp,
+    mobile,
     birthDate: input.birthDate,
     taxIdentity: null,
     bio: null,
@@ -114,19 +114,19 @@ async function findCustomerIdByUserId(orgId: string, userId: string): Promise<st
 export async function upsertCustomerWithUser(
   input: UpsertCustomerInput,
 ): Promise<UpsertCustomerResult> {
-  const whatsapp = normalizeBrazilPhone(input.whatsappRaw)
-  if (!whatsapp) return { ok: false, error: 'WhatsApp inválido' }
+  const mobile = normalizeBrazilPhone(input.mobileRaw)
+  if (!mobile) return { ok: false, error: 'WhatsApp inválido' }
 
   const now = new Date().toISOString()
 
-  // Create a fresh stub User for the typed contact. No find-by-whatsapp fold:
+  // Create a fresh stub User for the typed contact. No find-by-mobile fold:
   // the DB's global uniqueness refuses a number that already has an owner, which
   // we translate into a handled error pointing at the invite flow.
   const userId = randomUUID()
   try {
-    await putUser(buildUserStub(userId, input, whatsapp, now))
+    await putUser(buildUserStub(userId, input, mobile, now))
   } catch (err) {
-    if (isUniqueViolation(err, USERS_WHATSAPP_UNIQUE)) {
+    if (isUniqueViolation(err, USERS_MOBILE_UNIQUE)) {
       return { ok: false, error: WHATSAPP_IN_USE_ERROR }
     }
     throw err

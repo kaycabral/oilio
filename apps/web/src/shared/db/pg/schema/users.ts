@@ -57,7 +57,7 @@ export const users = pgTable(
     currentOrgId: text('current_org_id'),
 
     // ── PII (nullable; scrubbed to null on anonymization) ───────────────────
-    whatsapp: text('whatsapp'),
+    mobile: text('mobile'),
     birthDate: text('birth_date'),
     bio: text('bio'),
 
@@ -87,7 +87,7 @@ export const users = pgTable(
   (table) => [
     // Email lookups (login dedup / support).
     index('users_email_idx').on(table.email),
-    // WhatsApp is GLOBALLY unique per person — a phone number has exactly one
+    // The mobile is GLOBALLY unique per person — a phone number has exactly one
     // owner, and the User is global (org/unit/role-agnostic), so the same number
     // can never back two Users. This is the database wall of the
     // one-owner-per-number rule (mirrored by an app-layer check that turns the
@@ -95,20 +95,20 @@ export const users = pgTable(
     // (recepcionista stub / anonymized account), which is the absence of the
     // datum, not a colliding value — Postgres lets multiple NULLs coexist anyway,
     // and the WHERE makes the intent explicit.
-    uniqueIndex('users_whatsapp_unique')
-      .on(table.whatsapp)
-      .where(sql`${table.whatsapp} IS NOT NULL`),
+    uniqueIndex('users_mobile_unique')
+      .on(table.mobile)
+      .where(sql`${table.mobile} IS NOT NULL`),
     // The anonymized invariant, mirrored from the domain union: a non-null
     // `anonymized_at` REQUIRES the PII columns scrubbed to null (the only path
-    // that produces a "completed account with no whatsapp").
+    // that produces a "completed account with no mobile").
     check(
       'users_anonymized_pii_scrubbed',
-      sql`${table.anonymizedAt} IS NULL OR (${table.whatsapp} IS NULL AND ${table.birthDate} IS NULL)`,
+      sql`${table.anonymizedAt} IS NULL OR (${table.mobile} IS NULL AND ${table.birthDate} IS NULL)`,
     ),
     // Complete-registration invariant (brief 0077, AC-02) — the DATABASE layer of
     // the defesa-em-3-camadas (banco + action + UI). A user who FINISHED the
     // completion step (`completion_completed = true`) MUST carry the contact
-    // channel (whatsapp) and birth_date: nobody completes registration without
+    // number (mobile) and birth_date: nobody completes registration without
     // them, so nobody who logged in can linger usable with an incomplete profile
     // (the brief's origin incident — a wrong/missing number with no path to fix).
     //
@@ -124,20 +124,20 @@ export const users = pgTable(
     //
     // Anonymized accounts (`anonymized_at != null`) are carved out: the LGPD
     // erasure scrubs PII to null AFTER completion was proven, so a completed +
-    // anonymized user is allowed null whatsapp/birth_date — without this the
+    // anonymized user is allowed null mobile/birth_date — without this the
     // erasure cascade would deadlock against this CHECK and
     // `users_anonymized_pii_scrubbed` at once.
     //
-    // `whatsapp` must be BOTH non-null AND non-empty (#1283). `whatsapp` is a
+    // `mobile` must be BOTH non-null AND non-empty (#1283). `mobile` is a
     // nullable column (stubs/pending users carry null), so `char_length(btrim)`
     // alone is unsound: `char_length(btrim(NULL)) > 0` is NULL, and a CHECK only
-    // rejects on FALSE — so a null whatsapp would slip through. `IS NOT NULL`
+    // rejects on FALSE — so a null mobile would slip through. `IS NOT NULL`
     // guards the null; `char_length(btrim) > 0` guards the `''` zero-value (which
-    // satisfies NOT NULL but is no real contact channel). `birth_date` keeps
+    // satisfies NOT NULL but is no real contact number). `birth_date` keeps
     // `IS NOT NULL` (it's a date column — `''` can't be stored).
     check(
       'users_completed_profile_complete',
-      sql`${table.completionCompleted} = false OR ${table.anonymizedAt} IS NOT NULL OR (${table.whatsapp} IS NOT NULL AND char_length(btrim(${table.whatsapp})) > 0 AND ${table.birthDate} IS NOT NULL)`,
+      sql`${table.completionCompleted} = false OR ${table.anonymizedAt} IS NOT NULL OR (${table.mobile} IS NOT NULL AND char_length(btrim(${table.mobile})) > 0 AND ${table.birthDate} IS NOT NULL)`,
     ),
   ],
 )

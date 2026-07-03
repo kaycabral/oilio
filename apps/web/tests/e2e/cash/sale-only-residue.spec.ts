@@ -35,7 +35,7 @@ async function seedOrderFixture(org: SeededOrg): Promise<void> {
   })
   const customerId = await seedCustomer(org.orgId, {
     name: 'Cliente Residuo',
-    whatsapp: uniqueWhatsapp(),
+    mobile: uniqueWhatsapp(),
   })
   await seedAppointment({
     orgId: org.orgId,

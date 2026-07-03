@@ -351,7 +351,7 @@ export function AppointmentDialog({
               <SelectContent>
                 {sortedCustomers.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.name} · {formatBrazilPhone(c.whatsapp)}
+                    {c.name} · {formatBrazilPhone(c.mobile)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -359,7 +359,7 @@ export function AppointmentDialog({
           ) : (
             <div className="grid grid-cols-2 gap-3">
               <Input name="newCustomerName" placeholder="Nome" required minLength={2} />
-              <PhoneInput name="newCustomerWhatsapp" required />
+              <PhoneInput name="newCustomerMobile" required />
             </div>
           )}
 

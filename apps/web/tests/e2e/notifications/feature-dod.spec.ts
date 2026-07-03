@@ -116,7 +116,7 @@ test.describe.serial('Brief 0018 — Definition of Done (Feature-level)', () => 
     const unitA = org.unitIds[0]!
     const unitB = org.unitIds[1]!
     const wa = uniqueWhatsapp()
-    const customerId = await seedCustomer(org.orgId, { name: 'Maria', whatsapp: wa })
+    const customerId = await seedCustomer(org.orgId, { name: 'Maria', mobile: wa })
 
     const birthdayNotif = await seedNotification(org.orgId, unitA, 'birthday', customerId)
     await seedNotification(org.orgId, unitB, 'new_customer', customerId)

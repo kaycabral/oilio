@@ -50,7 +50,7 @@ test.describe('Agenda — diálogo de novo agendamento', () => {
       unitIds: [org.unitIds[0]!],
       catalogServiceIds: [serviceId],
     })
-    await seedCustomer(org.orgId, { name: 'João Teste', whatsapp: uniqueWhatsapp() })
+    await seedCustomer(org.orgId, { name: 'João Teste', mobile: uniqueWhatsapp() })
 
     const agenda = new AgendaPage(authedPage)
     await agenda.goto()

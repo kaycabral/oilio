@@ -104,7 +104,7 @@ test.describe('Onboarding — conclusão de perfil', () => {
       const invitee = await seedAuthUser({ completionCompleted: false })
       const { inviteId, rawToken } = await seedInvite({
         orgId: owner.orgId,
-        whatsapp: '5511990002345',
+        mobile: '5511990002345',
         role: 'manager',
         invitedBy: owner.uid,
       })

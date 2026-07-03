@@ -106,7 +106,7 @@ describe('parseBusinessHours', () => {
 const VALID_UNIT: Record<string, string> = {
   ...VALID_ADDRESS,
   name: 'Matriz',
-  whatsapp: '11999998888',
+  mobile: '11999998888',
   bh_monday_enabled: 'on',
   bh_monday_0_open: '09:00',
   bh_monday_0_close: '18:00',
@@ -121,7 +121,7 @@ describe('parseUnitForm', () => {
       email: null,
       hoursMode: 'fixed',
     })
-    expect(typeof result === 'object' ? result.whatsapp : '').toMatch(/\d/)
+    expect(typeof result === 'object' ? result.mobile : '').toMatch(/\d/)
   })
 
   it('rejects a too-short name', () => {
@@ -133,7 +133,7 @@ describe('parseUnitForm', () => {
   })
 
   it('rejects a missing whatsapp', () => {
-    const { whatsapp: _w, ...rest } = VALID_UNIT
+    const { mobile: _w, ...rest } = VALID_UNIT
     expect(typeof parseUnitForm(fd(rest))).toBe('string')
   })
 
@@ -154,7 +154,7 @@ describe('parseUnitForm', () => {
     // operating establishment, so the empty hours config is rejected at the
     // boundary rather than producing a unit without businessHours (PRD
     // Identidade v2 § Contrato de tipagem).
-    const noDays = { ...VALID_ADDRESS, name: 'Matriz', whatsapp: '11999998888' }
+    const noDays = { ...VALID_ADDRESS, name: 'Matriz', mobile: '11999998888' }
     expect(typeof parseUnitForm(fd(noDays))).toBe('string')
   })
 })

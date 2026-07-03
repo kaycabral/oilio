@@ -107,12 +107,12 @@ export default async function WizardSuccessPage({ params, searchParams }: PagePr
         <dt className="text-muted-foreground">Onde</dt>
         <dd>
           {unitDoc.name}
-          {unitDoc.whatsapp ? (
+          {unitDoc.mobile ? (
             <>
               {' · '}
               <a
                 className="underline-offset-2 hover:underline"
-                href={`https://wa.me/${unitDoc.whatsapp}`}
+                href={`https://wa.me/${unitDoc.mobile}`}
                 target="_blank"
                 rel="noreferrer"
               >

@@ -10,14 +10,14 @@ import 'server-only'
 
 // Maps the domain anonymization scrub to the snake_case `users` columns for a
 // single atomic `patchUser` UPDATE. `updatedAt` is written by `patchUser` itself,
-// so it is omitted here. Setting `anonymized_at` alongside `whatsapp`/`birth_date`
+// so it is omitted here. Setting `anonymized_at` alongside `mobile`/`birth_date`
 // → null in ONE statement satisfies the `users_anonymized_pii_scrubbed` CHECK
 // (anonymized ⇒ PII null) — there is no intermediate violating state.
 function anonymizationColumnPatch(now: string): Record<string, unknown> {
   const scrub = buildUserAnonymizationScrub(now)
   return {
     display_name: scrub.displayName,
-    whatsapp: scrub.whatsapp,
+    mobile: scrub.mobile,
     email: scrub.email,
     birth_date: scrub.birthDate,
     tax_identity: scrub.taxIdentity,

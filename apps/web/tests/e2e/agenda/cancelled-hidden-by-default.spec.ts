@@ -25,11 +25,11 @@ async function seedScheduledAndCancelled(
   const cancelledName = 'Cancelado Cliente'
   const activeCustomerId = await seedCustomer(org.orgId, {
     name: activeName,
-    whatsapp: uniqueWhatsapp(),
+    mobile: uniqueWhatsapp(),
   })
   const cancelledCustomerId = await seedCustomer(org.orgId, {
     name: cancelledName,
-    whatsapp: uniqueWhatsapp(),
+    mobile: uniqueWhatsapp(),
   })
   // Distinct slots so a hidden cancelled card can't be confused with overlap.
   // BR is UTC-3. 14:00 BR == 17:00 UTC; 15:00 BR == 18:00 UTC on 2026-08-12.

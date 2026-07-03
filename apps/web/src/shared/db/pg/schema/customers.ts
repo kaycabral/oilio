@@ -15,7 +15,7 @@ import { orgs } from './orgs'
 /**
  * Typed relational projection for the `customer` bounded context (migration
  * feature D, brief 0060, Grupo A) — the per-org shadow of a person known to a
- * org. PII (name/whatsapp/email/birthDate/avatarUrl) is materialized at read time
+ * org. PII (name/mobile/email/birthDate/avatarUrl) is materialized at read time
  * from the global `users/{userId}` doc and NEVER stored here (LGPD contract, ADR
  * 0010); the typed projection decodes against `StoredCustomer` (the PII-omitted
  * shape). Only the operational fields persist: the `userId` link and the two
@@ -44,7 +44,7 @@ export const customers = pgTable(
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
     // FK into `users/{userId}` (global) — required, no PII-only customers. PII
-    // (name/whatsapp/email/birthDate/avatarUrl) read live from there.
+    // (name/mobile/email/birthDate/avatarUrl) read live from there.
     userId: text('user_id').notNull(),
 
     // LGPD per-org terminal block (brief 0032). When set, the shadow is archived

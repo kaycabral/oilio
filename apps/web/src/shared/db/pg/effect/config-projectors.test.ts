@@ -97,7 +97,7 @@ describe('memberOperation projector — pure mapping', () => {
     orgId: 'org-1',
     userId: 'user-1',
     name: 'Zé',
-    whatsapp: '5511999999999',
+    mobile: '5511999999999',
     email: 'ze@x.com',
     taxIdentity: null,
     operationalStatus: 'operational',
@@ -131,7 +131,7 @@ describe('memberOperation projector — pure mapping', () => {
     const v = memberOperationColumnValues(memberOperation, 1)
     expect(v).toHaveLength(MEMBER_OPERATION_COLUMNS.length)
     expect(v[MEMBER_OPERATION_COLUMNS.indexOf('user_id')]).toBe('user-1')
-    // name/whatsapp/email never reach the typed table (LGPD — sidecar/users).
+    // name/mobile/email never reach the typed table (LGPD — sidecar/users).
     expect(v).not.toContain('Zé')
     expect(v).not.toContain('ze@x.com')
   })
@@ -156,7 +156,7 @@ describe('customer projector — pure mapping', () => {
     orgId: 'org-1',
     userId: 'user-9',
     name: 'Maria',
-    whatsapp: '5511988888888',
+    mobile: '5511988888888',
     birthDate: null,
     avatarUrl: null,
     archivedAt: null,
@@ -216,7 +216,7 @@ describe('invite projector — pure mapping', () => {
   const pendingInvite: Invite = {
     id: 'inv-1',
     orgId: 'org-1',
-    whatsapp: '5511990000001',
+    mobile: '5511990000001',
     role: 'member_operator',
     tokenHash: 'hash-abc',
     expiresAt: '2026-06-08T00:00:00.000Z',

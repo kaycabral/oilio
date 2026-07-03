@@ -20,15 +20,15 @@ export const MemberOperation = Schema.mutable(
     // the invite-acceptance saga — never a standalone entity with a null link.
     userId: Schema.String,
     name: Schema.String,
-    // Canonical contact channel (#822). Stored normalized via
+    // Canonical contact number (#822). Stored normalized via
     // `normalizeBrazilPhone`. Required.
-    whatsapp: Schema.String,
+    mobile: Schema.String,
     // Optional second channel (usually populated from the OAuth provider on
     // the first session via the completion step). null when absent.
     email: Schema.NullOr(Schema.String),
     taxIdentity: Schema.NullOr(TaxIdentity),
     // Readiness to operate (take bookings, show on agenda, receive split).
-    // DERIVED on read from real facts (whatsapp present ∧ ≥1 unit ∧ ≥1 service)
+    // DERIVED on read from real facts (mobile present ∧ ≥1 unit ∧ ≥1 service)
     // — see `deriveOperationalStatus` — NOT materialized on the projection (brief
     // 0068 D4 / #1226 AC-02). Present on the enriched read model `MemberOperation`
     // (the read layer attaches it); ABSENT from `StoredMemberOperation` (the event
@@ -63,12 +63,12 @@ export type MemberOperation = typeof MemberOperation.Type
 // not stored (brief 0068 D4 / #1226 AC-02). Decode raw `memberOperations` docs
 // against this.
 export const StoredMemberOperation = MemberOperation.pipe(
-  Schema.omit('name', 'whatsapp', 'email', 'taxIdentity', 'operationalStatus'),
+  Schema.omit('name', 'mobile', 'email', 'taxIdentity', 'operationalStatus'),
 )
 export type StoredMemberOperation = typeof StoredMemberOperation.Type
 
 // The deletable `member_operations_pii/{id}` doc. Only `taxIdentity` is per-org
-// PII stored here; name/whatsapp/email are read live from `users/{userId}`.
+// PII stored here; name/mobile/email are read live from `users/{userId}`.
 // Picked from the same base so it can't drift from `MemberOperation`.
 export const MemberOperationPii = MemberOperation.pipe(Schema.pick('taxIdentity'))
 export type MemberOperationPii = typeof MemberOperationPii.Type

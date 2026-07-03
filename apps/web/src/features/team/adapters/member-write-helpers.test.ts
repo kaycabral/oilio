@@ -29,7 +29,7 @@ function pro(overrides: Partial<MemberOperation> = {}): MemberOperation {
     orgId: 'org-1',
     userId: 'user-1',
     name: 'Zé',
-    whatsapp: '5511999999999',
+    mobile: '5511999999999',
     email: null,
     taxIdentity: null,
     operationalStatus: 'incomplete',

@@ -23,7 +23,7 @@ import { orgs } from './orgs'
  * Keyed by composite PK `(org_id, id)`. FK
  * `org_id → orgs.org_id`; `org_id` is the leading index column (RLS performance).
  *
- * PII (name/whatsapp/email read LIVE from the global `users/{userId}` doc, and
+ * PII (name/mobile/email read LIVE from the global `users/{userId}` doc, and
  * `taxIdentity` in the deletable `member_operations_pii/{id}` sidecar) does NOT
  * enter this typed table — it stays in the sidecars (LGPD contract, ADR 0010),
  * exactly as the Firestore layer keeps it. The typed projection decodes against
@@ -37,7 +37,7 @@ import { orgs } from './orgs'
  *   - FK `org_id → orgs.org_id`; `org_id` NOT NULL leading column.
  *
  * `operational_status` is NOT stored (brief 0068 D4 / #1226 AC-02) — it is
- * derived on read from real facts (whatsapp present ∧ ≥1 unit ∧ ≥1 service).
+ * derived on read from real facts (mobile present ∧ ≥1 unit ∧ ≥1 service).
  *
  * Composite/structural state (`default_commission`, `unit_ids`,
  * `catalog_service_ids`) lives in JSONB — faithful to the reduced state without
@@ -54,7 +54,7 @@ export const memberOperations = pgTable(
     lastEventVersion: bigint('last_event_version', { mode: 'number' }).notNull(),
 
     // ── Primary-metric invariants (enforced by the DB) ──────────────────────
-    // FK into `users/{userId}` (global) — non-null (#1045). PII (name/whatsapp/
+    // FK into `users/{userId}` (global) — non-null (#1045). PII (name/mobile/
     // email) read live from there; `taxIdentity` from `member_operations_pii`.
     userId: text('user_id').notNull(),
 

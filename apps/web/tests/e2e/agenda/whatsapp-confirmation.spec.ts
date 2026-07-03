@@ -10,12 +10,12 @@ import { AgendaPage } from '../pages'
 
 // Retrofit pro PR #726 (issue #638) — link "Enviar confirmação por
 // WhatsApp" no edit dialog. Visível apenas quando appointment.status
-// === 'scheduled' E o cliente tem whatsapp normalizável. Href deve
+// === 'scheduled' E o cliente tem mobile normalizável. Href deve
 // começar com https://wa.me/ + dígitos.
 
 async function seedAppointmentForCustomer(
   org: SeededOrg,
-  opts: { whatsapp?: string; status?: 'scheduled' | 'cancelled' },
+  opts: { mobile?: string; status?: 'scheduled' | 'cancelled' },
 ): Promise<void> {
   const serviceId = await seedService(org.orgId, {
     name: 'Corte',
@@ -24,7 +24,7 @@ async function seedAppointmentForCustomer(
   })
   const customerId = await seedCustomer(org.orgId, {
     name: 'Maria WhatsApp',
-    whatsapp: opts.whatsapp,
+    mobile: opts.mobile,
   })
   await seedAppointment({
     orgId: org.orgId,
@@ -50,7 +50,7 @@ test.describe('Agenda — link WhatsApp de confirmação', () => {
   })
 
   test('link aparece pra agendamento agendado com WhatsApp', async ({ org, authedPage }) => {
-    await seedAppointmentForCustomer(org, { whatsapp: uniqueWhatsapp() })
+    await seedAppointmentForCustomer(org, { mobile: uniqueWhatsapp() })
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-08-12')
     await authedPage.getByRole('button', { name: /Maria WhatsApp/ }).click()
@@ -62,7 +62,7 @@ test.describe('Agenda — link WhatsApp de confirmação', () => {
   })
 
   test('link some pra agendamento cancelado', async ({ org, authedPage }) => {
-    await seedAppointmentForCustomer(org, { whatsapp: uniqueWhatsapp(), status: 'cancelled' })
+    await seedAppointmentForCustomer(org, { mobile: uniqueWhatsapp(), status: 'cancelled' })
     const agenda = new AgendaPage(authedPage)
     // Cancelled is hidden by default (brief 0081); surface it via the toggle so
     // the card is clickable and we can assert the dialog has no WhatsApp link.

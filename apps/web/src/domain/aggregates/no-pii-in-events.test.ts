@@ -10,7 +10,7 @@
 //     payload de evento == o shape do snapshot. Guardar o snapshot guarda o
 //     evento.
 //   - Este teste varre recursivamente todo nome de campo de cada snapshot e
-//     FALHA se algum casar com um token de PII de titular (nome/WhatsApp/email/
+//     FALHA se algum casar com um token de PII de titular (nome/mobile/email/
 //     CPF/CNPJ/endereço/nascimento). Identidade tem que ser por REFERÊNCIA (id),
 //     nunca cópia do valor.
 //
@@ -18,7 +18,7 @@
 // `customerId`, `memberOperationId`, `userId`) são FKs opacos — o padrão CORRETO.
 // O denylist mira VALORES de PII copiados num payload/snapshot, não ids.
 //
-// Pega o caso do futuro: um dev que adicione `name`/`whatsapp`/`email`/`cpf`/...
+// Pega o caso do futuro: um dev que adicione `name`/`mobile`/`email`/`cpf`/...
 // num snapshot quebra este teste no commit que introduz o vazamento.
 
 import { describe, expect, it } from 'vitest'
@@ -96,7 +96,6 @@ const PII_TOKENS = [
   'firstname',
   'lastname',
   'displayname',
-  'whatsapp',
   'phone',
   'mobile',
   'email',
@@ -151,9 +150,9 @@ const ALLOWED_NAME_PATHS = new Set<string>([
 
 // Campos cujo token de PII casa mas que NÃO são PII de titular — dado do
 // ESTABELECIMENTO ou config, fora do escopo de titular (LGPD). Documentado por
-// `<path>::<token>`. O contato real do estabelecimento (whatsapp/email da unidade)
-// vive em `units_pii` apagável; aqui ficam só endereço público da unidade e os
-// templates de mensagem do org (config, não número de pessoa).
+// `<path>::<token>`. O contato real do estabelecimento (mobile/email da unidade)
+// vive em `units_pii` apagável; aqui fica só o endereço público da unidade
+// (dado de negócio, não número de pessoa).
 const ALLOWED_NON_TITULAR_PII = new Set<string>([
   // Endereço público da unidade (estabelecimento), não residência de titular.
   // Model v2 (PRD Identidade): a Unidade é estabelecimento real, localizável —
@@ -165,8 +164,6 @@ const ALLOWED_NON_TITULAR_PII = new Set<string>([
   'unit.address::address',
   'unit.address.postalCode::postalcode',
   'unit.address.street::street',
-  // Templates de mensagem WhatsApp do org (config) — o NÚMERO vive em units_pii.
-  'org.whatsappTemplates::whatsapp',
 ])
 
 // Walk recursivo: coleta `<path>` de toda chave do snapshot, descendo em objetos
@@ -236,13 +233,13 @@ describe('AC-05 — zero PII in event snapshots/payloads (ADR 0010 invariant)', 
 
   it('the denylist actually fires (meta-test — guards a no-op gate)', () => {
     // Prova que o matcher pega PII de fato: um snapshot sintético com `name`/
-    // `whatsapp`/`taxIdentity`/`birthDate` aninhado tem que vazar.
+    // `mobile`/`taxIdentity`/`birthDate` aninhado tem que vazar.
     const poisoned = {
       id: '',
       customerId: 'ref-ok',
       attributedUserId: 'ref-ok',
       name: 'Fulano',
-      contact: { whatsapp: '+55...', email: 'a@b.c' },
+      contact: { mobile: '+55...', email: 'a@b.c' },
       taxIdentity: { taxId: '000' },
       birthDate: '1990-01-01',
     }
@@ -252,12 +249,12 @@ describe('AC-05 — zero PII in event snapshots/payloads (ADR 0010 invariant)', 
       const fieldName = path.slice(path.lastIndexOf('.') + 1)
       return PII_TOKENS.some((token) => fieldMatchesPiiToken(fieldName, token))
     })
-    // pega name, whatsapp, email, taxIdentity, taxId, birthDate (6)
+    // pega name, mobile, email, taxIdentity, taxId, birthDate (6)
     expect(matched.sort()).toEqual(
       [
         'poisoned.birthDate',
         'poisoned.contact.email',
-        'poisoned.contact.whatsapp',
+        'poisoned.contact.mobile',
         'poisoned.name',
         'poisoned.taxIdentity',
         'poisoned.taxIdentity.taxId',

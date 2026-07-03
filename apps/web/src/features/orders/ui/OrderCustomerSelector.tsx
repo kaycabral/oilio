@@ -85,7 +85,7 @@ export function OrderCustomerSelector({
             <SelectContent>
               {customers.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.name} · {formatBrazilPhone(c.whatsapp)}
+                  {c.name} · {formatBrazilPhone(c.mobile)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -93,7 +93,7 @@ export function OrderCustomerSelector({
         ) : (
           <div className="flex flex-wrap items-end gap-2">
             <Input name="newCustomerName" placeholder="Nome" required minLength={2} />
-            <PhoneInput name="newCustomerWhatsapp" required />
+            <PhoneInput name="newCustomerMobile" required />
           </div>
         )}
         <Button type="submit" variant="outline" size="sm" disabled={pending}>

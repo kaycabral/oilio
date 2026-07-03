@@ -27,7 +27,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 import { createAppointment } from './agenda.actions'
 
 const TS = '2026-06-01T12:00:00.000Z'
-const NEW_CUSTOMER_WHATSAPP = '11999990001'
+const NEW_CUSTOMER_MOBILE = '11999990001'
 
 let seq = 0
 function uniqueOrg(): string {
@@ -175,7 +175,7 @@ function newCustomerForm(args: { unitId: string; memberOperationId: string; serv
   fd.set('serviceId', args.serviceId)
   fd.set('customerMode', 'new')
   fd.set('newCustomerName', 'Cliente Novo')
-  fd.set('newCustomerWhatsapp', NEW_CUSTOMER_WHATSAPP)
+  fd.set('newCustomerMobile', NEW_CUSTOMER_MOBILE)
   fd.set('date', '2026-07-01')
   fd.set('startTime', '10:00')
   return fd
@@ -197,11 +197,11 @@ async function countEventsByTag(orgId: string, tag: string): Promise<number> {
   return Number(res.rows[0]?.n ?? '0')
 }
 
-async function countUsersByWhatsapp(whatsappRaw: string): Promise<number> {
-  const whatsapp = normalizeBrazilPhone(whatsappRaw)
+async function countUsersByMobile(mobileRaw: string): Promise<number> {
+  const mobile = normalizeBrazilPhone(mobileRaw)
   const res = await pool().query<{ n: string }>(
-    'SELECT count(*)::text AS n FROM users WHERE whatsapp = $1',
-    [whatsapp],
+    'SELECT count(*)::text AS n FROM users WHERE mobile = $1',
+    [mobile],
   )
   return Number(res.rows[0]?.n ?? '0')
 }
@@ -249,7 +249,7 @@ describe('createAppointment — inline newCustomer is gated on canManageCustomer
     // No side-effect: the inline-customer branch never ran.
     expect(await countCustomers(orgId)).toBe(0)
     expect(await countEventsByTag(orgId, 'customer.created')).toBe(0)
-    expect(await countUsersByWhatsapp(NEW_CUSTOMER_WHATSAPP)).toBe(0)
+    expect(await countUsersByMobile(NEW_CUSTOMER_MOBILE)).toBe(0)
     expect(await countEventsByTag(orgId, 'appointment.created')).toBe(0)
   })
 
@@ -276,6 +276,6 @@ describe('createAppointment — inline newCustomer is gated on canManageCustomer
     // The inline-customer branch ran: customer row + event + User PII materialized.
     expect(await countCustomers(orgId)).toBe(1)
     expect(await countEventsByTag(orgId, 'customer.created')).toBe(1)
-    expect(await countUsersByWhatsapp(NEW_CUSTOMER_WHATSAPP)).toBe(1)
+    expect(await countUsersByMobile(NEW_CUSTOMER_MOBILE)).toBe(1)
   })
 })

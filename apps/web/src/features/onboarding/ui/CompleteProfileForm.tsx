@@ -21,7 +21,7 @@ export function CompleteProfileForm({
   const { formRef, isValid, refresh } = useFormValidity()
   const ids = useId()
   const nameId = `${ids}-name`
-  const whatsappId = `${ids}-whatsapp`
+  const mobileId = `${ids}-mobile`
   const birthDateId = `${ids}-birthDate`
 
   const today = new Date().toISOString().slice(0, 10)
@@ -56,10 +56,10 @@ export function CompleteProfileForm({
           </>
         )}
         <Field>
-          <FieldLabel htmlFor={whatsappId} required>
+          <FieldLabel htmlFor={mobileId} required>
             WhatsApp
           </FieldLabel>
-          <PhoneInput id={whatsappId} name="whatsapp" defaultValue={prefill.whatsapp} required />
+          <PhoneInput id={mobileId} name="mobile" defaultValue={prefill.mobile} required />
         </Field>
         <Field>
           <FieldLabel htmlFor={birthDateId} required>

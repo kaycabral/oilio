@@ -54,7 +54,7 @@ async function readConsumed(orgId: string, subId: string): Promise<number> {
 async function seedServiceFor(
   org: SeededOrg,
   customerName: string,
-  whatsapp: string,
+  mobile: string,
   withSubscription: boolean,
 ): Promise<{ customerId: string; subId: string | null }> {
   const serviceId = await seedService(org.orgId, {
@@ -63,9 +63,9 @@ async function seedServiceFor(
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  // Cada cenário roda em org próprio (fixture) com whatsapp distinto — o
+  // Cada cenário roda em org próprio (fixture) com mobile distinto — o
   // Customer é org-scoped, sem colisão entre cenários.
-  const customerId = await seedCustomer(org.orgId, { name: customerName, whatsapp })
+  const customerId = await seedCustomer(org.orgId, { name: customerName, mobile })
   const subId = withSubscription
     ? await seedSubscription(org.orgId, customerId, {
         planName: 'Mensal Corte',

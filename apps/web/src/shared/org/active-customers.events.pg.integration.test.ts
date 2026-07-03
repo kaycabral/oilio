@@ -29,10 +29,10 @@ function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${seq}`
 }
 
-// `users_whatsapp_unique` is GLOBAL, so two seeded customers can't share a
+// `users_mobile_unique` is GLOBAL, so two seeded customers can't share a
 // number. Derive a valid 13-digit BR mobile (55 + 11 + 9 + 8 digits) from the
 // per-run-unique uid so every seeded user gets its own.
-function uniqueWhatsapp(seedUid: string): string {
+function uniqueMobile(seedUid: string): string {
   let hash = 0
   for (let i = 0; i < seedUid.length; i++) hash = (hash * 31 + seedUid.charCodeAt(i)) >>> 0
   return `55119${String(hash % 100_000_000).padStart(8, '0')}`
@@ -61,7 +61,7 @@ async function seedCustomer(
 ): Promise<string> {
   await seedOrg(orgId)
   const userId = uid('user')
-  await putUser(buildUser(userId, TS, { displayName: opts.name, whatsapp: uniqueWhatsapp(userId) }))
+  await putUser(buildUser(userId, TS, { displayName: opts.name, mobile: uniqueMobile(userId) }))
   const id = uid('cust')
   await pool().query(
     `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)

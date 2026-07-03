@@ -61,7 +61,7 @@ async function loadMemberIdentities(members: Membership[]): Promise<{
     const user = userByUserId.get(m.userId)
     const resolved = resolveSubjectName(m.userId, user, ROLE_SUBJECT_NOUN[m.role])
     if (resolved) displayNameByUserId[m.userId] = resolved
-    if (user?.whatsapp) whatsappByUserId[m.userId] = user.whatsapp
+    if (user?.mobile) whatsappByUserId[m.userId] = user.mobile
     if (user?.birthDate) birthDateByUserId[m.userId] = user.birthDate
   }
   return { displayNameByUserId, whatsappByUserId, birthDateByUserId }
@@ -121,7 +121,7 @@ export async function loadTeamPage(
 
   // Search matches a member's display name or an invite's WhatsApp.
   const entries = filterBySearch(viewEntries, searchQuery, (entry) =>
-    entry.kind === 'member' ? [displayNameByUserId[entry.member.userId]] : [entry.invite.whatsapp],
+    entry.kind === 'member' ? [displayNameByUserId[entry.member.userId]] : [entry.invite.mobile],
   )
 
   const state = resolveListSurfaceState({

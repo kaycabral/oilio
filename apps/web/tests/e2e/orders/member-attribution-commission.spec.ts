@@ -129,7 +129,7 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
     })
     const customerId = await seedCustomer(org.orgId, {
       name: 'Cliente Servico',
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
     })
     await seedAppointment({
       orgId: org.orgId,

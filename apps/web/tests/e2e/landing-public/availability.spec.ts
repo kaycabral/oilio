@@ -30,7 +30,7 @@ test.describe('Landing pública — calendário de disponibilidade', () => {
 
       // Pre-block 09:00 BR (12:00 UTC) with an existing appointment so that slot
       // is dropped — we can assert both presence (other slots) and absence (09:00).
-      const cust = await seedCustomer(org.orgId, { name: 'Bloqueado', whatsapp: uniqueWhatsapp() })
+      const cust = await seedCustomer(org.orgId, { name: 'Bloqueado', mobile: uniqueWhatsapp() })
       await seedAppointment({
         orgId: org.orgId,
         unitId,

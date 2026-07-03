@@ -79,7 +79,7 @@ async function upsertUser(
       avatarUrl: defaults.avatarUrl,
       emailVerified: defaults.emailVerified,
       currentOrgId: null,
-      whatsapp: null,
+      mobile: null,
       birthDate: null,
       taxIdentity: null,
       bio: null,

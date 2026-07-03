@@ -5,7 +5,7 @@ import { closeEventStoreDb, getEventStorePool } from './pool'
  * Complete-registration invariant on `users` against REAL Postgres (brief 0077
  * AC-02, #1274) — the DATABASE layer of the defesa-em-3-camadas. The
  * `users_completed_profile_complete` CHECK (migration 0009) refuses a COMPLETED
- * user (`completion_completed = true`) whose `whatsapp` or `birth_date` is null:
+ * user (`completion_completed = true`) whose `mobile` or `birth_date` is null:
  * nobody finishes registration without them, so nobody who logged in lingers
  * *usable* with an incomplete profile.
  *
@@ -40,20 +40,20 @@ function uniqueUid(label: string): string {
 async function insertUser(overrides: {
   uid: string
   completionCompleted?: boolean
-  whatsapp?: string | null
+  mobile?: string | null
   birthDate?: string | null
   claimedAt?: string | null
   anonymizedAt?: string | null
 }): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO users
-       (uid, email_verified, completion_completed, whatsapp, birth_date,
+       (uid, email_verified, completion_completed, mobile, birth_date,
         claimed_at, anonymized_at, created_at, updated_at)
      VALUES ($1, false, $2, $3, $4, $5, $6, $7, $7)`,
     [
       overrides.uid,
       overrides.completionCompleted ?? false,
-      overrides.whatsapp ?? null,
+      overrides.mobile ?? null,
       overrides.birthDate ?? null,
       overrides.claimedAt ?? null,
       overrides.anonymizedAt ?? null,
@@ -73,27 +73,27 @@ describe('users_completed_profile_complete CHECK (brief 0077 AC-02)', () => {
     await closeEventStoreDb()
   })
 
-  it('rejects a completed user with no whatsapp/birth_date (23514)', async () => {
+  it('rejects a completed user with no mobile/birth_date (23514)', async () => {
     const uid = uniqueUid('completed-incomplete')
     await expect(
       insertUser({
         uid,
         completionCompleted: true,
         claimedAt: TS,
-        whatsapp: null,
+        mobile: null,
         birthDate: null,
       }),
     ).rejects.toMatchObject({ code: CHECK_VIOLATION, constraint: CONSTRAINT })
   })
 
-  it('rejects a completed user missing only whatsapp (23514)', async () => {
+  it('rejects a completed user missing only mobile (23514)', async () => {
     const uid = uniqueUid('completed-no-whatsapp')
     await expect(
       insertUser({
         uid,
         completionCompleted: true,
         claimedAt: TS,
-        whatsapp: null,
+        mobile: null,
         birthDate: '1990-01-01',
       }),
     ).rejects.toMatchObject({ code: CHECK_VIOLATION, constraint: CONSTRAINT })
@@ -106,7 +106,7 @@ describe('users_completed_profile_complete CHECK (brief 0077 AC-02)', () => {
         uid,
         completionCompleted: true,
         claimedAt: TS,
-        whatsapp: '5511999990000',
+        mobile: '5511999990000',
         birthDate: null,
       }),
     ).rejects.toMatchObject({ code: CHECK_VIOLATION, constraint: CONSTRAINT })
@@ -119,7 +119,7 @@ describe('users_completed_profile_complete CHECK (brief 0077 AC-02)', () => {
         uid,
         completionCompleted: true,
         claimedAt: TS,
-        whatsapp: '5511999990001',
+        mobile: '5511999990001',
         birthDate: '1990-01-01',
       }),
     ).resolves.toBeUndefined()
@@ -132,7 +132,7 @@ describe('users_completed_profile_complete CHECK (brief 0077 AC-02)', () => {
         uid,
         completionCompleted: false,
         claimedAt: TS,
-        whatsapp: null,
+        mobile: null,
         birthDate: null,
       }),
     ).resolves.toBeUndefined()
@@ -145,7 +145,7 @@ describe('users_completed_profile_complete CHECK (brief 0077 AC-02)', () => {
         uid,
         completionCompleted: false,
         claimedAt: null,
-        whatsapp: null,
+        mobile: null,
         birthDate: null,
       }),
     ).resolves.toBeUndefined()
@@ -159,7 +159,7 @@ describe('users_completed_profile_complete CHECK (brief 0077 AC-02)', () => {
         completionCompleted: true,
         claimedAt: TS,
         anonymizedAt: TS,
-        whatsapp: null,
+        mobile: null,
         birthDate: null,
       }),
     ).resolves.toBeUndefined()
@@ -171,11 +171,11 @@ describe('users_completed_profile_complete CHECK (brief 0077 AC-02)', () => {
       uid,
       completionCompleted: true,
       claimedAt: TS,
-      whatsapp: '5511999990002',
+      mobile: '5511999990002',
       birthDate: '1990-01-01',
     })
     await expect(
-      getEventStorePool().query('UPDATE users SET whatsapp = NULL WHERE uid = $1', [uid]),
+      getEventStorePool().query('UPDATE users SET mobile = NULL WHERE uid = $1', [uid]),
     ).rejects.toMatchObject({ code: CHECK_VIOLATION, constraint: CONSTRAINT })
   })
 })

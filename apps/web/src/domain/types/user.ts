@@ -27,14 +27,15 @@ const userCommonFields = {
   updatedAt: Schema.String,
 }
 
-// WhatsApp (canonical contact channel) and birthDate (ISO `YYYY-MM-DD`, powers
-// aniversariantes) are modeled as a discriminated union across the account's two
-// independent axes — `completionCompleted` and `anonymizedAt` — so the only
-// representable states are the real ones:
+// mobile (canonical contact number — the person's Brazilian mobile) and
+// birthDate (ISO `YYYY-MM-DD`, powers aniversariantes) are modeled as a
+// discriminated union across the account's two independent axes —
+// `completionCompleted` and `anonymizedAt` — so the only representable states
+// are the real ones:
 //   • Incomplete — post-OAuth, before the completion step (#838): PII nullable.
-//   • Complete   — completion done (whatsapp ∧ birthDate REQUIRED).
+//   • Complete   — completion done (mobile ∧ birthDate REQUIRED).
 //   • Anonymized — LGPD art. 18 erasure (#1093): PII scrubbed to null.
-// A "completed account with no whatsapp" can ONLY exist via the Anonymized
+// A "completed account with no mobile" can ONLY exist via the Anonymized
 // branch (`anonymizedAt` set); any other path producing it fails to decode.
 
 const UserIncomplete = Schema.mutable(
@@ -42,7 +43,7 @@ const UserIncomplete = Schema.mutable(
     ...userCommonFields,
     anonymizedAt: Schema.Null,
     completionCompleted: Schema.Literal(false),
-    whatsapp: Schema.NullOr(Schema.String),
+    mobile: Schema.NullOr(Schema.String),
     birthDate: Schema.NullOr(Schema.String),
   }),
 )
@@ -52,7 +53,7 @@ const UserComplete = Schema.mutable(
     ...userCommonFields,
     anonymizedAt: Schema.Null,
     completionCompleted: Schema.Literal(true),
-    whatsapp: Schema.String,
+    mobile: Schema.String,
     birthDate: Schema.String,
   }),
 )
@@ -62,7 +63,7 @@ const UserAnonymized = Schema.mutable(
     ...userCommonFields,
     anonymizedAt: Schema.String,
     completionCompleted: Schema.Boolean,
-    whatsapp: Schema.Null,
+    mobile: Schema.Null,
     birthDate: Schema.Null,
   }),
 )

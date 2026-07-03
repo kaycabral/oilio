@@ -123,7 +123,7 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     }
   }
   const now = new Date().toISOString()
-  // PII (whatsapp/email) never enters the event payload (LGPD). The
+  // PII (mobile/email) never enters the event payload (LGPD). The
   // projection stores only operational fields; PII goes to the deletable
   // `units_pii` doc and is merged on read (unit-read.ts). #1036.
   const stored: StoredUnit = {
@@ -149,7 +149,7 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     updatedAt: now,
   }
   await writeUnitPii(r.ctx.membership.orgId, unitId, {
-    whatsapp: parsed.whatsapp,
+    mobile: parsed.mobile,
     email: parsed.email,
   })
   const created = await emitEvent(
@@ -202,7 +202,7 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
 
   // PII goes to the deletable `units_pii` doc, never to the event.
   await writeUnitPii(r.ctx.membership.orgId, unitId, {
-    whatsapp: parsed.whatsapp,
+    mobile: parsed.mobile,
     email: parsed.email,
   })
   const updated = await emitEvent(

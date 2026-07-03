@@ -70,7 +70,7 @@ async function seedPublishedOrg(orgId: string, slug: string): Promise<void> {
 function completionForm(opts: { context?: string; next?: string }): FormData {
   const fd = new FormData()
   fd.set('name', 'Cliente Novo')
-  fd.set('whatsapp', '11999990000')
+  fd.set('mobile', '11999990000')
   fd.set('birthDate', '1990-05-05')
   if (opts.next) fd.set('next', opts.next)
   if (opts.context) fd.set('context', opts.context)

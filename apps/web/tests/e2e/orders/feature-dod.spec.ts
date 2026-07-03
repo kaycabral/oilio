@@ -34,7 +34,7 @@ async function seedOrderFixture(
   })
   const customerId = await seedCustomer(org.orgId, {
     name: 'Cliente DoD',
-    whatsapp: uniqueWhatsapp(),
+    mobile: uniqueWhatsapp(),
   })
   const subId = opts.withSubscription
     ? await seedSubscription(org.orgId, customerId, {

@@ -403,19 +403,19 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     // operational-pro fixture seeded a WhatsApp on the member's User — read it
     // back so the seeded invite carries the same number.
     const proUser = await readUser(proUserId)
-    const proWhatsapp = proUser?.whatsapp
+    const proWhatsapp = proUser?.mobile
     expect(proWhatsapp, 'operational pro must have a seeded WhatsApp').toBeTruthy()
 
     const { inviteId } = await seedInvite({
       orgId: org.orgId,
-      whatsapp: proWhatsapp!,
+      mobile: proWhatsapp!,
       role: 'member_operator',
       invitedBy: org.uid,
       status: 'pending',
     })
     const { inviteId: otherInviteId } = await seedInvite({
       orgId: org.orgId,
-      whatsapp: `5511977${proId.replace(/\D/g, '').slice(-6).padStart(6, '0')}`,
+      mobile: `5511977${proId.replace(/\D/g, '').slice(-6).padStart(6, '0')}`,
       role: 'receptionist',
       invitedBy: org.uid,
       status: 'pending',

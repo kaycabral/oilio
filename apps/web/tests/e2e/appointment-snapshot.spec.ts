@@ -38,7 +38,7 @@ test.describe('Snapshot do agendamento', () => {
     })
     const customerId = await seedCustomer(org.orgId, {
       name: 'Cliente Snapshot',
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
     })
     // Appointment seeded with snapshot = 5000 cents (booking-time price).
     await seedAppointment({
@@ -106,7 +106,7 @@ test.describe('Snapshot do agendamento', () => {
     })
     const customerId = await seedCustomer(org.orgId, {
       name: 'Cliente Drift',
-      whatsapp: uniqueWhatsapp(),
+      mobile: uniqueWhatsapp(),
     })
     const appointmentId = await seedAppointment({
       orgId: org.orgId,

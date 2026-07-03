@@ -1,5 +1,5 @@
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
-import { isUniqueViolation, USERS_WHATSAPP_UNIQUE } from '@/shared/db/pg/unique-violation'
+import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/unique-violation'
 import { getUserById, patchUser, putUser } from '@/shared/db/pg/users-store'
 import { buildUser } from '@/shared/fixtures/domain-builders'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -15,7 +15,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
  * folded, repointed, or quietly taken over.
  *
  * The invariant now has TWO halves, both proven at the DB here:
- *   1. WhatsApp is GLOBALLY unique (`users_whatsapp_unique`): a completion write
+ *   1. WhatsApp is GLOBALLY unique (`users_mobile_unique`): a completion write
  *      with a number that already has an owner is REFUSED (23505) — there can
  *      never be a second user on that number (the merge's escape hatch is gone).
  *   2. No side effects on refusal: the refused write leaves the existing owner
@@ -26,7 +26,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
  */
 
 const TS = '2026-06-01T12:00:00.000Z'
-const SHARED_WHATSAPP = '5511988887777'
+const SHARED_MOBILE = '5511988887777'
 
 let seq = 0
 function uniqueUid(label: string): string {
@@ -44,11 +44,11 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
   })
 
   it('refuses completing with an already-used WhatsApp and leaves the other user untouched', async () => {
-    // An existing, fully-completed user already owns SHARED_WHATSAPP.
+    // An existing, fully-completed user already owns SHARED_MOBILE.
     const existingUid = uniqueUid('existing')
     await putUser(
       buildUser(existingUid, TS, {
-        whatsapp: SHARED_WHATSAPP,
+        mobile: SHARED_MOBILE,
         birthDate: '1985-05-05',
         completionCompleted: true,
         claimedAt: TS,
@@ -63,7 +63,7 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
     const claimerUid = uniqueUid('claimer')
     await putUser(
       buildUser(claimerUid, TS, {
-        whatsapp: null,
+        mobile: null,
         birthDate: null,
         completionCompleted: false,
         claimedAt: TS,
@@ -76,14 +76,14 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
         claimerUid,
         {
           display_name: 'New Login',
-          whatsapp: SHARED_WHATSAPP,
+          mobile: SHARED_MOBILE,
           birth_date: '1992-02-02',
           completion_completed: true,
         },
         new Date().toISOString(),
       )
     } catch (err) {
-      refused = isUniqueViolation(err, USERS_WHATSAPP_UNIQUE)
+      refused = isUniqueViolation(err, USERS_MOBILE_UNIQUE)
       if (!refused) throw err
     }
     expect(refused).toBe(true)
@@ -92,7 +92,7 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
     const existing = await getUserById(existingUid)
     expect(existing).not.toBeNull()
     expect(existing?.displayName).toBe('Existing Person')
-    expect(existing?.whatsapp).toBe(SHARED_WHATSAPP)
+    expect(existing?.mobile).toBe(SHARED_MOBILE)
     expect(existing?.birthDate).toBe('1985-05-05')
 
     // The claimer kept its own identity (no fold into the other uid) and stayed
@@ -100,12 +100,12 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
     const claimer = await getUserById(claimerUid)
     expect(claimer?.uid).toBe(claimerUid)
     expect(claimer?.completionCompleted).toBe(false)
-    expect(claimer?.whatsapp).toBeNull()
+    expect(claimer?.mobile).toBeNull()
 
     // Exactly ONE user owns the number — the global uniqueness invariant holds.
     const owners = await getEventStorePool().query<{ uid: string }>(
-      'SELECT uid FROM users WHERE whatsapp = $1',
-      [SHARED_WHATSAPP],
+      'SELECT uid FROM users WHERE mobile = $1',
+      [SHARED_MOBILE],
     )
     expect(owners.rows.map((r) => r.uid)).toEqual([existingUid])
   })

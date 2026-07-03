@@ -4,11 +4,11 @@
 // event payload + projection carry NO PII (ADR 0010 — direito à eliminação /
 // LGPD). Two PII sources are merged at read time:
 //
-//   1. Personal identity (name/whatsapp/email) — read LIVE from the global
+//   1. Personal identity (name/mobile/email) — read LIVE from the global
 //      `users/{userId}` doc (#1046 / brief 0028 AC-04/AC-05). This is a
 //      reference, not a stored copy: editing the User reflects on the
 //      memberOperation with no re-write. The email is the verified OAuth/invite
-//      email; whatsapp comes from the completion step (#838).
+//      email; mobile comes from the completion step (#838).
 //   2. MemberOperation-specific PII (`taxIdentity`) — lives in the per-org
 //      deletable doc `member_operations_pii/{id}`. It can diverge from personal
 //      identity (e.g. MEI CNPJ) so it stays memberOperation-scoped.
@@ -46,7 +46,7 @@ const decodeStoredMemberOperation = Schema.decodeUnknownSync(StoredMemberOperati
 // What we actually persist under `orgs/{t}/memberOperations/{id}` (the
 // event projection) + the deletable PII doc at `member_operations_pii/{id}`
 // (`MemberOperationPii`, holding ONLY `taxIdentity` after #1046 —
-// name/whatsapp/email live on the global User, read live). Both re-exported
+// name/mobile/email live on the global User, read live). Both re-exported
 // from `@/domain` (read-model source-of-truth) so existing importers keep
 // resolving them from here.
 export type { MemberOperationPii, StoredMemberOperation } from '@/domain'
@@ -58,16 +58,16 @@ function emptyEnrichment(
   // The linked User went missing (or the per-org link was severed for
   // LGPD — brief 0032). UI degrades gracefully with neutral text instead of
   // crashing; `taxIdentity` (memberOperation-scoped) still merges if present.
-  // No whatsapp ⇒ never operational (the derive floors at `incomplete`).
+  // No mobile ⇒ never operational (the derive floors at `incomplete`).
   return {
     ...p,
     name: '(profissional sem dados)',
-    whatsapp: '',
+    mobile: '',
     email: null,
     taxIdentity: pii?.taxIdentity ?? null,
     operationalStatus: deriveOperationalStatus({
       inviteAccepted: true,
-      whatsapp: '',
+      mobile: '',
       unitIds: p.unitIds,
       catalogServiceIds: p.catalogServiceIds,
     }),
@@ -93,15 +93,15 @@ function mergeIdentity(
     // org still shows their REAL name (+ avatar) on memberOperation surfaces
     // (team, commissions report).
     name: resolveSubjectName(p.userId, user, 'Profissional') ?? '',
-    whatsapp: user.whatsapp ?? '',
+    mobile: user.mobile ?? '',
     email: user.email,
     // MemberOperation-specific PII stays per-org (can diverge — MEI CNPJ).
     taxIdentity: pii?.taxIdentity ?? null,
     // DERIVED on read (#1226 AC-02): the projection exists ⇒ invite accepted;
-    // operational iff whatsapp present ∧ ≥1 unit ∧ ≥1 service.
+    // operational iff mobile present ∧ ≥1 unit ∧ ≥1 service.
     operationalStatus: deriveOperationalStatus({
       inviteAccepted: true,
-      whatsapp: user.whatsapp,
+      mobile: user.mobile,
       unitIds: p.unitIds,
       catalogServiceIds: p.catalogServiceIds,
     }),
@@ -153,7 +153,7 @@ export async function listMemberOperationsForOrg(orgId: string): Promise<MemberO
 // CURRENTLY active membership carrying the `canBeBooked` capability (brief 0076
 // AC-03). This is the read-path invariant, now expressed as capability ∧
 // readiness instead of the retired `BookableProfessional` brand: "bookable" is
-// `canBeBooked` (read from the membership) ∧ operational (whatsapp ∧ ≥1 unit ∧
+// `canBeBooked` (read from the membership) ∧ operational (mobile ∧ ≥1 unit ∧
 // ≥1 service, derived). The `memberOperations` projection alone is not trusted —
 // it can outlive a capability toggle — so cross-checking the bookable-member set
 // closes the leak WITHOUT deleting any data. Keyed on CURRENT state: toggling
@@ -199,7 +199,7 @@ export async function listMemberOperationsForServiceInUnit(
   const stored = rows.map((r) => decodeStoredMemberOperation(rowToDoc(r)))
   const enriched = await enrichMemberOperations(orgId, stored)
   // The joins already prove ≥1 unit and ≥1 service for this pro; the operational
-  // gate is now DERIVED on read (#1226 AC-02) and adds the whatsapp-present
+  // gate is now DERIVED on read (#1226 AC-02) and adds the mobile-present
   // requirement (PII, only available after enrich), so filter post-enrich.
   return enriched
     .filter((p) => p.operationalStatus === 'operational')
@@ -208,7 +208,7 @@ export async function listMemberOperationsForServiceInUnit(
 
 // The `{ userId, operationalStatus }` pairs for an org's memberOperations — the
 // operational-status lookup the team page needs. `operationalStatus` is now
-// DERIVED on read (#1226 AC-02) from whatsapp (PII, on the global User) + the
+// DERIVED on read (#1226 AC-02) from mobile (PII, on the global User) + the
 // projection's units/services, so this MUST enrich (the value is no longer a
 // stored column). Reuses `listMemberOperationsForOrg` (enriched + name-sorted) and
 // projects down to the `{ userId, operationalStatus }` pairs the team page needs.
@@ -400,7 +400,7 @@ export async function countMemberOperationsWithUnit(
 
 // "Is there an operational memberOperation at unit X?" — the per-unit publish
 // readiness check (brief 0008 #988). `operationalStatus` is DERIVED on read
-// (#1226 AC-02) from whatsapp (PII on the global User) + the projection's
+// (#1226 AC-02) from mobile (PII on the global User) + the projection's
 // units/services, so this can no longer be a pure SQL predicate. The SQL narrows
 // to the candidates — memberOperations at this unit (`member_operation_units` join, its
 // (org_id, unit_id) index) that ALSO perform ≥1 service (`member_operation_services`

@@ -50,7 +50,7 @@ export const clientFunnelEvents = pgTable(
     // client_signed_in: did the login originate from an invite link?
     fromInvite: text('from_invite'),
     // client_profile_completed: which fields the completion step filled (names
-    // only, e.g. ["whatsapp","birthDate"]) — never the values. JSONB array.
+    // only, e.g. ["mobile","birthDate"]) — never the values. JSONB array.
     fieldsFilled: jsonb('fields_filled'),
 
     ts: timestamp('ts', { withTimezone: true }).notNull(),
