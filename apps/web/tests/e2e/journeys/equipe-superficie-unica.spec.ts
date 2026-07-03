@@ -20,7 +20,12 @@
 // the projection + membership straight from Postgres to assert the lifecycle
 // invariants.
 
-import { defaultPermissionsForRole, membershipDocId, roleDescription } from '@/domain'
+import {
+  defaultPermissionsForRole,
+  formatBrazilPhone,
+  membershipDocId,
+  roleDescription,
+} from '@/domain'
 import { MembershipConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { expect, test } from '../fixtures'
@@ -232,10 +237,11 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       org,
       authedPage,
     }) => {
-      const pendingEmail = `pending-${Date.now()}@e2e.local`
+      const pendingWhatsapp = `5511${String(Date.now()).slice(-9)}`
+      const pendingDisplay = formatBrazilPhone(pendingWhatsapp)
       await seedInvite({
         orgId: org.orgId,
-        email: pendingEmail,
+        whatsapp: pendingWhatsapp,
         role: 'receptionist',
         invitedBy: org.uid,
       })
@@ -258,12 +264,12 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       // Single flat List + a Status filter (Todos/Ativos/Pendentes) replaces the
       // old Membros/Convites tabs. At rest (Todos) members and the pending
       // invite show together.
-      await expect(authedPage.getByText(pendingEmail)).toBeVisible()
+      await expect(authedPage.getByText(pendingDisplay)).toBeVisible()
       await expect(firstMember).toBeVisible()
 
       // Narrowing to Pendentes shows the invite and drops the members.
       await chooseOption(authedPage, 'Status', 'Pendentes')
-      await expect(authedPage.getByText(pendingEmail)).toBeVisible()
+      await expect(authedPage.getByText(pendingDisplay)).toBeVisible()
       await expect(listItem(authedPage, 'Profissional 1')).toHaveCount(0)
 
       // The invite modal surfaces each role's permission description (refino C).

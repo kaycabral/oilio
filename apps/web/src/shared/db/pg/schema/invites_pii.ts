@@ -4,19 +4,25 @@ import { orgs } from './orgs'
 
 /**
  * The deletable PII sidecar for invites (migration feature F — cutover, brief
- * 0062). Mirrors the Firestore `orgs/{orgId}/invites_pii/{id}` doc: it holds the
- * invitee `email` separate from the `invites` projection (which is email-omitted),
- * so the email can be erased independently (LGPD contract, ADR 0010 — PII never in
+ * 0062; channel normalized to WhatsApp in brief 0084). Holds the invitee
+ * `whatsapp` separate from the `invites` projection (which is PII-omitted), so
+ * the number can be erased independently (LGPD contract, ADR 0010 — PII never in
  * an event payload; it lives in a mutable/deletable doc merged at read time).
  *
  * Keyed by composite PK (org_id, id), org-scoped. Org RLS
- * (org-only) — the email of an org's invite is org data. Deleting the row erases
- * the PII while the `invites` projection (and its event history) stays intact.
+ * (org-only) — the WhatsApp of an org's invite is org data. Deleting the row
+ * erases the PII while the `invites` projection (and its event history) stays
+ * intact.
+ *
+ * WhatsApp replaced email as the channel (brief 0084): it is the establishment's
+ * real communication channel, and the accept flow no longer matches on it — the
+ * signed token + first-accept-wins is the identity binding (Google login yields
+ * an email, not a verified phone). The number here is the DELIVERY channel (the
+ * `wa.me` target), not an accept-time match key.
  *
  * Invariants enforced HERE:
- *   - `email` NOT NULL and non-empty (NOT NULL alone admits `''`; the email is
- *     the invite-accept match key, so a blank one breaks the accept flow
- *     silently — #1283).
+ *   - `whatsapp` NOT NULL and non-empty (NOT NULL alone admits `''`; a blank one
+ *     would produce a broken `wa.me` link — #1283 rationale, carried over).
  *   - `org_id` NOT NULL leading column.
  *   - FK `org_id → orgs.org_id`.
  */
@@ -25,7 +31,7 @@ export const invitesPii = pgTable(
   {
     orgId: text('org_id').notNull(),
     id: text('id').notNull(),
-    email: text('email').notNull(),
+    whatsapp: text('whatsapp').notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.orgId, table.id], name: 'invites_pii_pkey' }),
@@ -35,7 +41,7 @@ export const invitesPii = pgTable(
       foreignColumns: [orgs.orgId],
     }),
     index('invites_pii_org_id_idx').on(table.orgId),
-    check('invites_pii_email_nonempty', sql`char_length(btrim(${table.email})) > 0`),
+    check('invites_pii_whatsapp_nonempty', sql`char_length(btrim(${table.whatsapp})) > 0`),
   ],
 )
 

@@ -167,7 +167,7 @@ test.describe('account-level PII anonymization', () => {
     await seedMemberOperationPiiFor(subject.orgId, subject.uid, subject.unitIds)
     const { inviteId } = await seedInvite({
       orgId: subject.orgId,
-      email: subject.email,
+      whatsapp: '5511990003456',
       role: 'member_operator',
       invitedBy: subject.uid,
       status: 'accepted',

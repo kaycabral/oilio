@@ -75,14 +75,7 @@ export {
   formatBirthDate,
   parseBirthDate,
 } from './types/customer'
-export {
-  INVITE_TTL_MS,
-  Invite,
-  InvitePii,
-  StoredInvite,
-  inviteEmailsMatch,
-  normalizeInviteEmail,
-} from './types/invite'
+export { INVITE_TTL_MS, Invite, InvitePii, StoredInvite } from './types/invite'
 export {
   CommissionRule,
   MemberOperation,

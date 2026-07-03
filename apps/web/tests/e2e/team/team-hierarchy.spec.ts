@@ -8,7 +8,7 @@
 // UI flow (dialog → form → server action) and asserted via the returned link;
 // pre-seeded pending invites assert the Pendentes filter.
 
-import { roleDescription } from '@/domain'
+import { formatBrazilPhone, roleDescription } from '@/domain'
 import { expect, test } from '../fixtures'
 import { listItem } from '../helpers/list'
 import { chooseOption } from '../helpers/select'
@@ -25,10 +25,11 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
       authedPage,
     }) => {
       // A pre-seeded pending invite so the Pendentes filter has content.
-      const pendingEmail = `pending-${Date.now()}@e2e.local`
+      const pendingWhatsapp = `5511${String(Date.now()).slice(-9)}`
+      const pendingDisplay = formatBrazilPhone(pendingWhatsapp)
       await seedInvite({
         orgId: org.orgId,
-        email: pendingEmail,
+        whatsapp: pendingWhatsapp,
         role: 'receptionist',
         invitedBy: org.uid,
       })
@@ -44,16 +45,16 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
       // Single flat List with a Status filter. At rest (Todos) members and the
       // pending invite show together.
       await expect(listItem(authedPage, 'Profissional 1')).toBeVisible()
-      await expect(authedPage.getByText(pendingEmail)).toBeVisible()
+      await expect(authedPage.getByText(pendingDisplay)).toBeVisible()
 
       // Filter Ativos → members only, the pending invite drops.
       await chooseOption(authedPage, 'Status', 'Ativos')
       await expect(listItem(authedPage, 'Profissional 1')).toBeVisible()
-      await expect(authedPage.getByText(pendingEmail)).toHaveCount(0)
+      await expect(authedPage.getByText(pendingDisplay)).toHaveCount(0)
 
       // Filter Pendentes → the seeded invite is there, members drop.
       await chooseOption(authedPage, 'Status', 'Pendentes')
-      await expect(authedPage.getByText(pendingEmail)).toBeVisible()
+      await expect(authedPage.getByText(pendingDisplay)).toBeVisible()
       await expect(listItem(authedPage, 'Profissional 1')).toHaveCount(0)
     })
 
@@ -82,13 +83,15 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
       const dialog = authedPage.getByRole('dialog')
       await expect(dialog.getByText('Convidar membro')).toBeVisible()
 
-      // Fill + submit the real form (server action generates the invite link).
-      const email = `invitee-${Date.now()}@e2e.local`
-      await dialog.getByPlaceholder('email@empresa.com').fill(email)
+      // Fill + submit the real form (server action generates the invite +
+      // wa.me delivery). The channel is WhatsApp now (brief 0084).
+      const whatsapp = `(11) 9${String(Date.now()).slice(-8)}`
+      await dialog.getByPlaceholder(/WhatsApp/i).fill(whatsapp)
       await chooseOption(dialog, 'Papel', 'Recepção')
       await dialog.getByRole('button', { name: /Convidar|Convidando/ }).click()
 
-      // The invite link is surfaced in-dialog.
+      // Success surfaces the WhatsApp send affordance + the copyable link.
+      await expect(dialog.getByRole('link', { name: /Enviar convite por WhatsApp/i })).toBeVisible()
       await expect(dialog.getByText(/\/invites\//)).toBeVisible()
     })
 

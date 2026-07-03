@@ -25,28 +25,31 @@ export async function getInvitePiiByIds(
   ids: readonly string[],
 ): Promise<Map<string, InvitePii>> {
   if (ids.length === 0) return new Map()
-  const rows = await readUnderRls<{ id: string; email: string }>(orgId, (client) =>
+  const rows = await readUnderRls<{ id: string; whatsapp: string }>(orgId, (client) =>
     client
       .query<{
         id: string
-        email: string
-      }>('SELECT id, email FROM invites_pii WHERE org_id = $1 AND id = ANY($2)', [orgId, [...ids]])
+        whatsapp: string
+      }>('SELECT id, whatsapp FROM invites_pii WHERE org_id = $1 AND id = ANY($2)', [
+        orgId,
+        [...ids],
+      ])
       .then((res) => res.rows),
   )
-  return new Map(rows.map((r) => [r.id, { email: r.email }] as const))
+  return new Map(rows.map((r) => [r.id, { whatsapp: r.whatsapp }] as const))
 }
 
 export async function upsertInvitePii(input: {
   orgId: string
   id: string
-  email: string
+  whatsapp: string
 }): Promise<void> {
   await writeUnderOrg(input.orgId, (client) =>
     client.query(
-      `INSERT INTO invites_pii (org_id, id, email)
+      `INSERT INTO invites_pii (org_id, id, whatsapp)
        VALUES ($1, $2, $3)
-       ON CONFLICT (org_id, id) DO UPDATE SET email = EXCLUDED.email`,
-      [input.orgId, input.id, input.email],
+       ON CONFLICT (org_id, id) DO UPDATE SET whatsapp = EXCLUDED.whatsapp`,
+      [input.orgId, input.id, input.whatsapp],
     ),
   )
 }

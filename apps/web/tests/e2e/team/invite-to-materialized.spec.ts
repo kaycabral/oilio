@@ -43,7 +43,7 @@ test.describe('MemberOperation materializa pelo aceite (#1045)', { tag: '@critic
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      email: invitee.email,
+      whatsapp: '5511990004567',
       role: 'member_operator',
       invitedBy: owner.uid,
     })
@@ -77,7 +77,7 @@ test.describe('MemberOperation materializa pelo aceite (#1045)', { tag: '@critic
     const invitee = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
       orgId: owner.orgId,
-      email: invitee.email,
+      whatsapp: '5511990005678',
       role: 'manager',
       invitedBy: owner.uid,
     })

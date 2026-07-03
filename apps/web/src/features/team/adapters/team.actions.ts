@@ -6,12 +6,14 @@ import {
   INVITE_TTL_MS,
   type Membership,
   membershipDocId,
+  normalizeBrazilPhone,
   type Role,
   ROLES,
 } from '@/domain'
 import { InviteConfig, MemberOperationConfig, MembershipConfig } from '@/domain/aggregates'
 import { generateInviteToken } from '@/features/invites/adapters/invite-token'
 import { offboardMemberInOrg, type OffboardWarning } from '@/features/team/adapters/offboard-member'
+import { buildMemberInviteWhatsapp } from '@/features/team/core/member-invite'
 import { parseMemberOperationForm } from '@/features/team/core/member-operation-form'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
@@ -32,6 +34,8 @@ import {
   requireManagerCtx,
   requireOwnerCtx,
 } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
+import { emitMemberFunnelEvent } from '@/shared/product/member-funnel-events'
 import { resolveBaseUrl } from '@/shared/site-url'
 import { revalidatePath } from 'next/cache'
 
@@ -48,9 +52,9 @@ import {
   validateServiceUnitIntersection,
 } from './member-write-helpers'
 
-export type CreateInviteResult = { ok: true; inviteLink: string } | { ok: false; error: string }
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+export type CreateInviteResult =
+  | { ok: true; inviteLink: string; whatsappHref: string }
+  | { ok: false; error: string }
 
 function isRole(v: string): v is Role {
   return (ROLES as readonly string[]).includes(v)
@@ -68,10 +72,11 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
   }
   assertCanManage(ctx.membership)
 
-  const email = formString(formData, 'email').trim().toLowerCase()
+  const rawPhone = formString(formData, 'whatsapp')
   const role = formString(formData, 'role')
 
-  if (!EMAIL_RE.test(email)) return { ok: false, error: 'Invalid email' }
+  const whatsapp = normalizeBrazilPhone(rawPhone)
+  if (!whatsapp) return { ok: false, error: 'WhatsApp inválido' }
   if (!isRole(role)) return { ok: false, error: 'Invalid role' }
   if (role === 'owner') return { ok: false, error: 'Cannot invite as owner' }
 
@@ -79,9 +84,10 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
   const { raw, hash } = generateInviteToken()
 
   const inviteId = newId()
-  // PII (invitee email) never enters the event payload (LGPD). The
-  // projection stores only operational fields; the email goes to the
+  // PII (invitee WhatsApp) never enters the event payload (LGPD). The
+  // projection stores only operational fields; the WhatsApp goes to the
   // deletable `invites_pii` doc and is merged on read (invite-read.ts). #1036.
+  // Brief 0084: WhatsApp is the DELIVERY channel, not an accept-time match key.
   const stored: StoredInvite = {
     id: inviteId,
     orgId: ctx.membership.orgId,
@@ -102,7 +108,7 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
   // forwarded headers → localhost) and never throws, so the link always builds.
   const base = await resolveBaseUrl()
 
-  await writeInvitePii(ctx.membership.orgId, inviteId, { email })
+  await writeInvitePii(ctx.membership.orgId, inviteId, { whatsapp })
   const created = await emitEvent(
     InviteConfig,
     aggregateRef(InviteConfig, ctx.membership.orgId, stored.id),
@@ -112,8 +118,27 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
 
   const inviteLink = `${base}/invites/${ctx.membership.orgId}/${stored.id}?token=${raw}`
 
+  // Deliver over WhatsApp (brief 0084): the owner sends the accept link through
+  // the establishment's real channel instead of copying it. `normalizeBrazilPhone`
+  // already succeeded above, so the wa.me build cannot fail here.
+  const org = await getOrg(ctx.membership.orgId)
+  const wa = buildMemberInviteWhatsapp({
+    rawPhone: rawPhone,
+    orgName: org?.name ?? 'Estabelecimento',
+    inviteLink,
+  })
+  if (!wa.ok) return { ok: false, error: wa.error }
+
+  // Funnel telemetry (brief 0084, Grupo D) — PII-zero, best-effort.
+  await emitMemberFunnelEvent({
+    event: 'member_invite_issued',
+    orgId: ctx.membership.orgId,
+    actorId: session.uid,
+    role,
+  })
+
   revalidatePath('/team')
-  return { ok: true, inviteLink }
+  return { ok: true, inviteLink, whatsappHref: wa.href }
 }
 
 // ---------------------------------------------------------------------------

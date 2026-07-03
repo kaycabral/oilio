@@ -119,9 +119,9 @@ export async function loadTeamPage(
   else if (viewFilter === 'pending') viewEntries = inviteEntries
   else viewEntries = [...memberEntries, ...inviteEntries]
 
-  // Search matches a member's display name or an invite's email.
+  // Search matches a member's display name or an invite's WhatsApp.
   const entries = filterBySearch(viewEntries, searchQuery, (entry) =>
-    entry.kind === 'member' ? [displayNameByUserId[entry.member.userId]] : [entry.invite.email],
+    entry.kind === 'member' ? [displayNameByUserId[entry.member.userId]] : [entry.invite.whatsapp],
   )
 
   const state = resolveListSurfaceState({
