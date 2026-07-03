@@ -1,17 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { logger } from './logger'
+import { runWithRequestContext } from './request-context'
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
 })
 
 // Decode a captured console argument (the JSON log line) without leaking `any`:
 // the spy hands back `unknown[]`, so narrow the first arg to string before parse.
-function parseLine(arg: unknown): { ts?: unknown } & object {
+function parseLine(arg: unknown): Record<string, unknown> {
   if (typeof arg !== 'string') throw new Error('log line is not a string')
   const parsed: unknown = JSON.parse(arg)
   if (typeof parsed !== 'object' || parsed === null) throw new Error('log line is not an object')
-  return parsed
+  return parsed as Record<string, unknown>
 }
 
 describe('logger', () => {
@@ -38,5 +40,61 @@ describe('logger', () => {
       message: 'boom',
       code: '500',
     })
+  })
+
+  it('emits the Cloud Logging `severity` field mapped from the level', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    logger.debug('d')
+    logger.info('i')
+    logger.warn('w')
+    logger.error('e')
+    expect(parseLine(log.mock.calls[0]?.[0]).severity).toBe('DEBUG')
+    expect(parseLine(log.mock.calls[1]?.[0]).severity).toBe('INFO')
+    expect(parseLine(err.mock.calls[0]?.[0]).severity).toBe('WARNING')
+    expect(parseLine(err.mock.calls[1]?.[0]).severity).toBe('ERROR')
+  })
+
+  it('injects correlationId + orgId from the active request context', () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    runWithRequestContext({ correlationId: 'corr-123', orgId: 'org-9' }, () => {
+      logger.error('inside scope')
+    })
+    expect(parseLine(err.mock.calls[0]?.[0])).toMatchObject({
+      message: 'inside scope',
+      correlationId: 'corr-123',
+      orgId: 'org-9',
+    })
+  })
+
+  it('degrades cleanly with no correlationId when outside any request scope', () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    logger.error('no scope')
+    const entry = parseLine(err.mock.calls[0]?.[0])
+    expect(entry.message).toBe('no scope')
+    expect(entry).not.toHaveProperty('correlationId')
+    expect(entry).not.toHaveProperty('orgId')
+  })
+
+  it('redacts known PII keys in meta (defence in depth)', () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    logger.error('leak?', { whatsapp: '+5511999999999', email: 'a@b.com', orgId: 'org-1' })
+    const entry = parseLine(err.mock.calls[0]?.[0])
+    expect(entry.whatsapp).toBe('[redacted]')
+    expect(entry.email).toBe('[redacted]')
+    // Non-PII context is preserved.
+    expect(entry.orgId).toBe('org-1')
+  })
+
+  it('emits a single pretty line (not JSON) in interactive dev', () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    logger.error('pretty me', { code: '42' })
+    const line = err.mock.calls[0]?.[0]
+    expect(typeof line).toBe('string')
+    // Not JSON — a bare pretty line throws on JSON.parse.
+    expect(() => JSON.parse(line as string)).toThrow()
+    expect(line).toContain('ERROR')
+    expect(line).toContain('pretty me')
   })
 })
