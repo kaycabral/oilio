@@ -14,7 +14,8 @@ export type GoalMutationResult = { ok: true } | { ok: false; error: string }
 
 // Plano Oilio gate (brief 0072): "Copiloto: meta mensal de lucro" is a Pro+
 // capability. Returns an error result when the active Negócio's tier lacks it,
-// or null when allowed. The UI also hides the surface (defense-in-depth).
+// or null when allowed. The Copiloto page shows the upgrade CTA in place of the
+// surface on a locked tier (brief 0082); this action is the real wall.
 async function assertCopilotCapability(orgId: string): Promise<GoalMutationResult | null> {
   const tier = await getOrgTier(orgId)
   if (!hasCapability(tier, 'copilot.profit_goal')) {
