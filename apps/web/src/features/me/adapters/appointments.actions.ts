@@ -3,9 +3,11 @@
 import {
   Appointment,
   type AppointmentActorRole,
+  type AppointmentForOverlap,
   canCustomerCancelAppointment,
   computeNoticeMinutes,
   fromOrgTime,
+  getOrgDayBoundsUtc,
   normalizeCancellationPolicy,
 } from '@/domain'
 import { AppointmentConfig } from '@/domain/aggregates'
@@ -21,6 +23,7 @@ import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { commitSaga, emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { track } from '@/shared/lib/track'
+import { listMemberOperationAppointmentsInRange } from '@/shared/org/appointment-read'
 import { getUnitById } from '@/shared/org/unit-read'
 import { Schema } from 'effect'
 
@@ -146,6 +149,60 @@ export type SelfRescheduleResult = { ok: true } | { ok: false; error: string }
 
 const TIME_RE = /^\d{2}:\d{2}$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+export type OwnRescheduleBusyResult =
+  | { ok: true; busy: AppointmentForOverlap[] }
+  | { ok: false; error: string }
+
+// #1318 — Feeds the self-service reschedule picker the professional's CROSS-UNIT
+// busy intervals for the chosen day so the dropdown omits starts that would
+// collide on submit (the reschedule keeps the SAME professional). Mirrors the
+// public self-book omission (#1313); the write path stays the integrity backstop.
+//
+// Authorization mirrors `rescheduleOwnAppointment`: the caller must own the
+// appointment (else a 404-shaped error, no existence leak). Returns only the
+// PII-free overlap projection — never customer identity.
+export async function loadOwnRescheduleBusy(input: {
+  orgId: string
+  appointmentId: string
+  // Target day in the unit's local clock — YYYY-MM-DD.
+  date: string
+}): Promise<OwnRescheduleBusyResult> {
+  if (!DATE_RE.test(input.date)) return { ok: false, error: 'Data inválida.' }
+
+  const session = await getSessionUser()
+  if (!session) return { ok: false, error: 'Sessão expirada — entre de novo.' }
+
+  const appointment = await loadAppointmentById(input.orgId, input.appointmentId)
+  if (!appointment || appointment.customerUserId !== session.uid) {
+    // Treat as 404 — don't leak existence to a non-owner.
+    return { ok: false, error: 'Agendamento não encontrado.' }
+  }
+
+  const unit = await getUnitById(input.orgId, appointment.unitId)
+  if (!unit) return { ok: false, error: 'Unidade não encontrada.' }
+
+  const { startUtc, endUtc } = getOrgDayBoundsUtc(input.date, unit.timezone)
+  const busy = await listMemberOperationAppointmentsInRange(
+    input.orgId,
+    appointment.memberOperationId,
+    {
+      startUtc,
+      endUtc,
+    },
+  )
+  // Project to the PII-free overlap shape the picker's `filterGridByBusy` needs.
+  return {
+    ok: true,
+    busy: busy.map((a) => ({
+      id: a.id,
+      memberOperationId: a.memberOperationId,
+      startAt: a.startAt,
+      endAt: a.endAt,
+      status: a.status,
+    })),
+  }
+}
 
 // #1310 (brief 0080, Grupo C) — Customer self-service reschedule from
 // `/me/appointments`. Closes the loop the wizard's `reschedule-required` signal
