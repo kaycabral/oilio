@@ -37,7 +37,7 @@ export function InviteLinkActions({
   ready,
   generated,
   onEnsure,
-  onSend,
+  resolveSendHref,
   generateLabel,
 }: {
   // Live preview of the link (with a placeholder token for the member flow).
@@ -53,10 +53,12 @@ export function InviteLinkActions({
   // or null on failure. Called before copy/send. Client flow returns the link
   // synchronously; member flow does the round-trip.
   onEnsure: () => Promise<string | null>
-  // Opens the wa.me deep link. Receives the ensured final link's href builder is
-  // the caller's job — here we just notify; the caller opens WhatsApp (must be
-  // inside the click to dodge popup blockers).
-  onSend: () => void | Promise<void>
+  // Resolves the wa.me deep link to open. The caller builds the href from the
+  // ensured invite. Returns null when there is nothing to open. The window is
+  // opened HERE (synchronously in the click) and navigated to this href — so a
+  // member-flow round-trip in `onEnsure` can't push the open outside the user
+  // gesture and trip the popup blocker.
+  resolveSendHref: () => string | null
   // Member flow only: label for the primary button while the link isn't minted.
   // Omit for the client flow (button is always "Abrir no WhatsApp").
   generateLabel?: string
@@ -82,10 +84,26 @@ export function InviteLinkActions({
   async function onPrimary(): Promise<void> {
     if (!ready || busy) return
     setBusy(true)
+    // Open the tab synchronously inside the click (still a trusted user gesture),
+    // THEN navigate it once the link is ensured. If we awaited `onEnsure` first,
+    // the member flow's server round-trip would push `window.open` past the gesture
+    // and the browser would block the popup — the exact failure the old `<a>` link
+    // avoided. For the client flow (no round-trip) this is equivalent. We can't pass
+    // `noopener` here (it makes `window.open` return null, so we couldn't navigate
+    // the tab) — instead we sever `opener` right after navigating to restore the
+    // reverse-tabnabbing protection.
+    const popup = window.open('', '_blank')
     try {
       const link = generated ? linkPreview : await onEnsure()
-      if (!link) return
-      await onSend()
+      const href = link ? resolveSendHref() : null
+      if (!href) {
+        popup?.close()
+        return
+      }
+      if (popup) {
+        popup.opener = null
+        popup.location.href = href
+      }
     } finally {
       setBusy(false)
     }

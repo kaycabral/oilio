@@ -96,16 +96,23 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
       await dialog.getByLabel(/WhatsApp do convidado/i).fill(mobile)
       await chooseOption(dialog, 'Papel', 'Recepção')
 
-      // Clicking "Gerar e abrir no WhatsApp" opens wa.me in a new tab; capture the
-      // popup so it doesn't leak, and assert its href targets the wa.me deep link.
+      // Clicking "Gerar e abrir no WhatsApp" opens a tab SYNCHRONOUSLY (about:blank)
+      // and navigates it to wa.me once the invite is minted server-side — so the
+      // round-trip can't push the open outside the click gesture and trip a popup
+      // blocker (InviteLinkActions). Capture the popup, then wait for it to land on
+      // the wa.me deep link (it starts blank, then the mint resolves and navigates).
       const [waPopup] = await Promise.all([
         authedPage.context().waitForEvent('page'),
         dialog.getByRole('button', { name: /Gerar e abrir no WhatsApp/i }).click(),
       ])
       // wa.me redirects to api.whatsapp.com/send; assert on the stable payload
       // instead of the host — the deep link must carry the accept link + token.
-      await expect.poll(() => waPopup.url()).toContain(encodeURIComponent('/invites/'))
-      await expect.poll(() => waPopup.url()).toContain('token')
+      // Poll with a longer deadline: the tab opens blank, then navigates after the
+      // server round-trip + the wa.me → api.whatsapp.com redirect.
+      await expect
+        .poll(() => waPopup.url(), { timeout: 15000 })
+        .toContain(encodeURIComponent('/invites/'))
+      expect(waPopup.url()).toContain('token')
       await waPopup.close()
 
       // After generating, the link preview field carries the real accept link.
