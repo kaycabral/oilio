@@ -7,7 +7,7 @@ import 'server-only'
 // (fail-fast via @cbrl/env) — NOT hardcoded. The Prices themselves are created as
 // GRADUATED in Stripe (1st unit base price, extra units discounted); we only pass
 // `quantity` = active unit count and Stripe computes the total. Setup documented
-// in docs/stripe-setup.md.
+// in apps/oilio/docs/stripe-setup.md.
 //
 // Free has no Price (no Stripe object); Rede is contact-sales (no checkout). So
 // only pro/advanced × monthly/annual map to a Price.
