@@ -102,7 +102,10 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
         authedPage.context().waitForEvent('page'),
         dialog.getByRole('button', { name: /Gerar e abrir no WhatsApp/i }).click(),
       ])
-      await expect.poll(() => waPopup.url()).toMatch(/wa\.me\//)
+      // wa.me redirects to api.whatsapp.com/send; assert on the stable payload
+      // instead of the host — the deep link must carry the accept link + token.
+      await expect.poll(() => waPopup.url()).toContain(encodeURIComponent('/invites/'))
+      await expect.poll(() => waPopup.url()).toContain('token')
       await waPopup.close()
 
       // After generating, the link preview field carries the real accept link.
