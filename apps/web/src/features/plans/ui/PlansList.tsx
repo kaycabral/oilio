@@ -3,13 +3,13 @@
 import { RowActions, type RowAction } from '@/components/RowActions'
 import { StatusBadge } from '@/components/StatusBadge'
 import { type BillingCycle, type SubscriptionPlan } from '@/domain'
+import { UpgradeCta } from '@/features/billing/ui/UpgradeGate'
 import type { PlanStatusFilter } from '@/features/plans/adapters/load-plans'
 import { deletePlan } from '@/features/plans/adapters/plans.actions'
 import { PAGINATION_LABELS_PTBR } from '@/shared/list/pagination-labels'
 import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import type { WithCanDelete } from '@/shared/org/delete-guard'
-import { UpgradeCta } from '@/features/billing/ui/UpgradeGate'
 import { useCapability } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import { Button, List } from '@cbrl/design'
@@ -64,6 +64,22 @@ export function PlansList({
   const canCreatePlans = useCapability('plans.recurring')
   const showCreate = canManage && canCreatePlans
 
+  // A manager off the Pro tier sees the consistent upgrade CTA for the WHOLE
+  // surface, not just the empty slot (brief 0082). A Pro→Free downgrade leaves
+  // plan rows in place; keying the CTA on `empty` alone would silently revert to
+  // the pre-feature "hide the action" behavior — the org would see plans it can
+  // no longer edit with no explanation. Locked = the CTA replaces the list.
+  if (canManage && !canCreatePlans) {
+    return (
+      <div className="space-y-6">
+        <header className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Planos de assinatura</h1>
+        </header>
+        <UpgradeCta capability="plans.recurring" />
+      </div>
+    )
+  }
+
   return (
     <List
       items={pageItems}
@@ -112,22 +128,17 @@ export function PlansList({
       ]}
       pagination={{ page, pageCount, onPageChange, labels: PAGINATION_LABELS_PTBR }}
       empty={
-        // Free (canManage but not canCreatePlans): show the upgrade CTA instead
-        // of a mute empty state — why it's locked + how to unlock (brief 0082),
-        // replacing the old "hide the action" behavior.
-        canManage && !canCreatePlans ? (
-          <UpgradeCta capability="plans.recurring" />
-        ) : (
-          {
-            icon: <CreditCard />,
-            title: 'Nenhum plano cadastrado',
-            description:
-              'Crie seu primeiro plano de assinatura para oferecer cobrança recorrente aos clientes.',
-            ...(showCreate
-              ? { actionSlot: <Link href={toRoute('/plans/new')}>Cadastrar plano</Link> }
-              : {}),
-          }
-        )
+        // The locked (Free) surface returns its own CTA above, so here the org
+        // always unlocks plans — a plain empty state that invites the first plan.
+        {
+          icon: <CreditCard />,
+          title: 'Nenhum plano cadastrado',
+          description:
+            'Crie seu primeiro plano de assinatura para oferecer cobrança recorrente aos clientes.',
+          ...(showCreate
+            ? { actionSlot: <Link href={toRoute('/plans/new')}>Cadastrar plano</Link> }
+            : {}),
+        }
       }
       filteredEmpty={{ title: 'Nenhum plano para este filtro.' }}
       renderItem={(p) => {
