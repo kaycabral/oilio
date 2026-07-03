@@ -83,21 +83,26 @@ test.describe('Equipe — hierarquia (#1087 AC-07)', { tag: '@critical' }, () =>
       const dialog = authedPage.getByRole('dialog')
       await expect(dialog.getByText('Convidar membro')).toBeVisible()
 
-      // Fill + submit the real form (server action generates the invite +
-      // wa.me delivery). The channel is WhatsApp now (brief 0084).
-      const whatsapp = `(11) 9${String(Date.now()).slice(-8)}`
-      await dialog.getByPlaceholder(/WhatsApp/i).fill(whatsapp)
+      // Fill the rebuilt form (brief 0087 Grupo D): a masked mobile field + the
+      // shared InviteLinkActions. Typing a valid BR mobile + a role enables the
+      // affordances; "Gerar e abrir no WhatsApp" mints the invite (server round-
+      // trip) and opens wa.me. The channel is WhatsApp (brief 0084), the number a
+      // strict BR mobile (9th digit — brief 0087).
+      const mobile = `(11) 9${String(Date.now()).slice(-8)}`
+      await dialog.getByLabel(/WhatsApp do convidado/i).fill(mobile)
       await chooseOption(dialog, 'Papel', 'Recepção')
-      await dialog.getByRole('button', { name: /Convidar|Convidando/ }).click()
 
-      // Success surfaces the WhatsApp send affordance (the primary channel) with
-      // an href to the accept link; the raw link sits behind a "copiar" details.
-      const waLink = dialog.getByRole('link', { name: /Enviar convite por WhatsApp/i })
-      await expect(waLink).toBeVisible()
-      await expect(waLink).toHaveAttribute('href', /wa\.me\//)
-      // Expand the collapsed "Ou copie o link" to reveal the raw accept link.
-      await dialog.getByText(/Ou copie o link/i).click()
-      await expect(dialog.getByText(/\/invites\//)).toBeVisible()
+      // Clicking "Gerar e abrir no WhatsApp" opens wa.me in a new tab; capture the
+      // popup so it doesn't leak, and assert its href targets the wa.me deep link.
+      const [waPopup] = await Promise.all([
+        authedPage.context().waitForEvent('page'),
+        dialog.getByRole('button', { name: /Gerar e abrir no WhatsApp/i }).click(),
+      ])
+      await expect.poll(() => waPopup.url()).toMatch(/wa\.me\//)
+      await waPopup.close()
+
+      // After generating, the link preview field carries the real accept link.
+      await expect(dialog.getByLabel('Link do convite')).toHaveValue(/\/invites\/.*token=/)
     })
 
     test('modal de convite mostra a descrição de permissão do papel selecionado (refino C)', async ({
