@@ -74,7 +74,7 @@ test.describe('Units — baseline (#17)', () => {
       `un-${ts.slice(-9)}`,
     )
     await createDialog.getByRole('textbox', { name: 'Nome' }).fill(name)
-    await createDialog.getByRole('textbox', { name: 'WhatsApp' }).fill(`11${ts.slice(-9)}`)
+    await createDialog.getByRole('textbox', { name: 'WhatsApp' }).fill(`119${ts.slice(-8)}`)
     await createDialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
     // The CEP lookup is async — wait for it to populate the address (hint shows
     // city/state) before filling the revealed `number`, else the form is still
@@ -192,7 +192,7 @@ test.describe('Units — baseline (#17)', () => {
       `liv-${ts.slice(-9)}`,
     )
     await createDialog.getByRole('textbox', { name: 'Nome' }).fill(name)
-    await createDialog.getByRole('textbox', { name: 'WhatsApp' }).fill(`11${ts.slice(-9)}`)
+    await createDialog.getByRole('textbox', { name: 'WhatsApp' }).fill(`119${ts.slice(-8)}`)
     await createDialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
     // Wait for the async CEP lookup to populate the address before the revealed
     // `number` — else the form stays invalid and "Criar" disabled.
