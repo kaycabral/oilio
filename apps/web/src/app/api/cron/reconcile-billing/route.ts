@@ -1,4 +1,5 @@
 import { reconcileBillingQuantities } from '@/features/billing/adapters/reconcile-billing'
+import { withRequestContext } from '@/shared/lib/request-context'
 import { NextResponse } from 'next/server'
 
 // Billing reconciliation cron (brief 0074, AC-04). Re-asserts that each actively-
@@ -16,7 +17,7 @@ function verifyCronSecret(request: Request): boolean {
   return header === secret
 }
 
-export async function POST(request: Request): Promise<Response> {
+async function postHandler(request: Request): Promise<Response> {
   if (!verifyCronSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -24,3 +25,5 @@ export async function POST(request: Request): Promise<Response> {
   const reconciled = await reconcileBillingQuantities()
   return NextResponse.json({ ok: true, reconciled })
 }
+
+export const POST = withRequestContext(postHandler)

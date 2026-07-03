@@ -4,6 +4,7 @@ import { getUserById, patchUser, putUser } from '@/shared/db/pg/users-store'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { SESSION_COOKIE_MAX_AGE_MS, SESSION_COOKIE_NAME } from '@/shared/firebase/session'
 import { readJson } from '@/shared/http'
+import { withRequestContext } from '@/shared/lib/request-context'
 import { Schema } from 'effect'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
@@ -12,7 +13,7 @@ const CreateSessionBodySchema = Schema.Struct({
   idToken: Schema.optional(Schema.String),
 })
 
-export async function POST(request: Request) {
+async function postHandler(request: Request) {
   if (!isFirebaseConfigured()) {
     return NextResponse.json({ error: 'Firebase not configured' }, { status: 503 })
   }
@@ -55,11 +56,14 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true })
 }
 
-export async function DELETE() {
+async function deleteHandler() {
   const cookieStore = await cookies()
   cookieStore.delete(SESSION_COOKIE_NAME)
   return NextResponse.json({ ok: true })
 }
+
+export const POST = withRequestContext(postHandler)
+export const DELETE = withRequestContext(deleteHandler)
 
 async function upsertUser(
   uid: string,

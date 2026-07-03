@@ -1,6 +1,7 @@
 import { isValidCompanyTaxId, normalizeTaxId } from '@/domain'
 import { BrasilApiCnpjResponse, normalizeCompanyLookup } from '@/shared/company/company-lookup'
 import { readJson } from '@/shared/http'
+import { withRequestContext } from '@/shared/lib/request-context'
 import { Schema } from 'effect'
 import { NextResponse } from 'next/server'
 
@@ -9,7 +10,7 @@ import { NextResponse } from 'next/server'
 // check reasonably fresh. BrasilAPI orchestrates Receita/MinhaReceita upstream.
 export const revalidate = 86400
 
-export async function GET(_req: Request, { params }: { params: Promise<{ taxId: string }> }) {
+async function getHandler(_req: Request, { params }: { params: Promise<{ taxId: string }> }) {
   const { taxId: rawParam } = await params
   const taxId = normalizeTaxId(rawParam)
   if (!isValidCompanyTaxId(taxId)) {
@@ -29,3 +30,5 @@ export async function GET(_req: Request, { params }: { params: Promise<{ taxId: 
   const data = await readJson(res, Schema.decodeUnknownSync(BrasilApiCnpjResponse))
   return NextResponse.json(normalizeCompanyLookup(data, taxId))
 }
+
+export const GET = withRequestContext(getHandler)

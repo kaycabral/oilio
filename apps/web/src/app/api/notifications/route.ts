@@ -1,11 +1,12 @@
 import { allowedNotificationTypesForRole } from '@/domain'
 import { getSessionUser } from '@/shared/firebase/admin'
+import { withRequestContext } from '@/shared/lib/request-context'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { fetchUnreadNotificationsForUnit } from '@/shared/org/notification-read'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   const session = await getSessionUser()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -28,3 +29,5 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(result)
 }
+
+export const GET = withRequestContext(getHandler)

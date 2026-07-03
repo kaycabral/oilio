@@ -9,11 +9,19 @@ afterEach(() => {
 
 // Decode a captured console argument (the JSON log line) without leaking `any`:
 // the spy hands back `unknown[]`, so narrow the first arg to string before parse.
-function parseLine(arg: unknown): Record<string, unknown> {
+// Returns a readonly record narrowed via a guard (no assertion) so property reads
+// stay type-safe (`entry.severity` etc.) and `toMatchObject` works.
+// Type guard: a parsed JSON value is a string-keyed record. Narrowing through a
+// guard (not an assertion) keeps the repo's no-unsafe-assertion rule happy.
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null
+}
+
+function parseLine(arg: unknown): Readonly<Record<string, unknown>> {
   if (typeof arg !== 'string') throw new Error('log line is not a string')
   const parsed: unknown = JSON.parse(arg)
-  if (typeof parsed !== 'object' || parsed === null) throw new Error('log line is not an object')
-  return parsed as Record<string, unknown>
+  if (!isRecord(parsed)) throw new Error('log line is not an object')
+  return parsed
 }
 
 describe('logger', () => {
@@ -90,10 +98,11 @@ describe('logger', () => {
     vi.stubEnv('NODE_ENV', 'development')
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     logger.error('pretty me', { code: '42' })
-    const line = err.mock.calls[0]?.[0]
-    expect(typeof line).toBe('string')
-    // Not JSON — a bare pretty line throws on JSON.parse.
-    expect(() => JSON.parse(line as string)).toThrow()
+    const line: unknown = err.mock.calls[0]?.[0]
+    if (typeof line !== 'string') throw new Error('expected a string log line')
+    // A pretty line is a bare coloured string, not a JSON object — it neither
+    // starts with `{` nor parses as one.
+    expect(line.trimStart().startsWith('{')).toBe(false)
     expect(line).toContain('ERROR')
     expect(line).toContain('pretty me')
   })
