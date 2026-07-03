@@ -9,7 +9,7 @@
 // a linked User doc (uid `e2e-prof-user-{pid}`, displayName "Profissional 1",
 // whatsapp 5511900000000) — see helpers/session.ts.
 
-import { formatBrazilPhone } from '@/domain/utils/whatsapp'
+import { formatBrazilPhone } from '@/domain/utils/phone'
 import { patchUser } from '@/shared/db/pg/users-store'
 import { expect, test } from '../fixtures'
 import { uniqueWhatsapp } from '../helpers/session'

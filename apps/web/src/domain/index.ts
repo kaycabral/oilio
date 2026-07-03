@@ -362,11 +362,15 @@ export {
 } from './utils/subscription-coverage'
 
 export {
-  DEFAULT_WHATSAPP_TEMPLATES,
-  buildWhatsappLink,
+  BRAZIL_MOBILE_E164_REGEX,
   formatBrazilPhone,
   maskBrazilPhone,
+  normalizeBrazilMobile,
   normalizeBrazilPhone,
+} from './utils/phone'
+export {
+  DEFAULT_WHATSAPP_TEMPLATES,
+  buildWhatsappLink,
   renderWhatsappTemplate,
   resolveWhatsappTemplates,
 } from './utils/whatsapp'

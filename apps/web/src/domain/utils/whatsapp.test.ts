@@ -2,51 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_WHATSAPP_TEMPLATES,
   buildWhatsappLink,
-  formatBrazilPhone,
-  maskBrazilPhone,
-  normalizeBrazilPhone,
   renderWhatsappTemplate,
   resolveWhatsappTemplates,
 } from './whatsapp'
-
-describe('normalizeBrazilPhone', () => {
-  it('strips formatting and prepends 55 for 11-digit mobile', () => {
-    expect(normalizeBrazilPhone('(11) 91234-5678')).toBe('5511912345678')
-  })
-
-  it('prepends 55 for 10-digit landline', () => {
-    expect(normalizeBrazilPhone('1112345678')).toBe('551112345678')
-  })
-
-  it('preserves 12 or 13 digit numbers (already with country code)', () => {
-    expect(normalizeBrazilPhone('5511912345678')).toBe('5511912345678')
-    expect(normalizeBrazilPhone('551112345678')).toBe('551112345678')
-  })
-
-  it('returns null for empty or non-numeric input', () => {
-    expect(normalizeBrazilPhone('')).toBeNull()
-    expect(normalizeBrazilPhone('---')).toBeNull()
-  })
-
-  it('returns null for clearly too-short input', () => {
-    expect(normalizeBrazilPhone('12345')).toBeNull()
-  })
-
-  it('keeps a 12-digit number (already with country code)', () => {
-    // '447911123456' is 12 digits → the explicit 12/13 branch.
-    expect(normalizeBrazilPhone('+44 7911 123456')).toBe('447911123456')
-  })
-
-  it('keeps 14- and 15-digit numbers via the >=11 && <=15 E.164 fallback', () => {
-    // Not 10/11/12/13 → exercises the generic length-11..15 branch.
-    expect(normalizeBrazilPhone('12345678901234')).toBe('12345678901234')
-    expect(normalizeBrazilPhone('123456789012345')).toBe('123456789012345')
-  })
-
-  it('returns null past the E.164 max of 15 digits', () => {
-    expect(normalizeBrazilPhone('1234567890123456')).toBeNull()
-  })
-})
 
 describe('renderWhatsappTemplate', () => {
   it('replaces single placeholder', () => {
@@ -115,30 +73,5 @@ describe('resolveWhatsappTemplates', () => {
   it('returns all defaults for an empty object (no field present, no throw)', () => {
     // Each `partial?.x?.trim()` must short-circuit when the key is absent.
     expect(resolveWhatsappTemplates({})).toEqual(DEFAULT_WHATSAPP_TEMPLATES)
-  })
-})
-
-describe('formatBrazilPhone', () => {
-  it('formats mobile and landline, stripping the 55 country code', () => {
-    expect(formatBrazilPhone('5511970000002')).toBe('(11) 97000-0002')
-    expect(formatBrazilPhone('+55 11 97000-0002')).toBe('(11) 97000-0002')
-    expect(formatBrazilPhone('1133334444')).toBe('(11) 3333-4444')
-  })
-
-  it('returns the input unchanged when it cannot be formatted', () => {
-    expect(formatBrazilPhone('123')).toBe('123')
-  })
-})
-
-describe('maskBrazilPhone', () => {
-  it('progressively masks as digits are typed', () => {
-    expect(maskBrazilPhone('')).toBe('')
-    expect(maskBrazilPhone('11')).toBe('(11')
-    expect(maskBrazilPhone('1199700')).toBe('(11) 9970-0')
-    expect(maskBrazilPhone('11997000002')).toBe('(11) 99700-0002')
-  })
-
-  it('ignores non-digits and caps at 11 digits', () => {
-    expect(maskBrazilPhone('(11) 99700-0002 extra')).toBe('(11) 99700-0002')
   })
 })
