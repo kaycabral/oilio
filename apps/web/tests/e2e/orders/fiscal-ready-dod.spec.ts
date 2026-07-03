@@ -25,6 +25,7 @@ import {
   seedProduct,
   seedService,
   seedSubscription,
+  uniqueWhatsapp,
   type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
@@ -125,7 +126,7 @@ test.describe(
 
     test('Cenário 1: venda real fecha com forma de pagamento real', async ({ org, authedPage }) => {
       // Cliente SEM assinatura → o item é venda; o fechamento exige forma real.
-      await seedServiceFor(org, 'Cliente Venda', '11944440001', false)
+      await seedServiceFor(org, 'Cliente Venda', uniqueWhatsapp(), false)
       await startOrderFor(authedPage, 'Cliente Venda')
 
       // Total a pagar = o serviço vendido (R$ 50,00) — base da receita/NF futura.
@@ -143,7 +144,7 @@ test.describe(
       org,
       authedPage,
     }) => {
-      const { subId } = await seedServiceFor(org, 'Cliente Plano', '11944440002', true)
+      const { subId } = await seedServiceFor(org, 'Cliente Plano', uniqueWhatsapp(), true)
       await startOrderFor(authedPage, 'Cliente Plano')
 
       // O Corte coberto já entra como consumo do plano (auto-marcação, brief 0079)
@@ -167,7 +168,7 @@ test.describe(
       org,
       authedPage,
     }) => {
-      const { subId } = await seedServiceFor(org, 'Cliente Misto', '11944440003', true)
+      const { subId } = await seedServiceFor(org, 'Cliente Misto', uniqueWhatsapp(), true)
       await seedProduct(org.orgId, { name: 'Pomada', priceCents: 3000 })
       await startOrderFor(authedPage, 'Cliente Misto')
 
