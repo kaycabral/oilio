@@ -9,6 +9,7 @@ import { PAGINATION_LABELS_PTBR } from '@/shared/list/pagination-labels'
 import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import type { WithCanDelete } from '@/shared/org/delete-guard'
+import { UpgradeCta } from '@/features/billing/ui/UpgradeGate'
 import { useCapability } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import { Button, List } from '@cbrl/design'
@@ -110,15 +111,24 @@ export function PlansList({
         },
       ]}
       pagination={{ page, pageCount, onPageChange, labels: PAGINATION_LABELS_PTBR }}
-      empty={{
-        icon: <CreditCard />,
-        title: 'Nenhum plano cadastrado',
-        description:
-          'Crie seu primeiro plano de assinatura para oferecer cobrança recorrente aos clientes.',
-        ...(showCreate
-          ? { actionSlot: <Link href={toRoute('/plans/new')}>Cadastrar plano</Link> }
-          : {}),
-      }}
+      empty={
+        // Free (canManage but not canCreatePlans): show the upgrade CTA instead
+        // of a mute empty state — why it's locked + how to unlock (brief 0082),
+        // replacing the old "hide the action" behavior.
+        canManage && !canCreatePlans ? (
+          <UpgradeCta capability="plans.recurring" />
+        ) : (
+          {
+            icon: <CreditCard />,
+            title: 'Nenhum plano cadastrado',
+            description:
+              'Crie seu primeiro plano de assinatura para oferecer cobrança recorrente aos clientes.',
+            ...(showCreate
+              ? { actionSlot: <Link href={toRoute('/plans/new')}>Cadastrar plano</Link> }
+              : {}),
+          }
+        )
+      }
       filteredEmpty={{ title: 'Nenhum plano para este filtro.' }}
       renderItem={(p) => {
         const actions: RowAction[] = []

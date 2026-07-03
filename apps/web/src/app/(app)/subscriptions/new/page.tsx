@@ -1,4 +1,6 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
+import { isCapabilityLocked } from '@/features/billing/adapters/capability-lock'
+import { UpgradeCta } from '@/features/billing/ui/UpgradeGate'
 import { loadCustomersAndPlans } from '@/features/subscriptions/adapters/load-subscription-form'
 import { SubscriptionForm } from '@/features/subscriptions/ui/SubscriptionForm'
 import { getSessionUser } from '@/shared/firebase/admin'
@@ -16,6 +18,26 @@ export default async function NewSubscriptionPage() {
   if (!ctx) redirect('/onboarding')
   if (ctx.membership.role !== 'owner' && ctx.membership.role !== 'manager') {
     redirect('/subscriptions')
+  }
+
+  // Assinaturas exigem `plans.recurring` (uma assinatura consome um plano
+  // recorrente). No Free, a página inteira mostra o CTA de upgrade em vez de
+  // oferecer "Cadastrar plano" — que só levaria a um form negado no submit
+  // (brief 0082). O `requireCapability` na action de criar plano/assinatura
+  // segue sendo a parede real.
+  if (await isCapabilityLocked(ctx.membership.orgId, 'plans.recurring')) {
+    return (
+      <Main width="narrow" className="space-y-4">
+        <Breadcrumbs
+          crumbs={[
+            { label: 'Assinaturas', href: '/subscriptions' },
+            { label: 'Nova', href: null },
+          ]}
+        />
+        <h1 className="text-2xl font-semibold">Nova assinatura</h1>
+        <UpgradeCta capability="plans.recurring" />
+      </Main>
+    )
   }
 
   const { customers, plans } = await loadCustomersAndPlans(ctx.membership.orgId)
