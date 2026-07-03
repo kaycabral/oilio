@@ -5,6 +5,7 @@
 
 import {
   type Appointment,
+  type AppointmentForOverlap,
   type CatalogServiceItem,
   type Customer,
   type HoursRange,
@@ -12,6 +13,7 @@ import {
   buildWhatsappLink,
   fromOrgTime,
   hhmmToMinutes,
+  intervalsOverlap,
   minutesToHHmm,
   renderWhatsappTemplate,
   toOrgTime,
@@ -109,6 +111,43 @@ export function gridTimeOptions(
       return startMs >= pastCutoff.nowMs
     })
     .map(minutesToHHmm)
+}
+
+// Drops from `grid` (HH:mm org-local starts) the slots whose [start, start +
+// durationMinutes) interval overlaps an existing appointment of the selected
+// professional on that day (#1318). Mirrors the public self-book omission
+// (#1313): the anti-double-book invariant is per-member_operation and
+// cross-unit, so `busy` MUST already be the professional's CROSS-UNIT
+// appointments for the day. Half-open semantics via `intervalsOverlap`
+// (back-to-back at the boundary does NOT overlap); `cancelled` is ignored;
+// `excludeAppointmentId` keeps the appointment being edited so EDIT never hides
+// its own current slot. Pure — `fromOrgTime` builds the UTC instants the
+// comparison needs, so no `Date.now()` here.
+export function filterGridByBusy(
+  grid: readonly string[],
+  busy: readonly AppointmentForOverlap[],
+  opts: {
+    date: string
+    timezone: string
+    durationMinutes: number
+    excludeAppointmentId?: string | null
+  },
+): string[] {
+  if (busy.length === 0 || opts.durationMinutes <= 0) return [...grid]
+  const relevant = busy.filter(
+    (b) =>
+      b.status !== 'cancelled' &&
+      !(opts.excludeAppointmentId && b.id === opts.excludeAppointmentId),
+  )
+  if (relevant.length === 0) return [...grid]
+  return grid.filter((hhmm) => {
+    const [h, m] = hhmm.split(':').map(Number)
+    const startAt = fromOrgTime({ date: opts.date, hour: h ?? 0, minute: m ?? 0 }, opts.timezone)
+    const endAt = new Date(
+      new Date(startAt).getTime() + opts.durationMinutes * 60_000,
+    ).toISOString()
+    return !relevant.some((b) => intervalsOverlap({ startAt, endAt }, b))
+  })
 }
 
 // The reception start-time picker's options + default, given the filtered

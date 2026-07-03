@@ -356,7 +356,11 @@ export {
 export type { CommissionAccrual, OrderTotals } from './utils/order'
 
 export { findAppointmentConflicts, intervalsOverlap } from './utils/appointment-overlap'
-export type { AppointmentConflict, AppointmentInterval } from './utils/appointment-overlap'
+export type {
+  AppointmentConflict,
+  AppointmentForOverlap,
+  AppointmentInterval,
+} from './utils/appointment-overlap'
 
 export {
   isItemCoveredBySubscription,
