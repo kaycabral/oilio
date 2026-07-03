@@ -1,5 +1,6 @@
 import type { Role } from '@/domain'
 import { getEventStorePool } from '@/shared/db/pg/pool'
+import { logger } from '@/shared/lib/logger'
 import 'server-only'
 
 // Team-onboarding funnel telemetry — brief 0084 Grupo D (AC-11). The funnel:
@@ -77,6 +78,10 @@ export async function emitMemberFunnelEvent(event: MemberFunnelEventPayload): Pr
       [event.event, c.orgId, c.actorId, c.memberUid, c.role, new Date().toISOString()],
     )
   } catch (err) {
-    console.error(`[emitMemberFunnelEvent] failed to record ${event.event}`, err)
+    logger.error('failed to record member funnel event', {
+      scope: 'emitMemberFunnelEvent',
+      event: event.event,
+      err,
+    })
   }
 }

@@ -4,6 +4,7 @@ import {
   suggestionFromResult,
   type ProductSuggestion,
 } from '@/features/catalog/core/catalog-item-form'
+import { logger } from '@/shared/lib/logger'
 import { requireManagerCtx } from '@/shared/org/membership'
 import { emitProductEvent } from '@/shared/product/product-events'
 import { getProductSource } from '@/shared/product/product-source'
@@ -53,7 +54,10 @@ export async function searchProductsByNameForForm(rawQuery: string): Promise<Pro
     // The base is NEVER on the critical path (load-bearing invariant of 0050).
     // A failed search degrades the combobox to an ordinary name input — the user
     // types the name and registers manually (or via the code boca).
-    console.error('[searchProductsByNameForForm] base search failed; degrading to manual', err)
+    logger.error('base search failed; degrading to manual', {
+      scope: 'searchProductsByNameForForm',
+      err,
+    })
     return []
   }
 }

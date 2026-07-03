@@ -1,6 +1,7 @@
 'use server'
 
 import type { CodeLookupOutcome } from '@/features/catalog/core/catalog-item-form'
+import { logger } from '@/shared/lib/logger'
 import { requireManagerCtx } from '@/shared/org/membership'
 import { emitProductEvent } from '@/shared/product/product-events'
 import { getProductSource } from '@/shared/product/product-source'
@@ -67,7 +68,7 @@ export async function lookupProductForForm(rawCode: string): Promise<CodeLookupO
     // The base is NEVER on the critical path (load-bearing invariant of 0050).
     // Any failure of the base read degrades the preview to "fill it in yourself"
     // — the save gate still guards the code + marks it for reconciliation.
-    console.error('[lookupProductForForm] base read failed; degrading to manual', err)
+    logger.error('base read failed; degrading to manual', { scope: 'lookupProductForForm', err })
     return { status: 'unavailable' }
   }
 }

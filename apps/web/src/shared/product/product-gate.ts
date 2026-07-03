@@ -1,3 +1,4 @@
+import { logger } from '@/shared/lib/logger'
 import { resolveProduct, validateGtin } from '@cbrl/product'
 import 'server-only'
 import { emitProductEvent } from './product-events'
@@ -92,7 +93,7 @@ export async function runProductGate(
     // never on the critical path of the base (the load-bearing invariant). We log
     // so a real bug (not a mere outage) is still observable instead of silently
     // becoming a perpetual reconciliation marker.
-    console.error('[runProductGate] base path failed; deferring to reconciliation', err)
+    logger.error('base path failed; deferring to reconciliation', { scope: 'runProductGate', err })
     // Degrade to best-effort: if the GTIN is valid we still know its canonical key
     // (pure validation, no DB), so we guard it + mark the item for reconciliation.
     // An invalid/absent GTIN has nothing to reconcile.

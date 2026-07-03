@@ -1,4 +1,5 @@
 import { getEventStorePool } from '@/shared/db/pg/pool'
+import { logger } from '@/shared/lib/logger'
 import 'server-only'
 
 // Privacy event emission — brief 0032 / #1066 (AC-07).
@@ -60,6 +61,6 @@ export async function emitPiiEvent(event: PiiEventName, payload: PiiEventPayload
       ],
     )
   } catch (err) {
-    console.error(`[emitPiiEvent] failed to record ${event}`, err)
+    logger.error('failed to record pii event', { scope: 'emitPiiEvent', event, err })
   }
 }
