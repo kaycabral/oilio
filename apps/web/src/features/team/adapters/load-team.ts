@@ -11,6 +11,7 @@ import { resolveListSurfaceState, type ListSurfaceState } from '@/shared/list/li
 import { listInvitesForOrg } from '@/shared/org/invite-read'
 import { listMemberOperationStatuses } from '@/shared/org/member-operation-read'
 import { listMembershipsForOrg, requireManagerPage } from '@/shared/org/membership'
+import { resolveBaseUrl } from '@/shared/site-url'
 import 'server-only'
 
 // A team list entry — either an accepted member (membership) or a still-pending
@@ -23,9 +24,13 @@ export type TeamViewFilter = 'all' | 'active' | 'pending'
 export type TeamPageData = {
   canManage: boolean
   currentUserId: string
+  // The active org + the resolved invite-link base — passed to the invite modal
+  // so it can render a live link preview as the number is typed (brief 0087 D).
+  orgId: string
+  baseUrl: string
   entries: TeamEntry[]
   displayNameByUserId: Record<string, string>
-  whatsappByUserId: Record<string, string>
+  mobileByUserId: Record<string, string>
   birthDateByUserId: Record<string, string>
   // Derived memberOperation operational status (#1047), keyed by userId — surfaced
   // on the list so a memberOperation whose profile is still incomplete (not
@@ -49,22 +54,22 @@ function normalizeViewFilter(value: string | undefined): TeamViewFilter {
 // identifiable (art. 16). WhatsApp is only mapped when present on the User.
 async function loadMemberIdentities(members: Membership[]): Promise<{
   displayNameByUserId: Record<string, string>
-  whatsappByUserId: Record<string, string>
+  mobileByUserId: Record<string, string>
   birthDateByUserId: Record<string, string>
 }> {
   const userByUserId = await getUsersByIds(members.map((m) => m.userId))
   const displayNameByUserId: Record<string, string> = {}
-  const whatsappByUserId: Record<string, string> = {}
+  const mobileByUserId: Record<string, string> = {}
   const birthDateByUserId: Record<string, string> = {}
   for (const m of members) {
     if (!m.userId) continue
     const user = userByUserId.get(m.userId)
     const resolved = resolveSubjectName(m.userId, user, ROLE_SUBJECT_NOUN[m.role])
     if (resolved) displayNameByUserId[m.userId] = resolved
-    if (user?.mobile) whatsappByUserId[m.userId] = user.mobile
+    if (user?.mobile) mobileByUserId[m.userId] = user.mobile
     if (user?.birthDate) birthDateByUserId[m.userId] = user.birthDate
   }
-  return { displayNameByUserId, whatsappByUserId, birthDateByUserId }
+  return { displayNameByUserId, mobileByUserId, birthDateByUserId }
 }
 
 // Imperative shell for the team list route: resolves session/org, loads the
@@ -82,6 +87,7 @@ export async function loadTeamPage(
   const viewFilter: TeamViewFilter = normalizeViewFilter(rawParams.view)
 
   const orgId = ctx.membership.orgId
+  const baseUrl = await resolveBaseUrl()
 
   const [allMemberships, invites, memberOperations] = await Promise.all([
     // Typed memberships table under RLS — feature C/D.
@@ -108,7 +114,7 @@ export async function loadTeamPage(
   const pendingCount = pendingInvites.length
 
   // Identities resolved over the full set so search can match display names.
-  const { displayNameByUserId, whatsappByUserId, birthDateByUserId } =
+  const { displayNameByUserId, mobileByUserId, birthDateByUserId } =
     await loadMemberIdentities(allMembers)
 
   // Members + pending invites collapse into one filterable list (the old tabs).
@@ -134,9 +140,11 @@ export async function loadTeamPage(
     // stays in the view-model so the UI keeps gating owner-only affordances.
     canManage: true,
     currentUserId: ctx.session.uid,
+    orgId,
+    baseUrl,
     entries,
     displayNameByUserId,
-    whatsappByUserId,
+    mobileByUserId,
     birthDateByUserId,
     operationalByUserId,
     viewFilter,
