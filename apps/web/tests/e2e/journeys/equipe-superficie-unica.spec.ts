@@ -38,6 +38,7 @@ import {
   seedInvite,
   seedMembershipFor,
   seedService,
+  uniqueWhatsapp,
 } from '../helpers/session'
 import { MemberOperationsPage } from '../pages'
 
@@ -237,7 +238,7 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       org,
       authedPage,
     }) => {
-      const pendingWhatsapp = `5511${String(Date.now()).slice(-9)}`
+      const pendingWhatsapp = uniqueWhatsapp()
       const pendingDisplay = formatBrazilPhone(pendingWhatsapp)
       await seedInvite({
         orgId: org.orgId,
