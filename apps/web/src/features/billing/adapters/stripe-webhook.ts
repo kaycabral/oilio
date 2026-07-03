@@ -23,6 +23,13 @@ const WEBHOOK_ACTOR_ID = 'system:stripe-webhook'
 // retries only on non-2xx, so silently dropping unhandled types is correct.
 const HANDLED_EVENTS = new Set<Stripe.Event['type']>([
   'checkout.session.completed',
+  // Async payment methods (boleto) don't settle at checkout: the session
+  // completes with a PENDING payment, and Stripe fires these later — success
+  // when the boleto is paid (activate, same as completed), failure when it
+  // expires unpaid (past_due). Without these, a paid boleto would never flip
+  // the org out of `incomplete`.
+  'checkout.session.async_payment_succeeded',
+  'checkout.session.async_payment_failed',
   'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted',
@@ -184,6 +191,25 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
   await emitUpdate(orgId, 'org_billing.updated', { status: 'past_due' })
 }
 
+// Resolve the Negócio from a checkout session, same precedence as activation:
+// the orgId we stamped (client_reference_id / metadata), then the customer index.
+async function orgIdFromSession(session: Stripe.Checkout.Session): Promise<string | null> {
+  return (
+    session.client_reference_id ||
+    session.metadata?.orgId ||
+    (await orgIdFromCustomer(customerId(session.customer)))
+  )
+}
+
+// checkout.session.async_payment_failed: an async payment (boleto) expired
+// unpaid. The subscription never activated, so mark past_due — the org stays
+// off the paid tier and the owner can retry from the billing panel.
+async function handleAsyncPaymentFailed(session: Stripe.Checkout.Session): Promise<void> {
+  const orgId = await orgIdFromSession(session)
+  if (!orgId) return
+  await emitUpdate(orgId, 'org_billing.updated', { status: 'past_due' })
+}
+
 // Apply one Stripe event to org_billing. Idempotency (event.id dedup) is handled
 // by the route BEFORE this runs; the reducer is also content-idempotent as a
 // second layer. Throws on a write failure so the route can return non-2xx and let
@@ -193,8 +219,15 @@ export async function handleStripeEvent(
   deps: { retrieveSubscription: (id: string) => Promise<Stripe.Subscription> },
 ): Promise<void> {
   switch (event.type) {
+    // A boleto paid after checkout (async_payment_succeeded) activates
+    // identically to a synchronous (card) completion: the session still carries
+    // orgId + subscription id.
     case 'checkout.session.completed':
+    case 'checkout.session.async_payment_succeeded':
       await handleCheckoutCompleted(event.data.object, deps.retrieveSubscription)
+      return
+    case 'checkout.session.async_payment_failed':
+      await handleAsyncPaymentFailed(event.data.object)
       return
     case 'customer.subscription.created':
     case 'customer.subscription.updated':

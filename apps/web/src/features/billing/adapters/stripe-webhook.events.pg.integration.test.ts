@@ -278,6 +278,61 @@ describe('Stripe webhook dispatch → org_billing (brief 0074, AC-03)', () => {
     expect(billing.tier).toBe('pro')
   })
 
+  it('checkout.session.async_payment_succeeded activates a paid boleto (same as completed)', async () => {
+    await seedOrg('org-boleto')
+    const periodEnd = 1_800_000_000
+    const sub = buildSubscription({
+      id: 'sub_boleto',
+      customer: 'cus_boleto',
+      orgId: 'org-boleto',
+      priceId: PRO_MONTHLY,
+      quantity: 2,
+      status: 'active',
+      periodEnd,
+    })
+    // The boleto settled days after checkout — Stripe fires async_payment_succeeded
+    // carrying the same session shape as completed.
+    const event = buildEvent('checkout.session.async_payment_succeeded', {
+      id: 'cs_boleto',
+      object: 'checkout.session',
+      client_reference_id: 'org-boleto',
+      customer: 'cus_boleto',
+      subscription: 'sub_boleto',
+      metadata: {},
+    })
+
+    await handleStripeEvent(event, {
+      retrieveSubscription: () => Promise.resolve(sub),
+    })
+
+    const billing = await getOrgBilling('org-boleto')
+    expect(billing.tier).toBe('pro')
+    expect(billing.status).toBe('active')
+    expect(billing.unitQuantity).toBe(2)
+    expect(billing.stripeSubscriptionId).toBe('sub_boleto')
+  })
+
+  it('checkout.session.async_payment_failed sets past_due (boleto expired unpaid, orgId via client_reference_id)', async () => {
+    await seedOrg('org-boleto-fail')
+    // The boleto voucher expired without payment — the subscription never
+    // activated. Mark past_due without retrieving a subscription (none is paid).
+    const event = buildEvent('checkout.session.async_payment_failed', {
+      id: 'cs_boleto_fail',
+      object: 'checkout.session',
+      client_reference_id: 'org-boleto-fail',
+      customer: 'cus_boleto_fail',
+      subscription: 'sub_boleto_fail',
+      metadata: {},
+    })
+
+    await handleStripeEvent(event, noRetrieve)
+
+    const billing = await getOrgBilling('org-boleto-fail')
+    expect(billing.status).toBe('past_due')
+    // No paid subscription → org stays off any paid tier.
+    expect(billing.tier).toBe('free')
+  })
+
   it('an unknown price id leaves the tier unchanged (foreign Stripe object)', async () => {
     await seedOrg('org-unknown')
     const event = buildEvent(
