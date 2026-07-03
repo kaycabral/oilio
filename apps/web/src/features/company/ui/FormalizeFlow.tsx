@@ -113,14 +113,20 @@ export function FormalizeFlow({ unitId }: { unitId: string }) {
     try {
       const res = await fetch(`/api/tax-id/${digits}`)
       if (!res.ok) {
+        // The API's own `error` is a curated business message ("CNPJ não
+        // encontrado.") — surface it. A missing body means a technical failure
+        // (network / unexpected status) whose raw text must not leak: fall back
+        // to a fixed friendly message (disclosure wall, brief 0085).
         const body = await readJson(res, validateErrorBody).catch((): { error?: string } => ({}))
-        throw new Error(body.error ?? `Falha na consulta (${res.status})`)
+        setError(body.error ?? 'Falha na consulta do CNPJ. Tente novamente.')
+        return
       }
       const data = await readJson(res, validateLookup)
       setLookup(data)
       setStep('review')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha na consulta do CNPJ.')
+    } catch {
+      // A thrown error here is technical (network / parse) — never user-facing text.
+      setError('Falha na consulta do CNPJ. Tente novamente.')
     } finally {
       setLooking(false)
     }

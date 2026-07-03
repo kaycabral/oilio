@@ -112,9 +112,10 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
           if (res.available) setSlugState({ kind: 'available' })
           else if (res.reason === 'taken') setSlugState({ kind: 'taken' })
           else setSlugState({ kind: 'invalid' })
-        } catch (e) {
+        } catch {
           if (cancelled) return
-          setSlugState({ kind: 'error', message: e instanceof Error ? e.message : 'Erro' })
+          // The slug-check error's raw text is technical; show a fixed message.
+          setSlugState({ kind: 'error', message: 'Não foi possível verificar. Tente de novo.' })
         }
       })()
     }, 300)

@@ -46,8 +46,8 @@ export function UserMenu({
       await signOut(getClientAuth()).catch(() => {})
       router.replace('/login')
       router.refresh()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Logout falhou')
+    } catch {
+      toast.error('Não foi possível sair. Tente novamente.')
       setLoading(false)
     }
   }
