@@ -68,12 +68,12 @@ export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string 
     return result.inviteLink
   }
 
-  function onSend(): void {
+  function resolveSendHref(): string | null {
     // Read the ref, not the state: `ensureLink` just set it synchronously in this
-    // same click, whereas the `invite` state re-render hasn't landed yet. Open
-    // WhatsApp inside the click to dodge popup blockers.
-    const minted = inviteRef.current
-    if (minted) window.open(minted.whatsappHref, '_blank', 'noopener,noreferrer')
+    // same click, whereas the `invite` state re-render hasn't landed yet.
+    // `InviteLinkActions` owns the window (opened synchronously in the click) and
+    // navigates it to this href, so the popup survives the mint round-trip.
+    return inviteRef.current?.whatsappHref ?? null
   }
 
   return (
@@ -139,7 +139,7 @@ export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string 
         ready={ready}
         generated={invite !== null}
         onEnsure={ensureLink}
-        onSend={onSend}
+        resolveSendHref={resolveSendHref}
         generateLabel="Gerar e abrir no WhatsApp"
       />
 
