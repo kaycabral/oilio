@@ -25,6 +25,7 @@ import {
   seedCategory,
   seedCustomer,
   seedSubscription,
+  uniqueWhatsapp,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
@@ -104,7 +105,7 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
 
     const customerId = await seedCustomer(org.orgId, {
       name: `Cliente Granular ${ts}`,
-      mobile: `1199${ts.slice(-7)}`,
+      mobile: uniqueWhatsapp(),
     })
     // Frozen snapshot: service covered by item id, product covered by category.
     const subId = await seedSubscription(org.orgId, customerId, {
@@ -180,7 +181,7 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
     })
     const customerId = await seedCustomer(org.orgId, {
       name: `Cliente Limite ${ts}`,
-      mobile: `1198${ts.slice(-7)}`,
+      mobile: uniqueWhatsapp(),
     })
     // Plan quota 1, already fully consumed → no balance left this cycle.
     const subId = await seedSubscription(org.orgId, customerId, {
