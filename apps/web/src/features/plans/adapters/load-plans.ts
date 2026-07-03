@@ -16,6 +16,7 @@ import {
   planHasActiveReference,
   type WithCanDelete,
 } from '@/shared/org/delete-guard'
+import { isCapabilityLocked } from '@/features/billing/adapters/capability-lock'
 import { requireCapabilityPage } from '@/shared/org/membership'
 import {
   getSubscriptionPlanById,
@@ -104,21 +105,30 @@ async function loadPlanMasterData(orgId: string): Promise<PlanMasterData> {
   return { units, catalogItems, categories }
 }
 
+// `locked` (brief 0082): the tier does not unlock `plans.recurring`, so the
+// page renders the upgrade CTA instead of the form — a Free org never reaches a
+// plan form that would only fail on submit. `requireCapability` in the action
+// stays the real wall.
+export type PlanFormPageData = PlanMasterData & { locked: boolean }
+
 // Imperative shell for the new-plan route: gate to owner/manager then resolve
 // the coverage-picker master data.
-export async function loadNewPlanPage(): Promise<PlanMasterData> {
+export async function loadNewPlanPage(): Promise<PlanFormPageData> {
   const ctx = await requireCapabilityPage('canManagePlans')
-  return loadPlanMasterData(ctx.membership.orgId)
+  const locked = await isCapabilityLocked(ctx.membership.orgId, 'plans.recurring')
+  const masterData = await loadPlanMasterData(ctx.membership.orgId)
+  return { ...masterData, locked }
 }
 
-export type EditPlanPageData = PlanMasterData & { plan: SubscriptionPlan }
+export type EditPlanPageData = PlanMasterData & { plan: SubscriptionPlan; locked: boolean }
 
 // Imperative shell for the edit route — gate, resolve the plan (404), then the
 // coverage-picker master data.
 export async function loadEditPlanPage(planId: string): Promise<EditPlanPageData> {
   const ctx = await requireCapabilityPage('canManagePlans')
+  const locked = await isCapabilityLocked(ctx.membership.orgId, 'plans.recurring')
   const plan = await getSubscriptionPlanById(ctx.membership.orgId, planId)
   if (!plan) notFound()
   const masterData = await loadPlanMasterData(ctx.membership.orgId)
-  return { plan, ...masterData }
+  return { plan, ...masterData, locked }
 }
