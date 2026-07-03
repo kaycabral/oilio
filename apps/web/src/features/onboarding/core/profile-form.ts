@@ -3,7 +3,7 @@
 // error string), plus the minimum-age rule. No I/O — the completeProfile adapter
 // does the stub-dedupe, the user write, and the memberOperation re-derivation.
 
-import { normalizeBrazilPhone, parseBirthDate } from '@/domain'
+import { normalizeBrazilMobile, parseBirthDate } from '@/domain'
 import { formString } from '@/shared/form-data'
 
 export const MIN_AGE_YEARS = 13
@@ -20,7 +20,7 @@ export function parseProfileForm(formData: FormData): ProfileFormPayload | strin
 
   const mobileRaw = formString(formData, 'mobile').trim()
   if (mobileRaw.length === 0) return 'WhatsApp é obrigatório'
-  const mobile = normalizeBrazilPhone(mobileRaw)
+  const mobile = normalizeBrazilMobile(mobileRaw)
   if (!mobile) return 'WhatsApp inválido'
 
   const birthDateResult = parseBirthDate(formString(formData, 'birthDate'))

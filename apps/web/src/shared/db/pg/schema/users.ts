@@ -139,6 +139,17 @@ export const users = pgTable(
       'users_completed_profile_complete',
       sql`${table.completionCompleted} = false OR ${table.anonymizedAt} IS NOT NULL OR (${table.mobile} IS NOT NULL AND char_length(btrim(${table.mobile})) > 0 AND ${table.birthDate} IS NOT NULL)`,
     ),
+    // The mobile, when present, MUST be a valid Brazilian mobile in E.164
+    // digits: country 55 + 2-digit DDD + the mandatory leading 9 + 8 subscriber
+    // digits (brief 0087). The app normalizes via `normalizeBrazilMobile` before
+    // writing; this is the DB wall that rejects an 8/10-digit number (no 9th
+    // digit) even if a caller bypasses the action. Nullable-guarded: a stub /
+    // anonymized account carries null mobile, which is the absence of the datum
+    // (a CHECK only rejects on FALSE, and `NULL ~ ...` is NULL, so null passes).
+    check(
+      'users_mobile_br_format',
+      sql`${table.mobile} IS NULL OR ${table.mobile} ~ '^55[0-9]{2}9[0-9]{8}$'`,
+    ),
   ],
 )
 

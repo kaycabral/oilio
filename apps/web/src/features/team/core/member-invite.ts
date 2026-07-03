@@ -12,7 +12,7 @@
 // match key — the signed token + first-accept-wins is the identity binding
 // (brief 0084, Grupo B).
 
-import { normalizeBrazilPhone } from '@/domain'
+import { normalizeBrazilMobile } from '@/domain'
 
 export type MemberInviteWhatsappResult =
   | { ok: true; whatsapp: string; href: string }
@@ -36,7 +36,7 @@ export function buildMemberInviteWhatsapp(args: {
   orgName: string
   inviteLink: string
 }): MemberInviteWhatsappResult {
-  const whatsapp = normalizeBrazilPhone(args.rawPhone)
+  const whatsapp = normalizeBrazilMobile(args.rawPhone)
   if (!whatsapp) return { ok: false, error: 'WhatsApp inválido' }
   const message = buildMemberInviteMessage(args.orgName, args.inviteLink)
   const href = `https://wa.me/${whatsapp}?text=${encodeURIComponent(message)}`

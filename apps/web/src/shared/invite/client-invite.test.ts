@@ -126,6 +126,6 @@ describe('buildClientInviteWhatsapp', () => {
       orgName: 'Salão X',
       invite,
     })
-    expect(res).toEqual({ ok: false, error: 'WhatsApp inválido' })
+    expect(res).toEqual({ ok: false, error: 'Celular inválido' })
   })
 })

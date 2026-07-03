@@ -2,7 +2,7 @@ import {
   type Attribution,
   type AttributionIntent,
   attributionToSearchParams,
-  normalizeBrazilPhone,
+  normalizeBrazilMobile,
 } from '@/domain'
 
 // Functional core for the contextual client invite (brief 0077, Grupo B — AC-05/
@@ -92,8 +92,10 @@ export function buildClientInviteWhatsapp(args: {
   orgName: string
   invite: ClientInviteInput
 }): ClientInviteWhatsappResult {
-  const whatsapp = normalizeBrazilPhone(args.rawPhone)
-  if (!whatsapp) return { ok: false, error: 'WhatsApp inválido' }
+  // The invitee's number is a person's mobile — enforce the strict BR mobile
+  // (9th digit) before building the wa.me link (brief 0087).
+  const whatsapp = normalizeBrazilMobile(args.rawPhone)
+  if (!whatsapp) return { ok: false, error: 'Celular inválido' }
   const url = buildClientInviteUrl(args.baseUrl, args.invite)
   const message = buildClientInviteMessage(args.orgName, url)
   const href = `https://wa.me/${whatsapp}?text=${encodeURIComponent(message)}`

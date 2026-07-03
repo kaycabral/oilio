@@ -6,7 +6,7 @@ import {
   INVITE_TTL_MS,
   type Membership,
   membershipDocId,
-  normalizeBrazilPhone,
+  normalizeBrazilMobile,
   type Role,
   ROLES,
 } from '@/domain'
@@ -74,11 +74,14 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
   }
   assertCanManage(ctx.membership)
 
-  const rawPhone = formString(formData, 'whatsapp')
+  const rawPhone = formString(formData, 'mobile')
   const role = formString(formData, 'role')
 
-  const whatsapp = normalizeBrazilPhone(rawPhone)
-  if (!whatsapp) return { ok: false, error: 'WhatsApp inválido' }
+  // The invitee's number is a person's mobile — enforce the strict BR mobile
+  // (9th digit) before minting the invite (brief 0087). It remains the WhatsApp
+  // DELIVERY channel; only the validation tightens.
+  const mobile = normalizeBrazilMobile(rawPhone)
+  if (!mobile) return { ok: false, error: 'Celular inválido' }
   if (!isRole(role)) return { ok: false, error: 'Invalid role' }
   if (role === 'owner') return { ok: false, error: 'Cannot invite as owner' }
 
@@ -110,7 +113,7 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
   // forwarded headers → localhost) and never throws, so the link always builds.
   const base = await resolveBaseUrl()
 
-  await writeInvitePii(ctx.membership.orgId, inviteId, { mobile: whatsapp })
+  await writeInvitePii(ctx.membership.orgId, inviteId, { mobile })
   const created = await emitEvent(
     InviteConfig,
     aggregateRef(InviteConfig, ctx.membership.orgId, stored.id),
@@ -121,7 +124,7 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
   const inviteLink = `${base}/invites/${ctx.membership.orgId}/${stored.id}?token=${raw}`
 
   // Deliver over WhatsApp (brief 0084): the owner sends the accept link through
-  // the establishment's real channel instead of copying it. `normalizeBrazilPhone`
+  // the establishment's real channel instead of copying it. `normalizeBrazilMobile`
   // already succeeded above, so the wa.me build cannot fail here.
   const org = await getOrg(ctx.membership.orgId)
   const wa = buildMemberInviteWhatsapp({

@@ -3,7 +3,7 @@
 // payload (or a user-facing error string). No I/O — the adapter
 // (profile.actions) does the user read + write + PII event.
 
-import { normalizeBrazilPhone, parseBirthDate } from '@/domain'
+import { normalizeBrazilMobile, parseBirthDate } from '@/domain'
 import { formString } from '@/shared/form-data'
 
 export const MIN_AGE_YEARS = 13
@@ -20,7 +20,7 @@ export function parseProfileForm(formData: FormData): ProfileFormPayload | strin
 
   const mobileRaw = formString(formData, 'mobile').trim()
   if (mobileRaw.length === 0) return 'WhatsApp é obrigatório'
-  const mobile = normalizeBrazilPhone(mobileRaw)
+  const mobile = normalizeBrazilMobile(mobileRaw)
   if (!mobile) return 'WhatsApp inválido'
 
   const birthDateResult = parseBirthDate(formString(formData, 'birthDate'))

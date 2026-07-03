@@ -25,7 +25,7 @@
 // Public booking is the only un-authenticated caller and is OK on the server
 // path because the action receives no auth surface beyond the form data.
 
-import { normalizeBrazilPhone, type Attribution, type StoredCustomer, type User } from '@/domain'
+import { normalizeBrazilMobile, type Attribution, type StoredCustomer, type User } from '@/domain'
 import { CustomerConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
@@ -114,7 +114,7 @@ async function findCustomerIdByUserId(orgId: string, userId: string): Promise<st
 export async function upsertCustomerWithUser(
   input: UpsertCustomerInput,
 ): Promise<UpsertCustomerResult> {
-  const mobile = normalizeBrazilPhone(input.mobileRaw)
+  const mobile = normalizeBrazilMobile(input.mobileRaw)
   if (!mobile) return { ok: false, error: 'WhatsApp inválido' }
 
   const now = new Date().toISOString()
