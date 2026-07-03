@@ -23,4 +23,22 @@ export default [
       ],
     },
   },
+  // Structured logging is canonical (brief 0086 / Onda 3·C): production code logs
+  // through `@/shared/lib/logger` (severity + correlation-id, PII-safe), never raw
+  // `console.*` — a raw console line is unstructured and correlation-less, and the
+  // fragmentation this ban prevents is exactly what the wave consolidated.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/**/*.test.{ts,tsx}', 'src/**/*.spec.{ts,tsx}'],
+    rules: {
+      'no-console': 'error',
+    },
+  },
+  // The logger IS the console sink — it's the one place allowed to call console.
+  {
+    files: ['src/shared/lib/logger.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
 ]

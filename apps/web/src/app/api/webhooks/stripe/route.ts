@@ -1,6 +1,7 @@
 import { handleStripeEvent } from '@/features/billing/adapters/stripe-webhook'
 import { getStripe } from '@/shared/billing/stripe-client'
 import { getEventStorePool } from '@/shared/db/pg/pool'
+import { logger } from '@/shared/lib/logger'
 import { withRequestContext } from '@/shared/lib/request-context'
 import { requireEnv } from '@cbrl/env'
 import { NextResponse } from 'next/server'
@@ -59,7 +60,12 @@ async function postHandler(request: Request): Promise<Response> {
     // A handle failure must NOT keep the id marked done — release it so Stripe's
     // retry reprocesses, and return 500 so Stripe knows to retry.
     await releaseEvent(event.id)
-    console.error('[stripe-webhook] handle failed', event.type, event.id, err)
+    logger.error('handle failed', {
+      scope: 'stripe-webhook',
+      eventType: event.type,
+      eventId: event.id,
+      err,
+    })
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 })
   }
 

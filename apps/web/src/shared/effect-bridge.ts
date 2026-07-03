@@ -16,6 +16,7 @@ import {
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { classifyError } from '@/shared/errors/classify'
 import { messageForCategory } from '@/shared/errors/messages'
+import { logger } from '@/shared/lib/logger'
 import { Effect, Layer } from 'effect'
 
 /**
@@ -130,7 +131,7 @@ export async function emitEventGuarded<
 // the generic message (no SQLSTATE / constraint name / stack).
 function catchSagaDefect(defect: unknown) {
   return Effect.sync(() => {
-    console.error('[commitSaga] transaction defect', defect)
+    logger.error('transaction defect', { scope: 'commitSaga', defect })
     return { ok: false as const, error: messageForCategory(classifyError(defect)) }
   })
 }

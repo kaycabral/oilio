@@ -1,4 +1,5 @@
 import { getStripe } from '@/shared/billing/stripe-client'
+import { logger } from '@/shared/lib/logger'
 import { getOrgBilling } from '@/shared/org/billing-read'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import 'server-only'
@@ -37,6 +38,6 @@ export async function syncStripeSubscriptionQuantity(orgId: string): Promise<voi
     // (customer.subscription.updated) — Stripe is the source of truth.
   } catch (err) {
     // Non-transactional side effect — log, never throw. The reconcile cron fixes drift.
-    console.error('[syncStripeSubscriptionQuantity] failed', orgId, err)
+    logger.error('failed', { scope: 'syncStripeSubscriptionQuantity', orgId, err })
   }
 }

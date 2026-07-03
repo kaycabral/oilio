@@ -1,4 +1,5 @@
 import { getEventStorePool } from '@/shared/db/pg/pool'
+import { logger } from '@/shared/lib/logger'
 import 'server-only'
 
 // Sovereign-base engine telemetry — brief 0050 (A2), namespace `product.*`.
@@ -120,6 +121,10 @@ export async function emitProductEvent(event: ProductEventPayload): Promise<void
       ],
     )
   } catch (err) {
-    console.error(`[emitProductEvent] failed to record ${event.event}`, err)
+    logger.error('failed to record product event', {
+      scope: 'emitProductEvent',
+      event: event.event,
+      err,
+    })
   }
 }

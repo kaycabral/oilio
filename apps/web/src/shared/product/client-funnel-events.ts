@@ -1,5 +1,6 @@
 import type { Attribution } from '@/domain'
 import { getEventStorePool } from '@/shared/db/pg/pool'
+import { logger } from '@/shared/lib/logger'
 import 'server-only'
 
 // Customer-acquisition funnel telemetry — brief 0077 Grupo D (AC-12), Plano de
@@ -164,6 +165,10 @@ export async function emitClientFunnelEvent(event: ClientFunnelEventPayload): Pr
       ],
     )
   } catch (err) {
-    console.error(`[emitClientFunnelEvent] failed to record ${event.event}`, err)
+    logger.error('failed to record client funnel event', {
+      scope: 'emitClientFunnelEvent',
+      event: event.event,
+      err,
+    })
   }
 }

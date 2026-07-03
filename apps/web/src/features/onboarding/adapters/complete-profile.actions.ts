@@ -6,6 +6,7 @@ import { isUniqueViolation, USERS_WHATSAPP_UNIQUE } from '@/shared/db/pg/unique-
 import { getUserById, patchUser } from '@/shared/db/pg/users-store'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
+import { logger } from '@/shared/lib/logger'
 import { ensureSelfSignupCustomer } from '@/shared/org/customer-upsert'
 import { getOrgBySlug } from '@/shared/org/org'
 import { emitClientFunnelEvent } from '@/shared/product'
@@ -119,7 +120,7 @@ async function materializeSelfSignupCustomer(formData: FormData, uid: string): P
       fieldsFilled: ['name', 'whatsapp', 'birthDate'],
     })
   } catch (err) {
-    console.error('[completeProfile] self-signup customer materialization failed', err)
+    logger.error('self-signup customer materialization failed', { scope: 'completeProfile', err })
   }
 }
 

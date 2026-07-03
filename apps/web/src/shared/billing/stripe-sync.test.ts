@@ -28,6 +28,7 @@ vi.mock('@/shared/billing/stripe-client', () => ({
 vi.mock('@/shared/org/billing-read', () => ({ getOrgBilling: mocks.getOrgBilling }))
 vi.mock('@/shared/org/unit-read', () => ({ listUnitsForOrg: mocks.listUnitsForOrg }))
 
+import { logger } from '@/shared/lib/logger'
 import { syncStripeSubscriptionQuantity } from './stripe-sync'
 
 function billing(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -128,7 +129,7 @@ describe('syncStripeSubscriptionQuantity', () => {
     mocks.getOrgBilling.mockResolvedValue(billing({ unitQuantity: 1 }))
     mocks.listUnitsForOrg.mockResolvedValue(units(3))
     mocks.retrieve.mockRejectedValue(new Error('stripe down'))
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const errSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
 
     await expect(syncStripeSubscriptionQuantity('org-1')).resolves.toBeUndefined()
     expect(errSpy).toHaveBeenCalled()

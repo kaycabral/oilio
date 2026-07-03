@@ -45,11 +45,12 @@ function jsonOutput(): boolean {
   return env === 'production' || env === 'test'
 }
 
+// ANSI colours per level for the dev pretty line: grey / cyan / yellow / red.
 const DEV_COLOR: Record<Level, string> = {
-  debug: '\x1b[90m', // grey
-  info: '\x1b[36m', // cyan
-  warn: '\x1b[33m', // yellow
-  error: '\x1b[31m', // red
+  debug: '\x1b[90m',
+  info: '\x1b[36m',
+  warn: '\x1b[33m',
+  error: '\x1b[31m',
 }
 const RESET = '\x1b[0m'
 
@@ -59,7 +60,8 @@ function formatPretty(
   ts: string,
   rest: Record<string, unknown>,
 ): string {
-  const time = ts.slice(11, 19) // HH:MM:SS
+  // `ts` is an ISO string; slice out the HH:MM:SS clock portion.
+  const time = ts.slice(11, 19)
   const tail = Object.keys(rest).length > 0 ? ` ${JSON.stringify(rest)}` : ''
   return `${DEV_COLOR[level]}${time} ${SEVERITY[level]}${RESET} ${message}${tail}`
 }
