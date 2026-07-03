@@ -23,7 +23,10 @@ import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { listAgendaBlocksForUnit } from '@/shared/org/agenda-block-read'
-import { listUnitAppointmentsInRange } from '@/shared/org/appointment-read'
+import {
+  listMemberOperationAppointmentsInRange,
+  listUnitAppointmentsInRange,
+} from '@/shared/org/appointment-read'
 import { listCustomersForOrg } from '@/shared/org/customer-read'
 import {
   listBookableMemberOperationsForOrg,
@@ -44,6 +47,14 @@ function isValidDateISO(s: string): boolean {
 // Extracted from `loadAgendaPage` so the page stays under the complexity gate.
 type AgendaDayData = {
   appointments: Appointment[]
+  // The day's appointments of each bookable professional, read CROSS-UNIT
+  // (#1318): the anti-double-book invariant is per-member_operation and spans
+  // units, so the dialog time picker omits a slot the selected professional
+  // already fills in ANOTHER unit — mirroring the public self-book (#1313). Keyed
+  // by memberOperationId; only the ids present in the scope-clamped
+  // `memberOperations` are read, so a self-scoped member never sees a colleague's
+  // cross-unit day.
+  busyByMemberOperation: Record<string, Appointment[]>
   blockSegments: ReturnType<typeof getBlockSegmentsForDay>
   allServices: CatalogServiceItem[]
   allCustomers: Customer[]
@@ -55,6 +66,7 @@ type AgendaDayData = {
 // view-model shape stable without running any read.
 const EMPTY_AGENDA_DAY_DATA: AgendaDayData = {
   appointments: [],
+  busyByMemberOperation: {},
   blockSegments: [],
   allServices: [],
   allCustomers: [],
@@ -111,31 +123,48 @@ async function loadAgendaDayData(args: {
   dayStart: string
   dayEnd: string
   memberOperationScope: string
+  // The scope-clamped bookable professionals rendered on the grid (self-scoped =
+  // just the acting member; balcão = all bookable in the unit). Their CROSS-UNIT
+  // day is read to feed the picker's busy-slot omission (#1318).
+  memberOperationIds: readonly string[]
   // Brief 0081 (#1311): forwarded from the `?showCancelled` toggle. Default false
   // hides `cancelled` from the read so freed slots render empty.
   includeCancelled: boolean
 }): Promise<AgendaDayData> {
   const { orgId, activeUnitId, date, timezone, dayStart, dayEnd, memberOperationScope } = args
-  const [dayAppointments, blocks, catalogItems, enrichedCustomers] = await Promise.all([
-    // Unit-scoped read of the day's appointments from the typed `appointments`
-    // table under RLS (brief 0061 § Grupo C / AC-04).
-    listUnitAppointmentsInRange(
-      orgId,
-      activeUnitId,
-      { startUtc: dayStart, endUtc: dayEnd },
-      {
-        memberOperationId: memberOperationScope,
-        includeCancelled: args.includeCancelled,
-      },
-    ),
-    // Backend-aware (brief 0060, Grupo C): Postgres reads the typed
-    // `agenda_blocks` table under RLS, Firestore the org-scoped subcollection.
-    listAgendaBlocksForUnit(orgId, activeUnitId, memberOperationScope),
-    listCatalogItems(orgId),
-    // Não é um `*Snap` — `listCustomersForOrg` já resolve o doc + faz join com
-    // `users/` pro PII vir no shape público de `Customer`.
-    listCustomersForOrg(orgId),
-  ])
+  const [dayAppointments, busyPerMemberOperation, blocks, catalogItems, enrichedCustomers] =
+    await Promise.all([
+      // Unit-scoped read of the day's appointments from the typed `appointments`
+      // table under RLS (brief 0061 § Grupo C / AC-04).
+      listUnitAppointmentsInRange(
+        orgId,
+        activeUnitId,
+        { startUtc: dayStart, endUtc: dayEnd },
+        {
+          memberOperationId: memberOperationScope,
+          includeCancelled: args.includeCancelled,
+        },
+      ),
+      // Cross-unit busy per scope-clamped professional (#1318): each read is the
+      // whole org's day for one member_operation (no unit pin), so a slot filled in
+      // another unit is omitted from this unit's picker. `cancelled` is already
+      // excluded by the read. Runs alongside the unit-scoped grid read above.
+      Promise.all(
+        args.memberOperationIds.map((id) =>
+          listMemberOperationAppointmentsInRange(orgId, id, {
+            startUtc: dayStart,
+            endUtc: dayEnd,
+          }).then((appointments) => [id, appointments] as const),
+        ),
+      ),
+      // Backend-aware (brief 0060, Grupo C): Postgres reads the typed
+      // `agenda_blocks` table under RLS, Firestore the org-scoped subcollection.
+      listAgendaBlocksForUnit(orgId, activeUnitId, memberOperationScope),
+      listCatalogItems(orgId),
+      // Não é um `*Snap` — `listCustomersForOrg` já resolve o doc + faz join com
+      // `users/` pro PII vir no shape público de `Customer`.
+      listCustomersForOrg(orgId),
+    ])
   const blockSegments = getBlockSegmentsForDay(blocks, date, timezone)
   // Unified catalog (brief 0023, #1004 → 0053/B3): the agenda picker offers the
   // kind-service catalog items directly — no adapter back to a legacy shape.
@@ -153,6 +182,7 @@ async function loadAgendaDayData(args: {
   )
   return {
     appointments: dayAppointments,
+    busyByMemberOperation: Object.fromEntries(busyPerMemberOperation),
     blockSegments,
     allServices,
     allCustomers,
@@ -260,6 +290,9 @@ export async function loadAgendaPage(searchParams: {
           dayStart,
           dayEnd,
           memberOperationScope: scope.memberOperationScope,
+          // Only the professionals actually rendered on the grid (already
+          // scope-clamped above) get a cross-unit busy read (#1318).
+          memberOperationIds: memberOperations.map((p) => p.id),
           includeCancelled: showCancelled,
         })
       : EMPTY_AGENDA_DAY_DATA
@@ -277,6 +310,9 @@ export async function loadAgendaPage(searchParams: {
     activeUnitId,
     memberOperations,
     appointments: dayData.appointments,
+    // #1318: cross-unit busy per rendered professional, consumed by the dialog
+    // picker to omit slots that would collide on submit.
+    busyByMemberOperation: dayData.busyByMemberOperation,
     customersById: Object.fromEntries(dayData.customersById),
     servicesById: Object.fromEntries(dayData.servicesById),
     dayHours,

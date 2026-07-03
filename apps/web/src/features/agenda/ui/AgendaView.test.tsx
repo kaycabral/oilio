@@ -71,6 +71,7 @@ const baseProps = {
     } satisfies MemberOperation,
   ],
   appointments: [],
+  busyByMemberOperation: {},
   customersById: {},
   servicesById: {},
   dayHours: [{ open: '09:00', close: '18:00' }] as HoursRange[],

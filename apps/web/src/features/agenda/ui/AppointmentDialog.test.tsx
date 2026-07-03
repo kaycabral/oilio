@@ -320,6 +320,72 @@ describe('AppointmentDialog — past-slot preselection (#1314)', () => {
   })
 })
 
+describe('AppointmentDialog — omit already-busy slots (#1318)', () => {
+  // grid 09:00…11:30 (30-min slots, 30-min service). "now" pinned to 08:00 SP so
+  // nothing is past. p1 is busy 10:00–10:30 SP (13:00–13:30 UTC).
+  const busyAt10 = {
+    p1: [
+      buildAppointment({
+        id: 'other',
+        startAt: '2026-05-15T13:00:00.000Z',
+        endAt: '2026-05-15T13:30:00.000Z',
+      }),
+    ],
+  }
+
+  it('NEW does not offer a slot the selected professional is already busy in', () => {
+    vi.setSystemTime(new Date('2026-05-15T11:00:00.000Z'))
+    const baseProps = makeBaseProps()
+    render(<AppointmentDialog {...baseProps} appointment={null} busyByMemberOperation={busyAt10} />)
+    // Pick the professional first (balcão flow): only then does the picker know
+    // whose busy day to omit — matching the repro (choose pro → slot filtered).
+    fireEvent.click(screen.getByRole('combobox', { name: /profissional/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Ana' }))
+    fireEvent.click(screen.getByRole('combobox', { name: /início/i }))
+    // 10:00 collides and must be gone; the back-to-back neighbours stay.
+    expect(screen.queryByRole('option', { name: '10:00' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '09:30' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '10:30' })).toBeInTheDocument()
+  })
+
+  it('EDIT keeps the appointment its own slot (excludeAppointmentId)', () => {
+    vi.setSystemTime(new Date('2026-05-15T11:00:00.000Z'))
+    const baseProps = makeBaseProps()
+    // The edited appointment (a1) IS the 10:00 booking; its own slot must remain.
+    const own = {
+      p1: [
+        buildAppointment({
+          id: 'a1',
+          startAt: '2026-05-15T13:00:00.000Z',
+          endAt: '2026-05-15T13:30:00.000Z',
+        }),
+      ],
+    }
+    render(
+      <AppointmentDialog
+        {...baseProps}
+        appointment={buildAppointment({
+          startAt: '2026-05-15T13:00:00.000Z',
+          endAt: '2026-05-15T13:30:00.000Z',
+        })}
+        busyByMemberOperation={own}
+      />,
+    )
+    fireEvent.click(screen.getByRole('combobox', { name: /início/i }))
+    expect(screen.getByRole('option', { name: '10:00' })).toBeInTheDocument()
+  })
+
+  it('offers every slot when the professional has no busy interval', () => {
+    vi.setSystemTime(new Date('2026-05-15T11:00:00.000Z'))
+    const baseProps = makeBaseProps()
+    render(<AppointmentDialog {...baseProps} appointment={null} busyByMemberOperation={{}} />)
+    fireEvent.click(screen.getByRole('combobox', { name: /profissional/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Ana' }))
+    fireEvent.click(screen.getByRole('combobox', { name: /início/i }))
+    expect(screen.getByRole('option', { name: '10:00' })).toBeInTheDocument()
+  })
+})
+
 describe('AppointmentDialog — no-show flow (#871)', () => {
   const PAST_START = '2020-01-01T13:00:00.000Z'
   const FUTURE_START = '2099-01-01T13:00:00.000Z'

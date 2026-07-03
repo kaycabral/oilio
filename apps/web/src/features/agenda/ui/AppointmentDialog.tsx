@@ -15,6 +15,7 @@ import {
 import { createAppointment, updateAppointment } from '@/features/agenda/adapters/agenda.actions'
 import {
   buildAppointmentWhatsappLink,
+  filterGridByBusy,
   gridTimeOptions,
   resolveInitialDateTime,
   resolveStartTimePicker,
@@ -49,6 +50,7 @@ export function AppointmentDialog({
   onOpenChange,
   unitId,
   memberOperations,
+  busyByMemberOperation = {},
   services,
   customers,
   date,
@@ -66,6 +68,11 @@ export function AppointmentDialog({
   onOpenChange: (open: boolean) => void
   unitId: string
   memberOperations: MemberOperation[]
+  // #1318: the day's CROSS-UNIT appointments of each bookable professional, keyed
+  // by id. The picker omits starts that overlap the SELECTED professional's list
+  // (mirrors the public self-book, #1313). Empty/absent = no omission (the grid
+  // still shows every valid slot; the write path stays the backstop).
+  busyByMemberOperation?: Record<string, Appointment[]>
   services: CatalogServiceItem[]
   customers: Customer[]
   date: string
@@ -116,6 +123,13 @@ export function AppointmentDialog({
     [appointment, date, defaultStartTime, timezone],
   )
 
+  // The professional the picker filters busy slots against (#1318). A self-scoped
+  // member is locked to their own id; the balcão defaults to the edited
+  // appointment's / the passed default. Controlled so changing it recomputes the
+  // grid against that professional's cross-unit day.
+  const initialMemberOperationId =
+    selfMemberOperationId ?? appointment?.memberOperationId ?? defaultMemberOperationId ?? ''
+
   // Controlled date + service so the grid picker recomputes for the day the user
   // actually picks (fixes the stale-day desync) and the selected service's
   // duration (so it never offers an overrunning start).
@@ -123,12 +137,15 @@ export function AppointmentDialog({
   const [selectedServiceId, setSelectedServiceId] = useState(
     appointment?.serviceId ?? activeServices[0]?.id ?? '',
   )
+  const [selectedMemberOperationId, setSelectedMemberOperationId] =
+    useState(initialMemberOperationId)
   useEffect(() => {
     if (open) {
       setSelectedDate(initialDate)
       setSelectedServiceId(appointment?.serviceId ?? activeServices[0]?.id ?? '')
+      setSelectedMemberOperationId(initialMemberOperationId)
     }
-  }, [open, initialDate, appointment?.serviceId, activeServices])
+  }, [open, initialDate, appointment?.serviceId, activeServices, initialMemberOperationId])
 
   const selectedDuration = useMemo(() => {
     const svc = activeServices.find((s) => s.id === selectedServiceId)
@@ -147,8 +164,21 @@ export function AppointmentDialog({
       timezone,
       nowMs: Date.now(),
     })
-    return resolveStartTimePicker({
+    // #1318: omit the starts the selected professional is already busy in
+    // (cross-unit). EDIT keeps its own slot via `excludeAppointmentId`. No busy
+    // data (balcão with an as-yet-unpicked pro, or absent prop) = no omission.
+    const available = filterGridByBusy(
       grid,
+      busyByMemberOperation[selectedMemberOperationId] ?? [],
+      {
+        date: selectedDate,
+        timezone,
+        durationMinutes: selectedDuration,
+        excludeAppointmentId: appointment?.id ?? null,
+      },
+    )
+    return resolveStartTimePicker({
+      grid: available,
       editMode,
       initialStartTime,
       keepInitial: selectedDate === initialDate,
@@ -157,6 +187,9 @@ export function AppointmentDialog({
     appointmentGrid,
     selectedDate,
     selectedDuration,
+    selectedMemberOperationId,
+    busyByMemberOperation,
+    appointment?.id,
     initialStartTime,
     initialDate,
     timezone,
@@ -276,12 +309,8 @@ export function AppointmentDialog({
             <Select
               name="memberOperationId"
               required
-              defaultValue={
-                selfMemberOperationId ??
-                appointment?.memberOperationId ??
-                defaultMemberOperationId ??
-                undefined
-              }
+              value={selectedMemberOperationId || undefined}
+              onValueChange={setSelectedMemberOperationId}
             >
               <SelectTrigger id="appointment-memberOperation">
                 <SelectValue placeholder="Selecione…" />

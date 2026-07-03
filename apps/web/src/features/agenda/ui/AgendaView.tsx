@@ -43,6 +43,10 @@ export type AgendaViewProps = {
   activeUnitId: string | null
   memberOperations: MemberOperation[]
   appointments: Appointment[]
+  // #1318: the day's CROSS-UNIT appointments per bookable professional, keyed by
+  // memberOperationId. The dialog picker uses the selected professional's list to
+  // omit already-busy starts (mirrors the public self-book, #1313).
+  busyByMemberOperation: Record<string, Appointment[]>
   customersById: Record<string, Customer>
   servicesById: Record<string, CatalogServiceItem>
   dayHours: readonly HoursRange[]
@@ -69,6 +73,7 @@ export function AgendaView({
   activeUnitId,
   memberOperations,
   appointments,
+  busyByMemberOperation,
   customersById,
   servicesById,
   dayHours,
@@ -269,6 +274,7 @@ export function AgendaView({
           onOpenChange={handleDialogChange}
           unitId={activeUnitId}
           memberOperations={memberOperations}
+          busyByMemberOperation={busyByMemberOperation}
           services={services}
           customers={customers}
           date={date}
