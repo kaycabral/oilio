@@ -119,7 +119,7 @@ describe('dispatchNotificationWhatsapp (AC-14) — Postgres', () => {
     const notifId = `n-${Math.random().toString(36).slice(2, 8)}`
 
     await putUser(
-      buildUser(uid, '2026-06-01T10:00:00Z', { displayName: 'Maria', mobile: '11999998888' }),
+      buildUser(uid, '2026-06-01T10:00:00Z', { displayName: 'Maria', mobile: '5511999998888' }),
     )
     await getEventStorePool().query(
       `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)

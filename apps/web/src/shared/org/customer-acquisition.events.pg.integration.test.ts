@@ -60,8 +60,11 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
   // must be unique per run — derive the trailing digits from the wall clock.
   function uniqueMobileRaw(): string {
     seq += 1
-    const tail = String((Date.now() + seq) % 1_000_000_000).padStart(9, '0')
-    return `11${tail}`
+    // DDD 11 + the mandatory mobile `9` + 8 unique subscriber digits, so the
+    // number is a valid BR mobile (normalizeBrazilMobile / the DB br_format
+    // CHECK both require the 9th digit).
+    const tail = String((Date.now() + seq) % 100_000_000).padStart(8, '0')
+    return `119${tail}`
   }
 
   afterAll(async () => {
