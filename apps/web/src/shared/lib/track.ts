@@ -68,6 +68,32 @@ type AnalyticsEvents = {
     surface: string
     verb: string
   }
+  // Configurações modal opened via the UserMenu (brief 0090 § "Eventos"). The
+  // `section` is the section shown first (Perfil by default, or the deep-linked
+  // section on a direct settings navigation).
+  settings_modal_opened: {
+    org_id: string
+    user_id: string
+    section: string
+  }
+  // Member navigated between sections inside the Configurações modal.
+  settings_section_viewed: {
+    org_id: string
+    user_id: string
+    section: string
+  }
+  // Owner opened the native cancellation dialog on the Cobrança section
+  // (brief 0090, AC-09 funnel). Intent — not yet confirmed.
+  billing_cancel_intent: {
+    org_id: string
+    user_id: string
+  }
+  // Owner confirmed the native cancellation (cancel_at_period_end set on the
+  // Stripe subscription). The paid access runs until the period end.
+  billing_cancel_confirmed: {
+    org_id: string
+    user_id: string
+  }
 }
 
 export type AnalyticsEventName = keyof AnalyticsEvents

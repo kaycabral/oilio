@@ -9,7 +9,17 @@ import { getOrg } from '@/shared/org/org'
 import { OrgProvider } from '@/shared/org/org-context'
 import { redirect } from 'next/navigation'
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode
+  // Parallel-route slot for the Configurações modal (brief 0090). Filled by the
+  // `@modal` intercepting routes on a client-side navigation to /settings/*;
+  // renders `null` (via @modal/default.tsx) otherwise. Optional so the layout is
+  // still directly callable in unit tests without wiring the slot.
+  modal?: React.ReactNode
+}) {
   if (!isFirebaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
@@ -89,6 +99,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       >
         {children}
       </AppShell>
+      {/* The Configurações modal slot (brief 0090). Rendered as a sibling of the
+          shell (the Dialog portals out), so it overlays the operational surface
+          without entering the content scroller. */}
+      {modal}
     </OrgProvider>
   )
 }

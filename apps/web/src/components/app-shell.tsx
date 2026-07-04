@@ -3,6 +3,7 @@
 import { UserMenu } from '@/components/user-menu'
 import { unitUsesAgenda } from '@/domain'
 import { NotificationBell } from '@/features/notifications/ui/NotificationBell'
+import { track } from '@/shared/lib/track'
 import { useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import { AppShell as BaseAppShell } from '@cbrl/design'
@@ -72,6 +73,18 @@ function SidebarUserMenu({
   avatarUrl: string | null
   orgName: string
 }) {
+  const { membership } = useOrg()
+
+  // Product telemetry (brief 0090 § "Eventos"): opening Configurações from the
+  // menu (click or Ctrl+Shift+,) lands on Perfil, the default section.
+  function onOpenSettings() {
+    track('settings_modal_opened', {
+      org_id: membership.orgId,
+      user_id: membership.userId,
+      section: 'profile',
+    })
+  }
+
   return (
     <div className="flex items-center gap-2 px-1 py-1">
       {/* Ajuda (helpHref) is intentionally omitted until a real /help surface
@@ -81,7 +94,7 @@ function SidebarUserMenu({
         name={name}
         secondary={secondary}
         avatarUrl={avatarUrl}
-        settings={{ href: '/settings/profile', label: 'Configurações' }}
+        settings={{ href: '/settings/profile', label: 'Configurações', onOpen: onOpenSettings }}
       />
       <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
         <span className="truncate text-sm font-medium">{name ?? 'Conta'}</span>
