@@ -23,16 +23,17 @@ function labels(role: Role, signals?: NavOrgSignals, tier?: Tier): string[] {
 }
 
 describe('getNavSections', () => {
-  it('shows every section + manageOrg item to an owner', () => {
+  it('shows every operational section + manageOrg item to an owner', () => {
+    // Sidebar is operational-only after brief 0090: Perfil/Privacidade/billing
+    // moved to the Configurações modal, so there is no "Conta" section here.
     const sections = sectionsFor('owner')
-    expect(sections.map((s) => s.label)).toEqual([
-      'Operação',
-      'Cadastros',
-      'Administração',
-      'Conta',
-    ])
+    expect(sections.map((s) => s.label)).toEqual(['Operação', 'Cadastros', 'Administração'])
     expect(labels('owner')).toEqual(
       expect.arrayContaining(['Relatórios', 'Copiloto', 'Dashboard', 'Equipe']),
+    )
+    // Personal + billing surfaces no longer live in the sidebar.
+    expect(labels('owner')).not.toEqual(
+      expect.arrayContaining(['Perfil', 'Privacidade', 'Plano e cobrança']),
     )
   })
 
@@ -51,8 +52,11 @@ describe('getNavSections', () => {
     // Dashboard surfaces financeiro KPIs — manager-only, hidden from receptionist.
     expect(flat).not.toContain('Dashboard')
     expect(flat).not.toContain('Equipe')
-    // Personal "Conta" surfaces survive — receptionists still self-serve.
-    expect(flat).toEqual(expect.arrayContaining(['Perfil', 'Privacidade', 'Clientes']))
+    // Baseline operation stays reachable; Perfil/Privacidade moved to the modal
+    // (reached via the UserMenu), no longer sidebar entries (brief 0090).
+    expect(flat).toContain('Clientes')
+    expect(flat).not.toContain('Perfil')
+    expect(flat).not.toContain('Privacidade')
   })
 
   it('hides Agenda when the org does not use appointment hours', () => {

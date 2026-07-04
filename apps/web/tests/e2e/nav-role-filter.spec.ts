@@ -40,6 +40,29 @@ test.describe('Navegação filtrada por papel (AC-08)', () => {
     // separate "Unidades" nav item anymore (see nav-items.test.ts).
     await expect(nav.getByRole('link', { name: 'Negócios' })).toBeVisible()
     await expect(nav.getByRole('link', { name: 'Equipe' })).toBeVisible()
+
+    // Sidebar is operational-only after brief 0090: Perfil, Privacidade and
+    // "Plano e cobrança" moved to the Configurações modal (reached via the
+    // UserMenu at the sidebar footer), so none of them are sidebar entries.
+    await expect(nav.getByRole('link', { name: 'Perfil' })).toHaveCount(0)
+    await expect(nav.getByRole('link', { name: 'Privacidade' })).toHaveCount(0)
+    await expect(nav.getByRole('link', { name: 'Plano e cobrança' })).toHaveCount(0)
+    await expect(nav.getByText('Conta', { exact: true })).toHaveCount(0)
+  })
+
+  test('UserMenu no rodapé abre Configurações (brief 0090, AC-02/03)', async ({ authedPage }) => {
+    await authedPage.goto('/agenda')
+    await expect(authedPage).toHaveURL(/\/agenda$/)
+
+    // The account menu lives in the sidebar footer, not the top bar. Its avatar
+    // trigger opens the dropdown with the Configurações entry, which navigates to
+    // the settings surface (default section Perfil).
+    const footer = authedPage.locator('[data-sidebar="footer"]')
+    await footer.getByRole('button', { name: 'Conta' }).click()
+    await authedPage.getByRole('menuitem', { name: /Configurações/ }).click()
+
+    // Lands on the settings surface (Perfil is the default section).
+    await expect(authedPage).toHaveURL(/\/settings\/profile$/)
   })
 
   test('recepção não vê Administração nem Comissões', async ({ authedPage, org }) => {

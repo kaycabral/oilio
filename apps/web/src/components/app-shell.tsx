@@ -6,7 +6,6 @@ import { NotificationBell } from '@/features/notifications/ui/NotificationBell'
 import { useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import { AppShell as BaseAppShell } from '@cbrl/design'
-import { UserCog } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getNavSections } from './nav-items'
@@ -27,7 +26,7 @@ export function AppShell({
   // appointment mode — drives whether the Agenda nav item shows (multi-vertical).
   const usesAgenda = units.some((u) => unitUsesAgenda(u))
   // `tier` gates the billing axis (brief 0088 AC-06): surfaces the plan doesn't
-  // unlock are hidden from the sidebar entirely (upsell lives in /billing + /pricing).
+  // unlock are hidden from the sidebar entirely (upsell lives in /settings/billing + /pricing).
   const sections = getNavSections(membership, { usesAgenda }, tier)
 
   return (
@@ -41,20 +40,54 @@ export function AppShell({
         </Link>
       )}
       headerStart={<UnitOrgSwitcher />}
-      headerEnd={
-        <div className="flex items-center gap-1">
-          <NotificationBell />
-          <UserMenu
-            name={user.name}
-            secondary={user.secondary}
-            avatarUrl={user.avatarUrl}
-            shortcuts={[{ href: '/settings/profile', label: 'Perfil', icon: UserCog }]}
-          />
-        </div>
+      headerEnd={<NotificationBell />}
+      footer={
+        <SidebarUserMenu
+          name={user.name}
+          secondary={user.secondary}
+          avatarUrl={user.avatarUrl}
+          orgName={orgName}
+        />
       }
     >
       {children}
     </BaseAppShell>
+  )
+}
+
+// Account menu anchored at the sidebar footer (brief 0090, AC-02): the avatar
+// opens the identity dropdown (Configurações + Sair), with the member name and
+// the active Negócio shown alongside it. Configurações opens the
+// settings modal at its default section (Perfil); the app being context-based,
+// billing follows the active Negócio automatically. On the icon-collapsed rail
+// the identity text folds away and only the avatar trigger remains.
+function SidebarUserMenu({
+  name,
+  secondary,
+  avatarUrl,
+  orgName,
+}: {
+  name: string | null
+  secondary: string | null
+  avatarUrl: string | null
+  orgName: string
+}) {
+  return (
+    <div className="flex items-center gap-2 px-1 py-1">
+      {/* Ajuda (helpHref) is intentionally omitted until a real /help surface
+          exists — the brief lists it, but there's no help route yet and we don't
+          invent one. The UserMenu supports it the day the route lands. */}
+      <UserMenu
+        name={name}
+        secondary={secondary}
+        avatarUrl={avatarUrl}
+        settings={{ href: '/settings/profile', label: 'Configurações' }}
+      />
+      <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
+        <span className="truncate text-sm font-medium">{name ?? 'Conta'}</span>
+        <span className="text-muted-foreground truncate text-xs">{orgName}</span>
+      </div>
+    </div>
   )
 }
 
