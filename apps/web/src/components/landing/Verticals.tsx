@@ -15,11 +15,11 @@ export function Verticals() {
     <section className="flex flex-col gap-10 py-16">
       <div className="flex flex-col items-center gap-3 text-center">
         <Typography as="h2" variant="h2" className="border-none pb-0">
-          Feito pra mais de um tipo de negócio
+          Pensado pro seu tipo de negócio
         </Typography>
         <Typography variant="muted" className="max-w-prose text-base">
-          A mesma plataforma atende categorias estruturalmente diferentes — porque receita
-          recorrente é o que elas têm em comum.
+          A mesma plataforma atende categorias bem diferentes — porque o que elas têm em comum é a
+          receita recorrente.
         </Typography>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">

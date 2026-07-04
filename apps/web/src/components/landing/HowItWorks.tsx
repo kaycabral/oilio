@@ -5,19 +5,19 @@ const STEPS = [
     step: '01',
     title: 'Comece pelo avulso',
     description:
-      'Cadastre serviços e profissionais e já comece a marcar e fechar atendimentos avulsos — sem fricção, do primeiro dia.',
+      'Cadastre serviços e equipe e já comece a marcar e fechar atendimentos hoje — sem fricção, sem migração complicada.',
   },
   {
     step: '02',
-    title: 'Crie a recorrência',
+    title: 'Fidelize com recorrência',
     description:
-      'Transforme clientes fiéis em assinantes informais: pacotes, retornos agendados e lembretes que trazem todo mundo de volta.',
+      'Transforme quem sempre volta em cliente de plano: pacotes, retornos agendados e lembretes que trazem todo mundo de novo.',
   },
   {
     step: '03',
     title: 'Escale com assinatura',
     description:
-      'Lance planos de assinatura nativos, com cobrança automática e receita previsível. Saia do "quanto vendi esse mês?".',
+      'Lance planos nativos com cobrança automática e pare de perguntar "quanto vendi esse mês?". A resposta você já sabe.',
   },
 ] as const
 
@@ -26,11 +26,10 @@ export function HowItWorks() {
     <section className="flex flex-col gap-10 py-16">
       <div className="flex flex-col items-center gap-3 text-center">
         <Typography as="h2" variant="h2" className="border-none pb-0">
-          Do avulso à assinatura, no seu ritmo
+          Vá do avulso à assinatura no seu ritmo
         </Typography>
         <Typography variant="muted" className="max-w-prose text-base">
-          Você não precisa virar a chave de uma vez. Oilio acompanha cada estágio da maturidade do
-          seu negócio.
+          Você não precisa virar a chave de uma vez. O Oilio acompanha cada estágio do seu negócio.
         </Typography>
       </div>
       <ol className="grid gap-6 sm:grid-cols-3">

@@ -102,7 +102,7 @@ describe('startCheckout', () => {
 
     const res = await startCheckout(form({ tier: 'pro', cycle: 'monthly' }))
 
-    expect(res).toEqual({ ok: false, error: 'Plano sem cobrança (Free não requer checkout)' })
+    expect(res).toEqual({ ok: false, error: 'Plano sem cobrança (Grátis não requer checkout)' })
   })
 
   it('lazily creates a Stripe customer (persisting it) when the org has none', async () => {

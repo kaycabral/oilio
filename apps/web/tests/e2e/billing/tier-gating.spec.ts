@@ -51,7 +51,7 @@ test.describe('Billing — tier gating (brief 0072/0073/0082)', { tag: '@critica
     test('billing surface shows Free + the subscribe CTA', async ({ authedPage }) => {
       await authedPage.goto('/billing')
       await expect(authedPage.getByRole('heading', { name: 'Plano e cobrança' })).toBeVisible()
-      await expect(authedPage.getByText('Plano Free')).toBeVisible()
+      await expect(authedPage.getByText('Plano Grátis')).toBeVisible()
       await expect(authedPage.getByRole('button', { name: /Assinar o Pro/ })).toBeVisible()
     })
   })

@@ -7,7 +7,7 @@ vi.mock('@/shared/firebase/config', () => ({
   isFirebaseConfigured: vi.fn(),
 }))
 
-const HEADING = /a plataforma para o seu estabelecimento crescer com recorrência/i
+const HEADING = /pare de vender atendimento\. comece a construir receita\./i
 
 describe('Hero', () => {
   it('renders title and primary CTA when auth is configured', () => {

@@ -13,7 +13,7 @@ describe('PricingTiers', () => {
     // AC-03 (brief 0070): the component consumes the domain catalog; the
     // chargeable cards are exactly the domain's TIERS. Add/remove a tier in the
     // domain and this breaks until the page is updated — promise and gate stay
-    // in sync. Rede is contact-sales, not a billing tier, so it's excluded.
+    // in sync. Escala is contact-sales, not a billing tier, so it's excluded.
     expect(tiersMatchDomain()).toBe(true)
     expect([...CHARGEABLE_TIER_SLUGS].sort()).toEqual(['advanced', 'free', 'pro'])
   })
@@ -21,7 +21,7 @@ describe('PricingTiers', () => {
   it('renders the three tiers with CTAs to login when auth is configured', () => {
     vi.mocked(isFirebaseConfigured).mockReturnValue(true)
     render(<PricingTiers />)
-    expect(screen.getByText('Free')).toBeInTheDocument()
+    expect(screen.getByText('Grátis')).toBeInTheDocument()
     expect(screen.getByText('Pro')).toBeInTheDocument()
     expect(screen.getByText('Avançado')).toBeInTheDocument()
     expect(screen.getByText('Recomendado')).toBeInTheDocument()
@@ -37,7 +37,7 @@ describe('PricingTiers', () => {
   it('shows the contact tier with a WhatsApp CTA', () => {
     vi.mocked(isFirebaseConfigured).mockReturnValue(true)
     render(<PricingTiers />)
-    expect(screen.getByText('Rede')).toBeInTheDocument()
+    expect(screen.getByText('Escala')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Falar com a gente' })).toHaveAttribute(
       'href',
       'https://wa.me/5592984896424',
@@ -66,24 +66,22 @@ describe('PricingTiers', () => {
   it('hides plan CTAs when Firebase is not configured', () => {
     vi.mocked(isFirebaseConfigured).mockReturnValue(false)
     render(<PricingTiers />)
-    expect(screen.getByText('Free')).toBeInTheDocument()
+    expect(screen.getByText('Grátis')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Assinar o Pro' })).not.toBeInTheDocument()
   })
 
-  it('reserves a fixed-height note slot so toggling cycle never reflows the card', () => {
-    // O flick ao alternar mensal↔anual vinha da nota de preço variar de altura
-    // (anual = 2 linhas onde mensal = 1). A régua vertical é estável porque o
-    // slot da nota tem altura RESERVADA por breakpoint (1 linha nos cards largos,
-    // 2 no `lg` estreito), presente em TODO tier — inclusive Free/Rede sem nota,
-    // pra os cards alinharem entre si (padrão Notion). jsdom não computa layout;
-    // aqui travamos a garantia estrutural (as classes de reserva existem).
+  it('never truncates the annual price note (no line-clamp) so md 2-col keeps it whole', () => {
+    // O flick (nota anual = 2 linhas onde mensal = 1) e o desalinhamento entre
+    // cards da mesma fileira se resolvem com CSS subgrid — validado no browser, já
+    // que jsdom não computa layout. O que TRAVAMOS aqui é a regressão que motivou a
+    // troca: a nota anual (mais longa) NÃO pode ser truncada com `line-clamp`, senão
+    // volta o corte com reticências na faixa md 2-col. O texto fica íntegro no DOM.
     vi.mocked(isFirebaseConfigured).mockReturnValue(true)
     render(<PricingTiers />)
-    // Pro e Avançado carregam a nota anual — a reserva vale nos dois.
     const annualNotes = screen.getAllByText(/Cobrado anualmente/)
     expect(annualNotes.length).toBeGreaterThan(0)
     for (const note of annualNotes) {
-      expect(note).toHaveClass('h-4', 'lg:h-8', 'line-clamp-2')
+      expect(note).not.toHaveClass('line-clamp-2')
     }
   })
 })

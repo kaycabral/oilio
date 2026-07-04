@@ -78,7 +78,7 @@ export async function startCheckout(formData: FormData): Promise<CheckoutResult>
   if (!tier || !cycle) return { ok: false, error: 'Plano ou ciclo inválido' }
 
   const priceId = stripePriceId(tier, cycle)
-  if (!priceId) return { ok: false, error: 'Plano sem cobrança (Free não requer checkout)' }
+  if (!priceId) return { ok: false, error: 'Plano sem cobrança (Grátis não requer checkout)' }
 
   const orgId = r.ctx.membership.orgId
 

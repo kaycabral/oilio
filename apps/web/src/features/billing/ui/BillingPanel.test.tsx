@@ -97,7 +97,7 @@ describe('BillingPanel — current plan', () => {
         })}
       />,
     )
-    expect(screen.getByText('Plano Free')).toBeInTheDocument()
+    expect(screen.getByText('Plano Grátis')).toBeInTheDocument()
     expect(screen.queryByText('Unidades cobradas')).not.toBeInTheDocument()
     expect(screen.queryByText('Ciclo')).not.toBeInTheDocument()
   })

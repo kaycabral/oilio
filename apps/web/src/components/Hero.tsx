@@ -14,11 +14,11 @@ export function Hero() {
         variant="h1"
         className="max-w-3xl text-4xl text-balance sm:text-5xl md:text-6xl"
       >
-        A plataforma para o seu estabelecimento crescer com recorrência
+        Pare de vender atendimento. Comece a construir receita.
       </Typography>
       <Typography variant="lead" className="max-w-prose">
-        Agenda, assinatura nativa e comissão por profissional num só lugar. Saia do atendimento
-        avulso e construa uma base de clientes que volta todo mês.
+        Agenda, assinatura e comissão trabalham juntas num só lugar. Você transforma o cliente
+        avulso numa base que volta — e paga — todo mês.
       </Typography>
       {authEnabled && (
         <div className="mt-2 flex flex-col gap-3 sm:flex-row">
@@ -31,7 +31,7 @@ export function Hero() {
         </div>
       )}
       <Typography variant="muted" className="text-xs">
-        Barbearias e estética automotiva já gerenciam o dia a dia no Oilio.
+        Barbearias e estética automotiva já rodam o dia a dia no Oilio.
       </Typography>
     </section>
   )
