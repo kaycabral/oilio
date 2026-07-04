@@ -6,6 +6,7 @@ import {
   type SubscriptionPlan,
   type SubscriptionStatus,
 } from '@/domain'
+import { isCapabilityLocked } from '@/features/billing/adapters/capability-lock'
 import { rowToDoc as chargeRowToDoc, type ChargeRow } from '@/shared/db/pg/effect/charge-projector'
 import {
   rowToDoc as subscriptionRowToDoc,
@@ -32,6 +33,11 @@ export type SubscriptionsPageData = {
   filter: SubscriptionsFilter
   searchQuery: string
   state: ListSurfaceState
+  // `locked` (brief 0088 AC-05): the tier does not unlock `plans.recurring`. The
+  // loader returns EMPTY without reading subscriptions OR customers — so no
+  // subscription rows and NO customer names (PII) are materialized into the RSC
+  // payload for a Free/downgraded org. The page renders the locked state.
+  locked: boolean
 }
 
 const OPEN_STATUSES: SubscriptionStatus[] = ['pending', 'active', 'past_due', 'suspended']
@@ -98,6 +104,22 @@ export async function loadSubscriptionsPage(rawParams: {
   const searchQuery = rawParams.q ?? ''
 
   const orgId = ctx.membership.orgId
+
+  // Tier gate BEFORE materializing (brief 0088 AC-05/B1): a Free/downgraded org
+  // never has subscriptions NOR customer names read — the RSC payload leaks no
+  // list and no PII. Orthogonal to the RBAC gate above (AC-07).
+  if (await isCapabilityLocked(orgId, 'plans.recurring')) {
+    return {
+      subscriptions: [],
+      customers: {},
+      canManage,
+      filter,
+      searchQuery,
+      state: 'empty',
+      locked: true,
+    }
+  }
+
   const statusSlice = await loadSubscriptionStatusSlice(orgId, filter)
 
   const allCustomers = await listCustomersForOrg(orgId)
@@ -117,16 +139,23 @@ export async function loadSubscriptionsPage(rawParams: {
   }
   const state = resolveListSurfaceState({ hasAnyData, visibleCount })
 
-  return { subscriptions, customers, canManage, filter, searchQuery, state }
+  return { subscriptions, customers, canManage, filter, searchQuery, state, locked: false }
 }
 
-export type SubscriptionDetailData = {
-  subscription: Subscription
-  customer: Customer | null
-  charges: Charge[]
-  activePlans: SubscriptionPlan[]
-  canManage: boolean
-}
+export type SubscriptionDetailData =
+  | {
+      locked: false
+      subscription: Subscription
+      customer: Customer | null
+      charges: Charge[]
+      activePlans: SubscriptionPlan[]
+      canManage: boolean
+    }
+  // `locked` (brief 0088 AC-05/B1): the detail loader returns this WITHOUT
+  // reading the subscription, its customer (PII) or its charges — a Free org
+  // hitting `/subscriptions/[id]` by URL materializes nothing. Distinct from
+  // `null` (a real 404): locked means "exists but the tier hides it".
+  | { locked: true }
 
 // Single subscription by id for the detail route. Reads the typed projection
 // under RLS — `id` is a real column, no correction needed.
@@ -168,6 +197,11 @@ export async function loadSubscriptionDetail(id: string): Promise<SubscriptionDe
   const ctx = await requireCapabilityPage('canManageSubscriptions')
 
   const orgId = ctx.membership.orgId
+
+  // Tier gate BEFORE materializing (brief 0088 AC-05/B1): don't read the
+  // subscription, its customer PII or its charges for a Free/downgraded org.
+  if (await isCapabilityLocked(orgId, 'plans.recurring')) return { locked: true }
+
   const subscription = await loadSubscriptionByIdForDetail(orgId, id)
   if (!subscription) return null
   const canManage = canManageOrg(ctx.membership.role)
@@ -182,5 +216,5 @@ export async function loadSubscriptionDetail(id: string): Promise<SubscriptionDe
 
   const activePlans = allPlans.filter((p) => p.active)
 
-  return { subscription, customer, charges, activePlans, canManage }
+  return { locked: false, subscription, customer, charges, activePlans, canManage }
 }

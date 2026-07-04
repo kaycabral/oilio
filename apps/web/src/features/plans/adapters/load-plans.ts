@@ -36,6 +36,11 @@ export type PlansPageData = {
   canManage: boolean
   canDelete: boolean
   state: ListSurfaceState
+  // `locked` (brief 0088 AC-05): the tier does not unlock `plans.recurring`. The
+  // loader returns EMPTY without ever calling `listSubscriptionPlansForOrg`, so
+  // no plan list is materialized into the RSC payload for a Free/downgraded org
+  // (disclosure furo). The page renders the locked state instead of the list.
+  locked: boolean
 }
 
 function normalizeCycleFilter(value: string | undefined): 'all' | BillingCycle {
@@ -60,6 +65,23 @@ export async function loadPlansPage(
   const searchQuery = rawParams.q ?? ''
   const cycleFilter = normalizeCycleFilter(rawParams.cycle)
   const statusFilter = normalizeStatusFilter(rawParams.status)
+
+  // Tier gate BEFORE materializing (brief 0088 AC-05): a Free/downgraded org
+  // never has its plan list read from the projection, so the RSC payload carries
+  // no plan data. Mirrors `loadNewPlanPage`. RBAC (`requireCapabilityPage`) above
+  // and this tier gate are orthogonal — both must pass to see the list (AC-07).
+  if (await isCapabilityLocked(ctx.membership.orgId, 'plans.recurring')) {
+    return {
+      plans: [],
+      searchQuery,
+      cycleFilter,
+      statusFilter,
+      canManage,
+      canDelete,
+      state: 'empty',
+      locked: true,
+    }
+  }
 
   const allPlansForOrg = await listSubscriptionPlansForOrg(ctx.membership.orgId)
   // Filtered in-memory (truthy `archivedAt`) so legacy docs without the field
@@ -125,23 +147,23 @@ export async function loadNewPlanPage(): Promise<PlanFormPageData> {
   return { ...masterData, locked: false }
 }
 
-export type EditPlanPageData = PlanMasterData & { plan: SubscriptionPlan; locked: boolean }
+export type EditPlanPageData =
+  | ({ locked: false; plan: SubscriptionPlan } & PlanMasterData)
+  // `locked` (brief 0088 AC-06/B1): the route 404s for a Free org — so DON'T
+  // read the plan (no name/PII materialized). Distinct from the 404 the missing
+  // plan itself triggers.
+  | { locked: true }
 
-// Imperative shell for the edit route — gate, resolve the plan (404), then the
-// coverage-picker master data.
+// Imperative shell for the edit route — gate first (locked → 404 with nothing
+// materialized), then resolve the plan (404) + coverage-picker master data.
 export async function loadEditPlanPage(planId: string): Promise<EditPlanPageData> {
   const ctx = await requireCapabilityPage('canManagePlans')
   const orgId = ctx.membership.orgId
-  // The tier check and the plan read are independent — run them together. The
-  // plan is still resolved when locked (the page renders its name in the
-  // breadcrumb above the CTA), but the coverage-picker master data is skipped
-  // on a locked tier (the form never mounts) — same pattern as load-copilot.
-  const [locked, plan] = await Promise.all([
-    isCapabilityLocked(orgId, 'plans.recurring'),
-    getSubscriptionPlanById(orgId, planId),
-  ])
+  // Tier gate BEFORE reading the plan (brief 0088 B1): a Free/downgraded org
+  // materializes no plan data — the page 404s.
+  if (await isCapabilityLocked(orgId, 'plans.recurring')) return { locked: true }
+  const plan = await getSubscriptionPlanById(orgId, planId)
   if (!plan) notFound()
-  if (locked) return { plan, units: [], catalogItems: [], categories: [], locked: true }
   const masterData = await loadPlanMasterData(orgId)
-  return { plan, ...masterData, locked: false }
+  return { locked: false, plan, ...masterData }
 }
