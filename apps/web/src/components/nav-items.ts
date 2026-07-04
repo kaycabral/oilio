@@ -8,15 +8,12 @@ import {
   CalendarDays,
   CreditCard,
   LayoutDashboard,
-  Lock,
   PackageOpen,
   Receipt,
   Repeat,
   ShieldCheck,
   Target,
-  UserCog,
   Users,
-  Wallet,
 } from 'lucide-react'
 
 // Minimum capability a nav entry requires to be shown (brief 0029 AC-08; brief
@@ -152,30 +149,13 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         match: 'prefix',
         requires: 'manageOrg',
       },
-      {
-        // Plano e cobrança — the Assinatura Oilio surface (brief 0073). Visible
-        // to owner/manager; the page itself gates the subscribe/portal actions
-        // to the owner only (defense in depth).
-        href: '/billing',
-        label: 'Plano e cobrança',
-        icon: Wallet,
-        match: 'prefix',
-        requires: 'manageOrg',
-      },
     ],
   },
-  {
-    // Personal account surfaces — visible to every member regardless of role.
-    // Meu perfil is self-service rectification (brief 0032, AC-06) and
-    // Privacidade is self-service erasure (AC-07); both are kept out of the
-    // admin-only Administração section so receptionists still see them without
-    // gaining org-admin links.
-    label: 'Conta',
-    items: [
-      { href: '/settings/profile', label: 'Perfil', icon: UserCog, match: 'prefix' },
-      { href: '/settings/privacy', label: 'Privacidade', icon: Lock, match: 'prefix' },
-    ],
-  },
+  // Personal account surfaces (Perfil, Privacidade) and billing moved OUT of the
+  // sidebar into the Configurações modal, reached via the UserMenu at the sidebar
+  // footer (brief 0090). The sidebar is now operational-only: Operação, Cadastros,
+  // Administração (Negócios, Equipe). "Plano e cobrança" became the Cobrança
+  // section of the modal (route /settings/billing).
 ]
 
 function hasCapability(membership: Membership, capability: NavCapability): boolean {
