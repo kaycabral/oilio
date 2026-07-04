@@ -213,7 +213,7 @@ describe('OrganizationsManager — Negócios surface (PRD Identidade v2, F5)', (
     )
     expect(screen.queryByRole('button', { name: '+ Nova unidade' })).not.toBeInTheDocument()
     const cta = screen.getByRole('link', { name: /Fazer upgrade/ })
-    expect(cta).toHaveAttribute('href', '/billing')
+    expect(cta).toHaveAttribute('href', '/settings/billing')
     useCapability.mockReturnValue(true)
   })
 

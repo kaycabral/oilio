@@ -36,13 +36,13 @@ test.describe('Landing pública', () => {
     await expect(tiers.getByText('Avançado', { exact: true })).toBeVisible()
     await expect(tiers.getByText('Escala', { exact: true })).toBeVisible()
     // The CTA for a chargeable tier carries the billing intent: `next` lands the
-    // visitor on /billing after auth, `intent` names the picked tier so the
-    // post-login flow can offer it directly (PricingTiers.ctaHref, milestone
+    // visitor on /settings/billing after auth, `intent` names the picked tier so
+    // the post-login flow can offer it directly (PricingTiers.ctaHref, milestone
     // v0.13.0 billing). Free stays a bare /login. The sibling unit test was
     // aligned in d5f8b61a; this is the e2e catching up.
     await expect(page.getByRole('link', { name: 'Assinar o Pro' })).toHaveAttribute(
       'href',
-      '/login?next=%2Fbilling&intent=pro',
+      '/login?next=%2Fsettings%2Fbilling&intent=pro',
     )
   })
 })

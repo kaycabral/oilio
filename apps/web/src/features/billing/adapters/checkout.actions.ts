@@ -100,8 +100,8 @@ export async function startCheckout(formData: FormData): Promise<CheckoutResult>
       line_items: [{ price: priceId, quantity }],
       client_reference_id: orgId,
       subscription_data: { metadata: { orgId } },
-      success_url: `${appUrl()}/billing?checkout=success`,
-      cancel_url: `${appUrl()}/billing?checkout=cancel`,
+      success_url: `${appUrl()}/settings/billing?checkout=success`,
+      cancel_url: `${appUrl()}/settings/billing?checkout=cancel`,
     })
     if (!session.url) return { ok: false, error: 'Falha ao iniciar o checkout' }
     checkoutUrl = session.url
@@ -129,7 +129,7 @@ export async function manageBilling(): Promise<CheckoutResult> {
   const stripe = getStripe()
   const portal = await stripe.billingPortal.sessions.create({
     customer: billing.stripeCustomerId,
-    return_url: `${appUrl()}/billing`,
+    return_url: `${appUrl()}/settings/billing`,
   })
   // External Stripe-hosted portal URL — same narrowing seam as the checkout redirect.
   redirect(toRoute(portal.url))

@@ -14,7 +14,7 @@ export default async function SubscriptionsPage({
   // Off-plan surfaces behave like routes that don't exist (brief 0088 AC-06 /
   // decisão 2026-07-03): a Free/downgraded org hitting this URL directly gets the
   // standard 404 — no dedicated locked screen, no upsell CTA (upsell lives only in
-  // /billing + /pricing). The loader already materialized nothing (B1).
+  // /settings/billing + /pricing). The loader already materialized nothing (B1).
   if (locked) notFound()
 
   return (

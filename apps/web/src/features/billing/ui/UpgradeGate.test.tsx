@@ -2,7 +2,7 @@
 // upgrade affordance shared across the gated surfaces. Proves the two branches
 // a tester would eyeball: unlocked renders children untouched; locked replaces
 // them with the consistent CTA (per-capability copy + a single "Fazer upgrade"
-// link to /billing). `useCapability` is mocked so each test drives the tier.
+// link to /settings/billing). `useCapability` is mocked so each test drives the tier.
 
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -42,16 +42,19 @@ describe('UpgradeGate', () => {
     )
     expect(screen.queryByRole('button', { name: 'Novo plano' })).not.toBeInTheDocument()
     const cta = screen.getByRole('link', { name: 'Fazer upgrade' })
-    expect(cta).toHaveAttribute('href', '/billing')
+    expect(cta).toHaveAttribute('href', '/settings/billing')
     expect(screen.getByText(/recurso do Pro/i)).toBeInTheDocument()
   })
 })
 
 describe('UpgradeCta', () => {
-  it('shows capability-specific copy + the /billing link', () => {
+  it('shows capability-specific copy + the /settings/billing link', () => {
     render(<UpgradeCta capability="reports.sales" />)
     expect(screen.getByText(/Relatórios são um recurso do Pro/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Fazer upgrade' })).toHaveAttribute('href', '/billing')
+    expect(screen.getByRole('link', { name: 'Fazer upgrade' })).toHaveAttribute(
+      'href',
+      '/settings/billing',
+    )
   })
 
   it('reports.sales and units.unlimited render distinct copy', () => {

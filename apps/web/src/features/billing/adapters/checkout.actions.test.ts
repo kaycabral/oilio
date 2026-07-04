@@ -227,7 +227,7 @@ describe('manageBilling', () => {
 
     expect(mocks.portalCreate).toHaveBeenCalledWith({
       customer: 'cus_1',
-      return_url: 'https://app.oilio.test/billing',
+      return_url: 'https://app.oilio.test/settings/billing',
     })
   })
 })

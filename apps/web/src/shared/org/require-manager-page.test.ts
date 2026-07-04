@@ -2,7 +2,7 @@
 // server wall behind the nav's client-side `requires: 'manageOrg'` gate.
 //
 // This is the helper that closes the original leak: routes hidden from
-// non-managers in the sidebar (/copilot, /team, /billing, /reports, ...) were
+// non-managers in the sidebar (/copilot, /team, /settings/billing, /reports, ...) were
 // still reachable by typing the URL because their loaders only checked auth, not
 // role. requireManagerPage REDIRECTS a non-manager, so the wall can't be skipped
 // per-route. These tests pin that contract:
