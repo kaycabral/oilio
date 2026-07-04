@@ -5,7 +5,7 @@ test.describe('Landing pública', () => {
     await page.goto('/')
     await expect(
       page.getByRole('heading', {
-        name: /a plataforma para o seu estabelecimento crescer com recorrência/i,
+        name: /pare de vender atendimento\. comece a construir receita\./i,
       }),
     ).toBeVisible()
     // CTA principal leva pro login (que cuida de signup + login).
@@ -20,18 +20,18 @@ test.describe('Landing pública', () => {
     await page.getByRole('link', { name: 'Preços' }).first().click()
     await expect(page).toHaveURL(/\/pricing$/)
     await expect(
-      page.getByRole('heading', { name: /um plano para cada estágio do seu estabelecimento/i }),
+      page.getByRole('heading', { name: /um plano para cada estágio do seu negócio/i }),
     ).toBeVisible()
   })
 
   test('a página de preços mostra os três planos e converte pro login', async ({ page }) => {
     await page.goto('/pricing')
-    // Nomes dos planos com `exact` — o copy "Tudo do Free, e mais:" dos cards
+    // Nomes dos planos com `exact` — o copy "Tudo do Grátis, e mais:" dos cards
     // seguintes casaria um `getByText` não-exato (strict mode violation).
-    await expect(page.getByText('Free', { exact: true })).toBeVisible()
+    await expect(page.getByText('Grátis', { exact: true })).toBeVisible()
     await expect(page.getByText('Pro', { exact: true })).toBeVisible()
     await expect(page.getByText('Avançado', { exact: true })).toBeVisible()
-    await expect(page.getByText('Rede', { exact: true })).toBeVisible()
+    await expect(page.getByText('Escala', { exact: true })).toBeVisible()
     // The CTA for a chargeable tier carries the billing intent: `next` lands the
     // visitor on /billing after auth, `intent` names the picked tier so the
     // post-login flow can offer it directly (PricingTiers.ctaHref, milestone

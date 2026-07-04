@@ -99,7 +99,7 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     if (activeUnits.length >= 1) {
       return {
         ok: false,
-        error: 'O plano Free permite 1 unidade. Faça upgrade para o Pro para adicionar mais.',
+        error: 'O plano Grátis permite 1 unidade. Faça upgrade para o Pro para adicionar mais.',
       }
     }
   }

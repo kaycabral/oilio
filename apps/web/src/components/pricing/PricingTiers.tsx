@@ -2,17 +2,7 @@
 
 import { TIERS as BILLING_TIERS, type Tier as BillingTier } from '@/domain/billing/tiers'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  Typography,
-  cn,
-} from '@cbrl/design'
+import { Badge, Button, Card, Tabs, TabsList, TabsTrigger, Typography, cn } from '@cbrl/design'
 import { Check, Clock } from 'lucide-react'
 import { useState } from 'react'
 
@@ -36,7 +26,7 @@ type TierPrice = {
 
 type Tier = {
   // Slug do domínio (`@/domain/billing`) para os tiers cobráveis; `undefined`
-  // só no tier de contato "Rede" (sem billing). Amarra a copy à fonte única.
+  // só no tier de contato "Escala" (sem billing). Amarra a copy à fonte única.
   tier?: BillingTier
   name: string
   pricing: Record<BillingCycle, TierPrice>
@@ -48,35 +38,43 @@ type Tier = {
   // misturados com os ativos. Honestidade de packaging: cobramos só o que já
   // está navegável; o futuro é ancorado, não vendido como pronto.
   comingSoon?: readonly string[]
-  // Tier de contato comercial (ex.: "Rede"): sem preço público nem checkout.
+  // Tier de contato comercial (ex.: "Escala"): sem preço público nem checkout.
   // O CTA leva a um canal externo (WhatsApp) em vez de `/login`, e o card é
   // sempre visível, independente de auth. Não lista features inexistentes —
   // só atendimento dedicado e preço sob medida.
   contactHref?: string
 }
 
-const FREE_PRICE: TierPrice = { priceLabel: 'Grátis', priceNote: 'Para sempre, 1 unidade.' }
+// Preço zero explícito (R$ 0), não a palavra "Grátis": o número casa com a
+// hierarquia visual dos tiers pagos (mesmo tamanho de fonte, mesmo sufixo /mês)
+// e comunica "sem custo" de forma mais chamativa — padrão do Notion (US$ 0). O
+// "grátis para sempre" desce pra nota de apoio.
+const FREE_PRICE: TierPrice = {
+  priceLabel: 'R$ 0',
+  priceSuffix: '/mês',
+  priceNote: 'Grátis para sempre, 1 unidade.',
+}
 
 // Preço "sob consulta" reutilizado nos dois ciclos do tier de contato — não há
 // valor público; o cliente fala com a gente.
 const CONTACT_PRICE: TierPrice = { priceLabel: 'Sob medida' }
 
-// Número comercial do cbrl (E.164, só dígitos) para o tier de contato "Rede".
+// Número comercial do cbrl (E.164, só dígitos) para o tier de contato "Escala".
 const SALES_WHATSAPP = '5592984896424'
 
 const TIERS: readonly Tier[] = [
   {
     tier: 'free',
-    name: 'Free',
+    name: 'Grátis',
     pricing: { monthly: FREE_PRICE, annual: FREE_PRICE },
-    description: 'Para começar a organizar a agenda do seu estabelecimento.',
+    description: 'Para começar a organizar a agenda do seu negócio.',
     cta: 'Começar grátis',
     features: [
       'Agenda, bloqueios e atendimentos',
       'Comanda e fechamento de venda',
       'Caixa e cadastros (clientes, serviços, equipe)',
-      'Self-booking público',
-      '1 unidade, profissionais ilimitados',
+      'Agendamento online pelo cliente',
+      '1 unidade e equipe de até 2 (você + 1)',
     ],
   },
   {
@@ -98,12 +96,12 @@ const TIERS: readonly Tier[] = [
     cta: 'Assinar o Pro',
     highlighted: true,
     features: [
-      'Tudo do Free, e mais:',
+      'Tudo do Grátis, e mais:',
       'Planos e assinaturas (recorrência)',
-      'Comissão por profissional e liquidação',
+      'Comissão por membro da equipe e repasse',
       'Copiloto: meta mensal de lucro',
       'Relatórios de vendas e comissões',
-      'Unidades ilimitadas, equipe com papéis',
+      'Unidades e equipe ilimitadas',
     ],
   },
   {
@@ -126,19 +124,19 @@ const TIERS: readonly Tier[] = [
     features: ['Tudo do Pro, e mais:', 'Suporte prioritário'],
     comingSoon: [
       'Cobrança recorrente automática',
-      'Split de pagamento automático',
-      'Conciliação caixa e gateway',
-      'Relatórios consolidados multi-unidade',
+      'Divisão automática do pagamento',
+      'Conciliação de caixa e recebimentos',
+      'Relatórios consolidados de várias unidades',
     ],
   },
   {
-    name: 'Rede',
+    name: 'Escala',
     pricing: { monthly: CONTACT_PRICE, annual: CONTACT_PRICE },
     description: 'Mais de 5 unidades ou precisa de algo sob medida? Vamos conversar.',
     cta: 'Falar com a gente',
     contactHref: `https://wa.me/${SALES_WHATSAPP}`,
     features: [
-      'Atendimento e onboarding dedicados',
+      'Atendimento e implantação dedicados',
       'Preço sob medida por volume',
       'Condições comerciais negociadas',
     ],
@@ -196,55 +194,55 @@ export function PricingTiers() {
         </Tabs>
       </div>
 
-      <div className="grid items-start gap-6 md:grid-cols-2 lg:grid-cols-4">
+      {/* Alinhamento entre cards da mesma fileira via CSS subgrid: o grid externo
+          define 4 linhas (cabeçalho · preço · CTA · features) e cada card herda
+          esses tracks com `grid-rows-subgrid`. Assim o bloco de preço tem a MESMA
+          altura em todos os cards da fileira — a nota anual que quebra em 2 linhas
+          num card estica a linha inteira, e os vizinhos acompanham. Isso mata os
+          dois bugs de uma vez: (1) nada desalinha entre cards, e (2) alternar
+          mensal↔anual cresce a fileira junta, sem flick. Sem `min-h`/`h` chutado —
+          a altura é a real, medida pelo layout. `items-stretch` (default do grid)
+          garante que cada card preencha a altura da fileira. */}
+      <div className="grid gap-6 md:grid-cols-2 md:grid-rows-[auto_auto_auto_1fr] lg:grid-cols-4">
         {TIERS.map((tier) => {
           const price = tier.pricing[cycle]
           return (
             <Card
               key={tier.name}
               className={cn(
-                'flex h-full flex-col',
+                'gap-0 py-0 md:row-span-4 md:grid md:grid-rows-subgrid',
                 tier.highlighted && 'border-foreground/30 ring-foreground/10 shadow-md ring-1',
               )}
             >
-              <CardContent className="flex flex-1 flex-col gap-6 pt-6">
-                <div className="flex flex-col gap-3">
-                  <div className="flex h-6 items-center gap-2">
-                    <Typography variant="large">{tier.name}</Typography>
-                    {tier.highlighted && <Badge>Recomendado</Badge>}
-                  </div>
-                  {/* Régua vertical estável (Notion-style): cada slot do bloco de
-                      preço tem altura RESERVADA, então alternar mensal↔anual muda o
-                      conteúdo mas nunca reflui o que vem abaixo (botão, features).
-                      A reserva acompanha o pior caso POR breakpoint — a nota anual
-                      ocupa 1 linha nos cards largos (mobile 1-col, md 2-col) e 2
-                      linhas no card estreito (lg 4-col) —, aplicada aos DOIS ciclos.
-                      `line-clamp-2` é salvaguarda: nunca corta (natural ≤ 2 linhas
-                      medido em todos os breakpoints), só blinda contra copy futura. */}
-                  <div className="flex flex-col gap-1">
-                    <div className="flex h-10 items-baseline gap-1">
-                      <Typography as="span" variant="h1" className="text-4xl">
-                        {price.priceLabel}
-                      </Typography>
-                      {price.priceSuffix && (
-                        <Typography as="span" variant="muted" className="text-sm">
-                          {price.priceSuffix}
-                        </Typography>
-                      )}
-                    </div>
-                    <Typography
-                      as="span"
-                      variant="muted"
-                      className="line-clamp-2 h-4 text-xs lg:h-8"
-                    >
-                      {price.priceNote}
-                    </Typography>
-                  </div>
-                  <Typography variant="muted" className="text-sm text-balance">
-                    {tier.description}
-                  </Typography>
+              <div className="flex flex-col gap-3 px-6 pt-6">
+                <div className="flex h-6 items-center gap-2">
+                  <Typography variant="large">{tier.name}</Typography>
+                  {tier.highlighted && <Badge>Recomendado</Badge>}
                 </div>
+                <div className="flex flex-wrap items-baseline gap-x-1">
+                  <Typography as="span" variant="h1" className="text-4xl">
+                    {price.priceLabel}
+                  </Typography>
+                  {price.priceSuffix && (
+                    <Typography as="span" variant="muted" className="text-sm">
+                      {price.priceSuffix}
+                    </Typography>
+                  )}
+                </div>
+                {price.priceNote && (
+                  <Typography as="span" variant="muted" className="text-xs text-pretty">
+                    {price.priceNote}
+                  </Typography>
+                )}
+              </div>
 
+              <div className="px-6 pt-3">
+                <Typography variant="muted" className="text-sm text-balance">
+                  {tier.description}
+                </Typography>
+              </div>
+
+              <div className="px-6 pt-4">
                 {tier.contactHref ? (
                   <Button asChild variant="outline" className="w-full">
                     <a href={tier.contactHref} target="_blank" rel="noreferrer">
@@ -262,7 +260,9 @@ export function PricingTiers() {
                     </Button>
                   )
                 )}
+              </div>
 
+              <div className="flex flex-col gap-3 px-6 pt-6 pb-6">
                 <ul className="flex flex-col gap-3 border-t pt-6">
                   {tier.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2 text-sm">
@@ -292,7 +292,7 @@ export function PricingTiers() {
                     ))}
                   </ul>
                 )}
-              </CardContent>
+              </div>
             </Card>
           )
         })}

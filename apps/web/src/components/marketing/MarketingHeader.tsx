@@ -1,12 +1,13 @@
+import { MARKETING_CONTAINER } from '@/components/marketing/container'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { Button } from '@cbrl/design'
+import { Button, cn } from '@cbrl/design'
 
 export function MarketingHeader() {
   const authEnabled = isFirebaseConfigured()
 
   return (
     <header className="border-border/60 bg-background/80 sticky top-0 z-40 w-full border-b backdrop-blur">
-      <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-6">
+      <div className={cn(MARKETING_CONTAINER, 'flex h-14 items-center justify-between')}>
         <a href="/" className="text-lg font-semibold tracking-tight">
           Oilio
         </a>

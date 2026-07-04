@@ -48,7 +48,7 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
       return {
         ok: false,
         error:
-          'O plano Free permite 1 negócio. Faça upgrade de um negócio para o Pro para criar outro.',
+          'O plano Grátis permite 1 negócio. Faça upgrade de um negócio para o Pro para criar outro.',
       }
     }
   }

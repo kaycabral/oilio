@@ -2,24 +2,24 @@ import { Card, CardContent, CardDescription, CardTitle, Typography } from '@cbrl
 
 const FEATURES = [
   {
-    title: 'Agenda inteligente',
+    title: 'Encha a agenda sozinho',
     description:
-      'Horários, profissionais e unidades num só calendário. Self-booking pros clientes marcarem sozinhos, sem telefone.',
+      'Horários, profissionais e unidades num calendário só. Seus clientes marcam pelo link público — sem você atender telefone.',
   },
   {
-    title: 'Assinatura nativa',
+    title: 'Cobre todo mês, no automático',
     description:
-      'Planos recorrentes de verdade — não um remendo. Cobre todo mês, controle renovações e veja sua receita previsível crescer.',
+      'Assinatura nativa, não um remendo. Você lança planos recorrentes, controla renovações e vê a receita previsível entrar.',
   },
   {
-    title: 'Comissão por profissional',
+    title: 'Feche a comanda e a comissão sai pronta',
     description:
-      'Comissão calculada na hora do fechamento da comanda. Cada um vê o que tem a receber e você controla a liquidação, sem planilha.',
+      'A comissão é calculada na hora do fechamento. Cada profissional vê o que tem a receber e você liquida sem planilha.',
   },
   {
-    title: 'Multi-unidade',
+    title: 'Comande várias unidades de um lugar',
     description:
-      'Opere várias unidades sob uma mesma organização, com equipe, catálogo e relatórios isolados por filial.',
+      'Opere cada filial sob a mesma organização, com equipe, catálogo e relatórios isolados. Você cresce sem perder o controle.',
   },
 ] as const
 
@@ -28,14 +28,13 @@ export function Features() {
     <section className="flex flex-col gap-10 py-16">
       <div className="flex flex-col items-center gap-3 text-center">
         <Typography as="h2" variant="h2" className="border-none pb-0">
-          Tudo que o seu negócio precisa
+          Faça tudo num lugar só
         </Typography>
         <Typography variant="muted" className="max-w-prose text-base">
-          Da marcação ao recebimento, numa plataforma só — sem juntar três ferramentas que não
-          conversam.
+          Da marcação ao recebimento, sem juntar três ferramentas que não conversam entre si.
         </Typography>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {FEATURES.map((feature) => (
           <Card key={feature.title}>
             <CardContent className="flex flex-col gap-2 pt-6">

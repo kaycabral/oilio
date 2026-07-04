@@ -6,12 +6,12 @@ const FAQ = [
   {
     question: 'Como funciona a cobrança por unidade?',
     answer:
-      'Você paga por unidade (estabelecimento) ativa, com profissionais ilimitados. A primeira unidade tem o preço do plano e cada unidade extra entra com desconto. O plano Free cobre uma unidade para sempre.',
+      'Você paga por unidade (loja) ativa. A primeira unidade tem o preço do plano e cada unidade extra entra com desconto. Nos planos pagos, a equipe é ilimitada. O plano Grátis cobre uma unidade para sempre.',
   },
   {
     question: 'Tenho mais de um negócio. Dá para gerenciar tudo junto?',
     answer:
-      'Sim. Você gerencia várias empresas num único login, alternando entre elas quando quiser. Cada empresa tem a sua assinatura — pode ser Free numa e Pro em outra.',
+      'Sim. Você gerencia várias empresas num único login, alternando entre elas quando quiser. Cada empresa tem a sua assinatura — pode ser Grátis numa e Pro em outra.',
   },
   {
     question: 'Qual a vantagem do plano anual?',
@@ -21,7 +21,7 @@ const FAQ = [
   {
     question: 'Preciso usar assinaturas para começar?',
     answer:
-      'Não. Você começa só com agenda e atendimentos avulsos no Free e ativa os planos de assinatura no Pro quando fizer sentido para o seu negócio.',
+      'Não. Você começa só com agenda e atendimentos avulsos no Grátis e ativa os planos de assinatura no Pro quando fizer sentido para o seu negócio.',
   },
 ] as const
 

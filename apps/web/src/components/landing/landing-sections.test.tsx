@@ -13,10 +13,10 @@ vi.mock('@/shared/firebase/config', () => ({
 describe('landing sections', () => {
   it('Features renders the benefit cards', () => {
     render(<Features />)
-    expect(screen.getByText('Agenda inteligente')).toBeInTheDocument()
-    expect(screen.getByText('Assinatura nativa')).toBeInTheDocument()
-    expect(screen.getByText('Comissão por profissional')).toBeInTheDocument()
-    expect(screen.getByText('Multi-unidade')).toBeInTheDocument()
+    expect(screen.getByText('Encha a agenda sozinho')).toBeInTheDocument()
+    expect(screen.getByText('Cobre todo mês, no automático')).toBeInTheDocument()
+    expect(screen.getByText('Feche a comanda e a comissão sai pronta')).toBeInTheDocument()
+    expect(screen.getByText('Comande várias unidades de um lugar')).toBeInTheDocument()
   })
 
   it('Verticals marks active verticals and lists upcoming ones', () => {
@@ -30,7 +30,7 @@ describe('landing sections', () => {
   it('HowItWorks renders the three tiers progression', () => {
     render(<HowItWorks />)
     expect(screen.getByText('Comece pelo avulso')).toBeInTheDocument()
-    expect(screen.getByText('Crie a recorrência')).toBeInTheDocument()
+    expect(screen.getByText('Fidelize com recorrência')).toBeInTheDocument()
     expect(screen.getByText('Escale com assinatura')).toBeInTheDocument()
   })
 

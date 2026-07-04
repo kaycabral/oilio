@@ -34,7 +34,7 @@ const UPGRADE_COPY: Record<Capability, { title: string; description: string }> =
   },
   'units.unlimited': {
     title: 'Unidades adicionais são um recurso do Pro',
-    description: 'O plano Free inclui 1 unidade. Faça upgrade para abrir mais unidades.',
+    description: 'O plano Grátis inclui 1 unidade. Faça upgrade para abrir mais unidades.',
   },
   'support.priority': {
     title: 'Suporte prioritário é um recurso do Avançado',

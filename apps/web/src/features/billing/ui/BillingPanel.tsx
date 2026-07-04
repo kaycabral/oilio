@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 // only need the short human label for the current-plan badge and the upgrade
 // buttons). Keyed by the domain slug so it can never drift from enforcement.
 const TIER_LABEL: Record<Tier, string> = {
-  free: 'Free',
+  free: 'Grátis',
   pro: 'Pro',
   advanced: 'Avançado',
 }
