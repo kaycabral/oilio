@@ -2,17 +2,15 @@
 
 import { type SubscriptionPlan } from '@/domain'
 import { SubscriptionPlanConfig } from '@/domain/aggregates'
-import { hasCapability } from '@/domain/billing/capabilities'
 import { aggregateRef } from '@/domain/effect'
 import { findDanglingCoverageRef, parsePlanForm } from '@/features/plans/core/plan-form'
 import { listCatalogItemIds } from '@/shared/db/effect/catalog-item-read'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
-import { getOrgTier } from '@/shared/org/billing-read'
 import { listCategoriesForOrg } from '@/shared/org/category-read'
 import { canDeletePlan } from '@/shared/org/delete-guard'
-import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
+import { requireRecurringManagerCtx, requireRecurringOwnerCtx } from '@/shared/org/membership'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
@@ -45,19 +43,11 @@ async function validateCoverageRefs(
 }
 
 export async function createPlan(formData: FormData): Promise<PlanMutationResult> {
-  const r = await requireManagerCtx()
+  // manager RBAC + `plans.recurring` tier wall (brief 0088 AC-01). The tier gate
+  // was previously inline here; converged onto the shared guard so every plan
+  // mutation applies the SAME wall (create was the only verb gated before).
+  const r = await requireRecurringManagerCtx()
   if (!r.ok) return r
-  // Plano Oilio gate (brief 0072): "Planos e assinaturas (recorrência)" is a
-  // Pro+ capability. The role guard above is independent (manager+); this adds
-  // the tier wall on top. Server-side is the real boundary — the UI also hides
-  // the surface via useCapability.
-  const tier = await getOrgTier(r.ctx.membership.orgId)
-  if (!hasCapability(tier, 'plans.recurring')) {
-    return {
-      ok: false,
-      error: 'Planos e assinaturas estão disponíveis no plano Pro. Faça upgrade para criar planos.',
-    }
-  }
   const parsed = parsePlanForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
@@ -96,7 +86,7 @@ export async function createPlan(formData: FormData): Promise<PlanMutationResult
 }
 
 export async function updatePlan(planId: string, formData: FormData): Promise<PlanMutationResult> {
-  const r = await requireManagerCtx()
+  const r = await requireRecurringManagerCtx()
   if (!r.ok) return r
   const parsed = parsePlanForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
@@ -134,7 +124,7 @@ export async function updatePlan(planId: string, formData: FormData): Promise<Pl
 }
 
 export async function deletePlan(planId: string): Promise<PlanMutationResult> {
-  const r = await requireOwnerCtx()
+  const r = await requireRecurringOwnerCtx()
   if (!r.ok) return r
   const orgId = r.ctx.membership.orgId
 
@@ -166,7 +156,7 @@ export async function deletePlan(planId: string): Promise<PlanMutationResult> {
 // resolvable for historical subscriptions but drops out of active lists +
 // the new-subscription picker. `archived=false` restores it.
 export async function archivePlan(planId: string, archived = true): Promise<PlanMutationResult> {
-  const r = await requireOwnerCtx()
+  const r = await requireRecurringOwnerCtx()
   if (!r.ok) return r
   const archivedAt = archived ? new Date().toISOString() : null
   const res = await emitEvent(

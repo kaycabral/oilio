@@ -28,7 +28,7 @@ import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { commitSaga, emitEvent } from '@/shared/effect-bridge'
 import { classifyError } from '@/shared/errors/classify'
 import { messageForCategory } from '@/shared/errors/messages'
-import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
+import { requireOwnerCtx, requireRecurringManagerCtx } from '@/shared/org/membership'
 import { Schema } from 'effect'
 
 import type { ChargeMutationResult } from '@/features/subscriptions/core/subscription-results'
@@ -62,7 +62,9 @@ async function getSubscriptionById(orgId: string, id: string): Promise<Subscript
 }
 
 export async function markChargePaid(chargeId: string): Promise<ChargeMutationResult> {
-  const r = await requireManagerCtx()
+  // Contábil mas é RE-consumo da capability: `subscription.charge_settled`
+  // reabre a recorrência. Parede de tier + manager RBAC (brief 0088 AC-01).
+  const r = await requireRecurringManagerCtx()
   if (!r.ok) return r
 
   const orgId = r.ctx.membership.orgId
@@ -103,7 +105,9 @@ export async function markChargeFailed(
   chargeId: string,
   reason: string | null,
 ): Promise<ChargeMutationResult> {
-  const r = await requireManagerCtx()
+  // Consumo de recurso recorrente (operação sobre a cobrança da assinatura).
+  // Parede de tier + manager RBAC (brief 0088 AC-01).
+  const r = await requireRecurringManagerCtx()
   if (!r.ok) return r
 
   const orgId = r.ctx.membership.orgId
@@ -163,7 +167,9 @@ export async function markChargeFailed(
  * exercitar o fluxo sem precisar esperar o ciclo virar.
  */
 export async function renewSubscription(subscriptionId: string): Promise<ChargeMutationResult> {
-  const r = await requireManagerCtx()
+  // Consumo de recurso recorrente (abre novo ciclo/charge). Parede de tier +
+  // manager RBAC (brief 0088 AC-01).
+  const r = await requireRecurringManagerCtx()
   if (!r.ok) return r
 
   const orgId = r.ctx.membership.orgId

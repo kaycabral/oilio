@@ -55,6 +55,19 @@ type AnalyticsEvents = {
     from_start: string
     to_start: string
   }
+  // A server action or loader refused access because the org's tier does not
+  // unlock the billing capability (brief 0088 § "Eventos instrumentados"). The
+  // gate NEVER depends on this event to exist — it's fire-and-forget metrics on
+  // top of the real wall. `surface` names the denial point (action/loader) and
+  // `verb` the attempted operation, so the upgrade-funnel query can attribute
+  // denials to a surface.
+  capability_denied: {
+    org_id: string
+    user_id: string
+    capability: string
+    surface: string
+    verb: string
+  }
 }
 
 export type AnalyticsEventName = keyof AnalyticsEvents
