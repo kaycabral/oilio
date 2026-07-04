@@ -1,4 +1,5 @@
 import type { ActiveUnitContext } from '@/shared/org/active-unit'
+import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -85,8 +86,8 @@ vi.mock('next/navigation', () => ({
 
 import AppLayout from './layout'
 
-function callLayout() {
-  return AppLayout({ children: <div aria-label="children" /> })
+function callLayout(modal?: React.ReactNode) {
+  return AppLayout({ children: <div aria-label="children" />, modal })
 }
 
 async function captureRedirect(): Promise<string> {
@@ -253,6 +254,35 @@ describe('AppLayout — auth and org gating', () => {
     })
     // App is operable from signup once a unit exists — no global wizard gate.
     await expect(callLayout()).resolves.toBeTruthy()
+  })
+
+  it('renders the @modal parallel-route slot alongside the shell (brief 0090)', async () => {
+    mocks.getSessionUser.mockResolvedValue({
+      uid: 'u1',
+      email: 'a@b.com',
+      displayName: 'A',
+      picture: null,
+      emailVerified: true,
+    })
+    mocks.getActiveOrgContext.mockResolvedValue({
+      user: {
+        uid: 'u1',
+        displayName: 'A',
+        email: 'a@b.com',
+        avatarUrl: null,
+        completionCompleted: true,
+      },
+      membership: { orgId: 't1', userId: 'u1', role: 'owner' },
+    })
+    mocks.getOrg.mockResolvedValue({ id: 't1', name: 'Test' })
+
+    // The layout renders `{children}` (the operational surface) AND `{modal}`
+    // (the Configurações modal slot) as siblings — the intercepting route fills
+    // the slot on a client navigation to /settings/*.
+    const tree = await callLayout(<div aria-label="modal-slot" />)
+    render(tree)
+    expect(screen.getByLabelText('children')).toBeInTheDocument()
+    expect(screen.getByLabelText('modal-slot')).toBeInTheDocument()
   })
 
   it('redirects to /onboarding/profile when the user has not completed the post-OAuth step (#838)', async () => {
