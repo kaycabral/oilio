@@ -75,8 +75,21 @@ function stateVersion(state: FirestoreDoc): number {
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
-  const billing = decodeOrgBilling(state)
+async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
+  // Identity (`org_id`/`id`) comes from the REF, not the reduced state. The ref is
+  // the canonical, always-present identity (it's the same value that set the GUC
+  // `app.current_org` for this write), whereas `state.orgId` is reducible to '' when
+  // the FIRST event is a partial `org_billing.updated` whose changes omit orgId (the
+  // reducer starts from INITIAL_ORG_BILLING_STATE, orgId: ''). Projecting org_id = ''
+  // is then refused by the org-isolation RLS WITH CHECK (org_id = current_org) — the
+  // 500 that reddened the prod smoke. Sourcing identity from the ref makes an empty
+  // org_id/id STRUCTURALLY impossible here, for every call-site, present and future —
+  // no call-site has to remember to re-inject its own identity into the changes.
+  const billing: StoredOrgBilling = {
+    ...decodeOrgBilling(state),
+    orgId: ref.orgId,
+    id: ref.id,
+  }
   await client.query(UPSERT, orgBillingColumnValues(billing, stateVersion(state)))
   if (billing.stripeCustomerId !== null) {
     await client.query(STRIPE_INDEX_UPSERT, [billing.stripeCustomerId, billing.orgId])

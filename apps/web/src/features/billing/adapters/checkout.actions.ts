@@ -7,6 +7,7 @@ import { getStripe } from '@/shared/billing/stripe-client'
 import { stripePriceId } from '@/shared/billing/stripe-prices'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
+import { logger } from '@/shared/lib/logger'
 import { getOrgBilling } from '@/shared/org/billing-read'
 import { requireOwnerCtx } from '@/shared/org/membership'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
@@ -46,11 +47,21 @@ async function resolveStripeCustomer(orgId: string, actorUid: string): Promise<s
   // Persist the customer id (CRUD mirror) — keeps it stable across checkouts and
   // seeds the stripe→org lookup index (the projector mirrors it). Tier stays as-is
   // until the subscription activates via the webhook.
-  await emitEvent(OrgBillingConfig, aggregateRef(OrgBillingConfig, orgId, orgId), {
+  //
+  // Carry id/orgId in the changes for parity with the webhook's `emitUpdate`, so the
+  // reduced state is self-consistent regardless of the projector. The projector is
+  // the actual guarantee (it sources org_id/id from the ref, not the reduced state —
+  // see org-billing-projector.ts), so an empty identity is structurally impossible;
+  // this stays belt-and-suspenders and keeps every org_billing writer uniform.
+  const res = await emitEvent(OrgBillingConfig, aggregateRef(OrgBillingConfig, orgId, orgId), {
     _tag: 'org_billing.updated',
     actorId: actorUid,
-    payload: { changes: { stripeCustomerId: customer.id } },
+    payload: { changes: { id: orgId, orgId, stripeCustomerId: customer.id } },
   })
+  // Surface a failed persist as a typed error the caller maps to a friendly result
+  // instead of letting the Effect reject bubble to a raw 500 (UX: the button shows
+  // an inline error, never a crash page).
+  if (!res.ok) throw new Error(`persist stripe customer failed: ${res.error}`)
   return customer.id
 }
 
@@ -70,25 +81,38 @@ export async function startCheckout(formData: FormData): Promise<CheckoutResult>
   if (!priceId) return { ok: false, error: 'Plano sem cobrança (Free não requer checkout)' }
 
   const orgId = r.ctx.membership.orgId
-  const customerId = await resolveStripeCustomer(orgId, r.ctx.session.uid)
-  const quantity = Math.max(1, (await listUnitsForOrg(orgId)).length)
 
-  const stripe = getStripe()
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    customer: customerId,
-    // Do NOT set payment_method_types — let Stripe pick dynamically (best-practice).
-    line_items: [{ price: priceId, quantity }],
-    client_reference_id: orgId,
-    subscription_data: { metadata: { orgId } },
-    success_url: `${appUrl()}/billing?checkout=success`,
-    cancel_url: `${appUrl()}/billing?checkout=cancel`,
-  })
+  // Resolve the customer, count units and open the Checkout Session inside a
+  // try/catch so ANY failure (a Stripe API error, or the org_billing persist
+  // being refused) becomes a friendly inline result — never a raw 500 on the
+  // subscribe button. `redirect` must stay OUTSIDE the try (it works by throwing
+  // NEXT_REDIRECT, which a catch would swallow — Next docs, redirect §Caveats).
+  let checkoutUrl: string
+  try {
+    const customerId = await resolveStripeCustomer(orgId, r.ctx.session.uid)
+    const quantity = Math.max(1, (await listUnitsForOrg(orgId)).length)
 
-  if (!session.url) return { ok: false, error: 'Falha ao iniciar o checkout' }
+    const stripe = getStripe()
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: customerId,
+      // Do NOT set payment_method_types — let Stripe pick dynamically (best-practice).
+      line_items: [{ price: priceId, quantity }],
+      client_reference_id: orgId,
+      subscription_data: { metadata: { orgId } },
+      success_url: `${appUrl()}/billing?checkout=success`,
+      cancel_url: `${appUrl()}/billing?checkout=cancel`,
+    })
+    if (!session.url) return { ok: false, error: 'Falha ao iniciar o checkout' }
+    checkoutUrl = session.url
+  } catch (err) {
+    logger.error('startCheckout failed', { scope: 'startCheckout', orgId, err })
+    return { ok: false, error: 'Não foi possível iniciar o checkout. Tente de novo.' }
+  }
+
   // session.url is Stripe's hosted Checkout (external) — not an in-app typed
   // route; toRoute is the sanctioned narrowing seam for an opaque redirect target.
-  redirect(toRoute(session.url))
+  redirect(toRoute(checkoutUrl))
 }
 
 // Open the Stripe Customer Portal for self-service management (cancel/upgrade/
