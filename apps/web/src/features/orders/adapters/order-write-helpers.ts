@@ -18,11 +18,13 @@ import {
   stockDecrementTargets,
   type Subscription,
 } from '@/domain'
+import { hasCapability } from '@/domain/billing/capabilities'
 import type { ParsedAssignCustomer } from '@/features/orders/core/assign-customer-form'
 import type { CoverageResult } from '@/features/orders/core/coverage-result'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { newId } from '@/shared/db/pg/new-id'
 
+import { getOrgTier } from '@/shared/org/billing-read'
 import { getCustomerById } from '@/shared/org/customer-read'
 import { getMemberOperationByUserId } from '@/shared/org/member-operation-read'
 import {
@@ -336,6 +338,17 @@ export async function resolveSubscriptionConsumption(
   const stockDecrements = stockDecrementTargets(order.items)
 
   if (coveredQty === 0) return { subscriptionToConsume: null, stockDecrements }
+
+  // Gate CONDICIONAL de tier (brief 0088 AC-02): o consumo de assinatura é
+  // recurso gated por `plans.recurring`. Numa org Free (ou rebaixada) o efeito é
+  // SUPRIMIDO — não aborta a comanda (a avulsa é baseline Free): não debita cota,
+  // o estoque baixa normalmente. Centralizado aqui, ANTES de resolver a
+  // assinatura, então o self-booking público (que fecha comanda sem sessão de
+  // owner/manager) herda o gate pelo mesmo caminho.
+  const tier = await getOrgTier(orgId)
+  if (!hasCapability(tier, 'plans.recurring')) {
+    return { subscriptionToConsume: null, stockDecrements }
+  }
   // Consumo de cota exige cliente. Uma avulsa que vinculou cliente (brief 0081)
   // PODE ter item coberto, então este guard deixou de ser defensivo — protege o
   // caso de a comanda perder o cliente com item ainda marcado `subscription`.
@@ -373,6 +386,12 @@ export async function buildOrderCommissions(args: {
   closedAt: string
 }): Promise<Commission[]> {
   if (!args.paymentMethod) return []
+  // Gate CONDICIONAL de tier (brief 0088 AC-02): comissão é recurso gated por
+  // `commissions`. Numa org Free o efeito é SUPRIMIDO — nenhuma `commission
+  // .created` é gravada (senão a apuração destravaria retroativa/integralmente
+  // no upgrade) —, mas a comanda fecha normal. Suprime o efeito, não aborta.
+  const tier = await getOrgTier(args.orgId)
+  if (!hasCapability(tier, 'commissions')) return []
   const memberNameByUserId = new Map(
     (await listOrgMembers(args.orgId)).map((m) => [m.userId, m.name]),
   )
