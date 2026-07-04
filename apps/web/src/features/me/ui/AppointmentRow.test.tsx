@@ -68,6 +68,19 @@ beforeEach(() => {
 })
 
 describe('AppointmentRow — reschedule refreshes the row (#B9)', () => {
+  // Pin "today" to a Thursday so the panel's default date lands on an open
+  // weekday (the fixture closes Sat/Sun) and 10:00 is a real, future-offerable
+  // slot. Without this the clock rolls to a weekend, the grid is empty, and the
+  // picker shows "Sem horários nesse dia" — the option lookup then fails purely
+  // by calendar. 2026-07-02 08:00 SP (11:00 UTC).
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-07-02T11:00:00.000Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('refreshes the server view on a successful reschedule (no stale banner)', async () => {
     rescheduleOwnAppointment.mockResolvedValue({ ok: true })
     render(<AppointmentRow data={buildData()} />)
