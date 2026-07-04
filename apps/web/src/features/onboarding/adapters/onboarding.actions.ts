@@ -10,6 +10,7 @@ import {
 } from '@/domain'
 import { MembershipConfig, OrgConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEventToTx, type TransactionContext } from '@/domain/effect'
+import { withUserOnboardingLock } from '@/features/onboarding/adapters/onboarding-lock'
 import { parseOrgForm } from '@/features/onboarding/core/org-form'
 import { newId } from '@/shared/db/pg/new-id'
 import { getPublicOrgDocBySlug } from '@/shared/db/pg/public-org-directory'
@@ -27,31 +28,36 @@ export type CreateOrgResult = { ok: true; orgId: string } | { ok: false; error: 
 // (brief 0061 § Grupo C / #1199): org + membership commit together or ROLLBACK as
 // one — no manual compensation. The `users.currentOrgId` write is non-aggregate
 // (global auth row) so it lands AFTER the tx commits (idempotent).
+// Free = 1 Negócio por usuário (brief 0072; fecha a brecha de N Negócios Free de
+// 1 unidade). The first Negócio is free; a second one requires that the user
+// already has at least one PAID (Pro+) Negócio. This is the cross-org gate —
+// memberships is org-neutral by design, so counting owner-memberships across
+// orgs does not violate RLS. `getOrgBilling` defaults to Free for orgs with no
+// billing row, so a user with only Free Negócios is correctly blocked. Returns
+// the denial message, or `null` when the user may create one more Negócio.
+async function secondOrgDenied(userId: string): Promise<string | null> {
+  const ownerOrgIds = (await getUserMemberships(userId))
+    .filter((m) => m.role === 'owner')
+    .map((m) => m.orgId)
+  if (ownerOrgIds.length === 0) return null
+  const billings = await Promise.all(ownerOrgIds.map((id) => getOrgBilling(id)))
+  const hasPaid = billings.some((b) => b.tier !== 'free')
+  return hasPaid
+    ? null
+    : 'O plano Grátis permite 1 negócio. Faça upgrade de um negócio para o Pro para criar outro.'
+}
+
 export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
   const session = await getSessionUser()
   if (!session) return { ok: false, error: 'Not signed in' }
   if (!session.emailVerified) return { ok: false, error: 'Email not verified' }
 
-  // Free = 1 Negócio por usuário (brief 0072; fecha a brecha de N Negócios Free de
-  // 1 unidade). The first Negócio is free; a second one requires that the user
-  // already has at least one PAID (Pro+) Negócio. This is the cross-org gate —
-  // memberships is org-neutral by design, so counting owner-memberships across
-  // orgs does not violate RLS. `getOrgBilling` defaults to Free for orgs with no
-  // billing row, so a user with only Free Negócios is correctly blocked.
-  const ownerOrgIds = (await getUserMemberships(session.uid))
-    .filter((m) => m.role === 'owner')
-    .map((m) => m.orgId)
-  if (ownerOrgIds.length >= 1) {
-    const billings = await Promise.all(ownerOrgIds.map((id) => getOrgBilling(id)))
-    const hasPaid = billings.some((b) => b.tier !== 'free')
-    if (!hasPaid) {
-      return {
-        ok: false,
-        error:
-          'O plano Grátis permite 1 negócio. Faça upgrade de um negócio para o Pro para criar outro.',
-      }
-    }
-  }
+  // Fail-fast (out of the lock): reject an obvious 2º-Negócio attempt before
+  // doing any work. This is NOT the wall — a concurrent double-submit races past
+  // it (both read 0 owner-memberships). The real wall is the re-check INSIDE the
+  // advisory lock below (brief 0088 AC-10 / H2).
+  const fastDenial = await secondOrgDenied(session.uid)
+  if (fastDenial) return { ok: false, error: fastDenial }
 
   const parsed = parseOrgForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
@@ -102,34 +108,45 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
   // owner's membership are the two aggregates of this cascade; the `currentOrgId`
   // on the user is a non-aggregate auth-doc write that lands post-commit.
 
-  // ACID (brief 0061 § Grupo C / #1199): org + membership commit together or
-  // ROLLBACK as one — no manual compensation. The `users.currentOrgId` write is
-  // non-aggregate (global auth row), so it lands AFTER the tx commits.
-  const outcome = await commitSaga([
-    (tx: TransactionContext) =>
-      appendEventToTx(
-        OrgConfig,
-        aggregateRef(OrgConfig, orgId, orgId),
-        {
-          _tag: 'org.created',
-          actorId: session.uid,
-          payload: { data: org },
-        },
-        tx,
-      ),
-    (tx: TransactionContext) =>
-      appendEventToTx(
-        MembershipConfig,
-        aggregateRef(MembershipConfig, orgId, membership.id),
-        {
-          _tag: 'membership.created',
-          actorId: session.uid,
-          payload: { data: membership },
-        },
-        tx,
-      ),
-  ])
-  if (!outcome.ok) return { ok: false, error: genericError }
+  // The 2º-Negócio gate is transactionalized against TOCTOU (brief 0088 AC-10 /
+  // H2): the re-check + commit run INSIDE a per-user advisory lock. A concurrent
+  // double-submit serializes here — the second caller blocks until the first
+  // commits, then its re-check sees the just-created org and is refused. The
+  // fail-fast check above narrows the window; THIS is the wall.
+  const lockedOutcome = await withUserOnboardingLock(session.uid, async () => {
+    const denial = await secondOrgDenied(session.uid)
+    if (denial) return { ok: false as const, error: denial }
+
+    // ACID (brief 0061 § Grupo C / #1199): org + membership commit together or
+    // ROLLBACK as one — no manual compensation. The `users.currentOrgId` write is
+    // non-aggregate (global auth row), so it lands AFTER the tx commits.
+    const outcome = await commitSaga([
+      (tx: TransactionContext) =>
+        appendEventToTx(
+          OrgConfig,
+          aggregateRef(OrgConfig, orgId, orgId),
+          {
+            _tag: 'org.created',
+            actorId: session.uid,
+            payload: { data: org },
+          },
+          tx,
+        ),
+      (tx: TransactionContext) =>
+        appendEventToTx(
+          MembershipConfig,
+          aggregateRef(MembershipConfig, orgId, membership.id),
+          {
+            _tag: 'membership.created',
+            actorId: session.uid,
+            payload: { data: membership },
+          },
+          tx,
+        ),
+    ])
+    return outcome.ok ? { ok: true as const } : { ok: false as const, error: genericError }
+  })
+  if (!lockedOutcome.ok) return { ok: false, error: lockedOutcome.error }
   await patchUser(session.uid, { current_org_id: orgId }, now)
 
   // Return the new id WITHOUT navigating — the caller decides. Additional-Negócio

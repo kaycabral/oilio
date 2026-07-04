@@ -9,8 +9,8 @@ import {
   type StoredUnit,
 } from '@/domain'
 import { UnitConfig } from '@/domain/aggregates'
-import { hasCapability } from '@/domain/billing/capabilities'
 import { aggregateRef } from '@/domain/effect'
+import { assertActiveUnitQuota } from '@/features/units/adapters/units-quota'
 import {
   computeUnitPublishReadiness,
   unitHasAddressAndHours,
@@ -29,17 +29,10 @@ import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
 import { classifyError } from '@/shared/errors/classify'
 import { messageForCategory } from '@/shared/errors/messages'
-import { getOrgTier } from '@/shared/org/billing-read'
 import { canDeleteUnit } from '@/shared/org/delete-guard'
 import { hasOperationalMemberOperationInUnit } from '@/shared/org/member-operation-read'
 import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
-import {
-  deleteUnitPii,
-  getUnitById,
-  listUnitSlugs,
-  listUnitsForOrg,
-  writeUnitPii,
-} from '@/shared/org/unit-read'
+import { deleteUnitPii, getUnitById, listUnitSlugs, writeUnitPii } from '@/shared/org/unit-read'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
@@ -89,20 +82,9 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
   const r = await requireManagerCtx()
   if (!r.ok) return r
 
-  // Plano Oilio gate (brief 0072): Free allows a single unit. A second active
-  // unit requires `units.unlimited` (Pro+), which is also where per-unit billing
-  // kicks in. Counts ACTIVE units (listUnitsForOrg already filters archived).
   const orgId = r.ctx.membership.orgId
-  const tier = await getOrgTier(orgId)
-  if (!hasCapability(tier, 'units.unlimited')) {
-    const activeUnits = await listUnitsForOrg(orgId)
-    if (activeUnits.length >= 1) {
-      return {
-        ok: false,
-        error: 'O plano Grátis permite 1 unidade. Faça upgrade para o Pro para adicionar mais.',
-      }
-    }
-  }
+  const quotaError = await assertActiveUnitQuota(orgId)
+  if (quotaError) return { ok: false, error: quotaError }
 
   const parsed = parseUnitForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
@@ -321,6 +303,15 @@ export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
 export async function archiveUnit(unitId: string, archived = true): Promise<UnitMutationResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return r
+  const orgId = r.ctx.membership.orgId
+  // Restore (un-archive) RAISES the active-unit count → recheck the Free quota
+  // (brief 0088 AC-10 / H1). Same wall as `createUnit`, via the shared helper.
+  // Without this a Pro→Free org reactivated a residual archived unit by direct
+  // POST and blew past the single-active-unit Free cap.
+  if (!archived) {
+    const quotaError = await assertActiveUnitQuota(orgId)
+    if (quotaError) return { ok: false, error: quotaError }
+  }
   const archivedAt = archived ? new Date().toISOString() : null
   const res = await emitEvent(
     UnitConfig,
