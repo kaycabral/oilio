@@ -83,7 +83,7 @@ describe('ReportsView — tier gate (brief 0088)', () => {
     render(<ReportsView range={range} sales={salesData} commissions={null} canMarkPaid />)
     expect(screen.getByRole('region', { name: 'Vendas' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Comissões' })).not.toBeInTheDocument()
-    // No CTA anywhere — upsell lives only in /billing + /pricing.
+    // No CTA anywhere — upsell lives only in /settings/billing + /pricing.
     expect(screen.queryByRole('link', { name: 'Fazer upgrade' })).not.toBeInTheDocument()
   })
 })

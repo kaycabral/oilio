@@ -60,6 +60,7 @@ describe('PlansList — tier gate (brief 0088)', () => {
     expect(screen.getByText('Plano Ouro')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Novo plano' })).toBeInTheDocument()
     // No in-surface upgrade CTA post-0088 — off-plan orgs never reach here (404).
+    // (Upsell lives only in /settings/billing + /pricing.)
     expect(screen.queryByRole('link', { name: 'Fazer upgrade' })).not.toBeInTheDocument()
   })
 

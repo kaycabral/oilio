@@ -32,7 +32,7 @@ export async function loadDashboardPage(params: SearchParams): Promise<Dashboard
   // Manager-only: the Dashboard surfaces financeiro KPIs (faturamento, ticket
   // médio, receita), so a non-manager (receptionist/memberOperation) is redirected
   // to /agenda. Mirrors the server-side wall on /copilot, /reports, /team,
-  // /billing — the nav `requires: 'manageOrg'` gate alone is cosmetic.
+  // /settings/billing — the nav `requires: 'manageOrg'` gate alone is cosmetic.
   const ctx = await requireManagerPage()
 
   const orgId = ctx.membership.orgId

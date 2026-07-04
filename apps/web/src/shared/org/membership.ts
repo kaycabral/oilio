@@ -255,7 +255,7 @@ export async function requireOwnerCtx(): Promise<RequireCtxResult> {
  *
  * Mirrors `loadReportsPage`'s inline gate, extracted so every manageOrg-gated
  * route shares ONE implementation — adding a route can't silently skip the
- * check (the cause of the original leak on /copilot, /team, /billing).
+ * check (the cause of the original leak on /copilot, /team, /settings/billing).
  * `notManagerTo` is where a non-manager lands (default `/agenda`, the
  * lowest-privilege operational home).
  */

@@ -26,11 +26,11 @@ describe('PricingTiers', () => {
     expect(screen.getByText('Avançado')).toBeInTheDocument()
     expect(screen.getByText('Recomendado')).toBeInTheDocument()
     // A chargeable tier's CTA points unauthed visitors at /login carrying the
-    // chosen plan (next=/billing + intent=<tier>) so the post-login flow
-    // can resume the subscription (brief 0073).
+    // chosen plan (next=/settings/billing + intent=<tier>) so the post-login
+    // flow can resume the subscription (brief 0073).
     expect(screen.getByRole('link', { name: 'Assinar o Pro' })).toHaveAttribute(
       'href',
-      '/login?next=%2Fbilling&intent=pro',
+      '/login?next=%2Fsettings%2Fbilling&intent=pro',
     )
   })
 

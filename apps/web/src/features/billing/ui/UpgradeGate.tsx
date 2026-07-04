@@ -12,7 +12,7 @@ import { type ReactNode } from 'react'
  * Per-capability upgrade copy. Each gated surface shows the SAME affordance —
  * an `EmptyState` (so it reads like every other empty surface in the app) with
  * a "recurso Pro" headline, the value it unlocks, and a single CTA to
- * `/billing`. Centralizing the copy here keeps the wording consistent across
+ * `/settings/billing`. Centralizing the copy here keeps the wording consistent across
  * the ~13 gated surfaces (brief 0082): no bespoke paywall per screen.
  */
 const UPGRADE_COPY: Record<Capability, { title: string; description: string }> = {
@@ -60,7 +60,7 @@ type UpgradeGateProps = {
  * Gate a surface behind a Plano Oilio capability (brief 0082). When the active
  * Negócio's tier unlocks `capability`, renders `children` untouched. Otherwise
  * renders a consistent upgrade CTA in its place — so a Free org sees WHY the
- * surface is locked and HOW to unlock it (upgrade → `/billing`), instead of a
+ * surface is locked and HOW to unlock it (upgrade → `/settings/billing`), instead of a
  * mute empty state or a form that only fails on submit.
  *
  * NOT a security boundary: the matching `requireCapability` server guard is the
@@ -84,7 +84,7 @@ export function UpgradeCta({ capability }: { capability: Capability }): ReactNod
       icon={<Lock />}
       title={title}
       description={description}
-      actionSlot={<Link href={toRoute('/billing')}>Fazer upgrade</Link>}
+      actionSlot={<Link href={toRoute('/settings/billing')}>Fazer upgrade</Link>}
     />
   )
 }

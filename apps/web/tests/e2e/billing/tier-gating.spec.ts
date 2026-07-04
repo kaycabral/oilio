@@ -1,11 +1,13 @@
 // Tier gating E2E (brief 0088 DoD — B1/B2/C1). Reverses the CTA-in-place posture
 // (0082 deprecated): off-plan surfaces DISAPPEAR from the nav and off-plan routes
 // behave like routes that don't exist (404) — no locked screen, no upgrade CTA
-// (upsell lives only in /billing + /pricing). A Free Negócio 404s on every gated
-// route and its nav hides them; a Pro Negócio uses everything normally. The
-// server-side mutation wall (A1/A3) is proven in the action/integration tests;
-// here we assert the user-facing hide-and-404 from the seat. We seed the billing
-// row a paid webhook would write (webhook→org_billing proven in integration).
+// (upsell lives only in /settings/billing + /pricing). A Free Negócio 404s on
+// every gated route and its nav hides them; a Pro Negócio uses everything
+// normally. The billing surface moved to /settings/billing (brief 0090) and its
+// heading is now "Cobrança". The server-side mutation wall (A1/A3) is proven in
+// the action/integration tests; here we assert the user-facing hide-and-404 from
+// the seat. We seed the billing row a paid webhook would write (webhook→
+// org_billing proven in integration).
 
 import { expect, test } from '../fixtures'
 
@@ -32,7 +34,7 @@ test.describe('Billing — tier gating (brief 0088)', { tag: '@critical' }, () =
       test(`${route} responde 404 no acesso direto (B1)`, async ({ authedPage }) => {
         const res = await authedPage.goto(route)
         expect(res?.status()).toBe(404)
-        // No upgrade CTA on the 404 — upsell lives only in /billing + /pricing.
+        // No upgrade CTA on the 404 — upsell lives only in /settings/billing + /pricing.
         await expect(authedPage.getByRole('link', { name: 'Fazer upgrade' })).toHaveCount(0)
       })
     }
@@ -50,8 +52,8 @@ test.describe('Billing — tier gating (brief 0088)', { tag: '@critical' }, () =
     test('billing surface segue acessível (não é gated) e oferece o upgrade', async ({
       authedPage,
     }) => {
-      await authedPage.goto('/billing')
-      await expect(authedPage.getByRole('heading', { name: 'Plano e cobrança' })).toBeVisible()
+      await authedPage.goto('/settings/billing')
+      await expect(authedPage.getByRole('heading', { name: 'Cobrança' })).toBeVisible()
       await expect(authedPage.getByText('Plano Grátis')).toBeVisible()
       await expect(authedPage.getByRole('button', { name: /Assinar o Pro/ })).toBeVisible()
     })
@@ -85,7 +87,7 @@ test.describe('Billing — tier gating (brief 0088)', { tag: '@critical' }, () =
     })
 
     test('billing surface mostra o plano Pro ativo', async ({ authedPage }) => {
-      await authedPage.goto('/billing')
+      await authedPage.goto('/settings/billing')
       await expect(authedPage.getByText('Plano Pro')).toBeVisible()
       await expect(authedPage.getByRole('button', { name: /portal de cobrança/ })).toBeVisible()
       await expect(authedPage.getByRole('button', { name: /Assinar o Pro/ })).toBeHidden()

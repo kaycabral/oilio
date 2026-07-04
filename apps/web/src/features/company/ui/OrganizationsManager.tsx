@@ -86,7 +86,7 @@ export function OrganizationsManager({
               <UnitFormDialog />
             ) : (
               <Button asChild variant="outline">
-                <Link href={toRoute('/billing')}>Fazer upgrade para nova unidade</Link>
+                <Link href={toRoute('/settings/billing')}>Fazer upgrade para nova unidade</Link>
               </Button>
             )}
             <NewOrgDialog />

@@ -4,15 +4,16 @@ import { requireManagerPage } from '@/shared/org/membership'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { Main } from '@cbrl/design'
 
-// Plano e cobrança — the self-service billing surface for the Assinatura Oilio
-// (brief 0073, AC-03). Reads the current org_billing state (Free default when
-// no row) plus the live unit count, and hands it to the client panel. Only the
-// owner can act (subscribe/portal); manager sees the read-only view.
+// Cobrança — the self-service billing surface for the Assinatura Oilio (brief
+// 0073, AC-03; moved under /settings by brief 0090). Reads the current
+// org_billing state (Free default when no row) plus the live unit count, and
+// hands it to the client panel. Only the owner can act (subscribe/portal);
+// manager sees the read-only view.
 //
-// Route lives at top-level `/billing` (not under `/settings`): the Assinatura
-// Oilio is PER-NEGÓCIO, so it sits with the other org-admin surfaces
-// (`/organizations`, `/team`), while `/settings/*` stays the user's own area
-// (profile, privacy). See the nav "Administração" section.
+// Route lives under `/settings/billing` and is reached via the Configurações
+// modal (UserMenu → Cobrança). The app is context-based: billing follows the
+// active Negócio automatically, so it belongs with the user's own settings
+// surfaces rather than the operational sidebar (brief 0090).
 export default async function BillingPage() {
   // Owner/manager only — exposes tier, billed units and billing period. The nav
   // hides it from non-managers; this is the server wall. Manager sees the
@@ -27,7 +28,7 @@ export default async function BillingPage() {
   return (
     <Main width="narrow" className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold">Plano e cobrança</h1>
+        <h1 className="text-2xl font-semibold">Cobrança</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           Veja seu plano atual, quantas unidades estão sendo cobradas e gerencie sua assinatura do
           Oilio.

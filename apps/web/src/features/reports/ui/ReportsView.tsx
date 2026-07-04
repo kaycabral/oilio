@@ -29,7 +29,7 @@ export function ReportsView({ range, sales, commissions, canMarkPaid }: ReportsP
 
       {/* Off-plan sections are HIDDEN, not upsold (brief 0088 AC-06): a tier
           without `commissions` simply omits the section (the loader materialized
-          nothing for it). Upsell lives only in /billing + /pricing. */}
+          nothing for it). Upsell lives only in /settings/billing + /pricing. */}
       {commissions ? (
         <CommissionReport
           commissions={commissions.commissions}

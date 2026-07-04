@@ -8,16 +8,16 @@ import { setMembershipRole } from '../helpers/session'
 // and cosmetic: a receptionist/memberOperation could reach the surface by typing the
 // URL. `requireManagerPage` is the server wall that redirects them. This spec
 // proves the wall end-to-end on the three routes that previously leaked:
-//   /copilot   — financial goal/actuals/projection
-//   /team      — member PII (emails, whatsapp) + invites
-//   /billing   — plan tier, billed units, billing period
-//   /dashboard — financeiro KPIs (faturamento, ticket médio, receita)
+//   /copilot          — financial goal/actuals/projection
+//   /team             — member PII (emails, whatsapp) + invites
+//   /settings/billing — plan tier, billed units, billing period
+//   /dashboard        — financeiro KPIs (faturamento, ticket médio, receita)
 //
 // It also asserts a manager (owner) DOES reach them, so the guard isn't
 // over-restrictive. Regression fence: if a future change drops the guard on one
 // of these loaders, the matching case here fails.
 
-const MANAGE_ROUTES = ['/copilot', '/team', '/billing', '/dashboard'] as const
+const MANAGE_ROUTES = ['/copilot', '/team', '/settings/billing', '/dashboard'] as const
 
 const heading = (page: Page) => page.getByRole('heading', { level: 1 })
 
