@@ -28,6 +28,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   },
 ]
 
+// Narrows an arbitrary string (a route param / selected slot segment) to a known
+// section key without an unsafe cast — the matched entry's own `key` carries the
+// literal type. Returns null for anything unknown so the caller can 404.
+export function toSettingsSectionKey(value: string | null): SettingsSectionKey | null {
+  return SETTINGS_SECTIONS.find((section) => section.key === value)?.key ?? null
+}
+
 // The sections visible in the modal nav for a given role. Cobrança (manageOrg)
 // and Notificações (canManage) are hidden from members who don't manage the org,
 // mirroring the sidebar hide posture (brief 0088). The route pages keep their own
