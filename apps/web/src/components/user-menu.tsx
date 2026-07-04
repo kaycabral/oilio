@@ -65,7 +65,10 @@ export function UserMenu({
     if (!settings) return
     const { href } = settings
     function onKeyDown(event: KeyboardEvent) {
-      if (event.ctrlKey && event.shiftKey && event.key === ',') {
+      // Match by physical key (`code === 'Comma'`), not `event.key`: with Shift
+      // held, `event.key` is the shifted glyph (`<` on US QWERTY, etc.), so a
+      // `key === ','` check would never fire. `code` is layout/shift-independent.
+      if (event.ctrlKey && event.shiftKey && event.code === 'Comma') {
         event.preventDefault()
         router.push(toRoute(href))
       }
