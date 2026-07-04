@@ -69,4 +69,21 @@ describe('PricingTiers', () => {
     expect(screen.getByText('Free')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Assinar o Pro' })).not.toBeInTheDocument()
   })
+
+  it('reserves a fixed-height note slot so toggling cycle never reflows the card', () => {
+    // O flick ao alternar mensal↔anual vinha da nota de preço variar de altura
+    // (anual = 2 linhas onde mensal = 1). A régua vertical é estável porque o
+    // slot da nota tem altura RESERVADA por breakpoint (1 linha nos cards largos,
+    // 2 no `lg` estreito), presente em TODO tier — inclusive Free/Rede sem nota,
+    // pra os cards alinharem entre si (padrão Notion). jsdom não computa layout;
+    // aqui travamos a garantia estrutural (as classes de reserva existem).
+    vi.mocked(isFirebaseConfigured).mockReturnValue(true)
+    render(<PricingTiers />)
+    // Pro e Avançado carregam a nota anual — a reserva vale nos dois.
+    const annualNotes = screen.getAllByText(/Cobrado anualmente/)
+    expect(annualNotes.length).toBeGreaterThan(0)
+    for (const note of annualNotes) {
+      expect(note).toHaveClass('h-4', 'lg:h-8', 'line-clamp-2')
+    }
+  })
 })
