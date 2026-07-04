@@ -66,10 +66,17 @@ test.describe('Billing — tier gating (brief 0088)', { tag: '@critical' }, () =
         await expect(authedPage.getByRole('link', { name: label })).toBeVisible()
       }
 
-      // Plans opens (no 404, no upgrade CTA), with the create affordance.
+      // Plans opens (no 404, no upgrade CTA), with the create affordance. On a
+      // Pro org with no plans yet the list renders its empty state, whose CTA is
+      // the "Cadastrar plano" link (the header "Novo plano" button only shows
+      // once the list is populated) — both point at /plans/new and both are
+      // gated by the same tier+role check, so asserting the create link by its
+      // href proves the Pro create affordance regardless of list population.
       const plansRes = await authedPage.goto('/plans')
       expect(plansRes?.status()).toBe(200)
-      await expect(authedPage.getByRole('link', { name: /Novo plano/ })).toBeVisible()
+      await expect(
+        authedPage.getByRole('link', { name: /Cadastrar plano|Novo plano/ }),
+      ).toHaveAttribute('href', '/plans/new')
       await expect(authedPage.getByRole('link', { name: 'Fazer upgrade' })).toHaveCount(0)
 
       // Reports render the real sections + the CSV export.
