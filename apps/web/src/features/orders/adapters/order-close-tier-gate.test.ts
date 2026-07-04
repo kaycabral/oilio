@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getOrgTier: vi.fn<() => Promise<'free' | 'pro' | 'advanced'>>(),
   loadActiveSubscriptionForCustomer: vi.fn(),
-  listOrgMembers: vi.fn(() => Promise.resolve([])),
+  listOrgMembers: vi.fn<() => Promise<Array<{ userId: string; name: string; role?: string }>>>(),
 }))
 
 vi.mock('@/shared/org/billing-read', () => ({ getOrgTier: mocks.getOrgTier }))
@@ -35,7 +35,7 @@ function coveredItem(overrides: Partial<OrderItem> = {}): OrderItem {
     name: 'Corte',
     quantity: 1,
     unitPriceCents: 5000,
-    commission: { kind: 'percent', value: 10 },
+    commission: { kind: 'percentage', value: 10 },
     attributedUserId: 'member-1',
     coverage: 'subscription',
     subscriptionId: null,
@@ -66,6 +66,7 @@ describe('order close — conditional tier gate (brief 0088 AC-02)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.loadActiveSubscriptionForCustomer.mockResolvedValue(null)
+    mocks.listOrgMembers.mockResolvedValue([])
   })
 
   it('Free: efeito de consumo suprimido — não consome nem materializa a assinatura', async () => {

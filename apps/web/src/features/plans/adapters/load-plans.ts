@@ -104,7 +104,16 @@ export async function loadPlansPage(
     hasAnyData: allPlans.length > 0,
     visibleCount: plans.length,
   })
-  return { plans, searchQuery, cycleFilter, statusFilter, canManage, canDelete, state }
+  return {
+    plans,
+    searchQuery,
+    cycleFilter,
+    statusFilter,
+    canManage,
+    canDelete,
+    state,
+    locked: false,
+  }
 }
 
 export type PlanMasterData = {
