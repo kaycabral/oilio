@@ -109,7 +109,7 @@ export async function commitAppointmentBooking({
       Effect.map(() => ({ ok: true as const })),
       // The 23P01 from the exclusion constraint surfaces as a DEFECT (the pg
       // error is re-thrown by the layer's `Effect.promise`), not a typed
-      // failure — mirror `catchSagaDefect` in the effect bridge and map the
+      // failure — mirror `catchWriteDefect` in the effect bridge and map the
       // double-book defect to the graceful `slot_taken` result. Any OTHER
       // defect is re-raised (a real 500 — not silently swallowed).
       Effect.catchAllDefect((defect) => {
