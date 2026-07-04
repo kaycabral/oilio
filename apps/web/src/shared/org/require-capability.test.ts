@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   getUserById: vi.fn(),
   readUnderRls: vi.fn(),
   getOrgTier: vi.fn(),
+  track: vi.fn(),
 }))
 
 vi.mock('@/shared/firebase/admin', () => ({ getSessionUser: mocks.getSessionUser }))
@@ -34,8 +35,13 @@ vi.mock('@/shared/db/pg/rls-read', () => ({
   readAsSubject: vi.fn(),
 }))
 vi.mock('@/shared/org/billing-read', () => ({ getOrgTier: mocks.getOrgTier }))
+vi.mock('@/shared/lib/track', () => ({ track: mocks.track }))
 
-import { requireCapability } from './membership'
+import {
+  requireCapability,
+  requireRecurringManagerCtx,
+  requireRecurringOwnerCtx,
+} from './membership'
 
 const ORG = 'org-1'
 const UID = 'user-1'
@@ -127,5 +133,68 @@ describe('requireCapability', () => {
       const res = await requireCapability(cap)
       expect(res.ok).toBe(true)
     }
+  })
+})
+
+// The shared wall for recurring-resource actions (brief 0088 AC-01/AC-04):
+// RBAC (manager/owner) AND `plans.recurring` tier — both must pass. This is what
+// every gated action (updatePlan/…/markChargeFailed) now composes.
+describe('requireRecurringManagerCtx', () => {
+  it('allows a Pro manager (RBAC ∧ tier both pass)', async () => {
+    signedIn()
+    mocks.getOrgTier.mockResolvedValue('pro')
+
+    const res = await requireRecurringManagerCtx()
+
+    expect(res.ok).toBe(true)
+    expect(mocks.track).not.toHaveBeenCalled()
+  })
+
+  it('denies a Free manager and emits capability_denied', async () => {
+    signedIn()
+    mocks.getOrgTier.mockResolvedValue('free')
+
+    const res = await requireRecurringManagerCtx()
+
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toContain('Pro')
+    expect(mocks.track).toHaveBeenCalledWith(
+      'capability_denied',
+      expect.objectContaining({ capability: 'plans.recurring', surface: 'action' }),
+    )
+  })
+
+  it('denies on RBAC BEFORE reading the tier (a non-manager never reaches the wall)', async () => {
+    mocks.getSessionUser.mockResolvedValue({ uid: UID, emailVerified: true })
+    mocks.getUserById.mockResolvedValue({ uid: UID, currentOrgId: ORG })
+    mocks.readUnderRls.mockResolvedValue([membershipRow('receptionist')])
+
+    const res = await requireRecurringManagerCtx()
+
+    expect(res.ok).toBe(false)
+    expect(mocks.getOrgTier).not.toHaveBeenCalled()
+    expect(mocks.track).not.toHaveBeenCalled()
+  })
+})
+
+describe('requireRecurringOwnerCtx', () => {
+  it('allows a Pro owner', async () => {
+    signedIn()
+    mocks.getOrgTier.mockResolvedValue('pro')
+
+    const res = await requireRecurringOwnerCtx()
+
+    expect(res.ok).toBe(true)
+  })
+
+  it('denies a manager (owner required) before the tier read', async () => {
+    mocks.getSessionUser.mockResolvedValue({ uid: UID, emailVerified: true })
+    mocks.getUserById.mockResolvedValue({ uid: UID, currentOrgId: ORG })
+    mocks.readUnderRls.mockResolvedValue([membershipRow('manager')])
+
+    const res = await requireRecurringOwnerCtx()
+
+    expect(res.ok).toBe(false)
+    expect(mocks.getOrgTier).not.toHaveBeenCalled()
   })
 })
