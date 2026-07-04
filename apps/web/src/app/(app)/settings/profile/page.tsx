@@ -1,6 +1,7 @@
 import { EditProfileForm } from '@/features/settings/ui/EditProfileForm'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { Main } from '@cbrl/design'
 import { redirect } from 'next/navigation'
@@ -16,6 +17,15 @@ export default async function ProfileSettingsPage() {
 
   const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
+
+  // Product telemetry (brief 0090 § "Eventos"): the Perfil section was viewed —
+  // covers both the full page and the Configurações modal (which renders this
+  // same server page). Emitted server-side; track() reaches the server logger.
+  track('settings_section_viewed', {
+    org_id: ctx.membership.orgId,
+    user_id: session.uid,
+    section: 'profile',
+  })
 
   return (
     <Main width="narrow" className="space-y-6">

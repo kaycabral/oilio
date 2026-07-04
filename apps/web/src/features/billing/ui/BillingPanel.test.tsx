@@ -23,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   cancelSubscription: vi.fn<() => Promise<CheckoutResult>>(() => Promise.resolve({ ok: true })),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
-  track: vi.fn(),
 }))
 
 vi.mock('@/features/billing/adapters/checkout.actions', () => ({
@@ -33,7 +32,6 @@ vi.mock('@/features/billing/adapters/checkout.actions', () => ({
 vi.mock('@/features/billing/adapters/cancel.actions', () => ({
   cancelSubscription: mocks.cancelSubscription,
 }))
-vi.mock('@/shared/lib/track', () => ({ track: mocks.track }))
 vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: mocks.toastSuccess } }))
 
 import { BillingPanel } from './BillingPanel'
@@ -51,8 +49,6 @@ function props(over: Partial<Props> = {}): Props {
     cancelAtPeriodEnd: false,
     hasStripeCustomer: true,
     canManageBilling: true,
-    orgId: 'org-1',
-    userId: 'user-1',
     ...over,
   }
 }
@@ -185,17 +181,12 @@ describe('BillingPanel — native cancellation (brief 0090, AC-09)', () => {
     expect(screen.queryByText('Cancelamento', { exact: true })).not.toBeInTheDocument()
   })
 
-  it('opening the confirm dialog tracks the intent and shows the retention copy', async () => {
+  it('opening the confirm dialog shows the preserve-access copy + retention escape', async () => {
     const user = userEvent.setup()
     render(<BillingPanel {...props({ tier: 'pro' })} />)
 
     await user.click(screen.getByRole('button', { name: 'Cancelar plano' }))
 
-    expect(mocks.track).toHaveBeenCalledWith('billing_cancel_intent', {
-      org_id: 'org-1',
-      user_id: 'user-1',
-    })
-    // The dialog preserves-access copy + the retention escape button.
     const dialog = screen.getByRole('alertdialog')
     expect(dialog).toHaveTextContent(/Você ainda poderá usar o Plano Pro/)
     expect(screen.getByRole('button', { name: 'Manter meu Plano Pro' })).toBeInTheDocument()

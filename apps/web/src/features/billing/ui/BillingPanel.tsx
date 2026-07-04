@@ -3,7 +3,6 @@
 import { type BillingCycle, type Tier } from '@/domain/billing/tiers'
 import { cancelSubscription } from '@/features/billing/adapters/cancel.actions'
 import { manageBilling, startCheckout } from '@/features/billing/adapters/checkout.actions'
-import { track } from '@/shared/lib/track'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,11 +50,6 @@ type BillingPanelProps = {
   // the read-only panel; the actions are hidden for them (the server action also
   // enforces owner-only — defense in depth).
   canManageBilling: boolean
-  // Scope the cancellation funnel telemetry (brief 0090 § "Eventos"). The
-  // `_confirmed` event is emitted server-side by the action; `_intent` (opening
-  // the dialog) is emitted here, so the panel needs the org/user ids.
-  orgId: string
-  userId: string
 }
 
 function formatPeriodEnd(iso: string | null): string | null {
@@ -80,8 +74,6 @@ export function BillingPanel({
   cancelAtPeriodEnd,
   hasStripeCustomer,
   canManageBilling,
-  orgId,
-  userId,
 }: BillingPanelProps) {
   const [pending, startTransition] = useTransition()
   const [cycle, setCycle] = useState<BillingCycle>(billingCycle ?? 'annual')
@@ -202,28 +194,18 @@ export function BillingPanel({
         </section>
       )}
 
-      {canCancel && (
-        <CancellationZone tier={tier} periodEnd={periodEnd} orgId={orgId} userId={userId} />
-      )}
+      {canCancel && <CancellationZone tier={tier} periodEnd={periodEnd} />}
     </div>
   )
 }
 
 // The native cancellation zone (brief 0090, AC-09): a destructive block + the
 // confirm AlertDialog. Extracted from BillingPanel so each stays simple and the
-// cancel flow (own transition + telemetry) is self-contained. Rendered only when
-// the panel decides the owner may cancel a live paid subscription.
-function CancellationZone({
-  tier,
-  periodEnd,
-  orgId,
-  userId,
-}: {
-  tier: Tier
-  periodEnd: string | null
-  orgId: string
-  userId: string
-}) {
+// cancel flow (own transition) is self-contained. Rendered only when the panel
+// decides the owner may cancel a live paid subscription. The confirm emits
+// `billing_cancel_confirmed` server-side (cancel.actions) — client `track()`
+// can't run here (node:async_hooks), so no client-side intent event.
+function CancellationZone({ tier, periodEnd }: { tier: Tier; periodEnd: string | null }) {
   const [pending, startTransition] = useTransition()
 
   function confirmCancel() {
@@ -246,11 +228,7 @@ function CancellationZone({
           {periodEnd ? ` (${periodEnd})` : ''}. Depois disso, o Negócio volta para o plano Grátis.
         </Typography>
       </div>
-      <AlertDialog
-        onOpenChange={(open) => {
-          if (open) track('billing_cancel_intent', { org_id: orgId, user_id: userId })
-        }}
-      >
+      <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button variant="destructive" className="w-fit" disabled={pending}>
             Cancelar plano

@@ -1,4 +1,5 @@
 import { BillingPanel } from '@/features/billing/ui/BillingPanel'
+import { track } from '@/shared/lib/track'
 import { getOrgBilling } from '@/shared/org/billing-read'
 import { requireManagerPage } from '@/shared/org/membership'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
@@ -19,6 +20,12 @@ export default async function BillingPage() {
   // hides it from non-managers; this is the server wall. Manager sees the
   // read-only view; only the owner gets the subscribe/portal actions below.
   const ctx = await requireManagerPage()
+
+  track('settings_section_viewed', {
+    org_id: ctx.membership.orgId,
+    user_id: ctx.session.uid,
+    section: 'billing',
+  })
 
   const [billing, units] = await Promise.all([
     getOrgBilling(ctx.membership.orgId),
@@ -45,8 +52,6 @@ export default async function BillingPage() {
         cancelAtPeriodEnd={billing.cancelAtPeriodEnd}
         hasStripeCustomer={billing.stripeCustomerId !== null}
         canManageBilling={ctx.membership.role === 'owner'}
-        orgId={ctx.membership.orgId}
-        userId={ctx.session.uid}
       />
     </Main>
   )

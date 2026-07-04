@@ -32,9 +32,6 @@ export type UserMenuShortcut = {
 export type UserMenuSettings = {
   href: string
   label: string
-  // Fired when the member opens the settings surface (click or accelerator) —
-  // the app wires product telemetry here (it has the org/user context).
-  onOpen?: () => void
 }
 
 // App wiring over the design `UserMenu`: the presentation (avatar trigger +
@@ -66,11 +63,10 @@ export function UserMenu({
   // direct load of the same URL renders the full page.
   useEffect(() => {
     if (!settings) return
-    const { href, onOpen } = settings
+    const { href } = settings
     function onKeyDown(event: KeyboardEvent) {
       if (event.ctrlKey && event.shiftKey && event.key === ',') {
         event.preventDefault()
-        onOpen?.()
         router.push(toRoute(href))
       }
     }
@@ -98,7 +94,7 @@ export function UserMenu({
     <UserMenuShell name={name} secondary={secondary} avatarUrl={avatarUrl} triggerLabel="Conta">
       {settings ? (
         <DropdownMenuItem asChild>
-          <Link href={toRoute(settings.href)} onClick={() => settings.onOpen?.()}>
+          <Link href={toRoute(settings.href)}>
             <Settings aria-hidden="true" />
             {settings.label}
             <DropdownMenuShortcut>Ctrl+Shift+,</DropdownMenuShortcut>

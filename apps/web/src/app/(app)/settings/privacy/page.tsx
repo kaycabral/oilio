@@ -3,6 +3,7 @@ import { EstablishmentErasureList } from '@/features/settings/ui/EstablishmentEr
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { listMyCustomerEstablishments } from '@/shared/identity/org-links'
+import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { Main } from '@cbrl/design'
 import { redirect } from 'next/navigation'
@@ -22,6 +23,12 @@ export default async function PrivacySettingsPage() {
 
   const ctx = await getActiveOrgContext(session.uid)
   if (!ctx) redirect('/onboarding')
+
+  track('settings_section_viewed', {
+    org_id: ctx.membership.orgId,
+    user_id: session.uid,
+    section: 'privacy',
+  })
 
   // Per-user read of the subject's OWN reverse index — discovers where they are
   // a customer without any cross-org query (ADR 0004 clarifying note).
