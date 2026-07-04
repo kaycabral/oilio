@@ -59,7 +59,7 @@ function orderWith(items: OrderItem[]): Order {
     paymentMethod: null,
     createdAt: '2026-06-01T12:00:00.000Z',
     updatedAt: '2026-06-01T12:00:00.000Z',
-  } as Order
+  }
 }
 
 describe('order close — conditional tier gate (brief 0088 AC-02)', () => {
