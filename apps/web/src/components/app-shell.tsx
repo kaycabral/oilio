@@ -22,11 +22,13 @@ export function AppShell({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const { membership, units } = useOrg()
+  const { membership, units, tier } = useOrg()
   // SPIKE (hours mode): the org "uses the agenda" iff any unit is in
   // appointment mode — drives whether the Agenda nav item shows (multi-vertical).
   const usesAgenda = units.some((u) => unitUsesAgenda(u))
-  const sections = getNavSections(membership, { usesAgenda })
+  // `tier` gates the billing axis (brief 0088 AC-06): surfaces the plan doesn't
+  // unlock are hidden from the sidebar entirely (upsell lives in /billing + /pricing).
+  const sections = getNavSections(membership, { usesAgenda }, tier)
 
   return (
     <BaseAppShell

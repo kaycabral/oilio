@@ -1,8 +1,7 @@
-// Render test for the PlansList tier gate (brief 0082). A manager off the Pro
-// tier must see the consistent upgrade CTA for the WHOLE surface — even when
-// the org still OWNS plans (a Pro→Free downgrade leaves the rows in place). The
-// earlier bug keyed the CTA on the empty slot alone, so a Free org with plans
-// silently reverted to the pre-feature "hide the action" behavior.
+// Render test for the PlansList tier gate. Post-0088 the WHOLE /plans route 404s
+// for a Free org (the loader returns `locked`, the page calls `notFound()`), so
+// this list only ever renders for a Pro+ org — no in-surface upgrade CTA. The
+// `plans.recurring` capability here just guards the "Novo plano" create button.
 
 import type { SubscriptionPlan } from '@/domain'
 import type { WithCanDelete } from '@/shared/org/delete-guard'
@@ -52,26 +51,27 @@ const baseProps = {
   isFiltered: false,
 }
 
-describe('PlansList — tier gate (brief 0082)', () => {
-  it('shows the upgrade CTA (not the rows) for a Free manager that still owns plans', () => {
-    // plans.recurring locked (Free)
-    useCapability.mockReturnValue(false)
-    render(<PlansList plans={[buildPlan({ name: 'Plano Ouro' })]} {...baseProps} />)
-
-    const cta = screen.getByRole('link', { name: 'Fazer upgrade' })
-    expect(cta).toHaveAttribute('href', '/billing')
-    // The gated surface replaces the list: the owned plan row is NOT rendered.
-    expect(screen.queryByText('Plano Ouro')).not.toBeInTheDocument()
-    useCapability.mockReturnValue(true)
-  })
-
+describe('PlansList — tier gate (brief 0088)', () => {
   it('renders the plan rows + create affordance for a Pro manager', () => {
-    // plans.recurring unlocked (Pro)
+    // plans.recurring unlocked (Pro) — the only tier that reaches this list.
     useCapability.mockReturnValue(true)
     render(<PlansList plans={[buildPlan({ name: 'Plano Ouro' })]} {...baseProps} />)
 
     expect(screen.getByText('Plano Ouro')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Novo plano' })).toBeInTheDocument()
+    // No in-surface upgrade CTA post-0088 — off-plan orgs never reach here (404).
     expect(screen.queryByRole('link', { name: 'Fazer upgrade' })).not.toBeInTheDocument()
+  })
+
+  it('renders the rows but hides the create button when plans.recurring is off', () => {
+    // Defense-in-depth: even if a stale client somehow renders this for a
+    // capability-less session, the create affordance stays hidden. The route
+    // wall (404) is the real gate.
+    useCapability.mockReturnValue(false)
+    render(<PlansList plans={[buildPlan({ name: 'Plano Ouro' })]} {...baseProps} />)
+
+    expect(screen.getByText('Plano Ouro')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Novo plano' })).not.toBeInTheDocument()
+    useCapability.mockReturnValue(true)
   })
 })

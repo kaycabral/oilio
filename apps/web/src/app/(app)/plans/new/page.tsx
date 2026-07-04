@@ -1,11 +1,14 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
-import { UpgradeCta } from '@/features/billing/ui/UpgradeGate'
 import { loadNewPlanPage } from '@/features/plans/adapters/load-plans'
 import { PlanForm } from '@/features/plans/ui/PlanForm'
 import { Main } from '@cbrl/design'
+import { notFound } from 'next/navigation'
 
 export default async function NewPlanPage() {
   const { units, catalogItems, categories, locked } = await loadNewPlanPage()
+
+  // Off-plan → 404, like a route that doesn't exist (brief 0088 AC-06).
+  if (locked) notFound()
 
   return (
     <Main width="narrow" className="space-y-4">
@@ -16,11 +19,7 @@ export default async function NewPlanPage() {
         ]}
       />
       <h1 className="text-2xl font-semibold">Novo plano</h1>
-      {locked ? (
-        <UpgradeCta capability="plans.recurring" />
-      ) : (
-        <PlanForm units={units} catalogItems={catalogItems} categories={categories} />
-      )}
+      <PlanForm units={units} catalogItems={catalogItems} categories={categories} />
     </Main>
   )
 }

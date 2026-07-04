@@ -1,4 +1,3 @@
-import { UpgradeCta } from '@/features/billing/ui/UpgradeGate'
 import type { ReportsPageProps } from '@/features/reports/adapters/load-reports'
 import { CommissionReport } from './CommissionReport'
 import { SalesReport } from './SalesReport'
@@ -15,6 +14,8 @@ export function ReportsView({ range, sales, commissions, canMarkPaid }: ReportsP
         </div>
       </header>
 
+      {/* `sales` is always present here — the route 404s when `reports.sales` is
+          locked (page-level). */}
       {sales ? (
         <SalesReport
           movements={sales.movements}
@@ -24,10 +25,11 @@ export function ReportsView({ range, sales, commissions, canMarkPaid }: ReportsP
           fromDate={range.fromDate}
           toDate={range.toDate}
         />
-      ) : (
-        <UpgradeCta capability="reports.sales" />
-      )}
+      ) : null}
 
+      {/* Off-plan sections are HIDDEN, not upsold (brief 0088 AC-06): a tier
+          without `commissions` simply omits the section (the loader materialized
+          nothing for it). Upsell lives only in /billing + /pricing. */}
       {commissions ? (
         <CommissionReport
           commissions={commissions.commissions}
@@ -44,9 +46,7 @@ export function ReportsView({ range, sales, commissions, canMarkPaid }: ReportsP
           statusFilter={commissions.statusFilter}
           canMarkPaid={canMarkPaid}
         />
-      ) : (
-        <UpgradeCta capability="commissions" />
-      )}
+      ) : null}
     </div>
   )
 }

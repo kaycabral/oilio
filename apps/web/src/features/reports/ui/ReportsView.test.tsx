@@ -67,7 +67,7 @@ const commissionsData: CommissionsSectionData = {
   statusFilter: null,
 }
 
-describe('ReportsView — tier gate', () => {
+describe('ReportsView — tier gate (brief 0088)', () => {
   it('shows both reports when both sections are unlocked', () => {
     render(
       <ReportsView range={range} sales={salesData} commissions={commissionsData} canMarkPaid />,
@@ -77,19 +77,13 @@ describe('ReportsView — tier gate', () => {
     expect(screen.queryByRole('link', { name: 'Fazer upgrade' })).not.toBeInTheDocument()
   })
 
-  it('replaces the sales section with the upgrade CTA when locked (null)', () => {
-    render(<ReportsView range={range} sales={null} commissions={commissionsData} canMarkPaid />)
-    expect(screen.queryByRole('region', { name: 'Vendas' })).not.toBeInTheDocument()
-    expect(screen.getByText(/Relatórios são um recurso do Pro/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Fazer upgrade' })).toHaveAttribute('href', '/billing')
-    // Commissions still renders — sections gate independently.
-    expect(screen.getByRole('region', { name: 'Comissões' })).toBeInTheDocument()
-  })
-
-  it('replaces both sections with CTAs when a Free org has neither capability', () => {
-    render(<ReportsView range={range} sales={null} commissions={null} canMarkPaid />)
-    expect(screen.queryByRole('region', { name: 'Vendas' })).not.toBeInTheDocument()
+  it('hides the commissions section (no upsell) when that capability is off', () => {
+    // Post-0088: off-plan sections are HIDDEN, never upsold. `sales` is always
+    // present here — the route 404s when `reports.sales` is locked (page-level).
+    render(<ReportsView range={range} sales={salesData} commissions={null} canMarkPaid />)
+    expect(screen.getByRole('region', { name: 'Vendas' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Comissões' })).not.toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'Fazer upgrade' })).toHaveLength(2)
+    // No CTA anywhere — upsell lives only in /billing + /pricing.
+    expect(screen.queryByRole('link', { name: 'Fazer upgrade' })).not.toBeInTheDocument()
   })
 })
