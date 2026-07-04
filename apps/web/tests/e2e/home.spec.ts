@@ -26,12 +26,15 @@ test.describe('Landing pública', () => {
 
   test('a página de preços mostra os três planos e converte pro login', async ({ page }) => {
     await page.goto('/pricing')
-    // Nomes dos planos com `exact` — o copy "Tudo do Grátis, e mais:" dos cards
-    // seguintes casaria um `getByText` não-exato (strict mode violation).
-    await expect(page.getByText('Grátis', { exact: true })).toBeVisible()
-    await expect(page.getByText('Pro', { exact: true })).toBeVisible()
-    await expect(page.getByText('Avançado', { exact: true })).toBeVisible()
-    await expect(page.getByText('Escala', { exact: true })).toBeVisible()
+    // Nomes dos planos com `exact`, escopados à lista de cards (role=list "Planos"):
+    // o copy "Tudo do Grátis, e mais:" dos cards seguintes casaria um `getByText`
+    // não-exato, e a tabela comparativa (`PricingComparison`) repete os nomes como
+    // cabeçalhos de coluna — ambos dariam strict mode violation sem o escopo.
+    const tiers = page.getByRole('list', { name: 'Planos' })
+    await expect(tiers.getByText('Grátis', { exact: true })).toBeVisible()
+    await expect(tiers.getByText('Pro', { exact: true })).toBeVisible()
+    await expect(tiers.getByText('Avançado', { exact: true })).toBeVisible()
+    await expect(tiers.getByText('Escala', { exact: true })).toBeVisible()
     // The CTA for a chargeable tier carries the billing intent: `next` lands the
     // visitor on /billing after auth, `intent` names the picked tier so the
     // post-login flow can offer it directly (PricingTiers.ctaHref, milestone

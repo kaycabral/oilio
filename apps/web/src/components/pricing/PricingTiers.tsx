@@ -203,12 +203,17 @@ export function PricingTiers() {
           mensal↔anual cresce a fileira junta, sem flick. Sem `min-h`/`h` chutado —
           a altura é a real, medida pelo layout. `items-stretch` (default do grid)
           garante que cada card preencha a altura da fileira. */}
-      <div className="grid gap-6 md:grid-cols-2 md:grid-rows-[auto_auto_auto_1fr] lg:grid-cols-4">
+      <div
+        role="list"
+        aria-label="Planos"
+        className="grid gap-6 md:grid-cols-2 md:grid-rows-[auto_auto_auto_1fr] lg:grid-cols-4"
+      >
         {TIERS.map((tier) => {
           const price = tier.pricing[cycle]
           return (
             <Card
               key={tier.name}
+              role="listitem"
               className={cn(
                 'gap-0 py-0 md:row-span-4 md:grid md:grid-rows-subgrid',
                 tier.highlighted && 'border-foreground/30 ring-foreground/10 shadow-md ring-1',
