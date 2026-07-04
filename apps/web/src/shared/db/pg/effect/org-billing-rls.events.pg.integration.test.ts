@@ -1,6 +1,11 @@
-import { Client } from 'pg'
+import { OrgBillingConfig } from '@/domain/aggregates/org-billing/config'
+import { applyOrgBillingEvent } from '@/domain/aggregates/org-billing/reducer'
+import { INITIAL_ORG_BILLING_STATE } from '@/domain/aggregates/org-billing/types'
+import { aggregateRef } from '@/domain/effect'
+import { Client, Pool, type PoolClient } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { orgBillingProjector } from './org-billing-projector'
 
 /**
  * RLS isolation + CHECK constraint proof for `org_billing` (brief 0071, AC-02) —
@@ -47,6 +52,18 @@ async function appClient(orgId: string): Promise<Client> {
   return c
 }
 
+// A PoolClient (not a bare Client) scoped to the app RLS role — the exact shape the
+// projector's `upsert` takes, so the projector runs on the real NOBYPASSRLS role
+// (proves the RLS interaction, not a hand-built INSERT).
+let appPool: Pool | null = null
+async function appPoolClient(orgId: string): Promise<PoolClient> {
+  appPool ??= new Pool({ connectionString: appUrl })
+  const c = await appPool.connect()
+  await c.query('SELECT set_config($1, $2, false)', ['app.current_org', orgId])
+  await c.query('SELECT set_config($1, $2, false)', ['app.current_unit', ''])
+  return c
+}
+
 describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
   beforeAll(async () => {
     const pool = getEventStorePool()
@@ -66,6 +83,9 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
   })
 
   afterAll(async () => {
+    // Close the app-role pool BEFORE dropping the role (open connections block DROP).
+    await appPool?.end()
+    appPool = null
     const pool = getEventStorePool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
@@ -103,6 +123,50 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
       ).rejects.toMatchObject({ code: '42501' })
     } finally {
       await a.end()
+    }
+  })
+
+  it('projects the FIRST org_billing event under RLS even when the reduced state carries no orgId (regression: the prod-smoke 500)', async () => {
+    // The real bug the prod smoke caught: clicking "Assinar o Pro" emits the FIRST
+    // org_billing.updated for a Free org, whose changes omit orgId — so the reduced
+    // state is INITIAL_ORG_BILLING_STATE (orgId: '', id: ''). The projector must NOT
+    // write org_id = '' (the org-isolation WITH CHECK would refuse it, 42501 → 500).
+    // It sources identity from the REF, so the row lands with the real org_id. This
+    // exercises the actual projector on the actual RLS role — not a hand-built INSERT.
+    await seedOrg(ORG_A)
+
+    // Build the state the way the REAL path does: reduce the exact event the checkout
+    // emits (org_billing.updated whose changes omit orgId/id) from INITIAL via the
+    // actual reducer. The reducer seeds createdAt/updatedAt from meta but does NOT
+    // fill orgId — so the reduced state keeps orgId: '' (the bug surface). Passing a
+    // hand-built state would test an impossible shape; this is faithful to prod.
+    const meta = {
+      version: 1,
+      timestamp: '2026-01-01T00:00:00Z',
+      actorId: 'owner',
+      schemaVersion: 1,
+    }
+    const state = applyOrgBillingEvent(
+      INITIAL_ORG_BILLING_STATE,
+      { _tag: 'org_billing.updated', changes: { stripeCustomerId: 'cus_smoke' } },
+      meta,
+    )
+    // precondition: the reducer leaves identity empty (the bug surface)
+    expect(state.orgId).toBe('')
+    const ref = aggregateRef(OrgBillingConfig, ORG_A, ORG_A)
+
+    const a = await appPoolClient(ORG_A)
+    try {
+      // Must NOT throw 42501 — the projector derives org_id/id from the ref.
+      await orgBillingProjector.upsert(a, ref, state)
+      const row = await a.query<{ org_id: string; id: string }>(
+        'SELECT org_id, id FROM org_billing',
+      )
+      expect(row.rows).toHaveLength(1)
+      expect(row.rows[0]?.org_id).toBe(ORG_A)
+      expect(row.rows[0]?.id).toBe(ORG_A)
+    } finally {
+      a.release()
     }
   })
 
