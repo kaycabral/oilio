@@ -24,6 +24,8 @@ export const CAPABILITIES = [
   'reports.sales',
   // Free = 1 unidade; pro+ = ilimitado (cobrado por unidade)
   'units.unlimited',
+  // Free = você + 1 membro (2 seats); pro+ = equipe ilimitada (brief 0089)
+  'team.unlimited',
   // "Suporte prioritário" (Avançado)
   'support.priority',
 ] as const
@@ -37,6 +39,7 @@ const PRO_CAPABILITIES: readonly Capability[] = [
   'copilot.profit_goal',
   'reports.sales',
   'units.unlimited',
+  'team.unlimited',
 ]
 
 // tier → capabilities. Free baseline (agenda, comanda, caixa, cadastros,

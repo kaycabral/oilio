@@ -84,7 +84,7 @@ export type OrgMember = {
  */
 // Active memberships of an org — reads the typed table under RLS (scoped to
 // `orgId`), returning the decoded `Membership` shape.
-async function listActiveOrgMemberships(orgId: string): Promise<Membership[]> {
+export async function listActiveOrgMemberships(orgId: string): Promise<Membership[]> {
   const rows = await readUnderRls<MembershipRow>(orgId, (client) =>
     client
       .query<MembershipRow>("SELECT * FROM memberships WHERE org_id = $1 AND status = 'active'", [
