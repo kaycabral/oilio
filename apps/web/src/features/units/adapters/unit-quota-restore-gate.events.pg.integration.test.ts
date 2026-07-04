@@ -75,7 +75,8 @@ describe('assertActiveUnitQuota — restore gate (brief 0088 H1)', () => {
   it('Free com 1 unidade ativa: recusa a 2ª (o path de restore reusa esta parede)', async () => {
     const orgId = uniqOrg()
     await seedOrg(orgId)
-    await seedUnit(orgId, `${orgId}-a`, false) // active
+    // active
+    await seedUnit(orgId, `${orgId}-a`, false)
 
     const err = await assertActiveUnitQuota(orgId)
     expect(err).toContain('plano Free permite 1 unidade')
@@ -84,7 +85,8 @@ describe('assertActiveUnitQuota — restore gate (brief 0088 H1)', () => {
   it('Free com 1 unidade ARQUIVADA residual: restore permitido (arquivada não conta)', async () => {
     const orgId = uniqOrg()
     await seedOrg(orgId)
-    await seedUnit(orgId, `${orgId}-arch`, true) // archived → not counted
+    // archived → not counted
+    await seedUnit(orgId, `${orgId}-arch`, true)
 
     // No active unit yet, so activating (restoring) the archived one is within cap.
     const err = await assertActiveUnitQuota(orgId)
