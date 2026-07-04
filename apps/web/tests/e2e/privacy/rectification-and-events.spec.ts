@@ -36,9 +36,13 @@ test.describe('self-service rectification + pii_* events', () => {
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()
 
+    // Scope name assertions to the page content (`<main>`): the member's own name
+    // now also renders in the sidebar footer (brief 0090 UserMenu), so an
+    // unscoped getByText would match twice.
+    const main = page.getByRole('main')
     // Baseline: the seeded owner shows as "E2E Owner" on the team screen.
     await page.goto('/team')
-    await expect(page.getByText('E2E Owner', { exact: true })).toBeVisible()
+    await expect(main.getByText('E2E Owner', { exact: true })).toBeVisible()
 
     // Rectify the name on the self-service profile surface (AC-06).
     const newName = `Renomeado ${Date.now()}`
@@ -50,8 +54,8 @@ test.describe('self-service rectification + pii_* events', () => {
 
     // One write reflects live — the new name shows on /team (identity by ref).
     await page.goto('/team')
-    await expect(page.getByText(newName, { exact: true })).toBeVisible()
-    await expect(page.getByText('E2E Owner', { exact: true })).toHaveCount(0)
+    await expect(main.getByText(newName, { exact: true })).toBeVisible()
+    await expect(main.getByText('E2E Owner', { exact: true })).toHaveCount(0)
 
     // The global users/{uid} carries the new name (single source of truth).
     const userRows = await pgQueryProjection('users', 'uid', owner.uid)

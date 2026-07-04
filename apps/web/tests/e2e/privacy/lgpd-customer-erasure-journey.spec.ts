@@ -193,8 +193,12 @@ test.describe(
       await signInAndAttachSession(context, owner.email, owner.password)
       const page = await context.newPage()
 
+      // Scope name assertions to the page content (`<main>`): the member's own
+      // name now also renders in the sidebar footer (brief 0090 UserMenu), so an
+      // unscoped getByText would match twice.
+      const main = page.getByRole('main')
       await page.goto('/team')
-      await expect(page.getByText('E2E Owner', { exact: true })).toBeVisible()
+      await expect(main.getByText('E2E Owner', { exact: true })).toBeVisible()
 
       const newName = `Retificado C3 ${Date.now()}`
       await page.goto('/settings/profile')
@@ -205,8 +209,8 @@ test.describe(
 
       // One write — reflects live (identity by reference).
       await page.goto('/team')
-      await expect(page.getByText(newName, { exact: true })).toBeVisible()
-      await expect(page.getByText('E2E Owner', { exact: true })).toHaveCount(0)
+      await expect(main.getByText(newName, { exact: true })).toBeVisible()
+      await expect(main.getByText('E2E Owner', { exact: true })).toHaveCount(0)
       const updated = (await pgQueryProjection('users', 'uid', owner.uid))[0] ?? null
       expect(asStr(updated?.display_name)).toEqual(newName)
       await page.close()
