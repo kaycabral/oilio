@@ -1,5 +1,5 @@
-import { closeDb, getDb, PostgresProductSource, product, runMigrations } from '@cbrl/product'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { closeDb, getDb, PostgresProductSource, product } from '@cbrl/product'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Telemetry is best-effort and writes Firestore; this suite proves the Postgres
 // gate behavior, so we stub the event sink (no emulator needed here).
@@ -18,10 +18,7 @@ import { resolveGate, runProductGate } from './product-gate'
 const EAN13 = '7891000100103'
 const GTIN14 = '07891000100103'
 
-beforeAll(async () => {
-  await runMigrations()
-})
-
+// Schema is applied once by the suite's globalSetup (pg-integration-global-setup.ts).
 afterAll(async () => {
   await closeDb()
 })

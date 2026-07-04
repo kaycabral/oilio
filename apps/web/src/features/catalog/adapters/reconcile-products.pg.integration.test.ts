@@ -13,9 +13,9 @@ import {
   publicOrgDirectoryValues,
 } from '@/shared/db/pg/effect/org-projector'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
-import { closeDb, getDb, PostgresProductSource, product, runMigrations } from '@cbrl/product'
+import { closeDb, getDb, PostgresProductSource, product } from '@cbrl/product'
 import { Effect, Layer } from 'effect'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { reconcilePendingProducts } from './reconcile-products'
 
 // Integration: reconciliation against REAL Postgres (brief 0050, AC-08). The
@@ -142,9 +142,8 @@ function seedPendingItem(
   ).then(() => undefined)
 }
 
-beforeAll(async () => {
-  await runMigrations()
-})
+// Schema (both `produtos` and `oilio`) is applied once by the suite's
+// globalSetup (pg-integration-global-setup.ts).
 afterAll(async () => {
   await closeDb()
   await closeEventStoreDb()
