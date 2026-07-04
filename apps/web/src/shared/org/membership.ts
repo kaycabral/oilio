@@ -15,6 +15,7 @@ import { readAsSubject, readUnderRls } from '@/shared/db/pg/rls-read'
 import { getUserById, getUsersByIds } from '@/shared/db/pg/users-store'
 import { getSessionUser, type SessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { track } from '@/shared/lib/track'
 import { getOrgTier } from '@/shared/org/billing-read'
 import { Schema } from 'effect'
 import type { Route } from 'next'
@@ -308,6 +309,71 @@ export async function requireCapability(capability: Capability): Promise<Require
     }
   }
   return base
+}
+
+/**
+ * The manager-RBAC + `plans.recurring` tier wall for recurring-resource
+ * adesão/consumo actions (brief 0088 AC-01/AC-04). Stacks two INDEPENDENT
+ * guards exactly like `createPlan` already does inline (`requireManagerCtx`
+ * then `getOrgTier` + `hasCapability('plans.recurring')`) — extracted here so
+ * every gated action (`updatePlan`, `deletePlan`, `archivePlan`,
+ * `changeSubscriptionPlan`, `reactivateSubscription`, `renewSubscription`,
+ * `markChargePaid`, `markChargeFailed`) shares ONE wall and a future action
+ * can't silently reintroduce the divergence (each one had only the role guard,
+ * so a downgraded Free org could mutate recurring resources by direct POST).
+ *
+ * NOT `requireCapability` alone: that layers on `requireOrgCtx` (no manager
+ * eixo), and these are manager+ operations. The two eixos are orthogonal —
+ * RBAC (who) and tier (what the plan unlocks) — and both must pass.
+ *
+ * Emits `capability_denied` at the tier-denial point (fire-and-forget metrics,
+ * brief 0088 § eventos); the gate itself never depends on the event.
+ */
+export async function requireRecurringManagerCtx(): Promise<RequireCtxResult> {
+  const r = await requireManagerCtx()
+  if (!r.ok) return r
+  return assertRecurringTier(r)
+}
+
+/**
+ * The owner-RBAC + `plans.recurring` tier wall — the owner-scoped counterpart
+ * of `requireRecurringManagerCtx` for recurring-resource actions that already
+ * require owner (`deletePlan`, `archivePlan`). Same two-eixo composition
+ * (RBAC then tier), same `capability_denied` emission. Keeps delete/archive
+ * behind BOTH the owner role and the plan tier without duplicating the wall.
+ */
+export async function requireRecurringOwnerCtx(): Promise<RequireCtxResult> {
+  const r = await requireOwnerCtx()
+  if (!r.ok) return r
+  return assertRecurringTier(r)
+}
+
+/**
+ * Shared `plans.recurring` tier assertion layered on an already-RBAC-resolved
+ * context (brief 0088 AC-01/AC-04). Emits `capability_denied` at the denial
+ * point. Factored out so the manager- and owner-scoped recurring guards apply
+ * ONE identical tier wall — a future action can't drift the message or skip the
+ * metric.
+ */
+async function assertRecurringTier(r: {
+  ok: true
+  ctx: RequiredOrgCtx
+}): Promise<RequireCtxResult> {
+  const tier = await getOrgTier(r.ctx.membership.orgId)
+  if (!hasCapability(tier, 'plans.recurring')) {
+    track('capability_denied', {
+      org_id: r.ctx.membership.orgId,
+      user_id: r.ctx.session.uid,
+      capability: 'plans.recurring',
+      surface: 'action',
+      verb: 'mutate',
+    })
+    return {
+      ok: false,
+      error: 'Planos e assinaturas estão disponíveis no plano Pro. Faça upgrade para continuar.',
+    }
+  }
+  return r
 }
 
 /**

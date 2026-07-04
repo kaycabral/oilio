@@ -17,6 +17,7 @@ type EmitArgs = [unknown, string, { _tag: string; payload: Record<string, unknow
 
 const mocks = vi.hoisted(() => ({
   requireManagerCtx: vi.fn(),
+  requireRecurringManagerCtx: vi.fn(),
   readUnderRls: vi.fn(),
   getSubscriptionPlanById: vi.fn(),
   getOrgTier: vi.fn<() => Promise<'free' | 'pro' | 'advanced'>>(() => Promise.resolve('advanced')),
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/shared/org/membership', () => ({
   requireManagerCtx: mocks.requireManagerCtx,
+  requireRecurringManagerCtx: mocks.requireRecurringManagerCtx,
   requireOwnerCtx: vi.fn(),
 }))
 
@@ -109,13 +111,16 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('createSubscription — tier gate (brief 0082)', () => {
+describe('createSubscription — tier gate (brief 0088)', () => {
   it('rejeita no tier Free: assinar CONSOME plans.recurring (parede de backend)', async () => {
     // A Pro→Free downgrade keeps the plan rows; the server action is the real
-    // wall, so a Free tier must be rejected BEFORE any plan/customer read — even
-    // with a valid manager ctx and a still-present plan.
-    mocks.requireManagerCtx.mockResolvedValue(makeCtx())
-    mocks.getOrgTier.mockResolvedValue('free')
+    // wall. The tier wall now lives IN `requireRecurringManagerCtx` (RBAC + tier),
+    // so a rejection there short-circuits BEFORE any plan/customer read or event.
+    // (The wall's own tier logic is covered by `require-capability.test.ts`.)
+    mocks.requireRecurringManagerCtx.mockResolvedValue({
+      ok: false,
+      error: 'Planos e assinaturas estão disponíveis no plano Pro. Faça upgrade para continuar.',
+    })
 
     const form = new FormData()
     form.set('customerId', 'c1')
@@ -132,7 +137,7 @@ describe('createSubscription — tier gate (brief 0082)', () => {
 
 describe('changeSubscriptionPlan', () => {
   it('rejeita se RBAC falha', async () => {
-    mocks.requireManagerCtx.mockResolvedValue({ ok: false, error: 'Sem permissão' })
+    mocks.requireRecurringManagerCtx.mockResolvedValue({ ok: false, error: 'Sem permissão' })
     expect(await changeSubscriptionPlan('sub-1', 'plan-b')).toEqual({
       ok: false,
       error: 'Sem permissão',
@@ -140,20 +145,20 @@ describe('changeSubscriptionPlan', () => {
   })
 
   it('rejeita planId vazio', async () => {
-    mocks.requireManagerCtx.mockResolvedValue(makeCtx())
+    mocks.requireRecurringManagerCtx.mockResolvedValue(makeCtx())
     const r = await changeSubscriptionPlan('sub-1', '   ')
     expect(r).toEqual({ ok: false, error: 'Plano de destino é obrigatório' })
   })
 
   it('rejeita assinatura inexistente', async () => {
-    mocks.requireManagerCtx.mockResolvedValue(makeCtx())
+    mocks.requireRecurringManagerCtx.mockResolvedValue(makeCtx())
     stubReads({ subscription: null })
     const r = await changeSubscriptionPlan('sub-1', 'plan-b')
     expect(r).toEqual({ ok: false, error: 'Assinatura não encontrada' })
   })
 
   it('rejeita assinatura cancelada', async () => {
-    mocks.requireManagerCtx.mockResolvedValue(makeCtx())
+    mocks.requireRecurringManagerCtx.mockResolvedValue(makeCtx())
     stubReads({
       subscription: subscriptionRow({ status: 'cancelled' }),
       plan: { id: 'plan-b', active: true },
@@ -164,7 +169,7 @@ describe('changeSubscriptionPlan', () => {
   })
 
   it('rejeita troca para o mesmo plano (idempotente)', async () => {
-    mocks.requireManagerCtx.mockResolvedValue(makeCtx())
+    mocks.requireRecurringManagerCtx.mockResolvedValue(makeCtx())
     stubReads({
       subscription: subscriptionRow({ status: 'active' }),
       plan: { id: 'plan-a', active: true },
@@ -175,14 +180,14 @@ describe('changeSubscriptionPlan', () => {
   })
 
   it('rejeita plano de destino inexistente', async () => {
-    mocks.requireManagerCtx.mockResolvedValue(makeCtx())
+    mocks.requireRecurringManagerCtx.mockResolvedValue(makeCtx())
     stubReads({ subscription: subscriptionRow({ status: 'active' }) })
     const r = await changeSubscriptionPlan('sub-1', 'plan-b')
     expect(r).toEqual({ ok: false, error: 'Plano de destino não encontrado' })
   })
 
   it('rejeita plano de destino inativo', async () => {
-    mocks.requireManagerCtx.mockResolvedValue(makeCtx())
+    mocks.requireRecurringManagerCtx.mockResolvedValue(makeCtx())
     stubReads({
       subscription: subscriptionRow({ status: 'active' }),
       plan: { id: 'plan-b', active: false },
@@ -192,7 +197,7 @@ describe('changeSubscriptionPlan', () => {
   })
 
   it('fluxo feliz: emite plan_changed com snapshot fresco do plano de destino', async () => {
-    mocks.requireManagerCtx.mockResolvedValue(makeCtx())
+    mocks.requireRecurringManagerCtx.mockResolvedValue(makeCtx())
     stubReads({
       subscription: subscriptionRow({ status: 'active' }),
       plan: {
