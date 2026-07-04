@@ -13,6 +13,7 @@ import {
   Typography,
   cn,
 } from '@cbrl/design'
+import { Check, Clock } from 'lucide-react'
 import { useState } from 'react'
 
 // Pricing canônico — modelo de receita em [[Produto/PRD-Monetizacao-SaaS]].
@@ -185,47 +186,61 @@ export function PricingTiers() {
         >
           <TabsList>
             <TabsTrigger value="monthly">Mensal</TabsTrigger>
-            <TabsTrigger value="annual">Anual</TabsTrigger>
+            <TabsTrigger value="annual">
+              Anual
+              <Badge variant="secondary" className="ml-2">
+                2 meses grátis
+              </Badge>
+            </TabsTrigger>
           </TabsList>
         </Tabs>
-        <Typography variant="muted" className="text-xs">
-          No anual você ganha 2 meses grátis.
-        </Typography>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid items-start gap-6 md:grid-cols-2 lg:grid-cols-4">
         {TIERS.map((tier) => {
           const price = tier.pricing[cycle]
           return (
             <Card
               key={tier.name}
               className={cn(
-                'flex flex-col',
+                'flex h-full flex-col',
                 tier.highlighted && 'border-foreground/30 ring-foreground/10 shadow-md ring-1',
               )}
             >
               <CardContent className="flex flex-1 flex-col gap-6 pt-6">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-3">
+                  <div className="flex h-6 items-center gap-2">
                     <Typography variant="large">{tier.name}</Typography>
                     {tier.highlighted && <Badge>Recomendado</Badge>}
                   </div>
-                  <div className="flex items-baseline gap-1">
-                    <Typography as="span" variant="h2" className="border-none pb-0">
-                      {price.priceLabel}
-                    </Typography>
-                    {price.priceSuffix && (
-                      <Typography as="span" variant="muted">
-                        {price.priceSuffix}
+                  {/* Régua vertical estável (Notion-style): cada slot do bloco de
+                      preço tem altura RESERVADA, então alternar mensal↔anual muda o
+                      conteúdo mas nunca reflui o que vem abaixo (botão, features).
+                      A reserva acompanha o pior caso POR breakpoint — a nota anual
+                      ocupa 1 linha nos cards largos (mobile 1-col, md 2-col) e 2
+                      linhas no card estreito (lg 4-col) —, aplicada aos DOIS ciclos.
+                      `line-clamp-2` é salvaguarda: nunca corta (natural ≤ 2 linhas
+                      medido em todos os breakpoints), só blinda contra copy futura. */}
+                  <div className="flex flex-col gap-1">
+                    <div className="flex h-10 items-baseline gap-1">
+                      <Typography as="span" variant="h1" className="text-4xl">
+                        {price.priceLabel}
                       </Typography>
-                    )}
-                  </div>
-                  {price.priceNote && (
-                    <Typography as="span" variant="muted" className="text-xs">
+                      {price.priceSuffix && (
+                        <Typography as="span" variant="muted" className="text-sm">
+                          {price.priceSuffix}
+                        </Typography>
+                      )}
+                    </div>
+                    <Typography
+                      as="span"
+                      variant="muted"
+                      className="line-clamp-2 h-4 text-xs lg:h-8"
+                    >
                       {price.priceNote}
                     </Typography>
-                  )}
-                  <Typography variant="muted" className="text-base">
+                  </div>
+                  <Typography variant="muted" className="text-sm text-balance">
                     {tier.description}
                   </Typography>
                 </div>
@@ -248,27 +263,34 @@ export function PricingTiers() {
                   )
                 )}
 
-                <ul className="flex flex-col gap-2">
+                <ul className="flex flex-col gap-3 border-t pt-6">
                   {tier.features.map((feature) => (
-                    <li key={feature} className="text-muted-foreground text-sm">
-                      {feature}
+                    <li key={feature} className="flex items-start gap-2 text-sm">
+                      <Check
+                        aria-hidden
+                        className="text-foreground/70 mt-0.5 size-4 shrink-0"
+                        strokeWidth={2.5}
+                      />
+                      <span className="text-muted-foreground">{feature}</span>
                     </li>
                   ))}
                 </ul>
 
                 {tier.comingSoon && (
-                  <div className="flex flex-col gap-2">
-                    <Badge variant="outline" className="w-fit">
-                      Em breve
-                    </Badge>
-                    <ul className="flex flex-col gap-2">
-                      {tier.comingSoon.map((feature) => (
-                        <li key={feature} className="text-muted-foreground/70 text-sm">
+                  <ul className="flex flex-col gap-3">
+                    {tier.comingSoon.map((feature) => (
+                      <li
+                        key={feature}
+                        className="text-muted-foreground/70 flex items-start gap-2 text-sm"
+                      >
+                        <Clock aria-hidden className="mt-0.5 size-4 shrink-0" />
+                        <span>
                           {feature}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                          <span className="text-muted-foreground/50 ml-1.5 text-xs">Em breve</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </CardContent>
             </Card>
