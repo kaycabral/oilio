@@ -6,6 +6,12 @@ import { logger } from './logger'
 // in runtime today (CDP/log scrape) and the call sites are already in place
 // when a real OTel exporter lands — swapping the body here is the only change.
 //
+// SERVER-ONLY: `logger` reaches `request-context` (`node:async_hooks`), which
+// cannot enter a browser bundle — so `track()` must be called from server code
+// only. Client surfaces that need a product event route it through a server
+// action / server page (e.g. the Configurações sections emit
+// `settings_section_viewed` in their server page, brief 0090).
+//
 // Distinct from domain events (the event-sourced `order.*` / `subscription.*`
 // stream, which is the source of truth): these are fire-and-forget product
 // metrics, never read back to rebuild state.
@@ -68,28 +74,20 @@ type AnalyticsEvents = {
     surface: string
     verb: string
   }
-  // Configurações modal opened via the UserMenu (brief 0090 § "Eventos"). The
-  // `section` is the section shown first (Perfil by default, or the deep-linked
-  // section on a direct settings navigation).
-  settings_modal_opened: {
-    org_id: string
-    user_id: string
-    section: string
-  }
-  // Member navigated between sections inside the Configurações modal.
+  // A Configurações section was viewed (brief 0090 § "Eventos"). Emitted
+  // server-side by each /settings/* page, so it fires for both the full page and
+  // the modal (which renders the same page). The first view after opening the
+  // modal is `section: 'profile'` (the default section), which doubles as the
+  // "modal opened" signal. Client-side `track()` isn't possible (the seam reaches
+  // the server logger / node:async_hooks), hence the server-page emission.
   settings_section_viewed: {
     org_id: string
     user_id: string
     section: string
   }
-  // Owner opened the native cancellation dialog on the Cobrança section
-  // (brief 0090, AC-09 funnel). Intent — not yet confirmed.
-  billing_cancel_intent: {
-    org_id: string
-    user_id: string
-  }
   // Owner confirmed the native cancellation (cancel_at_period_end set on the
-  // Stripe subscription). The paid access runs until the period end.
+  // Stripe subscription). The paid access runs until the period end. Emitted by
+  // the `cancelSubscription` server action (brief 0090, AC-09).
   billing_cancel_confirmed: {
     org_id: string
     user_id: string

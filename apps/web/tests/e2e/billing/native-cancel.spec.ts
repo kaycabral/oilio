@@ -19,7 +19,8 @@ test.describe('Cobrança — cancelamento nativo (brief 0090)', { tag: '@critica
       await authedPage.goto('/settings/billing')
 
       // The cancellation zone shows for an owner on a live paid subscription.
-      await expect(authedPage.getByRole('heading', { name: 'Cancelamento' })).toBeVisible()
+      // "Cancelamento" is a Typography heading-styled label, not an <h*> role.
+      await expect(authedPage.getByText('Cancelamento', { exact: true })).toBeVisible()
       await authedPage.getByRole('button', { name: 'Cancelar plano' }).click()
 
       // The destructive dialog preserves access until the period end + offers the

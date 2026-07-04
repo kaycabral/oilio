@@ -4,13 +4,11 @@ import {
   type SettingsSectionKey,
   visibleSettingsSections,
 } from '@/features/settings/ui/settings-sections'
-import { track } from '@/shared/lib/track'
 import { useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import { cn, Dialog, DialogContent, DialogTitle } from '@cbrl/design'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
 
 // The Configurações modal (brief 0090, AC-05): a 2-column dialog with a flat
 // section nav on the left and the intercepted settings page on the right. It
@@ -32,17 +30,9 @@ export function RouteModal({
   const { membership } = useOrg()
   const sections = visibleSettingsSections(membership.role)
 
-  // Fire-and-forget product telemetry (brief 0090 § "Eventos"): one
-  // `settings_section_viewed` per section shown. The first mount also counts as
-  // the modal opening — emitted by the UserMenu is not possible (it only
-  // navigates), so the modal itself is the single source of both signals.
-  useEffect(() => {
-    track('settings_section_viewed', {
-      org_id: membership.orgId,
-      user_id: membership.userId,
-      section: activeSection,
-    })
-  }, [activeSection, membership.orgId, membership.userId])
+  // Telemetry (`settings_section_viewed`) is emitted server-side in each
+  // section's page — `track()` reaches the server logger (node:async_hooks) and
+  // can't run in this client component (brief 0090 § "Eventos").
 
   // Radix closes on Esc / overlay click / X — route the close through the
   // router so the URL returns to the background surface (the intercepting route
@@ -69,6 +59,11 @@ export function RouteModal({
             <Link
               key={section.key}
               href={toRoute(section.href)}
+              // Replace (not push) so switching sections doesn't stack history:
+              // the modal stays a single entry, so Esc/back always returns to the
+              // background surface in one step regardless of how many sections
+              // were visited (brief 0090 — Esc/X restore the background route).
+              replace
               aria-current={section.key === activeSection ? 'page' : undefined}
               className={cn(
                 'rounded-md px-3 py-2 text-sm transition-colors',
