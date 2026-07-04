@@ -18,6 +18,7 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ensureOilioDatabase } from './oilio-pg-lib.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '..')
@@ -28,6 +29,10 @@ const POSTGRES_PASSWORD = 'postgres'
 const POSTGRES_DB = 'produtos'
 const POSTGRES_PORT = '5432'
 const DATABASE_URL = `postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}`
+// The oilio gate's `reconcile-products` spec reads the event-store projection
+// (`public_org_directory`) on the sibling `oilio` DB — the same instance, second
+// logical database. Provide its URL so the suite's globalSetup finds both.
+const OILIO_DATABASE_URL = DATABASE_URL.replace(/\/produtos(\?|$)/, '/oilio$1')
 
 const keepUp = process.argv.includes('--keep-up')
 
@@ -62,7 +67,9 @@ if (upStatus !== 0) {
 
 let testStatus = 1
 try {
-  const suiteEnv = { ...process.env, DATABASE_URL }
+  // Create the `oilio` sibling DB (idempotent) before the oilio gate suite runs.
+  await ensureOilioDatabase(DATABASE_URL)
+  const suiteEnv = { ...process.env, DATABASE_URL, OILIO_DATABASE_URL }
   console.log('▸ rodando @cbrl/product integration contra Postgres real…')
   const productStatus = run('pnpm', ['--filter', '@cbrl/product', 'run', 'test:integration'], {
     cwd: root,

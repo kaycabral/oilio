@@ -28,6 +28,11 @@ export default defineConfig({
     // it has its own config (`vitest.events-pg-integration.config.ts`). Exclude it
     // here so the suffix-overlapping glob doesn't run it against `produtos`.
     exclude: ['src/**/*.events.pg.integration.test.ts'],
+    // Applies both the `@cbrl/product` (`produtos`) and event-store (`oilio`)
+    // schemas once before any file runs, and fails fast with an actionable
+    // message when the runner didn't inject DATABASE_URL/OILIO_DATABASE_URL
+    // (issue #1358). Mirrors `vitest.events-pg-integration.config.ts`.
+    globalSetup: './src/shared/product/pg-integration-global-setup.ts',
     testTimeout: 30_000,
     hookTimeout: 30_000,
     // One shared Postgres database; specs truncate the table between tests.
