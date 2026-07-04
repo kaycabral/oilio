@@ -46,6 +46,8 @@ export function UserMenu({
   shortcuts = [],
   settings,
   helpHref,
+  trigger,
+  align,
 }: {
   name: string | null
   secondary: string | null
@@ -53,6 +55,11 @@ export function UserMenu({
   shortcuts?: UserMenuShortcut[]
   settings?: UserMenuSettings
   helpHref?: string
+  // Custom trigger (e.g. the wide sidebar-footer button); defaults to the
+  // compact avatar button in the design shell. `align` positions the dropdown
+  // relative to it — 'start' reads better for a wide footer trigger.
+  trigger?: React.ReactNode
+  align?: 'start' | 'center' | 'end'
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -94,7 +101,14 @@ export function UserMenu({
   const hasTopItems = Boolean(settings) || shortcuts.length > 0 || Boolean(helpHref)
 
   return (
-    <UserMenuShell name={name} secondary={secondary} avatarUrl={avatarUrl} triggerLabel="Conta">
+    <UserMenuShell
+      name={name}
+      secondary={secondary}
+      avatarUrl={avatarUrl}
+      triggerLabel="Conta"
+      trigger={trigger}
+      align={align}
+    >
       {settings ? (
         <DropdownMenuItem asChild>
           <Link href={toRoute(settings.href)}>

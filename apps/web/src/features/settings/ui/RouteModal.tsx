@@ -10,29 +10,34 @@ import { cn, Dialog, DialogContent, DialogTitle } from '@cbrl/design'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
-// The Configurações modal (brief 0090, AC-05): a 2-column dialog with a flat
-// section nav on the left and the intercepted settings page on the right. It
-// wraps the SAME server page the full route renders (guard + fetch + RLS stay
-// server-side); only the chrome differs. Closing (X / Esc / back) pops the
-// intercepting route via `router.back()`, restoring the background surface.
+// The Configurações modal shell (brief 0090, AC-05): a 2-column dialog with a
+// flat section nav on the left and the intercepted settings page on the right.
+// It is mounted once by the slot's `layout.tsx` and PERSISTS across section
+// switches — the router swaps only `children` (the right panel). Mounting once
+// is what keeps switching sections smooth: no overlay re-animation (flicker), no
+// box resize, no focus-steal back into a field (tablet keyboard).
+//
+// The dialog box has a FIXED size (fixed height + width); only the panel
+// scrolls. So every section shows in the same frame — the box never grows or
+// shrinks as content changes.
 //
 // The nav is trimmed to the sections the member may see: Cobrança and
 // Notificações disappear for a non-manager (mirrors the sidebar hide posture,
 // brief 0088). The route pages keep their own server guard regardless.
+//
+// Telemetry (`settings_section_viewed`) is emitted server-side in each section's
+// page — `track()` reaches the server logger (node:async_hooks) and can't run in
+// this client component (brief 0090 § "Eventos").
 export function RouteModal({
   activeSection,
   children,
 }: {
-  activeSection: SettingsSectionKey
+  activeSection: SettingsSectionKey | null
   children: React.ReactNode
 }) {
   const router = useRouter()
   const { membership } = useOrg()
   const sections = visibleSettingsSections(membership.role)
-
-  // Telemetry (`settings_section_viewed`) is emitted server-side in each
-  // section's page — `track()` reaches the server logger (node:async_hooks) and
-  // can't run in this client component (brief 0090 § "Eventos").
 
   // Radix closes on Esc / overlay click / X — route the close through the
   // router so the URL returns to the background surface (the intercepting route
@@ -44,8 +49,13 @@ export function RouteModal({
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent
-        className="grid max-w-3xl grid-cols-[12rem_1fr] gap-0 overflow-hidden p-0 sm:max-w-3xl"
+        className="grid h-[min(80vh,40rem)] max-w-3xl grid-cols-[12rem_1fr] gap-0 overflow-hidden p-0 sm:max-w-3xl"
         aria-describedby={undefined}
+        // Keep focus on the dialog frame instead of auto-focusing the first
+        // field: a form input grabbing focus pops the tablet's on-screen
+        // keyboard every time the modal (re)renders. The user still tabs into
+        // fields deliberately.
+        onOpenAutoFocus={(event) => event.preventDefault()}
       >
         {/* Accessible dialog name for screen readers; the visible section title
             lives inside the intercepted page's own header. */}
@@ -77,7 +87,7 @@ export function RouteModal({
           ))}
         </nav>
 
-        <div className="max-h-[70vh] overflow-y-auto p-6">{children}</div>
+        <div className="overflow-y-auto p-6">{children}</div>
       </DialogContent>
     </Dialog>
   )

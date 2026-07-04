@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { SETTINGS_SECTIONS, visibleSettingsSections } from './settings-sections'
+import {
+  SETTINGS_SECTIONS,
+  toSettingsSectionKey,
+  visibleSettingsSections,
+} from './settings-sections'
 
 // The Configurações modal nav is gated by role (brief 0090): Cobrança and
 // Notificações are management-only, so a member without `manageOrg` sees only
@@ -36,5 +40,21 @@ describe('visibleSettingsSections', () => {
       '/settings/billing',
       '/settings/notifications',
     ])
+  })
+})
+
+// The dynamic `[section]` intercepting route and the slot layout narrow the
+// route param / selected segment through this guard instead of an unsafe cast.
+describe('toSettingsSectionKey', () => {
+  it('returns the matching key for a known section', () => {
+    for (const section of SETTINGS_SECTIONS) {
+      expect(toSettingsSectionKey(section.key)).toEqual(section.key)
+    }
+  })
+
+  it('returns null for an unknown or missing segment', () => {
+    expect(toSettingsSectionKey('unknown')).toBeNull()
+    expect(toSettingsSectionKey('')).toBeNull()
+    expect(toSettingsSectionKey(null)).toBeNull()
   })
 })
