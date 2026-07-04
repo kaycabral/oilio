@@ -8,7 +8,7 @@ describe('billing capabilities', () => {
     expect(TIER_CAPABILITIES.free.size).toBe(0)
   })
 
-  it('Pro unlocks the five paid capabilities', () => {
+  it('Pro unlocks the six paid capabilities', () => {
     expect([...TIER_CAPABILITIES.pro].sort()).toEqual(
       [
         'commissions',
@@ -16,6 +16,7 @@ describe('billing capabilities', () => {
         'plans.recurring',
         'reports.sales',
         'units.unlimited',
+        'team.unlimited',
       ].sort(),
     )
   })
@@ -44,6 +45,7 @@ describe('billing capabilities', () => {
         'copilot.profit_goal': false,
         'reports.sales': false,
         'units.unlimited': false,
+        'team.unlimited': false,
         'support.priority': false,
       },
       pro: {
@@ -52,6 +54,7 @@ describe('billing capabilities', () => {
         'copilot.profit_goal': true,
         'reports.sales': true,
         'units.unlimited': true,
+        'team.unlimited': true,
         'support.priority': false,
       },
       advanced: {
@@ -60,6 +63,7 @@ describe('billing capabilities', () => {
         'copilot.profit_goal': true,
         'reports.sales': true,
         'units.unlimited': true,
+        'team.unlimited': true,
         'support.priority': true,
       },
     }

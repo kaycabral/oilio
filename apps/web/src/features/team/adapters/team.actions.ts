@@ -13,6 +13,7 @@ import {
 import { InviteConfig, MemberOperationConfig, MembershipConfig } from '@/domain/aggregates'
 import { generateInviteToken } from '@/features/invites/adapters/invite-token'
 import { offboardMemberInOrg, type OffboardWarning } from '@/features/team/adapters/offboard-member'
+import { assertTeamSeatQuota } from '@/features/team/adapters/team-quota'
 import { buildMemberInviteWhatsapp } from '@/features/team/core/member-invite'
 import { parseMemberOperationForm } from '@/features/team/core/member-operation-form'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
@@ -73,6 +74,12 @@ export async function createInvite(formData: FormData): Promise<CreateInviteResu
     return { ok: false, error: 'Only owners and managers can invite' }
   }
   assertCanManage(ctx.membership)
+
+  // Team-seat quota wall (brief 0089): Free is "você + 1" (2 seats). Checked
+  // before parsing the form, mirroring `createUnit`'s quota gate. The count
+  // (active members + pending non-expired invites) is anti-TOCTOU.
+  const quotaError = await assertTeamSeatQuota(ctx.membership.orgId)
+  if (quotaError) return { ok: false, error: quotaError }
 
   const rawPhone = formString(formData, 'mobile')
   const role = formString(formData, 'role')

@@ -36,6 +36,10 @@ const UPGRADE_COPY: Record<Capability, { title: string; description: string }> =
     title: 'Unidades adicionais são um recurso do Pro',
     description: 'O plano Grátis inclui 1 unidade. Faça upgrade para abrir mais unidades.',
   },
+  'team.unlimited': {
+    title: 'Equipe ilimitada é um recurso do Pro',
+    description: 'O plano Grátis permite você + 1 membro. Faça upgrade para adicionar mais.',
+  },
   'support.priority': {
     title: 'Suporte prioritário é um recurso do Avançado',
     description: 'Faça upgrade para o plano Avançado e tenha atendimento prioritário.',
