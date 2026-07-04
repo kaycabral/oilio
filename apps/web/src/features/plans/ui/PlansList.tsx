@@ -3,7 +3,6 @@
 import { RowActions, type RowAction } from '@/components/RowActions'
 import { StatusBadge } from '@/components/StatusBadge'
 import { type BillingCycle, type SubscriptionPlan } from '@/domain'
-import { UpgradeCta } from '@/features/billing/ui/UpgradeGate'
 import type { PlanStatusFilter } from '@/features/plans/adapters/load-plans'
 import { deletePlan } from '@/features/plans/adapters/plans.actions'
 import { PAGINATION_LABELS_PTBR } from '@/shared/list/pagination-labels'
@@ -60,25 +59,11 @@ export function PlansList({
   })
   // Plano Oilio gate (brief 0072): recurring plans are a Pro+ capability. On Free
   // the create affordances are hidden (the createPlan server action is the real
-  // wall). Combined with the role gate — both must hold to offer creation.
+  // wall). Combined with the role gate — both must hold to offer creation. The
+  // WHOLE /plans route is 404 for a Free org (brief 0088), so this list only ever
+  // renders for a Pro+ org — the tier check just guards the create button.
   const canCreatePlans = useCapability('plans.recurring')
   const showCreate = canManage && canCreatePlans
-
-  // A manager off the Pro tier sees the consistent upgrade CTA for the WHOLE
-  // surface, not just the empty slot (brief 0082). A Pro→Free downgrade leaves
-  // plan rows in place; keying the CTA on `empty` alone would silently revert to
-  // the pre-feature "hide the action" behavior — the org would see plans it can
-  // no longer edit with no explanation. Locked = the CTA replaces the list.
-  if (canManage && !canCreatePlans) {
-    return (
-      <div className="space-y-6">
-        <header className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Planos de assinatura</h1>
-        </header>
-        <UpgradeCta capability="plans.recurring" />
-      </div>
-    )
-  }
 
   return (
     <List

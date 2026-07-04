@@ -1,11 +1,11 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { isCapabilityLocked } from '@/features/billing/adapters/capability-lock'
-import { UpgradeCta } from '@/features/billing/ui/UpgradeGate'
 import { loadCustomersAndPlans } from '@/features/subscriptions/adapters/load-subscription-form'
 import { SubscriptionForm } from '@/features/subscriptions/ui/SubscriptionForm'
 import { requireCapabilityPage } from '@/shared/org/membership'
 import { Button, Main } from '@cbrl/design'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 
 export default async function NewSubscriptionPage() {
   // Same canonical role guard the sibling loaders use (load-subscriptions) —
@@ -13,25 +13,11 @@ export default async function NewSubscriptionPage() {
   // this page stays in lockstep with the permission matrix (brief 0075).
   const ctx = await requireCapabilityPage('canManageSubscriptions', '/subscriptions')
 
-  // Assinaturas exigem `plans.recurring` (uma assinatura consome um plano
-  // recorrente). No Free, a página inteira mostra o CTA de upgrade em vez de
-  // oferecer "Cadastrar plano" — que só levaria a um form negado no submit
-  // (brief 0082). O `requireCapability` na action de criar plano/assinatura
-  // segue sendo a parede real.
-  if (await isCapabilityLocked(ctx.membership.orgId, 'plans.recurring')) {
-    return (
-      <Main width="narrow" className="space-y-4">
-        <Breadcrumbs
-          crumbs={[
-            { label: 'Assinaturas', href: '/subscriptions' },
-            { label: 'Nova', href: null },
-          ]}
-        />
-        <h1 className="text-2xl font-semibold">Nova assinatura</h1>
-        <UpgradeCta capability="plans.recurring" />
-      </Main>
-    )
-  }
+  // Off-plan → 404, like a route that doesn't exist (brief 0088 AC-06). Assinaturas
+  // exigem `plans.recurring`; uma org Free acessando por URL direta recebe o 404
+  // padrão (sem materializar customers/plans). A parede real é `requireCapability`
+  // na action de criar.
+  if (await isCapabilityLocked(ctx.membership.orgId, 'plans.recurring')) notFound()
 
   const { customers, plans } = await loadCustomersAndPlans(ctx.membership.orgId)
 

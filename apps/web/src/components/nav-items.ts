@@ -1,4 +1,6 @@
 import { canManageOrg, type Membership } from '@/domain'
+import { type Capability, hasCapability as tierHasCapability } from '@/domain/billing/capabilities'
+import { type Tier } from '@/domain/billing/tiers'
 import type { NavItem, NavSection } from '@cbrl/design'
 import {
   BarChart3,
@@ -42,6 +44,14 @@ export type NavOrgSignals = { usesAgenda: boolean }
 type GatedNavItem = NavItem & {
   requires?: NavCapability
   requiresOrg?: NavOrgSignal
+  // Billing/tier axis (brief 0088 AC-06): the item is hidden when the org's tier
+  // does not unlock this capability. ORTHOGONAL to `requires` (RBAC permission
+  // matrix): both must pass to show the item. A separate field — NOT overloading
+  // `requires` — because the two eixos are distinct (who-can vs plan-unlocks) and
+  // resolve against different sources (membership vs tier). Named `requiresTier`
+  // and read via the billing `hasCapability` (aliased `tierHasCapability` to
+  // avoid the collision with the LOCAL RBAC `hasCapability` below).
+  requiresTier?: Capability
 }
 type GatedNavSection = Omit<NavSection, 'items'> & { items: readonly GatedNavItem[] }
 
@@ -66,6 +76,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         icon: CreditCard,
         match: 'prefix',
         requires: 'canManageSubscriptions',
+        requiresTier: 'plans.recurring',
       },
       {
         href: '/reports',
@@ -73,6 +84,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         icon: BarChart3,
         match: 'prefix',
         requires: 'manageOrg',
+        requiresTier: 'reports.sales',
       },
       {
         href: '/dashboard',
@@ -87,6 +99,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         icon: Target,
         match: 'prefix',
         requires: 'manageOrg',
+        requiresTier: 'copilot.profit_goal',
       },
     ],
   },
@@ -113,6 +126,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         icon: Repeat,
         match: 'prefix',
         requires: 'canManagePlans',
+        requiresTier: 'plans.recurring',
       },
     ],
   },
@@ -180,8 +194,16 @@ function hasCapability(membership: Membership, capability: NavCapability): boole
   }
 }
 
-function canSeeItem(membership: Membership, signals: NavOrgSignals, item: GatedNavItem): boolean {
+function canSeeItem(
+  membership: Membership,
+  signals: NavOrgSignals,
+  tier: Tier,
+  item: GatedNavItem,
+): boolean {
   if (item.requiresOrg === 'usesAgenda' && !signals.usesAgenda) return false
+  // Billing/tier axis (brief 0088 AC-06): hide surfaces the plan doesn't unlock.
+  // Orthogonal to the RBAC check below — both eixos must pass.
+  if (item.requiresTier !== undefined && !tierHasCapability(tier, item.requiresTier)) return false
   return item.requires === undefined || hasCapability(membership, item.requires)
 }
 
@@ -190,11 +212,15 @@ function canSeeItem(membership: Membership, signals: NavOrgSignals, item: GatedN
 // sections that end up empty are dropped — so a receptionist loses the whole
 // Administração section plus the financeiro-admin items, while owner/manager
 // see everything.
-export function getNavSections(membership: Membership, signals: NavOrgSignals): NavSection[] {
+export function getNavSections(
+  membership: Membership,
+  signals: NavOrgSignals,
+  tier: Tier,
+): NavSection[] {
   return ALL_NAV_SECTIONS.flatMap((section) => {
     const items = section.items
-      .filter((item) => canSeeItem(membership, signals, item))
-      .map(({ requires: _requires, ...item }) => item)
+      .filter((item) => canSeeItem(membership, signals, tier, item))
+      .map(({ requires: _requires, requiresTier: _requiresTier, ...item }) => item)
     if (items.length === 0) return []
     return [{ label: section.label, items }]
   })
