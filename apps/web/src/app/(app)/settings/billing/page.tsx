@@ -45,6 +45,8 @@ export default async function BillingPage() {
         cancelAtPeriodEnd={billing.cancelAtPeriodEnd}
         hasStripeCustomer={billing.stripeCustomerId !== null}
         canManageBilling={ctx.membership.role === 'owner'}
+        orgId={ctx.membership.orgId}
+        userId={ctx.session.uid}
       />
     </Main>
   )

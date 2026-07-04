@@ -7,7 +7,7 @@
 // The server actions and toast are mocked (no network); the focus is the markup
 // each prop combination produces.
 
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,14 +20,21 @@ const mocks = vi.hoisted(() => ({
   manageBilling: vi.fn<() => Promise<CheckoutResult>>(() =>
     Promise.resolve({ ok: false, error: 'x' }),
   ),
+  cancelSubscription: vi.fn<() => Promise<CheckoutResult>>(() => Promise.resolve({ ok: true })),
   toastError: vi.fn(),
+  toastSuccess: vi.fn(),
+  track: vi.fn(),
 }))
 
 vi.mock('@/features/billing/adapters/checkout.actions', () => ({
   startCheckout: mocks.startCheckout,
   manageBilling: mocks.manageBilling,
 }))
-vi.mock('sonner', () => ({ toast: { error: mocks.toastError } }))
+vi.mock('@/features/billing/adapters/cancel.actions', () => ({
+  cancelSubscription: mocks.cancelSubscription,
+}))
+vi.mock('@/shared/lib/track', () => ({ track: mocks.track }))
+vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: mocks.toastSuccess } }))
 
 import { BillingPanel } from './BillingPanel'
 
@@ -44,6 +51,8 @@ function props(over: Partial<Props> = {}): Props {
     cancelAtPeriodEnd: false,
     hasStripeCustomer: true,
     canManageBilling: true,
+    orgId: 'org-1',
+    userId: 'user-1',
     ...over,
   }
 }
@@ -152,5 +161,69 @@ describe('BillingPanel — actions', () => {
     await user.click(screen.getByRole('button', { name: 'Abrir portal de cobrança' }))
 
     expect(mocks.manageBilling).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('BillingPanel — native cancellation (brief 0090, AC-09)', () => {
+  it('shows the cancellation zone for an owner on a live paid subscription', () => {
+    render(<BillingPanel {...props({ cancelAtPeriodEnd: false })} />)
+    expect(screen.getByText('Cancelamento', { exact: true })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancelar plano' })).toBeInTheDocument()
+  })
+
+  it('hides the cancellation zone once already scheduled to cancel', () => {
+    render(<BillingPanel {...props({ cancelAtPeriodEnd: true })} />)
+    expect(screen.queryByText('Cancelamento', { exact: true })).not.toBeInTheDocument()
+  })
+
+  it('hides the cancellation zone for a Free org and for a non-owner', () => {
+    const { rerender } = render(
+      <BillingPanel {...props({ tier: 'free', hasStripeCustomer: false })} />,
+    )
+    expect(screen.queryByText('Cancelamento', { exact: true })).not.toBeInTheDocument()
+    rerender(<BillingPanel {...props({ canManageBilling: false })} />)
+    expect(screen.queryByText('Cancelamento', { exact: true })).not.toBeInTheDocument()
+  })
+
+  it('opening the confirm dialog tracks the intent and shows the retention copy', async () => {
+    const user = userEvent.setup()
+    render(<BillingPanel {...props({ tier: 'pro' })} />)
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar plano' }))
+
+    expect(mocks.track).toHaveBeenCalledWith('billing_cancel_intent', {
+      org_id: 'org-1',
+      user_id: 'user-1',
+    })
+    // The dialog preserves-access copy + the retention escape button.
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog).toHaveTextContent(/Você ainda poderá usar o Plano Pro/)
+    expect(screen.getByRole('button', { name: 'Manter meu Plano Pro' })).toBeInTheDocument()
+  })
+
+  it('confirming calls cancelSubscription and toasts success', async () => {
+    const user = userEvent.setup()
+    mocks.cancelSubscription.mockResolvedValueOnce({ ok: true })
+    render(<BillingPanel {...props()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar plano' }))
+    // The destructive confirm inside the dialog (distinct from the trigger).
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Cancelar plano' }))
+
+    expect(mocks.cancelSubscription).toHaveBeenCalledTimes(1)
+    expect(mocks.toastSuccess).toHaveBeenCalled()
+  })
+
+  it('toasts the error when cancellation fails', async () => {
+    const user = userEvent.setup()
+    mocks.cancelSubscription.mockResolvedValueOnce({ ok: false, error: 'Nada para cancelar' })
+    render(<BillingPanel {...props()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar plano' }))
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Cancelar plano' }))
+
+    expect(mocks.toastError).toHaveBeenCalledWith('Nada para cancelar')
   })
 })
