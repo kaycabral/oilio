@@ -14,6 +14,7 @@ import { patchUser } from '@/shared/db/pg/users-store'
 import { commitSaga, emitEvent } from '@/shared/effect-bridge'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
+import { logger } from '@/shared/lib/logger'
 import { getInviteById } from '@/shared/org/invite-read'
 import {
   type StoredMemberOperation,
@@ -49,11 +50,18 @@ export async function acceptInvite(formData: FormData): Promise<AcceptInviteResu
   if (invite.status !== 'pending') return { ok: false, error: 'Invite already used' }
   if (new Date(invite.expiresAt).getTime() < Date.now()) {
     // Event-first: a projeção do convite expirado vem do evento.
-    await emitEvent(InviteConfig, aggregateRef(InviteConfig, orgId, inviteId), {
+    const flagged = await emitEvent(InviteConfig, aggregateRef(InviteConfig, orgId, inviteId), {
       _tag: 'invite.updated',
       actorId: session.uid,
       payload: { changes: { status: 'expired' } },
     })
+    // The user's outcome is "expired" regardless; but with the DB-defect net
+    // (#1344) a failed flag-write now returns `{ok:false}` instead of throwing —
+    // log it so a swallowed defect isn't a silent lost write (the invite stays
+    // un-flagged; next accept re-hits this same branch, so it self-heals).
+    if (!flagged.ok) {
+      logger.warn('failed to flag expired invite', { scope: 'acceptInvite', orgId, inviteId })
+    }
     return { ok: false, error: 'Invite expired' }
   }
   if (!verifyInviteToken(token, invite.tokenHash)) {

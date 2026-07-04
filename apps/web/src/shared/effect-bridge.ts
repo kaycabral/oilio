@@ -68,6 +68,14 @@ export async function emitEvent<
         // generic `validation` message instead. The typed error is still the log's.
         Effect.succeed({ ok: false as const, error: messageForCategory('validation') }),
       ),
+      // A DB refusal (23xxx / FK / CHECK / RLS thrown by the layer's
+      // `Effect.promise`) surfaces as a DEFECT, not a typed failure, so the
+      // `catchTag` above misses it and it would escape `runPromise` as a raw 500.
+      // Map it to the same graceful `{ok:false}` the typed rejects return — the
+      // net the saga writers already have (#1344). Call-sites that check `.ok`
+      // (audited: all but the ones fixed alongside this) surface the honest
+      // category message; the raw defect is logged, never sent to the client.
+      Effect.catchAllDefect(catchWriteDefect),
       // The event store runs over the Postgres `PersistencePort` — the sole
       // backend after the cutover (#1202); the OILIO_PERSISTENCE flag is gone.
       // `securityLayer` supplies own-scope RLS when the actor is self-scoped (#1265);
@@ -102,6 +110,10 @@ export async function emitEventGuarded<
       Effect.catchTag('GuardRejectedError', (e) =>
         Effect.succeed({ ok: false as const, error: e.message }),
       ),
+      // Same DB-defect net as `emitEvent` (#1344): a raw refusal escaping the
+      // tags above maps to `{ok:false}` instead of a 500. Preserves both tags —
+      // it only catches what neither `catchTag` did.
+      Effect.catchAllDefect(catchWriteDefect),
       Effect.provide(PostgresPersistenceLayer),
     ),
   )
@@ -129,9 +141,13 @@ export async function emitEventGuarded<
 // behind a flake-shaped message (#1320) — the contract keeps the honest wording
 // per category. The raw defect is logged server-side; the client only ever sees
 // the generic message (no SQLSTATE / constraint name / stack).
-function catchSagaDefect(defect: unknown) {
+// Shared by the saga writers (commitSaga / commitGuardedThenAppend) AND the
+// single-aggregate writers (emitEvent / emitEventGuarded, #1344): a DB refusal
+// that escapes the typed `catchTag`s is logged raw server-side and mapped to the
+// generic per-category message, so the client never sees a SQLSTATE/constraint.
+function catchWriteDefect(defect: unknown) {
   return Effect.sync(() => {
-    logger.error('transaction defect', { scope: 'commitSaga', defect })
+    logger.error('write defect', { scope: 'effect-bridge', defect })
     return { ok: false as const, error: messageForCategory(classifyError(defect)) }
   })
 }
@@ -152,7 +168,7 @@ export async function commitSaga(
       Effect.catchTag('GuardRejectedError', (e) =>
         Effect.succeed({ ok: false as const, error: e.message }),
       ),
-      Effect.catchAllDefect(catchSagaDefect),
+      Effect.catchAllDefect(catchWriteDefect),
       // Own-scope RLS for a self-scoped saga actor (#1265); empty for the balcão.
       Effect.provide(Layer.merge(PostgresPersistenceLayer, securityLayer(security))),
     ),
@@ -213,7 +229,7 @@ export async function commitGuardedThenAppend<
         // generic `validation` message instead. The typed error is still the log's.
         Effect.succeed({ ok: false as const, error: messageForCategory('validation') }),
       ),
-      Effect.catchAllDefect(catchSagaDefect),
+      Effect.catchAllDefect(catchWriteDefect),
       Effect.provide(PostgresPersistenceLayer),
     ),
   )

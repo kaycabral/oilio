@@ -373,11 +373,14 @@ export async function removeItemFromOrder(
 
   const patch = recalcAndPatch(items, loaded.order.discountCents)
   // Event-first: `order.item_removed` carrega o patch recalculado.
-  await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
+  const removed = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.item_removed',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
   })
+  // Surface a DB defect (#1344): a dropped `{ok:false}` would report the item
+  // removed when it wasn't — stale total, wrong close amount.
+  if (!removed.ok) return { ok: false, error: removed.error }
 
   revalidatePath(`/orders/${orderId}`)
   revalidatePath('/orders')
@@ -429,11 +432,14 @@ export async function updateItemAttribution(
   const items = loaded.order.items.map((it, i) => (i === idx ? { ...it, attributedUserId } : it))
   const patch = recalcAndPatch(items, loaded.order.discountCents)
   // Event-first: `order.item_attribution_changed` carrega o patch recalculado.
-  await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
+  const attributed = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.item_attribution_changed',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
   })
+  // Surface a DB defect (#1344): a dropped `{ok:false}` would mis-attribute the
+  // commission (the wrong professional gets paid) while reporting success.
+  if (!attributed.ok) return { ok: false, error: attributed.error }
 
   revalidatePath(`/orders/${orderId}`)
   return { ok: true, orderId }
@@ -593,11 +599,15 @@ export async function updateOrderMeta(
 
   const patch = recalcAndPatch(loaded.order.items, discountCents)
   // Event-first: `order.meta_updated` carrega o patch (desconto + totais).
-  await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
+  const updated = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.meta_updated',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
   })
+  // Surface a DB defect (#1344): a dropped `{ok:false}` would leave the discount/
+  // total unpersisted while the operator sees them applied — wrong amount charged
+  // at close.
+  if (!updated.ok) return { ok: false, error: updated.error }
 
   revalidatePath(`/orders/${orderId}`)
   return { ok: true, orderId }
@@ -613,11 +623,15 @@ export async function cancelOrder(orderId: string): Promise<OrderMutationResult>
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
   // Event-first: `order.cancelled` marca o status (a projeção escreve o doc).
-  await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
+  const cancelled = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.cancelled',
     actorId: r.ctx.session.uid,
     payload: {},
   })
+  // Surface a DB defect (#1344): a dropped `{ok:false}` would report the order
+  // cancelled while it is still `open` — it could then be closed/charged.
+  if (!cancelled.ok) return { ok: false, error: cancelled.error }
+
   revalidatePath(`/orders/${orderId}`)
   revalidatePath('/orders')
   return { ok: true, orderId }

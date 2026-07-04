@@ -5,29 +5,63 @@
 // `{ ok: false, error }` with the whole tx rolled back.
 
 import { CashMovementConfig, CommissionConfig } from '@/domain/aggregates'
-import { aggregateRef, appendEventToTx } from '@/domain/effect'
+import { aggregateRef, appendEventToTx, PersistencePort } from '@/domain/effect'
 import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
-import { Effect } from 'effect'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Effect, Layer } from 'effect'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // In-memory replay layer (ref-keyed, real event log) standing in for the Postgres
 // substrate (#1202): the bridge's success/rollback/defect mapping is what's under
 // test, not the pg layer (proven by the `*.events.pg.integration.test.ts` suite).
 const { store, layer: memoryLayer } = makeReplayStore()
 
-// The mock factory is hoisted above `memoryLayer`'s definition, so expose the
-// layer through a getter — the bridge reads `PostgresPersistenceLayer` lazily
-// (inside `Effect.provide(...)` at call time), by when `memoryLayer` exists.
+// When set, the mocked layer makes every `runTransaction` die with this defect —
+// simulating a pg constraint refusal thrown deep in the live layer (#1344). This
+// is how the single-aggregate writers' `catchAllDefect` net gets exercised in a
+// unit test: the bridge sees a raw defect and must map it to `{ok:false}`.
+let injectedDefect: Error | null = null
+
+// A layer whose `runTransaction` dies with `injectedDefect` (when set), else
+// delegates to the real in-memory port. Built lazily inside the getter so the
+// hoisted mock factory doesn't touch `memoryLayer`/`injectedDefect` too early.
+// The single-aggregate writers only reach `runTransaction`; the read methods are
+// never hit on this path, so they die loudly if they somehow are.
+function activeLayer() {
+  if (!injectedDefect) return memoryLayer
+  const defect = injectedDefect
+  const unreached = () => Effect.die(new Error('unexpected read on the dying layer'))
+  return Layer.succeed(PersistencePort, {
+    getDoc: unreached,
+    getDocs: unreached,
+    getEvents: unreached,
+    setDoc: unreached,
+    runTransaction: () => Effect.die(defect),
+  })
+}
+
+// The mock factory is hoisted above the definitions, so expose the layer through
+// a getter — the bridge reads `PostgresPersistenceLayer` lazily (inside
+// `Effect.provide(...)` at call time), by when the definitions exist.
 vi.mock('@/shared/db/pg/effect/postgres-layer', () => ({
   get PostgresPersistenceLayer() {
-    return memoryLayer
+    return activeLayer()
   },
 }))
 
 const commissionRef = aggregateRef(CommissionConfig, 't1', 'c1')
 const cashMovementRef = aggregateRef(CashMovementConfig, 't1', 'm1')
 
-import { commitGuardedThenAppend, commitSaga } from './effect-bridge'
+// A pg constraint refusal surfaces as a thrown DEFECT, not a typed failure (the
+// layer throws inside Effect.promise). The bridge writers must catch it and
+// return {ok:false} instead of rejecting → no unhandled 500. The message must be
+// HONEST about which kind it was (#1320): only a 23505 version clash is a
+// retriable concurrency conflict; a FK/CHECK/RLS refusal is deterministic.
+function pgDefect(code: string): Error {
+  // Shape a pg `DatabaseError`-like object (carries `code`) the guards inspect.
+  return Object.assign(new Error(`pg error ${code}`), { code })
+}
+
+import { commitGuardedThenAppend, commitSaga, emitEvent, emitEventGuarded } from './effect-bridge'
 
 const commission = {
   id: 'c1',
@@ -48,6 +82,10 @@ const commission = {
 
 beforeEach(() => {
   store.clear()
+})
+
+afterEach(() => {
+  injectedDefect = null
 })
 
 describe('commitSaga', () => {
@@ -86,16 +124,6 @@ describe('commitSaga', () => {
     expect(result.ok).toBe(false)
     expect(store.get(docKey(cashMovementRef))).toBeUndefined()
   })
-
-  // A pg constraint refusal surfaces as a thrown defect, not a typed failure
-  // (the layer throws inside Effect.promise). commitSaga must catch it and return
-  // {ok:false} instead of rejecting → no unhandled 500. The message must be
-  // HONEST about which kind it was (#1320): only a 23505 version clash is a
-  // retriable concurrency conflict; a FK/CHECK/RLS refusal is deterministic.
-  function pgDefect(code: string): Error {
-    // Shape a pg `DatabaseError`-like object (carries `code`) the guards inspect.
-    return Object.assign(new Error(`pg error ${code}`), { code })
-  }
 
   it('maps a 23505 version clash to the concurrency-conflict message (retriable)', async () => {
     const result = await commitSaga([() => Effect.die(pgDefect('23505'))])
@@ -211,5 +239,86 @@ describe('commitGuardedThenAppend', () => {
     )
     expect(result).toEqual({ ok: false, error: 'discontinued' })
     expect(store.get(docKey(commissionRef))).toBeUndefined()
+  })
+})
+
+// #1344: the single-aggregate writers gain the same DB-defect net the saga
+// writers already had. A raw pg refusal (thrown as a defect by the live layer)
+// must map to `{ok:false}` with the honest per-category message — never escape as
+// an unhandled 500, never leak the SQLSTATE — while the existing typed `catchTag`
+// handling (validation reject) stays intact.
+describe('emitEvent — DB-defect net', () => {
+  it('commits and returns ok on a clean append', async () => {
+    const result = await emitEvent(CommissionConfig, commissionRef, {
+      _tag: 'commission.created',
+      actorId: 'actor',
+      payload: { data: commission },
+    })
+    expect(result).toEqual({ ok: true })
+    expect(store.get(docKey(commissionRef))).toBeDefined()
+  })
+
+  it('maps a 23505 version clash to the retriable concurrency message', async () => {
+    injectedDefect = pgDefect('23505')
+    const result = await emitEvent(CommissionConfig, commissionRef, {
+      _tag: 'commission.created',
+      actorId: 'actor',
+      payload: { data: commission },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toMatch(/conflito de concorrência/i)
+  })
+
+  it('maps a FK violation (23503) to integrity, not concurrency (#1320)', async () => {
+    injectedDefect = pgDefect('23503')
+    const result = await emitEvent(CommissionConfig, commissionRef, {
+      _tag: 'commission.created',
+      actorId: 'actor',
+      payload: { data: commission },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).not.toMatch(/de novo/i)
+  })
+
+  it('never leaks the raw SQLSTATE or pg error text to the client', async () => {
+    injectedDefect = pgDefect('23503')
+    const result = await emitEvent(CommissionConfig, commissionRef, {
+      _tag: 'commission.created',
+      actorId: 'actor',
+      payload: { data: commission },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).not.toMatch(/23503/)
+      expect(result.error).not.toMatch(/pg error/i)
+    }
+  })
+})
+
+describe('emitEventGuarded — DB-defect net', () => {
+  const guardedOk = {
+    config: CommissionConfig,
+    ref: commissionRef,
+    actorId: 'actor',
+    tag: 'commission.created' as const,
+    guard: () => Effect.succeed({ _tag: 'ok' as const, payload: { data: commission } }),
+  }
+
+  it('preserves a GuardRejectedError message verbatim (tag not swallowed by the net)', async () => {
+    const result = await emitEventGuarded({
+      ...guardedOk,
+      guard: () => Effect.succeed({ _tag: 'reject' as const, message: 'discontinued' }),
+    })
+    expect(result).toEqual({ ok: false, error: 'discontinued' })
+  })
+
+  it('maps a DB defect to the honest per-category message, not a 500', async () => {
+    injectedDefect = pgDefect('23514')
+    const result = await emitEventGuarded(guardedOk)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).not.toMatch(/23514/)
+      expect(result.error).not.toMatch(/de novo/i)
+    }
   })
 })
