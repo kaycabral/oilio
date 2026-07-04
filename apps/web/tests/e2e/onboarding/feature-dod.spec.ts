@@ -83,7 +83,15 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
       // Informa só o número; o link contextual é montado na hora (sem submit,
       // sem criar Customer aqui) — o número é o único dado dinâmico. A unidade
       // vem do contexto ativo (sem seletor). O CTA primário abre o WhatsApp.
-      await dialog.locator('input[name="whatsapp"]').fill(`11${Date.now().toString().slice(-9)}`)
+      // fillStable (not a bare .fill): the "Link do convite" field is a client
+      // useMemo derived from this input — a pre-hydration fill is dropped, the
+      // onChange never fires, and the derived field never renders (the flake
+      // that reddened e2e:full 3/4). fillStable retries until hydration wires
+      // the onChange, so the memo recomputes and the link appears.
+      await fillStable(
+        dialog.locator('input[name="whatsapp"]'),
+        `11${Date.now().toString().slice(-9)}`,
+      )
       await expect(dialog.getByRole('textbox', { name: 'Link do convite' })).toHaveValue(
         /\/signup\?/,
       )
