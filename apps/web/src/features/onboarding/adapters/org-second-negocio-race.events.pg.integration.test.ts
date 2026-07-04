@@ -91,7 +91,7 @@ describe('createOrg — 2º Negócio Free via corrida (brief 0088 H2)', () => {
     expect(denials).toHaveLength(1)
     // The denial is the Free-plan message (not a generic DB error).
     const denial = denials[0]
-    if (denial && !denial.ok) expect(denial.error).toContain('plano Free')
+    if (denial && !denial.ok) expect(denial.error).toContain('plano Grátis')
 
     // And the DB agrees: a single owner-membership for this user.
     expect(await ownerMembershipCount(uid)).toBe(1)

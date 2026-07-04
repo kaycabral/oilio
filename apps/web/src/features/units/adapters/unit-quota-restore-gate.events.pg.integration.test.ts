@@ -79,7 +79,7 @@ describe('assertActiveUnitQuota — restore gate (brief 0088 H1)', () => {
     await seedUnit(orgId, `${orgId}-a`, false)
 
     const err = await assertActiveUnitQuota(orgId)
-    expect(err).toContain('plano Free permite 1 unidade')
+    expect(err).toContain('plano Grátis permite 1 unidade')
   })
 
   it('Free com 1 unidade ARQUIVADA residual: restore permitido (arquivada não conta)', async () => {
