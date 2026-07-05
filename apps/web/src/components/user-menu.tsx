@@ -2,17 +2,12 @@
 
 import { getClientAuth } from '@/shared/firebase/client'
 import { toRoute } from '@/shared/routes'
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  UserMenu as UserMenuShell,
-} from '@cbrl/design'
+import { DropdownMenuItem, DropdownMenuSeparator, UserMenu as UserMenuShell } from '@cbrl/design'
 import { signOut } from 'firebase/auth'
 import { CircleHelp, LogOut, type LucideIcon, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
 // A single route shortcut shown above "Sair" in the account menu. The list is
@@ -25,10 +20,11 @@ export type UserMenuShortcut = {
 }
 
 // The Configurações entry that opens the settings modal. When present, it renders
-// as the first item (gear icon + Ctrl+Shift+, hint) and a global keyboard shortcut
-// navigates to it. `href` is the modal's default section (Perfil) — reached as a
-// full page on direct load and intercepted as a dialog on client navigation
-// (brief 0090). Kept separate from `shortcuts` because it carries the accelerator.
+// as the first item (gear icon). `href` is the modal's default section (Perfil)
+// — reached as a full page on direct load and intercepted as a dialog on client
+// navigation (brief 0090). Kept separate from `shortcuts` so it can carry modal-
+// specific affordances (a keyboard accelerator was deferred — it collided with
+// the browser).
 export type UserMenuSettings = {
   href: string
   label: string
@@ -64,25 +60,9 @@ export function UserMenu({
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
-  // Ctrl+Shift+, opens the settings modal from anywhere in the app (brief 0090,
-  // AC-03) — the same class of accelerator the Claude Code settings dialog uses.
-  // Client navigation to the settings route is intercepted into a dialog; a
-  // direct load of the same URL renders the full page.
-  useEffect(() => {
-    if (!settings) return
-    const { href } = settings
-    function onKeyDown(event: KeyboardEvent) {
-      // Match by physical key (`code === 'Comma'`), not `event.key`: with Shift
-      // held, `event.key` is the shifted glyph (`<` on US QWERTY, etc.), so a
-      // `key === ','` check would never fire. `code` is layout/shift-independent.
-      if (event.ctrlKey && event.shiftKey && event.code === 'Comma') {
-        event.preventDefault()
-        router.push(toRoute(href))
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [router, settings])
+  // No keyboard accelerator for now: Ctrl+Shift+, collided with the browser.
+  // Configurações opens via the dropdown item; app-wide shortcuts get defined
+  // deliberately later (brief 0090 originally speced one — deferred).
 
   async function handleLogout() {
     if (loading) return
@@ -114,7 +94,6 @@ export function UserMenu({
           <Link href={toRoute(settings.href)}>
             <Settings aria-hidden="true" />
             {settings.label}
-            <DropdownMenuShortcut>Ctrl+Shift+,</DropdownMenuShortcut>
           </Link>
         </DropdownMenuItem>
       ) : null}

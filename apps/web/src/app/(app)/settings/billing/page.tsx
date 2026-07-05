@@ -1,9 +1,11 @@
 import { BillingPanel } from '@/features/billing/ui/BillingPanel'
+import { getDefaultPaymentMethod, listRecentInvoices } from '@/shared/billing/billing-details'
 import { track } from '@/shared/lib/track'
 import { getOrgBilling } from '@/shared/org/billing-read'
 import { requireManagerPage } from '@/shared/org/membership'
+import { getOrg } from '@/shared/org/org'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
-import { Main } from '@cbrl/design'
+import { SettingsSection } from '@cbrl/design'
 
 // Cobrança — the self-service billing surface for the Assinatura Oilio (brief
 // 0073, AC-03; moved under /settings by brief 0090). Reads the current
@@ -27,32 +29,41 @@ export default async function BillingPage() {
     section: 'billing',
   })
 
-  const [billing, units] = await Promise.all([
+  const [billing, units, org] = await Promise.all([
     getOrgBilling(ctx.membership.orgId),
     listUnitsForOrg(ctx.membership.orgId),
+    getOrg(ctx.membership.orgId),
   ])
 
-  return (
-    <Main width="narrow" className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Cobrança</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Veja seu plano atual, quantas unidades estão sendo cobradas e gerencie sua assinatura do
-          Oilio.
-        </p>
-      </header>
+  // Payment method + invoices live in Stripe (not projected into org_billing) —
+  // fetch them only when there's a customer, in parallel, best-effort (each read
+  // degrades to null/[] on failure). Free/no-customer orgs skip the round-trips.
+  const [paymentMethod, invoices] = billing.stripeCustomerId
+    ? await Promise.all([
+        getDefaultPaymentMethod(billing.stripeCustomerId),
+        listRecentInvoices(billing.stripeCustomerId),
+      ])
+    : [null, []]
 
+  return (
+    <SettingsSection
+      title="Cobrança"
+      description="Veja seu plano atual, quantas unidades estão sendo cobradas e gerencie sua assinatura do Oilio."
+    >
       <BillingPanel
         tier={billing.tier}
         status={billing.status}
         billingCycle={billing.billingCycle}
         unitQuantity={billing.unitQuantity}
         unitCount={units.length}
+        orgName={org?.name ?? null}
         currentPeriodEnd={billing.currentPeriodEnd}
         cancelAtPeriodEnd={billing.cancelAtPeriodEnd}
         hasStripeCustomer={billing.stripeCustomerId !== null}
         canManageBilling={ctx.membership.role === 'owner'}
+        paymentMethod={paymentMethod}
+        invoices={invoices}
       />
-    </Main>
+    </SettingsSection>
   )
 }

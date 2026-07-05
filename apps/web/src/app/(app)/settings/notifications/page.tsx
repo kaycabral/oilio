@@ -4,7 +4,7 @@ import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
-import { Main } from '@cbrl/design'
+import { SettingsSection } from '@cbrl/design'
 import { redirect } from 'next/navigation'
 
 export default async function NotificationSettingsPage() {
@@ -26,15 +26,11 @@ export default async function NotificationSettingsPage() {
   const templates = await listMessageTemplates(ctx.membership.orgId)
 
   return (
-    <Main width="narrow" className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Templates de notificação</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Personalize as mensagens enviadas por WhatsApp. Use os placeholders pra inserir dados do
-          cliente automaticamente.
-        </p>
-      </header>
+    <SettingsSection
+      title="Templates de notificação"
+      description="Personalize as mensagens enviadas por WhatsApp. Use os placeholders pra inserir dados do cliente automaticamente."
+    >
       <NotificationTemplatesForm templates={templates} canManage={canManage} />
-    </Main>
+    </SettingsSection>
   )
 }

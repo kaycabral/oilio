@@ -5,7 +5,14 @@ import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { listMyCustomerEstablishments } from '@/shared/identity/org-links'
 import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
-import { Main } from '@cbrl/design'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  SettingsSection,
+} from '@cbrl/design'
 import { redirect } from 'next/navigation'
 
 // Self-service privacy surface (brief 0032 / AC-07 + AC-10): the subject's own
@@ -35,34 +42,37 @@ export default async function PrivacySettingsPage() {
   const establishments = await listMyCustomerEstablishments(session.uid)
 
   return (
-    <Main width="narrow" className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Privacidade dos dados</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Exerça seu direito de exclusão (LGPD, art. 18). Para corrigir seus dados, edite seu perfil
-          — a alteração reflete em todas as telas.
-        </p>
-      </header>
+    <SettingsSection
+      title="Privacidade dos dados"
+      description="Exerça seu direito de exclusão (LGPD, art. 18). Para corrigir seus dados, edite seu perfil — a alteração reflete em todas as telas."
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle>Estabelecimentos onde você é cliente</CardTitle>
+          <CardDescription>
+            Você pode excluir seus dados de um estabelecimento específico (mantendo sua conta nos
+            demais) ou excluir sua conta inteira de uma vez.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EstablishmentErasureList establishments={establishments} />
+        </CardContent>
+      </Card>
 
-      <section className="rounded-lg border p-6">
-        <h2 className="text-lg font-semibold">Estabelecimentos onde você é cliente</h2>
-        <p className="text-muted-foreground mt-1 mb-4 text-sm">
-          Você pode excluir seus dados de um estabelecimento específico (mantendo sua conta nos
-          demais) ou excluir sua conta inteira de uma vez.
-        </p>
-        <EstablishmentErasureList establishments={establishments} />
-      </section>
-
-      <section className="border-destructive/40 rounded-lg border p-6">
-        <h2 className="text-destructive text-lg font-semibold">Excluir minha conta inteira</h2>
-        <p className="text-muted-foreground mt-1 mb-4 text-sm">
-          Seus dados pessoais (nome, WhatsApp, e-mail, data de nascimento) serão{' '}
-          <strong>anonimizados de forma irreversível</strong> em todos os estabelecimentos. Seu
-          histórico (vendas, comissões, agendamentos) é mantido por obrigação legal, mas passa a
-          aparecer com um rótulo neutro. Esta ação não pode ser desfeita.
-        </p>
-        <DeleteMyDataForm />
-      </section>
-    </Main>
+      <Card className="ring-destructive/30">
+        <CardHeader>
+          <CardTitle className="text-destructive">Excluir minha conta inteira</CardTitle>
+          <CardDescription>
+            Seus dados pessoais (nome, WhatsApp, e-mail, data de nascimento) serão{' '}
+            <strong>anonimizados de forma irreversível</strong> em todos os estabelecimentos. Seu
+            histórico (vendas, comissões, agendamentos) é mantido por obrigação legal, mas passa a
+            aparecer com um rótulo neutro. Esta ação não pode ser desfeita.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DeleteMyDataForm />
+        </CardContent>
+      </Card>
+    </SettingsSection>
   )
 }
