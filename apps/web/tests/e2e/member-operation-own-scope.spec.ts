@@ -120,9 +120,11 @@ test.describe('Profissional — escopo dos próprios dados (brief 0075)', () => 
     await expect(page).toHaveURL(/\/agenda$/)
 
     const nav = sidebar(page)
-    // Member-level surfaces stay.
+    // Member-level surfaces stay: the operational Agenda link, plus the account
+    // menu at the footer (Perfil/Privacidade moved into the Configurações modal
+    // reached via this button — brief 0090, so there is no "Perfil" sidebar link).
     await expect(nav.getByRole('link', { name: 'Agenda' })).toBeVisible()
-    await expect(nav.getByRole('link', { name: 'Perfil' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Conta' })).toBeVisible()
 
     // Registration surfaces vanish (capability matrix keeps every canManage*
     // false), and the whole Cadastros + Administração sections drop out.

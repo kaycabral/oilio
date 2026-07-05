@@ -64,7 +64,7 @@ test.describe('Navegação filtrada por papel (AC-08)', () => {
     // Opens the Configurações modal on Perfil; the background path stays /agenda
     // and the open state lives in the hash (so it survives reload — bug #13).
     await expect(authedPage.getByRole('dialog')).toBeVisible()
-    await expect(authedPage.getByRole('heading', { name: 'Meu perfil' })).toBeVisible()
+    await expect(authedPage.getByRole('heading', { name: 'Perfil' })).toBeVisible()
     await expect(authedPage).toHaveURL(/\/agenda#settings\/profile$/)
   })
 

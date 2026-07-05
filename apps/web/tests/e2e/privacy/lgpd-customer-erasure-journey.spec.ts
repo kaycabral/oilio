@@ -202,8 +202,8 @@ test.describe(
 
       const newName = `Retificado C3 ${Date.now()}`
       await page.goto('/settings/profile')
-      await expect(page.getByRole('heading', { name: 'Meu perfil' })).toBeVisible()
-      await page.getByRole('textbox', { name: 'Nome' }).fill(newName)
+      await expect(page.getByRole('heading', { name: 'Perfil' })).toBeVisible()
+      await page.getByRole('textbox', { name: 'Nome completo' }).fill(newName)
       await page.getByRole('button', { name: 'Salvar alterações' }).click()
       await expect(page.getByText('Perfil atualizado.')).toBeVisible()
 

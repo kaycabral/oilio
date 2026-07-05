@@ -34,8 +34,11 @@ export class AgendaPage {
 
   // ── MemberOperation columns ────────────────────────────────────────────────
 
+  // Scoped to <main>: the sidebar account button (brief 0090) also renders the
+  // signed-in member's display name, so an unscoped getByText would strict-match
+  // both the column header and the footer identity.
   memberOperationColumn(name: string | RegExp): Locator {
-    return this.page.getByText(name)
+    return this.page.getByRole('main').getByText(name)
   }
 
   // The non-operational memberOperation chip — `IncompleteProfileBadge`, rendering
