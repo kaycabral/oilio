@@ -35,12 +35,14 @@ import {
   SubscriptionPlanConfig,
   UnitConfig,
 } from '@/domain/aggregates'
+import type { BillingCycle } from '@/domain/billing/tiers'
 import { appendEventToTx, aggregateRef as ref, type SagaStep } from '@/domain/effect'
 import { getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import { commitSaga } from '@/shared/effect-bridge'
 import { buildMembership, buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
 import { emitOne } from './emit'
+import { activateBillingViaStripe, hasStripeTestKey } from './stripe-live'
 
 // Org + owner onboarding — the canonical multi-aggregate cascade (org.created +
 // membership.created) as ONE ACID transaction, mirroring production onboarding.
@@ -119,17 +121,31 @@ export function seedPlan(plan: SubscriptionPlan, actorId: string): Promise<void>
 // Assinatura Oilio (brief 0072/0073). A Negócio with no org_billing row is Free
 // by default (getOrgBilling), so the gating locks the paid surfaces. The rich
 // demo org needs a PAID tier seeded so plans/commissions/copilot/reports show up
-// — otherwise the seed looks "broken" under gating. Writes the row the Stripe
-// webhook would, via the canonical event path (no Stripe object needed for dev).
-export function seedOrgBilling(args: {
+// — otherwise the seed looks "broken" under gating.
+//
+// When a Stripe TEST secret is present, it activates a REAL subscription in the
+// test account (customer + default card + paid invoice) and projects the real
+// Stripe ids, so the Cobrança panel shows the card, invoices and native
+// cancellation — a faithful smoke of production. Without a test key it falls back
+// to a tier-only projection (Stripe ids null): gating still unlocks, but the
+// panel shows the "subscribe" path. Either way the row is written via the SAME
+// canonical `org_billing.activated` event the webhook uses.
+export async function seedOrgBilling(args: {
   orgId: string
+  orgName: string
   tier: 'pro' | 'advanced'
+  billingCycle: BillingCycle
   unitQuantity: number
   actorId: string
   now: string
 }): Promise<void> {
-  const { orgId, tier, unitQuantity, actorId, now } = args
-  return emitOne(OrgBillingConfig, orgId, orgId, {
+  const { orgId, orgName, tier, billingCycle, unitQuantity, actorId, now } = args
+
+  const live = hasStripeTestKey()
+    ? await activateBillingViaStripe({ orgId, orgName, tier, cycle: billingCycle, unitQuantity })
+    : null
+
+  await emitOne(OrgBillingConfig, orgId, orgId, {
     _tag: 'org_billing.activated',
     actorId,
     payload: {
@@ -137,16 +153,13 @@ export function seedOrgBilling(args: {
         id: orgId,
         orgId,
         tier,
-        status: 'active',
-        billingCycle: 'monthly',
-        unitQuantity,
-        // Dev seed has no real Stripe objects. stripeCustomerId null => the
-        // /settings/billing panel shows the "subscribe" path (no portal); prod
-        // gets these from the webhook. The tier alone drives the gating.
-        stripeCustomerId: null,
-        stripeSubscriptionId: null,
-        currentPeriodEnd: null,
-        cancelAtPeriodEnd: false,
+        status: live?.status ?? 'active',
+        billingCycle: live?.billingCycle ?? billingCycle,
+        unitQuantity: live?.unitQuantity ?? unitQuantity,
+        stripeCustomerId: live?.stripeCustomerId ?? null,
+        stripeSubscriptionId: live?.stripeSubscriptionId ?? null,
+        currentPeriodEnd: live?.currentPeriodEnd ?? null,
+        cancelAtPeriodEnd: live?.cancelAtPeriodEnd ?? false,
         createdAt: now,
         updatedAt: now,
       },
