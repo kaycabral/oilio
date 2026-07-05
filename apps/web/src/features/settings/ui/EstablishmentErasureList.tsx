@@ -4,6 +4,7 @@ import {
   blockMyDataInEstablishmentAction,
   blockMyDataInEstablishmentWarningAction,
 } from '@/features/settings/adapters/privacy.actions'
+import { useSettingsReload } from '@/features/settings/ui/settings-modal-context'
 import type { LinkedEstablishment } from '@/shared/identity/org-links'
 import {
   Button,
@@ -51,6 +52,7 @@ export function EstablishmentErasureList({
 
 function EraseInEstablishment({ establishment }: { establishment: LinkedEstablishment }) {
   const router = useRouter()
+  const reloadSection = useSettingsReload()
   const [open, setOpen] = useState(false)
   const [warning, setWarning] = useState<{ hasActiveSubscription: boolean } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -94,7 +96,10 @@ function EraseInEstablishment({ establishment }: { establishment: LinkedEstablis
           ? `Seus dados em ${establishment.name} foram excluídos e sua assinatura ativa foi cancelada.`
           : `Seus dados em ${establishment.name} foram excluídos.`,
       )
-      router.refresh()
+      // In the modal, reload the section's list in place; on the full page,
+      // refresh the route (see EditProfileForm for the rationale).
+      if (reloadSection) reloadSection()
+      else router.refresh()
     })
   }
 
