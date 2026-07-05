@@ -6,7 +6,7 @@ import {
 } from '@/features/settings/ui/settings-sections'
 import { useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
-import { cn, Dialog, DialogContent, DialogTitle } from '@cbrl/design'
+import { cn, Dialog, DialogContent, DialogTitle, ScrollArea } from '@cbrl/design'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -87,7 +87,9 @@ export function RouteModal({
           ))}
         </nav>
 
-        <div className="overflow-y-auto p-6">{children}</div>
+        <ScrollArea className="h-full">
+          <div className="p-6">{children}</div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   )

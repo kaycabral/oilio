@@ -3,7 +3,7 @@ import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
-import { Main } from '@cbrl/design'
+import { Card, CardContent, SettingsSection } from '@cbrl/design'
 import { redirect } from 'next/navigation'
 
 // Self-service rectification surface (brief 0032 / AC-06): the subject edits
@@ -28,22 +28,19 @@ export default async function ProfileSettingsPage() {
   })
 
   return (
-    <Main width="narrow" className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Meu perfil</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Corrija seus dados pessoais (LGPD, art. 18). A alteração reflete em todas as telas onde
-          seu nome aparece.
-        </p>
-      </header>
-
-      <section className="rounded-lg border p-6">
-        <EditProfileForm
-          defaultName={ctx.user.displayName ?? ''}
-          defaultMobile={ctx.user.mobile ?? ''}
-          defaultBirthDate={ctx.user.birthDate ?? ''}
-        />
-      </section>
-    </Main>
+    <SettingsSection
+      title="Meu perfil"
+      description="Corrija seus dados pessoais (LGPD, art. 18). A alteração reflete em todas as telas onde seu nome aparece."
+    >
+      <Card>
+        <CardContent>
+          <EditProfileForm
+            defaultName={ctx.user.displayName ?? ''}
+            defaultMobile={ctx.user.mobile ?? ''}
+            defaultBirthDate={ctx.user.birthDate ?? ''}
+          />
+        </CardContent>
+      </Card>
+    </SettingsSection>
   )
 }

@@ -1,8 +1,9 @@
-// Render tests for the BillingPanel (brief 0073, AC-03) — the self-service
-// billing surface. Proves the status/flag branches a tester would eyeball:
-// status badges, the "Cancela no fim do ciclo" flag, "Acesso até" vs "Próxima
-// cobrança", Free vs paid layout (no "Unidades cobradas" on Free), the
-// subscribe vs portal action split, and the owner-only gating of the actions.
+// Render tests for the BillingPanel (brief 0073 + 0090) — the self-service
+// billing surface, restructured to the approved prototype: plan card, payment
+// method, invoices table, cancellation zone. Proves the branches a tester would
+// eyeball: status badge, "Cancela no fim do ciclo" flag, the paid plan card vs
+// the Free subscribe CTA, the payment/invoices empty states, the owner-only
+// gating of actions, and the native cancellation flow.
 //
 // The server actions and toast are mocked (no network); the focus is the markup
 // each prop combination produces.
@@ -45,10 +46,22 @@ function props(over: Partial<Props> = {}): Props {
     billingCycle: 'monthly',
     unitQuantity: 3,
     unitCount: 3,
+    orgName: 'Barbearia do Zé',
     currentPeriodEnd: '2026-08-01T00:00:00.000Z',
     cancelAtPeriodEnd: false,
     hasStripeCustomer: true,
     canManageBilling: true,
+    paymentMethod: { brand: 'mastercard', last4: '6717', expMonth: 8, expYear: 2028 },
+    invoices: [
+      {
+        id: 'in_1',
+        date: '2026-06-18T00:00:00.000Z',
+        amount: 24750,
+        currency: 'brl',
+        status: 'paid',
+        hostedUrl: 'https://stripe.test/in_1',
+      },
+    ],
     ...over,
   }
 }
@@ -57,7 +70,7 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('BillingPanel — current plan', () => {
+describe('BillingPanel — plan card', () => {
   it('shows the tier name and the localized status badge', () => {
     render(<BillingPanel {...props({ tier: 'pro', status: 'past_due' })} />)
     expect(screen.getByText('Plano Pro')).toBeInTheDocument()
@@ -69,28 +82,27 @@ describe('BillingPanel — current plan', () => {
     expect(screen.getByText('weird_state')).toBeInTheDocument()
   })
 
-  it('shows the cancel-at-period-end flag and labels the date "Acesso até"', () => {
+  it('renders the context line with org name, units and renewal date', () => {
+    render(<BillingPanel {...props({ unitCount: 2 })} />)
+    expect(
+      screen.getByText(/Barbearia do Zé · 2 unidades · renova em/, { exact: false }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows the cancel-at-period-end badge and an "acesso até" context', () => {
     render(<BillingPanel {...props({ cancelAtPeriodEnd: true })} />)
     expect(screen.getByText('Cancela no fim do ciclo')).toBeInTheDocument()
-    expect(screen.getByText('Acesso até')).toBeInTheDocument()
-    expect(screen.queryByText('Próxima cobrança')).not.toBeInTheDocument()
+    expect(screen.getByText(/acesso até/, { exact: false })).toBeInTheDocument()
   })
 
-  it('labels the date "Próxima cobrança" when not canceling', () => {
-    render(<BillingPanel {...props({ cancelAtPeriodEnd: false })} />)
-    expect(screen.getByText('Próxima cobrança')).toBeInTheDocument()
-    expect(screen.queryByText('Cancela no fim do ciclo')).not.toBeInTheDocument()
-  })
-
-  it('surfaces both the unit count and the billed quantity on a paid plan', () => {
+  it('notes the billed quantity when it differs from the live unit count', () => {
     render(<BillingPanel {...props({ unitCount: 5, unitQuantity: 4 })} />)
-    expect(screen.getByText('Unidades neste Negócio')).toBeInTheDocument()
-    expect(screen.getByText('Unidades cobradas')).toBeInTheDocument()
-    expect(screen.getByText('5')).toBeInTheDocument()
-    expect(screen.getByText('4')).toBeInTheDocument()
+    expect(screen.getByText(/Stripe cobra 4 unidades/, { exact: false })).toBeInTheDocument()
   })
+})
 
-  it('hides billed quantity and cycle on a Free plan', () => {
+describe('BillingPanel — Free plan', () => {
+  it('shows the subscribe CTA and no plan card / payment / invoices', () => {
     render(
       <BillingPanel
         {...props({
@@ -99,37 +111,72 @@ describe('BillingPanel — current plan', () => {
           billingCycle: null,
           currentPeriodEnd: null,
           hasStripeCustomer: false,
+          paymentMethod: null,
+          invoices: [],
         })}
       />,
     )
+    expect(screen.getByText('Assinar um plano')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Assinar o Pro' })).toBeInTheDocument()
+    // The subscribe card still identifies the current (free) plan.
     expect(screen.getByText('Plano Grátis')).toBeInTheDocument()
-    expect(screen.queryByText('Unidades cobradas')).not.toBeInTheDocument()
-    expect(screen.queryByText('Ciclo')).not.toBeInTheDocument()
+    expect(screen.queryByText('Faturas')).not.toBeInTheDocument()
+  })
+
+  it('tells a non-owner to ask the owner instead of showing subscribe buttons', () => {
+    render(
+      <BillingPanel
+        {...props({ tier: 'free', hasStripeCustomer: false, canManageBilling: false })}
+      />,
+    )
+    expect(screen.getByText(/Peça ao dono do Negócio/, { exact: false })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Assinar o Pro' })).not.toBeInTheDocument()
+  })
+})
+
+describe('BillingPanel — payment method', () => {
+  it('renders the masked card + expiry when a payment method is on file', () => {
+    render(<BillingPanel {...props()} />)
+    expect(screen.getByText(/Mastercard •••• 6717/)).toBeInTheDocument()
+    expect(screen.getByText(/Expira 08\/2028/)).toBeInTheDocument()
+  })
+
+  it('shows an empty state when there is no card', () => {
+    render(<BillingPanel {...props({ paymentMethod: null })} />)
+    expect(screen.getByText(/Nenhum cartão salvo/, { exact: false })).toBeInTheDocument()
+  })
+})
+
+describe('BillingPanel — invoices', () => {
+  it('renders the invoice rows with amount, status and a link', () => {
+    render(<BillingPanel {...props()} />)
+    expect(screen.getByText('Paga')).toBeInTheDocument()
+    expect(screen.getByText(/247,50/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ver' })).toHaveAttribute(
+      'href',
+      'https://stripe.test/in_1',
+    )
+  })
+
+  it('shows an empty state when there are no invoices', () => {
+    render(<BillingPanel {...props({ invoices: [] })} />)
+    expect(screen.getByText('Nenhuma fatura ainda.')).toBeInTheDocument()
   })
 })
 
 describe('BillingPanel — actions', () => {
-  it('shows the portal action when the org has a Stripe customer', () => {
-    render(<BillingPanel {...props({ hasStripeCustomer: true })} />)
-    expect(screen.getByRole('button', { name: 'Abrir portal de cobrança' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Assinar o Pro' })).not.toBeInTheDocument()
-  })
-
-  it('shows the subscribe actions when there is no Stripe customer yet', () => {
-    render(<BillingPanel {...props({ tier: 'free', hasStripeCustomer: false })} />)
-    expect(screen.getByRole('button', { name: 'Assinar o Pro' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Assinar o Avançado' })).toBeInTheDocument()
+  it('shows "Ajustar plano" for an owner on a paid plan', () => {
+    render(<BillingPanel {...props()} />)
+    expect(screen.getByRole('button', { name: 'Ajustar plano' })).toBeInTheDocument()
   })
 
   it('hides every action for a non-owner (manager read-only view)', () => {
     render(<BillingPanel {...props({ canManageBilling: false })} />)
-    expect(
-      screen.queryByRole('button', { name: 'Abrir portal de cobrança' }),
-    ).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Assinar o Pro' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ajustar plano' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Atualizar' })).not.toBeInTheDocument()
   })
 
-  it('calls startCheckout with the chosen tier when subscribing', async () => {
+  it('calls startCheckout with the chosen tier when subscribing from Free', async () => {
     const user = userEvent.setup()
     render(<BillingPanel {...props({ tier: 'free', hasStripeCustomer: false })} />)
 
@@ -140,21 +187,11 @@ describe('BillingPanel — actions', () => {
     expect(form?.get('tier')).toBe('pro')
   })
 
-  it('toasts the error when checkout fails', async () => {
+  it('calls manageBilling when adjusting the plan', async () => {
     const user = userEvent.setup()
-    mocks.startCheckout.mockResolvedValueOnce({ ok: false, error: 'Plano inválido' })
-    render(<BillingPanel {...props({ tier: 'free', hasStripeCustomer: false })} />)
+    render(<BillingPanel {...props()} />)
 
-    await user.click(screen.getByRole('button', { name: 'Assinar o Avançado' }))
-
-    expect(mocks.toastError).toHaveBeenCalledWith('Plano inválido')
-  })
-
-  it('calls manageBilling when opening the portal', async () => {
-    const user = userEvent.setup()
-    render(<BillingPanel {...props({ hasStripeCustomer: true })} />)
-
-    await user.click(screen.getByRole('button', { name: 'Abrir portal de cobrança' }))
+    await user.click(screen.getByRole('button', { name: 'Ajustar plano' }))
 
     expect(mocks.manageBilling).toHaveBeenCalledTimes(1)
   })
@@ -198,7 +235,6 @@ describe('BillingPanel — native cancellation (brief 0090, AC-09)', () => {
     render(<BillingPanel {...props()} />)
 
     await user.click(screen.getByRole('button', { name: 'Cancelar plano' }))
-    // The destructive confirm inside the dialog (distinct from the trigger).
     const dialog = screen.getByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Cancelar plano' }))
 

@@ -89,7 +89,9 @@ test.describe('Billing — tier gating (brief 0088)', { tag: '@critical' }, () =
     test('billing surface mostra o plano Pro ativo', async ({ authedPage }) => {
       await authedPage.goto('/settings/billing')
       await expect(authedPage.getByText('Plano Pro')).toBeVisible()
-      await expect(authedPage.getByRole('button', { name: /portal de cobrança/ })).toBeVisible()
+      // Paid plan card CTA opens the Stripe billing portal (brief 0090 prototype
+      // copy: "Ajustar plano").
+      await expect(authedPage.getByRole('button', { name: /Ajustar plano/ })).toBeVisible()
       await expect(authedPage.getByRole('button', { name: /Assinar o Pro/ })).toBeHidden()
     })
   })

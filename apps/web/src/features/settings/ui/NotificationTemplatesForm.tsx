@@ -10,8 +10,18 @@ import {
   updateMessageTemplate,
   type UpdateTemplateResult,
 } from '@/features/settings/adapters/notifications.actions'
-import { Button, Label, Switch, Textarea } from '@cbrl/design'
-import { useState } from 'react'
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Label,
+  Switch,
+  Textarea,
+  Typography,
+} from '@cbrl/design'
+import { useMemo, useState } from 'react'
 
 const TYPE_LABELS: Record<string, string> = {
   birthday: 'Aniversário',
@@ -29,6 +39,14 @@ const SAMPLE_VARS: NotificationTemplateVars = {
   voucher_atual: 'hidratação grátis',
 }
 
+function templateLabel(type: string): string {
+  return TYPE_LABELS[type] ?? type
+}
+
+// Only the ENABLED templates show their full editor (an off template has nothing
+// worth editing — brief 0090 cleanup). The disabled ones collapse into a compact
+// "desativadas" list where they can be turned back on, so hiding them is never a
+// dead end.
 export function NotificationTemplatesForm({
   templates,
   canManage,
@@ -36,8 +54,11 @@ export function NotificationTemplatesForm({
   templates: MessageTemplate[]
   canManage: boolean
 }) {
+  const active = useMemo(() => templates.filter((t) => t.enabled), [templates])
+  const disabled = useMemo(() => templates.filter((t) => !t.enabled), [templates])
+
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-6">
       <div className="bg-muted/40 rounded-md border p-3 text-sm">
         <p className="font-medium">Placeholders disponíveis</p>
         <p className="text-muted-foreground mt-1">
@@ -48,9 +69,16 @@ export function NotificationTemplatesForm({
           ))}
         </p>
       </div>
-      {templates.map((t) => (
-        <TemplateCard key={t.type} template={t} canManage={canManage} />
-      ))}
+
+      {active.length > 0 ? (
+        active.map((t) => <TemplateCard key={t.type} template={t} canManage={canManage} />)
+      ) : (
+        <Typography variant="muted" className="text-sm">
+          Nenhuma notificação ativa. Reative uma das opções abaixo para configurá-la.
+        </Typography>
+      )}
+
+      {disabled.length > 0 && <DisabledTemplates templates={disabled} canManage={canManage} />}
     </div>
   )
 }
@@ -75,47 +103,110 @@ function TemplateCard({ template, canManage }: { template: MessageTemplate; canM
   }
 
   return (
-    <form action={onSubmit} className="space-y-3 rounded-md border p-4">
-      <input type="hidden" name="type" value={template.type} />
-      <div className="flex items-center justify-between">
-        <h2 className="font-medium">{TYPE_LABELS[template.type] ?? template.type}</h2>
-        <Label className="flex items-center gap-2 text-sm">
-          <Switch
-            name="enabled"
-            checked={enabled}
-            onCheckedChange={setEnabled}
-            disabled={!canManage}
-          />
-          Ativo
-        </Label>
+    <Card>
+      <form action={onSubmit}>
+        <input type="hidden" name="type" value={template.type} />
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>{templateLabel(template.type)}</CardTitle>
+            <Label className="flex items-center gap-2 text-sm">
+              <Switch
+                name="enabled"
+                checked={enabled}
+                onCheckedChange={setEnabled}
+                disabled={!canManage}
+              />
+              Ativo
+            </Label>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          <fieldset disabled={!canManage || pending} className="flex flex-col gap-3">
+            <div className="space-y-1">
+              <Label htmlFor={`body-${template.type}`}>Mensagem</Label>
+              <Textarea
+                id={`body-${template.type}`}
+                name="body"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={4}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-muted-foreground text-xs font-medium">
+                Preview (dados de exemplo)
+              </span>
+              <p className="bg-muted/40 rounded-md border p-3 text-sm whitespace-pre-wrap">
+                {preview}
+              </p>
+            </div>
+
+            {result && !result.ok && <p className="text-destructive text-sm">{result.error}</p>}
+            {result && result.ok && <p className="text-sm text-green-600">Salvo!</p>}
+
+            <Button type="submit" disabled={!canManage || pending} className="w-fit">
+              {pending ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </fieldset>
+        </CardContent>
+      </form>
+    </Card>
+  )
+}
+
+// Compact list of the off templates: name + a switch to turn back on. Turning it
+// on submits immediately (keeping the current body) so it reappears above with
+// its editor. No editor here — a disabled template has nothing to configure yet.
+function DisabledTemplates({
+  templates,
+  canManage,
+}: {
+  templates: MessageTemplate[]
+  canManage: boolean
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Typography variant="muted" className="text-xs font-medium uppercase">
+        Desativadas
+      </Typography>
+      <div className="flex flex-col divide-y rounded-md border">
+        {templates.map((t) => (
+          <DisabledTemplateRow key={t.type} template={t} canManage={canManage} />
+        ))}
       </div>
+    </div>
+  )
+}
 
-      <fieldset disabled={!canManage || pending} className="space-y-3">
-        <div className="space-y-1">
-          <Label htmlFor={`body-${template.type}`}>Mensagem</Label>
-          <Textarea
-            id={`body-${template.type}`}
-            name="body"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={4}
-          />
-        </div>
+function DisabledTemplateRow({
+  template,
+  canManage,
+}: {
+  template: MessageTemplate
+  canManage: boolean
+}) {
+  const [pending, setPending] = useState(false)
 
-        <div className="space-y-1">
-          <span className="text-muted-foreground text-xs font-medium">
-            Preview (dados de exemplo)
-          </span>
-          <p className="bg-muted/40 rounded-md border p-3 text-sm whitespace-pre-wrap">{preview}</p>
-        </div>
+  async function reenable(formData: FormData) {
+    setPending(true)
+    try {
+      await updateMessageTemplate(formData)
+    } finally {
+      setPending(false)
+    }
+  }
 
-        {result && !result.ok && <p className="text-destructive text-sm">{result.error}</p>}
-        {result && result.ok && <p className="text-sm text-green-600">Salvo!</p>}
-
-        <Button type="submit" disabled={!canManage || pending}>
-          {pending ? 'Salvando…' : 'Salvar'}
-        </Button>
-      </fieldset>
+  return (
+    <form action={reenable} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+      <input type="hidden" name="type" value={template.type} />
+      <input type="hidden" name="body" value={template.body} />
+      <input type="hidden" name="enabled" value="on" />
+      <span className="text-muted-foreground">{templateLabel(template.type)}</span>
+      <Button type="submit" variant="outline" size="sm" disabled={!canManage || pending}>
+        {pending ? 'Ativando…' : 'Ativar'}
+      </Button>
     </form>
   )
 }
