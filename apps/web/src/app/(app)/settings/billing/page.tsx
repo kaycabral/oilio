@@ -48,7 +48,7 @@ export default async function BillingPage() {
 
   const meta = settingsSectionMeta('billing')
   return (
-    <SettingsSection title={meta.title} description={meta.description}>
+    <SettingsSection title={meta.label} description={meta.description}>
       <BillingPanel
         tier={billing.tier}
         status={billing.status}

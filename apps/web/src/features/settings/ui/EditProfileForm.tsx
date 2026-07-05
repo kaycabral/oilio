@@ -4,7 +4,7 @@ import { PhoneInput } from '@/components/PhoneInput'
 import { updateProfile } from '@/features/settings/adapters/profile.actions'
 import { useSettingsReload } from '@/features/settings/ui/settings-modal-context'
 import { useFormValidity } from '@/hooks/use-form-validity'
-import { Button, DateField, Input, Label } from '@cbrl/design'
+import { Button, DateField, Input, SettingRow, SettingRowGroup } from '@cbrl/design'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
@@ -46,43 +46,62 @@ export function EditProfileForm({
     })
   }
 
+  // Prototype layout (brief 0090 § Perfil): each field is a row with the label +
+  // helper on the left and the control on the right. The control keeps its own
+  // accessible name via the row's `htmlFor` binding, so it stays reachable by
+  // label. The visible field width is capped so the inputs align like the mockup.
   return (
-    <form
-      ref={formRef}
-      action={onSubmit}
-      onInput={refresh}
-      onChange={refresh}
-      className="flex flex-col gap-4"
-    >
-      <div className="flex flex-col gap-1">
-        <Label htmlFor="profile-name" className="text-sm font-medium">
-          Nome
-        </Label>
-        <Input id="profile-name" name="name" defaultValue={defaultName} required minLength={2} />
+    <form ref={formRef} action={onSubmit} onInput={refresh} onChange={refresh}>
+      <SettingRowGroup>
+        <SettingRow
+          title="Nome completo"
+          description="Como você aparece para sua equipe"
+          htmlFor="profile-name"
+        >
+          <Input
+            id="profile-name"
+            name="name"
+            defaultValue={defaultName}
+            required
+            minLength={2}
+            className="sm:w-64"
+          />
+        </SettingRow>
+
+        <SettingRow
+          title="Celular"
+          description="Usado para login e notificações"
+          htmlFor="profile-mobile"
+        >
+          <PhoneInput
+            id="profile-mobile"
+            name="mobile"
+            defaultValue={defaultMobile}
+            required
+            className="sm:w-64"
+          />
+        </SettingRow>
+
+        <SettingRow title="Data de nascimento" htmlFor="profile-birthDate">
+          <DateField
+            id="profile-birthDate"
+            name="birthDate"
+            defaultValue={defaultBirthDate}
+            required
+            max={today}
+            captionLayout="dropdown"
+            className="sm:w-64"
+          />
+        </SettingRow>
+      </SettingRowGroup>
+
+      {error ? <p className="text-destructive mt-3 text-sm">{error}</p> : null}
+
+      <div className="mt-6 flex justify-end">
+        <Button type="submit" disabled={pending || !isValid}>
+          {pending ? 'Salvando…' : 'Salvar alterações'}
+        </Button>
       </div>
-      <div className="flex flex-col gap-1">
-        <Label htmlFor="profile-mobile" className="text-sm font-medium">
-          WhatsApp
-        </Label>
-        <PhoneInput id="profile-mobile" name="mobile" defaultValue={defaultMobile} required />
-      </div>
-      <div className="flex flex-col gap-1">
-        <Label htmlFor="profile-birthDate" className="text-sm font-medium">
-          Data de nascimento
-        </Label>
-        <DateField
-          id="profile-birthDate"
-          name="birthDate"
-          defaultValue={defaultBirthDate}
-          required
-          max={today}
-          captionLayout="dropdown"
-        />
-      </div>
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      <Button type="submit" disabled={pending || !isValid}>
-        {pending ? 'Salvando…' : 'Salvar alterações'}
-      </Button>
     </form>
   )
 }

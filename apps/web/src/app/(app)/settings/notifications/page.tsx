@@ -28,7 +28,7 @@ export default async function NotificationSettingsPage() {
 
   const meta = settingsSectionMeta('notifications')
   return (
-    <SettingsSection title={meta.title} description={meta.description}>
+    <SettingsSection title={meta.label} description={meta.description}>
       <NotificationTemplatesForm templates={templates} canManage={canManage} />
     </SettingsSection>
   )
