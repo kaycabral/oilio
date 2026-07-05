@@ -131,7 +131,9 @@ export async function seedBarbearia(): Promise<void> {
   // exercise the gate. (3 units → unitQuantity 3.)
   await seedOrgBilling({
     orgId: ORG_ID,
+    orgName: 'Barbearia do Zé',
     tier: 'advanced',
+    billingCycle: 'monthly',
     unitQuantity: 3,
     actorId: OWNER.uid,
     now,
