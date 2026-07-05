@@ -2,6 +2,7 @@
 
 import { PhoneInput } from '@/components/PhoneInput'
 import { updateProfile } from '@/features/settings/adapters/profile.actions'
+import { useSettingsReload } from '@/features/settings/ui/settings-modal-context'
 import { useFormValidity } from '@/hooks/use-form-validity'
 import { Button, DateField, Input, Label } from '@cbrl/design'
 import { useRouter } from 'next/navigation'
@@ -21,6 +22,7 @@ export function EditProfileForm({
   defaultBirthDate: string
 }) {
   const router = useRouter()
+  const reloadSection = useSettingsReload()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const { formRef, isValid, refresh } = useFormValidity()
@@ -36,7 +38,11 @@ export function EditProfileForm({
         return
       }
       toast.success('Perfil atualizado.')
-      router.refresh()
+      // Inside the Configurações modal, reload just this section's data (no route
+      // navigation — that would tear the modal down). On the full page there is
+      // no provider, so fall back to a router refresh.
+      if (reloadSection) reloadSection()
+      else router.refresh()
     })
   }
 

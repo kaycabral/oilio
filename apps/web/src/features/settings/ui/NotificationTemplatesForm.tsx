@@ -10,6 +10,7 @@ import {
   updateMessageTemplate,
   type UpdateTemplateResult,
 } from '@/features/settings/adapters/notifications.actions'
+import { useSettingsReload } from '@/features/settings/ui/settings-modal-context'
 import {
   Button,
   Card,
@@ -56,6 +57,10 @@ export function NotificationTemplatesForm({
 }) {
   const active = useMemo(() => templates.filter((t) => t.enabled), [templates])
   const disabled = useMemo(() => templates.filter((t) => !t.enabled), [templates])
+  // In the modal, a save that flips `enabled` moves a template between the active
+  // editors and the disabled list — reload the section so the split reflects it.
+  // On the full page `revalidatePath` in the action already re-renders the route.
+  const reloadSection = useSettingsReload()
 
   return (
     <div className="flex flex-col gap-6">
@@ -71,19 +76,31 @@ export function NotificationTemplatesForm({
       </div>
 
       {active.length > 0 ? (
-        active.map((t) => <TemplateCard key={t.type} template={t} canManage={canManage} />)
+        active.map((t) => (
+          <TemplateCard key={t.type} template={t} canManage={canManage} onSaved={reloadSection} />
+        ))
       ) : (
         <Typography variant="muted" className="text-sm">
           Nenhuma notificação ativa. Reative uma das opções abaixo para configurá-la.
         </Typography>
       )}
 
-      {disabled.length > 0 && <DisabledTemplates templates={disabled} canManage={canManage} />}
+      {disabled.length > 0 && (
+        <DisabledTemplates templates={disabled} canManage={canManage} onSaved={reloadSection} />
+      )}
     </div>
   )
 }
 
-function TemplateCard({ template, canManage }: { template: MessageTemplate; canManage: boolean }) {
+function TemplateCard({
+  template,
+  canManage,
+  onSaved,
+}: {
+  template: MessageTemplate
+  canManage: boolean
+  onSaved: (() => void) | null
+}) {
   const [body, setBody] = useState(template.body)
   const [enabled, setEnabled] = useState(template.enabled)
   const [pending, setPending] = useState(false)
@@ -97,6 +114,7 @@ function TemplateCard({ template, canManage }: { template: MessageTemplate; canM
     try {
       const r = await updateMessageTemplate(formData)
       setResult(r)
+      if (r.ok) onSaved?.()
     } finally {
       setPending(false)
     }
@@ -162,9 +180,11 @@ function TemplateCard({ template, canManage }: { template: MessageTemplate; canM
 function DisabledTemplates({
   templates,
   canManage,
+  onSaved,
 }: {
   templates: MessageTemplate[]
   canManage: boolean
+  onSaved: (() => void) | null
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -173,7 +193,7 @@ function DisabledTemplates({
       </Typography>
       <div className="flex flex-col divide-y rounded-md border">
         {templates.map((t) => (
-          <DisabledTemplateRow key={t.type} template={t} canManage={canManage} />
+          <DisabledTemplateRow key={t.type} template={t} canManage={canManage} onSaved={onSaved} />
         ))}
       </div>
     </div>
@@ -183,16 +203,19 @@ function DisabledTemplates({
 function DisabledTemplateRow({
   template,
   canManage,
+  onSaved,
 }: {
   template: MessageTemplate
   canManage: boolean
+  onSaved: (() => void) | null
 }) {
   const [pending, setPending] = useState(false)
 
   async function reenable(formData: FormData) {
     setPending(true)
     try {
-      await updateMessageTemplate(formData)
+      const r = await updateMessageTemplate(formData)
+      if (r.ok) onSaved?.()
     } finally {
       setPending(false)
     }

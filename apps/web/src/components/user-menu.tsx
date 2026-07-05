@@ -20,21 +20,21 @@ export type UserMenuShortcut = {
 }
 
 // The Configurações entry that opens the settings modal. When present, it renders
-// as the first item (gear icon). `href` is the modal's default section (Perfil)
-// — reached as a full page on direct load and intercepted as a dialog on client
-// navigation (brief 0090). Kept separate from `shortcuts` so it can carry modal-
-// specific affordances (a keyboard accelerator was deferred — it collided with
-// the browser).
+// as the first item (gear icon). `hash` is the modal's URL hash for the default
+// section (e.g. `#settings/profile`): clicking sets it, which the client
+// SettingsModal observes and opens on (brief 0090). Anchoring to the hash — not a
+// route — is what lets the modal survive a hard navigation (reload / tablet
+// resume / a form's refresh) instead of collapsing to a full page.
 export type UserMenuSettings = {
-  href: string
+  hash: string
   label: string
 }
 
 // App wiring over the design `UserMenu`: the presentation (avatar trigger +
 // identity dropdown) is shared; the account actions are wired here. `settings`
-// (when given) opens the Configurações modal and binds the Ctrl+Shift+,
-// accelerator; `shortcuts` are plain route links; the sign-out flow (session
-// cookie + Firebase signOut + redirect) is always pinned to the bottom.
+// (when given) opens the Configurações modal via its URL hash; `shortcuts` are
+// plain route links; the sign-out flow (session cookie + Firebase signOut +
+// redirect) is always pinned to the bottom.
 export function UserMenu({
   name,
   secondary,
@@ -91,10 +91,12 @@ export function UserMenu({
     >
       {settings ? (
         <DropdownMenuItem asChild>
-          <Link href={toRoute(settings.href)}>
+          {/* A same-page hash link (not a route) — setting the hash is what opens
+              the client SettingsModal, and it survives reload/refresh. */}
+          <a href={settings.hash}>
             <Settings aria-hidden="true" />
             {settings.label}
-          </Link>
+          </a>
         </DropdownMenuItem>
       ) : null}
       {shortcuts.map((shortcut) => (

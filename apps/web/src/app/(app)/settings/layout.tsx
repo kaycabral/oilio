@@ -5,10 +5,9 @@ import { Main } from '@cbrl/design'
 // content; this layout wraps them in the app's page frame (<Main width="narrow">)
 // so they line up with every other screen.
 //
-// The Configurações modal does NOT pass through here: it renders the same pages
-// via the `@modal/(.)settings` intercepting route, which has its own layout
-// (the RouteModal dialog). So there is exactly one <main> on a full page and
-// none nested inside the dialog.
+// The Configurações modal does NOT pass through here: it is a client dialog
+// (SettingsModal) anchored to the `#settings/X` URL hash that renders the section
+// panels directly, so nothing is nested inside a second <main>.
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return <Main width="narrow">{children}</Main>
 }

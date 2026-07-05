@@ -55,14 +55,17 @@ test.describe('Navegação filtrada por papel (AC-08)', () => {
     await expect(authedPage).toHaveURL(/\/agenda$/)
 
     // The account menu lives in the sidebar footer, not the top bar. Its avatar
-    // trigger opens the dropdown with the Configurações entry, which navigates to
-    // the settings surface (default section Perfil).
+    // trigger opens the dropdown with the Configurações entry, which opens the
+    // settings modal at its default section (Perfil) via the URL hash.
     const footer = authedPage.locator('[data-sidebar="footer"]')
     await footer.getByRole('button', { name: 'Conta' }).click()
     await authedPage.getByRole('menuitem', { name: /Configurações/ }).click()
 
-    // Lands on the settings surface (Perfil is the default section).
-    await expect(authedPage).toHaveURL(/\/settings\/profile$/)
+    // Opens the Configurações modal on Perfil; the background path stays /agenda
+    // and the open state lives in the hash (so it survives reload — bug #13).
+    await expect(authedPage.getByRole('dialog')).toBeVisible()
+    await expect(authedPage.getByRole('heading', { name: 'Meu perfil' })).toBeVisible()
+    await expect(authedPage).toHaveURL(/\/agenda#settings\/profile$/)
   })
 
   test('recepção não vê Administração nem Comissões', async ({ authedPage, org }) => {

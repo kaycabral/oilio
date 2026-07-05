@@ -3,6 +3,7 @@
 import { UserMenu } from '@/components/user-menu'
 import { unitUsesAgenda } from '@/domain'
 import { NotificationBell } from '@/features/notifications/ui/NotificationBell'
+import { SettingsModal, settingsHash } from '@/features/settings/ui/SettingsModal'
 import { useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import {
@@ -59,6 +60,10 @@ export function AppShell({
       }
     >
       {children}
+      {/* The Configurações modal (brief 0090). A client dialog anchored to the
+          `#settings/X` URL hash, so it survives reload / tablet-resume / a form
+          refresh instead of collapsing to a full page. */}
+      <SettingsModal />
     </BaseAppShell>
   )
 }
@@ -86,13 +91,13 @@ function SidebarUserMenu({
     // Ajuda (helpHref) is intentionally omitted until a real /help surface
     // exists — the brief lists it, but there's no help route yet and we don't
     // invent one. The UserMenu supports it the day the route lands.
-    // Telemetry (settings_modal_opened) is emitted server-side by the Perfil
-    // page — track() can't run in this client component (brief 0090).
+    // Telemetry (settings_section_viewed) is emitted server-side by each section
+    // loader — track() can't run in this client component (brief 0090).
     <UserMenu
       name={name}
       secondary={secondary}
       avatarUrl={avatarUrl}
-      settings={{ href: '/settings/profile', label: 'Configurações' }}
+      settings={{ hash: settingsHash('profile'), label: 'Configurações' }}
       align="start"
       trigger={
         <SidebarMenuButton

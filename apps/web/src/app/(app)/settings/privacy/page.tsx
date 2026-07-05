@@ -48,7 +48,9 @@ export default async function PrivacySettingsPage() {
     >
       <Card>
         <CardHeader>
-          <CardTitle>Estabelecimentos onde você é cliente</CardTitle>
+          <CardTitle asChild>
+            <h2>Estabelecimentos onde você é cliente</h2>
+          </CardTitle>
           <CardDescription>
             Você pode excluir seus dados de um estabelecimento específico (mantendo sua conta nos
             demais) ou excluir sua conta inteira de uma vez.
@@ -61,7 +63,9 @@ export default async function PrivacySettingsPage() {
 
       <Card className="ring-destructive/30">
         <CardHeader>
-          <CardTitle className="text-destructive">Excluir minha conta inteira</CardTitle>
+          <CardTitle asChild className="text-destructive">
+            <h2>Excluir minha conta inteira</h2>
+          </CardTitle>
           <CardDescription>
             Seus dados pessoais (nome, WhatsApp, e-mail, data de nascimento) serão{' '}
             <strong>anonimizados de forma irreversível</strong> em todos os estabelecimentos. Seu
