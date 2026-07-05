@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   SETTINGS_SECTIONS,
+  settingsSectionMeta,
   toSettingsSectionKey,
   visibleSettingsSections,
 } from './settings-sections'
@@ -43,8 +44,8 @@ describe('visibleSettingsSections', () => {
   })
 })
 
-// The dynamic `[section]` intercepting route and the slot layout narrow the
-// route param / selected segment through this guard instead of an unsafe cast.
+// The hash `#settings/X` and the section pages narrow the raw section string
+// through this guard instead of an unsafe cast.
 describe('toSettingsSectionKey', () => {
   it('returns the matching key for a known section', () => {
     for (const section of SETTINGS_SECTIONS) {
@@ -56,5 +57,21 @@ describe('toSettingsSectionKey', () => {
     expect(toSettingsSectionKey('unknown')).toBeNull()
     expect(toSettingsSectionKey('')).toBeNull()
     expect(toSettingsSectionKey(null)).toBeNull()
+  })
+})
+
+// The modal header and the full page read the section's title + description from
+// here, so both render the same header (single source of truth).
+describe('settingsSectionMeta', () => {
+  it('returns a title and description for every section', () => {
+    for (const section of SETTINGS_SECTIONS) {
+      const meta = settingsSectionMeta(section.key)
+      expect(meta.title.length).toBeGreaterThan(0)
+      expect(meta.description.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('is the same object referenced in SETTINGS_SECTIONS', () => {
+    expect(settingsSectionMeta('billing').title).toEqual('Cobrança')
   })
 })

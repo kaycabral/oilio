@@ -10,23 +10,65 @@ export type SettingsSectionKey = 'profile' | 'privacy' | 'billing' | 'notificati
 export type SettingsSection = {
   key: SettingsSectionKey
   href: string
+  // Short label for the nav item (pt-BR).
   label: string
+  // The section header shown above its content — the visible page/dialog title
+  // and its supporting line. Single source of truth: the full page and the modal
+  // header both read these, so the two never drift.
+  title: string
+  description: string
   // When true the section is management-only: it disappears from the modal nav
   // for a member without `manageOrg` (receptionist sees only Perfil/Privacidade).
   requiresManage: boolean
 }
 
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
-  { key: 'profile', href: '/settings/profile', label: 'Perfil', requiresManage: false },
-  { key: 'privacy', href: '/settings/privacy', label: 'Privacidade', requiresManage: false },
-  { key: 'billing', href: '/settings/billing', label: 'Cobrança', requiresManage: true },
+  {
+    key: 'profile',
+    href: '/settings/profile',
+    label: 'Perfil',
+    title: 'Meu perfil',
+    description:
+      'Corrija seus dados pessoais (LGPD, art. 18). A alteração reflete em todas as telas onde seu nome aparece.',
+    requiresManage: false,
+  },
+  {
+    key: 'privacy',
+    href: '/settings/privacy',
+    label: 'Privacidade',
+    title: 'Privacidade dos dados',
+    description:
+      'Exerça seu direito de exclusão (LGPD, art. 18). Para corrigir seus dados, edite seu perfil — a alteração reflete em todas as telas.',
+    requiresManage: false,
+  },
+  {
+    key: 'billing',
+    href: '/settings/billing',
+    label: 'Cobrança',
+    title: 'Cobrança',
+    description:
+      'Veja seu plano atual, quantas unidades estão sendo cobradas e gerencie sua assinatura do Oilio.',
+    requiresManage: true,
+  },
   {
     key: 'notifications',
     href: '/settings/notifications',
     label: 'Notificações',
+    title: 'Templates de notificação',
+    description:
+      'Personalize as mensagens enviadas por WhatsApp. Use os placeholders pra inserir dados do cliente automaticamente.',
     requiresManage: true,
   },
 ]
+
+// Lookup the section metadata by key. Used by the full-page header and the modal
+// header so both render identical title + description.
+export function settingsSectionMeta(key: SettingsSectionKey): SettingsSection {
+  const meta = SETTINGS_SECTIONS.find((section) => section.key === key)
+  // Every SettingsSectionKey has an entry above; this is a total lookup.
+  if (!meta) throw new Error(`unknown settings section: ${key}`)
+  return meta
+}
 
 // Narrows an arbitrary string (a route param / selected slot segment) to a known
 // section key without an unsafe cast — the matched entry's own `key` carries the

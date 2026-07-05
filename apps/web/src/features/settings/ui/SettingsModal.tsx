@@ -18,13 +18,23 @@ import {
 } from '@/features/settings/ui/section-panels'
 import { SettingsModalProvider } from '@/features/settings/ui/settings-modal-context'
 import {
+  settingsSectionMeta,
   toSettingsSectionKey,
   visibleSettingsSections,
   type SettingsSectionKey,
 } from '@/features/settings/ui/settings-sections'
 import { useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
-import { cn, Dialog, DialogContent, DialogTitle, ScrollArea, Skeleton } from '@cbrl/design'
+import {
+  cn,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  ScrollArea,
+  Skeleton,
+} from '@cbrl/design'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -181,17 +191,16 @@ export function SettingsModal() {
 
   if (!section) return null
 
+  const meta = settingsSectionMeta(section)
+
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent
         className="grid h-[min(80vh,40rem)] max-w-3xl grid-cols-[12rem_1fr] gap-0 overflow-hidden p-0 sm:max-w-3xl"
-        aria-describedby={undefined}
         // Keep focus on the dialog frame rather than the first field, so the
         // tablet on-screen keyboard doesn't pop on every (re)render.
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <DialogTitle className="sr-only">Configurações</DialogTitle>
-
         <nav
           aria-label="Seções de configuração"
           className="bg-muted/40 flex flex-col gap-0.5 border-r p-2"
@@ -214,29 +223,41 @@ export function SettingsModal() {
           ))}
         </nav>
 
-        <ScrollArea className="h-full">
-          <div className="p-6">
-            {/* Show the skeleton while loading, and also whenever the loaded data
-                is for a different section than the active one (a switch in flight)
-                — never render a panel whose header doesn't match the nav. */}
-            {loading || loaded === null || loaded.section !== section ? (
-              <SectionSkeleton />
-            ) : (
-              <SettingsModalProvider value={{ reload }}>
-                <SectionPanel loaded={loaded} />
-              </SettingsModalProvider>
-            )}
-          </div>
-        </ScrollArea>
+        {/* Panel column: a fixed shadcn DialogHeader (the active section's title +
+            description) over the scrollable body. The Dialog's own close button
+            sits at the content's top-right, aligned with this header. */}
+        <div className="flex min-h-0 flex-col">
+          <DialogHeader className="gap-1 border-b p-6 pr-14">
+            <DialogTitle>{meta.title}</DialogTitle>
+            <DialogDescription>{meta.description}</DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="p-6">
+              {/* Show the skeleton while loading, and also whenever the loaded
+                  data is for a different section than the active one (a switch in
+                  flight) — never render a panel whose header doesn't match. */}
+              {loading || loaded === null || loaded.section !== section ? (
+                <SectionSkeleton />
+              ) : (
+                <SettingsModalProvider value={{ reload }}>
+                  <SectionPanel loaded={loaded} />
+                </SettingsModalProvider>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   )
 }
 
+// Body placeholder while a section loads — the header (title + description) is
+// already shown from the section meta, so the skeleton only stands in for the
+// content blocks.
 function SectionSkeleton() {
   return (
     <div className="flex flex-col gap-4">
-      <Skeleton className="h-7 w-40" />
       <Skeleton className="h-4 w-full max-w-md" />
       <Skeleton className="h-40 w-full" />
     </div>
