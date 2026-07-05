@@ -1,5 +1,6 @@
 import { DeleteMyDataForm } from '@/features/settings/ui/DeleteMyDataForm'
 import { EstablishmentErasureList } from '@/features/settings/ui/EstablishmentErasureList'
+import { settingsSectionMeta } from '@/features/settings/ui/settings-sections'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { listMyCustomerEstablishments } from '@/shared/identity/org-links'
@@ -41,11 +42,9 @@ export default async function PrivacySettingsPage() {
   // a customer without any cross-org query (ADR 0004 clarifying note).
   const establishments = await listMyCustomerEstablishments(session.uid)
 
+  const meta = settingsSectionMeta('privacy')
   return (
-    <SettingsSection
-      title="Privacidade dos dados"
-      description="Exerça seu direito de exclusão (LGPD, art. 18). Para corrigir seus dados, edite seu perfil — a alteração reflete em todas as telas."
-    >
+    <SettingsSection title={meta.title} description={meta.description}>
       <Card>
         <CardHeader>
           <CardTitle asChild>

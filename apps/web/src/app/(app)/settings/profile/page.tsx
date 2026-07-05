@@ -1,4 +1,5 @@
 import { EditProfileForm } from '@/features/settings/ui/EditProfileForm'
+import { settingsSectionMeta } from '@/features/settings/ui/settings-sections'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { track } from '@/shared/lib/track'
@@ -27,11 +28,9 @@ export default async function ProfileSettingsPage() {
     section: 'profile',
   })
 
+  const meta = settingsSectionMeta('profile')
   return (
-    <SettingsSection
-      title="Meu perfil"
-      description="Corrija seus dados pessoais (LGPD, art. 18). A alteração reflete em todas as telas onde seu nome aparece."
-    >
+    <SettingsSection title={meta.title} description={meta.description}>
       <Card>
         <CardContent>
           <EditProfileForm

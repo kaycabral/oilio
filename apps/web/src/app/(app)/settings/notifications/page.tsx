@@ -1,5 +1,6 @@
 import { listMessageTemplates } from '@/features/notifications/adapters/message-templates'
 import { NotificationTemplatesForm } from '@/features/settings/ui/NotificationTemplatesForm'
+import { settingsSectionMeta } from '@/features/settings/ui/settings-sections'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { track } from '@/shared/lib/track'
@@ -25,11 +26,9 @@ export default async function NotificationSettingsPage() {
   const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'manager'
   const templates = await listMessageTemplates(ctx.membership.orgId)
 
+  const meta = settingsSectionMeta('notifications')
   return (
-    <SettingsSection
-      title="Templates de notificação"
-      description="Personalize as mensagens enviadas por WhatsApp. Use os placeholders pra inserir dados do cliente automaticamente."
-    >
+    <SettingsSection title={meta.title} description={meta.description}>
       <NotificationTemplatesForm templates={templates} canManage={canManage} />
     </SettingsSection>
   )

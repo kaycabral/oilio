@@ -1,4 +1,5 @@
 import { BillingPanel } from '@/features/billing/ui/BillingPanel'
+import { settingsSectionMeta } from '@/features/settings/ui/settings-sections'
 import { getDefaultPaymentMethod, listRecentInvoices } from '@/shared/billing/billing-details'
 import { track } from '@/shared/lib/track'
 import { getOrgBilling } from '@/shared/org/billing-read'
@@ -45,11 +46,9 @@ export default async function BillingPage() {
       ])
     : [null, []]
 
+  const meta = settingsSectionMeta('billing')
   return (
-    <SettingsSection
-      title="Cobrança"
-      description="Veja seu plano atual, quantas unidades estão sendo cobradas e gerencie sua assinatura do Oilio."
-    >
+    <SettingsSection title={meta.title} description={meta.description}>
       <BillingPanel
         tier={billing.tier}
         status={billing.status}
