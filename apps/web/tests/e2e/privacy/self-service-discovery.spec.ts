@@ -34,7 +34,7 @@ test.describe('CUSTOMER self-service discovery + erasure', () => {
     const page = await context.newPage()
 
     await page.goto('/settings/privacy')
-    await expect(page.getByRole('heading', { name: 'Privacidade dos dados' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Privacidade' })).toBeVisible()
     // Empty state for the establishments list.
     await expect(
       page.getByText('Você não é cliente de nenhum estabelecimento no momento.'),

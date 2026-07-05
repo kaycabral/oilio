@@ -3,7 +3,7 @@ import { expect, test } from '../fixtures'
 import { setMembershipRole } from '../helpers/session'
 
 // Configurações modal E2E (brief 0090 DoD — cenários 1, 2, 3). The settings
-// surfaces (Perfil, Privacidade, Cobrança, Notificações) live behind a single
+// surfaces (Perfil, Cobrança, Notificações, Privacidade) live behind a single
 // UserMenu entry at the sidebar footer. The modal is a client dialog anchored to
 // the URL hash `#settings/<section>` — NOT a route — so it survives a hard
 // navigation (reload / tablet resume / a form refresh) instead of collapsing to
@@ -33,11 +33,11 @@ test.describe('Configurações modal (brief 0090)', { tag: '@critical' }, () => 
     const dialog = authedPage.getByRole('dialog')
     await expect(dialog).toBeVisible()
     await expect(authedPage).toHaveURL(/\/agenda#settings\/profile$/)
-    await expect(dialog.getByRole('heading', { name: 'Meu perfil' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Perfil' })).toBeVisible()
 
     // The flat section nav is present with all four sections (owner).
     const nav = dialog.getByRole('navigation', { name: 'Seções de configuração' })
-    for (const label of ['Perfil', 'Privacidade', 'Cobrança', 'Notificações']) {
+    for (const label of ['Perfil', 'Cobrança', 'Notificações', 'Privacidade']) {
       await expect(nav.getByRole('button', { name: label })).toBeVisible()
     }
 
@@ -63,7 +63,7 @@ test.describe('Configurações modal (brief 0090)', { tag: '@critical' }, () => 
     await authedPage.reload()
     const dialog = authedPage.getByRole('dialog')
     await expect(dialog).toBeVisible()
-    await expect(dialog.getByRole('heading', { name: 'Meu perfil' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Perfil' })).toBeVisible()
     await expect(authedPage).toHaveURL(/\/agenda#settings\/profile$/)
   })
 
@@ -75,11 +75,11 @@ test.describe('Configurações modal (brief 0090)', { tag: '@critical' }, () => 
     // and LGPD e-mails.
     await authedPage.goto('/settings/privacy')
     await expect(authedPage.getByRole('dialog')).toHaveCount(0)
-    await expect(authedPage.getByRole('heading', { name: 'Privacidade dos dados' })).toBeVisible()
+    await expect(authedPage.getByRole('heading', { name: 'Privacidade' })).toBeVisible()
 
     await authedPage.reload()
     await expect(authedPage.getByRole('dialog')).toHaveCount(0)
-    await expect(authedPage.getByRole('heading', { name: 'Privacidade dos dados' })).toBeVisible()
+    await expect(authedPage.getByRole('heading', { name: 'Privacidade' })).toBeVisible()
   })
 
   test('receptionist não vê Cobrança/Notificações no nav da modal (cenário 2 — gate)', async ({

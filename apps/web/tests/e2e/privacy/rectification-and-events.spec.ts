@@ -47,8 +47,8 @@ test.describe('self-service rectification + pii_* events', () => {
     // Rectify the name on the self-service profile surface (AC-06).
     const newName = `Renomeado ${Date.now()}`
     await page.goto('/settings/profile')
-    await expect(page.getByRole('heading', { name: 'Meu perfil' })).toBeVisible()
-    await page.getByRole('textbox', { name: 'Nome' }).fill(newName)
+    await expect(page.getByRole('heading', { name: 'Perfil' })).toBeVisible()
+    await page.getByRole('textbox', { name: 'Nome completo' }).fill(newName)
     await page.getByRole('button', { name: 'Salvar alterações' }).click()
     await expect(page.getByText('Perfil atualizado.')).toBeVisible()
 

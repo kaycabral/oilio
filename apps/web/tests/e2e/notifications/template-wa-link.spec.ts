@@ -113,8 +113,9 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
     // retries the fill until the input actually holds `novo`, post-hydration.
     await fillStable(birthdayBox, novo)
 
-    // Preview reflete o texto editado (AC-15)
-    await expect(authedPage.getByText('Parabéns Maria! 🎂', { exact: false })).toBeVisible()
+    // The editor holds the typed message (the inline preview was removed — the
+    // placeholder highlight now stands in for the visual feedback while typing).
+    await expect(birthdayBox).toHaveValue(novo)
 
     // Salva o card de birthday
     await authedPage
