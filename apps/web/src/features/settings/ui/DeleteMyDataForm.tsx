@@ -60,9 +60,11 @@ export function DeleteMyDataForm() {
         />
       </div>
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      <Button type="submit" variant="destructive" disabled={pending || !canSubmit}>
-        {pending ? 'Anonimizando…' : 'Excluir meus dados'}
-      </Button>
+      <div className="flex justify-end">
+        <Button type="submit" variant="destructive" disabled={pending || !canSubmit}>
+          {pending ? 'Anonimizando…' : 'Excluir meus dados'}
+        </Button>
+      </div>
     </form>
   )
 }

@@ -30,7 +30,7 @@ export default async function ProfileSettingsPage() {
 
   const meta = settingsSectionMeta('profile')
   return (
-    <SettingsSection title={meta.title} description={meta.description}>
+    <SettingsSection title={meta.label} description={meta.description}>
       <Card>
         <CardContent>
           <EditProfileForm

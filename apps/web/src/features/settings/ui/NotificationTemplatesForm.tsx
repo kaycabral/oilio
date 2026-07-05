@@ -1,11 +1,6 @@
 'use client'
 
-import {
-  NOTIFICATION_TEMPLATE_PLACEHOLDERS,
-  renderNotificationTemplate,
-  type MessageTemplate,
-  type NotificationTemplateVars,
-} from '@/domain'
+import { NOTIFICATION_TEMPLATE_PLACEHOLDERS, type MessageTemplate } from '@/domain'
 import {
   updateMessageTemplate,
   type UpdateTemplateResult,
@@ -17,27 +12,23 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  HighlightedTextarea,
   Label,
   Switch,
-  Textarea,
   Typography,
 } from '@cbrl/design'
 import { useMemo, useState } from 'react'
 
+// Plain-language pt-BR names for each template type. Deliberately non-technical
+// — the subscription touches used to carry the schedule jargon (D-1/D+1/D+7),
+// which meant nothing to a shop owner; the timing lives in the copy, not the
+// name.
 const TYPE_LABELS: Record<string, string> = {
   birthday: 'Aniversário',
-  subscription_expiring_tomorrow: 'Assinatura vence amanhã (D-1)',
-  subscription_expired: 'Assinatura vencida (D+1)',
-  subscription_overdue_followup: 'Follow-up de vencimento (D+7)',
+  subscription_expiring_tomorrow: 'Assinatura vencendo',
+  subscription_expired: 'Assinatura vencida',
+  subscription_overdue_followup: 'Lembrete de renovação',
   new_customer: 'Novo cliente',
-}
-
-// Dados de exemplo pro preview (AC-15) — renderiza como o cliente vê.
-const SAMPLE_VARS: NotificationTemplateVars = {
-  cliente_nome: 'Maria',
-  servico: 'corte + barba',
-  valor: 'R$ 50',
-  voucher_atual: 'hidratação grátis',
 }
 
 function templateLabel(type: string): string {
@@ -65,10 +56,16 @@ export function NotificationTemplatesForm({
   return (
     <div className="flex flex-col gap-6">
       <div className="bg-muted/40 rounded-md border p-3 text-sm">
-        <p className="font-medium">Placeholders disponíveis</p>
+        <p className="font-medium">Campos disponíveis</p>
         <p className="text-muted-foreground mt-1">
+          Digite um destes na mensagem — ele é preenchido com os dados do cliente no envio.
+        </p>
+        <p className="mt-2 flex flex-wrap gap-1.5">
           {NOTIFICATION_TEMPLATE_PLACEHOLDERS.map((p) => (
-            <code key={p} className="bg-background mr-1 rounded px-1 py-0.5 text-xs">
+            <code
+              key={p}
+              className="bg-primary/15 text-primary rounded-[3px] px-1 py-0.5 text-xs font-medium"
+            >
               {p}
             </code>
           ))}
@@ -106,8 +103,6 @@ function TemplateCard({
   const [pending, setPending] = useState(false)
   const [result, setResult] = useState<UpdateTemplateResult | null>(null)
 
-  const preview = renderNotificationTemplate(body, SAMPLE_VARS)
-
   async function onSubmit(formData: FormData) {
     setPending(true)
     setResult(null)
@@ -141,32 +136,28 @@ function TemplateCard({
 
         <CardContent>
           <fieldset disabled={!canManage || pending} className="flex flex-col gap-3">
-            <div className="space-y-1">
-              <Label htmlFor={`body-${template.type}`}>Mensagem</Label>
-              <Textarea
-                id={`body-${template.type}`}
-                name="body"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={4}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-muted-foreground text-xs font-medium">
-                Preview (dados de exemplo)
-              </span>
-              <p className="bg-muted/40 rounded-md border p-3 text-sm whitespace-pre-wrap">
-                {preview}
-              </p>
-            </div>
+            {/* The visible "Mensagem" label is dropped for a cleaner card — the
+                accessible name is kept via aria-label, so screen readers and the
+                E2E `getByRole('textbox', { name: 'Mensagem' })` still resolve it.
+                Valid placeholders are highlighted inline as the owner types. */}
+            <HighlightedTextarea
+              id={`body-${template.type}`}
+              name="body"
+              aria-label="Mensagem"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              tokens={NOTIFICATION_TEMPLATE_PLACEHOLDERS}
+              rows={4}
+            />
 
             {result && !result.ok && <p className="text-destructive text-sm">{result.error}</p>}
-            {result && result.ok && <p className="text-sm text-green-600">Salvo!</p>}
 
-            <Button type="submit" disabled={!canManage || pending} className="w-fit">
-              {pending ? 'Salvando…' : 'Salvar'}
-            </Button>
+            <div className="flex items-center justify-end gap-3">
+              {result && result.ok && <span className="text-sm text-green-600">Salvo!</span>}
+              <Button type="submit" disabled={!canManage || pending}>
+                {pending ? 'Salvando…' : 'Salvar'}
+              </Button>
+            </div>
           </fieldset>
         </CardContent>
       </form>

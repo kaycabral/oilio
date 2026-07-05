@@ -228,7 +228,7 @@ export function SettingsModal() {
             sits at the content's top-right, aligned with this header. */}
         <div className="flex min-h-0 flex-col">
           <DialogHeader className="gap-1 border-b p-6 pr-14">
-            <DialogTitle>{meta.title}</DialogTitle>
+            <DialogTitle>{meta.label}</DialogTitle>
             <DialogDescription>{meta.description}</DialogDescription>
           </DialogHeader>
 

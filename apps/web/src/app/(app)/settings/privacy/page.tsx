@@ -44,7 +44,7 @@ export default async function PrivacySettingsPage() {
 
   const meta = settingsSectionMeta('privacy')
   return (
-    <SettingsSection title={meta.title} description={meta.description}>
+    <SettingsSection title={meta.label} description={meta.description}>
       <Card>
         <CardHeader>
           <CardTitle asChild>
