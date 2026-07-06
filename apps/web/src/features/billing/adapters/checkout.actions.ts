@@ -33,16 +33,53 @@ function appUrl(): string {
   return requireEnv('NEXT_PUBLIC_SITE_URL')
 }
 
-// Resolve or lazily create the Stripe Customer for the Negócio. Free orgs have no
-// customer; the first checkout creates one (metadata.orgId is how the webhook
-// resolves the org). Persists the id via an org_billing event so subsequent
-// checkouts reuse it.
-async function resolveStripeCustomer(orgId: string, actorUid: string): Promise<string> {
+// Resolve the single Stripe Customer for the Negócio, creating it once. There is
+// exactly ONE customer per org, keyed by `metadata.orgId` — the webhook resolves
+// the org from it. Idempotent by construction against concurrency (two rapid
+// "Assinar" clicks, or an abandoned-then-retried checkout):
+//
+//   1. Reuse the persisted id when we already have it (the common path).
+//   2. Otherwise ask Stripe — the system of record — for an existing customer
+//      carrying this `metadata.orgId`, and reuse it. This closes the window
+//      where a previous attempt created a customer at Stripe but its id had not
+//      yet been read back locally (an abandoned/failed checkout leaves the
+//      customer behind; we adopt it instead of minting another).
+//   3. Only if Stripe has none do we create — passing an `idempotencyKey` derived
+//      from the org so that two concurrent creates collapse into ONE customer at
+//      Stripe (the second request returns the first's result, not a duplicate).
+//
+// Before this, `customers.create` ran unconditionally with no reuse lookup and no
+// idempotency key: any read that predated the persist (a race, a double-submit)
+// minted a fresh email-less customer, and the customer leaked to Stripe even when
+// the subsequent event-store write lost the version race and the whole action
+// failed. See #1373 for the reproduction.
+async function resolveStripeCustomer(
+  orgId: string,
+  actorUid: string,
+  ownerEmail: string | null,
+): Promise<string> {
   const billing = await getOrgBilling(orgId)
   if (billing.stripeCustomerId) return billing.stripeCustomerId
 
   const stripe = getStripe()
-  const customer = await stripe.customers.create({ metadata: { orgId } })
+
+  // Reuse-first: Stripe is the source of truth for "does a customer exist for this
+  // org", independent of whether our projection has caught up. Search by the org
+  // metadata; adopt the first hit rather than creating a second.
+  const existing = await stripe.customers.search({
+    query: `metadata["orgId"]:"${orgId}"`,
+    limit: 1,
+  })
+  const customer =
+    existing.data[0] ??
+    // Deterministic key per org: concurrent creates within Stripe's idempotency
+    // window collapse to a single customer instead of one-per-request. The email
+    // (the owner's, from the session) makes the customer human-identifiable from
+    // birth instead of an id-only record.
+    (await stripe.customers.create(
+      { metadata: { orgId }, ...(ownerEmail ? { email: ownerEmail } : {}) },
+      { idempotencyKey: `org-billing-customer:${orgId}` },
+    ))
 
   // Persist the customer id (CRUD mirror) — keeps it stable across checkouts and
   // seeds the stripe→org lookup index (the projector mirrors it). Tier stays as-is
@@ -58,9 +95,10 @@ async function resolveStripeCustomer(orgId: string, actorUid: string): Promise<s
     actorId: actorUid,
     payload: { changes: { id: orgId, orgId, stripeCustomerId: customer.id } },
   })
-  // Surface a failed persist as a typed error the caller maps to a friendly result
-  // instead of letting the Effect reject bubble to a raw 500 (UX: the button shows
-  // an inline error, never a crash page).
+  // A lost version race here no longer leaks a customer: the create above is now
+  // idempotent/reuse-first, so a retry adopts the same customer. Surface the failed
+  // persist as a typed error the caller maps to a friendly result instead of letting
+  // the Effect reject bubble to a raw 500 (UX: the button shows an inline error).
   if (!res.ok) throw new Error(`persist stripe customer failed: ${res.error}`)
   return customer.id
 }
@@ -89,7 +127,7 @@ export async function startCheckout(formData: FormData): Promise<CheckoutResult>
   // NEXT_REDIRECT, which a catch would swallow — Next docs, redirect §Caveats).
   let checkoutUrl: string
   try {
-    const customerId = await resolveStripeCustomer(orgId, r.ctx.session.uid)
+    const customerId = await resolveStripeCustomer(orgId, r.ctx.session.uid, r.ctx.session.email)
     const quantity = Math.max(1, (await listUnitsForOrg(orgId)).length)
 
     const stripe = getStripe()

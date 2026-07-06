@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
       ) => Promise<{ ok: true }>
     >(),
   customersCreate: vi.fn(),
+  customersSearch: vi.fn<() => Promise<{ data: Array<{ id: string }> }>>(),
   checkoutCreate: vi.fn<(arg: Record<string, unknown>) => Promise<{ url: string | null }>>(),
   portalCreate: vi.fn(),
   requireEnv: vi.fn(() => 'https://app.oilio.test'),
@@ -40,7 +41,7 @@ vi.mock('@cbrl/env', () => ({ requireEnv: mocks.requireEnv }))
 vi.mock('@/shared/routes', () => ({ toRoute: (u: string) => u }))
 vi.mock('@/shared/billing/stripe-client', () => ({
   getStripe: () => ({
-    customers: { create: mocks.customersCreate },
+    customers: { create: mocks.customersCreate, search: mocks.customersSearch },
     checkout: { sessions: { create: mocks.checkoutCreate } },
     billingPortal: { sessions: { create: mocks.portalCreate } },
   }),
@@ -63,7 +64,7 @@ function ownerCtx() {
   return {
     ok: true as const,
     ctx: {
-      session: { uid: 'owner-1' },
+      session: { uid: 'owner-1', email: 'owner@org.test' },
       membership: { orgId: 'org-1', role: 'owner' as const, userId: 'owner-1' },
     },
   }
@@ -76,6 +77,9 @@ function billing(over: Record<string, unknown> = {}): Record<string, unknown> {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.emitEvent.mockResolvedValue({ ok: true })
+  // Default: Stripe has no existing customer for the org (reuse-first search
+  // returns empty), so the create path runs unless a test overrides it.
+  mocks.customersSearch.mockResolvedValue({ data: [] })
 })
 
 describe('startCheckout', () => {
@@ -117,7 +121,13 @@ describe('startCheckout', () => {
       'NEXT_REDIRECT:https://checkout.stripe/x',
     )
 
-    expect(mocks.customersCreate).toHaveBeenCalledWith({ metadata: { orgId: 'org-1' } })
+    // Creates with the org metadata + the owner's email (human-identifiable
+    // customer), guarded by a per-org idempotency key so concurrent creates
+    // collapse to one customer at Stripe (#1373).
+    expect(mocks.customersCreate).toHaveBeenCalledWith(
+      { metadata: { orgId: 'org-1' }, email: 'owner@org.test' },
+      { idempotencyKey: 'org-billing-customer:org-1' },
+    )
     // persists the new customer id via an org_billing event
     expect(mocks.emitEvent).toHaveBeenCalledTimes(1)
     const emitArgs = mocks.emitEvent.mock.calls[0]
@@ -125,6 +135,75 @@ describe('startCheckout', () => {
       _tag: 'org_billing.updated',
       payload: { changes: { stripeCustomerId: 'cus_new' } },
     })
+  })
+
+  // #1373 — reuse-first: before creating, ask Stripe for an existing customer
+  // carrying this org's metadata and adopt it. Closes the abandoned-checkout gap
+  // where a customer was created at Stripe but its id was never read back locally.
+  it('reuses a Stripe customer found by metadata.orgId instead of creating a duplicate', async () => {
+    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.stripePriceId.mockReturnValue('price_pro_monthly')
+    mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: null }))
+    // local projection has no id yet, but Stripe already has one for this org
+    mocks.customersSearch.mockResolvedValue({ data: [{ id: 'cus_from_stripe' }] })
+    mocks.listUnitsForOrg.mockResolvedValue([{ id: 'u1' }])
+    mocks.checkoutCreate.mockResolvedValue({ url: 'https://checkout.stripe/reuse' })
+
+    await expect(startCheckout(form({ tier: 'pro', cycle: 'monthly' }))).rejects.toThrow(
+      'NEXT_REDIRECT',
+    )
+
+    expect(mocks.customersSearch).toHaveBeenCalledWith({
+      query: 'metadata["orgId"]:"org-1"',
+      limit: 1,
+    })
+    // NO new customer minted — the existing one is adopted
+    expect(mocks.customersCreate).not.toHaveBeenCalled()
+    // and the adopted id is bound to the Checkout Session + persisted
+    expect(mocks.checkoutCreate.mock.calls[0]?.[0]).toMatchObject({ customer: 'cus_from_stripe' })
+    expect(mocks.emitEvent.mock.calls[0]?.[2]).toMatchObject({
+      payload: { changes: { stripeCustomerId: 'cus_from_stripe' } },
+    })
+  })
+
+  // #1373 — the create is the LAST resort (search empty) and carries a per-org
+  // idempotency key: two concurrent first-time checkouts must not mint two
+  // customers. Asserting the key is present is the regression guard.
+  it('passes a per-org idempotency key when it must create (#1373 concurrency guard)', async () => {
+    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.stripePriceId.mockReturnValue('price_pro_monthly')
+    mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: null }))
+    mocks.customersSearch.mockResolvedValue({ data: [] })
+    mocks.customersCreate.mockResolvedValue({ id: 'cus_new' })
+    mocks.listUnitsForOrg.mockResolvedValue([{ id: 'u1' }])
+    mocks.checkoutCreate.mockResolvedValue({ url: 'https://checkout.stripe/new' })
+
+    await expect(startCheckout(form({ tier: 'pro', cycle: 'monthly' }))).rejects.toThrow(
+      'NEXT_REDIRECT',
+    )
+
+    const createOpts = mocks.customersCreate.mock.calls[0]?.[1]
+    expect(createOpts).toEqual({ idempotencyKey: 'org-billing-customer:org-1' })
+  })
+
+  // #1373 — the reuse-first search happens even for the create path (search THEN
+  // create), so an abandoned checkout that left a customer is never duplicated.
+  it('searches before creating (reuse-first ordering)', async () => {
+    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.stripePriceId.mockReturnValue('price_pro_monthly')
+    mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: null }))
+    mocks.customersSearch.mockResolvedValue({ data: [] })
+    mocks.customersCreate.mockResolvedValue({ id: 'cus_new' })
+    mocks.listUnitsForOrg.mockResolvedValue([{ id: 'u1' }])
+    mocks.checkoutCreate.mockResolvedValue({ url: 'https://checkout.stripe/order' })
+
+    await expect(startCheckout(form({ tier: 'pro', cycle: 'monthly' }))).rejects.toThrow(
+      'NEXT_REDIRECT',
+    )
+
+    const searchOrder = mocks.customersSearch.mock.invocationCallOrder[0] ?? Infinity
+    const createOrder = mocks.customersCreate.mock.invocationCallOrder[0] ?? -Infinity
+    expect(searchOrder).toBeLessThan(createOrder)
   })
 
   it('reuses the existing Stripe customer (idempotent, no create/persist)', async () => {
