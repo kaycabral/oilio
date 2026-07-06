@@ -15,7 +15,7 @@ import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import type { SessionUser } from '@/shared/firebase/admin'
 import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ getSessionUser: vi.fn<() => Promise<SessionUser | null>>() }))
 vi.mock('@/shared/firebase/admin', () => ({ getSessionUser: mocks.getSessionUser }))
@@ -23,9 +23,15 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { createAppointment, updateAppointment } from './agenda.actions'
 
+// Frozen "now" for the whole suite. The slot-grid gate rejects past starts
+// (`enforce-slot-grid` defaults `nowMs` to the real clock), so the test freezes
+// the clock to this instant — strictly BEFORE BOOKING_DATE — making every case
+// hermetic: the booked slot is always in the future regardless of the calendar
+// date the suite runs on. Also the seed timestamp for all fixture rows.
 const TS = '2026-06-01T12:00:00.000Z'
 // Mon–Fri 09:00–12:00 BR (= 12:00–15:00 UTC), 30-min grid. 2026-07-06 is a
-// Monday. On-grid: 10:00 BR. Off-grid: 09:15 BR (between 30-min steps).
+// Monday, a month after the frozen `TS`. On-grid: 10:00 BR. Off-grid: 09:15 BR
+// (between 30-min steps).
 const BOOKING_DATE = '2026-07-06'
 const ON_GRID_TIME = '10:00'
 const OFF_GRID_TIME = '09:15'
@@ -212,8 +218,16 @@ describe('appointment write — slot-grid gate (brief 0080, Grupo A)', () => {
   const CUSTOMER = 'cust-1'
 
   beforeEach(async () => {
+    // Freeze the wall clock so the slot-grid gate always sees BOOKING_DATE as a
+    // future slot. `toFake: ['Date']` freezes only the clock — setTimeout/etc.
+    // stay real, so `Date.now()`-based unique-id helpers and pg driver timers
+    // are unaffected.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(TS) })
     await pool().query(`TRUNCATE ${TABLES} CASCADE`)
     vi.clearAllMocks()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
   })
   afterAll(async () => {
     await closeEventStoreDb()
