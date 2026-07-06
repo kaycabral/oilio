@@ -20,6 +20,23 @@ export const MembershipPermissions = Schema.mutable(
     canViewFinancials: Schema.Boolean,
     canManagePlans: Schema.Boolean,
     canManageSubscriptions: Schema.Boolean,
+    // Billing authorization (brief 0075, #1377): may subscribe/manage/cancel the
+    // Assinatura Oilio for the org. Owner-only preset — replaces the `role ===
+    // 'owner'` gate on billing actions with a data-driven capability.
+    //
+    // `optionalWith` (NOT a plain required boolean) so memberships persisted before
+    // this key existed (the `membership.created` event payload + the JSONB column,
+    // including the real production org) still decode instead of hard-failing. But
+    // the schema default is role-BLIND, so a bare `default: false` here would strip
+    // billing from a legacy OWNER (observable regression). The role-aware backfill
+    // is `withRoleDefaultedPermissions` below, applied at every read boundary
+    // (projector `rowToDoc` + event replay) where the role is in scope — it fills an
+    // absent `canManageBilling` from `defaultPermissionsForRole(role)`. This schema
+    // default is only the last-resort safety net (a decode with no role context);
+    // it stays `false` (deny) so an unknown-role decode is never over-permissive.
+    // Tolerant decode at the boundary, no migration/upcaster (the repo idiom —
+    // mirrors `rlsUnitScope`'s legacy `unitId` handling).
+    canManageBilling: Schema.optionalWith(Schema.Boolean, { default: () => false, exact: true }),
     // Operational capabilities (brief 0076). "Being bookable/commissionable" is a
     // capability any member can have toggled — NOT a class of person. `canBeBooked`
     // makes the member eligible to appear on the agenda and take bookings;
@@ -141,6 +158,9 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canViewFinancials: true,
         canManagePlans: true,
         canManageSubscriptions: true,
+        // Billing is owner-only (brief 0075, #1377) — the org's financial/
+        // contractual commitment belongs to whoever answers for it.
+        canManageBilling: true,
         // Not operational by default — an owner is org-management, not a person
         // who takes bookings. Editable later if they also cut hair.
         canBeBooked: false,
@@ -158,6 +178,9 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canViewFinancials: true,
         canManagePlans: true,
         canManageSubscriptions: true,
+        // Manager operates the business but does not commit the org to a paid
+        // contract — billing stays owner-only (brief 0075, #1377).
+        canManageBilling: false,
         canBeBooked: false,
         canEarnCommission: false,
       }
@@ -177,6 +200,7 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canViewFinancials: false,
         canManagePlans: false,
         canManageSubscriptions: false,
+        canManageBilling: false,
         // The memberOperation preset is the only one that turns the operational
         // capabilities on (brief 0076 AC-01): eligible for the agenda and for
         // commission attribution. "Bookable" is now read from this bit, not
@@ -196,8 +220,32 @@ export function defaultPermissionsForRole(role: Role): MembershipPermissions {
         canViewFinancials: false,
         canManagePlans: false,
         canManageSubscriptions: false,
+        canManageBilling: false,
         canBeBooked: false,
         canEarnCommission: false,
       }
   }
+}
+
+// Backfills capability keys ABSENT from a persisted permission object with the
+// role's default (brief 0075, #1377). Memberships written before a capability
+// existed lack its key; the read-model schema tolerates that (`optionalWith`) but
+// its default is role-blind, so a legacy OWNER would decode `canManageBilling:
+// false` and silently lose billing management. Applied at every read boundary
+// (projector row→doc + event replay) where the role is in scope, this restores
+// the role-correct value: an absent key inherits `defaultPermissionsForRole(role)`,
+// while any key PRESENT in the persisted object is preserved verbatim (an explicit
+// toggle always wins over the default). Pure, idempotent, no migration —
+// forward-compatible for the next capability added the same way.
+export function withRoleDefaultedPermissions(
+  role: Role,
+  permissions: unknown,
+): MembershipPermissions {
+  // `permissions` is raw persisted JSONB (an object of capability booleans, or
+  // null/absent). Merge the persisted keys OVER the role defaults so present keys
+  // (explicit toggles) win and absent keys inherit the default. Non-object input
+  // (null/legacy junk) falls back entirely to the role default. The result is
+  // re-validated by the caller's `Membership` decode — this only backfills.
+  const persisted = typeof permissions === 'object' && permissions !== null ? permissions : {}
+  return { ...defaultPermissionsForRole(role), ...persisted }
 }

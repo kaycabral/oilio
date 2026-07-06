@@ -9,7 +9,7 @@ import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
 import { logger } from '@/shared/lib/logger'
 import { getOrgBilling } from '@/shared/org/billing-read'
-import { requireOwnerCtx } from '@/shared/org/membership'
+import { guardCapability } from '@/shared/org/membership'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { toRoute } from '@/shared/routes'
 import { requireEnv } from '@cbrl/env'
@@ -108,7 +108,10 @@ async function resolveStripeCustomer(
 // computes the total from the graduated Price. Returns an error result on
 // validation failure, otherwise redirects to the hosted Checkout.
 export async function startCheckout(formData: FormData): Promise<CheckoutResult> {
-  const r = await requireOwnerCtx()
+  // Billing is gated on the `canManageBilling` capability (owner-only preset),
+  // not a `role === 'owner'` check (brief 0075 AC-01, #1377). Same owner-only
+  // behavior today; data-driven for the future.
+  const r = await guardCapability('canManageBilling')
   if (!r.ok) return { ok: false, error: r.error }
 
   const tier = parseTier(formString(formData, 'tier').trim())
@@ -162,7 +165,7 @@ export async function startCheckout(formData: FormData): Promise<CheckoutResult>
 // Open the Stripe Customer Portal for self-service management (cancel/upgrade/
 // payment method) — owner-only (brief 0073, AC-03). Redirects to the hosted portal.
 export async function manageBilling(): Promise<CheckoutResult> {
-  const r = await requireOwnerCtx()
+  const r = await guardCapability('canManageBilling')
   if (!r.ok) return { ok: false, error: r.error }
 
   const billing = await getOrgBilling(r.ctx.membership.orgId)

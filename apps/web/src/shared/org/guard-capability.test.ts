@@ -150,4 +150,18 @@ describe('guardCapability', () => {
     expect(res.ok).toBe(false)
     expect(mocks.readUnderRls).not.toHaveBeenCalled()
   })
+
+  // #1377 — billing authz flows through the same capability gate: the owner
+  // preset carries `canManageBilling`, every other role is default-denied.
+  it('allows the owner and denies non-owners for canManageBilling', async () => {
+    signedInAs('owner')
+    expect((await guardCapability('canManageBilling')).ok).toBe(true)
+
+    for (const role of ['manager', 'receptionist', 'member_operator'] as const) {
+      signedInAs(role)
+      const res = await guardCapability('canManageBilling')
+      expect(res.ok).toBe(false)
+      if (!res.ok) expect(res.error).toContain('canManageBilling')
+    }
+  })
 })

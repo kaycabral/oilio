@@ -11,7 +11,7 @@ import type { LinkedEstablishment } from '@/shared/identity/org-links'
 import { listMyCustomerEstablishments } from '@/shared/identity/org-links'
 import { track } from '@/shared/lib/track'
 import { getOrgBilling } from '@/shared/org/billing-read'
-import { getActiveOrgContext } from '@/shared/org/membership'
+import { getActiveOrgContext, hasMembershipCapability } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 
@@ -162,7 +162,7 @@ export async function loadBillingSection(): Promise<SettingsLoadResult<BillingSe
       currentPeriodEnd: billing.currentPeriodEnd,
       cancelAtPeriodEnd: billing.cancelAtPeriodEnd,
       hasStripeCustomer: billing.stripeCustomerId !== null,
-      canManageBilling: ctx.membership.role === 'owner',
+      canManageBilling: hasMembershipCapability(ctx.membership, 'canManageBilling'),
       paymentMethod,
       invoices,
     },
