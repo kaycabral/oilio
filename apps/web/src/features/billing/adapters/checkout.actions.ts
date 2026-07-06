@@ -3,6 +3,7 @@
 import { OrgBillingConfig } from '@/domain/aggregates/org-billing/config'
 import { type BillingCycle, type Tier } from '@/domain/billing/tiers'
 import { aggregateRef } from '@/domain/effect'
+import { settingsHash } from '@/features/settings/core/settings-sections'
 import { getStripe } from '@/shared/billing/stripe-client'
 import { stripePriceId } from '@/shared/billing/stripe-prices'
 import { emitEvent } from '@/shared/effect-bridge'
@@ -147,8 +148,17 @@ export async function startCheckout(formData: FormData): Promise<CheckoutResult>
       allow_promotion_codes: true,
       client_reference_id: orgId,
       subscription_data: { metadata: { orgId } },
-      success_url: `${appUrl()}/settings/billing?checkout=success`,
-      cancel_url: `${appUrl()}/settings/billing?checkout=cancel`,
+      // Return into the app on the Configurações MODAL at its Cobrança section —
+      // the app's canonical way to reach billing (UserMenu → Configurações), not a
+      // standalone page (#1376). The modal is client state anchored to the
+      // `#settings/billing` hash, opened on mount by the shell-mounted
+      // SettingsModal; landing on any authenticated route with that hash re-opens
+      // it. `/agenda` is the always-reachable app home. The `/settings/billing`
+      // page route stays a valid direct deep-link (unchanged). The old
+      // `?checkout=success|cancel` query was dead weight — nothing ever read it —
+      // so it is dropped rather than carried onto the hash URL.
+      success_url: `${appUrl()}/agenda${settingsHash('billing')}`,
+      cancel_url: `${appUrl()}/agenda${settingsHash('billing')}`,
     })
     if (!session.url) return { ok: false, error: 'Falha ao iniciar o checkout' }
     checkoutUrl = session.url

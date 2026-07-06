@@ -1,5 +1,5 @@
 import { BillingPanel } from '@/features/billing/ui/BillingPanel'
-import { settingsSectionMeta } from '@/features/settings/ui/settings-sections'
+import { settingsSectionMeta } from '@/features/settings/core/settings-sections'
 import { getDefaultPaymentMethod, listRecentInvoices } from '@/shared/billing/billing-details'
 import { track } from '@/shared/lib/track'
 import { getOrgBilling } from '@/shared/org/billing-read'
