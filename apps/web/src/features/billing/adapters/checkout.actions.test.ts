@@ -1,7 +1,8 @@
 // Unit tests for the checkout/portal server actions (brief 0073, AC-01/AC-03).
-// These are the owner-only entry points into Stripe. Proven here without network
-// or DB (all deps mocked, mirroring subscriptions.actions.test):
-//   startCheckout — owner gate, tier/cycle validation, Free-has-no-price guard,
+// These are the billing entry points into Stripe, gated on the `canManageBilling`
+// capability (owner-only preset, #1377). Proven here without network or DB (all
+// deps mocked, mirroring subscriptions.actions.test):
+//   startCheckout — capability gate, tier/cycle validation, Free-has-no-price guard,
 //     idempotent customer resolve (reuse vs lazily create + persist), quantity =
 //     active unit count, the Checkout Session shape, and redirect to its url.
 //   manageBilling — owner gate, "no customer" guard, portal session + redirect.
@@ -13,7 +14,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  requireOwnerCtx: vi.fn(),
+  // #1377 — billing gates on the `canManageBilling` capability, not `role ===`.
+  guardCapability: vi.fn(),
   getOrgBilling: vi.fn(),
   listUnitsForOrg: vi.fn(),
   stripePriceId: vi.fn(),
@@ -38,7 +40,7 @@ const mocks = vi.hoisted(() => ({
   requireEnv: vi.fn(() => 'https://app.oilio.test'),
 }))
 
-vi.mock('@/shared/org/membership', () => ({ requireOwnerCtx: mocks.requireOwnerCtx }))
+vi.mock('@/shared/org/membership', () => ({ guardCapability: mocks.guardCapability }))
 vi.mock('@/shared/org/billing-read', () => ({ getOrgBilling: mocks.getOrgBilling }))
 vi.mock('@/shared/org/unit-read', () => ({ listUnitsForOrg: mocks.listUnitsForOrg }))
 vi.mock('@/shared/billing/stripe-prices', () => ({ stripePriceId: mocks.stripePriceId }))
@@ -89,17 +91,20 @@ beforeEach(() => {
 })
 
 describe('startCheckout', () => {
-  it('rejects a non-owner with the guard error', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue({ ok: false, error: 'Apenas o dono' })
+  it('rejects when the billing capability is denied, gating on canManageBilling (#1377)', async () => {
+    mocks.guardCapability.mockResolvedValue({ ok: false, error: 'Apenas o dono' })
 
     const res = await startCheckout(form({ tier: 'pro', cycle: 'monthly' }))
 
     expect(res).toEqual({ ok: false, error: 'Apenas o dono' })
     expect(mocks.checkoutCreate).not.toHaveBeenCalled()
+    // Proves the gate is the CAPABILITY, not a `role ===` check — fails if the
+    // action reverts to requireOwnerCtx (brief 0075 AC-01).
+    expect(mocks.guardCapability).toHaveBeenCalledWith('canManageBilling')
   })
 
   it('rejects an invalid tier/cycle', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
 
     const res = await startCheckout(form({ tier: 'enterprise', cycle: 'monthly' }))
 
@@ -107,7 +112,7 @@ describe('startCheckout', () => {
   })
 
   it('rejects when the tier has no price (Free)', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue(null)
 
     const res = await startCheckout(form({ tier: 'pro', cycle: 'monthly' }))
@@ -116,7 +121,7 @@ describe('startCheckout', () => {
   })
 
   it('lazily creates a Stripe customer (persisting it) when the org has none', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue('price_pro_monthly')
     mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: null }))
     mocks.customersCreate.mockResolvedValue({ id: 'cus_new' })
@@ -147,7 +152,7 @@ describe('startCheckout', () => {
   // carrying this org's metadata and adopt it. Closes the abandoned-checkout gap
   // where a customer was created at Stripe but its id was never read back locally.
   it('reuses a Stripe customer found by metadata.orgId instead of creating a duplicate', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue('price_pro_monthly')
     mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: null }))
     // local projection has no id yet, but Stripe already has one for this org
@@ -176,7 +181,7 @@ describe('startCheckout', () => {
   // idempotency key: two concurrent first-time checkouts must not mint two
   // customers. Asserting the key is present is the regression guard.
   it('passes a per-org idempotency key when it must create (#1373 concurrency guard)', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue('price_pro_monthly')
     mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: null }))
     mocks.customersSearch.mockResolvedValue({ data: [] })
@@ -195,7 +200,7 @@ describe('startCheckout', () => {
   // #1373 — the reuse-first search happens even for the create path (search THEN
   // create), so an abandoned checkout that left a customer is never duplicated.
   it('searches before creating (reuse-first ordering)', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue('price_pro_monthly')
     mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: null }))
     mocks.customersSearch.mockResolvedValue({ data: [] })
@@ -213,7 +218,7 @@ describe('startCheckout', () => {
   })
 
   it('reuses the existing Stripe customer (idempotent, no create/persist)', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue('price_pro_monthly')
     mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: 'cus_existing' }))
     mocks.listUnitsForOrg.mockResolvedValue([{ id: 'u1' }])
@@ -228,7 +233,7 @@ describe('startCheckout', () => {
   })
 
   it('creates a subscription Checkout Session with quantity = active units', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue('price_advanced_annual')
     mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: 'cus_1' }))
     mocks.listUnitsForOrg.mockResolvedValue([{ id: 'u1' }, { id: 'u2' }, { id: 'u3' }])
@@ -253,7 +258,7 @@ describe('startCheckout', () => {
   })
 
   it('floors quantity at 1 when the org has zero units', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue('price_pro_monthly')
     mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: 'cus_1' }))
     mocks.listUnitsForOrg.mockResolvedValue([])
@@ -269,7 +274,7 @@ describe('startCheckout', () => {
   })
 
   it('returns an error when Stripe yields no session url', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue('price_pro_monthly')
     mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: 'cus_1' }))
     mocks.listUnitsForOrg.mockResolvedValue([{ id: 'u1' }])
@@ -282,17 +287,18 @@ describe('startCheckout', () => {
 })
 
 describe('manageBilling', () => {
-  it('rejects a non-owner', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue({ ok: false, error: 'Apenas o dono' })
+  it('rejects when the billing capability is denied, gating on canManageBilling (#1377)', async () => {
+    mocks.guardCapability.mockResolvedValue({ ok: false, error: 'Apenas o dono' })
 
     const res = await manageBilling()
 
     expect(res).toEqual({ ok: false, error: 'Apenas o dono' })
     expect(mocks.portalCreate).not.toHaveBeenCalled()
+    expect(mocks.guardCapability).toHaveBeenCalledWith('canManageBilling')
   })
 
   it('rejects when there is no subscription to manage', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: null }))
 
     const res = await manageBilling()
@@ -305,7 +311,7 @@ describe('manageBilling', () => {
   })
 
   it('opens the customer portal and redirects to its url', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: 'cus_1' }))
     mocks.portalCreate.mockResolvedValue({ url: 'https://portal.stripe/p' })
 

@@ -3,7 +3,7 @@ import { settingsSectionMeta } from '@/features/settings/ui/settings-sections'
 import { getDefaultPaymentMethod, listRecentInvoices } from '@/shared/billing/billing-details'
 import { track } from '@/shared/lib/track'
 import { getOrgBilling } from '@/shared/org/billing-read'
-import { requireManagerPage } from '@/shared/org/membership'
+import { hasMembershipCapability, requireManagerPage } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { SettingsSection } from '@cbrl/design'
@@ -59,7 +59,7 @@ export default async function BillingPage() {
         currentPeriodEnd={billing.currentPeriodEnd}
         cancelAtPeriodEnd={billing.cancelAtPeriodEnd}
         hasStripeCustomer={billing.stripeCustomerId !== null}
-        canManageBilling={ctx.membership.role === 'owner'}
+        canManageBilling={hasMembershipCapability(ctx.membership, 'canManageBilling')}
         paymentMethod={paymentMethod}
         invoices={invoices}
       />

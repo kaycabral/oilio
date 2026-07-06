@@ -685,6 +685,7 @@ export async function seedMember(
     canViewFinancials: false,
     canManagePlans: false,
     canManageSubscriptions: false,
+    canManageBilling: false,
     canBeBooked: false,
     canEarnCommission: false,
   }

@@ -1,8 +1,9 @@
 // Unit tests for the native cancellation server action (brief 0090, AC-09).
-// Owner-only entry point that flips `cancel_at_period_end` on the Stripe
-// subscription; the webhook projects the flag onto org_billing (covered by the
-// webhook integration test). Proven here without network or DB (all deps mocked):
-//   - owner gate (non-owner → error result, no Stripe call)
+// Gated on the `canManageBilling` capability (owner-only preset, #1377); flips
+// `cancel_at_period_end` on the Stripe subscription; the webhook projects the
+// flag onto org_billing (covered by the webhook integration test). Proven here
+// without network or DB (all deps mocked):
+//   - capability gate (denied → error result, no Stripe call)
 //   - "no subscription" guard (error result, no Stripe call)
 //   - happy path (updates the subscription with cancel_at_period_end + emits the
 //     confirmed funnel event)
@@ -11,13 +12,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  requireOwnerCtx: vi.fn(),
+  // #1377 — billing gates on the `canManageBilling` capability, not `role ===`.
+  guardCapability: vi.fn(),
   getOrgBilling: vi.fn(),
   subscriptionsUpdate: vi.fn(),
   track: vi.fn(),
 }))
 
-vi.mock('@/shared/org/membership', () => ({ requireOwnerCtx: mocks.requireOwnerCtx }))
+vi.mock('@/shared/org/membership', () => ({ guardCapability: mocks.guardCapability }))
 vi.mock('@/shared/org/billing-read', () => ({ getOrgBilling: mocks.getOrgBilling }))
 vi.mock('@/shared/lib/track', () => ({ track: mocks.track }))
 vi.mock('@/shared/lib/logger', () => ({ logger: { error: vi.fn() } }))
@@ -44,17 +46,19 @@ beforeEach(() => {
 })
 
 describe('cancelSubscription', () => {
-  it('refuses a non-owner without touching Stripe', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue({ ok: false, error: 'Permission denied' })
+  it('refuses when the billing capability is denied, gating on canManageBilling (#1377)', async () => {
+    mocks.guardCapability.mockResolvedValue({ ok: false, error: 'Permission denied' })
 
     const res = await cancelSubscription()
 
     expect(res).toEqual({ ok: false, error: 'Permission denied' })
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
+    // Proves the gate is the CAPABILITY, not `role ===` (brief 0075 AC-01).
+    expect(mocks.guardCapability).toHaveBeenCalledWith('canManageBilling')
   })
 
   it('errors when there is no active subscription', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.getOrgBilling.mockResolvedValue({ stripeSubscriptionId: null })
 
     const res = await cancelSubscription()
@@ -64,7 +68,7 @@ describe('cancelSubscription', () => {
   })
 
   it('sets cancel_at_period_end and emits the confirmed event on success', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.getOrgBilling.mockResolvedValue({ stripeSubscriptionId: 'sub_123' })
     mocks.subscriptionsUpdate.mockResolvedValue({ id: 'sub_123' })
 
@@ -81,7 +85,7 @@ describe('cancelSubscription', () => {
   })
 
   it('maps a Stripe failure to a friendly error result', async () => {
-    mocks.requireOwnerCtx.mockResolvedValue(ownerCtx())
+    mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.getOrgBilling.mockResolvedValue({ stripeSubscriptionId: 'sub_123' })
     mocks.subscriptionsUpdate.mockRejectedValue(new Error('stripe down'))
 

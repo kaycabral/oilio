@@ -1,5 +1,6 @@
 import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
-import { Membership } from '@/domain/types/membership'
+import { Role } from '@/domain/types/enums'
+import { Membership, withRoleDefaultedPermissions } from '@/domain/types/membership'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
@@ -111,7 +112,15 @@ export function rowToDoc(row: MembershipRow): FirestoreDoc {
     joinedAt: new Date(row.joined_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
     rlsUnitScope: row.rls_unit_scope,
-    permissions: row.permissions,
+    // Backfill capabilities absent from a legacy row (persisted before the key
+    // existed) from the role default (#1377) — a legacy owner keeps billing
+    // instead of silently decoding to the role-blind schema default. Present keys
+    // are preserved. `row.role` is a validated projection column; narrow it to the
+    // `Role` union (falls back to raw defaults only if a future role appears).
+    permissions: withRoleDefaultedPermissions(
+      Schema.decodeUnknownSync(Role)(row.role),
+      row.permissions,
+    ),
   }
 }
 

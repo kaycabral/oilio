@@ -4,11 +4,12 @@ import { getStripe } from '@/shared/billing/stripe-client'
 import { logger } from '@/shared/lib/logger'
 import { track } from '@/shared/lib/track'
 import { getOrgBilling } from '@/shared/org/billing-read'
-import { requireOwnerCtx } from '@/shared/org/membership'
+import { guardCapability } from '@/shared/org/membership'
 
 export type CancelResult = { ok: true } | { ok: false; error: string }
 
-// Native cancellation of the Assinatura Oilio (brief 0090, AC-09). Owner-only.
+// Native cancellation of the Assinatura Oilio (brief 0090, AC-09). Gated on the
+// `canManageBilling` capability (owner-only preset) — brief 0075 AC-01 / #1377.
 // Sets `cancel_at_period_end` on the Stripe subscription so paid access runs
 // until the end of the current period; the Stripe webhook
 // (`customer.subscription.updated`) then projects `cancelAtPeriodEnd` onto
@@ -18,7 +19,7 @@ export type CancelResult = { ok: true } | { ok: false; error: string }
 // NOT to be confused with `domain/subscription-self-cancel.ts`, which cancels a
 // SALON CUSTOMER's plan (aggregate `subscription`, `/me`) — a different domain.
 export async function cancelSubscription(): Promise<CancelResult> {
-  const r = await requireOwnerCtx()
+  const r = await guardCapability('canManageBilling')
   if (!r.ok) return { ok: false, error: r.error }
 
   const orgId = r.ctx.membership.orgId
