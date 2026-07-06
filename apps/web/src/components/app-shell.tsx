@@ -58,6 +58,20 @@ export function AppShell({
           orgName={orgName}
         />
       }
+      // Compact account menu for the mobile header (#1374): below `md` the
+      // sidebar footer is off-canvas, so the account/Configurações/Sair menu is
+      // otherwise unreachable. Same UserMenu, but WITHOUT a custom trigger — the
+      // design shell then renders its compact avatar button (fits a phone header),
+      // not the wide sidebar-footer trigger.
+      account={
+        <UserMenu
+          name={user.name}
+          secondary={user.secondary}
+          avatarUrl={user.avatarUrl}
+          settings={{ hash: settingsHash('profile'), label: 'Configurações' }}
+          align="end"
+        />
+      }
     >
       {children}
       {/* The Configurações modal (brief 0090). A client dialog anchored to the
