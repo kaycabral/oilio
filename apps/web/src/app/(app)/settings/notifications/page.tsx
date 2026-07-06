@@ -1,6 +1,6 @@
 import { listMessageTemplates } from '@/features/notifications/adapters/message-templates'
+import { settingsSectionMeta } from '@/features/settings/core/settings-sections'
 import { NotificationTemplatesForm } from '@/features/settings/ui/NotificationTemplatesForm'
-import { settingsSectionMeta } from '@/features/settings/ui/settings-sections'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { track } from '@/shared/lib/track'

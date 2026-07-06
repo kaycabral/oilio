@@ -1,6 +1,6 @@
+import { settingsSectionMeta } from '@/features/settings/core/settings-sections'
 import { DeleteMyDataForm } from '@/features/settings/ui/DeleteMyDataForm'
 import { EstablishmentErasureList } from '@/features/settings/ui/EstablishmentErasureList'
-import { settingsSectionMeta } from '@/features/settings/ui/settings-sections'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { listMyCustomerEstablishments } from '@/shared/identity/org-links'

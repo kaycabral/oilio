@@ -1,5 +1,5 @@
+import { settingsSectionMeta } from '@/features/settings/core/settings-sections'
 import { EditProfileForm } from '@/features/settings/ui/EditProfileForm'
-import { settingsSectionMeta } from '@/features/settings/ui/settings-sections'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { track } from '@/shared/lib/track'

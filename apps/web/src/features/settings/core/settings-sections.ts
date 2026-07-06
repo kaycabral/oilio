@@ -69,6 +69,18 @@ export function toSettingsSectionKey(value: string | null): SettingsSectionKey |
   return SETTINGS_SECTIONS.find((section) => section.key === value)?.key ?? null
 }
 
+// The URL hash the client SettingsModal is anchored to. The modal (mounted in the
+// app shell) opens on mount by reading `window.location.hash`, so setting this
+// hash on any authenticated route re-opens Configurações at `section`. Lives HERE
+// (pure, React-free) — not in the `ui/` modal — so non-ui callers can build it
+// without crossing the layering wall: the Stripe checkout return URL points at
+// `settingsHash('billing')` to reopen the modal on Cobrança (#1376).
+export const SETTINGS_HASH_PREFIX = '#settings/'
+
+export function settingsHash(section: SettingsSectionKey): string {
+  return `${SETTINGS_HASH_PREFIX}${section}`
+}
+
 // The sections visible in the modal nav for a given role. Cobrança (manageOrg)
 // and Notificações (canManage) are hidden from members who don't manage the org,
 // mirroring the sidebar hide posture (brief 0088). The route pages keep their own

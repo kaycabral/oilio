@@ -252,6 +252,11 @@ describe('startCheckout', () => {
       allow_promotion_codes: true,
       client_reference_id: 'org-1',
       subscription_data: { metadata: { orgId: 'org-1' } },
+      // #1376 — the return re-opens the Configurações MODAL on Cobrança via the
+      // `#settings/billing` hash on an app route, NOT the standalone billing page.
+      // Fails if reverted to `/settings/billing?checkout=success`.
+      success_url: 'https://app.oilio.test/agenda#settings/billing',
+      cancel_url: 'https://app.oilio.test/agenda#settings/billing',
     })
     // never pin payment_method_types (Stripe best-practice)
     expect(arg).not.toHaveProperty('payment_method_types')

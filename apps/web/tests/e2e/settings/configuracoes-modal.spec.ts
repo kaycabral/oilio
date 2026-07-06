@@ -82,6 +82,20 @@ test.describe('Configurações modal (brief 0090)', { tag: '@critical' }, () => 
     await expect(authedPage.getByRole('heading', { name: 'Privacidade' })).toBeVisible()
   })
 
+  test('o retorno do checkout reabre a modal na aba Cobrança (#1376)', async ({ authedPage }) => {
+    // Stripe redireciona pra `success_url`, que agora aponta pro modal via o hash
+    // `#settings/billing` numa rota do app (checkout.actions.ts) — não mais pra
+    // page cheia `/settings/billing?checkout=success`. Navegar EXATAMENTE nessa URL
+    // de retorno reabre o modal na Cobrança. Falha se a `success_url` voltar pra
+    // rota page (o bug #1376: page em vez de modal).
+    await authedPage.goto('/agenda#settings/billing')
+
+    const dialog = authedPage.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Cobrança' })).toBeVisible()
+    await expect(authedPage).toHaveURL(/\/agenda#settings\/billing$/)
+  })
+
   test('receptionist não vê Cobrança/Notificações no nav da modal (cenário 2 — gate)', async ({
     authedPage,
     org,

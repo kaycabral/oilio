@@ -11,18 +11,20 @@ import {
   type ProfileSectionData,
 } from '@/features/settings/adapters/settings-loaders'
 import {
+  SETTINGS_HASH_PREFIX,
+  settingsHash,
+  settingsSectionMeta,
+  toSettingsSectionKey,
+  visibleSettingsSections,
+  type SettingsSectionKey,
+} from '@/features/settings/core/settings-sections'
+import {
   BillingPanelSection,
   NotificationsPanel,
   PrivacyPanel,
   ProfilePanel,
 } from '@/features/settings/ui/section-panels'
 import { SettingsModalProvider } from '@/features/settings/ui/settings-modal-context'
-import {
-  settingsSectionMeta,
-  toSettingsSectionKey,
-  visibleSettingsSections,
-  type SettingsSectionKey,
-} from '@/features/settings/ui/settings-sections'
 import { useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import {
@@ -51,8 +53,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 // the hash — the Dialog never remounts, so no overlay re-animation, no size jump,
 // no tablet-keyboard refocus. The box has a fixed size; only the panel scrolls.
 
-const SETTINGS_HASH_PREFIX = '#settings/'
-
 // Parses `#settings/<section>` from a raw location hash. Returns the section key,
 // or null when the hash is anything else (modal closed / unknown section).
 function parseSectionFromHash(hash: string): SettingsSectionKey | null {
@@ -60,9 +60,11 @@ function parseSectionFromHash(hash: string): SettingsSectionKey | null {
   return toSettingsSectionKey(hash.slice(SETTINGS_HASH_PREFIX.length))
 }
 
-export function settingsHash(section: SettingsSectionKey): string {
-  return `${SETTINGS_HASH_PREFIX}${section}`
-}
+// Re-export so existing importers (user-menu, app-shell) keep their
+// `@/features/settings/ui/SettingsModal` import path; the canonical definition now
+// lives in settings/core/settings-sections (React-free, so adapters can import it
+// without crossing the layering wall — the Stripe return URL needs it, #1376).
+export { settingsHash }
 
 // The loaded data tagged with its section, so the panel dispatch narrows without
 // a cast — each `section` correlates with exactly one `data` shape.
