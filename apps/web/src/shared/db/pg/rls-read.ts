@@ -3,6 +3,20 @@ import { setRlsGucs, setSubjectGuc } from './guc'
 import { getEventStorePool } from './pool'
 
 /**
+ * Normalize a caught value into the argument `PoolClient.release(err?)` expects.
+ *
+ * `release(err)` marks the connection as broken so `pg` DESTROYS it instead of
+ * returning a wedged/half-open client to the pool. A clean path (no failure)
+ * releases for reuse — so `undefined` maps to a plain release. A non-Error throw
+ * still signals "destroy" via a sentinel Error (never stringifies the unknown
+ * value, which could be `[object Object]`).
+ */
+function toReleaseError(failed: unknown): Error | undefined {
+  if (failed === undefined) return undefined
+  return failed instanceof Error ? failed : new Error('non-Error thrown from RLS read callback')
+}
+
+/**
  * Run a backend-aware READ under RLS (brief 0059, feature C).
  *
  * The typed projections (`orgs`/`units`/`memberships`/`catalog_items`) are under
@@ -30,6 +44,7 @@ export async function readUnderRls<T extends QueryResultRow>(
   memberOperationId = '',
 ): Promise<T[]> {
   const client = await getEventStorePool().connect()
+  let failed: unknown
   try {
     await client.query('BEGIN')
     await setRlsGucs(client, orgId, unitId, memberOperationId)
@@ -37,10 +52,18 @@ export async function readUnderRls<T extends QueryResultRow>(
     await client.query('COMMIT')
     return rows
   } catch (err) {
-    await client.query('ROLLBACK')
+    failed = err
+    // Best-effort ROLLBACK: if the connection itself is broken (a `57P01`
+    // termination, a stalled socket), ROLLBACK also throws — swallow it so the
+    // ORIGINAL error is what propagates, never the rollback's.
+    await client.query('ROLLBACK').catch(() => {})
     throw err
   } finally {
-    client.release()
+    // Destroy a connection that errored instead of returning it to the pool:
+    // `release(err)` tells `pg` to discard it, so a wedged/half-open client can't
+    // be handed to the next caller (which would inherit the stall). A clean path
+    // releases normally for reuse.
+    client.release(toReleaseError(failed))
   }
 }
 
@@ -59,6 +82,7 @@ export async function readAsSubject<T extends QueryResultRow>(
   fn: (client: PoolClient) => Promise<T[]>,
 ): Promise<T[]> {
   const client = await getEventStorePool().connect()
+  let failed: unknown
   try {
     await client.query('BEGIN')
     await setSubjectGuc(client, userId)
@@ -66,9 +90,14 @@ export async function readAsSubject<T extends QueryResultRow>(
     await client.query('COMMIT')
     return rows
   } catch (err) {
-    await client.query('ROLLBACK')
+    failed = err
+    // Best-effort ROLLBACK so the ORIGINAL error propagates even on a broken
+    // connection (see readUnderRls).
+    await client.query('ROLLBACK').catch(() => {})
     throw err
   } finally {
-    client.release()
+    // Destroy an errored connection instead of returning it to the pool (see
+    // readUnderRls) so a wedged client can't be handed to the next caller.
+    client.release(toReleaseError(failed))
   }
 }
