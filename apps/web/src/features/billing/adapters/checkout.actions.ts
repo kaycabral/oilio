@@ -98,6 +98,12 @@ export async function startCheckout(formData: FormData): Promise<CheckoutResult>
       customer: customerId,
       // Do NOT set payment_method_types — let Stripe pick dynamically (best-practice).
       line_items: [{ price: priceId, quantity }],
+      // Surface the "código promocional" field in hosted Checkout so a customer can
+      // redeem a promotion code (launch campaigns, comps for internal/founder orgs,
+      // partner discounts) — the discount is resolved entirely Stripe-side, so the
+      // subscription still activates on the same Price and the webhook derives the
+      // tier from that Price regardless of the amount charged.
+      allow_promotion_codes: true,
       client_reference_id: orgId,
       subscription_data: { metadata: { orgId } },
       success_url: `${appUrl()}/settings/billing?checkout=success`,
