@@ -25,7 +25,13 @@ const mocks = vi.hoisted(() => ({
         event: { _tag: string; payload: Record<string, unknown> },
       ) => Promise<{ ok: true }>
     >(),
-  customersCreate: vi.fn(),
+  customersCreate:
+    vi.fn<
+      (
+        params: { metadata: { orgId: string }; email?: string },
+        opts: { idempotencyKey: string },
+      ) => Promise<{ id: string }>
+    >(),
   customersSearch: vi.fn<() => Promise<{ data: Array<{ id: string }> }>>(),
   checkoutCreate: vi.fn<(arg: Record<string, unknown>) => Promise<{ url: string | null }>>(),
   portalCreate: vi.fn(),

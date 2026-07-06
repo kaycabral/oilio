@@ -13,7 +13,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('next/headers', () => ({
-  cookies: async () => ({ get: mocks.cookieGet }),
+  // `cookies()` is async in Next 15+, so resolve a store — but there's nothing to
+  // await inside the mock, hence `Promise.resolve` instead of an `async` body.
+  cookies: () => Promise.resolve({ get: mocks.cookieGet }),
 }))
 vi.mock('@/shared/db', () => ({
   getAdminAuth: () => ({ verifySessionCookie: mocks.verifySessionCookie }),
@@ -30,10 +32,11 @@ const VALID_DECODED = {
   name: 'User One',
 }
 
+// Mirrors a firebase-admin auth error: an Error carrying a string `code`. Built
+// via `Object.assign` (not a cast) so the `{ code }` shape is a real property,
+// not an assertion the linter flags as narrowing.
 function authError(code: string): Error & { code: string } {
-  const e = new Error(code) as Error & { code: string }
-  e.code = code
-  return e
+  return Object.assign(new Error(code), { code })
 }
 
 beforeEach(() => {
