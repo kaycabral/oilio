@@ -159,6 +159,7 @@ describe('startCheckout', () => {
       mode: 'subscription',
       customer: 'cus_1',
       line_items: [{ price: 'price_advanced_annual', quantity: 3 }],
+      allow_promotion_codes: true,
       client_reference_id: 'org-1',
       subscription_data: { metadata: { orgId: 'org-1' } },
     })
