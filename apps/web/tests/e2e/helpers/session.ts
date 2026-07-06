@@ -588,7 +588,19 @@ async function readMembershipDoc(membershipId: string): Promise<Membership> {
 
 export async function setMembershipRole(membershipId: string, role: string): Promise<void> {
   const current = await readMembershipDoc(membershipId)
-  const next: Membership = { ...current, role: Schema.decodeUnknownSync(RoleSchema)(role) }
+  const nextRole = Schema.decodeUnknownSync(RoleSchema)(role)
+  // Re-derive `permissions` from the new role, mirroring the real change-role saga
+  // (`team.actions.ts` always writes `defaultPermissionsForRole(newRole)`). Seeding
+  // a new role while keeping the OLD role's permissions produces a state that never
+  // exists in production (role=manager but permissions=owner) — which silently
+  // passed the old `role ===` billing gate but breaks the capability gate (#1377):
+  // the manager would still carry `canManageBilling`. Keep the seed coherent with
+  // the saga so capability-based gates are exercised against real data.
+  const next: Membership = {
+    ...current,
+    role: nextRole,
+    permissions: defaultPermissionsForRole(nextRole),
+  }
   const ref = aggregateRef(MembershipConfig, next.orgId, membershipId)
   await mutateProjectionPostgres({
     ref,
