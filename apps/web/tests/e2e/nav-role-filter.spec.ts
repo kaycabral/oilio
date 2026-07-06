@@ -81,8 +81,11 @@ test.describe('Navegação filtrada por papel (AC-08)', () => {
     await expect(nav.getByText('Cadastros', { exact: true })).toBeVisible()
     await expect(nav.getByRole('link', { name: 'Agenda' })).toBeVisible()
     await expect(nav.getByRole('link', { name: 'Vendas' })).toBeVisible()
+    // Clientes stays (receptionist has canManageCustomers); Catálogo/Planos are
+    // manage-only (canManageCatalog/canManagePlans false in the preset) and hidden.
     await expect(nav.getByRole('link', { name: 'Clientes' })).toBeVisible()
-    await expect(nav.getByRole('link', { name: 'Catálogo' })).toBeVisible()
+    await expect(nav.getByRole('link', { name: 'Catálogo' })).toHaveCount(0)
+    await expect(nav.getByRole('link', { name: 'Planos' })).toHaveCount(0)
 
     // The whole Administração section disappears.
     await expect(nav.getByText('Administração', { exact: true })).toHaveCount(0)

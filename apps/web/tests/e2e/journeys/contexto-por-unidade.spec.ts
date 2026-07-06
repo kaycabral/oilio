@@ -205,7 +205,7 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
   test.describe('Cenário 4 — navegação por papel', () => {
     test.use({ orgInput: { unitCount: 1 } })
 
-    test('recepção: sem Administração nem Comissões; mantém Operação + Clientes/Catálogo', async ({
+    test('recepção: sem Administração nem Comissões; mantém Operação + Clientes', async ({
       authedPage,
       org,
     }) => {
@@ -221,8 +221,10 @@ test.describe('Contexto por unidade e navegação — DoD (#1049 · 0029)', () =
       await expect(nav.getByText('Cadastros', { exact: true })).toBeVisible()
       await expect(nav.getByRole('link', { name: 'Agenda' })).toBeVisible()
       await expect(nav.getByRole('link', { name: 'Vendas' })).toBeVisible()
+      // Clientes stays (canManageCustomers); Catálogo is manage-only
+      // (canManageCatalog false in the receptionist preset) and hidden.
       await expect(nav.getByRole('link', { name: 'Clientes' })).toBeVisible()
-      await expect(nav.getByRole('link', { name: 'Catálogo' })).toBeVisible()
+      await expect(nav.getByRole('link', { name: 'Catálogo' })).toHaveCount(0)
 
       // The whole Administração section disappears. PRD Identidade v2 / F5
       // renamed "Empresa" → "Negócios & Unidades".
