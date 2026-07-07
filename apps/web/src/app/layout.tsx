@@ -1,3 +1,4 @@
+import { DebugErrorOverlay } from '@/components/debug-error-overlay'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@cbrl/design'
 import type { Metadata, Viewport } from 'next'
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}
           <Toaster />
+          <DebugErrorOverlay />
         </ThemeProvider>
       </body>
     </html>
