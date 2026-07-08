@@ -49,6 +49,7 @@ export {
   appendEventGuardedToTx,
   appendEventToTx,
   buildInitialEvent,
+  decodeStreamEvent,
   replayAggregate,
   runSaga,
   type AggregateConfig,
