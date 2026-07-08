@@ -24,6 +24,23 @@ interface MarkPaidInput {
   subscriptionId: string
   attempts: number
   now: string
+  /**
+   * Competência da receita reconhecida — o início do período de serviço coberto
+   * (ADR 0016 D2), NÃO `now` (pagamento = caixa). Carregado no `changes` do
+   * `charge.succeeded` pra o evento ser auto-suficiente na competência (simetria
+   * com `order.closed` + items, ADR 0016 D5): o `occurred_at` deriva daqui.
+   */
+  periodStartAt: string
+  /**
+   * Snapshotted onto the `charge.succeeded` changeset for the SAME reason as
+   * `periodStartAt` (ADR 0016 D5 self-sufficiency): the Razão reads the org+window
+   * stream and derives subscription revenue from `charge.succeeded` ALONE, so the
+   * amount + unit must live on the recognizing event, not be chased across the
+   * `charge.created` snapshot. Both are the charge's current snapshot values — they
+   * don't change the projected state (already true), they make the fact complete.
+   */
+  amountCents: number
+  unitId: string
   /** A cancelled subscription is NOT settled — only the charge succeeds. */
   settle: boolean
 }
@@ -46,6 +63,15 @@ export function buildMarkPaidSteps(input: MarkPaidInput): SagaStep[] {
             attempts: input.attempts + 1,
             lastActorUid: input.actorId,
             updatedAt: input.now,
+            // Competência da receita (ADR 0016 D2) — repetida no changeset pra o
+            // evento ser auto-suficiente: `occurred_at` = período de serviço, não
+            // o pagamento. Já é o valor atual do snapshot (não muda o estado).
+            periodStartAt: input.periodStartAt,
+            // Valor + unidade snapshotados no evento de reconhecimento (ADR 0016
+            // D5): o Razão deriva a receita do `charge.succeeded` só, sem buscar o
+            // `charge.created`. Já são os valores atuais (não mudam o estado).
+            amountCents: input.amountCents,
+            unitId: input.unitId,
           },
         },
       },

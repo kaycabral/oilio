@@ -1593,6 +1593,7 @@ export async function seedPaidCharge(
     paidAt: opts.paidAt,
     failedAt: null,
     failureReason: null,
+    refundedAt: null,
     lastActorUid: null,
     createdAt: now,
     updatedAt: now,

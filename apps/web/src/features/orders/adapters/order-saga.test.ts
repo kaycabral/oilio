@@ -166,7 +166,13 @@ describe('buildUndoCloseSteps', () => {
       stockRestoreTargets: [],
       cashReversal: null,
       commissionIds: [],
-      reopen: { commissionsReversed: 0, cashReversalMovementId: null, subscriptionRestored: false },
+      reopen: {
+        reopenedAt: '2026-06-02T00:00:00Z',
+        reversedClosedAt: '2026-06-01T00:00:00Z',
+        commissionsReversed: 0,
+        cashReversalMovementId: null,
+        subscriptionRestored: false,
+      },
       orderId: 'o1',
     })
     expect(steps).toHaveLength(1)
@@ -184,6 +190,8 @@ describe('buildUndoCloseSteps', () => {
       },
       commissionIds: ['com-1', 'com-2'],
       reopen: {
+        reopenedAt: '2026-06-02T00:00:00Z',
+        reversedClosedAt: '2026-06-01T00:00:00Z',
         commissionsReversed: 2,
         cashReversalMovementId: 'rev-1',
         subscriptionRestored: true,
@@ -213,6 +221,8 @@ describe('buildUndoCloseSteps', () => {
         },
         commissionIds: ['com-1'],
         reopen: {
+          reopenedAt: '2026-06-02T00:00:00Z',
+          reversedClosedAt: '2026-06-01T00:00:00Z',
           commissionsReversed: 1,
           cashReversalMovementId: 'rev-1',
           subscriptionRestored: true,

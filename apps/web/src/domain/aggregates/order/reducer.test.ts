@@ -160,6 +160,8 @@ describe('Order reducer', () => {
         subtotalCents: 8000,
         totalCents: 8000,
         paymentMethod: 'pix',
+        items: [],
+        unitId: 'u1',
       },
       meta(4),
     )
@@ -185,6 +187,8 @@ describe('Order reducer', () => {
       closed,
       {
         _tag: 'order.reopened',
+        reopenedAt: '2026-06-02T09:00:00Z',
+        reversedClosedAt: '2026-06-01T12:00:00Z',
         commissionsReversed: 1,
         cashReversalMovementId: 'cm_estorno',
         subscriptionRestored: true,

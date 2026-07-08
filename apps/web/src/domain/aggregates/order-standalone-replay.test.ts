@@ -74,6 +74,8 @@ describe('Order — venda avulsa sem cliente reconstrói do event store (brief 0
             subtotalCents: 7000,
             totalCents: 7000,
             paymentMethod: 'cash',
+            items: [STANDALONE_ITEM],
+            unitId: 'u1',
           },
         })
       }).pipe(Effect.provide(layer)),

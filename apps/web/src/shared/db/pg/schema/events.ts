@@ -24,9 +24,23 @@ import { bigint, check, index, jsonb, pgTable, text, timestamp, unique } from 'd
  *     the replay decode path are untouched (PersistencePort generalizes the
  *     seam; the envelope contract is preserved).
  *
- * `org_id` is carried as a leading-index column PREPARED for RLS (feature C,
- * Onda 2) — RLS itself is NOT enabled here. PII never lives in the envelope
- * (ADR 0010 contract: aggregates reference an id; PII lives in a deletable doc).
+ * `org_id` scopes the stream. RLS on `events` is NOT enabled here (deferred to a
+ * dedicated task — see below): `readOrgEventStream` (the Razão's windowed read)
+ * scopes by `WHERE org_id = $1` in the query, the SAME isolation the core's
+ * replay path already relies on today (`getEvents`/`getDoc` filter by org_id
+ * without RLS). Enabling FORCE RLS here would return ZERO rows on the replay path
+ * (it never sets the `app.current_org` GUC), breaking aggregate rehydration — an
+ * empirical finding proven by `events-rls-replay-probe.events.pg.integration.test`.
+ * Turning RLS on requires migrating `getEvents`/`getDoc` to run under
+ * `readUnderRls` first; that is its own change (issue tracked). PII never lives in
+ * the envelope (ADR 0010 D2), so the stream carries no PII regardless.
+ *
+ * `occurred_at` is the COMPETÊNCIA of the fact (accrual date), materialized from
+ * the envelope payload at append time (ADR 0016 D4): the sale's `closedAt`, the
+ * subscription's period start, the reversal's date — NOT `created_at` (write
+ * clock). Indexed by `(org_id, occurred_at)` so the Razão window is a range scan
+ * by competência. Null for events without financial competência (e.g. an order's
+ * item edits) — those never enter the ledger.
  */
 export const events = pgTable(
   'events',
@@ -53,6 +67,10 @@ export const events = pgTable(
     envelope: jsonb('envelope').notNull(),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+
+    // Competência (accrual date) of the fact, derived from the envelope payload at
+    // append time (ADR 0016 D4). Null for events with no financial competência.
+    occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'string' }),
   },
   (table) => [
     // Optimistic concurrency: one row per (aggregate stream, version). The
@@ -78,8 +96,12 @@ export const events = pgTable(
       table.aggregateId,
       table.version,
     ),
-    // Leading-`org_id` index PREPARED for RLS (feature C) and org-scoped reads.
+    // Leading-`org_id` index for RLS-scoped stream reads by aggregate type.
     index('events_org_id_idx').on(table.orgId, table.aggregateType, table.version),
+    // Razão window: range-scan a whole org's ledger facts by competência
+    // (`readOrgEventStream` — brief 0091). `occurred_at` is null for non-financial
+    // events, which the read filters out with `occurred_at IS NOT NULL`.
+    index('events_org_id_occurred_at_idx').on(table.orgId, table.occurredAt),
   ],
 )
 

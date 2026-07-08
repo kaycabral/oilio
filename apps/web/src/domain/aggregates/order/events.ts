@@ -1,4 +1,4 @@
-import { OpenOrder, PaymentMethod } from '@/domain/types/order'
+import { OpenOrder, OrderItem, PaymentMethod } from '@/domain/types/order'
 import { Schema } from 'effect'
 
 // Orders are always born open; item/meta edits only apply while open. Both ride
@@ -51,16 +51,39 @@ export const OrderCancelledSchema = Schema.Struct({
   _tag: Schema.Literal('order.cancelled'),
 })
 
+// `items` snapshot (schemaVersion 2, ADR 0016 D5): the closed order IS the sale,
+// and revenue is recognised per item — the finest grain of the fact. Carrying the
+// items on the event makes per-item revenue derivable FROM THE EVENT ALONE (no
+// replay, no projection read), which is what lets the Razão derive from the stream
+// by competência. Mirrors `commission.created`, which already snapshots per item.
+// Legacy v1 `order.closed` (no items) is lifted by the order upcaster (config.ts).
 export const OrderClosedSchema = Schema.Struct({
   _tag: Schema.Literal('order.closed'),
   closedAt: Schema.String,
   subtotalCents: Schema.Number,
   totalCents: Schema.Number,
   paymentMethod: Schema.NullOr(PaymentMethod),
+  items: Schema.mutable(Schema.Array(OrderItem)),
+  // `unitId` snapshotted for the SAME reason as `items` (ADR 0016 D5): it makes
+  // the closed order's revenue self-locating from the event alone — the Razão
+  // reads the org+window stream (never per-aggregate replay), so it can't reach
+  // `order.created` for the unit. The commission inherits this unit via the
+  // correlated order. Legacy v1 `order.closed` (no unitId) is lifted by the
+  // order upcaster to '' — a pre-D5 closed order simply lands unit-less, never a
+  // decode failure (production has ZERO closed events; verified).
+  unitId: Schema.String,
 })
 
+// `reopenedAt` is the competência of the reversal (when the sale is undone);
+// `reversedClosedAt` is the competência of the ORIGINAL sale being reversed
+// (ADR 0016 D3/D5). The Razão needs both: the reversing entry lands on the
+// reversal's competência (current period if the sale's period is closed), and it
+// must know which sale it offsets. Legacy v1 `order.reopened` (neither field) is
+// lifted by the order upcaster (config.ts).
 export const OrderReopenedSchema = Schema.Struct({
   _tag: Schema.Literal('order.reopened'),
+  reopenedAt: Schema.String,
+  reversedClosedAt: Schema.String,
   commissionsReversed: Schema.Number,
   cashReversalMovementId: Schema.NullOr(Schema.String),
   subscriptionRestored: Schema.Boolean,

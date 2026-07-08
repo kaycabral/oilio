@@ -29,6 +29,14 @@ export {
   type TransactionContext,
 } from './services'
 
+export {
+  AcquirerLedgerPort,
+  BankLedgerPort,
+  FiscalLedgerPort,
+  type LedgerSourceOps,
+  type LedgerSourceWindow,
+} from './ledger-source-ports'
+
 export { checkAppointmentAvailability } from './check-appointment-availability'
 
 export {

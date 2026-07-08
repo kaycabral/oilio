@@ -22,6 +22,7 @@ export const INITIAL_CHARGE_STATE: ChargeState = {
   paidAt: null,
   failedAt: null,
   failureReason: null,
+  refundedAt: null,
   lastActorUid: null,
   createdAt: '',
   updatedAt: '',

@@ -193,6 +193,7 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
     paidAt: null,
     failedAt: null,
     failureReason: null,
+    refundedAt: null,
     lastActorUid: null,
     createdAt: now,
     updatedAt: now,

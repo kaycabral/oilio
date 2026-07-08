@@ -143,6 +143,7 @@ const CASES: { name: string; run: () => Promise<void> }[] = [
         paidAt: null,
         failedAt: null,
         failureReason: null,
+        refundedAt: null,
         lastActorUid: null,
         createdAt: '2026-06-01T12:00:00.000Z',
         updatedAt: '2026-06-01T12:00:00.000Z',

@@ -218,6 +218,7 @@ export function buildCharge(
     paidAt: status === 'paid' ? now : null,
     failedAt: null,
     failureReason: null,
+    refundedAt: status === 'refunded' ? now : null,
     lastActorUid: null,
     createdAt: now,
     updatedAt: now,

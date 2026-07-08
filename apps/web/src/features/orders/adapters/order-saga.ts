@@ -163,6 +163,12 @@ export function buildCloseOrderSteps(args: {
           subtotalCents: totals.subtotalCents,
           totalCents: totals.totalCents,
           paymentMethod,
+          // Snapshot the items + unit on the event (ADR 0016 D5): the Razão derives
+          // per-item revenue from `order.closed` alone, scoped to the unit. The
+          // order is immutable at close (only open orders take item edits), so
+          // this is the final shape.
+          items: order.items,
+          unitId: order.unitId,
         },
       },
       tx,

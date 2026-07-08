@@ -141,6 +141,13 @@
       "when": 1783083386624,
       "tag": "0019_whatsapp_to_mobile_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1783553121055,
+      "tag": "0020_razao_occurred_at_charge_refund",
+      "breakpoints": true
     }
   ]
 }
