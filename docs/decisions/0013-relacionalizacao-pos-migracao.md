@@ -83,6 +83,8 @@ Por que **tipo nominal derivado do config** e não objeto-literal `{type,orgId,i
 
 **Estratégia de entrega — drop & recreate** (revisão do faseamento "de dentro pra fora"): como o cutover #1202 nunca conectou Postgres em prod de verdade (sem dado vivo), o épico **não** carrega coexistência de chaves nem backfill. O schema Drizzle é reescrito já com a forma final, o histórico de migrations é regenerado do zero (squash), e o banco é recriado limpo. Materializado no brief 0069 (#1228 + 5 sub-issues). Sai do "por último/futuro" para **agora**, enquanto a janela sem dado vivo é barata.
 
+> ⚠️ **PREMISSA SUPERADA (auditoria #1383, 2026-07-08).** A "janela sem dado vivo" **fechou**: oilio está em produção desde ~2026-07-02 com event store populado (ver [`0017-oilio-em-producao.md`](0017-oilio-em-producao.md)). Um **drop & recreate / squash / banco recriado limpo executado hoje destrói o event log de produção** (viola a imutabilidade append-only dos ADRs 0010/0012). Se o épico D6 for retomado, a estratégia de entrega **precisa ser re-desenhada** com migração de dado real (rename in-place não-destrutivo + upcaster-on-read), não drop & recreate. Não executar D6 sob esta premissa.
+
 ## Consequences
 
 - **+** D1–D3 atacam custo **já existente** (queries financeiras frágeis sobre texto, N:N em memória, integridade só-na-app) e são **independentes do seam** — entregáveis incrementalmente sem mexer no event store.

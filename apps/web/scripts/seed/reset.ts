@@ -2,10 +2,11 @@
 //
 // The event store is append-only with `UNIQUE(aggregate_type, org_id,
 // aggregate_id, version)`: re-running the seed without a reset would raise 23505
-// on the first `version=1` emit. So the seed TRUNCATEs every table first. oilio
-// local is pre-prod (no prod data; re-seed is the expected reset), so a full
-// truncate is safe HERE — and guarded to localhost so it can never touch a
-// remote database.
+// on the first `version=1` emit. So the seed TRUNCATEs every table first. This is
+// a LOCAL DEV database — a disposable, re-seedable fixture, never production — so a
+// full truncate is safe HERE, and it is hard-guarded to localhost (below) so it can
+// never touch a remote/shared database. (This says nothing about prod: oilio runs in
+// production; only THIS local fixture is truncatable. Audit #1383.)
 
 import type { Pool } from 'pg'
 
