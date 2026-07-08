@@ -115,6 +115,39 @@ function decodeEvent<Event extends { readonly _tag: string }, Encoded = Event>(
   return Schema.decodeUnknownSync(schema)({ _tag: envelope._tag, ...envelope.payload })
 }
 
+// Lifts a raw persisted envelope through its registered upcasters (v1→…→current)
+// so a legacy-schemaVersion event decodes against the current schema. Identity
+// when already current or no upcaster covers a step. This is the SINGLE upcast
+// step both `replayAggregate` and any stream reader (the Razão's org-window read)
+// share — the schema-migration invariant lives in one place, not duplicated per
+// consumer.
+function upcastEnvelope<
+  State extends { readonly _version: number },
+  Event extends { readonly _tag: string },
+  Encoded = Event,
+>(config: AggregateConfig<State, Event, Encoded>, envelope: EventEnvelope): EventEnvelope {
+  if (envelope.schemaVersion >= config.currentSchemaVersion || !config.upcasters) return envelope
+  let lifted = envelope
+  for (let v = lifted.schemaVersion; v < config.currentSchemaVersion; v++) {
+    const upcaster = config.upcasters[v]
+    if (upcaster) lifted = upcaster(lifted)
+  }
+  return lifted
+}
+
+// Decodes ONE raw persisted event doc into the aggregate's typed event, applying
+// upcasters first. The reusable seam for stream consumers OUTSIDE replay (the
+// Razão adapter maps `readOrgEventStream` rows through this), so envelope decode +
+// upcast + schema decode never gets re-implemented — and drift between replay and
+// the Razão is impossible by construction.
+export function decodeStreamEvent<
+  State extends { readonly _version: number },
+  Event extends { readonly _tag: string },
+  Encoded = Event,
+>(config: AggregateConfig<State, Event, Encoded>, doc: FirestoreDoc): Event {
+  return decodeEvent(config.schema, upcastEnvelope(config, decodeEnvelope(doc)))
+}
+
 // Rehydrates a typed projection from an untyped doc by layering it over the
 // aggregate's initial state — present fields override defaults, missing ones
 // keep them. `Object.assign` preserves the target's `State` type, so no cast.
@@ -503,17 +536,7 @@ export function replayAggregate<
 
     let state = config.initialState
     for (const doc of eventDocs) {
-      let envelope = decodeEnvelope(doc)
-
-      if (envelope.schemaVersion < config.currentSchemaVersion && config.upcasters) {
-        for (let v = envelope.schemaVersion; v < config.currentSchemaVersion; v++) {
-          const upcaster = config.upcasters[v]
-          if (upcaster) {
-            envelope = upcaster(envelope)
-          }
-        }
-      }
-
+      const envelope = upcastEnvelope(config, decodeEnvelope(doc))
       state = config.reducer(state, decodeEvent(config.schema, envelope), envelope)
     }
 
