@@ -2,8 +2,11 @@
 -- three PII-bearing tables, and enforce the strict Brazilian-mobile format at
 -- the database (9th digit required). The WhatsApp *channel* (message templates,
 -- wa.me, notification dispatch) is untouched — this is the stored NUMBER, not
--- the channel. Greenfield: production is empty (verified 2026-07-03), so the
--- column rename carries no data and needs no backfill.
+-- the channel. `RENAME COLUMN` preserves every existing row's value in place, so
+-- this needs no backfill REGARDLESS of how much data prod holds — the rename is
+-- data-safe by construction. (An earlier version of this note leaned on "production
+-- is empty" as the justification; that premise was both unnecessary here and stale
+-- — oilio is in production. See audit #1383.)
 --
 -- RENAME COLUMN keeps the existing index/CHECK expressions valid (Postgres
 -- rewrites the referenced column inside them automatically); only the

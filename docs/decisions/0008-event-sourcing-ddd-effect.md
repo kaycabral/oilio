@@ -122,7 +122,7 @@ fp-ts é predecessor, menor ecossistema, sem schema validation nativo, sem DI na
 - Learning curve — Effect-TS é paradigma diferente do TS mainstream. Mitigação: owner + AI como time.
 - Bundle size — `effect` + `@effect/schema` não são pequenos. Mitigação: tree-shaking + server-only. Guardrail: bundle não regredir além de +20%.
 - Event schema versioning — upcasters adicionam complexidade incremental. Mitigação: infra de upcasting desde o dia 1, volume baixo.
-- Big bang migration — todas entidades migram de uma vez. Aceito: sem dados de produção, sem risco de rollback parcial.
+- Big bang migration — todas entidades migram de uma vez. Aceito: sem dados de produção, sem risco de rollback parcial. **(Contexto histórico, 2026-05-27: verdadeiro na data. Premissa hoje SUPERADA — oilio está em produção desde ~2026-07-02; ver [`0017-oilio-em-producao.md`](0017-oilio-em-producao.md) e auditoria #1383. Migração big-bang já concluída; a premissa não deve ser reusada como licença para reescrever dado persistido.)**
 
 ## Guardrails
 

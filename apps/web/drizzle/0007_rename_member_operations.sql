@@ -17,8 +17,13 @@
 --
 -- Hand-authored as `ALTER TABLE ... RENAME` + targeted `UPDATE` (NOT drizzle-kit
 -- push/drop+add): renames preserve every row, FK, index and policy in place. The
--- event-log rewrite is safe because oilio is pre-prod with no production data
--- (PRD § "Migração de dado histórico"); it is correct for any local dump too.
+-- event-log rewrite touched ZERO production rows: audit #1383 verified the prod
+-- `events` table was empty when this ran (~2026-06-28) — the first persisted prod
+-- event is dated 2026-07-02. So no immutable production history was mutated here.
+-- ⚠️ This in-place `UPDATE events` is NOT a pattern to repeat: `events` is
+-- append-only/immutable once populated. A future identifier rename against a
+-- non-empty prod stream needs an upcaster on read, never a destructive rewrite.
+-- (The original "oilio is pre-prod" comment was stale premise, not a live licence.)
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- ── 1. Performer-ref column renames on the agenda aggregates ──────────────────
@@ -155,9 +160,12 @@ UPDATE "memberships"
 -- ── 12. Event log rewrite: aggregate_type + _tag + appointment payload field ──
 -- The aggregate type literal and the event `_tag`s are persisted identifiers in
 -- the immutable `events` table. The 0076 decision renames the resource itself, so
--- the historical stream is rewritten in lock-step (pre-prod, re-seedable). The
--- envelope is JSONB: rewrite the `_tag` and, for appointment events, the
--- `professionalId`/`professionalUserId` payload fields the domain schema renamed.
+-- the historical stream is rewritten in lock-step. This was safe here ONLY because
+-- the prod stream was empty when it ran (audit #1383 — see header note); on a
+-- non-empty stream this rewrite would violate append-only immutability and must be
+-- an upcaster-on-read instead. The envelope is JSONB: rewrite the `_tag` and, for
+-- appointment events, the `professionalId`/`professionalUserId` payload fields the
+-- domain schema renamed.
 UPDATE "events" SET "aggregate_type" = 'member_operation' WHERE "aggregate_type" = 'professional';--> statement-breakpoint
 UPDATE "events"
   SET "envelope" = jsonb_set("envelope", '{_tag}',
