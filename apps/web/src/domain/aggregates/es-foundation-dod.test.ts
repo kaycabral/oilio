@@ -160,6 +160,8 @@ describe('Feature 0020 — Definition of Done', () => {
             subtotalCents: 8000,
             totalCents: 8000,
             paymentMethod: 'pix',
+            items: [],
+            unitId: 'u1',
           },
         })
 

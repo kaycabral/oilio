@@ -7,6 +7,7 @@ import type {
   TransactionContext,
 } from '@/domain/effect'
 import { PersistencePort, SecurityContext } from '@/domain/effect'
+import { competenceOf } from '@/domain/utils/event-competence'
 import { Effect, Layer, Option } from 'effect'
 import type { PoolClient } from 'pg'
 import { setRlsGucs } from '../guc'
@@ -139,14 +140,24 @@ async function writeEvent(
   version: number,
   envelope: FirestoreDoc,
 ): Promise<void> {
+  // Competência (accrual date) derivada do envelope (ADR 0016 D4) — materializada
+  // na coluna pra o Razão fazer range-scan por competência. Null pra eventos sem
+  // competência financeira (não entram no livro). Puro; o mapa vive no domínio.
+  const rawTag = envelope['_tag']
+  const tag = typeof rawTag === 'string' ? rawTag : ''
+  const rawPayload = envelope['payload']
+  const payload: Record<string, unknown> =
+    rawPayload !== null && typeof rawPayload === 'object' ? { ...rawPayload } : {}
+  const occurredAt = competenceOf(tag, payload)
+
   // The DB enforces optimistic concurrency: a duplicate (aggregate_type, org_id,
   // aggregate_id, version) raises 23505 (unique_violation), which surfaces as a
   // failed transaction — the second concurrent append is refused by the DB, not
   // the app. `aggregate_id` is the bare aggregate id (D6); type/org are siblings.
   await client.query(
-    `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [ref.type, ref.id, version, ref.orgId, envelope],
+    `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope, occurred_at)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [ref.type, ref.id, version, ref.orgId, envelope, occurredAt],
   )
 }
 

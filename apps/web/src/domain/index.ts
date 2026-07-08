@@ -283,6 +283,17 @@ export {
   EXPENSE_CATEGORY_NAME_MIN,
   ExpenseCategory,
 } from './types/expense-category'
+export {
+  LEDGER_BEHAVIORS,
+  LEDGER_LINKS,
+  LEDGER_NATURES,
+  LEDGER_SOURCES,
+  LedgerBehavior,
+  LedgerEntry,
+  LedgerLink,
+  LedgerNature,
+  LedgerSource,
+} from './types/ledger'
 export { buildCashMovementsCsv } from './utils/cash-movement-csv'
 export {
   computeMovementTotals,
@@ -290,6 +301,8 @@ export {
   isCashPaymentMethod,
 } from './utils/cash-register'
 export type { CashMovementTotals } from './utils/cash-register'
+export { classifyLedger } from './utils/ledger'
+export type { ClosedOrderFact, LedgerFact, OrderReopenedFact } from './utils/ledger'
 
 export {
   assertValidTimezone,

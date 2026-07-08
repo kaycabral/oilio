@@ -391,6 +391,8 @@ describe('undo-close cascade — ACID (Postgres)', () => {
       },
       commissionIds: ['com-1'],
       reopen: {
+        reopenedAt: '2026-06-02T10:00:00.000Z',
+        reversedClosedAt: '2026-06-01T10:00:00.000Z',
         commissionsReversed: 1,
         cashReversalMovementId: 'rev-1',
         subscriptionRestored: true,
@@ -444,6 +446,8 @@ describe('undo-close cascade — ACID (Postgres)', () => {
       },
       commissionIds: ['com-1'],
       reopen: {
+        reopenedAt: '2026-06-02T10:00:00.000Z',
+        reversedClosedAt: '2026-06-01T10:00:00.000Z',
         commissionsReversed: 1,
         cashReversalMovementId: 'rev-1',
         subscriptionRestored: true,

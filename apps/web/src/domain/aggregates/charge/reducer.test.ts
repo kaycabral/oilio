@@ -26,6 +26,7 @@ const CREATED_DATA: Charge = {
   paidAt: null,
   failedAt: null,
   failureReason: null,
+  refundedAt: null,
   lastActorUid: null,
   createdAt: '2026-06-01T10:00:00.000Z',
   updatedAt: '2026-06-01T10:00:00.000Z',

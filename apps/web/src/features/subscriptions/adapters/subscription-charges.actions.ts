@@ -92,6 +92,9 @@ export async function markChargePaid(chargeId: string): Promise<ChargeMutationRe
       subscriptionId: charge.subscriptionId,
       attempts: charge.attempts,
       now,
+      periodStartAt: charge.periodStartAt,
+      amountCents: charge.amountCents,
+      unitId: charge.unitId,
       settle: sub.status !== 'cancelled',
     }),
   )
@@ -217,6 +220,7 @@ export async function renewSubscription(subscriptionId: string): Promise<ChargeM
     paidAt: null,
     failedAt: null,
     failureReason: null,
+    refundedAt: null,
     lastActorUid: null,
     createdAt: now,
     updatedAt: now,

@@ -30,6 +30,7 @@ describe('Charge — replay reconstrói o doc completo (event-first, gateway-gat
       paidAt: null,
       failedAt: null,
       failureReason: null,
+      refundedAt: null,
       lastActorUid: null,
       createdAt: '2026-06-01T00:00:00.000Z',
       updatedAt: '2026-06-01T00:00:00.000Z',

@@ -42,6 +42,7 @@ const renewCharge: Charge = {
   paidAt: null,
   failedAt: null,
   failureReason: null,
+  refundedAt: null,
   lastActorUid: null,
   createdAt: '2026-07-01T00:00:00.000Z',
   updatedAt: '2026-07-01T00:00:00.000Z',
@@ -55,6 +56,9 @@ describe('buildMarkPaidSteps', () => {
     subscriptionId: SUB,
     attempts: 0,
     now: '2026-06-02T00:00:00.000Z',
+    periodStartAt: '2026-06-01T00:00:00.000Z',
+    amountCents: 9000,
+    unitId: 'unit1',
   }
 
   it('settles the subscription alongside the charge when not cancelled', () => {

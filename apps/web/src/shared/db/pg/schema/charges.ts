@@ -69,6 +69,8 @@ export const charges = pgTable(
     paidAt: timestamp('paid_at', { withTimezone: true, mode: 'string' }),
     failedAt: timestamp('failed_at', { withTimezone: true, mode: 'string' }),
     failureReason: text('failure_reason'),
+    // Non-null SSE status='refunded' (ADR 0016 D5) — enforced by the CHECK below.
+    refundedAt: timestamp('refunded_at', { withTimezone: true, mode: 'string' }),
     lastActorUid: text('last_actor_uid'),
 
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull(),
@@ -83,6 +85,18 @@ export const charges = pgTable(
     // No negative money / attempts.
     check('charges_amount_cents_nonneg', sql`${table.amountCents} >= 0`),
     check('charges_attempts_nonneg', sql`${table.attempts} >= 0`),
+    // State→timestamp invariants (ADR 0016 D2/D5): a paid charge has a paidAt,
+    // a refunded charge has a refundedAt. The domain schema refines the same at
+    // the decode boundary; the CHECK is the DB's last word (seed/import/replay
+    // can't inject a paid charge with no payment date — cash regime disguised).
+    check(
+      'charges_paid_requires_paid_at',
+      sql`${table.status} <> 'paid' OR ${table.paidAt} IS NOT NULL`,
+    ),
+    check(
+      'charges_refunded_requires_refunded_at',
+      sql`${table.status} <> 'refunded' OR ${table.refundedAt} IS NOT NULL`,
+    ),
     // Composite (org_id, id) PRIMARY KEY — the target of cross-aggregate composite FKs.
     primaryKey({ columns: [table.orgId, table.id], name: 'charges_pkey' }),
     // Every charge belongs to a real org.

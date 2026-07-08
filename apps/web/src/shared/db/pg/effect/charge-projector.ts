@@ -31,6 +31,7 @@ export const CHARGE_COLUMNS = [
   'paid_at',
   'failed_at',
   'failure_reason',
+  'refunded_at',
   'last_actor_uid',
   'created_at',
   'updated_at',
@@ -54,6 +55,7 @@ export function chargeColumnValues(c: Charge, ref: AggregateRef, version: number
     c.paidAt,
     c.failedAt,
     c.failureReason,
+    c.refundedAt,
     c.lastActorUid,
     c.createdAt,
     c.updatedAt,
@@ -96,6 +98,7 @@ export type ChargeRow = {
   paid_at: string | null
   failed_at: string | null
   failure_reason: string | null
+  refunded_at: string | null
   last_actor_uid: string | null
   created_at: string
   updated_at: string
@@ -121,6 +124,7 @@ export function rowToDoc(row: ChargeRow): FirestoreDoc {
     paidAt: row.paid_at == null ? null : new Date(row.paid_at).toISOString(),
     failedAt: row.failed_at == null ? null : new Date(row.failed_at).toISOString(),
     failureReason: row.failure_reason,
+    refundedAt: row.refunded_at == null ? null : new Date(row.refunded_at).toISOString(),
     lastActorUid: row.last_actor_uid,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),

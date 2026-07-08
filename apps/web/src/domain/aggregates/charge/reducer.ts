@@ -15,6 +15,7 @@ export function applyChargeEvent(
     case 'charge.succeeded':
     case 'charge.failed':
     case 'charge.cancelled':
+    case 'charge.refunded':
       return { ...base, ...event.changes }
   }
 }

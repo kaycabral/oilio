@@ -32,6 +32,8 @@ type UndoCloseArgs = {
   cashReversal: { movement: CashMovement } | null
   commissionIds: string[]
   reopen: {
+    reopenedAt: string
+    reversedClosedAt: string
     commissionsReversed: number
     cashReversalMovementId: string | null
     subscriptionRestored: boolean

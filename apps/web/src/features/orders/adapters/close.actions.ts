@@ -207,6 +207,12 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
     cashReversal,
     commissionIds: commissions.map((c) => c.id),
     reopen: {
+      // Competência do estorno = agora (a reversão é um fato do período corrente);
+      // competência da venda estornada = o fechamento original (ADR 0016 D3/D5).
+      // Ambos em UTC ISO (storage UTC; o fuso da unidade só entra no display),
+      // consistentes com `closedAt`.
+      reopenedAt: now,
+      reversedClosedAt: order.closedAt ?? now,
       commissionsReversed: commissions.length,
       cashReversalMovementId: cashReversal?.movement.id ?? null,
       subscriptionRestored: subscriptionRestore !== null,
