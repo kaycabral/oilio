@@ -22,6 +22,7 @@ import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { commitGuardedThenAppend, emitEvent } from '@/shared/effect-bridge'
 import { Effect, Schema } from 'effect'
 
+import { buildMarkPaidSteps } from '@/features/subscriptions/adapters/subscription-charges-saga'
 import { parseCreateForm } from '@/features/subscriptions/core/subscription-form'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { getCustomerUserId } from '@/shared/org/customer-read'
@@ -52,7 +53,7 @@ export type {
   SubscriptionMutationResult,
 } from '@/features/subscriptions/core/subscription-results'
 
-const ACTIVE_SUBSCRIPTION_STATUSES = ['pending', 'active', 'past_due', 'suspended'] as const
+const ACTIVE_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
 
 async function customerHasActiveSubscription(orgId: string, customerId: string): Promise<boolean> {
   const rows = await readUnderRls<{ exists: boolean }>(orgId, (client) =>
@@ -175,11 +176,28 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
     throw new Error('subscription.created payload missing a numeric plan.priceCents (lawful price)')
   }
 
-  const outcome = await commitGuardedThenAppend(guardedSub, ChargeConfig, chargeRef, (payload) => ({
-    _tag: 'charge.created',
-    actorId: r.ctx.session.uid,
-    payload: { data: buildCharge(lawfulFrom(payload)) },
-  }))
+  const outcome = await commitGuardedThenAppend(guardedSub, {
+    config: ChargeConfig,
+    ref: chargeRef,
+    buildEvent: (payload) => ({
+      _tag: 'charge.created',
+      actorId: r.ctx.session.uid,
+      payload: { data: buildCharge(lawfulFrom(payload)) },
+    }),
+    buildExtraSteps: (payload) =>
+      buildMarkPaidSteps({
+        orgId,
+        actorId: r.ctx.session.uid,
+        chargeId,
+        subscriptionId: subId,
+        attempts: 0,
+        now,
+        periodStartAt: period.startAt,
+        amountCents: lawfulFrom(payload),
+        unitId: activeUnitId,
+        settle: true,
+      }),
+  })
   if (!outcome.ok) return { ok: false, error: outcome.error }
   revalidatePath('/subscriptions')
   return { ok: true, subscriptionId: subId }

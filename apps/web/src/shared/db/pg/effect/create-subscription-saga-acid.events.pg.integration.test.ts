@@ -112,9 +112,7 @@ describe('create-subscription guarded cascade — ACID (Postgres)', () => {
         tag: 'subscription.created',
         guard: () => Effect.succeed({ _tag: 'ok' as const, payload: subscriptionData }),
       },
-      ChargeConfig,
-      chargeRef,
-      buildChargeEvent,
+      { config: ChargeConfig, ref: chargeRef, buildEvent: buildChargeEvent },
     )
 
     expect(result).toEqual({ ok: true })
@@ -132,9 +130,7 @@ describe('create-subscription guarded cascade — ACID (Postgres)', () => {
         guard: () =>
           Effect.succeed({ _tag: 'reject' as const, message: 'customer já tem assinatura ativa' }),
       },
-      ChargeConfig,
-      chargeRef,
-      buildChargeEvent,
+      { config: ChargeConfig, ref: chargeRef, buildEvent: buildChargeEvent },
     )
 
     expect(result).toEqual({ ok: false, error: 'customer já tem assinatura ativa' })
