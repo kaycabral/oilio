@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Target,
   Users,
+  Wallet,
 } from 'lucide-react'
 
 type NavCapability =
@@ -75,6 +76,13 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         match: 'prefix',
         requires: 'manageOrg',
         requiresTier: 'copilot.profit_goal',
+      },
+      {
+        href: '/finance',
+        label: 'Financeiro',
+        icon: Wallet,
+        match: 'prefix',
+        requires: 'manageOrg',
       },
     ],
   },

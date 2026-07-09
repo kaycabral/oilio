@@ -1231,6 +1231,47 @@ export async function seedPaidCharge(
   return chargeId
 }
 
+export async function seedRazaoRevenue(
+  orgId: string,
+  opts: { unitId: string; amountCents: number; periodStartAt: string },
+): Promise<void> {
+  const { Client } = await import('pg')
+  const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
+  await client.connect()
+  try {
+    await client.query(
+      `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope, occurred_at)
+       VALUES ($1, $2, 1, $3, $4, $5)`,
+      [
+        'charge',
+        `e2e-razao-${uniqueSuffix()}`,
+        orgId,
+        {
+          _tag: 'charge.succeeded',
+          version: 1,
+          timestamp: opts.periodStartAt,
+          actorId: 'e2e-seed',
+          schemaVersion: 1,
+          payload: {
+            changes: {
+              status: 'paid',
+              paidAt: opts.periodStartAt,
+              attempts: 1,
+              periodStartAt: opts.periodStartAt,
+              amountCents: opts.amountCents,
+              unitId: opts.unitId,
+              updatedAt: opts.periodStartAt,
+            },
+          },
+        },
+        opts.periodStartAt,
+      ],
+    )
+  } finally {
+    await client.end()
+  }
+}
+
 export async function seedService(
   orgId: string,
   opts: {
