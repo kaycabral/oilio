@@ -13,7 +13,6 @@ describe('TrendChart', () => {
     render(<TrendChart points={POINTS} />)
     expect(screen.getByRole('img')).toHaveAttribute('aria-label', 'Gráfico de tendência diária')
     expect(screen.getByText('Faturamento × novos assinantes')).toBeInTheDocument()
-    // Legend includes totals — R$ 350,00 across the 3 days; 3 new subs.
     expect(screen.getByText(/Faturamento.*R\$\s?350,00/)).toBeInTheDocument()
     expect(screen.getByText(/Novos assinantes.*3/)).toBeInTheDocument()
   })

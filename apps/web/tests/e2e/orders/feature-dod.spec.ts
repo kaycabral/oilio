@@ -1,13 +1,3 @@
-// Feature-level E2E — brief 0002 § Definition of Done (parent #944).
-//
-// 1 test por scenario do DoD, validando o contrato da feature "redução de erros
-// em comanda" como gate do parent (escopo do parent, não da sub-issue):
-// - Cenário 1: fechamento com confirmação preventiva (happy path) [critical]
-// - Cenário 2: erro de backend tratado inline no dialog [critical]
-//
-// Roda contra emulator + build de produção (modo canônico do playwright.config;
-// E2E_DEV=1 estoura o timeout no 1º compile de /orders/[id]).
-
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { chooseOption, choosePaymentMethod } from '../helpers/select'
@@ -90,7 +80,6 @@ test.describe('Feature 0002 — Definition of Done', () => {
   }) => {
     await openOrder(authedPage, org)
 
-    // Cancelar/ESC no dialog não dispara nenhum side effect.
     await choosePaymentMethod(authedPage, 'pix')
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
     const dialog = authedPage.getByRole('dialog', { name: 'Confirmar fechamento' })
@@ -101,7 +90,6 @@ test.describe('Feature 0002 — Definition of Done', () => {
     await expect(authedPage.getByText(/Aberta em/)).toBeVisible()
     await expect(authedPage.getByText('Comissões geradas')).toBeHidden()
 
-    // Confirmar fecha a order e gera a comissão (Corte 50% de R$ 50 = R$ 25).
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
     await expect(dialog).toBeVisible()
     await dialog.getByRole('button', { name: /Confirmar fechamento/ }).click()
@@ -111,18 +99,10 @@ test.describe('Feature 0002 — Definition of Done', () => {
   })
 
   test('Cenário 2: erro de backend tratado inline no dialog', async ({ org, authedPage }) => {
-    // Cliente com assinatura ativa cujo plano cobre o serviço: a comanda nasce
-    // com o item já em "Consumo do plano" (auto-marcação, brief 0079) — sem flip
-    // manual. A assinatura é então cancelada antes do fechamento → closeOrder
-    // rejeita o consumo (erro de backend determinístico) e o dialog mostra inline.
     const { subId } = await openOrder(authedPage, org, { withSubscription: true })
 
-    // Auto-marcado na abertura (brief 0079 AC-06): o item coberto + saldo entra
-    // como "Consumo do plano" sem o operador tocar no seletor.
     await expect(authedPage.getByText('Consumo do plano').first()).toBeVisible()
 
-    // Cancela a assinatura direto no store (só o campo status) — força um erro
-    // de backend no fechamento de forma determinística.
     await setSubscriptionStatus(org.orgId, subId!, 'cancelled')
 
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
@@ -133,7 +113,6 @@ test.describe('Feature 0002 — Definition of Done', () => {
     await expect(dialog).toBeVisible()
     await expect(authedPage).toHaveURL(/\/orders\/.+/)
 
-    // Estado preservado: operador volta o item pra venda e fecha com pix.
     await dialog.getByRole('button', { name: 'Cancelar' }).click()
     await chooseOption(
       authedPage.getByRole('listitem').filter({ hasText: 'Corte' }),

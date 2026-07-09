@@ -72,9 +72,6 @@ export function CompanyForm({ org, canManage }: { org: Org; canManage: boolean }
           </Select>
         </div>
 
-        {/* Slug público is deferred (PRD Identidade v2) — not surfaced for now.
-            The route/data stay; we just don't expose a slug editor here. */}
-
         <div className="flex flex-col gap-1">
           <Label htmlFor="company-website" className="text-sm font-medium">
             Site
@@ -140,10 +137,6 @@ export function CompanyForm({ org, canManage }: { org: Org; canManage: boolean }
             </label>
           </div>
         </fieldset>
-
-        {/* Cancellation policy + confirmation message moved to the per-unit
-            agenda settings (PRD Identidade v2 — appointment-agenda concerns of
-            the Unit, not the Org folder). */}
 
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
 

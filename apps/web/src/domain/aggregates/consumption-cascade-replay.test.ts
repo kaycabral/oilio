@@ -1,12 +1,3 @@
-// Brief 0024, Grupo B (AC-04/05) — replay da cascata de consumo granular.
-//
-// Ao fechar uma comanda com itens cobertos pela assinatura, a saga emite (em
-// sequência) os eventos de cada aggregate-folha: o serviço coberto debita a cota
-// (`subscription.usage_incremented`) sem comissão; o produto coberto debita a
-// cota E baixa estoque (`catalog_item.updated`). Este teste prova que cada
-// aggregate é reconstruível só pelos eventos (replay == projeção), e que a
-// quantidade coberta (qualquer kind) decrementa a cota e o estoque corretos.
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -54,8 +45,6 @@ const COVERED_PRODUCT = {
   coverage: 'subscription' as const,
   subscriptionId: 'sub-1',
 }
-// Produto vendido AVULSO (venda de balcão comum): não consome plano, mas baixa
-// estoque igual — a regra de estoque é desacoplada de coverage (#B4).
 const SALE_PRODUCT = {
   id: 'oi-3',
   kind: 'product' as const,
@@ -71,14 +60,12 @@ const SALE_PRODUCT = {
 
 describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => {
   it('resolve serviço (item direto) e produto (categoria expandida) como cobertos', () => {
-    // svc-barba ∈ includedItemIds; prod-pomada coberto pela categoria cat-produtos.
     expect(isItemCoveredBySubscription(PLAN, { id: 'svc-barba', categoryId: 'cat-corte' })).toBe(
       true,
     )
     expect(
       isItemCoveredBySubscription(PLAN, { id: 'prod-pomada', categoryId: 'cat-produtos' }),
     ).toBe(true)
-    // item fora do snapshot não fecha.
     expect(isItemCoveredBySubscription(PLAN, { id: 'svc-corte', categoryId: 'cat-corte' })).toBe(
       false,
     )
@@ -86,12 +73,7 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
 
   it('a cota conta só itens cobertos; TODO produto baixa estoque (coberto ou avulso, #B4)', () => {
     const items = [COVERED_SERVICE, COVERED_PRODUCT, SALE_PRODUCT]
-    // Cota: 1 serviço coberto (qty 1) + 1 produto coberto (qty 2) = 3. O produto
-    // avulso (SALE_PRODUCT) NÃO conta cota — coverage governa a cota.
     expect(coveredItemQuantity(items)).toBe(3)
-    // Estoque: os DOIS produtos baixam — o coberto E o avulso —, cada um com a
-    // quantidade da linha. O serviço nunca baixa (não tem estoque). Coverage NÃO
-    // governa estoque (#B4): a venda de balcão comum agora reduz o inventário.
     expect(stockDecrementTargets(items)).toEqual([
       { refId: 'prod-pomada', quantity: 2 },
       { refId: 'prod-shampoo', quantity: 3 },
@@ -99,8 +81,6 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
   })
 
   it('produto AVULSO sozinho baixa estoque (venda de balcão, sem assinatura)', () => {
-    // A rede que faltava: antes do #B4 uma comanda 100% avulsa saía com estoque
-    // intacto. Agora o produto de venda baixa como qualquer outro.
     expect(coveredItemQuantity([SALE_PRODUCT])).toBe(0)
     expect(stockDecrementTargets([SALE_PRODUCT])).toEqual([{ refId: 'prod-shampoo', quantity: 3 }])
   })
@@ -184,7 +164,6 @@ describe('Brief 0024 — consumo granular: resolver + cascata de replay', () => 
             },
           },
         })
-        // Decremento no fechamento da comanda (10 − 2 = 8).
         yield* appendEvent(CatalogItemConfig, ref, {
           _tag: 'catalog_item.updated',
           actorId: 'staff-1',

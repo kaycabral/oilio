@@ -1,19 +1,3 @@
-// Feature-level E2E — brief 0033 (ação destrutiva uniforme), reescopo v3.
-//
-// Asserts the REAL DOM state of each destructive scenario:
-//   AC-03/05 — ONE "Excluir" verb + shared Radix AlertDialog (no "Arquivar",
-//              no native confirm()).
-//   AC-01    — master data: no active ref → hard-delete; active ref → soft-delete
-//              (subscribers stay, "fim do ciclo" copy).
-//   AC-07    — customer (operator): NOT LGPD. Active sub / future appointments do
-//              NOT disable "Excluir" — the dialog lists what the cascade will
-//              cancel and preserves the NAME in history. Only an OPEN comanda
-//              blocks. No footprint → hard-delete.
-//   AC-10    — safe confirm: the footer is inverted (prominent "Cancelar"); high
-//              impact (customer/unit) requires typing the name to enable Excluir.
-//   AC-11    — an archived/deleted category renders "Sem categoria", never the
-//              raw id nor the internal "(arquivada)" state.
-
 import { expect, test } from '../fixtures'
 import { listItem, rowAction, rowActionsTrigger } from '../helpers/list'
 import {
@@ -28,7 +12,6 @@ import {
 } from '../helpers/session'
 
 test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@critical' }, () => {
-  // ── AC-03 / AC-05 — 1 verbo + AlertDialog ────────────────────────────────
   test('plans/catalog/units só expõem "Excluir" (sem "Arquivar")', async ({ org, authedPage }) => {
     const ts = Date.now()
     const planName = `Plano AC03 ${ts}`
@@ -41,9 +24,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
       unitIds: org.unitIds,
     })
 
-    // Target the ⋯ menu of a KNOWN row per surface — not `.first()`, which can
-    // land on a row that renders no actions menu (e.g. an inline category row).
-    // Each surface exposes one "Excluir" verb (menuitem) and never an "Arquivar".
     const surfaces: Array<{ path: string; row: RegExp }> = [
       { path: '/plans', row: new RegExp(planName) },
       { path: '/catalog', row: new RegExp(itemName) },
@@ -58,7 +38,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     }
   })
 
-  // ── Cenário 1 — master data SEM ref → "Excluir" hard-deletes ─────────────
   test('cenário 1: master data sem referência → "Excluir" remove de vez', async ({
     org,
     authedPage,
@@ -70,7 +49,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     await rowAction(authedPage, new RegExp(`Plano Livre ${ts}`), 'Excluir')
     const dialog = authedPage.getByRole('alertdialog')
     await expect(dialog).toBeVisible()
-    // Inverted footer (AC-10): a prominent "Cancelar" is always present.
     await expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeVisible()
     await expect(dialog.getByText(/removido em definitivo/i)).toBeVisible()
     await dialog.getByRole('button', { name: 'Excluir' }).click()
@@ -80,7 +58,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     })
   })
 
-  // ── Cenário 2 — master data COM ref ativa → "Excluir" soft-deletes ───────
   test('cenário 2: plano com assinante → "Excluir" soft-delete + cópia de fim de ciclo', async ({
     org,
     authedPage,
@@ -101,18 +78,15 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
 
     const dialog = authedPage.getByRole('alertdialog')
     await expect(dialog).toBeVisible()
-    // Bug 1 copy: cycle-end wording, new adesões blocked.
     await expect(dialog.getByText(/fim do ciclo vigente/i)).toBeVisible()
     await expect(dialog.getByText(/novas adesões ficam bloqueadas/i)).toBeVisible()
     await dialog.getByRole('button', { name: 'Excluir' }).click()
 
-    // Soft-delete: drops from the active list (snapshot keeps the subscriber).
     await expect(listItem(authedPage, new RegExp(`Plano Vínculo ${ts}`))).toBeHidden({
       timeout: 5000,
     })
   })
 
-  // ── Bug 1 — plano descontinuado não lastreia nova adesão ─────────────────
   test('bug 1: plano arquivado não aparece no seletor de nova assinatura', async ({
     org,
     authedPage,
@@ -126,7 +100,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     })
 
     await authedPage.goto('/subscriptions/new')
-    // The plan picker is a design combobox; its options mount only when open.
     const planSelect = authedPage.getByRole('combobox', { name: 'Plano' })
     await expect(planSelect).toBeVisible()
     await planSelect.click()
@@ -139,7 +112,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     await authedPage.keyboard.press('Escape')
   })
 
-  // ── AC-11 — categoria arquivada/deletada NUNCA mostra id cru nem "(arquivada)"
   test('cenário 3: categoria arquivada → item mostra "Sem categoria" (sem id, sem "arquivada")', async ({
     org,
     authedPage,
@@ -160,7 +132,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     await authedPage.goto('/catalog')
     const row = listItem(authedPage, new RegExp(`Corte Cat ${ts}`))
     await expect(row).toBeVisible()
-    // Archived → resolves to "Sem categoria"; the internal state is never shown.
     await expect(row.getByText('Sem categoria')).toBeVisible()
     await expect(authedPage.getByText('(arquivada)', { exact: false })).toHaveCount(0)
     await expect(authedPage.getByText(archivedCatId, { exact: false })).toHaveCount(0)
@@ -171,13 +142,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     authedPage,
   }) => {
     const ts = Date.now().toString()
-    // Exercise the real FK path: create the category, point an item at it, then
-    // DELETE the category — `catalog_items_category_id_fk` (ON DELETE SET NULL)
-    // nulls the item's `category_id` in the database (#1220 D2). A hard-deleted
-    // parent leaves NO category reference, which the list renders as the neutral
-    // "—" (distinct from an ARCHIVED category — id retained, "Sem categoria" —
-    // covered by cenário 3). What matters either way: the raw id is NEVER shown.
-    // Seeding an already-orphan id would instead trip the FK on INSERT.
     const orphanCatId = await seedCategory(org.orgId, { name: `Removida ${ts}` })
     await seedCatalogItem(org.orgId, {
       kind: 'service',
@@ -191,12 +155,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     await authedPage.goto('/catalog')
     const row = listItem(authedPage, new RegExp(`Corte Órfão ${ts}`))
     await expect(row).toBeVisible()
-    // After SET NULL the item has NO category reference: the list drops the
-    // category prefix entirely and shows only the detail (the neutral "—" stands
-    // in for the absent label in the render but is collapsed out of the
-    // description — CatalogList.tsx). The row shows the bare "30 min" detail, no
-    // "Sem categoria" (that's the ARCHIVED case — id retained, cenário 3), and
-    // crucially NEVER the raw category id (brief 0033, AC-11).
     await expect(row.getByText('30 min')).toBeVisible()
     await expect(row.getByText('Sem categoria')).toHaveCount(0)
     await expect(authedPage.getByText(orphanCatId, { exact: false })).toHaveCount(0)
@@ -219,22 +177,18 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     }
 
     await authedPage.goto('/catalog')
-    // Inline category manager: the category lists its own "Excluir".
     const catRow = authedPage.getByRole('listitem').filter({ hasText: `Cabelo ${ts}` })
     await catRow.getByRole('button', { name: 'Excluir' }).click()
 
     const dialog = authedPage.getByRole('alertdialog')
     await expect(dialog).toBeVisible()
-    // Informed destruction (AC-10): the count is shown before confirming.
     await expect(dialog.getByText('Deixar 2 itens sem categoria')).toBeVisible()
     await dialog.getByRole('button', { name: 'Excluir' }).click()
 
-    // The items now resolve to "Sem categoria" (never the raw id / "(arquivada)").
     const itemRow = listItem(authedPage, new RegExp(`Item Cat1 ${ts}`))
     await expect(itemRow.getByText('Sem categoria')).toBeVisible({ timeout: 5000 })
   })
 
-  // ── Cenário 4 — unidade arquivada some do seletor + não-operável ─────────
   test.describe('unidade arquivada', () => {
     test.use({ orgInput: { unitCount: 2 } })
 
@@ -243,8 +197,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
       authedPage,
     }) => {
       const ts = Date.now().toString()
-      // Seed an archived unit (side effect only — asserted by its visible name,
-      // no longer by id since the picker is queried by accessible name).
       await seedUnit(org.orgId, {
         name: `Unidade Morta ${ts}`,
         archivedAt: new Date().toISOString(),
@@ -266,7 +218,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     })
   })
 
-  // ── Cenário 5 — customer com assinatura ativa → cascade + nome preservado ─
   test('cenário 5: cliente com assinatura → dialog lista o cancelamento, digita p/ confirmar, cascade + nome preservado', async ({
     org,
     authedPage,
@@ -285,7 +236,6 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
     const row = listItem(authedPage, new RegExp(name))
     await expect(row).toBeVisible()
 
-    // NOT disabled (bug 4 reverted) — opens the dialog.
     await rowActionsTrigger(row).click()
     const trigger = authedPage.getByRole('menuitem', { name: 'Excluir' })
     await expect(trigger).toBeEnabled()
@@ -293,37 +243,28 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
 
     const dialog = authedPage.getByRole('alertdialog')
     await expect(dialog).toBeVisible()
-    // Loss-list: the cascade will cancel the active subscription.
     await expect(
       dialog.getByText(new RegExp(`Cancelar a assinatura Plano Cli ${ts}`)),
     ).toBeVisible()
 
-    // Type-to-confirm gate (AC-10): destructive is disabled until the name matches.
     const confirm = dialog.getByRole('button', { name: 'Excluir' })
     await expect(confirm).toBeDisabled()
     await dialog.getByRole('textbox').fill(name)
     await expect(confirm).toBeEnabled()
     await confirm.click()
 
-    // Customer drops from the active list (soft-archived, deactivatedAt).
     await expect(listItem(authedPage, new RegExp(name))).toBeHidden({
       timeout: 5000,
     })
 
-    // NAME preserved (operator delete ≠ LGPD anonymization → no neutral label):
-    // the soft-archived customer still resolves its name on its read-only detail
-    // page (#1279 — the establishment consults, never edits PII). Page loads and
-    // shows the name as text (not an input, not the neutral label).
     await authedPage.goto(`/customers/${customerId}`)
     await expect(authedPage.getByRole('heading', { name })).toBeVisible()
 
-    // Cascade cancelled the active subscription.
     await authedPage.goto('/subscriptions?status=all')
     await expect(authedPage.getByText(new RegExp(name))).toBeVisible()
     await expect(authedPage.getByText('Cancelada', { exact: true })).toBeVisible()
   })
 
-  // ── Cenário 5b — customer com comanda aberta → "Excluir" bloqueado no dialog
   test('cenário 5b: cliente com comanda aberta → dialog bloqueia até fechar', async ({
     org,
     authedPage,
@@ -343,12 +284,10 @@ test.describe('Ação destrutiva uniforme — brief 0033 (#1070)', { tag: '@crit
 
     const dialog = authedPage.getByRole('alertdialog')
     await expect(dialog).toBeVisible()
-    // Blocker surfaced; the destructive button stays disabled.
     await expect(dialog.getByText(/comanda.*aberta/i)).toBeVisible()
     await expect(dialog.getByRole('button', { name: 'Excluir' })).toBeDisabled()
   })
 
-  // ── Cenário 6 — customer SEM pegada → "Excluir" hard-deletes (digita p/ confirmar)
   test('cenário 6: cliente sem pegada → "Excluir" (digita nome) remove de vez', async ({
     org,
     authedPage,

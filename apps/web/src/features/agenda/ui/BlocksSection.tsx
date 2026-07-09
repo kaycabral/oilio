@@ -26,10 +26,6 @@ function describeWhen(block: AgendaBlock, tz: string): string {
   return `${local.date} ${local.start}–${local.end}`
 }
 
-// Embeddable agenda-block manager (brief 0036). Lives wherever the blocked time
-// is owned: the unit config (unit-wide blocks) or the memberOperation member detail
-// (per-memberOperation blocks). Create/edit happen inline (no dedicated route); the
-// list refreshes in place after every mutation.
 export function BlocksSection({
   owner,
   blocks,
@@ -48,7 +44,6 @@ export function BlocksSection({
   const router = useRouter()
   const titleId = useId()
   const [pending, startTransition] = useTransition()
-  // `null` = no form open; 'new' = create; otherwise the block id being edited.
   const [editing, setEditing] = useState<string | null>(null)
 
   const unitNameById = new Map(

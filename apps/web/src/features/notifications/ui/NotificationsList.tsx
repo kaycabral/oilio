@@ -32,8 +32,6 @@ export function NotificationsList({ notifications, activeType }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Notifications follow the active unit (brief 0039, AC-01) — only the type
-  // filter remains; the unit switcher was removed (the top switcher owns it).
   function updateFilter(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString())
     if (value) {

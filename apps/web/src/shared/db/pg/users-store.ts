@@ -3,21 +3,8 @@ import { Schema } from 'effect'
 import type { QueryResultRow } from 'pg'
 import { getEventStorePool } from './pool'
 
-/**
- * CRUD store for the global `users` table (migration feature F — cutover, brief
- * 0062). `users` is the one genuinely cross-org identity record (no `org_id`,
- * not event-sourced), so it is read/written on the raw pool — NOT under
- * `readUnderRls` (which sets an org GUC that would not apply). See the
- * `schema/users.ts` header for why there is no RLS.
- *
- * Replaces the Firestore `users/{uid}` doc: the session upsert, the onboarding
- * `currentOrgId` write, the profile-completion PII write, the LGPD anonymization
- * scrub, and the batch hydration that `enrichCustomers` does over arbitrary uids.
- */
-
 const decodeUser = Schema.decodeUnknownSync(User)
 
-// The row the typed table stores; mapped back to the domain `User` on read.
 export type UserRow = {
   uid: string
   email: string | null
@@ -41,8 +28,6 @@ export type UserRow = {
   updated_at: string
 }
 
-// Reconstructs the domain `User` from the typed row, decoding against the 3-way
-// union (Incomplete · Complete · Anonymized) so only representable states pass.
 export function rowToUser(row: UserRow): User {
   return decodeUser({
     uid: row.uid,
@@ -57,8 +42,6 @@ export function rowToUser(row: UserRow): User {
     specialties: row.specialties ?? null,
     taxIdentity: row.tax_identity ?? null,
     completionCompleted: row.completion_completed,
-    // timestamptz columns (brief 0068 D1) — pg returns Postgres format with
-    // mode:'string'; normalize back to the ISO instant the domain expects.
     claimedAt: row.claimed_at == null ? null : new Date(row.claimed_at).toISOString(),
     termsAcceptedAt:
       row.terms_accepted_at == null ? null : new Date(row.terms_accepted_at).toISOString(),
@@ -122,7 +105,6 @@ function userColumnValues(user: User): unknown[] {
 
 const INSERT_PLACEHOLDERS = USER_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
 
-/** Full-row upsert (insert or replace). The caller owns the merge semantics. */
 export async function putUser(user: User): Promise<void> {
   const conflictSet = USER_COLUMNS.filter((c) => c !== 'uid')
     .map((c) => `${c} = EXCLUDED.${c}`)
@@ -135,18 +117,12 @@ export async function putUser(user: User): Promise<void> {
   )
 }
 
-/** Read one user by uid, or null if absent. */
 export async function getUserById(uid: string): Promise<User | null> {
   const res = await getEventStorePool().query<UserRow>('SELECT * FROM users WHERE uid = $1', [uid])
   const row = res.rows[0]
   return row ? rowToUser(row) : null
 }
 
-/**
- * Batch-hydrate users by uid in one round-trip — the Postgres equivalent of the
- * Firestore `getAll(...refs)` that `enrichCustomers` relied on. Order is not
- * guaranteed; callers index by `uid`. Empty/duplicate ids are filtered.
- */
 export async function getUsersByIds(
   uids: readonly (string | null | undefined)[],
 ): Promise<Map<string, User>> {
@@ -158,12 +134,6 @@ export async function getUsersByIds(
   return new Map(res.rows.map((row) => [row.uid, rowToUser(row)] as const))
 }
 
-/**
- * Find the FIRST user matching `mobile` (any claim state) — the Postgres
- * equivalent of the customer-upsert dedupe `users where mobile == X` (#832/
- * #839). The mobile is the canonical PII contact: a match wins regardless of which
- * org first saw the user (the "global User" principle). Returns null when none.
- */
 export async function findUserByMobile(mobile: string): Promise<User | null> {
   const res = await getEventStorePool().query<UserRow>(
     'SELECT * FROM users WHERE mobile = $1 LIMIT 1',
@@ -173,15 +143,6 @@ export async function findUserByMobile(mobile: string): Promise<User | null> {
   return row ? rowToUser(row) : null
 }
 
-/**
- * Partial column patch by uid (merge-style write, no clobbering with absent
- * fields). `patch` keys are SNAKE_CASE column names already validated by the
- * caller; values are bound parameters. `updated_at` is always written.
- *
- * Mirrors the Firestore `.set(patch, { merge: true })` the doc used for the
- * session refresh, `currentOrgId` switch, profile completion and anonymization.
- * Returns false if the uid does not exist (no row updated).
- */
 export async function patchUser(
   uid: string,
   patch: Record<string, unknown>,
@@ -198,15 +159,11 @@ export async function patchUser(
   return (res.rowCount ?? 0) > 0
 }
 
-// JSONB columns (tax_identity, specialties) must be stringified; scalars pass
-// through. Arrays/objects are JSON; everything else is a bound scalar.
 function serializePatchValue(value: unknown): unknown {
   if (value !== null && typeof value === 'object') return JSON.stringify(value)
   return value
 }
 
-// Re-exported for the E2E seed parity check (mirrors the projector pattern).
 export const USER_TABLE_COLUMNS: readonly string[] = USER_COLUMNS
 
-// Satisfy the `QueryResultRow` shape for callers that pass UserRow generically.
 export type UserQueryRow = UserRow & QueryResultRow

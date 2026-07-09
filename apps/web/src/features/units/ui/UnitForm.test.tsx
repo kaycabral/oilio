@@ -46,7 +46,6 @@ describe('UnitForm — WhatsApp + email (#825)', () => {
 
   it('pre-fills whatsapp (masked) and email when editing', () => {
     render(<UnitForm unit={buildUnit({ mobile: '5511988887777', email: 'contato@x.com' })} />)
-    // The phone field masks the stored number for display.
     expect(screen.getByLabelText(/whatsapp/i)).toHaveValue('(11) 98888-7777')
     expect(screen.getByLabelText(/email/i)).toHaveValue('contato@x.com')
   })
@@ -95,9 +94,7 @@ describe('UnitForm — agenda config disclosure (appointment mode, PRD Identidad
     expect(screen.getByText(/configurações de agenda/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/granularidade dos horários/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/cancelamento pelo cliente/i)).toBeInTheDocument()
-    // Cancellation is enabled, so the min-notice field is shown, prefilled.
     expect(screen.getByLabelText(/antecedência mínima/i)).toHaveValue(90)
-    // The message templates are prefilled from the unit's confirmationTemplates.
     expect(screen.getByLabelText(/confirmação/i)).toHaveValue('Confirmado!')
     expect(screen.getByLabelText(/lembrete/i)).toHaveValue('Lembrete!')
     expect(screen.getByLabelText(/^cancelamento$/i)).toHaveValue('Cancelado!')

@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { scopeByUnit } from './scope'
 
-// Fake Firestore query: records the applied filter so we assert the scoping
-// decision without the emulator (the round-trip is integration/e2e-covered).
 type Applied = { field: string; value: string }
 function fakeQuery(applied: Applied[] = []) {
   const q = {

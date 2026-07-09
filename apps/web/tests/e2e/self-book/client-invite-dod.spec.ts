@@ -10,19 +10,6 @@ import {
 } from '../helpers/session'
 import { PublicBookingPage, orgSlug } from '../pages'
 
-// Feature-level E2E — brief 0077 § Definition of Done (#1273). One test() per DoD
-// scenario the other specs don't already own:
-//   - Cenário 1 — agendar via link/QR EXIGE login (anônimo é barrado).
-//   - Cenário 2 — estabelecimento convida sem digitar PII do cliente.
-//   - Cenário 5 — cadastro completo é invariante (camada da action/UI: logado
-//     mas incompleto é mandado completar antes de agendar).
-//   - Cenário 6 — contexto adulterado é rejeitado (slug inválido → fallback
-//     silencioso pra signup de plataforma, sem materializar Customer no org).
-//
-// Cenário 3 (materialização) vive em `signup/self-signup.spec.ts` +
-// `onboarding/.../complete-profile-materialize.events.pg.integration.test.ts`;
-// Cenário 4 (anti-double-book) em `landing-public/booking-double-book.spec.ts`.
-
 async function listCustomers(orgId: string): Promise<Array<{ userId?: string }>> {
   const rows = await pgListByOrg('customers', orgId)
   return rows.map((r) => ({ userId: typeof r.user_id === 'string' ? r.user_id : undefined }))
@@ -42,7 +29,6 @@ test.describe('brief 0077 — Feature-level DoD', { tag: '@critical' }, () => {
     })
     await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
-    // Anônimo (sem authedPage) tenta confirmar via URL direta com contexto.
     const start = `${nextWeekday('Wed')}T17:00:00.000Z`
     const params = new URLSearchParams({
       service: serviceId,
@@ -52,9 +38,7 @@ test.describe('brief 0077 — Feature-level DoD', { tag: '@critical' }, () => {
     const booking = new PublicBookingPage(page, slug)
     await page.goto(`/${slug}/unidade-1/book?${params.toString()}`)
     await expect(booking.confirmHeading()).toBeVisible()
-    // O CTA reflete o login-first pra quem não está logado.
     await booking.confirmButton().click()
-    // Nobody agenda sem login: rota pro /login preservando o destino.
     await page.waitForURL(/\/login\?next=/, { timeout: 10_000 })
     await expect(page).toHaveURL(/\/login\?next=/)
   })
@@ -64,13 +48,10 @@ test.describe('brief 0077 — Feature-level DoD', { tag: '@critical' }, () => {
     await authedPage.getByRole('button', { name: 'Convidar cliente' }).click()
     const dialog = authedPage.getByRole('dialog')
     await expect(dialog.getByRole('heading', { name: 'Convidar cliente' })).toBeVisible()
-    // Só o WhatsApp — nenhum nome/email/nascimento do cliente é tipado aqui.
     await expect(dialog.locator('input[name="name"]')).toHaveCount(0)
     await expect(dialog.locator('input[name="email"]')).toHaveCount(0)
     await expect(dialog.locator('input[name="birthDate"]')).toHaveCount(0)
     await dialog.locator('input[name="whatsapp"]').fill(`119${String(Date.now()).slice(-8)}`)
-    // Monta o link contextual (signup com `from`) na hora — sem submit, sem
-    // criar Customer. A unidade vem do contexto ativo (sem seletor).
     await expect(dialog.getByRole('textbox', { name: 'Link do convite' })).toHaveValue(
       /\/signup\?.*from=/,
     )
@@ -92,7 +73,6 @@ test.describe('brief 0077 — Feature-level DoD', { tag: '@critical' }, () => {
     })
     await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
-    // Usuário logado mas SEM cadastro completo (completionCompleted=false).
     const visitor = await seedAuthUser({ completionCompleted: false })
     await signInAndAttachSession(context, visitor.email, visitor.password, baseURL ?? undefined)
 
@@ -105,7 +85,6 @@ test.describe('brief 0077 — Feature-level DoD', { tag: '@critical' }, () => {
     const booking = new PublicBookingPage(page, slug)
     await page.goto(`/${slug}/unidade-1/book?${params.toString()}`)
     await booking.confirmButton().click()
-    // A camada de action recusa (needs-completion) → UI manda completar cadastro.
     await page.waitForURL(/\/onboarding\/profile\?next=/, { timeout: 10_000 })
     await expect(page).toHaveURL(/\/onboarding\/profile\?next=/)
   })
@@ -116,27 +95,19 @@ test.describe('brief 0077 — Feature-level DoD', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    // Usuário logado e incompleto completa o cadastro, mas o `next` aponta pra um
-    // slug que NÃO existe — o resolvedor de contexto descarta, então nenhum
-    // Customer é materializado no org real (nem em lugar nenhum).
     const visitor = await seedAuthUser({ completionCompleted: false })
     await signInAndAttachSession(context, visitor.email, visitor.password, baseURL ?? undefined)
 
     const tampered = '/signup/done?from=slug-que-nao-existe-99999'
     await page.goto(`/onboarding/profile?next=${encodeURIComponent(tampered)}`)
-    // Identity already supplied the name (seedAuthUser sets displayName), so the
-    // form confirms it — only whatsapp + birthDate are asked.
     await page
       .getByRole('textbox', { name: /whatsapp/i })
       .fill(`119${String(Date.now()).slice(-8)}`)
     await fillBirthDate(page, '15/03/1992')
     await page.getByRole('button', { name: /continuar/i }).click()
 
-    // Completion redirects to the (tampered) done URL — wait for the navigation
-    // off the profile page so materialization has run.
     await page.waitForURL(/\/signup\/done/, { timeout: 10_000 })
 
-    // O org real seedado NÃO ganhou Customer — o contexto adulterado foi rejeitado.
     const customers = await listCustomers(org.orgId)
     expect(customers.filter((c) => c.userId === visitor.uid)).toHaveLength(0)
   })

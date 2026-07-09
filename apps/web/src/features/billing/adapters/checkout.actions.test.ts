@@ -1,20 +1,6 @@
-// Unit tests for the checkout/portal server actions (brief 0073, AC-01/AC-03).
-// These are the billing entry points into Stripe, gated on the `canManageBilling`
-// capability (owner-only preset, #1377). Proven here without network or DB (all
-// deps mocked, mirroring subscriptions.actions.test):
-//   startCheckout — capability gate, tier/cycle validation, Free-has-no-price guard,
-//     idempotent customer resolve (reuse vs lazily create + persist), quantity =
-//     active unit count, the Checkout Session shape, and redirect to its url.
-//   manageBilling — owner gate, "no customer" guard, portal session + redirect.
-//
-// `redirect` throws NEXT_REDIRECT in Next, so the happy paths assert the thrown
-// sentinel carrying the target url; `toRoute` is mocked to identity (it's just the
-// opaque-url narrowing seam).
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  // #1377 — billing gates on the `canManageBilling` capability, not `role ===`.
   guardCapability: vi.fn(),
   getOrgBilling: vi.fn(),
   listUnitsForOrg: vi.fn(),
@@ -85,8 +71,6 @@ function billing(over: Record<string, unknown> = {}): Record<string, unknown> {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.emitEvent.mockResolvedValue({ ok: true })
-  // Default: Stripe has no existing customer for the org (reuse-first search
-  // returns empty), so the create path runs unless a test overrides it.
   mocks.customersSearch.mockResolvedValue({ data: [] })
 })
 
@@ -98,8 +82,6 @@ describe('startCheckout', () => {
 
     expect(res).toEqual({ ok: false, error: 'Apenas o dono' })
     expect(mocks.checkoutCreate).not.toHaveBeenCalled()
-    // Proves the gate is the CAPABILITY, not a `role ===` check — fails if the
-    // action reverts to requireOwnerCtx (brief 0075 AC-01).
     expect(mocks.guardCapability).toHaveBeenCalledWith('canManageBilling')
   })
 
@@ -132,14 +114,10 @@ describe('startCheckout', () => {
       'NEXT_REDIRECT:https://checkout.stripe/x',
     )
 
-    // Creates with the org metadata + the owner's email (human-identifiable
-    // customer), guarded by a per-org idempotency key so concurrent creates
-    // collapse to one customer at Stripe (#1373).
     expect(mocks.customersCreate).toHaveBeenCalledWith(
       { metadata: { orgId: 'org-1' }, email: 'owner@org.test' },
       { idempotencyKey: 'org-billing-customer:org-1' },
     )
-    // persists the new customer id via an org_billing event
     expect(mocks.emitEvent).toHaveBeenCalledTimes(1)
     const emitArgs = mocks.emitEvent.mock.calls[0]
     expect(emitArgs?.[2]).toMatchObject({
@@ -148,14 +126,10 @@ describe('startCheckout', () => {
     })
   })
 
-  // #1373 — reuse-first: before creating, ask Stripe for an existing customer
-  // carrying this org's metadata and adopt it. Closes the abandoned-checkout gap
-  // where a customer was created at Stripe but its id was never read back locally.
   it('reuses a Stripe customer found by metadata.orgId instead of creating a duplicate', async () => {
     mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue('price_pro_monthly')
     mocks.getOrgBilling.mockResolvedValue(billing({ stripeCustomerId: null }))
-    // local projection has no id yet, but Stripe already has one for this org
     mocks.customersSearch.mockResolvedValue({ data: [{ id: 'cus_from_stripe' }] })
     mocks.listUnitsForOrg.mockResolvedValue([{ id: 'u1' }])
     mocks.checkoutCreate.mockResolvedValue({ url: 'https://checkout.stripe/reuse' })
@@ -168,18 +142,13 @@ describe('startCheckout', () => {
       query: 'metadata["orgId"]:"org-1"',
       limit: 1,
     })
-    // NO new customer minted — the existing one is adopted
     expect(mocks.customersCreate).not.toHaveBeenCalled()
-    // and the adopted id is bound to the Checkout Session + persisted
     expect(mocks.checkoutCreate.mock.calls[0]?.[0]).toMatchObject({ customer: 'cus_from_stripe' })
     expect(mocks.emitEvent.mock.calls[0]?.[2]).toMatchObject({
       payload: { changes: { stripeCustomerId: 'cus_from_stripe' } },
     })
   })
 
-  // #1373 — the create is the LAST resort (search empty) and carries a per-org
-  // idempotency key: two concurrent first-time checkouts must not mint two
-  // customers. Asserting the key is present is the regression guard.
   it('passes a per-org idempotency key when it must create (#1373 concurrency guard)', async () => {
     mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue('price_pro_monthly')
@@ -197,8 +166,6 @@ describe('startCheckout', () => {
     expect(createOpts).toEqual({ idempotencyKey: 'org-billing-customer:org-1' })
   })
 
-  // #1373 — the reuse-first search happens even for the create path (search THEN
-  // create), so an abandoned checkout that left a customer is never duplicated.
   it('searches before creating (reuse-first ordering)', async () => {
     mocks.guardCapability.mockResolvedValue(ownerCtx())
     mocks.stripePriceId.mockReturnValue('price_pro_monthly')
@@ -252,13 +219,9 @@ describe('startCheckout', () => {
       allow_promotion_codes: true,
       client_reference_id: 'org-1',
       subscription_data: { metadata: { orgId: 'org-1' } },
-      // #1376 — the return re-opens the Configurações MODAL on Cobrança via the
-      // `#settings/billing` hash on an app route, NOT the standalone billing page.
-      // Fails if reverted to `/settings/billing?checkout=success`.
       success_url: 'https://app.oilio.test/agenda#settings/billing',
       cancel_url: 'https://app.oilio.test/agenda#settings/billing',
     })
-    // never pin payment_method_types (Stripe best-practice)
     expect(arg).not.toHaveProperty('payment_method_types')
   })
 

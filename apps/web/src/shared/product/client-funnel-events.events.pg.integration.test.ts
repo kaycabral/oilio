@@ -2,19 +2,6 @@ import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { emitClientFunnelEvent } from './client-funnel-events'
 
-/**
- * Funnel telemetry against REAL Postgres (brief 0077 Grupo D — AC-12, #1279/#1280).
- *
- * Proves the `client_funnel_events` transport:
- *   - each event writes its columns (PII-zero — only ids + attribution axes);
- *   - `fields_filled` round-trips as a JSON array of NAMES (never values);
- *   - the DB CHECK refuses an unknown event / bad intent;
- *   - the emitter is best-effort: a bad payload is logged and swallowed, never
- *     thrown into the funnel action.
- *
- * Per-run-unique org ids so cases never collide on the shared database.
- */
-
 let seq = 0
 function uniqueOrg(): string {
   seq += 1
@@ -119,11 +106,6 @@ describe('client_funnel_events transport (brief 0077 AC-12)', () => {
 
   it('is best-effort: a DB CHECK violation (bad intent) is swallowed, not thrown', async () => {
     const orgId = uniqueOrg()
-    // Force a CHECK violation by writing an intent the constraint rejects via a
-    // raw insert path — the emitter itself only ever passes valid intents, so we
-    // assert the SWALLOW by confirming the emitter never throws on a DB error.
-    // Here we prove the CHECK exists (raw insert rejected) AND the emitter's
-    // try/catch shape by a valid call still succeeding afterwards.
     await expect(
       getEventStorePool().query(
         `INSERT INTO client_funnel_events (event, org_id, intent, ts)
@@ -132,7 +114,6 @@ describe('client_funnel_events transport (brief 0077 AC-12)', () => {
       ),
     ).rejects.toMatchObject({ code: '23514' })
 
-    // The valid emitter call still works (no poisoned connection / no throw).
     await emitClientFunnelEvent({ event: 'client_signed_in', orgId, fromInvite: false })
     const rows = await rowsFor(orgId)
     expect(rows).toHaveLength(1)

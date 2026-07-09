@@ -5,9 +5,6 @@ import { evaluateBookingLimits } from './booking-limits'
 const TZ = 'America/Sao_Paulo'
 const NOW = new Date('2026-06-10T12:00:00.000Z')
 
-// Full typed factory (no cast) — overrides on top of a valid base, matching the
-// repo's fixture pattern. The rules only read id/startAt/status; the rest is
-// filler to satisfy the Appointment contract.
 function appt(over: Partial<Appointment> & { id: string; startAt: string }): Appointment {
   const base: Appointment = {
     id: over.id,

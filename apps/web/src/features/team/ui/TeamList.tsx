@@ -45,9 +45,6 @@ function initials(name: string): string {
   return (first + second).toUpperCase() || '?'
 }
 
-// Row badges: membership status (when not redundant) + a memberOperation's
-// incomplete-profile flag (when not yet `operational`). Extracted so the row's
-// `renderItem` stays under the cognitive-complexity gate.
 function memberBadges(
   status: MembershipStatus,
   showStatus: boolean,
@@ -64,10 +61,6 @@ function memberBadges(
   )
 }
 
-// The team list collapses the old Members/Invites tabs into a single list with a
-// `view` filter (Todos / Ativos / Pendentes), defaulting to Todos (no URL param)
-// so members and pending invites show together until the user narrows it.
-// Members link to their detail (brief 0037 #1085); invites are display-only.
 export function TeamList({
   entries,
   header,
@@ -89,7 +82,6 @@ export function TeamList({
   viewFilter: TeamViewFilter
   pendingCount: number
   searchQuery: string
-  // True when the team has data but the current view/search slice is empty.
   isFiltered: boolean
   displayNameByUserId: Record<string, string>
   mobileByUserId: Record<string, string>
@@ -118,7 +110,6 @@ export function TeamList({
         placeholder: 'Buscar por nome…',
       }}
       filters={
-        // Non-managers can't see invites, so the view filter is hidden for them.
         canManage
           ? [
               {
@@ -126,7 +117,6 @@ export function TeamList({
                 label: 'Status',
                 allLabel: 'Todos',
                 value: viewFilter,
-                // `all` is the default view, so it clears the param (clean URL).
                 onChange: (value) => setParams({ view: value === 'all' ? null : value }),
                 options: [
                   { value: 'active', label: 'Ativos' },
@@ -159,22 +149,13 @@ export function TeamList({
         const label = displayNameByUserId[member.userId] || member.userId
         const isSelf = member.userId === currentUserId
         const isOwner = member.role === 'owner'
-        // No point WhatsApp-ing yourself.
         const whatsapp = isSelf ? undefined : mobileByUserId[member.userId]
         const birthDate = birthDateByUserId[member.userId]
-        // The owner is read-only (refino): its detail carries no actions.
         const linkable = canManage && !isOwner
         const actions: RowAction[] = linkable
           ? [{ kind: 'link', label: 'Editar', href: toRoute(`/team/${member.userId}`) }]
           : []
-        // The status badge is redundant where the member is guaranteed active:
-        // the owner (can't be suspended/revoked) and your own row (you're logged
-        // in, so you're active). Show it only for the others.
         const showStatus = !isOwner && !isSelf
-        // A memberOperation whose profile is still incomplete derives a non-operational
-        // status (#1047) → not bookable. Surface it next to "Ativo" so it reads
-        // distinctly from an operational pro (the membership being active alone hid
-        // this). Suppressed once `operational`.
         const operationalStatus = operationalByUserId[member.userId]
         const incompleteProfile =
           member.role === 'member_operator' &&

@@ -1,9 +1,3 @@
-// Pure memberOperation-form parsing/validation, extracted from the `'use server'`
-// actions (Functional Core / Imperative Shell) so it's importable + unit-tested.
-// No I/O — the actions keep the Firestore writes + event emission. The
-// service↔unit intersection invariant (#876) stays in the actions because it
-// needs a Firestore read.
-
 import { type CommissionRule, type TaxIdentity } from '@/domain'
 import { formString } from '@/shared/form-data'
 import { parseTaxIdentityFromForm } from '@/shared/org/tax-identity'

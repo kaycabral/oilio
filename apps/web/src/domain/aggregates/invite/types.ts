@@ -1,7 +1,5 @@
 import type { StoredInvite } from '@/domain/types/invite'
 
-// Projeção event-sourced = o doc operacional `StoredInvite` (PII email omitida —
-// materializada na leitura via invite-read) + a versão do stream.
 export type InviteState = StoredInvite & { readonly _version: number }
 
 export const INITIAL_INVITE_STATE: InviteState = {

@@ -1,8 +1,3 @@
-// AC-09/AC-10 (brief 0025) — replay reconstrói o doc completo da agenda
-// (appointment + agenda_block). Prova que nenhum campo é escrito fora de eventos:
-// para cada aggregate, a sequência de eventos → `replayAggregate` == projeção,
-// campo a campo (deep-equal).
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 

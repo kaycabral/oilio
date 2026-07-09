@@ -1,13 +1,3 @@
-// Server-side proof for the customer self-service reschedule (brief 0080,
-// Grupo C — AC-06/07): a customer MOVES their own appointment to a new valid
-// slot from `/me/appointments`, reentering the full validation layer
-// (slot-grid + scope), emitting `appointment.rescheduled` (rescheduledBy:
-// 'customer'); an off-grid target is rejected with no event.
-//
-// Seam: the appointment is created through the real reception action (so the
-// `customerUserId` is materialized), then `rescheduleOwnAppointment` runs as the
-// customer (session.uid = the customer's user). Only `getSessionUser` is mocked.
-
 import { defaultPermissionsForRole, normalizeBrazilPhone, type Role } from '@/domain'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
@@ -22,16 +12,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 import { createAppointment } from '@/features/agenda/adapters/agenda.actions'
 import { rescheduleOwnAppointment } from './appointments.actions'
 
-// Frozen "now" for the whole suite. The slot-grid gate rejects past starts
-// (`enforce-slot-grid` defaults `nowMs` to the real clock), so the test freezes
-// the clock to this instant — strictly BEFORE BOOKING_DATE — making every case
-// hermetic: the booked slot is always in the future regardless of the calendar
-// date the suite runs on. Also the seed timestamp for all fixture rows.
 const TS = '2026-06-01T12:00:00.000Z'
-// Mon–Fri 09:00–12:00 BR, 30-min grid. 2026-07-06 is a Monday, a month after
-// the frozen `TS` (so the appointment is reschedule-eligible; the policy is
-// disabled so there's no notice window). On-grid: 10:00 / 11:00 BR. Off-grid:
-// 10:45 BR.
 const BOOKING_DATE = '2026-07-06'
 const FROM_TIME = '10:00'
 const TO_TIME = '11:00'
@@ -129,8 +110,6 @@ async function seedUser(orgId: string, userId: string): Promise<void> {
   await putUser(buildUser(userId, TS, { currentOrgId: orgId, completionCompleted: true }))
 }
 
-// A customer whose `userId` we control, so the booking's `customerUserId`
-// resolves to it and the self-service session can own the appointment.
 async function seedCustomer(orgId: string, customerId: string): Promise<string> {
   const userId = id('cust-user')
   await putUser(
@@ -214,8 +193,6 @@ async function countEventsByTag(orgId: string, tag: string): Promise<number> {
 }
 
 async function readStartAt(orgId: string, appointmentId: string): Promise<string | null> {
-  // pg decodes `timestamptz` to a JS `Date` — normalize to ISO at the boundary
-  // so the assertion compares strings (see CLAUDE.md / feedback_pg_timestamptz).
   const res = await pool().query<{ start_at: Date }>(
     'SELECT start_at FROM appointments WHERE org_id = $1 AND id = $2',
     [orgId, appointmentId],
@@ -233,10 +210,6 @@ const CUSTOMER = 'cust-1'
 
 describe('rescheduleOwnAppointment — customer self-service (brief 0080, Grupo C)', () => {
   beforeEach(async () => {
-    // Freeze the wall clock so the slot-grid gate always sees BOOKING_DATE as a
-    // future slot. `toFake: ['Date']` freezes only the clock — setTimeout/etc.
-    // stay real, so `Date.now()`-based unique-id helpers and pg driver timers
-    // are unaffected.
     vi.useFakeTimers({ toFake: ['Date'], now: new Date(TS) })
     await pool().query(`TRUNCATE ${TABLES} CASCADE`)
     vi.clearAllMocks()
@@ -248,8 +221,6 @@ describe('rescheduleOwnAppointment — customer self-service (brief 0080, Grupo 
     await closeEventStoreDb()
   })
 
-  // Book an on-grid appointment via reception, then hand the session over to the
-  // customer who owns it. Returns the appointment id + customer user id.
   async function bookAsReceptionThenBecomeCustomer(
     orgId: string,
   ): Promise<{ appointmentId: string; customerUid: string }> {
@@ -281,7 +252,6 @@ describe('rescheduleOwnAppointment — customer self-service (brief 0080, Grupo 
     expect(created.ok).toBe(true)
     const appointmentId = created.ok ? created.appointmentId : ''
 
-    // Hand the session to the appointment's owner for the self-service action.
     mocks.getSessionUser.mockResolvedValue({
       uid: customerUid,
       email: null,
@@ -305,7 +275,6 @@ describe('rescheduleOwnAppointment — customer self-service (brief 0080, Grupo 
 
     expect(result.ok).toBe(true)
     expect(await countEventsByTag(orgId, 'appointment.rescheduled')).toBe(1)
-    // 11:00 BR = 14:00 UTC — the projection moved to the new instant.
     expect(await readStartAt(orgId, appointmentId)).toBe('2026-07-06T14:00:00.000Z')
   })
 
@@ -322,14 +291,12 @@ describe('rescheduleOwnAppointment — customer self-service (brief 0080, Grupo 
 
     expect(result.ok).toBe(false)
     expect(await countEventsByTag(orgId, 'appointment.rescheduled')).toBe(0)
-    // The original 10:00 BR = 13:00 UTC slot is untouched.
     expect(await readStartAt(orgId, appointmentId)).toBe('2026-07-06T13:00:00.000Z')
   })
 
   it('refuses the move when the booked service was deactivated — no event', async () => {
     const orgId = uniqueOrg()
     const { appointmentId } = await bookAsReceptionThenBecomeCustomer(orgId)
-    // Deactivate the booked service after the appointment was created.
     await pool().query('UPDATE catalog_items SET active = false WHERE org_id = $1 AND id = $2', [
       orgId,
       SERVICE,
@@ -344,7 +311,6 @@ describe('rescheduleOwnAppointment — customer self-service (brief 0080, Grupo 
 
     expect(result.ok).toBe(false)
     expect(await countEventsByTag(orgId, 'appointment.rescheduled')).toBe(0)
-    // Original slot untouched.
     expect(await readStartAt(orgId, appointmentId)).toBe('2026-07-06T13:00:00.000Z')
   })
 

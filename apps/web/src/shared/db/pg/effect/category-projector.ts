@@ -4,26 +4,8 @@ import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `category` context (brief 0060, Grupo B) — plugged into
- * the per-context typed-projection registry without reopening the
- * `PersistencePort`.
- *
- * `upsert` decodes the reduced `state` against the domain `Category` schema (no
- * PII — the full shape is stored). It maps the scalars (name/active) onto columns
- * the DB constrains plus the nullable visual cues; there are no composite fields.
- * The DB enforces the invariants — a violation rolls back event + projection
- * together.
- */
-
 const decodeCategory = Schema.decodeUnknownSync(Category)
 
-/**
- * The ordered `categories` column list — single source of truth for the runtime
- * upsert and the E2E seed (so the two writers can never drift). Mirrors the
- * `INSERT` placeholders 1:1. Keyed by the composite `(org_id, id)` PK (D6, ADR
- * 0013); `last_event_version` is the projection's monotonic version column.
- */
 export const CATEGORY_COLUMNS = [
   'org_id',
   'id',
@@ -72,7 +54,6 @@ async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDo
   await client.query(UPSERT, categoryColumnValues(category, stateVersion(state)))
 }
 
-// Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type CategoryRow = {
   org_id: string
   id: string
@@ -86,9 +67,6 @@ export type CategoryRow = {
   updated_at: string
 }
 
-// Reconstructs the reducer's projected doc from the typed row (inverse of
-// `upsert`). `_version` is re-attached so the event store versions/replays
-// correctly.
 export function rowToDoc(row: CategoryRow): FirestoreDoc {
   return {
     _version: Number(row.last_event_version),
@@ -98,11 +76,6 @@ export function rowToDoc(row: CategoryRow): FirestoreDoc {
     icon: row.icon,
     color: row.color,
     active: row.active,
-    // `created_at`/`updated_at`/`archived_at` are `timestamptz` columns (brief
-    // 0068 D1). With `mode:'string'` the pg driver returns the Postgres format
-    // (`2026-06-10 14:00:00+00`), NOT ISO 8601 — the domain `Category.*` and the
-    // lexicographic range reads expect the ISO instant the writer stored.
-    // Normalize back to ISO at this single read boundary (same as appointments).
     archivedAt: row.archived_at == null ? null : new Date(row.archived_at).toISOString(),
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),

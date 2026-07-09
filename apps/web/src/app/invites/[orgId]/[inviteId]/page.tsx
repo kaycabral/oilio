@@ -34,7 +34,6 @@ export default async function AcceptInvitePage({
     )
   }
 
-  // PII (invitee WhatsApp) merged from `invites_pii` on read (#1036).
   const invite = await getInviteById(orgId, inviteId)
   if (!invite) {
     return (
@@ -67,8 +66,6 @@ export default async function AcceptInvitePage({
     )
   }
 
-  // Funnel telemetry (brief 0084, Grupo D): the invitee opened a valid invite
-  // link. PII-zero, best-effort — never traps the render.
   await emitMemberFunnelEvent({ event: 'member_invite_opened', orgId })
 
   const org = await getOrg(orgId)
@@ -90,10 +87,6 @@ export default async function AcceptInvitePage({
     )
   }
 
-  // #838 — even when authenticated, the invitee must complete
-  // their profile (WhatsApp + birthDate) before consuming the invite. Send
-  // them through completion with `next=` pointing back to this URL so the
-  // accept-flow resumes exactly where they were.
   const user = await getUserDoc(session.uid)
   if (!user?.completionCompleted) {
     const next = encodeURIComponent(`/invites/${orgId}/${inviteId}?token=${token}`)

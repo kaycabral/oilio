@@ -40,47 +40,21 @@ import {
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-// The Configurações modal (brief 0090, bug #13 fix). Unlike the old
-// parallel-route slot, this is a plain client dialog anchored to the URL hash
-// `#settings/<section>`. The hash is not a route, so a hard navigation — reload,
-// a tablet resuming a suspended tab, or a form's `router.refresh()` — does NOT
-// tear the modal down into a full page (the by-design failure of the `@modal`
-// slot). On mount and on every `hashchange` we re-derive the open state from the
-// hash, so the modal is fully restorable from the URL alone.
-//
-// Section data loads through server actions (guard + fetch + telemetry live
-// server-side, same as the `/settings/X` pages). Switching sections only rewrites
-// the hash — the Dialog never remounts, so no overlay re-animation, no size jump,
-// no tablet-keyboard refocus. The box has a fixed size; only the panel scrolls.
-
-// Parses `#settings/<section>` from a raw location hash. Returns the section key,
-// or null when the hash is anything else (modal closed / unknown section).
 function parseSectionFromHash(hash: string): SettingsSectionKey | null {
   if (!hash.startsWith(SETTINGS_HASH_PREFIX)) return null
   return toSettingsSectionKey(hash.slice(SETTINGS_HASH_PREFIX.length))
 }
 
-// Re-export so existing importers (user-menu, app-shell) keep their
-// `@/features/settings/ui/SettingsModal` import path; the canonical definition now
-// lives in settings/core/settings-sections (React-free, so adapters can import it
-// without crossing the layering wall — the Stripe return URL needs it, #1376).
 export { settingsHash }
 
-// The loaded data tagged with its section, so the panel dispatch narrows without
-// a cast — each `section` correlates with exactly one `data` shape.
 type LoadedSection =
   | { section: 'profile'; data: ProfileSectionData }
   | { section: 'privacy'; data: PrivacySectionData }
   | { section: 'billing'; data: BillingSectionData }
   | { section: 'notifications'; data: NotificationsSectionData }
 
-// The outcome of loading a section: either the tagged data, or a route to bounce
-// to when the server guard rejected (not signed in / not a manager).
 type LoadOutcome = { ok: true; loaded: LoadedSection } | { ok: false; redirectTo: string }
 
-// Loads one section by calling its matching loader. The switch keeps the
-// `section`↔`data` correlation, so the returned `loaded` is a precise union
-// member — no assertion needed.
 async function loadSection(target: SettingsSectionKey): Promise<LoadOutcome> {
   switch (target) {
     case 'profile': {
@@ -102,8 +76,6 @@ async function loadSection(target: SettingsSectionKey): Promise<LoadOutcome> {
   }
 }
 
-// Renders the loaded data with the panel that matches its section — the tagged
-// union narrows each branch's `data` to the right shape.
 function SectionPanel({ loaded }: { loaded: LoadedSection }) {
   switch (loaded.section) {
     case 'profile':
@@ -125,12 +97,8 @@ export function SettingsModal() {
   const [section, setSection] = useState<SettingsSectionKey | null>(null)
   const [loaded, setLoaded] = useState<LoadedSection | null>(null)
   const [loading, setLoading] = useState(false)
-  // Guards against a stale load resolving after the user already switched
-  // sections (or closed) — only the newest request may commit its data.
   const requestId = useRef(0)
 
-  // Derive the open section from the URL hash on mount and on every hashchange.
-  // This is the single source of truth: opening the modal = setting the hash.
   useEffect(() => {
     function sync() {
       setSection(parseSectionFromHash(window.location.hash))
@@ -147,9 +115,6 @@ export function SettingsModal() {
       const result = await loadSection(target)
       if (id !== requestId.current) return
       if (!result.ok) {
-        // The section's server guard rejected (not signed in, not a manager for
-        // Cobrança…). Close the modal and hand off to the full route, which
-        // performs the real redirect.
         window.location.hash = ''
         router.push(toRoute(result.redirectTo))
         return
@@ -160,8 +125,6 @@ export function SettingsModal() {
     [router],
   )
 
-  // Load whenever the active section changes. Clearing the section (closed modal)
-  // drops the stale data so a reopen never flashes the previous section.
   useEffect(() => {
     if (!section) {
       setLoaded(null)
@@ -176,17 +139,12 @@ export function SettingsModal() {
   }, [section, load])
 
   function selectSection(next: SettingsSectionKey) {
-    // Rewrite the hash without stacking history (replaceState + manual sync):
-    // the modal stays a single history entry, so closing always returns to the
-    // background surface in one step.
     window.history.replaceState(null, '', settingsHash(next))
     setSection(next)
   }
 
   function onOpenChange(open: boolean) {
     if (open) return
-    // Close = drop the hash. Use replaceState so the closed state doesn't add a
-    // history entry the user would have to Back through.
     window.history.replaceState(null, '', window.location.pathname + window.location.search)
     setSection(null)
   }
@@ -199,8 +157,6 @@ export function SettingsModal() {
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent
         className="grid h-[min(80vh,40rem)] max-w-3xl grid-cols-[12rem_1fr] gap-0 overflow-hidden p-0 sm:max-w-3xl"
-        // Keep focus on the dialog frame rather than the first field, so the
-        // tablet on-screen keyboard doesn't pop on every (re)render.
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <nav
@@ -225,9 +181,6 @@ export function SettingsModal() {
           ))}
         </nav>
 
-        {/* Panel column: a fixed shadcn DialogHeader (the active section's title +
-            description) over the scrollable body. The Dialog's own close button
-            sits at the content's top-right, aligned with this header. */}
         <div className="flex min-h-0 flex-col">
           <DialogHeader className="gap-1 border-b p-6 pr-14">
             <DialogTitle>{meta.label}</DialogTitle>
@@ -236,9 +189,6 @@ export function SettingsModal() {
 
           <ScrollArea className="min-h-0 flex-1">
             <div className="p-6">
-              {/* Show the skeleton while loading, and also whenever the loaded
-                  data is for a different section than the active one (a switch in
-                  flight) — never render a panel whose header doesn't match. */}
               {loading || loaded === null || loaded.section !== section ? (
                 <SectionSkeleton />
               ) : (
@@ -254,9 +204,6 @@ export function SettingsModal() {
   )
 }
 
-// Body placeholder while a section loads — the header (title + description) is
-// already shown from the section meta, so the skeleton only stands in for the
-// content blocks.
 function SectionSkeleton() {
   return (
     <div className="flex flex-col gap-4">

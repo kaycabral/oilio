@@ -17,20 +17,6 @@ const STATUS_LABELS: Record<Membership['status'], string> = {
   revoked: 'Revogado',
 }
 
-// Member detail (brief 0037 #1085/#1086 + refino review 2026-06-02): the single
-// surface to view/edit a person. Keyed by the membership's `userId`. Personal
-// identity (name/whatsapp/email) is always read-only at the top, sourced from
-// the global `User` (brief 0028 #1046) — never repeated in the editable form.
-//
-// For an authorized user (owner/manager) editing a NON-owner member, there is
-// no "Editar" gate and no separate "Trocar papel" button: a single editable
-// `MemberDetailForm` shows the role select (top) + operational fields (when
-// memberOperation), persisted with ONE Salvar that runs the role lifecycle (#1086)
-// and the operational update (#1085) together.
-//
-// The owner is NOT editable (refino): no role select, no Salvar — the detail is
-// read-only. The viewer's own membership is likewise read-only (can't change
-// your own role).
 export default async function MemberDetailPage({
   params,
 }: {
@@ -75,9 +61,6 @@ export default async function MemberDetailPage({
         </dl>
       </header>
 
-      {/* Read-only members (owner / the viewer's own membership): role + status,
-          no editable surface. Editable members get the role select + status
-          inside the form (the select sits where this "Papel" box would be). */}
       {isReadOnly ? (
         <section className="border-border flex flex-wrap gap-x-8 gap-y-2 rounded-md border p-4">
           <div className="flex flex-col gap-0.5">
@@ -104,10 +87,6 @@ export default async function MemberDetailPage({
         statusLabel: STATUS_LABELS[member.status],
       })}
 
-      {/* Per-memberOperation agenda blocks (brief 0036 #1082) — the memberOperation's
-          own blocks live here, next to the operational config. Needs a
-          materialized memberOperation with at least one unit to attach the block
-          to. */}
       {isMemberOperator && memberOperationEdit && memberOperationUnits.length > 0 ? (
         <BlocksSection
           owner={{
@@ -123,17 +102,12 @@ export default async function MemberDetailPage({
         />
       ) : null}
 
-      {/* Member-level deactivate/reactivate (AC-10) — distinct from the role
-          select above and from the memberOperation approval status. Suspends
-          effective access; reversible. */}
       {canToggleStatus && (member.status === 'active' || member.status === 'suspended') ? (
         <section className="border-border rounded-md border p-4">
           <MemberStatusToggle targetUserId={member.userId} status={member.status} />
         </section>
       ) : null}
 
-      {/* Offboarding (brief 0041 #1103, AC-01/AC-10) — terminal "remover do
-          time" severance, distinct from the reversible deactivate above. */}
       {canRemove ? (
         <section className="border-destructive/40 rounded-md border p-4">
           <RemoveMemberButton targetUserId={member.userId} />
@@ -149,10 +123,6 @@ const NOT_MATERIALIZED = (
   </p>
 )
 
-// The editable surface below the read-only identity/status (refino). Owner / the
-// viewer's own membership are read-only (no role select, no Salvar). Everyone
-// else gets the single `MemberDetailForm` (role select + operational fields when
-// memberOperation + one Salvar).
 function renderEditableSurface({
   isReadOnly,
   isMemberOperator,
@@ -169,12 +139,9 @@ function renderEditableSurface({
   statusLabel: string
 }) {
   if (isReadOnly) {
-    // No edit affordance. A memberOperation whose projection isn't materialized
-    // still surfaces that operational state.
     return isMemberOperator && !memberOperationEdit ? NOT_MATERIALIZED : null
   }
   if (isMemberOperator && !memberOperationEdit) {
-    // Editable (role select + Salvar) but no operational fields to show yet.
     return (
       <>
         {NOT_MATERIALIZED}

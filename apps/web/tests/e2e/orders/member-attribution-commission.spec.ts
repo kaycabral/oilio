@@ -1,19 +1,3 @@
-// Brief 0030 (#1057) — comissão chaveada por membro (`attributedUserId`).
-//
-// AC-06: regra resolvida do item/unidade aplicada ao membro atribuído, qualquer
-// papel; sem regra → sem comissão (mas a atribuição registra quem vendeu).
-// AC-07: o registro de comissão é chaveado pelo `userId` do membro e
-// `/reports/commissions` agrupa POR MEMBRO ("Por membro").
-//
-// Cobertura ponta-a-ponta (fecha a venda de verdade pela UI, não seed direto):
-//   1. Produto comissionável vendido pela RECEPÇÃO numa venda avulsa → ao fechar
-//      gera comissão PENDENTE chaveada pelo userId da recepção, que aparece em
-//      /reports/commissions agrupada sob o nome dela.
-//   2. Produto SEM regra de comissão na mesma venda → atribuído (quem vendeu fica
-//      registrado) mas NÃO gera registro de comissão (degenerado, guardrail).
-//   3. Serviço comissionável segue exibindo a linha do profissional no relatório
-//      (mesma identidade `userId` — agrupar por membro não esconde o pro).
-
 import { expect, test } from '../fixtures'
 import { addCatalogItemToOrder } from '../helpers/orders'
 import { chooseOption, choosePaymentMethod } from '../helpers/select'
@@ -43,7 +27,6 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
     org,
     authedPage,
   }) => {
-    // Produto comissionável (50% de R$ 30 = R$ 15) atribuível a qualquer membro.
     await seedCatalogItem(org.orgId, {
       kind: 'product',
       name: 'Argamassa Comissionada',
@@ -51,16 +34,13 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
       commission: { kind: 'percentage', value: 50 },
       unitIds: [org.unitIds[0]!],
     })
-    // Produto SEM regra (degenerado): atribuído mas não comissiona (AC-06).
     await seedProduct(org.orgId, { name: 'Prego Sem Comissao', priceCents: 1000 })
-    // Recepção sem MemberOperation — é quem a re-chave por membro precisa creditar.
     await seedMember(org.orgId, { role: 'receptionist', displayName: 'Recepção Caixa' })
 
     await authedPage.goto('/orders')
     await authedPage.getByRole('button', { name: 'Nova venda' }).click()
     await expect(authedPage).toHaveURL(/\/orders\/.+/)
 
-    // Produto comissionável → recepção.
     await addCatalogItemToOrder(authedPage, 'Argamassa Comissionada')
     await chooseOption(
       authedPage.getByRole('listitem').filter({ hasText: 'Argamassa Comissionada' }),
@@ -74,7 +54,6 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
         .getByRole('combobox', { name: 'Vendedor' }),
     ).toHaveText('Recepção Caixa')
 
-    // Produto sem regra → recepção também (atribuído, mas não comissiona).
     await addCatalogItemToOrder(authedPage, 'Prego Sem Comissao')
     await chooseOption(
       authedPage.getByRole('listitem').filter({ hasText: 'Prego Sem Comissao' }),
@@ -82,7 +61,6 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
       'Recepção Caixa',
     )
 
-    // Fecha com dinheiro (sem cliente, sem profissional aprovado — venda avulsa).
     await choosePaymentMethod(authedPage, 'cash')
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
     const dialog = authedPage.getByRole('dialog', { name: 'Confirmar fechamento' })
@@ -90,25 +68,17 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
     await dialog.getByRole('button', { name: /Confirmar fechamento/ }).click()
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible({ timeout: 5000 })
 
-    // Degenerado (AC-06): só UMA comissão gerada — a do produto comissionável.
-    // O produto sem regra fica atribuído mas não vira registro de comissão.
     const generated = authedPage.getByRole('heading', { name: 'Comissões geradas' })
     await expect(generated).toBeVisible()
 
-    // Relatório agrupa POR MEMBRO: a recepção aparece com a comissão pendente.
     await authedPage.goto('/reports/commissions')
     await expect(authedPage.getByRole('heading', { name: 'Relatório de comissões' })).toBeVisible()
     await expect(authedPage.getByRole('heading', { name: 'Por membro' })).toBeVisible()
 
-    // Linha por-membro da recepção: R$ 15,00 (50% de R$ 30) pendente. O valor
-    // aparece nas colunas Pendente e Total (única comissão pendente) — basta
-    // confirmar presença na linha.
     const memberRow = authedPage.getByRole('row').filter({ hasText: 'Recepção Caixa' })
     await expect(memberRow).toBeVisible()
     await expect(memberRow.getByText('R$ 15,00').first()).toBeVisible()
 
-    // A lista detalhada mostra a comissão sob o nome da recepção; o produto sem
-    // regra (Prego) NÃO aparece como comissão.
     const commItem = authedPage
       .getByRole('listitem')
       .filter({ hasText: 'Argamassa Comissionada' })
@@ -158,9 +128,6 @@ test.describe('Comissão por membro (brief 0030, #1057)', { tag: '@critical' }, 
     await dialog.getByRole('button', { name: /Confirmar fechamento/ }).click()
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible({ timeout: 5000 })
 
-    // No relatório, agrupado por membro, a comissão do serviço (40% de R$ 50 =
-    // R$ 20) aparece sob o profissional executor (membro de papel memberOperation;
-    // a chave é o userId dele, mesma identidade).
     await authedPage.goto('/reports/commissions')
     await expect(authedPage.getByRole('heading', { name: 'Por membro' })).toBeVisible()
     const proRow = authedPage.getByRole('row').filter({ hasText: 'Profissional 1' })

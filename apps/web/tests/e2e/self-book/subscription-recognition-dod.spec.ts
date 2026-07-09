@@ -1,13 +1,3 @@
-// Feature-level E2E — brief 0079 § Definition of Done (parent #1303).
-//
-// "Self-booking e comanda reconhecem a assinatura ativa". 1 test por cenário
-// crítico do DoD, validando o contrato da Feature (escopo do parent):
-//  - Cenário 1: assinante agenda serviço coberto e vê o selo "no seu plano"
-//  - Cenário 2: operador fecha comanda de item coberto sem flip manual (cota 0→1)
-//  - Cenário 3: cota esgotada → serviço vira avulso no wizard (sem selo, preço cheio)
-//
-// Drives the REAL self-book wizard + order UI; asserts via UI + Postgres reads.
-
 import { SubscriptionConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import type { Page } from '@playwright/test'
@@ -61,7 +51,6 @@ test.describe(
     }) => {
       const ts = Date.now().toString()
       const unitId = org.unitIds[0]!
-      // Covered service + an uncovered one — the badge must mark only the covered.
       const coveredId = await seedCatalogItem(org.orgId, {
         kind: 'service',
         name: `Corte ${ts}`,
@@ -79,7 +68,6 @@ test.describe(
         publicVisible: true,
       })
 
-      // Subscriber = the logged-in session uid, so the resolver finds the plan.
       const customerId = await seedCustomer(org.orgId, { name: `Assinante ${ts}`, userId: org.uid })
       await seedSubscription(org.orgId, customerId, {
         planName: 'Mensal Corte',
@@ -90,12 +78,10 @@ test.describe(
       const booking = new PublicBookingPage(authedPage, orgSlug(org.orgId))
       await booking.gotoCatalog()
 
-      // The covered service carries the badge; the uncovered one does not.
       const coveredRow = authedPage.getByRole('listitem').filter({ hasText: `Corte ${ts}` })
       await expect(coveredRow.getByText('no seu plano')).toBeVisible()
       const uncoveredRow = authedPage.getByRole('listitem').filter({ hasText: `Sobrancelha ${ts}` })
       await expect(uncoveredRow.getByText('no seu plano')).toHaveCount(0)
-      // Full price still shown (the wizard never zeroes price), no numeric balance.
       await expect(authedPage.getByText(/R\$\s*45,00/)).toBeVisible()
       await expect(authedPage.getByText(/saldo|restante|\b\d+\/\d+\b/i)).toHaveCount(0)
     })
@@ -140,20 +126,15 @@ test.describe(
       await authedPage.getByRole('button', { name: /Iniciar atendimento/ }).click()
       await expect(authedPage).toHaveURL(/\/orders\/.+/)
 
-      // The covered item is ALREADY plan consumption — no operator flip. The
-      // coverage combobox shows "Consumo do plano" as its selected value (the
-      // emerald badge also carries the text, so target the select-value role).
       await expect(
         authedPage
           .getByRole('listitem')
           .filter({ hasText: `Corte ${ts}` })
           .getByRole('combobox', { name: 'Cobertura do item' }),
       ).toHaveText('Consumo do plano')
-      // 100% covered → closes with no payment method.
       await expect(authedPage.getByText(/100% coberta pelo plano/)).toBeVisible()
       await confirmClose(authedPage)
 
-      // Quota debited 0 → 1 by closing (consumo só no fechamento — herda 0021).
       expect(await readConsumed(org.orgId, subId)).toBe(1)
     })
 
@@ -172,7 +153,6 @@ test.describe(
         publicVisible: true,
       })
       const customerId = await seedCustomer(org.orgId, { name: `Assinante ${ts}`, userId: org.uid })
-      // Quota fully consumed this cycle → no balance left.
       await seedSubscription(org.orgId, customerId, {
         planName: 'Mensal Corte',
         usageLimit: { kind: 'count', quantity: 4 },
@@ -183,8 +163,6 @@ test.describe(
       const booking = new PublicBookingPage(authedPage, orgSlug(org.orgId))
       await booking.gotoCatalog()
 
-      // No badge — the covered-but-exhausted service shows at full price as avulso,
-      // and booking proceeds normally (no "esgotado" warning, no block).
       await expect(authedPage.getByText(`Corte ${ts}`)).toBeVisible()
       await expect(authedPage.getByText('no seu plano')).toHaveCount(0)
       await expect(authedPage.getByText(/R\$\s*45,00/)).toBeVisible()

@@ -1,15 +1,3 @@
-// The financial attribution gate `assertMemberCanOperate` (brief 0030 AC-05) for
-// SERVICE items, proven against REAL Postgres after `operationalStatus` became
-// DERIVED on read (#1226 AC-02). The gate must NOT regress: a memberOperation whose
-// readiness no longer materializes on a column is still refused a service unless
-// the DERIVED status is `operational` (mobile present ∧ ≥1 unit ∧ ≥1 service).
-//
-// The memberOperation is minted through the real write path (`appendEvent`), so the
-// projector mirrors `unit_ids`/`catalog_service_ids` into the join tables; the
-// linked `users` row carries (or omits) the mobile the derive keys on. The gate
-// reads the enriched `MemberOperation` via `getMemberOperationByUserId`, which derives
-// the status — exactly the production read path.
-
 import { defaultPermissionsForRole } from '@/domain'
 import { MemberOperationConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
@@ -74,8 +62,6 @@ async function seedMembership(orgId: string, userId: string): Promise<void> {
   )
 }
 
-// Mint a memberOperation through the real write path (projector mirrors the join
-// tables) + its linked User. `mobile` controls the derived readiness.
 async function seedMemberOperation(
   orgId: string,
   opts: { mobile: string | null; unitIds: string[]; catalogServiceIds: string[] },
@@ -84,9 +70,6 @@ async function seedMemberOperation(
   for (const u of opts.unitIds) await seedUnit(orgId, u)
   for (const s of opts.catalogServiceIds) await seedService(orgId, s)
   await putUser(
-    // When mobile is requested, let the builder derive a GLOBALLY UNIQUE BR
-    // mobile from the (unique) uid — `users_mobile_unique` forbids two seeded
-    // users sharing a number. The gate keys on PRESENCE, not the literal value.
     buildUser(userId, TS, {
       completionCompleted: opts.mobile !== null,
       mobile: opts.mobile === null ? null : undefined,

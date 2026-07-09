@@ -17,8 +17,6 @@ export type DashboardFiltersProps = {
 
 export function DashboardFilters({ selectedPeriod, fromDate, toDate }: DashboardFiltersProps) {
   const router = useRouter()
-  // Custom date inputs are controlled locally — only when both have values do
-  // we navigate, to avoid spamming router.push on every keystroke.
   const [customFrom, setCustomFrom] = useState(fromDate)
   const [customTo, setCustomTo] = useState(toDate)
 

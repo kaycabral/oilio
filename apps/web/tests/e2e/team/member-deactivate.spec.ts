@@ -1,19 +1,3 @@
-// Feature E2E for #1053 (brief 0029 AC-10): deactivate / reactivate a member
-// from the member detail at `/team/{userId}`. An owner flips
-// `membership.status` active ↔ suspended via the toggle; the transition is
-// event-sourced (`membership.updated` carrying `status`), a suspended
-// membership loses effective access (the resolvers + the `isMember` rule key on
-// `status == 'active'`), and reactivation restores it.
-//
-// Member-level lifecycle (vacation / dismissal), distinct from `operationalStatus`
-// (memberOperation unit-activation, 0028) and `member_operation.suspended` (role
-// lifecycle projection, 0037).
-//
-// Runs against the emulator (no mocks). Reads the membership projection + its
-// event stream straight from Postgres (post-cutover) to assert the projection
-// AND the event-sourced transition. The rules-level "suspended can't operate"
-// gate is asserted in the rules integration test (AC-10).
-
 import { membershipDocId } from '@/domain'
 import { MembershipConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
@@ -27,9 +11,6 @@ import {
 } from '../helpers/session'
 import { MemberOperationsPage } from '../pages'
 
-// The `membership.updated` event-stream envelope, narrowed to the `_tag` + the
-// nested `payload.changes.status` string this spec reads. Excess envelope fields
-// (version/timestamp/actorId/schemaVersion) are ignored by the lenient struct.
 const MembershipStatusEventSchema = Schema.Struct({
   _tag: Schema.optional(Schema.String),
   payload: Schema.optional(
@@ -44,9 +25,6 @@ const MembershipStatusEventSchema = Schema.Struct({
 })
 const decodeMembershipStatusEvent = Schema.decodeUnknownSync(MembershipStatusEventSchema)
 
-// Lists the `membership.updated` events on a membership's event stream that
-// carry a `status` change, returning the projected status values (event-first
-// proof: the transition lives in the immutable stream, not a bare doc write).
 async function listMembershipStatusEvents(orgId: string, membershipId: string): Promise<string[]> {
   const stream = await pgReadEventStream(aggregateRef(MembershipConfig, orgId, membershipId))
   return stream
@@ -56,8 +34,6 @@ async function listMembershipStatusEvents(orgId: string, membershipId: string): 
     .filter((s): s is string => typeof s === 'string')
 }
 
-// Reads the membership projection's `status` straight from Postgres (the
-// memberships table is top-level — keyed by PK (org_id, id)).
 async function readMembershipStatus(orgId: string, membershipId: string): Promise<string | null> {
   const row = await pgReadProjection(
     'memberships',
@@ -77,29 +53,21 @@ test.describe('Equipe — desativar/reativar membro (#1053)', { tag: '@critical'
     await seedMembershipFor(org.orgId, member.uid, { role: 'receptionist' })
     const membershipId = membershipDocId(org.orgId, member.uid)
 
-    // Baseline: active membership, no status-change event yet.
     expect(await readMembershipStatus(org.orgId, membershipId)).toBe('active')
     expect(await listMembershipStatusEvents(org.orgId, membershipId)).toEqual([])
 
     const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(member.uid)
 
-    // The detail renders the toggle reflecting the active state (it offers
-    // "Desativar"), beside the read-only status.
     await expect(authedPage.getByRole('group', { name: 'Status', exact: true })).toHaveText('Ativo')
     const toggle = authedPage.getByRole('button', { name: 'Desativar membro' })
     await expect(toggle).toHaveText(/Desativar/)
 
-    // Deactivate → membership.status flips to suspended (the member can't
-    // operate; rules-level gate asserted in the integration test).
     await toggle.click()
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('suspended')
 
-    // Event-sourced: the transition is recorded as a membership.updated event
-    // carrying `status`.
     expect(await listMembershipStatusEvents(org.orgId, membershipId)).toContain('suspended')
 
-    // A fresh render reflects the suspended state and now offers "Reativar".
     await pros.gotoByUserId(member.uid)
     await expect(authedPage.getByRole('group', { name: 'Status', exact: true })).toHaveText(
       'Suspenso',
@@ -107,7 +75,6 @@ test.describe('Equipe — desativar/reativar membro (#1053)', { tag: '@critical'
     const reToggle = authedPage.getByRole('button', { name: 'Reativar membro' })
     await expect(reToggle).toHaveText(/Reativar/)
 
-    // Reactivate → back to active, recorded as a second status event.
     await reToggle.click()
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('active')
     expect(await listMembershipStatusEvents(org.orgId, membershipId)).toEqual([
@@ -119,7 +86,6 @@ test.describe('Equipe — desativar/reativar membro (#1053)', { tag: '@critical'
   test('owner não tem toggle de desativação (identidade imutável)', async ({ org, authedPage }) => {
     const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(org.uid)
-    // The owner detail is read-only and has no deactivate affordance.
     await expect(authedPage.getByRole('form', { name: 'Desativar membro' })).toHaveCount(0)
   })
 })

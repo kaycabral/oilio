@@ -3,17 +3,11 @@ import { makeReplayStore } from '@/domain/effect/test-layers'
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
-// Post-cutover (#1202) the sweep enumerates tenants from the PUBLIC org directory
-// (Postgres, no RLS) via `listAllOrgIds`. Mock it to the fixture's single org so
-// the test stays a pure unit (no DB); each org's data still flows through the
-// in-memory `PersistencePort` layer below.
 const mocks = vi.hoisted(() => ({ listAllOrgIds: vi.fn(() => Promise.resolve(['t1'])) }))
 vi.mock('@/shared/db/pg/public-org-directory', () => ({ listAllOrgIds: mocks.listAllOrgIds }))
 
 import { generateHourlyNotifications } from './generate-hourly'
 
-// D6: the in-memory port is ref-keyed (`${type}/${orgId}/${id}`); seed
-// projections under those keys (`unit/t1/u1`, `order/t1/o1`, ...).
 function makeStore(initial: Record<string, FirestoreDoc> = {}) {
   return makeReplayStore(initial)
 }

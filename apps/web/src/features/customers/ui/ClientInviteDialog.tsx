@@ -16,21 +16,11 @@ import { UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { ClientInviteForm } from './ClientInviteForm'
 
-// "Convidar cliente" opens from the top action of `/customers` as a dialog
-// (mirrors `team/InviteDialog`, brief 0037), instead of a dedicated page. The
-// invite ALWAYS targets the active unit of the header context — the same unit
-// the owner is operating, the way the whole app is scoped. No redundant unit
-// chooser: to invite for another unit, switch units in the top switcher. The
-// recepcionista informs only the WhatsApp; the form returns the contextual link
-// in-place, so the dialog stays open to show + copy it.
 export function ClientInviteDialog({ trigger }: { trigger?: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const { org, user, units, activeUnitId } = useOrg()
 
   const activeUnit = units.find((u) => u.id === activeUnitId) ?? null
-  // The invite only makes sense for a unit whose public booking is live — else
-  // the link dead-ends on "indisponível". Mirror the server gate (the action is
-  // the real wall) so we don't open a form that's bound to fail.
   const canInvite = activeUnit !== null && isUnitPubliclyLive(activeUnit)
 
   return (

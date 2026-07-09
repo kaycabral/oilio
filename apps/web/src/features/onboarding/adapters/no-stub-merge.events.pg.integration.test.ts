@@ -4,27 +4,6 @@ import { getUserById, patchUser, putUser } from '@/shared/db/pg/users-store'
 import { buildUser } from '@/shared/fixtures/domain-builders'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
-/**
- * No-merge-by-WhatsApp proof against REAL Postgres (brief 0077 Grupo C, #1276).
- *
- * Folding a stub User into a freshly-claimed login by matching WhatsApp was the
- * SOURCE of the wrong-number breach the brief kills: a mistyped number on a
- * recepcionista stub could silently capture a real person's login. The dedupe
- * (`findClaimableStubByWhatsapp` + `mergeStubUserIntoClaimer`) is GONE — each
- * login is its own user, and a number already owned by someone else is NEVER
- * folded, repointed, or quietly taken over.
- *
- * The invariant now has TWO halves, both proven at the DB here:
- *   1. WhatsApp is GLOBALLY unique (`users_mobile_unique`): a completion write
- *      with a number that already has an owner is REFUSED (23505) — there can
- *      never be a second user on that number (the merge's escape hatch is gone).
- *   2. No side effects on refusal: the refused write leaves the existing owner
- *      byte-for-byte intact (NOT deleted, NOT repointed) and the claimer stays
- *      its own incomplete identity (no fold into the other uid).
- *
- * Per-run-unique uids so cases never collide across the shared database.
- */
-
 const TS = '2026-06-01T12:00:00.000Z'
 const SHARED_MOBILE = '5511988887777'
 
@@ -44,7 +23,6 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
   })
 
   it('refuses completing with an already-used WhatsApp and leaves the other user untouched', async () => {
-    // An existing, fully-completed user already owns SHARED_MOBILE.
     const existingUid = uniqueUid('existing')
     await putUser(
       buildUser(existingUid, TS, {
@@ -56,10 +34,6 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
       }),
     )
 
-    // A brand-new OAuth login (claimed, not yet completed) tries to finish
-    // completion with the SAME WhatsApp — the exact scenario the old dedupe would
-    // have merged. With the merge gone AND the number globally unique, the write
-    // is refused by the DB (no merge, no second owner).
     const claimerUid = uniqueUid('claimer')
     await putUser(
       buildUser(claimerUid, TS, {
@@ -88,21 +62,17 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
     }
     expect(refused).toBe(true)
 
-    // The other user is byte-for-byte intact — NOT deleted, NOT repointed.
     const existing = await getUserById(existingUid)
     expect(existing).not.toBeNull()
     expect(existing?.displayName).toBe('Existing Person')
     expect(existing?.mobile).toBe(SHARED_MOBILE)
     expect(existing?.birthDate).toBe('1985-05-05')
 
-    // The claimer kept its own identity (no fold into the other uid) and stayed
-    // incomplete — the refused write changed nothing on it.
     const claimer = await getUserById(claimerUid)
     expect(claimer?.uid).toBe(claimerUid)
     expect(claimer?.completionCompleted).toBe(false)
     expect(claimer?.mobile).toBeNull()
 
-    // Exactly ONE user owns the number — the global uniqueness invariant holds.
     const owners = await getEventStorePool().query<{ uid: string }>(
       'SELECT uid FROM users WHERE mobile = $1',
       [SHARED_MOBILE],
@@ -111,26 +81,16 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
   })
 
   it('rejects a non-strict-mobile number at the DB (users_mobile_br_format CHECK)', async () => {
-    // brief 0087: `users.mobile` carries a CHECK matching BRAZIL_MOBILE_E164_REGEX
-    // (`^55[0-9]{2}9[0-9]{8}$` — DDD + 9th digit). A landline (10 domestic digits,
-    // no 9th digit) must be refused at the DB, so any write path that skips
-    // `normalizeBrazilMobile` (a stale caller) surfaces as a handled 23514 rather
-    // than corrupting the column. The person flows validate upstream; this proves
-    // the last line of defence.
     const uid = uniqueUid('landline')
     let refused = false
     try {
-      // '551133334444' = 55 + DDD 11 + 3333-4444 (landline, no 9th digit).
       await putUser(buildUser(uid, TS, { mobile: '551133334444', displayName: 'Landline' }))
     } catch (err) {
-      // A CHECK violation is SQLSTATE 23514 (not 23505), so match the constraint
-      // name on the raised error rather than reusing the unique-violation helper.
       refused = /users_mobile_br_format/.test(String(err))
       if (!refused) throw err
     }
     expect(refused).toBe(true)
 
-    // Nothing was written — the column stays clean.
     const rows = await getEventStorePool().query('SELECT uid FROM users WHERE uid = $1', [uid])
     expect(rows.rowCount).toBe(0)
   })

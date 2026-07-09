@@ -5,19 +5,8 @@ import type { PoolClient } from 'pg'
 import { buildCollectionQueryTail } from './collection-query'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `subscription` ES context (brief 0061 § Grupo B). The
- * scalar lifecycle fields are real columns the DB constrains (status enum,
- * billing-cycle enum lifted from the plan snapshot, non-negative counters); the
- * `plan` snapshot (with its `usageLimit` union + optional scopes) and the
- * `currentPeriod` window are composite/structural, so they live in JSONB. The
- * `upsert` decodes the untyped projection doc against the domain `Subscription`
- * schema at this single driver boundary — schema-validated, no cast.
- */
-
 const decodeSubscription = Schema.decodeUnknownSync(Subscription)
 
-/** Ordered `subscriptions` column list — single source of truth for upsert + seed. */
 export const SUBSCRIPTION_COLUMNS = [
   'org_id',
   'id',
@@ -39,11 +28,6 @@ export const SUBSCRIPTION_COLUMNS = [
   'updated_at',
 ] as const
 
-/**
- * Map a decoded `Subscription` onto the ordered column VALUES (inverse of
- * `rowToDoc`). `billing_cycle` is lifted from the plan snapshot to its column;
- * `plan` and `current_period` are stringified for their JSONB columns.
- */
 export function subscriptionColumnValues(s: Subscription, version: number): unknown[] {
   return [
     s.orgId,
@@ -108,9 +92,6 @@ export type SubscriptionRow = {
   updated_at: string
 }
 
-// Reconstructs the reducer's doc from the typed row. `billing_cycle` is NOT
-// re-attached at top level — it lives inside the `plan` snapshot (JSONB), which
-// round-trips whole; the column is a derived discriminant for querying only.
 export function rowToDoc(row: SubscriptionRow): FirestoreDoc {
   return {
     _version: Number(row.last_event_version),
@@ -121,10 +102,6 @@ export function rowToDoc(row: SubscriptionRow): FirestoreDoc {
     customerUserId: row.customer_user_id,
     status: row.status,
     cancelAtPeriodEnd: row.cancel_at_period_end,
-    // `*_at`/`next_charge_date` are `timestamptz` (brief 0068 D1): the pg driver
-    // returns a `Date` on the raw `SELECT *` read. Normalize to ISO; the domain
-    // stays `string`. `current_period` (JSONB) is untouched — its instants live
-    // inside the document, not as scalar columns.
     nextChargeDate:
       row.next_charge_date == null ? null : new Date(row.next_charge_date).toISOString(),
     pastDueCycles: Number(row.past_due_cycles),
@@ -151,8 +128,6 @@ async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
   await client.query('DELETE FROM subscriptions WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-// Org-scoped collection scan: the daily cron reads the active/past_due
-// subscriptions (`where status in [...]`) to emit expiry touches.
 async function list(
   client: PoolClient,
   ref: CollectionRef,

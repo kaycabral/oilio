@@ -1,8 +1,3 @@
-// AC-09/AC-10 (brief 0025), fatia charge (#1025) — gateway-gated: converge o
-// domínio + replay + unit agora; o E2E desses fluxos espera a parceria ligar o
-// gateway. created (snapshot scheduled) → failed (recovering) → succeeded
-// (paid) → replay == projeção, campo a campo.
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -82,7 +77,6 @@ describe('Charge — replay reconstrói o doc completo (event-first, gateway-gat
     expect(replayed.attempts).toBe(2)
     expect(replayed.paidAt).toBe('2026-07-02T10:00:00.000Z')
     expect(replayed.amountCents).toBe(9900)
-    // unitId (snapshot do ciclo, brief 0043 AC-02) sobrevive ao replay.
     expect(replayed.unitId).toBe('unit-a')
   })
 })

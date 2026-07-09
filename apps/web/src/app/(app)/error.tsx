@@ -2,13 +2,6 @@
 
 import { Button, Typography } from '@cbrl/design'
 
-// Error boundary for the authenticated app shell. Without it, an exception in
-// any client component during a client-side navigation unmounts the whole shell
-// subtree permanently — the sidebar footer / UserMenu vanish and only a full
-// restart brings them back (the reported "menu some e só volta fechando o app").
-// This CONTAINS the error (the shell recovers via `reset()`), and — because a
-// standalone PWA gives no console — it RENDERS the message + stack on screen so
-// the failure is diagnosable straight from the device.
 export default function AppError({
   error,
   reset,
@@ -25,9 +18,6 @@ export default function AppError({
 
       <Button onClick={reset}>Tentar novamente</Button>
 
-      {/* Diagnostic surface (temporary): the standalone PWA has no console, so
-          show the error text on screen to capture the real cause from the device.
-          Selectable/scrollable so it can be read or copied. */}
       <pre className="border-border bg-muted text-muted-foreground max-h-64 w-full overflow-auto rounded-md border p-3 text-left font-mono text-xs whitespace-pre-wrap select-all">
         {error.name}: {error.message}
         {error.digest ? `\n\ndigest: ${error.digest}` : ''}

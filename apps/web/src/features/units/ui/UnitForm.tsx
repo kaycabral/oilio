@@ -44,11 +44,6 @@ type SlugState =
   | { kind: 'invalid' }
   | { kind: 'error'; message: string }
 
-// Reusable across the unit CRUD (`/units/new`, `/units/[id]`) AND the guided
-// first-unit empty-state (PRD Identidade v2 / brief 0046). `unit` puts it in
-// edit mode; `defaults` prefills a fresh create (name = Negócio name,
-// businessHours = sensible default week) so the owner effectively only
-// confirms address + WhatsApp. `defaults` is ignored when `unit` is set.
 type UnitFormDefaults = {
   name?: string
   businessHours?: BusinessHours
@@ -62,17 +57,9 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
   const [slug, setSlug] = useState(unit?.slug ?? '')
   const [slugTouched, setSlugTouched] = useState(false)
   const [slugState, setSlugState] = useState<SlugState>({ kind: 'idle' })
-  // Mode is lifted here so the agenda configs (C3) can be revealed inline below
-  // the hours when `appointment` is chosen — progressive disclosure.
   const [mode, setMode] = useState<UnitHoursMode>(unit?.agenda.mode ?? 'fixed')
-  // Existing appointment configs (edit mode) prefill the revealed fields; absent
-  // for a fresh create, where the fields fall back to sensible defaults.
   const priorAppointment = unit ? appointmentAgenda(unit.agenda) : null
 
-  // Auto-derive slug from name until the owner edits the slug field
-  // themselves. Once touched, name changes stop overriding the slug —
-  // matches the "wizard doesn't ask what it can deduce" principle while
-  // still letting Settings be explicit.
   useEffect(() => {
     if (slugTouched) return
     setSlug(slugifyUnitName(name))
@@ -93,12 +80,6 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
       return
     }
     setSlugState({ kind: 'checking' })
-    // `cancelled` guards against a late setState: clearTimeout drops a debounce
-    // that hasn't fired, but once the async availability check is IN FLIGHT only
-    // this flag can stop its resolution from calling setSlugState after the effect
-    // re-ran (new keystroke) or the form unmounted (submit → redirect). A stray
-    // late setState here would re-render the form and re-run its validity gate
-    // mid-submit — the same flake class as the combobox blur timer.
     let cancelled = false
     const handle = setTimeout(() => {
       void (async () => {
@@ -114,7 +95,6 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
           else setSlugState({ kind: 'invalid' })
         } catch {
           if (cancelled) return
-          // The slug-check error's raw text is technical; show a fixed message.
           setSlugState({ kind: 'error', message: 'Não foi possível verificar. Tente de novo.' })
         }
       })()
@@ -174,8 +154,6 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
             />
             <InputGroupAddon>{renderSlugIcon(slugState.kind)}</InputGroupAddon>
           </InputGroup>
-          {/* Description carries the "why" for error/idle states; the green check
-            in the input speaks for the available state. */}
           {slugState.kind !== 'available' ? (
             <FieldDescription
               className={slugHint.tone === 'error' ? 'text-destructive' : undefined}
@@ -210,9 +188,6 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
           mode={mode}
           onModeChange={setMode}
         />
-        {/* Agenda configs (cancellation policy + messages + slot granularity)
-            appear ONLY in appointment mode — they exist solely in that agenda
-            variant per the schema (PRD Identidade v2 / C3). */}
         {mode === 'appointment' ? (
           <>
             <FieldSeparator />
@@ -224,10 +199,6 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
           </>
         ) : null}
         {error ? <FieldError>{error}</FieldError> : null}
-        {/* When the submit is gated only by an unfilled required field, name it
-            so the user isn't left with a dead button and no clue which field is
-            pending — the culprit is often the address `Número` revealed after the
-            CEP lookup, which may sit below the fold (#1296). */}
         {!isValid && !pending && !submitBlocked && firstInvalidLabel ? (
           <FieldDescription className="text-right">
             Preencha “{firstInvalidLabel}” para {unit ? 'salvar' : 'criar'}.
@@ -249,8 +220,6 @@ export function UnitForm({ unit, defaults }: { unit?: Unit; defaults?: UnitFormD
 function renderSlugIcon(kind: SlugState['kind']) {
   switch (kind) {
     case 'available':
-      // The check is the ONLY available-state cue (no FieldDescription), so it
-      // carries an accessible name instead of being purely decorative.
       return (
         <>
           <Check className="text-emerald-600" aria-hidden />

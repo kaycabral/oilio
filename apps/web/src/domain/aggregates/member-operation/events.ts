@@ -15,10 +15,6 @@ export const MemberOperationDeletedSchema = Schema.Struct({
   _tag: Schema.Literal('member_operation.deleted'),
 })
 
-// Operational-readiness transitions. No longer EMITTED (#1226 AC-02 — the status
-// is derived on read, not materialized), but retained in the event union so
-// HISTORICAL streams that emitted them still decode and replay (the reducer
-// treats them as no-ops).
 export const MemberOperationActivatedSchema = Schema.Struct({
   _tag: Schema.Literal('member_operation.activated'),
 })

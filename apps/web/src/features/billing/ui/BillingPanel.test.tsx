@@ -1,13 +1,3 @@
-// Render tests for the BillingPanel (brief 0073 + 0090) — the self-service
-// billing surface, restructured to the approved prototype: plan card, payment
-// method, invoices table, cancellation zone. Proves the branches a tester would
-// eyeball: status badge, "Cancela no fim do ciclo" flag, the paid plan card vs
-// the Free subscribe CTA, the payment/invoices empty states, the owner-only
-// gating of actions, and the native cancellation flow.
-//
-// The server actions and toast are mocked (no network); the focus is the markup
-// each prop combination produces.
-
 import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -118,7 +108,6 @@ describe('BillingPanel — Free plan', () => {
     )
     expect(screen.getByText('Assinar um plano')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Assinar o Pro' })).toBeInTheDocument()
-    // The subscribe card still identifies the current (free) plan.
     expect(screen.getByText('Plano Grátis')).toBeInTheDocument()
     expect(screen.queryByText('Faturas')).not.toBeInTheDocument()
   })

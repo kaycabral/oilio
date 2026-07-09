@@ -26,23 +26,6 @@ import {
   getCustomerDeletionImpact,
 } from './delete-guard'
 
-/**
- * Active-reference delete guard against REAL Postgres (brief 0033, AC-01/AC-02 —
- * the rewrite of the Firestore-emulator `delete-guard.integration.test.ts`).
- * Proves the core business rule the `delete-guard.ts` module owns: an ACTIVE
- * reference blocks the hard-delete (`canDelete=false`); a HISTORICAL/snapshotted
- * reference does NOT (`canDelete=true`). Covers every entity the module guards:
- * subscription-plan, catalog-item, unit, memberOperation, customer (+ the
- * `getCustomerDeletionImpact` / `attachCanDelete` consumers).
- *
- * The guard reads run under `readUnderRls` over the event-store pool (superuser
- * locally/CI → RLS bypassed; the policies are proven in the isolation specs).
- * Preconditions are seeded as typed projection rows (subscriptions/appointments
- * via the projector column mappers + domain builders; orders/memberOperations/
- * memberships via raw INSERT matching the schema). Per-run-unique org ids isolate
- * each case; no global wipe.
- */
-
 const TS = '2026-06-01T12:00:00.000Z'
 
 let seq = 0
@@ -64,10 +47,6 @@ async function insertRow(
   values: unknown[],
 ): Promise<void> {
   const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ')
-  // appointments/agenda_blocks carry `member_id` (brief 0076 AC-04) DERIVED from
-  // the operational profile via a correlated subquery on `member_operation_id` —
-  // mirroring the projectors. The column lists passed in (APPOINTMENT_COLUMNS /
-  // AGENDA_BLOCK_COLUMNS) omit it, so append it here.
   if (table === 'appointments' || table === 'agenda_blocks') {
     const orgIdRef = `$${columns.indexOf('org_id') + 1}`
     const memberOpIdRef = `$${columns.indexOf('member_operation_id') + 1}`
@@ -107,16 +86,12 @@ async function seedSubscription(
     },
     currentPeriod: { startAt: past(), endAt: opts.periodEndAt ?? future(), consumed: 0 },
   })
-  // FK parents (brief 0068 D2): subscription.org_id → orgs, unit_id → units,
-  // customer_id → customers. `buildSubscription` defaults unit_id to 'unit'.
   await seedOrg(orgId)
   await seedUnit(orgId, 'unit')
   await seedCustomer(orgId, customerId)
   await insertRow('subscriptions', SUBSCRIPTION_COLUMNS, subscriptionColumnValues(sub, 1))
 }
 
-// Appointment with a ZERO-WIDTH interval (endAt == startAt) so the anti-double-
-// book exclusion constraint never trips when several are seeded in one case.
 async function seedAppointment(
   orgId: string,
   opts: {
@@ -139,9 +114,6 @@ async function seedAppointment(
     memberOperationId,
     customerId,
   })
-  // FK parents (brief 0068 D2): appointment.org_id → orgs, unit_id → units,
-  // member_operation_id → memberOperations, customer_id → customers, service_id →
-  // catalog_items. `buildAppointment` defaults service_id to 'svc'.
   await seedOrg(orgId)
   await seedUnit(orgId, unitId)
   await seedMemberOperationRow(orgId, memberOperationId)
@@ -176,8 +148,6 @@ async function seedOrder(
   const closedAt = opts.status === 'closed' ? TS : null
   const paymentMethod = opts.status === 'closed' ? 'cash' : null
   const customerId = opts.customerId ?? 'cust'
-  // FK parents (brief 0068 D2): order.org_id → orgs, unit_id → units,
-  // customer_id → customers. `seedOrder` writes unit_id 'unit'.
   await seedOrg(orgId)
   await seedUnit(orgId, 'unit')
   await seedCustomer(orgId, customerId)
@@ -188,11 +158,6 @@ async function seedOrder(
   )
 }
 
-// Seeds the parent `orgs` row idempotently. `memberOperations.org_id` carries a FK
-// to `orgs(org_id)` (the org-folder projection), so a memberOperation cannot be
-// inserted before its org exists — unlike subscriptions/appointments/orders,
-// which have no such FK. Idempotent: a case may seed several memberOperations under
-// the same org.
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
@@ -202,10 +167,6 @@ async function seedOrg(orgId: string): Promise<void> {
   )
 }
 
-// Idempotent FK-parent seeds (brief 0068 D2). The child projections
-// (subscriptions/appointments/orders) carry composite FKs into these tables; a
-// case may seed several children sharing the same unit/customer/memberOperation/
-// service, so each is `ON CONFLICT DO NOTHING`.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
@@ -233,9 +194,6 @@ async function seedService(orgId: string, serviceId: string): Promise<void> {
   )
 }
 
-// Idempotent memberOperation parent for the appointment FK (distinct from
-// `seedMemberOperation`, which mints a fresh non-idempotent memberOperation and returns
-// its id for the canDeleteMemberOperation cases).
 async function seedMemberOperationRow(orgId: string, memberOperationId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
@@ -251,8 +209,6 @@ async function seedMemberOperationRow(orgId: string, memberOperationId: string):
   )
 }
 
-// MemberOperation projection carrying a `userId` link + optional unit scope. Returns
-// the memberOperation DOC id.
 async function seedMemberOperation(
   orgId: string,
   opts: { userId?: string; unitIds?: string[] } = {},
@@ -261,8 +217,6 @@ async function seedMemberOperation(
   const id = uid('pro')
   const userId = opts.userId ?? uid('u')
   const unitIds = opts.unitIds ?? []
-  // Parent membership for the memberOperation's composite FK (org_id, member_id) →
-  // memberships(org_id, id). `member_id` is the membership doc id ({org}_{user}).
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
      VALUES ($1,$1||'_'||$2,$2,1,'member_operator','active',$3,'{}'::jsonb,$3)
@@ -274,9 +228,6 @@ async function seedMemberOperation(
      VALUES ($1,$2,1,$3,$1||'_'||$3,NULL,$4::jsonb,'[]'::jsonb,$5,$5)`,
     [orgId, id, userId, JSON.stringify(unitIds), TS],
   )
-  // Seeding memberOperations directly (not via the projector) must also populate the
-  // `member_operation_units` join table — `canDeleteUnit` now reads it (brief 0068 D3).
-  // The unit row is required by the join's composite FK to units(org_id, id).
   for (const unitId of unitIds) {
     await getEventStorePool().query(
       `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
@@ -299,9 +250,6 @@ async function seedMembership(
   status: MembershipStatus,
 ): Promise<void> {
   const m = buildMembership(orgId, userId, TS, { status })
-  // `seedMemberOperation`/`seedMemberOperationRow` may have pre-seeded the parent
-  // membership (for the memberOperation's composite FK); upsert so this call sets the
-  // case's intended status/role rather than colliding on the (org_id, id) PK.
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, rls_unit_scope, invited_by, joined_at, permissions, updated_at)
      VALUES ($1,$2,$3,1,$4,$5,NULL,NULL,$6,$7::jsonb,$6)
@@ -502,9 +450,6 @@ describe('canDeleteMemberOperation — future appointment / active membership vs
   })
 })
 
-// Operator delete (brief 0033, AC-07): the ONLY hard blocker is an open comanda.
-// Active subscription + future appointments NO LONGER block — they cascade-cancel
-// and surface in `getCustomerDeletionImpact`.
 describe('canDeleteCustomer — only an open comanda blocks', () => {
   beforeEach(async () => {
     await getEventStorePool().query(`TRUNCATE ${TABLES} CASCADE`)

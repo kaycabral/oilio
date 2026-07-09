@@ -3,20 +3,6 @@ import { getEventStorePool } from '@/shared/db/pg/pool'
 import { logger } from '@/shared/lib/logger'
 import 'server-only'
 
-// Customer-acquisition funnel telemetry — brief 0077 Grupo D (AC-12), Plano de
-// medição § Eventos. The funnel: invite issued → opened → signed in → profile
-// completed → appointment created.
-//
-// PII-ZERO by construction (the parede PII↔analytics): every property is an opaque
-// id or an attribution axis — never a name/phone/email. `attributionForEvent`
-// already strips to channel axes; we forward only ids + those. This is the
-// transport brief 0026's vendor-neutral `track()` describes — an append-only
-// table now, one adapter behind `track()` later. Call-sites depend only on
-// `emitClientFunnelEvent`.
-//
-// Best-effort: telemetry must NEVER trap the funnel action (mirrors
-// `emitProductEvent`) — a write failure is logged and swallowed.
-
 export type ClientFunnelEventName =
   | 'client_invite_issued'
   | 'client_invite_opened'
@@ -24,8 +10,6 @@ export type ClientFunnelEventName =
   | 'client_profile_completed'
   | 'appointment_created'
 
-// The channel axes shared by every funnel event (PII-zero). Derived from an
-// `Attribution` via `attributionForEvent`, or passed explicitly.
 type Channel = {
   readonly intent?: 'signup' | 'booking' | null
   readonly source?: string | null
@@ -51,7 +35,6 @@ export type ClientSignedInPayload = {
 export type ClientProfileCompletedPayload = {
   readonly orgId: string
   readonly customerId: string | null
-  // Field NAMES only (e.g. ["whatsapp","birthDate"]) — never the values.
   readonly fieldsFilled: readonly string[]
 }
 
@@ -128,8 +111,6 @@ function columnsFor(event: ClientFunnelEventPayload): FunnelColumns {
   }
 }
 
-// Spread the channel axes of an `Attribution` into an event payload (PII-zero —
-// `attributionForEvent` keeps only source/medium/campaign; intent is forwarded).
 export function channelOf(attribution: Attribution): Required<Channel> {
   return {
     intent: attribution.intent,
@@ -139,8 +120,6 @@ export function channelOf(attribution: Attribution): Required<Channel> {
   }
 }
 
-// Emit a funnel event. Server-only; best-effort — a failure must not bubble into
-// the funnel action (the registration/booking never breaks on telemetry).
 export async function emitClientFunnelEvent(event: ClientFunnelEventPayload): Promise<void> {
   const c = columnsFor(event)
   try {

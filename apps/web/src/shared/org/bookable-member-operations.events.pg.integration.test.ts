@@ -10,19 +10,6 @@ import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { listBookableMemberOperationsForOrg } from './member-operation-read'
 
-/**
- * The read-path invariant for the agenda against REAL Postgres:
- * `listBookableMemberOperationsForOrg` returns ONLY memberOperations that are BOTH
- * operational AND backed by a CURRENTLY active membership carrying the
- * `canBeBooked` capability (brief 0076 AC-03 — the retired `BookableProfessional`
- * brand's role-based filter generalized to the capability). The `memberOperations`
- * projection and the capability can diverge — a row can outlive a toggle — so the
- * agenda read cross-checks the projection against the bookable-member set. This
- * fence proves the cross-check in BOTH directions (demotion/toggle-off drops,
- * promotion/toggle-on re-includes), keyed on current state — never history — and
- * the generalization (a non-memberOperation with `canBeBooked` on appears).
- */
-
 const TS = '2026-06-01T12:00:00.000Z'
 
 let seq = 0
@@ -66,7 +53,6 @@ async function seedService(orgId: string, id: string): Promise<void> {
   )
 }
 
-// Mint a membership for `userId` with the given role through the real write path.
 async function seedMembership(orgId: string, userId: string, role: Role): Promise<void> {
   await seedOrg(orgId)
   await Effect.runPromise(
@@ -82,11 +68,6 @@ async function seedMembership(orgId: string, userId: string, role: Role): Promis
   )
 }
 
-// Change a member's role through the real write path (the projector overwrites
-// the membership projection in the same tx). Models promotion/demotion — and
-// mirrors production (`team.actions.ts`), which re-derives the capability set
-// from the new role in the SAME event, so `canBeBooked` flips with the role
-// (brief 0076: bookable is the capability, not the role label).
 async function changeRole(orgId: string, userId: string, role: Role): Promise<void> {
   await Effect.runPromise(
     appendEvent(
@@ -101,9 +82,7 @@ async function changeRole(orgId: string, userId: string, role: Role): Promise<vo
   )
 }
 
-// Mint a memberOperation projection through the real write path, plus the linked
 // global user. `operational` ⇒ user WITH whatsapp + ≥1 unit + ≥1 service;
-// `incomplete` ⇒ user WITHOUT whatsapp. Returns the memberOperation id.
 async function seedMemberOperationRow(
   orgId: string,
   userId: string,
@@ -162,8 +141,6 @@ describe('listBookableMemberOperationsForOrg (agenda read-path invariant)', () =
   it('EXCLUDES a receptionist who wrongly carries a memberOperation row (the Paula bug)', async () => {
     const t = uniqueOrg()
     const userId = uid('user')
-    // Membership says receptionist, but a memberOperation row exists for her — a
-    // seed/migration leak. The row alone must NOT make her bookable.
     await seedMembership(t, userId, 'receptionist')
     await seedMemberOperationRow(t, userId, { operational: true })
     expect(await listBookableMemberOperationsForOrg(t)).toEqual([])
@@ -180,9 +157,6 @@ describe('listBookableMemberOperationsForOrg (agenda read-path invariant)', () =
   it('EXCLUDES a demoted member whose memberOperation row lingers (reversibility)', async () => {
     const t = uniqueOrg()
     const userId = uid('user')
-    // Created as a memberOperation, operational, then demoted to receptionist. The
-    // projection row is intentionally kept (role-edit-lifecycle), but she must
-    // drop off the agenda the moment the role changes.
     await seedMembership(t, userId, 'member_operator')
     await seedMemberOperationRow(t, userId, { operational: true })
     expect((await listBookableMemberOperationsForOrg(t)).length).toBe(1)
@@ -193,9 +167,6 @@ describe('listBookableMemberOperationsForOrg (agenda read-path invariant)', () =
   it('RE-INCLUDES a member promoted back to memberOperation (current state, not history)', async () => {
     const t = uniqueOrg()
     const userId = uid('user')
-    // The memberOperation row already exists (kept from a prior stint); promoting
-    // the membership back to memberOperation re-includes her with no special-casing
-    // — the criterion is the CURRENT role, never history.
     await seedMembership(t, userId, 'receptionist')
     const proId = await seedMemberOperationRow(t, userId, { operational: true })
     expect(await listBookableMemberOperationsForOrg(t)).toEqual([])
@@ -208,8 +179,6 @@ describe('listBookableMemberOperationsForOrg (agenda read-path invariant)', () =
     const userId = uid('user')
     await seedMembership(t, userId, 'member_operator')
     await seedMemberOperationRow(t, userId, { operational: true })
-    // Revoke the membership status directly — the read must drop her even though
-    // the role is still `memberOperation` and the projection row remains.
     await pool().query(
       "UPDATE memberships SET status = 'revoked' WHERE org_id = $1 AND user_id = $2",
       [t, userId],
@@ -220,15 +189,8 @@ describe('listBookableMemberOperationsForOrg (agenda read-path invariant)', () =
   it('INCLUDES a non-memberOperation member with canBeBooked toggled on (generalization)', async () => {
     const t = uniqueOrg()
     const userId = uid('user')
-    // A receptionist by role — but the org manually turned `canBeBooked` on
-    // (e.g. a front-desk person who also takes a few bookings). Brief 0076 makes
-    // "bookable" the capability, not the role: with the capability on AND a ready
-    // operational profile, they appear on the agenda. This is exactly what the
-    // retired `BookableProfessional` role-based brand could NOT express.
     await seedMembership(t, userId, 'receptionist')
     const proId = await seedMemberOperationRow(t, userId, { operational: true })
-    // Role-based logic excluded them; capability-based logic does too — UNTIL the
-    // capability is toggled on.
     expect(await listBookableMemberOperationsForOrg(t)).toEqual([])
     await pool().query(
       `UPDATE memberships SET permissions = jsonb_set(permissions, '{canBeBooked}', 'true')

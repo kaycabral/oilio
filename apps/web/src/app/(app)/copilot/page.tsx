@@ -8,7 +8,6 @@ export const dynamic = 'force-dynamic'
 export default async function CopilotPage() {
   const props = await loadCopilotPage()
 
-  // Off-plan → 404, like a route that doesn't exist (brief 0088 AC-06).
   if (props.locked) notFound()
 
   return (

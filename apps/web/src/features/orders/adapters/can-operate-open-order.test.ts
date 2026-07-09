@@ -9,11 +9,6 @@ import {
 } from '@/domain'
 import { canOperateOpenOrder, denyIfNotOwnOrder } from './order-write-helpers'
 
-// Brief 0075 (#1257) — own-resource guard for OPEN-order edits. The balcão
-// (owner/manager/recepção) operates any comanda; a self-scoped memberOperation
-// only one whose every item is attributed to them. Pure predicate — tested in
-// isolation so the gate is proven independent of the action plumbing.
-
 function membership(role: Role, userId = 'me'): Membership {
   return {
     id: membershipDocId('org1', userId),

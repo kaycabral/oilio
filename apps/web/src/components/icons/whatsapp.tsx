@@ -1,7 +1,5 @@
 import type { ComponentProps } from 'react'
 
-// WhatsApp glyph (brand icon — not in lucide, which ships no brand marks).
-// Single-path, `currentColor`, so it tints like any lucide icon.
 export function WhatsappIcon({ className, ...props }: ComponentProps<'svg'>) {
   return (
     <svg

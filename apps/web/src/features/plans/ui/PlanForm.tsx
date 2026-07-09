@@ -47,9 +47,6 @@ export function PlanForm({
   const [error, setError] = useState<string | null>(null)
 
   const d = derivePlanFormDefaults(plan)
-  // Plain snapshot reads for the JSX defaultValues (distinct from the toggle
-  // states above — these fill the inputs, the toggles gate the fieldsets).
-  // `null` (cleared via update) and absent both mean "no restriction" here.
   const initialScope = plan?.allowedTimeScope ?? undefined
   const initialLimits = plan?.bookingLimits ?? undefined
   const [limitKind, setLimitKind] = useState<LimitKind>(d.limitKind)
@@ -86,10 +83,6 @@ export function PlanForm({
       onChange={refresh}
       className="flex flex-col gap-3"
     >
-      {/* ADR 0010, D5 / AC-07 — editar o plano nunca retroage no snapshot
-          congelado dos assinantes ativos. Deixa explícito que a edição vale só
-          para novas assinaturas; trocar o plano de um assinante atual é ação
-          explícita ("trocar plano" na assinatura). */}
       {plan ? (
         <p className="bg-muted/40 text-muted-foreground rounded-md border border-dashed p-3 text-xs">
           Alterações valem só para novas assinaturas. Assinantes atuais mantêm o plano contratado —

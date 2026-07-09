@@ -13,12 +13,10 @@ describe('addMonthsUtc', () => {
   })
 
   it('clamps to last day of month when target month is shorter', () => {
-    // 31 jan + 1 mês cai em 28 fev (2026 não é bissexto).
     expect(addMonthsUtc('2026-01-31T12:00:00.000Z', 1)).toBe('2026-02-28T12:00:00.000Z')
   })
 
   it('handles leap years', () => {
-    // 31 jan 2028 (ano bissexto) + 1 mês → 29 fev 2028.
     expect(addMonthsUtc('2028-01-31T12:00:00.000Z', 1)).toBe('2028-02-29T12:00:00.000Z')
   })
 

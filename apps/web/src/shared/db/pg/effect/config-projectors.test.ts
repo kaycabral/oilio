@@ -61,32 +61,12 @@ import {
   type SubscriptionPlanRow,
 } from './subscription-plan-projector'
 
-/**
- * Pure-mapping unit tests for the config typed projectors (brief 0060, Feature
- * D). Mirror `identity-projectors.test.ts`: exercise `*ColumnValues` (domain →
- * ordered SQL row) and `rowToDoc` (row → reducer doc) WITHOUT a database — the
- * runtime upsert + the E2E seed both go through `*ColumnValues`, so this pins the
- * column count/order and the round-trip shape. The DB-level routing/constraints
- * are proven by `config-projection.events.pg.integration.test.ts`.
- *
- * The key invariant: a row built from `*ColumnValues`, read back as a `*Row`, and
- * passed through `rowToDoc` reconstructs the domain fields — the lockstep that
- * keeps the seed and the runtime projector from drifting.
- */
-
-// Pull a column's value out of the ordered `*ColumnValues` array by its name in
-// the matching `*COLUMNS` list — builds a typed `*Row` literal from the
-// column-values output without a dynamic-keyed cast. JSONB array columns come
-// back from pg parsed, so `at(col)` (the stringified value) is re-parsed for
-// those; bigint columns come back as strings (modeled by asPgBigint).
 function valueAt(columns: readonly string[], values: readonly unknown[], col: string): unknown {
   return values[columns.indexOf(col)]
 }
 function asPgBigint(v: unknown): string {
   return String(v)
 }
-// JSONB array columns are `JSON.stringify`'d by `*ColumnValues`; the pg driver
-// hands them back parsed. Re-parse the stringified value to model the row.
 function asPgJsonb(v: unknown): unknown {
   return typeof v === 'string' ? JSON.parse(v) : v
 }
@@ -116,8 +96,6 @@ describe('memberOperation projector — pure mapping', () => {
       id: memberOperation.id,
       last_event_version: asPgBigint(at('last_event_version')),
       user_id: memberOperation.userId,
-      // Derived membership key (`{orgId}_{userId}`) — same value the projector
-      // writes into `member_id`.
       member_id: `${memberOperation.orgId}_${memberOperation.userId}`,
       default_commission: at('default_commission'),
       unit_ids: asPgJsonb(at('unit_ids')),
@@ -131,7 +109,6 @@ describe('memberOperation projector — pure mapping', () => {
     const v = memberOperationColumnValues(memberOperation, 1)
     expect(v).toHaveLength(MEMBER_OPERATION_COLUMNS.length)
     expect(v[MEMBER_OPERATION_COLUMNS.indexOf('user_id')]).toBe('user-1')
-    // name/mobile/email never reach the typed table (LGPD — sidecar/users).
     expect(v).not.toContain('Zé')
     expect(v).not.toContain('ze@x.com')
   })
@@ -145,7 +122,6 @@ describe('memberOperation projector — pure mapping', () => {
       unitIds: ['unit-1', 'unit-2'],
       catalogServiceIds: ['svc-1'],
     })
-    // operationalStatus is derived on read (#1226 AC-02), never stored/round-tripped.
     expect('operationalStatus' in doc).toBe(false)
   })
 })
@@ -384,7 +360,6 @@ describe('subscription-plan projector — pure mapping', () => {
     const v = subscriptionPlanColumnValues(base, 1)
     expect(v).toHaveLength(SUBSCRIPTION_PLAN_COLUMNS.length)
     expect(v[SUBSCRIPTION_PLAN_COLUMNS.indexOf('usage_limit_kind')]).toBe('unlimited')
-    // optional scope rules collapse to NULL when absent
     expect(v[SUBSCRIPTION_PLAN_COLUMNS.indexOf('unit_allowlist')]).toBeNull()
     expect(v[SUBSCRIPTION_PLAN_COLUMNS.indexOf('allowed_time_scope')]).toBeNull()
     expect(v[SUBSCRIPTION_PLAN_COLUMNS.indexOf('booking_limits')]).toBeNull()
@@ -461,9 +436,6 @@ describe('agenda-block projector — pure mapping', () => {
   function blockRow(block: AgendaBlock, version: number): AgendaBlockRow {
     const v = agendaBlockColumnValues(block, version)
     const at = (c: string): unknown => valueAt(AGENDA_BLOCK_COLUMNS, v, c)
-    // The `block` JSONB body the projector emitted is the same shape the pg
-    // driver hands back; reconstruct it from the domain fields (the body is what
-    // `agendaBlockColumnValues` packs) so the row is lockstep with columnValues.
     const body: AgendaBlockRow['block'] = {
       reason: block.reason,
       weekday: block.weekday,
@@ -592,8 +564,6 @@ describe('notification projector — pure mapping', () => {
     _version: 1,
   }
 
-  // `notificationColumnValues` takes the reduced FirestoreDoc (it decodes via the
-  // NotificationState schema internally), so pass the state as a plain doc.
   const asDoc = (n: NotificationState): FirestoreDoc => ({ ...n })
 
   function notificationRow(n: NotificationState): NotificationRow {
@@ -603,9 +573,6 @@ describe('notification projector — pure mapping', () => {
       n._version,
     )
     const at = (c: string): unknown => valueAt(NOTIFICATION_COLUMNS, v, c)
-    // The dispatch snapshot the projector packs: null while not dispatched, else
-    // the channel/body pair. Reconstruct from the source so the row is lockstep
-    // with columnValues without an unsafe assertion on the `unknown` JSONB value.
     const dispatch: NotificationRow['dispatch'] =
       n.dispatchedChannel === null && n.dispatchedBody === null
         ? null

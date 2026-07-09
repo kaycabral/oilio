@@ -1,8 +1,3 @@
-// Functional core for the notification-template edit form (brief 0018 / AC-13):
-// pure parsing + validation of the submitted FormData into a typed payload (or a
-// user-facing error string). No I/O — the adapter (notifications.actions) does
-// the Firestore write.
-
 import { isDispatchableType } from '@/domain'
 import { formString } from '@/shared/form-data'
 

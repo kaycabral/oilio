@@ -40,11 +40,6 @@ export type UnitMutationResult = { ok: true } | { ok: false; error: string }
 
 const SLUG_MAX_ATTEMPTS = 50
 
-// Returns a slug that is unique within the org's units collection, ignoring
-// `selfUnitId` (so editing an unit keeps its current slug). Returns null when
-// the user supplied an explicit `desired` and it collides — caller surfaces
-// the error so the user can pick another. When `desired` is blank, derives
-// from `name` and appends `-2`, `-3`, ... until free.
 async function resolveUnitSlug({
   orgId,
   desired,
@@ -56,8 +51,6 @@ async function resolveUnitSlug({
   name: string
   selfUnitId: string | null
 }): Promise<string | null> {
-  // Backend-aware slug set (Postgres typed table under RLS, or Firestore) — the
-  // collision check must see the active backend's units, not always Firestore.
   const existing = await listUnitSlugs(orgId)
   function isTaken(candidate: string): boolean {
     return existing.some((u) => u.slug === candidate && u.id !== selfUnitId)
@@ -66,9 +59,6 @@ async function resolveUnitSlug({
     return isTaken(desired) ? null : desired
   }
   const base = slugifyUnitName(name) || 'unidade'
-  // Defensive: derived base might collide with a reserved slug (e.g. unit
-  // named "Book") — slap `-1` to escape the reserved set without bothering
-  // the user mid-onboarding.
   const safeBase = isValidUnitSlug(base) ? base : `${base}-1`
   for (let i = 0; i < SLUG_MAX_ATTEMPTS; i++) {
     const candidate = i === 0 ? safeBase : `${safeBase}-${i + 1}`
@@ -105,17 +95,12 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     }
   }
   const now = new Date().toISOString()
-  // PII (mobile/email) never enters the event payload (LGPD). The
-  // projection stores only operational fields; PII goes to the deletable
-  // `units_pii` doc and is merged on read (unit-read.ts). #1036.
   const stored: StoredUnit = {
     id: unitId,
     orgId: r.ctx.membership.orgId,
     name: parsed.name,
     slug,
     address: parsed.address,
-    // Timezone is the establishment's (PRD Identidade v2 — moved Org→Unit):
-    // inferred from the address state (BR UFs); the unit form has no tz picker.
     timezone: inferTimezoneFromAddress(parsed.address.state, parsed.address.city),
     agenda: assembleAgenda(
       parsed.hoursMode,
@@ -124,8 +109,6 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
       parsed.hoursMode === 'appointment' ? parseAppointmentConfig(formData) : null,
     ),
     archivedAt: null,
-    // A new unit is born informal — no CNPJ until the owner formalizes it via
-    // the Formalizar flow (`unit.formalized`, brief 0048).
     fiscal: DEFAULT_UNIT_FISCAL,
     createdAt: now,
     updatedAt: now,
@@ -144,13 +127,8 @@ export async function createUnit(formData: FormData): Promise<UnitMutationResult
     },
   )
   if (!created.ok) return { ok: false, error: created.error }
-  // Per-unit billing (brief 0073): a new unit raises the charged quantity. Fire
-  // post-commit (never throws); the reconcile cron fixes any drift.
   await syncStripeSubscriptionQuantity(orgId)
   revalidatePath('/organizations')
-  // SPIKE (hours mode): the sidebar's "Agenda" visibility derives from unit
-  // hoursMode (loaded in the shared (app) layout). Revalidate the layout too so
-  // the nav reflects a mode change without a manual reload.
   revalidatePath('/', 'layout')
   redirect('/organizations')
 }
@@ -161,9 +139,6 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
   const parsed = parseUnitForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  // Load the existing unit so the agenda assembly preserves the
-  // appointment-only configs (slotMinutes/cancellationPolicy/templates/publish
-  // state) that the unit form doesn't expose. PRD Identidade v2.
   const existing = await getUnitById(r.ctx.membership.orgId, unitId)
   if (!existing) return { ok: false, error: 'Unidade não encontrada' }
 
@@ -182,7 +157,6 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
     }
   }
 
-  // PII goes to the deletable `units_pii` doc, never to the event.
   await writeUnitPii(r.ctx.membership.orgId, unitId, {
     mobile: parsed.mobile,
     email: parsed.email,
@@ -211,16 +185,10 @@ export async function updateUnit(unitId: string, formData: FormData): Promise<Un
   )
   if (!updated.ok) return { ok: false, error: updated.error }
   revalidatePath('/organizations')
-  // SPIKE (hours mode): the sidebar's "Agenda" visibility derives from unit
-  // hoursMode (loaded in the shared (app) layout). Revalidate the layout too so
-  // the nav reflects a mode change without a manual reload.
   revalidatePath('/', 'layout')
   redirect('/organizations')
 }
 
-// Async availability probe for the Settings UI — returns OK if `slug` is
-// free in the active org (ignoring `selfUnitId` so editing keeps the
-// own slug as "available"). Final check still happens at write time.
 export type SlugCheck =
   | { ok: true; available: true }
   | { ok: true; available: false; reason: 'taken' | 'reserved' | 'invalid' }
@@ -237,8 +205,6 @@ export async function checkUnitSlugAvailability(
   if (!isValidUnitSlug(candidate)) {
     return { ok: true, available: false, reason: 'invalid' }
   }
-  // Backend-aware (Postgres typed table under RLS, or Firestore) — the
-  // availability probe must see the active backend's slugs.
   const existing = await listUnitSlugs(r.ctx.membership.orgId)
   const collides = existing.some((u) => u.slug === candidate && u.id !== selfUnitId)
   return collides ? { ok: true, available: false, reason: 'taken' } : { ok: true, available: true }
@@ -249,31 +215,16 @@ export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
   if (!r.ok) return r
   const orgId = r.ctx.membership.orgId
 
-  // One-verb "Excluir" (brief 0033, AC-03 — #1070): single destructive verb,
-  // hard vs soft decided here. Active-reference guard (AC-01/AC-02): a live
-  // dependency is a memberOperation currently scoped to the unit, or a FUTURE
-  // scheduled appointment in it. Past/completed/cancelled appointments are
-  // historical (snapshotted) and do not block. With an active reference we
-  // soft-delete (archive) — the unit drops from the active list while the
-  // history is preserved. With no active reference we hard-delete.
   if (!(await canDeleteUnit(orgId, unitId))) {
     return archiveUnit(unitId)
   }
 
-  // Event-first: emite `deleted` (preserva stream, não reprojeta) e só então
-  // remove o read model.
   const deleted = await emitEvent(UnitConfig, aggregateRef(UnitConfig, orgId, unitId), {
     _tag: 'unit.deleted',
     actorId: r.ctx.session.uid,
     payload: {},
   })
   if (!deleted.ok) return { ok: false, error: deleted.error }
-  // Drop the typed projection row. The `*.deleted` event skips reprojection;
-  // the caller hard-deletes the read model. The `canDeleteUnit` guard above
-  // already routes active references to archive, but a cross-aggregate
-  // `ON DELETE RESTRICT` FK (brief 0068 D2 — orders/subscriptions/appointments/
-  // cash_movements/agenda_blocks) is the DB's last-line guard: convert its 23503
-  // into a friendly result instead of a raw 500.
   try {
     await deletePostgresProjection(aggregateRef(UnitConfig, orgId, unitId))
   } catch (err) {
@@ -284,30 +235,18 @@ export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
           'Não é possível excluir esta unidade: há registros vinculados a ela (vendas, assinaturas, agendamentos ou caixa). Arquive-a ou remova os dependentes primeiro.',
       }
     }
-    // A non-FK defect (CHECK/RLS/unknown) would otherwise escape as a raw
-    // 500; map it to the canonical generic message (detail stays in the log).
     return { ok: false as const, error: messageForCategory(classifyError(err)) }
   }
-  // LGPD erasure — drop the PII doc alongside the projection.
   await deleteUnitPii(orgId, unitId)
-  // Per-unit billing (brief 0073): removing a unit lowers the charged quantity.
   await syncStripeSubscriptionQuantity(orgId)
   revalidatePath('/organizations')
   return { ok: true }
 }
 
-// Archive a unit (uniform delete policy, brief 0027 AC-06). Sets `archivedAt`
-// via the event-sourced `unit.archived` event — the doc stays resolvable for
-// historical appointments/orders but drops out of active lists/pickers. The
-// inverse (`restore`) passes `null`.
 export async function archiveUnit(unitId: string, archived = true): Promise<UnitMutationResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return r
   const orgId = r.ctx.membership.orgId
-  // Restore (un-archive) RAISES the active-unit count → recheck the Free quota
-  // (brief 0088 AC-10 / H1). Same wall as `createUnit`, via the shared helper.
-  // Without this a Pro→Free org reactivated a residual archived unit by direct
-  // POST and blew past the single-active-unit Free cap.
   if (!archived) {
     const quotaError = await assertActiveUnitQuota(orgId)
     if (quotaError) return { ok: false, error: quotaError }
@@ -323,31 +262,15 @@ export async function archiveUnit(unitId: string, archived = true): Promise<Unit
     },
   )
   if (!res.ok) return { ok: false, error: res.error }
-  // Per-unit billing (brief 0073): archiving removes the unit from the active
-  // count (archived units don't bill); restoring adds it back. Either way the
-  // charged quantity must follow.
   await syncStripeSubscriptionQuantity(r.ctx.membership.orgId)
   revalidatePath('/organizations')
   return { ok: true }
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// SPIKE: per-unit agenda readiness (inferred availability, no publish button).
-// A unit in 'appointment' mode goes live once it meets the minimum below; this
-// helper feeds the read-only feedback card on the unit page.
-// ────────────────────────────────────────────────────────────────────────
-
-// Readiness scoped to a single unit — the requirement set the org-wide gate
-// used to check globally, now evaluated for exactly the unit being published.
-// The pure decision lives in the functional core (`computeUnitPublishReadiness`);
-// this shell only resolves the three facts from the typed projections.
 export async function getUnitPublishReadiness(
   orgId: string,
   unitId: string,
 ): Promise<UnitPublishReadiness> {
-  // Unit + catalog read the typed tables under RLS; the "operational pro at this
-  // unit?" fact is the inverse query served by the `member_operation_units` join
-  // (brief 0068 D3) — existence-only, no fetch-all + `.some()` over `unit_ids`.
   const [unit, catalogItems, hasOperationalMemberOperation] = await Promise.all([
     getUnitById(orgId, unitId),
     listCatalogItems(orgId),
@@ -366,9 +289,3 @@ export async function getUnitPublishReadiness(
     hasOperationalMemberOperation,
   })
 }
-
-// Self-booking publication is NOT an action (PRD Identidade v2 / SPIKE "inferred
-// availability"): a unit's public page is live the moment it is in appointment
-// mode with a complete address + hours (`isUnitPubliclyLive`). There is no
-// publish/unpublish step — switching the agenda mode via `updateUnit` is the only
-// control. `getUnitPublishReadiness` above stays as owner-facing FEEDBACK.

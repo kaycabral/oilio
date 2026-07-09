@@ -8,23 +8,6 @@ import type { Metadata, Route } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
-// Result page of the platform signup flow (#840 + refator). Gates run
-// server-side before confirmation renders:
-//
-//   1. Visitor must have a session. No session → bounce to /signup
-//      (preserving ?from when present).
-//   2. User must have finished the completion step (#838). If not, bounce
-//      to /onboarding/profile with `next` pointing back here so the
-//      attribution survives across the completion redirect.
-//
-// When `?from={org-slug}` resolves to a published org, idempotently
-// materialize a Customer shadow in that org for this userId — returning
-// visitors with the same URL get the same record back. PII is already on
-// the User doc; the Customer shadow is operational-only per the #832 schema.
-//
-// `from` invalid/unpublished is silently ignored (no Customer created) —
-// the platform signup itself is still valid.
-
 type PageProps = { searchParams: Promise<{ from?: string }> }
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
@@ -49,10 +32,6 @@ export default async function SignupDonePage({ searchParams }: PageProps) {
     redirect(`/onboarding/profile?next=${encodeURIComponent(buildDoneUrl(from))}`)
   }
 
-  // Customer materialization now happens at completion (#1278) — by the time we
-  // reach this page the shadow already exists. This call is a kept as an
-  // idempotent fallback for the legacy path where someone lands here with a
-  // completed profile but no shadow yet (e.g. completed before #1278 shipped).
   const bundle = from ? await getPublicOrgBundle(from) : null
   if (bundle) {
     await ensureSelfSignupCustomer(bundle.org.id, session.uid)

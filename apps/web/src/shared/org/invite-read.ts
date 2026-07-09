@@ -1,10 +1,3 @@
-// Server-side reads that hydrate Invite docs with the invitee mobile from the
-// per-org `invites_pii/{id}` collection. Mirrors `customer-read.ts` (the
-// reference LGPD pattern): the immutable event payload + projection carry NO
-// PII; the mobile lives in a separate mutable/deletable doc and is merged at
-// read time. See #1036 + ADR 0010 (PII fora de evento — direito à
-// eliminação / LGPD). Channel normalized to WhatsApp in brief 0084.
-
 import { StoredInvite, type Invite, type InvitePii } from '@/domain'
 import { rowToDoc, type InviteRow } from '@/shared/db/pg/effect/invite-projector'
 import {
@@ -15,11 +8,6 @@ import {
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { Schema } from 'effect'
 
-// What we actually persist under `orgs/{t}/invites/{id}` (the event
-// projection) + the deletable PII doc at `invites_pii/{id}` (`InvitePii`,
-// holding `mobile`). Both re-exported from `@/domain` (read-model
-// source-of-truth) so existing importers (`team.actions`, `offboard-member`)
-// keep resolving them from here.
 export type { InvitePii, StoredInvite } from '@/domain'
 
 const decodeStoredInvite = Schema.decodeUnknownSync(StoredInvite)
@@ -28,8 +16,6 @@ function mergeWithPii(i: StoredInvite, pii: InvitePii | undefined): Invite {
   return { ...i, mobile: pii?.mobile ?? '' }
 }
 
-// Hydrate the deletable invite mobile sidecar by invite id — the typed
-// `invites_pii` table under org RLS (cutover, brief 0062). Empty ids filtered.
 async function fetchPiiByIds(
   orgId: string,
   ids: readonly string[],
@@ -38,8 +24,6 @@ async function fetchPiiByIds(
   return getInvitePiiByIds(orgId, unique)
 }
 
-// Hydrate a batch of Invite docs in one round-trip to the PII collection.
-// Order is preserved.
 export async function enrichInvites(
   orgId: string,
   invites: readonly StoredInvite[],
@@ -52,8 +36,6 @@ export async function enrichInvites(
   return invites.map((i) => mergeWithPii(i, pii.get(i.id)))
 }
 
-// List all invites for a org, enriched with the invitee email. Reads the typed
-// `invites` table under RLS.
 export async function listInvitesForOrg(orgId: string): Promise<Invite[]> {
   const rows = await readUnderRls<InviteRow>(orgId, (client) =>
     client
@@ -76,9 +58,6 @@ export async function getInviteById(orgId: string, inviteId: string): Promise<In
   return enriched ?? null
 }
 
-// Invites in a given status (e.g. `pending`), enriched with the invitee email.
-// Filters `WHERE org_id AND status` under RLS. Used by the offboarding cascade
-// to find pending invites to revoke.
 export async function listInvitesByStatus(
   orgId: string,
   status: StoredInvite['status'],
@@ -92,9 +71,6 @@ export async function listInvitesByStatus(
   return enrichInvites(orgId, stored)
 }
 
-// Write the PII sidecar directly (mutable, deletable, NOT event-sourced). Called
-// from the create-invite action alongside the domain event emission. Backed by
-// the typed `invites_pii` table (org RLS).
 export async function writeInvitePii(
   orgId: string,
   inviteId: string,
@@ -103,9 +79,6 @@ export async function writeInvitePii(
   await upsertInvitePii({ orgId, id: inviteId, mobile: pii.mobile })
 }
 
-// Delete the PII sidecar (LGPD erasure) — the invitee mobile is the only PII it
-// holds and it is deletable / not replayed. Used by the account anonymization
-// flow (brief 0032 / #1093) to scrub the subject's invite contacts.
 export async function deleteInvitePii(orgId: string, inviteId: string): Promise<void> {
   await deleteInvitePiiRow(orgId, inviteId)
 }

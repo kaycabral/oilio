@@ -4,24 +4,8 @@ import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `goal` context (brief 0060, Grupo C) — plugged into the
- * per-context typed-projection registry without reopening the `PersistencePort`.
- *
- * `upsert` decodes the reduced `state` against the domain `Goal` schema and maps
- * the flat scalars (type/period/target_cents + unit scope) onto columns the DB
- * constrains. No unions, no PII. The DB enforces the invariants (type enum,
- * positive target) — a violation rolls back event + projection together.
- *
- * D6 (ADR 0013): the typed identity is an {@link AggregateRef} (org_id, id), not a
- * path string; the row is keyed by the composite PK `(org_id, id)` and the
- * projection version lives in `last_event_version`.
- */
-
 const decodeGoal = Schema.decodeUnknownSync(Goal)
 
-/** The ordered `goals` column list — single source of truth for the runtime
- * upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1. */
 export const GOAL_COLUMNS = [
   'org_id',
   'id',
@@ -68,7 +52,6 @@ async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc
   await client.query(UPSERT, goalColumnValues(goal, ref, stateVersion(state)))
 }
 
-// Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type GoalRow = {
   org_id: string
   id: string

@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseBranding, parseWebsite } from './company-form'
 
-// Cancellation-policy + confirmation-template parsing moved out of the Org form
-// (PRD Identidade v2, context 3 — appointment-agenda concerns of the Unit). The
-// Org form now only edits the folder fields (name/slug/vertical/branding), so
-// this file covers branding only; the agenda configs are assembled in
-// `units.actions` (assembleAgenda) with defaults.
 function fd(entries: Record<string, string>): FormData {
   const form = new FormData()
   for (const [k, v] of Object.entries(entries)) form.append(k, v)

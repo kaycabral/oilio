@@ -13,13 +13,6 @@ import {
   listCatalogItems,
 } from './catalog-item-read'
 
-// Catalog-item READS against REAL Postgres (brief 0058, AC-02 — the
-// list/filter/get half of the CRUD cycle). Drives the read adapter so it reads
-// the typed `catalog_items` projection: list ordered by name, active-only
-// filter, get-by-id, id-only,
-// and the category FK count. Seeds via the real event-store append (the same
-// path the actions use), so the rows are projected by the typed projector.
-
 const ORG = 'org-read'
 const refOf = (id: string) => aggregateRef(CatalogItemConfig, ORG, id)
 
@@ -70,9 +63,6 @@ function product(id: string, overrides: Partial<CatalogProductItem> = {}): Catal
   }
 }
 
-// Parent rows the new D2/0068 catalog_items FKs require: `org_id → orgs` and the
-// (org_id, category_id) → categories composite (set null on delete). Seeded over
-// the superuser pool with ON CONFLICT so repeated category ids are idempotent.
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
@@ -94,9 +84,6 @@ async function seedCategory(orgId: string, categoryId: string): Promise<void> {
 const create = async (item: CatalogServiceItem | CatalogProductItem) => {
   await seedOrg(ORG)
   if (item.categoryId !== null) await seedCategory(ORG, item.categoryId)
-  // The `catalog_item_units` join FK (brief 0068 D3) requires each `unitIds` ref
-  // to exist in `units(org_id, id)`; the projector mirrors the array in the same
-  // tx, so seed the parent units first.
   for (const unitId of item.unitIds) await seedUnit(ORG, unitId)
   return Effect.runPromise(
     appendEvent(CatalogItemConfig, refOf(item.id), {
@@ -107,7 +94,6 @@ const create = async (item: CatalogServiceItem | CatalogProductItem) => {
   )
 }
 
-// Parent units the `catalog_item_units` join (brief 0068 D3) references.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
@@ -119,8 +105,6 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
 
 describe('Catalog-item reads — Postgres (brief 0058)', () => {
   beforeEach(async () => {
-    // CASCADE: `catalog_items` is referenced by `appointments.service_id`
-    // (D2/0068), so a bare TRUNCATE is refused even with zero referencing rows.
     await getEventStorePool().query(
       'TRUNCATE events, projections, catalog_items, categories, orgs CASCADE',
     )
@@ -177,13 +161,9 @@ describe('Catalog-item reads — Postgres (brief 0058)', () => {
   })
 
   it('the delete-guard counts archived items too (no FK orphan); the dialog does not', async () => {
-    // A category referenced ONLY by an archived item must still block hard-delete
-    // (the item keeps its categoryId → deleting the category would orphan it).
     await create(service('only-archived', { categoryId: 'cat-arch', archivedAt: '2026-06-02' }))
 
-    // Delete-vs-archive guard (all items): sees the archived reference → blocks.
     expect(await countCatalogItemsInCategory(ORG, 'cat-arch')).toBe(1)
-    // Dialog warning (active only): no active item to re-bucket → 0.
     expect(await countActiveCatalogItemsInCategory(ORG, 'cat-arch')).toBe(0)
   })
 })

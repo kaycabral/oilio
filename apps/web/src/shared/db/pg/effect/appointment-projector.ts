@@ -5,24 +5,8 @@ import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `appointment` ES context (brief 0061 § Grupo C). The
- * scalar fields + the price/duration snapshots are columns the DB constrains
- * (status enum, non-negative snapshots, org+unit scope); the composite snapshots
- * (commission rule, cancellation policy) and the sparse transition-tracking
- * metadata are JSONB. `upsert` decodes the untyped projection doc against the
- * domain `Appointment` schema at this single driver boundary — schema-validated,
- * no cast.
- */
-
 const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 
-// `member_id` (brief 0076 AC-04) is NOT in this placeholder list: it is DERIVED
-// in the INSERT from the operational profile's `member_id` via a correlated
-// subquery on `member_operation_id` (the FK guarantees the profile row exists in
-// the same tx), so the direct history → membership reference is always consistent
-// with the performer and never enters the event payload. See `UPSERT` below.
-/** Ordered `appointments` placeholder column list — single source of truth for upsert + seed. */
 export const APPOINTMENT_COLUMNS = [
   'org_id',
   'id',
@@ -46,9 +30,6 @@ export const APPOINTMENT_COLUMNS = [
   'updated_at',
 ] as const
 
-// The optional transition-tracking fields, bundled into the single `tracking`
-// JSONB blob (sparse — most appointments carry none). Kept in one place so the
-// column values and `rowToDoc` agree on which keys travel together.
 const TRACKING_KEYS = [
   'cancelledAt',
   'cancelledBy',
@@ -69,7 +50,6 @@ function pickTracking(a: Appointment): Record<string, unknown> {
   return tracking
 }
 
-/** Map a decoded `Appointment` onto the ordered column VALUES (inverse of `rowToDoc`). */
 export function appointmentColumnValues(
   a: Appointment,
   ref: AggregateRef,
@@ -93,19 +73,12 @@ export function appointmentColumnValues(
     a.commissionSnapshot,
     a.cancellationPolicySnapshot,
     JSON.stringify(pickTracking(a)),
-    // TOUCH attribution → JSONB (brief 0077 AC-11). Null stays null.
     a.attribution === null ? null : JSON.stringify(a.attribution),
     a.createdAt,
     a.updatedAt,
   ]
 }
 
-// `member_id` derived from the operational profile (brief 0076 AC-04): the
-// membership the performer belongs to. The FK `member_operation_id →
-// member_operations` (RESTRICT) guarantees the profile row exists in this tx, so
-// the subquery always resolves; the result feeds the `appointments_member_id_fk`
-// (RESTRICT) that refuses removing a membership with appointment history. Built by
-// the shared `buildMemberIdUpsert` (same rule for agenda_blocks).
 const UPSERT = buildMemberIdUpsert('appointments', APPOINTMENT_COLUMNS)
 
 function stateVersion(state: FirestoreDoc): number {
@@ -141,13 +114,6 @@ export type AppointmentRow = {
   updated_at: string
 }
 
-// Reconstructs the reducer's doc from the typed row. The `tracking` JSONB blob is
-// spread back at top level so the optional fields round-trip to the same shape
-// (an appointment without tracking spreads an empty object — no stray keys).
-// Copies the known optional tracking keys out of the parsed JSONB blob, without
-// asserting the blob's shape — an absent key is simply not copied, so an
-// appointment without tracking round-trips with no stray keys (matching the
-// domain's optional fields).
 function trackingFromRow(blob: unknown): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   if (blob === null || typeof blob !== 'object') return out
@@ -171,12 +137,6 @@ export function rowToDoc(row: AppointmentRow): FirestoreDoc {
     serviceId: row.service_id,
     customerUserId: row.customer_user_id,
     memberOperatorUserId: row.member_operator_user_id,
-    // `start_at`/`end_at` are `timestamptz` columns (for the anti-double-book
-    // exclusion constraint). With `mode:'string'` the pg driver returns the
-    // Postgres timestamp format (`2026-06-10 14:00:00+00`), NOT ISO 8601 — the
-    // domain `Appointment.startAt: Schema.String` and the lexicographic range
-    // reads expect the ISO instant the writer stored. Normalize back to ISO at
-    // this single read boundary so the projection round-trips exactly.
     startAt: new Date(row.start_at).toISOString(),
     endAt: new Date(row.end_at).toISOString(),
     status: row.status,

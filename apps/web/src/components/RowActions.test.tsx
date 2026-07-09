@@ -17,8 +17,6 @@ describe('RowActions', () => {
         actions={[{ kind: 'link', label: 'Editar', href: toRoute('/customers/c1') }]}
       />,
     )
-    // Menu items render only once the menu opens (covered in E2E); the trigger
-    // is what's assertable in jsdom.
     expect(screen.getByRole('button', { name: 'Ações de Maria' })).toBeInTheDocument()
   })
 
@@ -35,8 +33,6 @@ describe('RowActions', () => {
         ]}
       />,
     )
-    // Default trigger label; the (closed) ConfirmDeleteDialog is mounted as a
-    // sibling without surfacing its content.
     expect(screen.getByRole('button', { name: 'Ações' })).toBeInTheDocument()
     expect(screen.queryByText('Excluir item?')).not.toBeInTheDocument()
   })

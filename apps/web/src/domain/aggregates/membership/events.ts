@@ -5,21 +5,6 @@ import {
 } from '@/domain/types/membership'
 import { Schema } from 'effect'
 
-// `membership.created` payload schema. The canonical read model is `Membership`
-// (single-unit RLS lock under the `rlsUnitScope` key — brief 0068 D4). Legacy
-// events written before the rename carry the field under the old `unitId` key;
-// this tolerant decode maps it onto `rlsUnitScope` so replay of historical
-// streams stays safe WITHOUT an upcaster (no schemaVersion bump, no upcaster
-// map — the renamed key is normalized at this single decode boundary). New
-// events serialize the canonical `rlsUnitScope` key; both forms decode to the
-// same `Membership`. `membership.updated` never carries the unit scope, so its
-// `changes` partial needs no legacy handling.
-// Drop `rlsUnitScope` (re-added tolerantly below) AND `permissions` from the
-// source field map: `permissions` is decoded RAW here (as an unknown record) so
-// the role-aware capability backfill can run on the persisted keys BEFORE the
-// `MembershipPermissions` schema fills its role-blind default (#1377). Decoding
-// it strictly in the source would eagerly default `canManageBilling: false`,
-// masking absence and stripping billing from a legacy owner on replay.
 const {
   rlsUnitScope: _rlsUnitScope,
   permissions: _permissions,
@@ -41,9 +26,6 @@ const MembershipCreatedDataSchema = Schema.transform(
       return {
         ...rest,
         rlsUnitScope: rlsUnitScope ?? unitId ?? null,
-        // Backfill absent capabilities from the role default so a legacy
-        // membership event (written before a capability key existed) replays to
-        // the role-correct permission set — a legacy owner keeps billing (#1377).
         permissions: withRoleDefaultedPermissions(rest.role, permissions),
       }
     },

@@ -25,14 +25,8 @@ import { useState } from 'react'
 
 import { ProductNameCombobox } from '@/features/catalog/ui/ProductNameCombobox'
 
-// Radix Select forbids a SelectItem with value="" (empty), so "no category" —
-// which the server contract represents as an empty string → null — rides a
-// sentinel in the picker and is translated back at the form boundary via the
-// hidden `categoryId` input.
 const NO_CATEGORY = '__none'
 
-// The category picker. Owns its selection state and translates the picker
-// sentinel back to the server contract (empty string → null) via a hidden input.
 export function CategoryPicker({
   categories,
   initialCategoryId,
@@ -69,8 +63,6 @@ export function CategoryPicker({
   )
 }
 
-// Inline Serviço|Produto selector (AC-09) — only for new items; edits keep the
-// item's fixed kind. Drives the hidden `kind` input via `selectedKind`.
 export function KindToggleFieldset({
   selectedKind,
   setSelectedKind,
@@ -116,8 +108,6 @@ export function KindToggleFieldset({
   )
 }
 
-// Visibility toggles: active (kind-specific copy), public catalog exposure, and
-// the "on request" price flag. Grouped so the form component stays thin.
 export function VisibilityFieldset({
   activeLabel,
   activeDefault,
@@ -156,9 +146,6 @@ export function VisibilityFieldset({
   )
 }
 
-// The default commission fieldset (kind radio + conditional value input). Owns
-// its own `commissionKind` state so the form component stays thin; the value
-// input is required only when a non-`none` kind is selected.
 export function CommissionFieldset({ commission }: { commission: CommissionRule | null }) {
   const [commissionKind, setCommissionKind] = useState<CommissionKind>(
     commissionKindFor(commission),
@@ -199,18 +186,6 @@ export function CommissionFieldset({ commission }: { commission: CommissionRule 
   )
 }
 
-// The name field. On a base hit the name is filled from the sovereign base and
-// read-only (a reference, not a copy — brief 0054 AC-02); on a miss it carries
-// the contribution hint (AC-03). For services / manual products it is the plain
-// required name. `key` (driven by `lockedValue`) remounts the input so the locked
-// value and the default-driven editable state never bleed across lookups.
-//
-// For a NEW product (feature D, brief 0055) the editable name is a COMBOBOX: as
-// the user types, it searches the sovereign base by name and suggests products;
-// choosing one fills + locks the intrinsics (same `filled` state as a code hit).
-// The combobox is opt-in via `search` — services / edits / manual fall back to a
-// plain input, so the manual flow stays intact (AC-01). When the field is locked
-// (a hit, by either boca) it is always the plain read-only input — no search.
 export function CatalogNameField({
   defaultName,
   lockedValue,
@@ -225,8 +200,6 @@ export function CatalogNameField({
   readOnly: boolean
   required: boolean
   isContribution: boolean
-  // Combobox wiring (feature D). Present only for a new product; absent → plain
-  // input (services, edits, manual). Ignored while `readOnly` (a hit locks it).
   search?: {
     suggestions: readonly ProductSuggestion[]
     searching: boolean
@@ -235,10 +208,6 @@ export function CatalogNameField({
     onCleared: () => void
     onDismiss: () => void
   }
-  // Revert affordance for a NAME-boca fill (AC-06). When the name combobox locked
-  // the field, the code input is disabled, so the read-only name needs its own way
-  // back: this clears the fill and restores the editable combobox. Absent for a
-  // code-boca fill (reverted via the code input) and when not locked.
   onClearFill?: () => void
 }) {
   const useCombobox = search != null && !readOnly
@@ -288,13 +257,6 @@ export function CatalogNameField({
   )
 }
 
-// The product NAME section: the two autofill bocas (code entry of C + name
-// combobox of D) plus the name field they converge on. Grouped so the form
-// component stays thin — it just decides product-vs-service/edit and hands the
-// autofill state here. For a NEW product the code field + name combobox show; for
-// a service or an edit it is the plain name field (the reference is immutable by
-// edit). The name-boca reference key rides a hidden `gtin` (the code boca keeps
-// its own input), so the save references the product the same way for both (AC-02).
 export function ProductNameSection({
   isNewProduct,
   defaultName,
@@ -338,15 +300,12 @@ export function ProductNameSection({
         required={autofill.nameRequired}
         isContribution={autofill.nameIsContribution}
         search={nameSearch}
-        // Only a NAME-boca fill needs the revert here (its code input is disabled);
-        // a code-boca fill is reverted by clearing the code input (AC-06).
         onClearFill={autofill.referenceGtin14 !== null ? autofill.clear : undefined}
       />
     </>
   )
 }
 
-// Price + the kind-specific field (duration for services, stock for products).
 export function PriceAndKindFields({
   isService,
   durationDefault,
@@ -415,7 +374,6 @@ export function PriceAndKindFields({
   )
 }
 
-// Kind-specific trailing field: required resources (service) or SKU (product).
 export function ResourcesOrSkuField({
   isService,
   requiredResourcesDefault,
@@ -450,7 +408,6 @@ export function ResourcesOrSkuField({
   )
 }
 
-// Multi-unit scope checklist — where the item is offered.
 export function UnitScopeFieldset({
   units,
   selectedUnitIds,

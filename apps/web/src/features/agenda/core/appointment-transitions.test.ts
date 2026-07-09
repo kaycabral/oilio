@@ -2,7 +2,6 @@ import type { Appointment } from '@/domain'
 import { describe, expect, it } from 'vitest'
 import { decideCancel, decideNoShow, decideUnmarkNoShow } from './appointment-transitions'
 
-// startAt fixed; "now" is varied per case so the time gate is exercised purely.
 const START = '2026-06-10T14:00:00.000Z'
 const base = (status: Appointment['status']): Pick<Appointment, 'status' | 'startAt'> => ({
   status,

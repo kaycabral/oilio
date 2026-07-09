@@ -1,10 +1,3 @@
-// E2E spec — sub-issue #957 do brief 0018 (Grupo C).
-//
-// AC [smoke] via browser real:
-// - AC-13: owner edita template em /settings/notifications e persiste
-// - AC-14: clique "abrir WhatsApp" gera link wa.me + marca dispatchedAt +
-//   grava snapshot channel/body no notification.dispatched
-
 import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import type { NotificationState } from '@/domain/aggregates/notification/types'
 import { aggregateRef } from '@/domain/effect'
@@ -19,10 +12,6 @@ import { fillStable } from '../helpers/hydration'
 import { parseJson } from '../helpers/rest-json'
 import { pgReadProjection, seedCustomer, uniqueWhatsapp } from '../helpers/session'
 
-// Seeds a `birthday` notification straight into the Postgres event store
-// (post-cutover): one tx writing the `notification.created` event (version 1)
-// plus the typed `notifications` projection row, using the same column helpers
-// the runtime projector writes (so the seed can't drift from production).
 async function seedBirthdayNotification(
   orgId: string,
   unitId: string,
@@ -88,9 +77,6 @@ async function seedBirthdayNotification(
   return notifId
 }
 
-// The dispatch snapshot rides in the `notifications.dispatch` JSONB column
-// (null while not dispatched), projected from `notification.dispatched` — the
-// channel/body the AC-14 assert reads back.
 const DispatchSnapshot = Schema.Struct({
   dispatchedChannel: Schema.NullOr(Schema.String),
   dispatchedBody: Schema.NullOr(Schema.String),
@@ -105,29 +91,16 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
     await expect(birthdayBox).toBeVisible()
 
     const novo = 'Parabéns {cliente_nome}! 🎂 Bom demais te ver por aqui.'
-    // `#body-birthday` is a React-CONTROLLED textarea (value={body}). A bare
-    // `.fill()` that lands before hydration is silently dropped, then hydration
-    // re-applies the seeded default ON TOP of the typed text — the textarea ends
-    // up holding `novo + default`, which is what gets submitted, persisted, and
-    // read back (the flake: post-reload value came back concatenated). fillStable
-    // retries the fill until the input actually holds `novo`, post-hydration.
     await fillStable(birthdayBox, novo)
 
-    // The editor holds the typed message (the inline preview was removed — the
-    // placeholder highlight now stands in for the visual feedback while typing).
     await expect(birthdayBox).toHaveValue(novo)
 
-    // Salva o card de birthday
     await authedPage
       .locator('form', { has: authedPage.locator('#body-birthday') })
       .getByRole('button', { name: 'Salvar' })
       .click()
     await expect(authedPage.getByText('Salvo!')).toBeVisible()
 
-    // Persistiu: reload mantém o texto. The optimistic "Salvo!" toast can fire
-    // just before the projected write is queryable, so under a loaded runner the
-    // post-reload read needs room beyond the default 5s — the write IS durable,
-    // it just lands shortly after the toast.
     await authedPage.reload()
     await expect(authedPage.locator('#body-birthday')).toHaveValue(novo, { timeout: 15000 })
   })
@@ -142,8 +115,6 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
 
     await authedPage.goto('/agenda')
 
-    // Opening the popover refetches /api/notifications, picking up the seeded
-    // birthday notification deterministically (no reload/sleep needed).
     const loaded = authedPage.waitForResponse(
       (r) => /\/api\/notifications\?/.test(r.url()) && r.ok(),
     )
@@ -152,7 +123,6 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
     const popover = authedPage.locator('[data-slot="popover-content"]')
     await expect(popover).toBeVisible()
 
-    // Intercepta a resposta do dispatch ao clicar no botão WhatsApp
     const dispatchResponse = authedPage.waitForResponse(
       (r) =>
         r.url().includes(`/api/notifications/${notifId}/dispatch`) &&
@@ -168,7 +138,6 @@ test.describe.serial('Notification template + wa.me dispatch', () => {
     expect(body.link).toContain(`https://wa.me/${wa}`)
     expect(body.link).toContain('Maria')
 
-    // Postgres: dispatchedAt + snapshot (channel/body) na projeção `notifications`.
     const row = await pgReadProjection(
       'notifications',
       aggregateRef(NotificationConfig, org.orgId, notifId),

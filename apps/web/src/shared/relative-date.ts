@@ -1,15 +1,3 @@
-// Pure relative-date formatting for list/detail date columns. Buckets, by how
-// far the date is from now:
-//   - same calendar day  → relative hours/minutes ("agora", "há 15min", "há 2h",
-//                           "em 3h")
-//   - yesterday / tomorrow → "ontem" / "amanhã"
-//   - near FUTURE (2…14d) → "em N dias" (forward-looking is useful — e.g. a next
-//                           charge); near PAST beyond yesterday is NOT relative
-//   - everything else     → short absolute "dd/MM/yy"
-// Calendar-day based for the day buckets, so they flip at midnight (not on a
-// rolling 24h). Shared across features (subscriptions' next charge, orders'
-// closed/opened date, …).
-
 const RELATIVE_WINDOW_DAYS = 14
 
 function startOfDay(d: Date): number {

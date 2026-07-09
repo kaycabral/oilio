@@ -8,11 +8,6 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-// Retrofit pro PR #726 (issue #638) — link "Enviar confirmação por
-// WhatsApp" no edit dialog. Visível apenas quando appointment.status
-// === 'scheduled' E o cliente tem mobile normalizável. Href deve
-// começar com https://wa.me/ + dígitos.
-
 async function seedAppointmentForCustomer(
   org: SeededOrg,
   opts: { mobile?: string; status?: 'scheduled' | 'cancelled' },
@@ -64,8 +59,6 @@ test.describe('Agenda — link WhatsApp de confirmação', () => {
   test('link some pra agendamento cancelado', async ({ org, authedPage }) => {
     await seedAppointmentForCustomer(org, { mobile: uniqueWhatsapp(), status: 'cancelled' })
     const agenda = new AgendaPage(authedPage)
-    // Cancelled is hidden by default (brief 0081); surface it via the toggle so
-    // the card is clickable and we can assert the dialog has no WhatsApp link.
     await agenda.goto('2026-08-12')
     await agenda.showCancelledToggle().click()
     await authedPage.getByRole('button', { name: /Maria WhatsApp/ }).click()

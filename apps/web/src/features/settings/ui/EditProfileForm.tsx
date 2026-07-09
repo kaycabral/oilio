@@ -9,9 +9,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
-// Self-service rectification form (brief 0032 / AC-06). Edits the subject's own
 // global `users/{uid}` profile; the write reflects live across every screen
-// (identity by reference). Pre-filled with the current values.
 export function EditProfileForm({
   defaultName,
   defaultMobile,
@@ -38,18 +36,11 @@ export function EditProfileForm({
         return
       }
       toast.success('Perfil atualizado.')
-      // Inside the Configurações modal, reload just this section's data (no route
-      // navigation — that would tear the modal down). On the full page there is
-      // no provider, so fall back to a router refresh.
       if (reloadSection) reloadSection()
       else router.refresh()
     })
   }
 
-  // Prototype layout (brief 0090 § Perfil): each field is a row with the label +
-  // helper on the left and the control on the right. The control keeps its own
-  // accessible name via the row's `htmlFor` binding, so it stays reachable by
-  // label. The visible field width is capped so the inputs align like the mockup.
   return (
     <form ref={formRef} action={onSubmit} onInput={refresh} onChange={refresh}>
       <SettingRowGroup>

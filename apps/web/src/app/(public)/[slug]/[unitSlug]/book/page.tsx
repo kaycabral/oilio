@@ -35,9 +35,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return { title: `Agendar — ${bundle.unit.name} — ${bundle.org.name}` }
 }
 
-// Load + validate the wizard's bundle, chosen service and memberOperation. Every
-// invalid combination is a `notFound()` (the URL was tampered or the data
-// changed). Returns the validated trio for rendering.
 async function loadWizardPageEntities(
   slug: string,
   unitSlug: string,
@@ -51,9 +48,6 @@ async function loadWizardPageEntities(
     getCatalogItemById(bundle.org.id, serviceQ),
     getMemberOperationById(bundle.org.id, memberOperationQ),
   ])
-  // Unified catalog (brief 0023, #1004 → 0053/B3): re-sanitize through
-  // `toPublicCatalogItem` so the rendered labels match the wire projection
-  // (no commission leak).
   if (!rawService || !memberOperation) notFound()
   if (!isCatalogService(rawService)) notFound()
   if (!rawService.active || !rawService.publicVisible) notFound()
@@ -79,21 +73,15 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
   const startQ = readQuery(sp, 'start')
   const memberOperationQ = readQuery(sp, 'memberOperation')
 
-  // Step 1 fallback: no service in URL → bounce to the unit catalog (the
-  // canonical "pick a service" surface — #841). Keeps a single source of
-  // truth for the service list and avoids a half-empty wizard.
   if (!serviceQ) {
     redirect(`/${slug}/${unitSlug}`)
   }
 
-  // Step 2 fallback: no slot → bounce to availability for that service.
   if (!startQ) {
     redirect(`/${slug}/${unitSlug}/availability?service=${encodeURIComponent(serviceQ)}`)
   }
 
   if (!memberOperationQ) {
-    // The availability calendar always assigns a pro; if the URL is missing
-    // one, the user manipulated the link — kick them back to slot picking.
     redirect(`/${slug}/${unitSlug}/availability?service=${encodeURIComponent(serviceQ)}`)
   }
 
@@ -104,8 +92,6 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
     memberOperationQ,
   )
 
-  // Render the human-readable start label in org timezone — pre-formatted
-  // server-side so the client doesn't need to know the tz for display.
   const startAt = new Date(startQ)
   if (Number.isNaN(startAt.getTime())) {
     redirect(`/${slug}/${unitSlug}/availability?service=${encodeURIComponent(serviceQ)}`)
@@ -114,11 +100,6 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
     redirect(`/${slug}/${unitSlug}/availability?service=${encodeURIComponent(serviceQ)}`)
   }
 
-  // Session detection (#1275). Login is required to confirm; the confirm step
-  // carries no PII (the Customer is derived from the uid). We resolve only the
-  // display name of a signed-in + completed viewer so the screen reads
-  // "Agendando como <nome>". A visitor who isn't logged in (or hasn't completed)
-  // still sees the confirm screen — the action routes them to login/cadastro.
   const session = await getSessionUser()
   const sessionUser = session ? await getUserDoc(session.uid) : null
   const viewerName =
@@ -126,9 +107,6 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
       ? (sessionUser.displayName ?? sessionUser.email ?? 'cliente')
       : null
 
-  // Brief 0019 Group D — AC-16. Same scope resolution path as the unit
-  // catalog/availability pages — keeps the banner consistent across all
-  // 3 wizard steps for subscribed customers.
   const scope = await resolveScopeForSession(bundle.org.id)
 
   const fmt = new Intl.DateTimeFormat('pt-BR', {

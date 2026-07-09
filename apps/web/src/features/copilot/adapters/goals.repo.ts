@@ -5,9 +5,6 @@ import { Schema } from 'effect'
 
 const decodeGoal = Schema.decodeUnknownSync(Goal)
 
-// Direct lookup by deterministic id — a goal is unique per (type, unit, period),
-// so no extra query/index is needed. Reads the typed `goals` table under RLS
-// (unit-scoped GUC).
 export async function getGoalForPeriod(
   orgId: string,
   type: GoalType,

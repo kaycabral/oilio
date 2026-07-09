@@ -40,11 +40,8 @@ const STATUS_LABEL: Record<LiquidationStatus, string> = {
   pago: 'Pago',
 }
 
-// Ordem de exibição dos status no resumo.
 const STATUS_ORDER: LiquidationStatus[] = ['pendente', 'pago']
 
-// Sentinel para "Todos" — Radix Select proíbe value="". Traduzido na fronteira
-// (submit do filtro) de volta para "sem filtro".
 const ALL = 'all'
 
 export function CommissionReport({
@@ -88,8 +85,6 @@ export function CommissionReport({
     { ok: false },
   )
 
-  // O lote "marcar pago" precisa de um membro selecionado (gesto canônico por
-  // membro/período) e de ao menos uma comissão pendente no recorte.
   const pendingCount = commissions.filter((c) => liquidationStatusOf(c) === 'pendente').length
   const canBatchPay = canMarkPaid && memberFilter !== null && pendingCount > 0
 
@@ -194,9 +189,6 @@ export function CommissionReport({
         </div>
       </section>
 
-      {/* AC-07 (brief 0030): totais por membro no período — pendente vs. pago.
-          A chave é o `userId` do membro; um profissional aparece pela mesma
-          identidade. */}
       {byMember.length > 0 ? (
         <section className="space-y-2">
           <h2 className="text-sm font-medium">Por membro</h2>
@@ -229,9 +221,6 @@ export function CommissionReport({
         </section>
       ) : null}
 
-      {/* AC-07: atendimentos cobertos por assinatura — contagem + valor de
-          catálogo por profissional. Não geram comissão (brief 0021 AC-09); é o
-          dado que o dono usa pra ratear o fundo da assinatura por fora. */}
       <section className="space-y-2">
         <h2 className="text-sm font-medium">Atendimentos cobertos por assinatura</h2>
         <p className="text-muted-foreground text-xs">
@@ -264,8 +253,6 @@ export function CommissionReport({
         )}
       </section>
 
-      {/* AC-03: lote "marcar pago" por profissional/período — só owner, só com
-          um profissional filtrado e pendências no recorte. */}
       {canBatchPay ? (
         <form action={markAction} className="border-border space-y-3 rounded-md border p-4">
           <input type="hidden" name="attributedUserId" value={memberFilter ?? ''} />

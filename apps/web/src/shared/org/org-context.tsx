@@ -8,35 +8,18 @@ import { setActiveUnit as setActiveUnitAction } from '@/shared/org/active-unit-a
 import { useRouter } from 'next/navigation'
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react'
 
-// Minimal org descriptor for the switcher (brief 0029, AC-09). The full
-// Org doc is only loaded for the active one; the others just need id + name.
 export type OrgOption = { id: string; name: string }
 
 export type OrgContextValue = {
   user: User
   org: Org
   membership: Membership
-  // Active Negócio's Plano Oilio tier (brief 0072). Drives client-side feature
-  // gating — hide locked surfaces + show upgrade CTAs. Defense-in-depth: the
-  // server action (requireCapability) is the real wall; this only shapes the UI.
   tier: Tier
-  // Orgs the user is an active member of (brief 0029, AC-09). One entry per
-  // active membership; drives the org switcher (shown when 2+).
   orgs: OrgOption[]
-  // Units the member can operate (brief 0029). For a single-unit member this
-  // is the locked unit only; otherwise every unit of the org.
   units: Unit[]
-  // Active operational unit, or null when the org has no units yet.
   activeUnitId: string | null
-  // Whether the member is pinned to a single unit (membership.rlsUnitScope set). The
-  // switcher hides the unit picker and the interstitial never shows (AC-05).
   unitLocked: boolean
-  // Switches the active unit: validates + writes the ephemeral cookie
-  // server-side, then refreshes so server components re-render scoped to it.
-  // No-op-safe — rejects for single-unit members / inaccessible units.
   setActiveUnit: (unitId: string) => Promise<void>
-  // Switches the active org: writes `currentOrgId` + resets the
-  // active-unit cookie so the previous org's unit never leaks (AC-09).
   setActiveOrg: (orgId: string) => Promise<void>
 }
 
@@ -85,11 +68,6 @@ export function useOrg(): OrgContextValue {
   return ctx
 }
 
-/**
- * Whether the active Negócio's Plano Oilio unlocks `capability` (brief 0072).
- * Use to hide/lock a gated surface and show an upgrade CTA. NOT a security
- * boundary — the matching `requireCapability` server guard is the real wall.
- */
 export function useCapability(capability: Capability): boolean {
   const { tier } = useOrg()
   return hasCapability(tier, capability)

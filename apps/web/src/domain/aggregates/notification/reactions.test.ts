@@ -13,11 +13,6 @@ function collectionKey(ref: CollectionRef): string {
   return `${ref.type}/${ref.orgId}/`
 }
 
-// Bespoke ref-keyed store (D6): unlike the shared `makeReplayStore`, this layer
-// honors `getDocs` query constraints, which the idempotency/expiry reactions
-// rely on (where/limit). Projections are keyed by `docKey(ref)`; events ride a
-// separate log so a `notification.created` append never lands in the projection
-// store.
 function makeStore(initial: Record<string, FirestoreDoc> = {}) {
   const store = new Map(Object.entries(initial))
   const events = new Map<string, FirestoreDoc[]>()
@@ -70,8 +65,6 @@ function makeStore(initial: Record<string, FirestoreDoc> = {}) {
           }),
       }),
   }
-  // Reactions read and append via the single PersistencePort — back it from the
-  // one in-memory store.
   return {
     store,
     layer: Layer.succeed(PersistencePort, ops),
@@ -83,7 +76,6 @@ describe('Notification reactions', () => {
     const { store, layer } = makeStore({
       'unit/t1/u1': { id: 'u1', orgId: 't1', name: 'Unit 1' },
       'unit/t1/u2': { id: 'u2', orgId: 't1', name: 'Unit 2' },
-      // A malformed unit doc with no `id` must be skipped (not a 3rd notif).
       'unit/t1/broken': { orgId: 't1', name: 'No Id' },
     })
 
@@ -216,15 +208,11 @@ describe('Notification reactions', () => {
       }
     }
     const { store, layer } = makeStore({
-      // All three expiry types for s1 → expired.
       ...notif('n-tomorrow', { type: 'subscription_expiring_tomorrow' }),
       ...notif('n-expired', { type: 'subscription_expired' }),
       ...notif('n-overdue', { type: 'subscription_overdue_followup' }),
-      // Non-expiry type → kept (the includes() guard).
       ...notif('n-birthday', { type: 'birthday' }),
-      // Different subscription → kept (the subscriptionId where-constraint).
       ...notif('n-other-sub', { type: 'subscription_expired', subscriptionId: 's2' }),
-      // Already dispatched → kept (the dispatchedAt==null where-constraint).
       ...notif('n-dispatched', {
         type: 'subscription_expired',
         dispatchedAt: '2026-05-01T00:00:00Z',

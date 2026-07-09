@@ -7,10 +7,6 @@ import {
   visibleSettingsSections,
 } from './settings-sections'
 
-// The Configurações modal nav is gated by role (brief 0090): Cobrança and
-// Notificações are management-only, so a member without `manageOrg` sees only
-// the personal sections. The route pages keep their own server guard — this
-// trims the nav (defense in depth).
 describe('visibleSettingsSections', () => {
   it('shows every section to a role that manages the org', () => {
     for (const role of ['owner', 'manager'] as const) {
@@ -44,8 +40,6 @@ describe('visibleSettingsSections', () => {
   })
 })
 
-// The hash `#settings/X` and the section pages narrow the raw section string
-// through this guard instead of an unsafe cast.
 describe('toSettingsSectionKey', () => {
   it('returns the matching key for a known section', () => {
     for (const section of SETTINGS_SECTIONS) {
@@ -60,9 +54,6 @@ describe('toSettingsSectionKey', () => {
   })
 })
 
-// The modal header and the full page read the section's label + description from
-// here, so both render the same header (single source of truth) and the heading
-// always matches the clicked nav item.
 describe('settingsSectionMeta', () => {
   it('returns a label and description for every section', () => {
     for (const section of SETTINGS_SECTIONS) {

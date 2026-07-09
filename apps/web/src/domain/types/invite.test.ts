@@ -2,11 +2,6 @@ import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { INVITE_TTL_MS, StoredInvite } from './invite'
 
-// Brief 0084: the email-match helpers (#827) are gone — identity binding is
-// first-accept-wins, guarded by the acceptance-consistency refinement (a
-// pending invite carries no accepter; an accepted one carries both). These
-// tests pin that invariant + the shortened TTL.
-
 const decode = Schema.decodeUnknownEither(StoredInvite)
 
 function storedRow(over: Partial<Record<string, unknown>> = {}) {

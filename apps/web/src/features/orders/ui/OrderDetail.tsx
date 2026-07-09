@@ -38,22 +38,12 @@ export type OrderDetailProps = {
   customer: Customer | null
   services: CatalogServiceItem[]
   products: CatalogProductItem[]
-  // Membros operáveis do org (brief 0030, AC-04): a atribuição de item é por
-  // membro (`attributedUserId` = `userId`), não só MemberOperation. Qualquer membro
-  // (recepção inclusa) pode ser atribuído/vendedor.
   members: OrgMember[]
-  // `userId` de quem está operando — default de "Vendedor" pra item de produto/
-  // venda avulsa (o membro que abriu a venda). Espelha o default do servidor.
   currentUserId: string
   commissions: Commission[]
-  // Assinatura ativa do cliente: `remaining` = saldo do ciclo (null = ilimitado);
-  // null = sem assinatura ativa → cobertura indisponível.
   subscriptionCoverage: { remaining: number | null } | null
   canCancel: boolean
-  // Clientes ativos do org — opções do seletor da comanda avulsa (brief 0081).
   customers: Customer[]
-  // Gate do cadastro inline de cliente (canManageCustomers): esconde o modo "novo"
-  // pra quem só opera a própria agenda — a action recusa o POST de qualquer forma.
   canRegisterCustomer: boolean
 }
 
@@ -74,17 +64,11 @@ export function OrderDetail({
   const [pending, startTransition] = useTransition()
   const editable = isOrderEditable(order)
 
-  // Lookup nome do membro pelo `userId` — usado no select de atribuição, no
-  // resumo de fechamento e na tabela de comissões (comissão é chaveada pelo
-  // mesmo `userId` do item após o renomeio).
   const memberByUserId = useMemo(
     () => Object.fromEntries(members.map((m) => [m.userId, m])),
     [members],
   )
 
-  // AC-11: single "Adicionar item" picks from the unified catalog. Services and
-  // products are merged into one option list, each carrying its `kind`; the
-  // added line infers `kind` from the chosen item (no two-button fork).
   const catalogOptions = useMemo(
     () => buildCatalogOptions(services, products),
     [services, products],
@@ -133,13 +117,8 @@ export function OrderDetail({
             ← Vendas
           </Link>
           <h1 className="mt-1 text-2xl font-semibold">
-            {/* Venda anônima (brief 0030, AC-02): sem cliente é venda avulsa de
-                balcão; com customerId mas sem doc é "Cliente removido". */}
             {order.customerId ? (customer?.name ?? 'Cliente removido') : 'Venda avulsa'}
           </h1>
-          {/* Seletor de cliente da comanda avulsa (brief 0081): vincular/trocar/
-              remover enquanto editável. Ao vincular um assinante, a cobertura é
-              reavaliada no servidor e os itens cobertos auto-marcam. */}
           {editable ? (
             <div className="mt-2">
               <OrderCustomerSelector

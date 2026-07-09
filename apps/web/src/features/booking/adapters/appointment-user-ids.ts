@@ -1,17 +1,6 @@
-// Resolves the `customerUserId` / `memberOperatorUserId` denormalized FKs we
-// stamp on every Appointment write — the duplication that powers
-// CollectionGroup history queries (#832, see Wiki § Visibilidade de histórico).
-//
-// Both fields are read straight from the source-of-truth (`Customer.userId`
-// and `MemberOperation.userId`) at write time. We never accept them from
-// caller-supplied form data, so the data path can't drift out of sync.
-
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import 'server-only'
 
-// Minimal id-ref probe rows — only the `user_id` FK each side denormalizes.
-// `user_id` is null-distinguishable from "row absent" (empty result), so the
-// resolver can tell "not found" from "found but missing userId".
 type UserIdRow = { user_id: string | null }
 
 async function readUserIdRow(
@@ -52,9 +41,6 @@ export async function resolveAppointmentUserIds(
 
   const customerUserId = customerRow.user_id
   if (!customerUserId) {
-    // Defensive: every Customer is created via `upsertCustomerWithUser`
-    // which guarantees a userId. Surface the inconsistency instead of
-    // writing an Appointment with an empty key.
     return { ok: false, error: 'Customer sem userId — schema inconsistente' }
   }
 

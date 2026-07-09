@@ -1,8 +1,3 @@
-// Functional core for the self-service profile rectification form (brief 0032 /
-// AC-06): pure parsing + validation of the submitted FormData into a typed
-// payload (or a user-facing error string). No I/O — the adapter
-// (profile.actions) does the user read + write + PII event.
-
 import { normalizeBrazilMobile, parseBirthDate } from '@/domain'
 import { formString } from '@/shared/form-data'
 
@@ -33,7 +28,6 @@ export function parseProfileForm(formData: FormData): ProfileFormPayload | strin
   return { name, mobile, birthDate: birthDateResult.value }
 }
 
-// True when `birthDate` is at least `minYears` ago. ISO `YYYY-MM-DD`.
 export function meetsMinAge(
   birthDate: string,
   minYears: number,
@@ -44,8 +38,6 @@ export function meetsMinAge(
   return birthDate <= cutoff
 }
 
-// Names of the fields whose value actually changed vs the current profile. The
-// PII event carries field NAMES only, never their values (AC-07).
 export function changedProfileFields(
   payload: ProfileFormPayload,
   current: { displayName?: string | null; mobile?: string | null; birthDate?: string | null },

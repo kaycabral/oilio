@@ -24,20 +24,6 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { MemberOperationIdentityFields, MemberOperationScopeFields } from './MemberOperationFields'
 
-// Single editable member-detail surface (brief 0037 refino, review 2026-06-02).
-// There is NO "Editar" gate and NO separate "Trocar papel" button: an authorized
-// user (owner/manager) editing a non-owner member sees the editable fields
-// directly and persists everything with ONE Salvar.
-//   - The role `<select>` sits at the top, replacing the static "Papel" label.
-//   - For a memberOperation member the operational fields follow (units/services/
-//     commission/tax). Identity (name/whatsapp/email) is NOT repeated here —
-//     it lives read-only at the top of the page (sourced from the User, #1046).
-//   - One Salvar runs the role lifecycle (#1086) when the role changed AND the
-//     operational update (#1085), via `saveMemberDetail`.
-// Non-memberOperation members get just the role select + Salvar (no operational
-// fields). The owner is never rendered with this form (read-only — handled by
-// the page).
-
 export function MemberDetailForm({
   targetUserId,
   currentRole,
@@ -64,10 +50,6 @@ export function MemberDetailForm({
   const [commissionKind, setCommissionKind] = useState<CommissionKind>(
     memberOperation?.defaultCommission?.kind ?? 'none',
   )
-  // AC-03 (brief 0039): when the memberOperation has NO units yet (new/empty),
-  // pre-check the active unit while keeping the multi-select (definition stays
-  // multi-unit — 0012). An existing selection is preserved as-is — the default
-  // applies only to the empty case, never overwriting stored units.
   const [selectedUnitIds, setSelectedUnitIds] = useState<Set<string>>(() =>
     initialMemberUnitIds(memberOperation, activeUnitId),
   )
@@ -76,10 +58,6 @@ export function MemberDetailForm({
     () => new Set(memberOperation?.catalogServiceIds ?? []),
   )
 
-  // The operational fields are shown only while the member is (and stays) a
-  // memberOperation. Switching role away from memberOperation hides them (the save
-  // runs the demotion lifecycle); switching toward memberOperation materializes
-  // the projection on save (operational config happens on the next visit).
   const showOperational =
     role === 'member_operator' && currentRole === 'member_operator' && memberOperation !== null
 
@@ -126,8 +104,6 @@ export function MemberDetailForm({
         return
       }
       setSaved(true)
-      // The lifecycle (materialize/deactivate projection, re-derived role) and
-      // the operational config both change what the detail renders — refresh.
       router.refresh()
     })
   }
@@ -136,10 +112,6 @@ export function MemberDetailForm({
 
   return (
     <form action={onSubmit} className="flex flex-col gap-4" aria-label="Detalhes do membro">
-      {/* The role field sits where the static "Papel" value used to be (refino):
-          the static value becomes a `<select>`, but keeps its "Papel" label
-          (form pattern + semantic test lookup). Status sits beside it,
-          read-only. Changing the role + Salvar runs the role lifecycle (#1086). */}
       <section className="border-border flex flex-wrap items-start gap-x-8 gap-y-2 rounded-md border p-4">
         <div className="flex flex-col gap-0.5">
           <Label htmlFor="member-role" className="text-muted-foreground text-xs">
@@ -167,7 +139,6 @@ export function MemberDetailForm({
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-muted-foreground text-xs">Status</span>
-          {/* h-9 + centered so the value aligns with the select beside it. */}
           <span className="flex h-9 items-center text-sm" role="group" aria-label="Status">
             {statusLabel}
           </span>

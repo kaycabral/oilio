@@ -1,16 +1,3 @@
-// E2E — brief 0024 § DoD Cenário 2 / Grupo B (AC-04/05, #1009).
-//
-// A customer holds a subscription whose FROZEN snapshot covers {a service (via
-// `includedItemIds`) + a product (via `includedCategoryIds` convenience)}.
-// Closing a comanda that consumes both must:
-//  - resolve each covered line against the snapshot → both stay `coverage:subscription`
-//  - debit the plan quota by the covered item count (service + product)
-//  - generate NO commission for the covered service (brief 0021 AC-09 / 0022 AC-07)
-//  - decrement the covered product's stock (AC-05)
-//  - respect the plan limit ([[0019]]) — a line outside the snapshot is rejected
-//
-// Drives the REAL order UI; asserts via Postgres projection reads + UI.
-
 import { CatalogItemConfig, SubscriptionConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import type { Page } from '@playwright/test'
@@ -29,8 +16,6 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-// `current_period` is a JSONB column on the `subscriptions` projection; decode
-// only the `consumed` count the assert needs (excess properties are ignored).
 const CurrentPeriodConsumed = Schema.decodeUnknownSync(Schema.Struct({ consumed: Schema.Number }))
 
 async function readConsumed(orgId: string, subId: string): Promise<number> {
@@ -82,7 +67,6 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
     const ts = Date.now().toString()
     const unitId = org.unitIds[0]!
 
-    // Catalog: a covered service (by item id) + a product in a covered category.
     const productCategoryId = await seedCategory(org.orgId, { name: `Produtos ${ts}` })
     const serviceId = await seedCatalogItem(org.orgId, {
       kind: 'service',
@@ -90,8 +74,6 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
       priceCents: 4000,
       durationMinutes: 30,
       unitIds: [unitId],
-      // Commission would be generated if this were a SALE — proves the covered
-      // line produces none.
       commission: { kind: 'percentage', value: 50 },
     })
     const productId = await seedCatalogItem(org.orgId, {
@@ -107,7 +89,6 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
       name: `Cliente Granular ${ts}`,
       mobile: uniqueWhatsapp(),
     })
-    // Frozen snapshot: service covered by item id, product covered by category.
     const subId = await seedSubscription(org.orgId, customerId, {
       planName: 'Granular',
       usageLimit: { kind: 'count', quantity: 4 },
@@ -115,7 +96,6 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
       includedCategoryIds: [productCategoryId],
     })
 
-    // Appointment for the covered service → start the comanda from the agenda.
     await seedAppointment({
       orgId: org.orgId,
       unitId,
@@ -137,9 +117,6 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
     await expect(authedPage).toHaveURL(/\/orders\/.+/)
     const orderId = authedPage.url().split('/orders/')[1]!.split(/[?#]/)[0]!
 
-    // The covered service auto-marks as plan consumption on start (brief 0079
-    // AC-06) — no manual flip. Target the coverage combobox's selected value
-    // (the emerald badge also carries the text).
     await expect(
       authedPage
         .getByRole('listitem')
@@ -147,8 +124,6 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
         .getByRole('combobox', { name: 'Cobertura do item' }),
     ).toHaveText('Consumo do plano')
 
-    // The product, covered by category convenience, also auto-marks when added
-    // (brief 0079 AC-09 — kind-agnostic), with balance still available.
     await addCatalogItemToOrder(authedPage, `Pomada ${ts}`)
     await expect(
       authedPage
@@ -157,15 +132,11 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
         .getByRole('combobox', { name: 'Cobertura do item' }),
     ).toHaveText('Consumo do plano')
 
-    // 100% covered → closes with no payment method.
     await expect(authedPage.getByText(/100% coberta pelo plano/)).toBeVisible()
     await confirmClose(authedPage)
 
-    // Quota debited by covered item count: 1 service + 1 product = 2.
     expect(await readConsumed(org.orgId, subId)).toBe(2)
-    // Covered service → NO commission generated.
     expect(await countCommissions(org.orgId, orderId)).toBe(0)
-    // Covered product → stock decremented (10 − 1).
     expect(await readStock(org.orgId, productId)).toBe(9)
   })
 
@@ -183,7 +154,6 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
       name: `Cliente Limite ${ts}`,
       mobile: uniqueWhatsapp(),
     })
-    // Plan quota 1, already fully consumed → no balance left this cycle.
     const subId = await seedSubscription(org.orgId, customerId, {
       planName: 'Limite',
       usageLimit: { kind: 'count', quantity: 1 },
@@ -211,10 +181,6 @@ test.describe('Plans — consumption resolves granular by kind (#1009)', { tag: 
     await authedPage.getByRole('button', { name: /Iniciar atendimento/ }).click()
     await expect(authedPage).toHaveURL(/\/orders\/.+/)
 
-    // The coverage option is disabled (no balance), so the line stays a SALE —
-    // the plan limit is enforced at the UI gate. Consumed stays at 1.
-    // Open the (Radix) coverage combobox; options render in a portal at the
-    // document root, so query the disabled option from the page.
     await authedPage
       .getByRole('listitem')
       .filter({ hasText: `Corte ${ts}` })

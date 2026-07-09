@@ -43,11 +43,6 @@ import {
 } from './appointment-write-helpers'
 import { validateAppointmentWrite } from './validate-appointment-write'
 
-// Own-resource wall (brief 0075, #1257): the balcão (owner/manager/recepção)
-// acts on any appointment; a self-scoped memberOperation only on their own
-// (`appointment.memberOperatorUserId === membership.userId`). Defense-in-depth over
-// the RLS own-scope — a null owner never matches a memberOperation, so they're
-// blocked and the balcão passes. Returns the error result the actions return.
 function ensureCanActOnAppointment(
   membership: Membership,
   appointment: Appointment,
@@ -56,10 +51,6 @@ function ensureCanActOnAppointment(
   return { ok: false, error: 'Você só pode alterar os próprios agendamentos' }
 }
 
-// Resolves the loaded-memberOperation result for createAppointment: surfaces the
-// load error, then the own-scope wall (brief 0075, #1257) — a self-scoped
-// memberOperation books only for themselves; the balcão books for anyone. Keeps the
-// branching out of `createAppointment` (cognitive complexity).
 function resolveBookableError(
   membership: Membership,
   memberOperation: { userId: string } | string,
@@ -82,15 +73,9 @@ export async function cancelAppointment(appointmentId: string): Promise<Appointm
     if (denied) return denied
   }
 
-  // Decision is pure (core); the adapter only reads + emits. Staff actor here —
-  // internal panel always runs as the logged-in member. Self-cancel from the
-  // customer flow (#845) sets 'customer' via its own action. Tracking is
-  // populated regardless of the org's cancellationPolicy toggle (Wiki:
-  // 04-Roadmap-Politica-Cancelamento § Tracking sempre on).
   const decision = decideCancel(existing, 'staff', new Date().toISOString())
   if (!decision.ok) return { ok: false, error: decision.error }
 
-  // Event-first: a projeção (status/cancelledAt/By/NoticeMinutes) vem do evento.
   const security = await resolveWriteSecurity(r.ctx.membership, existing.unitId)
   const cancelled = await emitEvent(
     AppointmentConfig,
@@ -125,14 +110,11 @@ export async function markAppointmentNoShow(
     if (denied) return denied
   }
 
-  // Gate (pure, core): only after scheduledStartAt and only from a live booking.
-  // Wiki: 04-Roadmap-Politica-Cancelamento § Quando o botão libera.
   const now = new Date()
   const decision = decideNoShow(existing, now)
   if (!decision.ok) return { ok: false, error: decision.error }
 
   const nowIso = now.toISOString()
-  // Event-first: a projeção (status/noShowMarkedAt/By) vem do evento.
   const security = await resolveWriteSecurity(r.ctx.membership, existing.unitId)
   const marked = await emitEvent(
     AppointmentConfig,
@@ -169,8 +151,6 @@ export async function unmarkAppointmentNoShow(
   const decision = decideUnmarkNoShow(existing)
   if (!decision.ok) return { ok: false, error: decision.error }
 
-  // Event-first: reverter o no-show é o evento `appointment.no_show_reverted`
-  // (volta status pra scheduled; o marker anterior fica como histórico).
   const security = await resolveWriteSecurity(r.ctx.membership, existing.unitId)
   const reverted = await emitEvent(
     AppointmentConfig,
@@ -184,8 +164,6 @@ export async function unmarkAppointmentNoShow(
   return { ok: true, appointmentId }
 }
 
-// Fields the slot helpers read off a parsed appointment form.
-
 export async function updateAppointment(
   appointmentId: string,
   formData: FormData,
@@ -195,19 +173,13 @@ export async function updateAppointment(
   const parsed = parseAppointmentForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  // Timezone + cancellation policy are establishment/agenda concerns of the
-  // target unit (PRD Identidade v2 — moved Org→Unit). Resolve the unit the
-  // appointment belongs to and source them from its agenda.
   const unit = await getUnitById(r.ctx.membership.orgId, parsed.unitId)
   if (!unit) return { ok: false, error: 'Unidade não encontrada' }
 
-  // Pure (core): an edit can't create a customer and must target an existing one.
   const editable = validateEditableCustomer(parsed)
   if (!editable.ok) return { ok: false, error: editable.error }
   const customerId = editable.value.customerId
 
-  // Write-guard (brief 0032, AC-11): editing an appointment for a blocked
-  // customer in this org is rejected — the relationship is severed.
   const editGuard = await guardCustomerNotBlocked(r.ctx.membership.orgId, customerId)
   if (editGuard) return editGuard
 
@@ -218,9 +190,6 @@ export async function updateAppointment(
     if (denied) return denied
   }
 
-  // Consumers read the unified catalog (brief 0023, #1004): the booked
-  // `serviceId` now points at a `catalog_items` doc of kind service. The two
-  // loads are independent — run them in parallel.
   const [item, memberOperation] = await Promise.all([
     loadActiveCatalogService(r.ctx.membership.orgId, parsed.serviceId),
     loadApprovedMemberOperation(r.ctx.membership.orgId, parsed.memberOperationId),
@@ -228,8 +197,6 @@ export async function updateAppointment(
   if (typeof item === 'string') return { ok: false, error: item }
   if (typeof memberOperation === 'string') return { ok: false, error: memberOperation }
 
-  // snapshot-on-use decision is pure (core): service/unit change re-snapshots;
-  // a pure date/time move keeps the commit-time snapshot.
   const resolved = resolveCatalogItemForUnit(item, parsed.unitId)
   const { serviceOrUnitChanged, effectiveDurationMinutes } = decideSnapshotRefresh({
     parsed,
@@ -241,11 +208,6 @@ export async function updateAppointment(
   if (typeof times === 'string') return { ok: false, error: times }
   const { startAt, endAt } = times
 
-  // Single appointment-write validation layer (brief 0080, Grupo B): slot-grid
-  // → overlap → subscription scope. The same call guards create and edit; the
-  // edit passes `excludeAppointmentId` so a pure move doesn't conflict with
-  // itself. Reception follows the same grid as the public self-book — no
-  // privileged surface (Brief 0080), scope reenforced on move (Brief 0019).
   const validation = await validateAppointmentWrite({
     orgId: r.ctx.membership.orgId,
     unit,
@@ -262,8 +224,6 @@ export async function updateAppointment(
     return { ok: false, error: validation.error, conflicts: validation.conflicts }
   }
 
-  // Own-scope RLS for the edit write (brief 0075, #1265): same capability-gated
-  // scope as the create path, forwarded to every event append.
   const security = await resolveWriteSecurity(r.ctx.membership, parsed.unitId)
 
   return persistAppointmentUpdate({
@@ -286,14 +246,9 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   const parsed = parseAppointmentForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  // Timezone + cancellation policy are establishment/agenda concerns of the
-  // target unit (PRD Identidade v2 — moved Org→Unit).
   const unit = await getUnitById(r.ctx.membership.orgId, parsed.unitId)
   if (!unit) return { ok: false, error: 'Unidade não encontrada' }
 
-  // Unified catalog read (brief 0023, #1004): `serviceId` references a
-  // `catalog_items` doc of kind service. The two loads are independent — run
-  // them in parallel.
   const [item, memberOperation] = await Promise.all([
     loadActiveCatalogService(r.ctx.membership.orgId, parsed.serviceId),
     loadApprovedMemberOperation(r.ctx.membership.orgId, parsed.memberOperationId),
@@ -302,32 +257,19 @@ export async function createAppointment(formData: FormData): Promise<Appointment
   const bookableError = resolveBookableError(r.ctx.membership, memberOperation)
   if (bookableError) return bookableError
 
-  // Per-unit effective price/duration/commission. Same resolver is used in
-  // the snapshot write below — keeping them on a single source.
   const resolved = resolveCatalogItemForUnit(item, parsed.unitId)
 
   const times = resolveStartEnd({ timezone: unit.timezone }, parsed, resolved.durationMinutes)
   if (typeof times === 'string') return { ok: false, error: times }
   const { startAt, endAt } = times
 
-  // Resolve the target customer — existing pick, or a brand-new one upserted
-  // inline (the inline branch is gated server-side on `canManageCustomers`,
-  // brief 0075 #1266). Extracted to keep this action under the complexity gate.
   const resolvedCustomer = await resolveAppointmentCustomerId(r.ctx.membership, parsed)
   if (!resolvedCustomer.ok) return resolvedCustomer
   const customerId = resolvedCustomer.customerId
 
-  // Write-guard (brief 0032, AC-11): a blocked customer's relationship is
-  // severed — no new appointment may be created for them in this org. A
-  // freshly upserted customer can't be blocked, but an existing `customerId`
-  // can, so guard after resolution.
   const createGuard = await guardCustomerNotBlocked(r.ctx.membership.orgId, customerId)
   if (createGuard) return createGuard
 
-  // Single appointment-write validation layer (brief 0080, Grupo B): slot-grid
-  // → overlap → subscription scope, the same call the edit path runs. Reception
-  // follows the same grid as the public self-book — no privileged surface, no
-  // arbitrary walk-in encaixe (Brief 0080); scope per Brief 0019.
   const validation = await validateAppointmentWrite({
     orgId: r.ctx.membership.orgId,
     unit,
@@ -365,28 +307,16 @@ export async function createAppointment(formData: FormData): Promise<Appointment
     servicePriceCentsSnapshot: resolved.priceCents,
     serviceDurationMinutesSnapshot: resolved.durationMinutes,
     commissionSnapshot: resolved.commission,
-    // Snapshot da cancellation policy no commit (#1038). Editar a policy da
-    // unidade depois não retroage sobre o direito de cancelar deste booking. A
-    // policy é da agenda da unidade (modo appointment); fora desse modo não
-    // existe — cai no default (PRD Identidade v2 — config movida Org→Unit).
     cancellationPolicySnapshot: unitCancellationPolicySnapshot(unit.agenda),
     customerUserId: userIds.ids.customerUserId,
     memberOperatorUserId: userIds.ids.memberOperatorUserId,
-    // Internal balcão booking (brief 0077 AC-11): no acquisition channel — the
-    // staff created it directly, not via a contextual link.
     attribution: null,
     createdAt: now,
     updatedAt: now,
   }
 
-  // Own-scope RLS for the WRITE (brief 0075, #1265): the DB own-scope WITH CHECK
-  // is the last line of defense — a self-scoped member can't book onto a colleague
-  // even past the application gate above. The balcão passes no security.
   const security = await resolveWriteSecurity(r.ctx.membership, parsed.unitId)
 
-  // Authoritative anti-double-book (#843). Pre-flight above gave us a fast
-  // staff-friendly error message; this transaction is what actually protects
-  // the slot from concurrent public landings + staff agenda writes.
   const commit = await commitAppointmentBooking({
     orgId: r.ctx.membership.orgId,
     appointment,
@@ -402,37 +332,11 @@ export async function createAppointment(formData: FormData): Promise<Appointment
       conflicts: ['agendamento existente'],
     }
   }
-  // `appointment.created` é emitido event-first DENTRO do commit transacional
-  // (commitAppointmentBooking) — sem emit paralelo aqui (era dual-write).
 
   revalidatePath('/agenda')
   return { ok: true, appointmentId }
 }
 
-// ── Form action wrappers (useActionState-compatible) ─────────────────────────
-//
-// The dialog ships these actions via `<form action={…}>` so the buttons are
-// progressively enhanced — they post natively even before React hydrates,
-// killing the hydration race that was causing the agenda dialog flakes.
-//
-// Each wrapper:
-//   1. Reads the appointmentId from a hidden input (form submit boundary).
-//   2. Delegates to the existing imperative action (kept untouched so unit
-//      tests + non-form callers keep their signature).
-//   3. Returns `{ ok, error }` so `useActionState` can drive client UI
-//      (error display + dialog close on success). On server-side submit
-//      (no JS), `revalidatePath('/agenda')` inside the inner action re-renders
-//      the page and the new state shows up — the dialog naturally rebuilds
-//      from the fresh data.
-//
-// `prevState` is the React 19 `useActionState` convention — required by the
-// signature even when unused.
-
-// Shape returned by the form-action wrappers below — also imported by the
-// dialog as the `useActionState` initial value. Defined inline in each
-// caller (a `'use server'` file may only export async functions; types are
-// stripped at build time and don't violate the rule, but a const initial
-// state would, so callers initialise `{ ok: false }` themselves).
 export type AppointmentFormActionState = { ok: boolean; error?: string }
 
 export async function cancelAppointmentFormAction(

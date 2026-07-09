@@ -3,17 +3,6 @@ import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { assertTeamSeatQuota } from './team-quota'
 
-/**
- * Team-seat quota wall against REAL Postgres (brief 0089). Free is "você + 1"
- * (2 seats: the owner + one member); a third seat requires `team.unlimited`
- * (Pro+). The count is anti-TOCTOU: active memberships PLUS pending, non-expired
- * invites — so parallel invites can't each pass the cap at issue time and then
- * all accept past it. An expired `pending` invite frees its seat back.
- *
- * Proven against the DB (not mocked) per the workspace convention: the invariant
- * is enforced by counting real rows under RLS.
- */
-
 const TS = '2026-06-01T12:00:00.000Z'
 const FUTURE = '2999-01-01T00:00:00.000Z'
 const PAST = '2020-01-01T00:00:00.000Z'
@@ -37,8 +26,6 @@ async function seedOrg(orgId: string): Promise<void> {
 }
 
 async function seedTier(orgId: string, tier: 'pro' | 'advanced'): Promise<void> {
-  // A billing row lifts the org above Free (getOrgTier defaults to Free with no
-  // row). Only pro/advanced rows are seeded; Free = the absence of a row.
   await pool().query(
     `INSERT INTO org_billing (org_id, id, last_event_version, tier, status, created_at, updated_at)
      VALUES ($1,$1,1,$2,'active',$3,$3)
@@ -113,7 +100,6 @@ describe('assertTeamSeatQuota — Free "você + 1" cap (brief 0089)', () => {
     await seedMember(orgId, 'owner')
     await seedInvite(orgId, 'inv-pending')
 
-    // owner (1) + pending invite (1) = 2 → cap reached, a parallel invite is barred.
     const err = await assertTeamSeatQuota(orgId)
     expect(err).toContain('plano Grátis permite você + 1 membro')
   })
@@ -124,7 +110,6 @@ describe('assertTeamSeatQuota — Free "você + 1" cap (brief 0089)', () => {
     await seedMember(orgId, 'owner')
     await seedInvite(orgId, 'inv-expired', { expiresAt: PAST })
 
-    // owner (1) + expired invite (0) = 1 → still room for one more.
     expect(await assertTeamSeatQuota(orgId)).toBeNull()
   })
 
@@ -134,7 +119,6 @@ describe('assertTeamSeatQuota — Free "você + 1" cap (brief 0089)', () => {
     await seedMember(orgId, 'owner')
     await seedMember(orgId, 'gone', 'revoked')
 
-    // Only the active owner counts → room for the +1.
     expect(await assertTeamSeatQuota(orgId)).toBeNull()
   })
 

@@ -9,11 +9,6 @@ import {
 import { getEventStorePool } from '@/shared/db/pg/pool'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 
-// Message templates are an org-scoped CONFIG table (not a domain aggregate, not
-// event-sourced) — written directly via upsert, read under RLS. Post-cutover
-// (brief 0062) this lives in the Postgres `message_templates` table; the
-// Firestore `orgs/{orgId}/message_templates/{type}` doc is gone.
-
 type MessageTemplateRow = {
   type: string
   body: string | null
@@ -22,10 +17,6 @@ type MessageTemplateRow = {
   updated_at: string
 }
 
-// Maps a row to the domain `MessageTemplate`, narrowing `type` through the
-// dispatchable guard (the DB CHECK guarantees it, but the guard keeps the type
-// honest without an assertion). Returns null for a row whose type is not
-// dispatchable (unreachable in practice — defends against a future schema drift).
 function rowToTemplate(orgId: string, row: MessageTemplateRow): MessageTemplate | null {
   if (!isDispatchableType(row.type)) return null
   const type = row.type
@@ -40,7 +31,6 @@ function rowToTemplate(orgId: string, row: MessageTemplateRow): MessageTemplate 
   }
 }
 
-// Lê o template config-doc de um tipo. null quando o owner nunca customizou.
 export async function getMessageTemplate(
   orgId: string,
   type: DispatchableNotificationType,
@@ -57,7 +47,6 @@ export async function getMessageTemplate(
   return row ? rowToTemplate(orgId, row) : null
 }
 
-// Body efetivo pra render: custom do owner se existe + enabled, senão default.
 export async function resolveTemplateBody(
   orgId: string,
   type: DispatchableNotificationType,
@@ -67,8 +56,6 @@ export async function resolveTemplateBody(
   return defaultTemplateBody(type)
 }
 
-// Lista todos os templates dispatchable do org (custom ou default) — usado
-// pela página /settings/notifications. Uma leitura por org (não N point-reads).
 export async function listMessageTemplates(orgId: string): Promise<MessageTemplate[]> {
   const rows = await readUnderRls<MessageTemplateRow>(orgId, (client) =>
     client
@@ -98,9 +85,6 @@ export async function listMessageTemplates(orgId: string): Promise<MessageTempla
   )
 }
 
-// Upsert do template customizado (chamado pela server action de settings). Org-
-// scoped: o write roda sob RLS (GUC setado por transação) — a policy WITH CHECK
-// recusa um org_id que não bate com o contexto.
 export async function upsertMessageTemplate(input: {
   orgId: string
   type: DispatchableNotificationType

@@ -34,16 +34,8 @@ import { listUnitIds } from '@/shared/org/unit-read'
 import { runProductGate } from '@/shared/product'
 import { revalidatePath } from 'next/cache'
 
-// Unified catalog CRUD (brief 0023, AC-02). Mirrors the service/product server
-// actions but writes a single `catalog_items` collection discriminated by
-// `kind`. Services/products keep their own routes + collections until the
-// consumer migration (#1004) and UI convergence (#1005) land — this slice only
-// ADDS the unified model.
-
 export type CatalogItemMutationResult = { ok: true } | { ok: false; error: string }
 
-// Distributive Omit: keeps the discriminated union intact (each member keeps
-// its kind-specific fields) instead of collapsing to the common keys only.
 type StoredFields = 'id' | 'orgId' | 'archivedAt' | 'createdAt' | 'updatedAt'
 type CatalogItemPayload = CatalogItem extends infer T
   ? T extends CatalogItem
@@ -55,10 +47,6 @@ async function orgUnitIds(orgId: string): Promise<Set<string>> {
   return new Set(await listUnitIds(orgId))
 }
 
-// AC-04: `categoryId` is a real FK into `orgs/{orgId}/categories/{id}`.
-// Defense in depth — like the unit check above, the server action validates the
-// referenced category exists in this org before accepting the write so a
-// crafted form can't point an item at a nonexistent/foreign category.
 async function orgCategoryExists(orgId: string, categoryId: string): Promise<boolean> {
   return (await getCategoryById(orgId, categoryId)) !== null
 }
@@ -144,18 +132,10 @@ async function parseCatalogItemForm(
     ...common,
     sku,
     stock: Math.round(stock),
-    // Default. The sovereign-base gate (createCatalogItem) resolves the raw GTIN
-    // and overrides this with the canonical GTIN-14 when valid; it stays null
-    // when the GTIN is absent/rejected, or when the base is unavailable.
     gtin14: null,
   }
 }
 
-// Strip the gate-owned `gtin14` from a parsed product payload before it becomes
-// an `updated` patch — the edit form never carries a real GTIN, so its
-// always-null `gtin14` must not overwrite the resolved reference. The result is
-// a partial patch (a subset of the item's fields), which is exactly what
-// `catalog_item.updated`'s `changes` accepts.
 function omitGtinFields(
   parsed: CatalogItemPayload & { kind: 'product' },
 ): Omit<CatalogItemPayload & { kind: 'product' }, 'gtin14'> {
@@ -170,10 +150,6 @@ export async function createCatalogItem(formData: FormData): Promise<CatalogItem
   const parsed = await parseCatalogItemForm(orgId, formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  // Sovereign-base gate (brief 0050, AC-05): runs at REGISTRATION (here), not at
-  // sale. For a product with a GTIN, resolve it against the base — reference a
-  // known product or auto-contribute a valid+unseen one — and stash the canonical
-  // GTIN-14 on the item. Best-effort: a base outage never blocks the cadastro.
   const productFields =
     parsed.kind === 'product'
       ? await runProductGate(formString(formData, 'gtin'), { name: parsed.name })
@@ -210,11 +186,6 @@ export async function updateCatalogItem(
   const parsed = await parseCatalogItemForm(orgId, formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  // The sovereign-base reference (`gtin14`) and its reconciliation marker are
-  // owned by the gate (createCatalogItem) + the reconciliation cron, NOT the
-  // edit form — `parseCatalogItemForm` always emits `gtin14: null` for products,
-  // so spreading it here would clobber a resolved reference to null on every
-  // edit (and orphan a reconciliation-pending item). Drop it from the changes.
   const changes = parsed.kind === 'product' ? omitGtinFields(parsed) : parsed
 
   const updated = await emitEvent(
@@ -236,15 +207,6 @@ export async function deleteCatalogItem(catalogItemId: string): Promise<CatalogI
   if (!r.ok) return r
   const orgId = r.ctx.membership.orgId
 
-  // One-verb "Excluir" (brief 0033, AC-03 — #1070): single destructive verb,
-  // hard vs soft decided here. Active-reference guard (AC-01/AC-02): a live
-  // consumer is an OPEN order with a line item referencing it, or an ACTIVE
-  // subscription whose frozen coverage snapshot includes it. Membership in a
-  // plan *definition* (`includedItemIds`) is editable config, not an active
-  // reference; closed/cancelled orders are historical and snapshotted. With an
-  // active reference we soft-delete (archive) — the item drops from the active
-  // catalog while open comandas/active subscriptions keep their frozen snapshot.
-  // With no active reference we hard-delete.
   if (!(await canDeleteCatalogItem(orgId, catalogItemId))) {
     return archiveCatalogItem(catalogItemId)
   }
@@ -255,13 +217,6 @@ export async function deleteCatalogItem(catalogItemId: string): Promise<CatalogI
     { _tag: 'catalog_item.deleted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
-  // Hard-delete the read-model row. The `*.deleted` event is kept in the stream;
-  // the projection write is skipped by the event store, so the row is dropped
-  // here — removes the Postgres typed `catalog_items` projection row (brief 0058).
-  // `canDeleteCatalogItem` already routes active consumers to archive, but a
-  // cross-aggregate `ON DELETE RESTRICT` FK (brief 0068 D2 — appointments whose
-  // `service_id` references this item) is the DB's last-line guard: convert its
-  // 23503 into a friendly result instead of a raw 500.
   try {
     await deleteOrgProjectionDoc(aggregateRef(CatalogItemConfig, orgId, catalogItemId))
   } catch (err) {
@@ -271,19 +226,12 @@ export async function deleteCatalogItem(catalogItemId: string): Promise<CatalogI
         error: 'Não é possível excluir este item: há agendamentos vinculados a ele.',
       }
     }
-    // A non-FK defect (CHECK/RLS/unknown) would otherwise escape as a raw
-    // 500; map it to the canonical generic message (detail stays in the log).
     return { ok: false as const, error: messageForCategory(classifyError(err)) }
   }
   revalidatePath('/catalog')
   return { ok: true }
 }
 
-// Archive a catalog item (uniform delete policy, brief 0027 AC-06). Where
-// delete-in-coverage is blocked, archive lets the owner retire an in-use item:
-// it stays resolvable for historical plans/orders but drops out of the active
-// catalog table + item pickers. Sets `archivedAt` via `catalog_item.archived`.
-// `archived=false` restores it.
 export async function archiveCatalogItem(
   catalogItemId: string,
   archived = true,
@@ -301,20 +249,6 @@ export async function archiveCatalogItem(
   return { ok: true }
 }
 
-// Service item ↔ memberOperation link (brief 0023, #1005). Moved here from the
-// now-deleted `/services` route (AC-10) — `/catalog` is the single place to
-// manage items, including which memberOperations execute a service. Reads the
-// unified `catalog_items` collection and writes the `catalogServiceIds` membership on
-// each affected memberOperation (event-sourced, `member_operation.updated`).
-//
-// Cross-edit reached from a service item's catalog editor. Enforces the #876
-// invariant (`item.unitIds ∩ MemberOperation.unitIds ≠ ∅`) before flipping each
-// pro's `catalogServiceIds` membership. Atomic per-pro: each affected memberOperation
-// gets a single document write.
-// Resolve the next `catalogServiceIds` array for one memberOperation whose link to
-// `service` flips. `should=true` enforces the #876 invariant (`item.unitIds ∩
-// MemberOperation.unitIds ≠ ∅`) and returns an error message string when violated;
-// otherwise returns the next array. Pure given the loaded memberOperation.
 function nextCatalogServiceIdsFor(
   pro: MemberOperation,
   service: { id: string; name: string; unitSet: ReadonlySet<string> },
@@ -323,7 +257,6 @@ function nextCatalogServiceIdsFor(
   if (should) {
     const sharesUnit = (pro.unitIds ?? []).some((u) => service.unitSet.has(u))
     if (!sharesUnit) {
-      // The enriched read already carries the memberOperation's name.
       const proName = pro.name || 'Profissional'
       return {
         error: `${proName} não atende em nenhuma unidade onde "${service.name}" é oferecido.`,
@@ -347,13 +280,7 @@ export async function setServiceMemberOperations(
   const serviceUnitSet = new Set(service.unitIds ?? [])
 
   const desired = new Set(memberOperationIds)
-  // "Who already performs this service?" — the inverse query served by the
-  // `member_operation_services` join (brief 0068 D3), replacing a fetch-all + JS
-  // `.includes()`. The WRITE still flows through `member_operation.updated` (the
-  // `catalogServiceIds` array in the reduced state) — only this READ migrates.
   const currentlyLinked = new Set(await listMemberOperationIdsForService(orgId, serviceId))
-  // Only memberOperations whose membership actually flips matter: the union of the
-  // desired set and those currently linked. Load just those (not every pro).
   const affectedIds = [...new Set([...desired, ...currentlyLinked])]
   const updates: { proId: string; nextCatalogServiceIds: string[] }[] = []
   for (const proId of affectedIds) {
@@ -361,8 +288,6 @@ export async function setServiceMemberOperations(
     const should = desired.has(proId)
     if (has === should) continue
     const pro = await getMemberOperationById(orgId, proId)
-    // `should && !has` with a missing memberOperation → the toggle targets a
-    // memberOperation that no longer exists; skip rather than emit against a ghost.
     if (!pro) continue
     const next = nextCatalogServiceIdsFor(
       pro,
@@ -373,8 +298,6 @@ export async function setServiceMemberOperations(
     updates.push({ proId: pro.id, nextCatalogServiceIds: next.ids })
   }
 
-  // Event-first: o vínculo pro↔serviço é estado do PROFISSIONAL — cada
-  // profissional afetado emite `member_operation.updated`.
   for (const u of updates) {
     const res = await emitEvent(
       MemberOperationConfig,

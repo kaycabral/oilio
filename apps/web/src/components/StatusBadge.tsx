@@ -1,10 +1,5 @@
 import type { ReactNode } from 'react'
 
-// Normalized status pill — ONE visual vocabulary for every list/detail status
-// across the app (vendas, assinaturas, catálogo, planos, equipe…). Each surface
-// maps its domain status to a semantic `tone`; the colors live here, so a
-// restyle is one edit. Kept app-level on purpose: the design `<List>` stays
-// status-agnostic (it just renders whatever `badge` node it's given).
 export type StatusTone = 'success' | 'warning' | 'danger' | 'neutral' | 'info'
 
 const TONE_CLASS: Record<StatusTone, string> = {
@@ -26,10 +21,6 @@ export function StatusBadge({ tone, children }: { tone: StatusTone; children: Re
   )
 }
 
-// A memberOperation not yet `operational` (#1047) reads IDENTICALLY on every
-// list/operational surface — one label, one tone — so the team list and the
-// agenda never disagree. The granular stage (Convite não aceito / Cadastro
-// incompleto) stays on the member DETAIL page, where the "why" is actionable.
 export function IncompleteProfileBadge() {
   return <StatusBadge tone="warning">Cadastro incompleto</StatusBadge>
 }

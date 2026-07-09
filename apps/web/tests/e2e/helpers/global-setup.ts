@@ -1,16 +1,3 @@
-// Pre-condição global da suíte E2E: garante que o stack está round-trip-ready
-// pros writes-then-queries que os seeds e specs assumem — o Auth emulator
-// (signup) e o event store Postgres (a única persistência pós-cutover #1202).
-//
-// Roda 1 vez, após `webServer` (Next) ficar pronto, antes do primeiro teste.
-// Custa <500ms quando o stack tá saudável; throw com mensagem clara se não
-// consistir em 30s (stack unhealthy → bug, não flake).
-//
-// Por que existir: o readiness do emulators:exec garante a porta do Auth
-// bindada, mas o signup pode ser racy no primeiro request; e o pool do event
-// store precisa estar aceitando conexões antes do primeiro seed. globalSetup
-// elimina a janela.
-
 import { Schema } from 'effect'
 import { execFileSync } from 'node:child_process'
 import { AUTH_HOST } from './emulator'
@@ -25,8 +12,6 @@ function curl(args: string[]): string {
   return execFileSync('curl', ['-fsS', ...args], { encoding: 'utf8' })
 }
 
-// Event store round-trip readiness: a trivial `SELECT 1` over OILIO_DATABASE_URL
-// proves the `oilio` pool accepts connections before the first seed INSERTs.
 async function tryEventStoreRoundtrip(): Promise<boolean> {
   if (!process.env.OILIO_DATABASE_URL) return true
   const { Client } = await import('pg')
@@ -75,18 +60,11 @@ async function waitFor(label: string, probe: () => Promise<boolean>): Promise<vo
   throw new Error(`[e2e] ${label} warmup failed after ${TIMEOUT_MS}ms — emulator may be unhealthy`)
 }
 
-// Apply the sovereign-base (Postgres) migrations once, before the first spec, so
-// the autofill specs (brief 0054) have the `product` table ready. Best-effort:
-// when DATABASE_URL is unset the base simply isn't part of this run (a plain
-// `playwright test` with no Postgres) — specs that need it set it up themselves /
-// assert the best-effort degradation. Runs through the runner that owns the
-// container (scripts/e2e-with-postgres.mjs / CI `services: postgres`).
 async function applyProductBaseMigrations(): Promise<void> {
   if (!process.env.DATABASE_URL) return
   const { runMigrations, closeDb } = await import('@cbrl/product')
   try {
     await runMigrations()
-    // Close the migrator pool — the specs open their own through the app.
     await closeDb()
   } catch (err) {
     throw new Error(
@@ -96,9 +74,6 @@ async function applyProductBaseMigrations(): Promise<void> {
 }
 
 export default async function globalSetup(): Promise<void> {
-  // The base migrations are independent of the warmups — run them all
-  // concurrently so the Postgres DDL roundtrip overlaps the probes instead of
-  // sitting on the critical path of every shard's startup.
   await Promise.all([
     waitFor('Auth', tryAuthSignup),
     waitFor('EventStore', tryEventStoreRoundtrip),

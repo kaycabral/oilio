@@ -1,19 +1,3 @@
-// Postgres integration test — #957, brief 0018 Grupo C (re-substrated to
-// Postgres by the cutover, #1202).
-//
-// Runs against the ephemeral `oilio` Postgres (OILIO_DATABASE_URL); the
-// event-store globalSetup applies the migrations.
-//
-// Cobre:
-// - AC-12: MessageTemplate config-doc — read custom vs default fallback. The
-//   `message_templates` table is an org-scoped CONFIG table (CRUD-ish, written
-//   via `upsertMessageTemplate`, read under RLS). Seed via `upsertMessageTemplate`
-//   — the same upsert the settings server action runs.
-// - AC-14: dispatchNotificationWhatsapp renderiza + retorna link + grava
-//   notification.dispatched com snapshot (channel + body NÃO-renderizado). The
-//   notification is created through the event store; the customer's PII (name +
-//   mobile) lives on the global `users` row (materialized at read time).
-
 import { DEFAULT_NOTIFICATION_TEMPLATES } from '@/domain'
 import { NotificationConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
@@ -110,9 +94,6 @@ describe('dispatchNotificationWhatsapp (AC-14) — Postgres', () => {
     await closeEventStoreDb()
   })
 
-  // Seeds the customer's global `users` row (PII: name + mobile), the per-org
-  // `customers` shadow (id-ref only), and the notification through the event
-  // store — the live shape `dispatchNotificationWhatsapp` reads.
   async function seedCustomerAndNotification(orgId: string): Promise<{ notifId: string }> {
     const uid = `u-${Math.random().toString(36).slice(2, 8)}`
     const customerId = `c-${Math.random().toString(36).slice(2, 8)}`
@@ -169,7 +150,6 @@ describe('dispatchNotificationWhatsapp (AC-14) — Postgres', () => {
     const row = res.rows[0]
     expect(row?.dispatched_at).toBeTruthy()
     expect(row?.dispatch?.dispatchedChannel).toBe('wa_link')
-    // Snapshot é o body NÃO-renderizado (a receita), não o texto final.
     expect(row?.dispatch?.dispatchedBody).toBe(DEFAULT_NOTIFICATION_TEMPLATES.birthday)
     expect(row?.dispatch?.dispatchedBody).toContain('{cliente_nome}')
   })

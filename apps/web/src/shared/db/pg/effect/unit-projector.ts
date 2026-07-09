@@ -7,30 +7,8 @@ import type { PoolClient } from 'pg'
 import { buildCollectionQueryTail } from './collection-query'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `unit` context (brief 0059, AC-01/AC-05) — the physical
- * establishment, plugged into the per-context typed-projection registry without
- * reopening the `PersistencePort`.
- *
- * `upsert` decodes the reduced `state` against the domain `StoredUnit` schema —
- * the PII-omitted shape (whatsapp/email live in the deletable `units_pii`
- * sidecar, LGPD contract). It maps the union discriminants onto columns and the
- * variant bodies onto JSONB (mirrors the catalog-item `service | product`
- * pattern):
- *   - `agenda` (fixed | always_open | appointment) → `agenda_mode` column
- *     (CHECK) + `agenda` JSONB body.
- *   - `fiscal` (informal | company) → `fiscal_kind` column (CHECK) + `fiscal`
- *     JSONB body.
- * The DB enforces the discriminant CHECKs + non-empty name/slug/timezone + the FK
- * `org_id → orgs` — a violation rolls back event + projection together.
- */
-
 const decodeUnit = Schema.decodeUnknownSync(StoredUnit)
 
-/**
- * The ordered `units` column list — the single source of truth for the runtime
- * upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1.
- */
 export const UNIT_COLUMNS = [
   'org_id',
   'id',
@@ -49,16 +27,6 @@ export const UNIT_COLUMNS = [
   'updated_at',
 ] as const
 
-/**
- * Map a decoded `StoredUnit` (+ projection version) onto the ordered `units`
- * column VALUES — the inverse of `rowToDoc`, shared by the runtime projector and
- * the E2E seed. Order matches `UNIT_COLUMNS` exactly; `org_id`/`id` come straight
- * off the unit. The union discriminants (`agenda.mode`, `fiscal.kind`) are lifted
- * to columns; the full bodies ride in JSONB. `public_visible` mirrors the unit's
- * inferred public availability (`isUnitPubliclyLive`: appointment mode + complete
- * address & hours — no stored publish flag, PRD Identidade v2 / SPIKE) — kept
- * nullable for forward-compat.
- */
 export function unitColumnValues(unit: StoredUnit, lastEventVersion: number): unknown[] {
   const publicVisible = isUnitPubliclyLive(unit)
   return [
@@ -100,10 +68,6 @@ async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDo
   await client.query(UPSERT, unitColumnValues(unit, stateVersion(state)))
 }
 
-// Row shape the typed table stores; mapped back to the reducer's doc on read.
-// `agenda`/`fiscal` JSONB carry the full variant bodies (discriminants are also
-// lifted to `agenda_mode`/`fiscal_kind` columns, but the body is authoritative
-// on read — round-trips to the exact domain union).
 export type UnitRow = {
   org_id: string
   id: string
@@ -121,10 +85,6 @@ export type UnitRow = {
   updated_at: string
 }
 
-// Reconstructs the reducer's projected doc from the typed row (inverse of
-// `upsert`). The `agenda`/`fiscal` JSONB bodies are authoritative (they carry the
-// discriminant + the variant fields); the discriminant columns exist for the DB
-// CHECK + queryability, not for reconstruction. `_version` is re-attached.
 export function rowToDoc(row: UnitRow): FirestoreDoc {
   return {
     _version: Number(row.last_event_version),
@@ -155,9 +115,6 @@ async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
   await client.query('DELETE FROM units WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-// Org-scoped collection scan (a {@link CollectionRef} for `unit`): the domain
-// reads the whole unit list (no constraints) to fan a notification out per
-// establishment.
 async function list(
   client: PoolClient,
   ref: CollectionRef,
@@ -173,11 +130,6 @@ async function list(
 
 export const unitProjector: TypedProjector = { read, upsert, delete: remove, list }
 
-/**
- * `aggregate_type` for units = the typed `AggregateType` literal (`config.type`,
- * singular `unit`) — D6 (ADR 0013). The Postgres Layer routes by the ref's
- * `type`, so registration and routing agree on this literal.
- */
 export const UNIT_AGGREGATE_TYPE = UnitConfig.type
 
 registerTypedProjector(UNIT_AGGREGATE_TYPE, unitProjector)

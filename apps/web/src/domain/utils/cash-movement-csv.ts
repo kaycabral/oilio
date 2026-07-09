@@ -1,10 +1,5 @@
 import type { CashMovement } from '../types/cash-movement'
 
-// CSV minimo, Excel-friendly (BOM + CRLF) por padrão BR.
-// Colunas: data (UTC ISO), unidade, tipo, direção, valor (em R$ com vírgula),
-// forma de pagamento, orderId, descrição. Caller resolve nomes humanos
-// (unidade, categoria) e passa via maps — assim este util fica puro/testável.
-
 type LookupMaps = {
   unitNameById?: Record<string, string>
   expenseCategoryNameById?: Record<string, string>
@@ -23,7 +18,6 @@ const HEADER_ROW = [
 ] as const
 
 function csvEscape(value: string): string {
-  // RFC 4180: aspas se houver vírgula/quebra/aspa. Duplicar aspa interna.
   if (/[",\r\n]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`
   }
@@ -31,8 +25,6 @@ function csvEscape(value: string): string {
 }
 
 function formatAmountBR(amountCents: number): string {
-  // Mantém vírgula decimal pra Excel BR. Sem separador de milhar — evita
-  // ambiguidade ao reimportar.
   const reais = (amountCents / 100).toFixed(2).replace('.', ',')
   return reais
 }
@@ -64,6 +56,5 @@ export function buildCashMovementsCsv(
         .join(','),
     )
   }
-  // BOM + CRLF para abrir como UTF-8 no Excel sem mojibake.
   return '﻿' + lines.join('\r\n') + '\r\n'
 }

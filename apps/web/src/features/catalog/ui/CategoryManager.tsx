@@ -10,9 +10,6 @@ import {
 import { Button, Input, Label } from '@cbrl/design'
 import { useState, useTransition } from 'react'
 
-// Builds the "isto vai…" warning (brief 0033, AC-10/AC-11): deleting a category
-// re-buckets its active items to "Sem categoria". No blocker — categories carry
-// no impact to orders/reports/subscription coverage.
 function buildCategoryImpact(categoryId: string): () => Promise<DeletionImpact> {
   return async () => {
     const r = await getCategoryDeletionImpactAction(categoryId)
@@ -24,11 +21,6 @@ function buildCategoryImpact(categoryId: string): () => Promise<DeletionImpact> 
   }
 }
 
-// Compact inline category manager (brief 0023, AC-09). The category picker in
-// the item form needs Category entities to read; rather than a full standalone
-// CRUD page, the owner manages them inline below the catalog list. Create +
-// delete cover the essentials (rename/recolor is deferrable — see MR notes).
-// Mutations go through the event-sourced `categories/actions.ts`.
 export function CategoryManager({
   categories,
   canManage,

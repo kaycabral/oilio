@@ -13,7 +13,6 @@ const BRL_NUMBER = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 0,
 })
 
-// Chart viewBox — render at this internal coordinate system and let CSS scale.
 const VB_WIDTH = 800
 const VB_HEIGHT = 240
 const PADDING_LEFT = 56
@@ -25,8 +24,6 @@ function niceMax(value: number): number {
   if (value <= 0) return 1
   const magnitude = Math.pow(10, Math.floor(Math.log10(value)))
   const scaled = value / magnitude
-  // Round up to the next "nice" multiple — 1, 2, 5, 10 — to keep axis labels
-  // readable without depending on a chart lib.
   const nice = niceMultiple(scaled)
   return nice * magnitude
 }
@@ -39,8 +36,6 @@ function niceMultiple(scaled: number): number {
 }
 
 function formatShortDate(date: string): string {
-  // YYYY-MM-DD → DD/MM. We deliberately drop the year here; the page header
-  // already pins the period, so axis labels staying compact wins.
   const [, m, d] = date.split('-')
   return `${d}/${m}`
 }
@@ -81,7 +76,6 @@ export function TrendChart({ points }: TrendChartProps) {
     const rect = svg.getBoundingClientRect()
     const ratio = (event.clientX - rect.left) / rect.width
     const xCoord = ratio * VB_WIDTH
-    // Find nearest index by x-coordinate.
     let nearest = 0
     let nearestDist = Infinity
     for (let i = 0; i < xs.length; i++) {
@@ -97,8 +91,6 @@ export function TrendChart({ points }: TrendChartProps) {
   const revenuePath = pointsToPath(xs, revenueYs)
   const subsPath = pointsToPath(xs, subsYs)
 
-  // Axis tick positions — first and last always; we add up to 4 intermediates
-  // when the series is long enough.
   const tickIdxs = computeTickIdxs(points.length)
 
   return (
@@ -130,15 +122,12 @@ export function TrendChart({ points }: TrendChartProps) {
               onPointerMove={handleMove}
               onPointerLeave={() => setHoverIdx(null)}
             >
-              {/* Y axis: revenue (left, BRL) */}
               <AxisLabels
                 side="left"
                 max={revenueMax}
                 formatter={(v) => `R$ ${BRL_NUMBER.format(Math.round(v / 100))}`}
               />
-              {/* Y axis: subs (right, integer count) */}
               <AxisLabels side="right" max={subsMax} formatter={(v) => `${Math.round(v)}`} />
-              {/* Gridlines */}
               {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
                 const y = PADDING_TOP + (1 - frac) * (VB_HEIGHT - PADDING_TOP - PADDING_BOTTOM)
                 return (
@@ -155,7 +144,6 @@ export function TrendChart({ points }: TrendChartProps) {
                 )
               })}
 
-              {/* Revenue line */}
               <path
                 d={revenuePath}
                 fill="none"
@@ -163,7 +151,6 @@ export function TrendChart({ points }: TrendChartProps) {
                 className="text-emerald-500"
                 strokeWidth={2}
               />
-              {/* Subs line */}
               <path
                 d={subsPath}
                 fill="none"
@@ -172,7 +159,6 @@ export function TrendChart({ points }: TrendChartProps) {
                 strokeWidth={2}
               />
 
-              {/* X axis labels */}
               {tickIdxs.map((i) => (
                 <text
                   key={i}
@@ -185,7 +171,6 @@ export function TrendChart({ points }: TrendChartProps) {
                 </text>
               ))}
 
-              {/* Hover guide */}
               {hoverIdx !== null ? (
                 <>
                   <line
@@ -210,11 +195,7 @@ export function TrendChart({ points }: TrendChartProps) {
             </svg>
 
             {hoverIdx !== null ? (
-              <TrendTooltip
-                point={points[hoverIdx]!}
-                // Anchor tooltip near the cursor inside the chart bounds.
-                xRatio={xs[hoverIdx]! / VB_WIDTH}
-              />
+              <TrendTooltip point={points[hoverIdx]!} xRatio={xs[hoverIdx]! / VB_WIDTH} />
             ) : null}
           </div>
         )}
@@ -281,8 +262,6 @@ function AxisLabels({
 }
 
 function TrendTooltip({ point, xRatio }: { point: TrendPoint; xRatio: number }) {
-  // Place the tooltip near the hovered x, clamping to keep it within the
-  // card. xRatio is the chart-local fraction of the active point.
   const leftSide = xRatio > 0.6
   return (
     <div

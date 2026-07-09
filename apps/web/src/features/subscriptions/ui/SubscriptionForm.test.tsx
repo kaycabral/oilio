@@ -6,9 +6,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SubscriptionForm } from './SubscriptionForm'
 
-// `createSubscription(formData)` is the server action the form dispatches via
-// `<form action>`. Stub it at that boundary; assertions read the submitted
-// FormData back to confirm the wired-up billingCycle.
 type ActionResult = { ok: true; subscriptionId: string } | { ok: false; error: string }
 type CreateAction = (formData: FormData) => Promise<ActionResult>
 
@@ -28,8 +25,6 @@ vi.mock('next/navigation', () => ({
 
 const CUSTOMERS: CustomerLite[] = [{ id: 'c1', name: 'João' }]
 
-// plans[0] is annual (the mount default), plans[1] is monthly — switching to it
-// must re-derive the billing cycle (the bug: it stayed annual).
 const PLANS: PlanLite[] = [
   { id: 'plan-annual', name: 'Anual VIP', priceCents: 89900, billingCycle: 'annual', active: true },
   { id: 'plan-monthly', name: 'Mensal', priceCents: 9900, billingCycle: 'monthly', active: true },
@@ -49,7 +44,6 @@ describe('SubscriptionForm — billing cycle follows the plan (#B5)', () => {
 
   it('re-derives the cycle when the plan changes', () => {
     render(<SubscriptionForm customers={CUSTOMERS} plans={PLANS} />)
-    // Switch from the annual default to the monthly plan.
     fireEvent.click(screen.getByRole('combobox', { name: /plano/i }))
     fireEvent.click(screen.getByRole('option', { name: /Mensal —/i }))
     expect(screen.getByRole('combobox', { name: /ciclo de cobrança/i })).toHaveTextContent('Mensal')

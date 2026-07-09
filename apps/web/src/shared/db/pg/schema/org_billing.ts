@@ -11,23 +11,6 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
-/**
- * Typed relational projection for the `org_billing` aggregate (brief 0071) — the
- * Assinatura Oilio: a Negócio's SaaS subscription to Oilio itself. CRUD mirror of
- * Stripe's ledger (Stripe is the system of record), NOT event-sourced truth.
- *
- * Keyed by single-column PK `org_id` — one billing row per Negócio (org_id == id,
- * the org is its own scope), the leading RLS column (policy filters
- * `org_id = current_setting('app.current_org')`, same shape as every typed table).
- *
- * Invariants enforced HERE (proven by integration against real Postgres):
- *   - `tier ∈ {free, pro, advanced}` and `status ∈ {...}` as CHECKs (TEXT + CHECK,
- *     not pg enum, to stay aligned with the domain's `Schema.Literal` — ADR 0011 D3).
- *   - `billing_cycle ∈ {monthly, annual}` when present (null on free).
- *   - `unit_quantity >= 0`.
- *   - partial-UNIQUE on `stripe_customer_id` / `stripe_subscription_id` (a Stripe
- *     object maps to at most one Negócio).
- */
 export const orgBilling = pgTable(
   'org_billing',
   {
@@ -69,28 +52,11 @@ export const orgBilling = pgTable(
   ],
 )
 
-/**
- * Non-RLS lookup index `stripe_customer_id → org_id` (brief 0071, AC-04). The
- * Stripe webhook (feature E) has no session/org context, so it can't read the
- * RLS-guarded `org_billing` to resolve the org. It reads this tiny public-by-
- * contract table on the raw pool (mirrors `public_org_directory`/`listAllOrgIds`),
- * gets the orgId, then writes via `emitEvent` (which sets the RLS GUC from the
- * ref). Carries ONLY the id mapping — no operational/billing data.
- */
 export const orgBillingStripeIndex = pgTable('org_billing_stripe_index', {
   stripeCustomerId: text('stripe_customer_id').primaryKey(),
   orgId: text('org_id').notNull(),
 })
 
-/**
- * Webhook idempotency ledger (brief 0074, AC-02). Stripe delivers each event
- * at-least-once, so the handler must process every `event.id` exactly once. It
- * inserts the id here with `ON CONFLICT DO NOTHING` BEFORE applying any state
- * change; a conflict (already present) means "seen before" → the handler returns
- * 200 early without re-applying. Non-RLS: the webhook has no session/org context
- * and the table carries no org-scoped data — only the Stripe event id + when it
- * was processed.
- */
 export const stripeWebhookEvents = pgTable('stripe_webhook_events', {
   eventId: text('event_id').primaryKey(),
   processedAt: timestamp('processed_at', { withTimezone: true, mode: 'string' })

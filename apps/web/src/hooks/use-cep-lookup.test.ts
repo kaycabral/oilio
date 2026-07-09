@@ -8,8 +8,6 @@ afterEach(() => {
 
 describe('useCepLookup', () => {
   it('surfaces a friendly fixed message on a failed lookup — never the raw error', async () => {
-    // A 503 makes the hook throw `CEP lookup failed (503)` internally; the user
-    // must NOT see that technical text (disclosure wall, brief 0085).
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({ ok: false, status: 503, json: () => Promise.resolve({}) }),
@@ -20,14 +18,10 @@ describe('useCepLookup', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.data).toBeNull()
     expect(result.current.error).toBe('Não foi possível consultar o CEP. Tente novamente.')
-    // The raw internal message must not leak.
     expect(result.current.error).not.toMatch(/503|CEP lookup failed/i)
   })
 
   it('preserves the API business message on a failed lookup (ADR 0015 origin boundary)', async () => {
-    // A `!r.ok` response carrying a curated `error` ("CEP não encontrado.") is a
-    // business message authored by our own API — safe to show verbatim. The wall
-    // neutralizes technical text, not curated business text (trust = origin).
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({

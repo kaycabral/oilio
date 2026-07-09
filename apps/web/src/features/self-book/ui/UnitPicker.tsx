@@ -3,9 +3,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 
-// Multi-unit picker for the public org landing (#841). Rendered when
-// the org has 2+ units. The page falls through to `<UnitCatalog>`
-// directly when there is exactly one unit.
 export function UnitPicker({
   org,
   units,
@@ -15,9 +12,6 @@ export function UnitPicker({
   org: Org
   units: Unit[]
   slug: string
-  // Brief 0019 Group D — AC-16. Optional banner rendered above the
-  // unit list when the visitor is a scope-bearing subscriber. Parent
-  // owns the data — keeps this component pure.
   coverageBanner?: ReactNode
 }) {
   const { branding } = org

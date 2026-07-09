@@ -38,8 +38,6 @@ export function OnboardingForm() {
         setError(result.error)
         return
       }
-      // First Negócio (post-signup): enter the app. The (app) layout resolves
-      // the new org context; the guided first-unit empty state takes over.
       router.replace('/')
     })
   }

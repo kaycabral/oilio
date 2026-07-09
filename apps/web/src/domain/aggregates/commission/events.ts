@@ -8,7 +8,6 @@ export const CommissionCreatedSchema = Schema.Struct({
 
 export const CommissionUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('commission.updated'),
-  // `Schema.partial` exige struct (não atravessa o refinement do Commission).
   changes: Schema.partial(CommissionFields),
 })
 

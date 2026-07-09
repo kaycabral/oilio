@@ -33,11 +33,6 @@ async function loadClosedOrders(orgId: string, filters: DashboardFilters): Promi
   return rows.map((r) => decodeOrder(orderRowToDoc(r)))
 }
 
-// `newSubs` reflete só a unidade ativa (brief 0043, AC-03): a assinatura é dona
-// de uma unidade (`Subscription.unitId`, #1117), então escopa quando há unidade
-// ativa — org-wide só quando não há nenhuma no contexto. A janela `createdAt`
-// é a mesma `[fromUtc, toUtcExclusive)` do Firestore (coluna `created_at` é
-// texto ISO, comparada como string). Lê a projeção tipada sob RLS.
 async function loadSubscriptionsCreatedInWindow(
   orgId: string,
   filters: DashboardFilters,

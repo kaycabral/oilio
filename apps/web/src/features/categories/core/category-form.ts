@@ -1,7 +1,3 @@
-// Functional core for the category form: pure parsing + validation of the
-// submitted FormData into a typed payload (or a user-facing error string). No
-// I/O — the adapter (categories.actions) does the event emission.
-
 import { CATEGORY_NAME_MAX, CATEGORY_NAME_MIN } from '@/domain'
 
 import { formString } from '@/shared/form-data'

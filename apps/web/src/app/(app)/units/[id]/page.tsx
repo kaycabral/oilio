@@ -14,9 +14,6 @@ export default async function EditUnitPage({ params }: { params: Promise<{ id: s
   const { id } = await params
   const { orgId, unit, org, unitTaxIdentity, canFormalize } = await loadUnitForEdit(id)
 
-  // Fiscal identity lives on the unit (PRD Identidade v2). A formalized unit
-  // shows the read-only section; an informal one shows the Formalizar CTA
-  // (owner-only). The Negócio folder no longer carries any fiscal block.
   function fiscalBlock() {
     if (isCompanyUnitFiscal(unit.fiscal)) {
       return <FiscalSection unit={unit} taxIdentity={unitTaxIdentity} />
@@ -36,9 +33,6 @@ export default async function EditUnitPage({ params }: { params: Promise<{ id: s
       <Typography variant="pageTitle">Editar unidade</Typography>
       <UnitForm unit={unit} />
 
-      {/* Agenda-mode-only settings (cancellation policy + messages, moved Org→Unit
-          in C3) — render ONLY when the unit is in appointment mode. No global
-          "Políticas" page anymore. */}
       <UnitAgendaSettings unit={unit} />
 
       {fiscalBlock()}

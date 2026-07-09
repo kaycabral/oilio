@@ -111,7 +111,6 @@ describe('selectInactiveCustomerPendencies', () => {
   })
 
   it('does not flag brand-new customers as inactive', () => {
-    // Created less than the threshold ago — too soon to consider "sumido".
     const fresh = makeCustomer({
       id: 'fresh',
       name: 'New',

@@ -1,5 +1,3 @@
-// Unit tests pra canCustomerCancelSubscription — AC-11/12 brief 0003 (#651).
-
 import { describe, expect, it } from 'vitest'
 import { canCustomerCancelSubscription } from './subscription-self-cancel'
 import type { Subscription } from './types/subscription'

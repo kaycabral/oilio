@@ -17,9 +17,6 @@ import {
   SelectValue,
 } from '@cbrl/design'
 
-// One unit's override row (price / duration / commission). Blank fields inherit
-// the definition default. Split out so the overrides fieldset — and the form —
-// stay under the complexity gate.
 function UnitOverrideRow({
   unit,
   override,
@@ -124,8 +121,6 @@ function UnitOverrideRow({
   )
 }
 
-// Per-unit exception editor (price/duration/commission overrides), collapsible.
-// Only shown when the org has >1 unit and the item is in at least one.
 export function UnitOverridesFieldset({
   units,
   selectedUnitIds,

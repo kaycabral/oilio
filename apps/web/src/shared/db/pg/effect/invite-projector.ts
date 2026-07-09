@@ -4,23 +4,8 @@ import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `invite` context (brief 0060, Grupo A) — plugged into
- * the per-context typed-projection registry without reopening the
- * `PersistencePort`.
- *
- * `upsert` decodes the reduced `state` against the domain `StoredInvite` schema
- * (the email-omitted shape — `email` lives in the deletable `invites_pii/{id}`
- * sidecar and merges at read time). It maps the scalars (role/status/tokenHash/
- * expiresAt/invitedBy/acceptedBy*) onto columns the DB constrains, including the
- * acceptance-consistency CHECK lifted from the domain refinement. The DB enforces
- * the invariants — a violation rolls back event + projection together.
- */
-
 const decodeInvite = Schema.decodeUnknownSync(StoredInvite)
 
-/** The ordered `invites` column list — single source of truth for the runtime
- * upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1. */
 export const INVITE_COLUMNS = [
   'org_id',
   'id',
@@ -77,7 +62,6 @@ async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc
   await client.query(UPSERT, inviteColumnValues(invite, ref, stateVersion(state)))
 }
 
-// Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type InviteRow = {
   org_id: string
   id: string
@@ -93,9 +77,6 @@ export type InviteRow = {
   updated_at: string
 }
 
-// Reconstructs the reducer's projected doc from the typed row (inverse of
-// `upsert`). `_version` is re-attached. PII (`email`) is NOT present (merged from
-// `invites_pii/` at read time).
 export function rowToDoc(row: InviteRow): FirestoreDoc {
   return {
     _version: Number(row.last_event_version),

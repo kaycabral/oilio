@@ -1,8 +1,3 @@
-// Functional core for the post-OAuth completion form (#838): pure parsing +
-// validation of name/mobile/birthDate into a typed payload (or a user-facing
-// error string), plus the minimum-age rule. No I/O — the completeProfile adapter
-// does the stub-dedupe, the user write, and the memberOperation re-derivation.
-
 import { normalizeBrazilMobile, parseBirthDate } from '@/domain'
 import { formString } from '@/shared/form-data'
 
@@ -33,15 +28,6 @@ export function parseProfileForm(formData: FormData): ProfileFormPayload | strin
   return { name, mobile, birthDate: birthDateResult.value }
 }
 
-// Progressive profiling (brief 0077 Grupo C — AC-08/AC-09, #1277). The
-// completion step pre-fills whatever the identity already gives us (name + email
-// from the Google OAuth profile, plus any mobile/birthDate a returning user
-// already has) and only *highlights* what's still missing. Pre-filled fields stay
-// editable — this drives copy + focus, not validation (the server still parses
-// every field). Pure: derived from the User snapshot, no I/O.
-
-// The identity facts available to pre-fill the completion form. Mirrors the
-// subset of `User` the page resolves (OAuth display name/email + any prior PII).
 export type ProfileKnownFacts = {
   name: string | null
   email: string | null
@@ -54,14 +40,9 @@ export type ProfilePrefill = {
   email: string
   mobile: string
   birthDate: string
-  // The fields the customer still has to provide (empty in the known facts).
-  // Drives the "só o que falta" copy + initial focus; everything renders, but
-  // these are the ones the customer actually needs to touch.
   missing: Array<'name' | 'mobile' | 'birthDate'>
 }
 
-// Required completion fields, in render order. Email is captured from OAuth and
-// not a hard requirement of `parseProfileForm`, so it's not in this list.
 const REQUIRED_FIELDS = ['name', 'mobile', 'birthDate'] as const
 
 export function deriveProfilePrefill(facts: ProfileKnownFacts): ProfilePrefill {
@@ -82,7 +63,6 @@ export function deriveProfilePrefill(facts: ProfileKnownFacts): ProfilePrefill {
   }
 }
 
-// Returns true when `birthDate` is at least `minYears` ago. ISO `YYYY-MM-DD`.
 export function meetsMinAge(
   birthDate: string,
   minYears: number,

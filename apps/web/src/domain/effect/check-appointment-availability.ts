@@ -10,8 +10,6 @@ import { findAppointmentConflicts, type AppointmentInterval } from '../utils/app
 import { AppointmentConflictError, EntityNotFoundError } from './errors'
 import { PersistencePort } from './services'
 
-// Overlap detection needs only these fields off each stored appointment; decode
-// just this projection (excess ignored) so the read tolerates the full doc.
 const AppointmentForOverlap = Schema.Struct({
   id: Schema.String,
   memberOperationId: Schema.String,
@@ -51,8 +49,6 @@ export function checkAppointmentAvailability(input: {
     const existing = appointmentDocs.map((d) => Schema.decodeUnknownSync(AppointmentForOverlap)(d))
 
     const blockDocs = yield* persistence.getDocs(collectionRef(AgendaBlockConfig, input.orgId))
-    // Raw blocks (recurring/one-off) resolved to concrete day segments — the
-    // shape `findAppointmentConflicts` expects (previously a raw-doc cast).
     const blocks = blockDocs.map((d) => Schema.decodeUnknownSync(AgendaBlock)(d))
     const blockSegments = getBlockSegmentsForDay(blocks, input.date, input.tz)
 

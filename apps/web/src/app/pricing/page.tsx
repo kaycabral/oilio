@@ -19,7 +19,6 @@ export const metadata: Metadata = {
 }
 
 export default async function PricingPage() {
-  // Mesmo gate da home: usuário autenticado não fica preso na página pública.
   if (isFirebaseConfigured()) {
     const session = await getSessionUser()
     if (session) redirect('/dashboard')

@@ -2,20 +2,8 @@ import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { recordSaleMovement } from './sale-movement'
 
-// Integration test for the I/O part of the cash adapter (brief 0065 § Grupo B,
-// AC-04). `recordSaleMovement` emits `cash_movement.created`; the reducer
-// projects the row into `cash_movements` in the same tx. This proves the
-// standalone cash path (brief 0015 — caixa sem sessão) actually lands a row
-// against real Postgres, complementing the pure shape test in `sale-movement.test.ts`.
-//
-// globalSetup applies the migrations; OILIO_DATABASE_URL is the ephemeral `oilio`
-// database (docker locally, services:postgres in CI).
-
 const ORG = 't1'
 
-// Parent rows the new D2/0068 FKs require: the org, the unit (cash_movements
-// .unit_id → units), and the order (cash_movements.order_id → orders; deferrable,
-// but still checked at commit when non-null).
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)

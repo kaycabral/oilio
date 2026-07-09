@@ -4,19 +4,6 @@ import { buildUser } from '@/shared/fixtures/domain-builders'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { listActiveCustomersForOrg, listCustomersForOrg } from './customer-read'
 
-/**
- * The active-customer reader against REAL Postgres. `listActiveCustomersForOrg`
- * is what the pickers (new appointment, new subscription) read, and it must drop
- * BOTH non-active states:
- *   - `archivedAt`    — LGPD block (brief 0032, AC-09/AC-11)
- *   - `deactivatedAt` — operator "Excluir cliente" (brief 0033, AC-07)
- * while `listCustomersForOrg` (the display/history map) keeps ALL of them so an
- * existing appointment/order still resolves the customer's name. This is the
- * customer-side analogue of the agenda memberOperation read-path invariant: the
- * picker offers only what can legitimately be selected now; history resolves the
- * rest. Per-run-unique org ids isolate each case.
- */
-
 const TS = '2026-06-01T12:00:00.000Z'
 
 let seq = 0
@@ -29,9 +16,6 @@ function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${seq}`
 }
 
-// `users_mobile_unique` is GLOBAL, so two seeded customers can't share a
-// number. Derive a valid 13-digit BR mobile (55 + 11 + 9 + 8 digits) from the
-// per-run-unique uid so every seeded user gets its own.
 function uniqueMobile(seedUid: string): string {
   let hash = 0
   for (let i = 0; i < seedUid.length; i++) hash = (hash * 31 + seedUid.charCodeAt(i)) >>> 0
@@ -51,8 +35,6 @@ async function seedOrg(orgId: string): Promise<void> {
   )
 }
 
-// Seeds a customer shadow with the linked global user (so enrich resolves a
-// name). `archivedAt`/`deactivatedAt` set the non-active states. Returns the id.
 async function seedCustomer(
   orgId: string,
   opts: { name: string; archivedAt?: string | null; deactivatedAt?: string | null } = {

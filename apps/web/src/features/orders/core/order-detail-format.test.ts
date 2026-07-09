@@ -95,7 +95,6 @@ describe('buildCatalogOptions', () => {
       kind: 'product',
       code: 'ACD-1',
     })
-    // services carry a null code (no SKU)
     expect(options[1]?.code).toBeNull()
   })
 })
@@ -113,7 +112,6 @@ describe('filterCatalog', () => {
 
   it('matches by name, accent/case-insensitive', () => {
     expect(filterCatalog(options, 'corte').map((o) => o.id)).toEqual(['s1'])
-    // CÔRTE → lowercased + accent-stripped → "corte", still matches "Corte".
     expect(filterCatalog(options, 'CÔRTE').map((o) => o.id)).toEqual(['s1'])
   })
 

@@ -4,11 +4,6 @@ import { groupAvailabilityByLocalTime, type AvailabilityRow } from '@/domain'
 import { resolveScopeForSessionBySlug } from '@/features/booking/adapters/subscription-scope.repo'
 import { getPublicAvailability } from './availability'
 
-// Server action behind the single-page booking wizard. The client picks a date +
-// (optional) memberOperation and gets back the grouped slot grid for that day —
-// the same `getPublicAvailability` the RSC uses, plus the subscription time-scope
-// resolution. Lets the wizard re-query on every date/professional change without
-// a full navigation. PII never crosses (the bundle carries id+name only).
 export type WizardAvailabilityResult =
   | {
       ok: true

@@ -3,14 +3,8 @@ import { Card, CardContent, CardDescription, CardTitle, cn } from '@cbrl/design'
 export type KpiCardProps = {
   label: string
   formattedValue: string
-  // Already-formatted previous value to display under the delta. When null,
-  // the metric is a snapshot (no comparison).
   previousFormatted?: string | null
-  // Signed delta percentage (e.g. 12.5 means +12.5%). Null when current or
-  // previous is 0 — we don't show "∞%" or a division-by-zero artifact.
   deltaPct?: number | null
-  // Larger-is-better for green/red coloring. Defaults to true; set false if
-  // you ever want to invert (none of the V0 metrics needs that).
   goodIfUp?: boolean
 }
 
@@ -55,8 +49,6 @@ export function KpiCard({
     </Card>
   )
 }
-
-// --- formatters used by the dashboard page ---
 
 const BRL_FMT = new Intl.NumberFormat('pt-BR', {
   style: 'currency',

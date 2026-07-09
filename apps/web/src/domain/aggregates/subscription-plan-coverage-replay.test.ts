@@ -1,15 +1,3 @@
-// Brief 0024 (#1008) — plan coverage by granular items.
-//
-// Proves, event-first, that a plan's coverage (`includedItemIds` +
-// `includedCategoryIds`) is reconstructible purely from the domain event
-// stream: `created` carries the initial coverage snapshot, a coverage-change
-// `updated` event mutates it, and `replayAggregate` rebuilds the exact
-// projection from events only (no field written outside an event).
-//
-// Also asserts Group C's invariant (AC-06): there is NO opaque "combo/pacote"
-// `CatalogItem` kind — a package IS a plan's coverage (a set of granular
-// items), enforced by `CATALOG_ITEM_KINDS` being exactly {service, product}.
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -37,9 +25,6 @@ describe('SubscriptionPlan coverage — replay reconstructs items + categories (
               description: null,
               priceCents: 12000,
               billingCycle: 'monthly',
-              // Coverage = granular items (a service + a product) + a
-              // convenience category. No opaque combo item — the package IS
-              // this set (AC-06).
               includedItemIds: ['svc-barba', 'prod-pomada'],
               includedCategoryIds: ['cat-cabelo'],
               usageLimit: { kind: 'unlimited' },
@@ -50,8 +35,6 @@ describe('SubscriptionPlan coverage — replay reconstructs items + categories (
             },
           },
         })
-        // Coverage-change: drop a category, add a third item. Flows through a
-        // domain event (never a direct write).
         yield* appendEvent(SubscriptionPlanConfig, ref, {
           _tag: 'subscription_plan.updated',
           actorId: 'owner-1',

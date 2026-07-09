@@ -4,11 +4,6 @@ import type { CatalogItem, CatalogItemUnitOverride, StoredUnit } from '@/domain'
 import { resolveDefaultNewUnitIds } from '@/features/catalog/core/catalog-item-format'
 import { useState, type Dispatch, type SetStateAction } from 'react'
 
-// Imperative shell for the catalog item's multi-unit scope: which units the item
-// is offered in (brief 0012) and the per-unit overrides (price/duration/
-// commission). Extracted from the form component to keep it thin — the form just
-// renders this state. A NEW item defaults to the active unit pre-checked (0039);
-// an EDIT keeps the item's stored selection.
 export interface CatalogUnitScope {
   readonly selectedUnitIds: Set<string>
   readonly overrides: Record<string, CatalogItemUnitOverride>
@@ -39,8 +34,6 @@ export function useCatalogUnitScope(
       else next.delete(id)
       return next
     })
-    // Dropping a unit drops its override too — no orphan overrides for a unit the
-    // item no longer serves.
     if (!checked) {
       setOverrides((prev) => {
         if (!(id in prev)) return prev

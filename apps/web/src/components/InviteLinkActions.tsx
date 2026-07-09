@@ -4,9 +4,6 @@ import { Button, Input } from '@cbrl/design'
 import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 
-// WhatsApp glyph — the action that matters on an invite surface is "send on
-// WhatsApp", so it gets the brand mark on the primary button (no generic "send"
-// icon competing). Shared between the client and member invite modals.
 export function WhatsappIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
@@ -15,23 +12,6 @@ export function WhatsappIcon({ className }: { className?: string }) {
   )
 }
 
-// Shared invite affordances: a read-only link preview + copy button + primary
-// "open on WhatsApp" button. Rendered on both the client and member invite
-// modals so the two surfaces read identically.
-//
-// The block is ALWAYS visible so the modal never grows/reflows — it flips from
-// disabled to enabled as the number becomes valid. The link field shows a LIVE
-// preview built as the number is typed; for the member flow the token isn't
-// minted yet, so `linkPreview` carries a placeholder token (••••) and the field
-// stays `disabled` (not just readOnly) — so the operator can't select/copy a
-// half-baked link before it's real.
-//
-// `onEnsure` bridges the two flows: the client link is already final (returns
-// it as-is), the member link needs a server round-trip to mint the token.
-// Copy and Send both call it first, so a single click "generates and does the
-// thing". `generateLabel` (only on the member flow) makes the primary button
-// read "Gerar e abrir no WhatsApp" until the link exists, then "Abrir no
-// WhatsApp".
 export function InviteLinkActions({
   linkPreview,
   ready,
@@ -40,27 +20,11 @@ export function InviteLinkActions({
   resolveSendHref,
   generateLabel,
 }: {
-  // Live preview of the link (with a placeholder token for the member flow).
-  // Empty string until the number is valid.
   linkPreview: string
-  // The number is valid — affordances enable.
   ready: boolean
-  // The final link (real token) exists. Client flow: same as `ready`. Member
-  // flow: only after "Gerar". Drives the copy button's ready state and whether
-  // the primary button still needs to generate.
   generated: boolean
-  // Ensures the FINAL link (mints the member token if needed) and returns it,
-  // or null on failure. Called before copy/send. Client flow returns the link
-  // synchronously; member flow does the round-trip.
   onEnsure: () => Promise<string | null>
-  // Resolves the wa.me deep link to open. The caller builds the href from the
-  // ensured invite. Returns null when there is nothing to open. The window is
-  // opened HERE (synchronously in the click) and navigated to this href — so a
-  // member-flow round-trip in `onEnsure` can't push the open outside the user
-  // gesture and trip the popup blocker.
   resolveSendHref: () => string | null
-  // Member flow only: label for the primary button while the link isn't minted.
-  // Omit for the client flow (button is always "Abrir no WhatsApp").
   generateLabel?: string
 }) {
   const [copied, setCopied] = useState(false)
@@ -84,14 +48,6 @@ export function InviteLinkActions({
   async function onPrimary(): Promise<void> {
     if (!ready || busy) return
     setBusy(true)
-    // Open the tab synchronously inside the click (still a trusted user gesture),
-    // THEN navigate it once the link is ensured. If we awaited `onEnsure` first,
-    // the member flow's server round-trip would push `window.open` past the gesture
-    // and the browser would block the popup — the exact failure the old `<a>` link
-    // avoided. For the client flow (no round-trip) this is equivalent. We can't pass
-    // `noopener` here (it makes `window.open` return null, so we couldn't navigate
-    // the tab) — instead we sever `opener` right after navigating to restore the
-    // reverse-tabnabbing protection.
     const popup = window.open('', '_blank')
     try {
       const link = generated ? linkPreview : await onEnsure()
@@ -118,10 +74,6 @@ export function InviteLinkActions({
         <Input
           readOnly
           aria-label="Link do convite"
-          // Disabled (not just readOnly) until the FINAL link exists, so the
-          // half-baked preview (stub token) can't be manually selected/copied
-          // before it's real — the copy button (which generates first) is the
-          // only way to get the link out until then.
           disabled={!generated}
           value={linkPreview}
           className="text-muted-foreground font-mono text-xs"
@@ -150,9 +102,6 @@ export function InviteLinkActions({
   )
 }
 
-// Copy with a guard for non-secure contexts (HTTP on a LAN host, where
-// `navigator.clipboard` is undefined) — falls back to the legacy execCommand so
-// "Copiar" never throws.
 function copyToClipboard(text: string, onDone: () => void): void {
   if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(text).then(onDone, () => fallbackCopy(text, onDone))
@@ -161,8 +110,6 @@ function copyToClipboard(text: string, onDone: () => void): void {
   }
 }
 
-// Last-resort clipboard for non-secure contexts: a hidden textarea + execCommand.
-// Deprecated but the only thing that works over plain HTTP on a LAN host.
 function fallbackCopy(text: string, onDone: () => void): void {
   const ta = document.createElement('textarea')
   ta.value = text

@@ -148,12 +148,10 @@ describe('computeOccupancyPct', () => {
   })
 
   it('ignores scheduled (future) appointments when computing the rate', () => {
-    // 2 completed + 1 scheduled → 100% (scheduled excluded from denominator)
     expect(computeOccupancyPct([appt('completed'), appt('completed'), appt('scheduled')])).toBe(100)
   })
 
   it('counts cancelled and no_show in the denominator', () => {
-    // 1 completed, 1 cancelled, 1 no_show → 33.3%
     expect(computeOccupancyPct([appt('completed'), appt('cancelled'), appt('no_show')])).toBe(33.3)
   })
 

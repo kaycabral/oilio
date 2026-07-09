@@ -28,8 +28,6 @@ export default async function TeamPage({
     <Main width="default">
       <TeamList
         entries={entries}
-        // AC-07: "Convidar" is the primary action at the top — members + pending
-        // invites share one list, split by the view filter (no tabs).
         header={
           <header className="flex items-center justify-between gap-4">
             <h1 className="text-2xl font-semibold">Equipe</h1>

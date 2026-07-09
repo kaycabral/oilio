@@ -21,9 +21,6 @@ const CREATED_DATA = {
   updatedAt: '2026-06-01T00:00:00.000Z',
 }
 
-// The Org is a pure folder (PRD Identidade v2, context 3): the reducer projects
-// only the folder fields — no agenda/self-booking/timezone (those moved to the
-// Unit). The `org.self_booking_*` cases were removed entirely.
 describe('applyOrgEvent', () => {
   it('org.created overwrites the seed with the folder fields', () => {
     const next = applyOrgEvent(INITIAL_ORG_STATE, { _tag: 'org.created', data: CREATED_DATA }, META)
@@ -31,7 +28,6 @@ describe('applyOrgEvent', () => {
     expect(next.vertical).toBe('barbershop')
     expect(next.createdAt).toBe(META.timestamp)
     expect(next._version).toBe(META.version)
-    // No agenda/self-booking fields leak onto the Org.
     expect('selfBookingPublished' in next).toBe(false)
     expect('timezone' in next).toBe(false)
   })

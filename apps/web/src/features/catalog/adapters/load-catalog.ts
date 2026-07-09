@@ -34,10 +34,6 @@ export type CatalogPageData = {
   state: ListSurfaceState
 }
 
-// Imperative shell for the unified catalog list (brief 0023, AC-09). Archived
-// items/categories (brief 0027, AC-06) drop from the active surface but stay
-// resolvable for historical plans/orders. Filters + search read from URL search
-// params (RSC re-query); pagination is client-side.
 export async function loadCatalogPage(rawParams: {
   kind?: string
   categoryId?: string
@@ -55,34 +51,24 @@ export async function loadCatalogPage(rawParams: {
 
   const [catalogItems, allCategories] = await Promise.all([
     listCatalogItems(ctx.membership.orgId),
-    // Backend-aware (Postgres typed table under RLS / Firestore subcollection),
-    // ordered by name — feature D. Includes archived; filtered in JS below.
     listCategoriesForOrg(ctx.membership.orgId),
   ])
 
-  // Filtered in-memory (truthy `archivedAt`) so legacy docs without the field
-  // still surface.
   const allItems = catalogItems.filter((it) => !it.archivedAt)
   const categories = allCategories.filter((c) => !c.archivedAt)
 
-  // Category-label resolution covers only ACTIVE categories (brief 0033, AC-11):
-  // an item pointing at an archived/deleted category resolves to "Sem categoria"
-  // in the table — never the raw id.
   const categoryLabelById = new Map(categories.map((c) => [c.id, c.name]))
 
   const byKindAndCategory = filterCatalogItems(allItems, kindFilter, categoryFilter)
   const filtered = searchTerm
     ? byKindAndCategory.filter((it) => it.name.toLowerCase().includes(searchTerm))
     : byKindAndCategory
-  // Per-row reference-based flag (brief 0033, AC-03 — #1068 precompute).
   const items = await attachCanDelete(filtered, (id) =>
     catalogItemHasActiveReference(ctx.membership.orgId, id),
   )
 
   const createKind: CatalogItemKind = kindFilter === 'product' ? 'product' : 'service'
 
-  // `allItems` (unfiltered active set) is the "any data?" signal; `items` is the
-  // kind/category/search slice.
   const state = resolveListSurfaceState({
     hasAnyData: allItems.length > 0,
     visibleCount: items.length,
@@ -115,14 +101,11 @@ async function loadCatalogMasterData(
     listStoredUnitsForOrg(orgId),
     listCategoriesForOrg(orgId),
   ])
-  // Archived master data (brief 0027, AC-06) is hidden from the item-form
-  // pickers; existing items keep resolving their frozen ids.
   const units = allUnits.filter((u) => !u.archivedAt)
   const categories = allCategories.filter((c) => !c.archivedAt)
   return { units, categories }
 }
 
-// Imperative shell for the new-item route.
 export async function loadNewCatalogItemPage(rawParams: {
   kind?: string
 }): Promise<NewCatalogItemPageData> {
@@ -140,8 +123,6 @@ export type EditCatalogItemPageData = {
   memberOperations: Awaited<ReturnType<typeof listMemberOperationsForOrg>>
 }
 
-// Imperative shell for the edit route — gate, resolve the item (404), then the
-// form master data + memberOperations (for the service ↔ pro link section).
 export async function loadEditCatalogItemPage(itemId: string): Promise<EditCatalogItemPageData> {
   const ctx = await requireCapabilityPage('canManageCatalog')
 

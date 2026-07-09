@@ -40,8 +40,6 @@ export function applyAppointmentEvent(
         noShowMarkedBy: event.markedBy,
       }
     case 'appointment.no_show_reverted':
-      // Volta pra scheduled; `noShowMarkedAt/By` ficam como histórico do marker
-      // anterior (status é a fonte da verdade do estado atual).
       return { ...base, status: 'scheduled' }
     case 'appointment.rescheduled':
       return {

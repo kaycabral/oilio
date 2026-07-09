@@ -2,14 +2,7 @@ import { getStripe } from '@/shared/billing/stripe-client'
 import { logger } from '@/shared/lib/logger'
 import 'server-only'
 
-// Live Stripe details that back the Cobrança panel but are NOT projected into
-// org_billing (Stripe is the system of record for these). Read on demand from
-// the Stripe API, server-side, keyed by the org's stripeCustomerId. Every read
-// is best-effort: a Stripe failure degrades the panel to an empty block, never a
-// crash (the plan card + cancellation still render from org_billing).
-
 export type PaymentMethodSummary = {
-  // Stripe's `card.brand`: 'visa' | 'mastercard' | … (mapped to a label in the UI).
   brand: string
   last4: string
   expMonth: number
@@ -18,22 +11,13 @@ export type PaymentMethodSummary = {
 
 export type InvoiceSummary = {
   id: string
-  // ISO date of the invoice (created); formatted in the UI.
   date: string
-  // Total in the smallest currency unit (centavos) + the currency, so the UI
-  // formats with Intl instead of us hardcoding "R$".
   amount: number
   currency: string
-  // Stripe invoice status: 'paid' | 'open' | 'void' | 'uncollectible' | 'draft'.
   status: string
-  // Hosted invoice page (Stripe) — opens in a new tab. Null when Stripe didn't
-  // provide one (e.g. a draft).
   hostedUrl: string | null
 }
 
-// The default card of the customer, if any. Reads the customer's
-// `invoice_settings.default_payment_method` (the card Stripe charges), falling
-// back to the first attached card. Returns null when there's no card on file.
 export async function getDefaultPaymentMethod(
   stripeCustomerId: string,
 ): Promise<PaymentMethodSummary | null> {
@@ -64,8 +48,6 @@ export async function getDefaultPaymentMethod(
   }
 }
 
-// The customer's most recent invoices (newest first), capped. Empty on any
-// failure or when the customer has none yet.
 export async function listRecentInvoices(
   stripeCustomerId: string,
   limit = 6,

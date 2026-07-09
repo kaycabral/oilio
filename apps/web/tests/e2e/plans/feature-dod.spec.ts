@@ -1,14 +1,3 @@
-// Feature-level E2E — brief 0024 § Definition of Done (parent #1007).
-//
-// 1 test por cenário do DoD, validando o contrato da feature "Cobertura de
-// plano = pacote de itens granulares" como gate do parent (cross-component, não
-// das sub-issues #1008 modelo+form · #1009 consumo):
-// - Cenário 1: plano cobre itens granulares (serviço e produto) [critical]
-// - Cenário 2: consumo resolve em granular, por kind [critical]
-// - Cenário 3: catálogo sem combo opaco (invariante) [critical]
-//
-// Roda contra emulator + dev. Reusa os fluxos provados nas specs das fatias.
-
 import { CatalogItemConfig, SubscriptionConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import type { Page } from '@playwright/test'
@@ -28,8 +17,6 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-// The subscription `current_period` JSONB column carries the camelCase domain
-// shape; only `consumed` is asserted here. Lenient struct ignores the rest.
 const CurrentPeriod = Schema.Struct({ consumed: Schema.optional(Schema.Number) })
 const decodeCurrentPeriod = Schema.decodeUnknownSync(CurrentPeriod)
 
@@ -85,11 +72,9 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
     await seedCatalogItem(org.orgId, { kind: 'service', name: serviceName })
     await seedCatalogItem(org.orgId, { kind: 'product', name: productName })
     const name = `Plano DoD ${ts}`
-    // Coverage checkboxes are labeled by the item name + kind suffix.
     const serviceItem = authedPage.getByRole('checkbox', { name: new RegExp(serviceName) })
     const productItem = authedPage.getByRole('checkbox', { name: new RegExp(productName) })
 
-    // Cobertura selecionada como ITENS (serviço + produto) pelo picker real.
     await authedPage.goto('/plans/new')
     await authedPage.locator('input[name="name"]').fill(name)
     await authedPage.locator('input[name="priceCents"]').fill('120,00')
@@ -100,7 +85,6 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
     await expect(authedPage).toHaveURL(/\/plans$/)
     await expect(authedPage.getByText(name, { exact: true })).toBeVisible({ timeout: 5000 })
 
-    // Persiste como includedItemIds (qualquer kind): reabrir mostra ambos marcados.
     await rowAction(authedPage, new RegExp(ts), 'Editar')
     await expect(serviceItem).toBeChecked()
     await expect(productItem).toBeChecked()
@@ -130,7 +114,6 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
       name: `Cliente DoD ${ts}`,
       mobile: uniqueWhatsapp(),
     })
-    // Snapshot congelado: serviço coberto por item, produto por categoria.
     const subId = await seedSubscription(org.orgId, customerId, {
       planName: 'Granular DoD',
       usageLimit: { kind: 'count', quantity: 4 },
@@ -158,14 +141,12 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
     await expect(authedPage).toHaveURL(/\/orders\/.+/)
     const orderId = authedPage.url().split('/orders/')[1]!.split(/[?#]/)[0]!
 
-    // Serviço coberto já auto-marca na abertura (brief 0079 AC-06).
     await expect(
       authedPage
         .getByRole('listitem')
         .filter({ hasText: `Barba ${ts}` })
         .getByRole('combobox', { name: 'Cobertura do item' }),
     ).toHaveText('Consumo do plano')
-    // Produto coberto (via categoria) também auto-marca ao ser adicionado (AC-09).
     await addCatalogItemToOrder(authedPage, `Pomada ${ts}`)
     await expect(
       authedPage
@@ -177,16 +158,12 @@ test.describe('Feature 0024 — Definition of Done (cobertura por itens granular
     await expect(authedPage.getByText(/100% coberta pelo plano/)).toBeVisible()
     await confirmClose(authedPage)
 
-    // Resolução granular por kind: cota debita 2 (serviço+produto); serviço
-    // coberto não gera comissão; produto coberto baixa estoque (10−1).
     expect(await readConsumed(org.orgId, subId)).toBe(2)
     expect(await countOrderCommissions(org.orgId, orderId)).toBe(0)
     expect(await readStock(org.orgId, productId)).toBe(9)
   })
 
   test('Cenário 3: catálogo sem combo opaco (invariante)', async ({ authedPage }) => {
-    // O item do catálogo é sempre granular: o seletor de tipo oferece apenas
-    // Serviço e Produto — não há "combo"/"pacote" (pacote = cobertura do plano).
     await authedPage.goto('/catalog/new')
     const kindGroup = authedPage.getByRole('radiogroup', { name: 'Tipo do item' })
     await expect(kindGroup).toBeVisible()

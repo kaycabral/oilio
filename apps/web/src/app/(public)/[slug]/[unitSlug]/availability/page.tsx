@@ -14,8 +14,6 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-// Dynamic: availability depends on the visitor's session (subscription scope) and
-// the current day, so it can't be statically cached.
 export const dynamic = 'force-dynamic'
 
 type PageProps = {
@@ -29,11 +27,6 @@ function readQuery(sp: Record<string, string | string[] | undefined>, key: strin
   return typeof v === 'string' && v.length > 0 ? v : null
 }
 
-// First bookable calendar day on/after `today`: scan up to 2 weeks for a weekday
-// the unit declares open (cheap — business-hours only, no slot compute). The
-// wizard then computes the real grid for whatever day the customer lands on /
-// picks. Falls back to today if the unit declares no open weekday (the grid will
-// just render empty, with the "pick another day" hint).
 function firstOpenDay(
   businessHours: ReturnType<typeof unitBusinessHours>,
   today: string,
@@ -55,9 +48,6 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
   const { slug, unitSlug } = await params
   const sp = await searchParams
   const serviceId = readQuery(sp, 'service')
-  // Deep-link to a specific day: `?from=` (range view, when the wizard drives it)
-  // or `?date=`. Honored when valid + not in the past; otherwise we fall back to
-  // the first open day below.
   const dateQuery = readQuery(sp, 'from') ?? readQuery(sp, 'date')
 
   if (!serviceId) {
@@ -74,9 +64,6 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
     )
   }
 
-  // Probe once to resolve the unit (tz + business hours) and validate the
-  // service/unit. Use today only to fetch the bundle; the real starting day is
-  // the first OPEN day (so the customer never lands trapped on a closed today).
   const probe = await getPublicAvailability(slug, unitSlug, {
     serviceId,
     date: getTodayInOrgTz('America/Sao_Paulo'),
@@ -85,26 +72,18 @@ export default async function PublicAvailabilityPage({ params, searchParams }: P
 
   const tz = probe.unit.timezone
   const today = getTodayInOrgTz(tz)
-  // A valid, non-past `?from=`/`?date=` wins (deep-link / E2E determinism);
-  // otherwise start on the first open day so a closed today never traps anyone.
   const isValidDate = dateQuery !== null && /^\d{4}-\d{2}-\d{2}$/.test(dateQuery)
   const startDate =
     isValidDate && dateQuery >= today
       ? dateQuery
       : firstOpenDay(unitBusinessHours(probe.unit.agenda), today, tz)
 
-  // Subscription scope (brief 0019): the time-scope filters the slot grid (AC-07)
-  // and the allowlist drives the coverage banner (AC-16). Resolved here so the
-  // INITIAL grid is already filtered — the action applies the same scope on
-  // subsequent date/pro changes.
   const scope = await resolveScopeForSessionBySlug(slug)
   const summaryUnits =
     scope?.unitAllowlist && scope.unitAllowlist.size > 0
       ? ((await getPublicOrgSummary(slug))?.units ?? [probe.unit])
       : [probe.unit]
 
-  // Load the grid for the starting day WITH the time-scope (the probe was
-  // scope-less, only used to resolve tz/agenda — never reuse it as the grid).
   const initialBundle =
     (await getPublicAvailability(slug, unitSlug, {
       serviceId,

@@ -1,15 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { attachCanDelete } from './delete-guard'
 
-// Pure unit of `attachCanDelete`: the batch helper that maps each row to a
-// `canDelete` flag via an injected existence probe. The probe is stubbed (no
-// I/O), so this exercises the generic mapping/parallelism without a database —
-// the entity-specific probes are proven against real Postgres in the
-// `*.events.pg.integration` suite.
 describe('attachCanDelete', () => {
   it('flags a row deletable iff it has no active reference', async () => {
     const rows = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
-    // `b` is referenced (not deletable); `a` and `c` are free.
     const probe = vi.fn((id: string) => Promise.resolve(id === 'b'))
 
     const result = await attachCanDelete(rows, probe)
@@ -19,7 +13,6 @@ describe('attachCanDelete', () => {
       { id: 'b', canDelete: false },
       { id: 'c', canDelete: true },
     ])
-    // One probe per row.
     expect(probe).toHaveBeenCalledTimes(3)
   })
 

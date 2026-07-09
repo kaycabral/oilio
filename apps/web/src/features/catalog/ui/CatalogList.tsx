@@ -18,8 +18,6 @@ function formatPrice(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-// Sentinel for the category filter's "no filter" choice (Radix Select forbids an
-// empty-string value); translated back to a deleted param at the boundary.
 const ALL_CATEGORIES = 'all'
 
 export function CatalogList({
@@ -34,13 +32,7 @@ export function CatalogList({
   canDelete,
   isFiltered,
 }: {
-  // Each row carries the precomputed active-reference flag (brief 0033, AC-03 —
-  // #1068 `attachCanDelete`): `row.canDelete=false` means an open order / active
-  // subscription references it, so "Excluir" soft-deletes (archives).
   items: WithCanDelete<CatalogItem>[]
-  // Resolves a category id to its display label. Holds only ACTIVE categories
-  // (brief 0033, AC-11): an id that resolves to nothing here is archived/deleted
-  // → the row shows "Sem categoria", never the raw id.
   categoryLabelById: Map<string, string>
   categories: (Category & { id: string })[]
   kindFilter: 'all' | CatalogItemKind
@@ -48,10 +40,7 @@ export function CatalogList({
   searchQuery: string
   createKind: CatalogItemKind
   canManage: boolean
-  // Role gate (owner) — distinct from the per-row reference flag above.
   canDelete: boolean
-  // True when data exists but the active kind/category/search slice is empty —
-  // keeps the toolbar (filtered-empty) instead of the create protagonist.
   isFiltered: boolean
 }) {
   const { setParams } = useListUrlControls()
@@ -120,8 +109,6 @@ export function CatalogList({
       filteredEmpty={{ title: 'Nenhum item para o filtro selecionado.' }}
       renderItem={(it) => {
         const isService = isCatalogService(it)
-        // Never render the raw id (brief 0033, AC-11): resolve the ACTIVE category
-        // name, else "Sem categoria" for an archived/deleted one; no FK → "—".
         const categoryLabel = it.categoryId
           ? (categoryLabelById.get(it.categoryId) ?? 'Sem categoria')
           : '—'
@@ -142,15 +129,9 @@ export function CatalogList({
         }
 
         return {
-          // The icon differentiates service (Handshake — vertical-neutral) vs
-          // product (Package) — the type no longer needs a text label.
           icon: isService ? <Handshake /> : <Package />,
           title: it.name,
-          // Active is the norm here (archived items are already filtered out), so
-          // an "Ativo" pill on every row is noise — flag only the exception.
           badge: it.active ? undefined : <StatusBadge tone="neutral">Inativo</StatusBadge>,
-          // Category takes the slot the type label used to hold; detail (duration
-          // / stock) follows it.
           description: categoryLabel === '—' ? detail : `${categoryLabel} · ${detail}`,
           trailing: formatPrice(it.priceCents),
           actions: <RowActions actions={actions} label={`Ações de ${it.name}`} />,

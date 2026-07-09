@@ -1,14 +1,3 @@
-// Maps a Brazilian address (UF + city) to its canonical IANA timezone.
-//
-// Brazil has 4 distinct offsets today (UTC-2, -3, -4, -5) but the IANA db
-// keeps 13 zones because some regions historically diverged on DST. We use
-// the canonical IANA zone per UF — same code size, survives a future DST
-// reintroduction without a refactor.
-//
-// Why no dynamic lookup? `Intl` ships no UF→TZ mapping; `geo-tz` needs a
-// 3MB worldwide shapefile; BrasilAPI returns no TZ field. A 27-entry table
-// is smaller than any of those and never grows (Brazil has 26 states + DF).
-
 import { DEFAULT_UNIT_TIMEZONE } from '../types/unit'
 
 export const UF_TO_TZ: Readonly<Record<string, string>> = {
@@ -41,8 +30,6 @@ export const UF_TO_TZ: Readonly<Record<string, string>> = {
   TO: 'America/Araguaina',
 }
 
-// AM municipalities that follow America/Eirunepe (UTC-5) instead of
-// America/Manaus (UTC-4). Source: IBGE / IANA tz database.
 const WESTERN_AMAZONAS_CITIES: ReadonlySet<string> = new Set([
   'eirunepe',
   'benjamin constant',
@@ -82,10 +69,6 @@ export function inferTimezoneFromAddress(state: string, city: string): string {
   return UF_TO_TZ[uf] ?? DEFAULT_UNIT_TIMEZONE
 }
 
-// Decides whether the org's timezone should be silently updated from a
-// unit address. Returns the new timezone, or null if no change should happen.
-// Two rules: (a) only override the untouched default — never an owner's
-// explicit choice; (b) skip when the inferred value already matches current.
 export function resolveOrgTimezoneFromAddress(
   currentTimezone: string,
   state: string,

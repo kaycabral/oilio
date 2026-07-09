@@ -68,31 +68,18 @@ export function AppointmentDialog({
   onOpenChange: (open: boolean) => void
   unitId: string
   memberOperations: MemberOperation[]
-  // #1318: the day's CROSS-UNIT appointments of each bookable professional, keyed
-  // by id. The picker omits starts that overlap the SELECTED professional's list
-  // (mirrors the public self-book, #1313). Empty/absent = no omission (the grid
-  // still shows every valid slot; the write path stays the backstop).
   busyByMemberOperation?: Record<string, Appointment[]>
   services: CatalogServiceItem[]
   customers: Customer[]
   date: string
   timezone: string
-  // The active unit's slot grid when it's in appointment mode, else null. When
-  // present, the time picker offers only grid-valid, duration-fitting starts for
-  // the selected date + service (brief 0080, AC-03b); when null (always_open/
-  // fixed, where the backend enforces no grid), a free time input is shown.
   appointmentGrid: { slotMinutes: SlotMinutes; businessHours: BusinessHours } | null
   defaultMemberOperationId?: string
   defaultStartTime?: string
-  // When provided, dialog is in edit mode; submit calls updateAppointment.
   appointment?: Appointment | null
   businessName: string
   confirmationTemplate: string
-  // #1257: a self-scoped memberOperation books only for themselves — the picker is
-  // replaced by a fixed hidden input carrying this id. Null = balcão (full picker).
   selfMemberOperationId?: string | null
-  // #1255 AC-05: only the balcão may register a customer inline. When false, the
-  // "Cadastrar novo" toggle is hidden (the server action also refuses it).
   canRegisterCustomer?: boolean
 }) {
   const router = useRouter()
@@ -123,16 +110,9 @@ export function AppointmentDialog({
     [appointment, date, defaultStartTime, timezone],
   )
 
-  // The professional the picker filters busy slots against (#1318). A self-scoped
-  // member is locked to their own id; the balcão defaults to the edited
-  // appointment's / the passed default. Controlled so changing it recomputes the
-  // grid against that professional's cross-unit day.
   const initialMemberOperationId =
     selfMemberOperationId ?? appointment?.memberOperationId ?? defaultMemberOperationId ?? ''
 
-  // Controlled date + service so the grid picker recomputes for the day the user
-  // actually picks (fixes the stale-day desync) and the selected service's
-  // duration (so it never offers an overrunning start).
   const [selectedDate, setSelectedDate] = useState(initialDate)
   const [selectedServiceId, setSelectedServiceId] = useState(
     appointment?.serviceId ?? activeServices[0]?.id ?? '',
@@ -152,21 +132,14 @@ export function AppointmentDialog({
     return svc ? resolveCatalogItemForUnit(svc, unitId).durationMinutes : 0
   }, [activeServices, selectedServiceId, unitId])
 
-  // Grid-valid start times + the picker default for the selected day + service
-  // duration (brief 0080, AC-03b; past-cut #1314). The EDIT-preserve / NEW-first
-  // -future-slot logic lives in the (mutation-tested) core `resolveStartTimePicker`.
   const { options: startTimeOptions, defaultValue: startTimeDefault } = useMemo(() => {
     if (!appointmentGrid) return { options: [] as string[], defaultValue: undefined }
     const dayHours = getBusinessHoursForDay(appointmentGrid.businessHours, selectedDate, timezone)
-    // `Date.now()` lives here in the shell; the core stays pure via `nowMs`.
     const grid = gridTimeOptions(dayHours, appointmentGrid.slotMinutes, selectedDuration, {
       date: selectedDate,
       timezone,
       nowMs: Date.now(),
     })
-    // #1318: omit the starts the selected professional is already busy in
-    // (cross-unit). EDIT keeps its own slot via `excludeAppointmentId`. No busy
-    // data (balcão with an as-yet-unpicked pro, or absent prop) = no omission.
     const available = filterGridByBusy(
       grid,
       busyByMemberOperation[selectedMemberOperationId] ?? [],
@@ -233,21 +206,10 @@ export function AppointmentDialog({
     })
   }
 
-  // No-show button gate: only after the scheduled start instant. Before that,
-  // the slot isn't "missed" yet — the path to free it is cancel. Wiki:
-  // 04-Roadmap-Politica-Cancelamento § Quando o botão libera.
   const canMarkNoShow =
     editMode &&
     appointment.status === 'scheduled' &&
     new Date(appointment.startAt).getTime() <= Date.now()
-
-  // ── Action forms (progressive enhancement) ─────────────────────────────
-  // Each transactional action lives in its OWN <form>, *sibling* to the main
-  // create/update form (HTML forms can't nest). Buttons are type="submit" so
-  // clicks post natively even before React hydrates — kills the dialog
-  // hydration race that #763 documented. `useActionState` reflects pending /
-  // error / success back into the UI so the JS-on path keeps the existing
-  // dialog-close-on-success ergonomics.
 
   const handleClose = () => onOpenChange(false)
 
@@ -301,11 +263,6 @@ export function AppointmentDialog({
             <Label htmlFor="appointment-memberOperation" className="text-sm font-medium">
               Profissional
             </Label>
-            {/* #1257: a self-scoped memberOperation books only for themselves — the
-                picker offers ONLY their own option (pre-selected), so the submit
-                always carries their id. The server action + RLS also enforce it.
-                The balcão gets the full list. Uses the design Select either way
-                (no hand-rolled primitive). */}
             <Select
               name="memberOperationId"
               required
@@ -382,8 +339,6 @@ export function AppointmentDialog({
                 Início
               </Label>
               {appointmentGrid ? (
-                // Appointment mode: only grid-valid, duration-fitting slots for
-                // the selected day (brief 0080, AC-03b).
                 <Select name="startTime" required defaultValue={startTimeDefault}>
                   <SelectTrigger id="appointment-startTime">
                     <SelectValue placeholder="Selecione…" />
@@ -403,8 +358,6 @@ export function AppointmentDialog({
                   </SelectContent>
                 </Select>
               ) : (
-                // always_open / fixed: no configured grid — free time input, the
-                // backend enforces no slot-grid for these modes.
                 <Input
                   id="appointment-startTime"
                   type="time"

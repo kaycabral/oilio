@@ -35,7 +35,6 @@ const WEEKDAY_LABELS: Record<Weekday, string> = {
   sunday: 'Domingo',
 }
 
-// Display order — start the week on Sunday (Brazilian calendar convention).
 const ORDERED_WEEKDAYS: readonly Weekday[] = [
   'sunday',
   'monday',
@@ -46,17 +45,12 @@ const ORDERED_WEEKDAYS: readonly Weekday[] = [
   'saturday',
 ]
 
-// SPIKE (hours mode): the three WhatsApp-Business-style modes. Only the
-// appointment mode carries a hint — it's the one with a non-obvious side effect
-// (turns the unit's online agenda on); the other two labels are self-evident.
 const MODE_OPTIONS: { value: UnitHoursMode; label: string; hint?: string }[] = [
   { value: 'fixed', label: 'Aberto em horários definidos' },
   { value: 'always_open', label: 'Sempre aberto · 24h' },
   {
     value: 'appointment',
     label: 'Por agendamento',
-    // Kept to one line at the form width so the reserved hint row (min-h-5)
-    // matches exactly — no flick, no big empty gap when other modes are picked.
     hint: 'Ativa o agendamento online nos horários abaixo.',
   },
 ]
@@ -95,9 +89,6 @@ export function BusinessHoursFields({
   onModeChange,
 }: {
   defaults: BusinessHours | null
-  // Controlled by the parent UnitForm so it can reveal the appointment-only
-  // agenda configs below the hours when `appointment` is chosen (progressive
-  // disclosure, PRD Identidade v2 / C3).
   mode: UnitHoursMode
   onModeChange: (mode: UnitHoursMode) => void
 }) {
@@ -105,8 +96,6 @@ export function BusinessHoursFields({
 
   const activeHint = MODE_OPTIONS.find((m) => m.value === mode)?.hint ?? ''
 
-  // Enabling a day seeds a default interval when it has none; disabling keeps
-  // the configured intervals so re-enabling restores them.
   function toggleDay(day: Weekday, enabled: boolean) {
     setState((prev) => {
       const cur = prev[day]
@@ -127,7 +116,6 @@ export function BusinessHoursFields({
       return { ...prev, [day]: { ...prev[day], ranges } }
     })
   }
-  // Removing the last interval closes the day (the switch follows).
   function removeRange(day: Weekday, i: number) {
     setState((prev) => {
       const ranges = prev[day].ranges.filter((_, idx) => idx !== i)
@@ -135,14 +123,7 @@ export function BusinessHoursFields({
     })
   }
 
-  // SPIKE (multi-interval): a day can have split shifts (e.g. 09:00–12:00 and
-  // 14:00–18:00 with a lunch gap). Each enabled day in fixed/appointment mode
-  // shows its ranges with add/remove; 24h mode is a flat "Aberto 24 horas";
-  // a day that's off (any mode) reads "Fechado".
   function renderRanges(day: Weekday, st: DayState) {
-    // Every "first row" is h-9 so single-interval / "Fechado" / "24h" share the
-    // same height (no flick on delete or mode switch). Extra intervals stack
-    // BELOW (items-start), growing the row downward.
     if (!st.enabled) {
       return <div className="text-muted-foreground flex h-9 items-center text-xs">Fechado</div>
     }
@@ -183,9 +164,6 @@ export function BusinessHoursFields({
               >
                 <Trash2 />
               </Button>
-              {/* One "+" per day, on the last row, so there's no extra add-row
-                  (keeps the height stable). Rendered invisible on other rows to
-                  keep the trash column aligned. */}
               <Button
                 type="button"
                 variant="ghost"
@@ -229,22 +207,15 @@ export function BusinessHoursFields({
             ))}
           </SelectContent>
         </Select>
-        {/* min-h-5 reserves one line so empty (other modes) matches the
-            appointment hint height — no flick. Font size is the FieldDescription
-            default (text-xs). */}
         <FieldDescription className="min-h-5">{activeHint}</FieldDescription>
       </Field>
 
-      {/* Divider between days so a multi-interval day doesn't visually merge
-          into the next day's first interval. */}
       <div className="divide-border/60 flex flex-col divide-y pt-1">
         {ORDERED_WEEKDAYS.map((day) => {
           const st = state[day]
           const id = `bh_${day}`
           return (
             <Field key={day} orientation="horizontal" className="items-start py-2.5">
-              {/* h-9 cell keeps the switch + weekday centered on the first
-                  interval row without manual offsets. */}
               <div className="flex h-9 flex-none items-center gap-2">
                 <Switch
                   id={id}

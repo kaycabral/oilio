@@ -1,8 +1,3 @@
-// Brief 0042 (#1114) — replay reconstructs the full Goal doc from its event
-// stream. defined (snapshot) → updated (changes) → replayAggregate == projection,
-// field by field. Proves no field is written outside events (event-first) and
-// covers the degenerate case (a goal edited right after definition).
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 

@@ -34,12 +34,6 @@ export default async function PublicOrgPage({ params }: PageProps) {
   const { org, units } = summary
   if (units.length === 0) notFound()
 
-  // Spatial scope filter (brief 0019, Group A — AC-03/AC-04). If the
-  // visitor has an active subscription in this org, narrow the
-  // visible units to the union of plan allowlists. Avulso (no session)
-  // and unrestricted snapshots see every unit, just like before.
-  // We resolve the full scope (not just the allowlist) so the AC-16
-  // coverage banner can render in a single read.
   const scope = await resolveScopeForSession(org.id)
   const allowlist = scope?.unitAllowlist
   const visibleUnits = allowlist ? units.filter((u) => allowlist.has(u.id)) : units
@@ -54,15 +48,12 @@ export default async function PublicOrgPage({ params }: PageProps) {
     />
   ) : null
 
-  // Single-unit orgs: short-circuit to the unit catalog so a one-shop
-  // org doesn't force a needless hop. Multi-unit: render the picker.
   if (visibleUnits.length === 1) {
     const only = visibleUnits[0]!
     const bundle = await getPublicUnitBundle(slug, only.slug)
     if (!bundle) notFound()
     const session = await getSessionUser()
     const isLoggedIn = session !== null
-    // Brief 0079 (#1307). Mark plan-covered services for the badge + sort.
     const coveredItemIds = resolveCoveredServiceIds({
       scope,
       catalogServiceItems: bundle.catalogServiceItems,

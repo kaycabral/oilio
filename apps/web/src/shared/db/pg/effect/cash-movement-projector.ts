@@ -4,28 +4,8 @@ import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `cash-movement` ES context (brief 0061 § Grupo A) —
- * maps the reduced `CashMovement` state onto the `cash_movements` typed table
- * whose conditional CHECK enforces the union shape (kind ⇒ direction + which
- * links exist). `upsert` decodes the untyped projection doc against the domain
- * `CashMovement` schema at this single driver boundary — schema-validated, so no
- * cast leaks into product code.
- *
- * The domain is a union discriminated by `kind`; each branch fixes the present
- * links. We flatten the union to columns and let the DB's conditional CHECK
- * govern which are NULL — the projector just passes through the decoded fields
- * (the union already guarantees, e.g., `expenseCategoryId` is null on a `sale`).
- * No JSONB: every field is a flat scalar.
- */
-
 const decodeCashMovement = Schema.decodeUnknownSync(CashMovement)
 
-/**
- * The ordered `cash_movements` column list — single source of truth for the
- * upsert placeholders and the E2E seed. Mirrors the `INSERT` placeholders 1:1.
- * The natural key `(org_id, id)` leads the list (D6 composite PK, ADR 0013).
- */
 export const CASH_MOVEMENT_COLUMNS = [
   'org_id',
   'id',
@@ -42,14 +22,6 @@ export const CASH_MOVEMENT_COLUMNS = [
   'created_at',
 ] as const
 
-/**
- * Map a decoded `CashMovement` (+ its ref and projection version) onto the
- * ordered column VALUES — the inverse of `rowToDoc`, shared by the runtime
- * projector and the E2E seed. Order matches `CASH_MOVEMENT_COLUMNS`. The
- * `org_id`/`id` natural key comes off the ref (D6, ADR 0013); the union's
- * non-present links are already `null`, so they pass straight through;
- * `payment_method` exists only on `sale`/`sale_reversal`.
- */
 export function cashMovementColumnValues(
   m: CashMovement,
   ref: AggregateRef,
@@ -93,7 +65,6 @@ async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc
   await client.query(UPSERT, cashMovementColumnValues(m, ref, stateVersion(state)))
 }
 
-// Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type CashMovementRow = {
   org_id: string
   id: string
@@ -110,11 +81,6 @@ export type CashMovementRow = {
   created_at: string
 }
 
-// Reconstructs the reducer's projected doc from the typed row (inverse of
-// `upsert`); `_version` re-attached so the event store versions/replays
-// correctly. `bigint` columns come back as strings from `pg` — coerced to number.
-// The decoded union shape is preserved: a `sale`/`sale_reversal` row keeps its
-// `payment_method`, the other kinds keep it `null` (matching the union member).
 export function rowToDoc(row: CashMovementRow): FirestoreDoc {
   return {
     _version: Number(row.last_event_version),
@@ -129,8 +95,6 @@ export function rowToDoc(row: CashMovementRow): FirestoreDoc {
     orderId: row.order_id,
     expenseCategoryId: row.expense_category_id,
     recordedByUid: row.recorded_by_uid,
-    // `created_at` is `timestamptz` (brief 0068 D1): the pg driver returns a
-    // `Date` on the raw `SELECT *` read. Normalize to ISO; domain stays `string`.
     createdAt: new Date(row.created_at).toISOString(),
   }
 }
@@ -153,10 +117,6 @@ async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
 
 export const cashMovementProjector: TypedProjector = { read, upsert, delete: remove }
 
-/**
- * The typed `AggregateType` for cash movements (`config.type`, singular) — the
- * key the router looks the projector up by (D6, ADR 0013), not the table name.
- */
 export const CASH_MOVEMENT_AGGREGATE_TYPE = 'cash_movement'
 
 registerTypedProjector(CASH_MOVEMENT_AGGREGATE_TYPE, cashMovementProjector)

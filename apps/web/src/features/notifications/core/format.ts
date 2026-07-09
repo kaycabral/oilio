@@ -1,6 +1,3 @@
-// Pure formatting helpers for notification UI. Extracted from components so
-// the relative-time bucketing logic is unit-testable without rendering.
-
 export function formatRelativeTime(iso: string, now: number = Date.now()): string {
   const diff = now - new Date(iso).getTime()
   const minutes = Math.floor(diff / 60_000)

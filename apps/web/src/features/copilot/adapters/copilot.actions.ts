@@ -12,10 +12,6 @@ import { revalidatePath } from 'next/cache'
 
 export type GoalMutationResult = { ok: true } | { ok: false; error: string }
 
-// Plano Oilio gate (brief 0072): "Copiloto: meta mensal de lucro" is a Pro+
-// capability. Returns an error result when the active Negócio's tier lacks it,
-// or null when allowed. The Copiloto page shows the upgrade CTA in place of the
-// surface on a locked tier (brief 0082); this action is the real wall.
 async function assertCopilotCapability(orgId: string): Promise<GoalMutationResult | null> {
   const tier = await getOrgTier(orgId)
   if (!hasCapability(tier, 'copilot.profit_goal')) {
@@ -46,8 +42,6 @@ function parseGoalForm(formData: FormData): GoalFormPayload | string {
   return { unitId, period, targetCents }
 }
 
-// Define a profit goal for a unit/period. Event-first (goal.defined carries the
-// full snapshot); the deterministic doc id keeps it unique per (unit, period).
 export async function defineGoal(formData: FormData): Promise<GoalMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
@@ -81,9 +75,6 @@ export async function defineGoal(formData: FormData): Promise<GoalMutationResult
   return { ok: true }
 }
 
-// Edit an existing goal's target. Only the target is mutable in Onda 1
-// (unit/period identify the doc); the recalculation of realizado/ritmo/projeção
-// is derived live by the read-model, so no extra write is needed.
 export async function updateGoal(goalId: string, formData: FormData): Promise<GoalMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r

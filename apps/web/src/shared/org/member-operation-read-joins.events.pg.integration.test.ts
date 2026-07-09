@@ -13,24 +13,6 @@ import {
   listMemberOperationsForServiceInUnit,
 } from './member-operation-read'
 
-/**
- * Inverse-query readers backed by the `member_operation_units` / `member_operation_services`
- * join tables (brief 0068 D3, AC-02) against REAL Postgres. Each reader replaces a
- * fetch-all + JS filter at a production call-site:
- *   - `hasOperationalMemberOperationInUnit` — units publish-readiness ("operational
- *     pro at this unit?").
- *   - `listMemberOperationIdsForService` — catalog `setServiceMemberOperations` toggle
- *     diff ("who already performs service Y?").
- *   - `listMemberOperationsForServiceInUnit` — public availability ("operational pros
- *     who perform service Y at unit X").
- *
- * The join rows are written by the memberOperation projector in the same tx as the
- * event (proven in `memberOperation-join-projection.*`), so the memberOperations here are
- * created through `appendEvent` — exercising the real write path the readers read.
- * Readers run under `readUnderRls` over the event-store pool. Per-run-unique org ids
- * isolate each case.
- */
-
 const TS = '2026-06-01T12:00:00.000Z'
 
 let seq = 0
@@ -74,14 +56,6 @@ async function seedService(orgId: string, id: string): Promise<void> {
   )
 }
 
-// Mint a memberOperation through the real write path so the projector mirrors its
-// `unit_ids`/`catalog_service_ids` arrays into the join tables. Parent unit/service
-// rows are seeded first (the join FKs are RESTRICT). Returns the memberOperation id.
-//
-// `operationalStatus` is now DERIVED on read (#1226 AC-02) from the linked
-// User's whatsapp + the projection's units/services, so this helper seeds the
-// linked `users/{userId}` row accordingly: `operational` ⇒ a completed user WITH
-// whatsapp; `incomplete` ⇒ a user WITHOUT whatsapp (the readers enrich from this
 // global row and derive the status). The units/services still come from `opts`.
 async function seedMemberOperation(
   orgId: string,
@@ -98,15 +72,10 @@ async function seedMemberOperation(
   for (const s of catalogServiceIds) await seedService(orgId, s)
   const id = uid('pro')
   const userId = uid('user')
-  // Seed the linked global user — the read layer derives `operationalStatus`
-  // from its whatsapp. `incomplete` ⇒ no whatsapp; otherwise a completed user.
   const wantsOperational = (opts.operationalStatus ?? 'operational') !== 'incomplete'
   await putUser(
     wantsOperational ? buildUser(userId, TS, { completionCompleted: true }) : buildUser(userId, TS),
   )
-  // The operational profile hangs off the membership (brief 0076 AC-02): seed
-  // the parent membership so the projector's composite FK is satisfiable. The
-  // projector derives `member_id` as `{orgId}_{userId}`.
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
      VALUES ($1,$1||'_'||$2,$2,1,'member_operator','active',$3,'{}'::jsonb,$3)
@@ -153,7 +122,6 @@ describe('memberOperation inverse-query readers (brief 0068 D3, AC-02)', () => {
     it('operational memberOperation scoped to the unit → true', async () => {
       const t = uniqueOrg()
       const unitId = uid('unit')
-      // Operational requires whatsapp ∧ ≥1 unit ∧ ≥1 service (#1226 AC-02).
       await seedMemberOperation(t, { unitIds: [unitId], catalogServiceIds: [uid('svc')] })
       expect(await hasOperationalMemberOperationInUnit(t, unitId)).toBe(true)
     })
@@ -195,13 +163,9 @@ describe('memberOperation inverse-query readers (brief 0068 D3, AC-02)', () => {
       const t = uniqueOrg()
       const unitId = uid('unit')
       const svc = uid('svc')
-      // Match: service + unit, operational.
       const match = await seedMemberOperation(t, { unitIds: [unitId], catalogServiceIds: [svc] })
-      // Wrong unit.
       await seedMemberOperation(t, { unitIds: [uid('other-unit')], catalogServiceIds: [svc] })
-      // Wrong service.
       await seedMemberOperation(t, { unitIds: [unitId], catalogServiceIds: [uid('other-svc')] })
-      // Right unit+service but not operational.
       await seedMemberOperation(t, {
         unitIds: [unitId],
         catalogServiceIds: [svc],

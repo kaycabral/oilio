@@ -37,8 +37,6 @@ export default async function CatalogPage({
         isFiltered={state === 'filtered-empty'}
       />
 
-      {/* Category management is secondary chrome — hidden while the catalog is a
-          blank protagonist (no premature interactive surface, AC-04). */}
       {state !== 'empty' ? (
         <CategoryManager categories={categories} canManage={canManage} canDelete={canDelete} />
       ) : null}

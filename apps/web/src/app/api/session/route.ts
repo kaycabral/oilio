@@ -50,9 +50,6 @@ async function postHandler(request: Request) {
     maxAge: SESSION_COOKIE_MAX_AGE_MS / 1000,
   })
 
-  // NOTE(#1029): login/logout são sinais de funil/ativação, não estado de
-  // domínio nem auditoria. Saíram do `recordAudit` legado; instrumentar via
-  // `track()` quando a telemetria de produto (0026) subir.
   return NextResponse.json({ ok: true })
 }
 
@@ -85,9 +82,6 @@ async function upsertUser(
       bio: null,
       specialties: null,
       completionCompleted: false,
-      // The session route only runs after Firebase Auth has verified an
-      // idToken, so any User doc created here is by definition claimed.
-      // (Stubs come from the recepcionista path — see customer-upsert.ts.)
       claimedAt: now,
       termsAcceptedAt: null,
       termsVersion: null,
@@ -100,11 +94,6 @@ async function upsertUser(
     await putUser(initial)
     return
   }
-  // Don't clobber existing fields with nulls — the password-auth path on
-  // the emulator carries no displayName/avatarUrl, and the wizard's
-  // session prefill (#864) relies on these. We only overwrite when the
-  // incoming token actually carries a value (OAuth provider populates
-  // these). `emailVerified` is always written since it's a state flag.
   const patch: Record<string, unknown> = {
     email_verified: defaults.emailVerified,
   }

@@ -1,11 +1,3 @@
-// Unit tests for `getOrgBilling` / `getOrgTier` / `freeOrgBilling` — the read
-// seam the gating (feature C) consumes. The decisive behaviour is the
-// DEFAULT-FREE fallback: a Negócio with no org_billing row must resolve to Free
-// (brief 0071, AC-03) so the gating locks paid surfaces without a backfill
-// migration. `readUnderRls` is mocked to return the projector-shaped rows (or
-// none); the Effect Schema decode + rowToDoc run for real so the test proves the
-// real row → doc decode, not a stub.
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -16,8 +8,6 @@ vi.mock('@/shared/db/pg/rls-read', () => ({ readUnderRls: mocks.readUnderRls }))
 
 import { freeOrgBilling, getOrgBilling, getOrgTier } from './billing-read'
 
-// A full org_billing projector row (snake_case, as SELECT * returns it). The
-// projector's rowToDoc maps this to the domain doc shape.
 function billingRow(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     org_id: 'org-1',

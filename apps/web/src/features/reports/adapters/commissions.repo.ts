@@ -48,11 +48,6 @@ async function loadClosedOrdersInWindow(orgId: string, range: CashReportRange): 
   return rows.map((r) => decodeOrder(orderRowToDoc(r)))
 }
 
-/**
- * Loads the Comissões section data for the reports hub. Reads members,
- * commissions and the period's closed orders, then delegates the unit-scoping,
- * filtering and name resolution to the pure core (`shapeCommissionsSection`).
- */
 export async function loadCommissionsSectionData(args: {
   orgId: string
   range: CashReportRange

@@ -1,12 +1,3 @@
-// Brief 0030 (AC-01/AC-02) — DoD de replay do aggregate `order`:
-// uma VENDA AVULSA (standalone, `appointmentId: null`) e SEM CLIENTE
-// (`customerId: null`) reconstrói campo-a-campo só pelos eventos. Prova que o
-// snapshot generalizado de `order.created` aceita os dois nulos e que o estado
-// é projeção descartável (ADR 0010): created → item_added → closed, replay ==
-// projeção. Mocks de Firestore são proibidos em rules-bound tests, mas replay é
-// reconstrução pura do event store — o store em memória aqui é o próprio
-// substrato de eventos, não um mock de regra.
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -23,9 +14,6 @@ const STANDALONE_ITEM = {
   quantity: 2,
   unitPriceCents: 3500,
   commission: null,
-  // Venda avulsa de produto (varejo): o item é atribuído ao `userId` do membro
-  // que abriu a venda (o operador). NÃO é um doc id de MemberOperation — a recepção
-  // que vende balcão não tem MemberOperation. É o caso que a fatia #1056 habilita.
   attributedUserId: 'opener-user-1',
 }
 
@@ -38,7 +26,6 @@ describe('Order — venda avulsa sem cliente reconstrói do event store (brief 0
       id: 'o-standalone',
       orgId: 't1',
       unitId: 'u1',
-      // Os dois nulos que esta fatia habilita (AC-01 + AC-02).
       customerId: null,
       appointmentId: null,
       status: 'open',
@@ -86,18 +73,13 @@ describe('Order — venda avulsa sem cliente reconstrói do event store (brief 0
       replayAggregate(OrderConfig, ref).pipe(Effect.provide(layer)),
     )
 
-    // Estado é projeção descartável: replay reconstrói o doc inteiro.
     expect(replayed).toEqual(projection)
     expect(replayed._version).toBe(3)
-    // Os nulos sobrevivem ao replay — venda avulsa anônima.
     expect(replayed.customerId).toBeNull()
     expect(replayed.appointmentId).toBeNull()
-    // Conteúdo e fechamento reconstruídos.
     expect(replayed.status).toBe('closed')
     expect(replayed.items).toHaveLength(1)
     expect(replayed.items[0]!.refId).toBe('prod-1')
-    // Atribuição por membro (brief 0030, AC-04): o produto avulso fica atribuído
-    // ao `userId` do operador que abriu a venda — sobrevive ao replay.
     expect(replayed.items[0]!.attributedUserId).toBe('opener-user-1')
     expect(replayed.totalCents).toBe(7000)
     expect(replayed.paymentMethod).toBe('cash')

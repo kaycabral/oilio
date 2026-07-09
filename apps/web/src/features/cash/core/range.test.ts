@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { resolveCashReportRange } from './range'
 
-// São Paulo = UTC-3 (sem DST desde 2019). NOW = 15:30 local de 2026-05-15.
 const TZ = 'America/Sao_Paulo'
 const NOW = new Date('2026-05-15T18:30:00.000Z')
 
@@ -11,9 +10,7 @@ describe('resolveCashReportRange (fuso local — brief 0015 AC-05)', () => {
     expect(r.period).toBe('day')
     expect(r.fromDate).toBe('2026-05-15')
     expect(r.toDate).toBe('2026-05-15')
-    // Início do dia local 2026-05-15 em UTC = 03:00Z (UTC-3).
     expect(r.fromIso).toBe('2026-05-15T03:00:00.000Z')
-    // Fim inclusivo = 1ms antes do início do dia seguinte local.
     expect(r.toIso).toBe('2026-05-16T02:59:59.999Z')
   })
 

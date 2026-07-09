@@ -14,14 +14,6 @@ const PARTIAL_LABEL = 'Parcialidade do realizado'
 const PROJECTION_LABEL = 'Projeção de fechamento (nesse ritmo)'
 const MRR_LABEL = 'MRR (observação — fora do realizado)'
 
-// Presentational (server component, no client). Renders meta · realizado (com
-// rótulo honesto de parcialidade) · ritmo/projeção. `null` projeção → n/d.
-// MRR aparece à parte como observação — nunca dentro do realizado (AC-08).
-//
-// Cada métrica é um `role="group"` com aria-label estável e visível (rótulo
-// próprio); o valor é o único `<p>` dentro do grupo, então testes acessíveis
-// miram `getByRole('group', { name }).getByRole('paragraph')` sem alterar o
-// texto visível.
 export function GoalTrackingPanel({
   tracking,
   mrrCents,

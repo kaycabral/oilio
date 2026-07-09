@@ -19,13 +19,6 @@ import { requireManagerCtx } from '@/shared/org/membership'
 import { getUnitById } from '@/shared/org/unit-read'
 import { revalidatePath } from 'next/cache'
 
-// Agenda-block mutations, shared by the contexts that own the time being
-// blocked (brief 0036): the unit config (`units/[id]`, unit-wide blocks) and
-// the memberOperation member detail (`/team/[userId]`, per-memberOperation blocks).
-// `/blocks` was removed — these actions no longer redirect to it; the calling
-// section refreshes in place (`router.refresh()`), and the agenda is
-// revalidated so the segments reflect the change.
-
 export type BlockMutationResult = { ok: true } | { ok: false; error: string }
 
 function isWeekday(v: string): v is Weekday {
@@ -96,9 +89,6 @@ function parseBlockForm(formData: FormData, orgTimezone: string): ParsedBlock | 
 export async function createBlock(formData: FormData): Promise<BlockMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  // The block's clock times are interpreted in the establishment's timezone
-  // (PRD Identidade v2 — tz moved Org→Unit). The block targets a `unitId` from
-  // the form; resolve it before parsing.
   const unitId = formString(formData, 'unitId').trim()
   const unit = unitId ? await getUnitById(r.ctx.membership.orgId, unitId) : null
   if (!unit) return { ok: false, error: 'Unidade é obrigatória' }
@@ -114,8 +104,6 @@ export async function createBlock(formData: FormData): Promise<BlockMutationResu
     createdAt: now,
     updatedAt: now,
   }
-  // Event-first: o doc é projeção do `agenda_block.created` (snapshot completo),
-  // sem `ref.set()` direto paralelo.
   const created = await emitEvent(
     AgendaBlockConfig,
     aggregateRef(AgendaBlockConfig, r.ctx.membership.orgId, blockId),
@@ -138,8 +126,6 @@ export async function updateBlock(
   const parsed = parseBlockForm(formData, unit.timezone)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  // Event-first: a projeção da edição vem do `agenda_block.updated` (sem
-  // `.update()` direto). `changes` carrega o diff do form parseado.
   const updated = await emitEvent(
     AgendaBlockConfig,
     aggregateRef(AgendaBlockConfig, r.ctx.membership.orgId, blockId),
@@ -154,18 +140,12 @@ export async function updateBlock(
 export async function deleteBlock(blockId: string): Promise<BlockMutationResult> {
   const r = await requireManagerCtx()
   if (!r.ok) return r
-  // Event-first: emite `agenda_block.deleted` ANTES do hard-delete — o append lê
-  // a versão da projeção ainda viva (versão correta); o event-store não reprojeta
-  // em `.deleted`, então o caller remove o doc. Histórico fica na subcollection.
   const deleted = await emitEvent(
     AgendaBlockConfig,
     aggregateRef(AgendaBlockConfig, r.ctx.membership.orgId, blockId),
     { _tag: 'agenda_block.deleted', actorId: r.ctx.session.uid, payload: {} },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
-  // Backend-aware hard-delete (brief 0060, Grupo C): Postgres drops the typed
-  // `agenda_blocks` row, Firestore deletes the doc — the event store skips the
-  // projection write on `.deleted`, so the read-model removal is explicit.
   await deleteOrgProjectionDoc(aggregateRef(AgendaBlockConfig, r.ctx.membership.orgId, blockId))
   revalidatePath('/agenda')
   return { ok: true }

@@ -11,12 +11,6 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-// #1018 (brief 0025) — a comanda + itens event-first: cada mutação (criar,
-// adicionar/remover item, trocar atribuição, desconto/observação, cancelar) emite
-// evento e a projeção reflete. Baseline E2E exercitando o ciclo de vida real
-// (sem o fechamento — fatia #1026) com asserção de outcome a cada passo.
-// Brief 0030 (AC-04): a atribuição de item é por membro (`attributedUserId`).
-
 async function seedFixture(org: SeededOrg): Promise<void> {
   const serviceId = await seedService(org.orgId, {
     name: 'Corte',
@@ -68,17 +62,11 @@ test.describe('Order — ciclo de vida event-first (#1018)', { tag: '@critical' 
     const orderUrl = authedPage.url()
     await expect(authedPage.getByText('R$ 50,00').first()).toBeVisible()
 
-    // order.item_added — adiciona Pomada → total R$ 80 (Adicionar item único).
     await addCatalogItemToOrder(authedPage, 'Pomada')
     const pomadaRow = authedPage.getByRole('listitem').filter({ hasText: 'Pomada' })
     await expect(pomadaRow).toBeVisible()
     await expect(authedPage.getByText('R$ 80,00').first()).toBeVisible()
 
-    // order.item_attribution_changed (brief 0030, AC-04) — re-atribui a Pomada
-    // (produto → rótulo "Vendedor") ao Profissional 2 por membro. A atribuição
-    // grava o `userId` do membro, não o doc id de MemberOperation. O select é
-    // controlado pela projeção (props) — após o router.refresh do server action,
-    // reflete o novo membro (prova de que o evento projetou).
     await chooseOption(pomadaRow, 'Vendedor', 'Profissional 2')
     await expect(
       authedPage
@@ -87,26 +75,20 @@ test.describe('Order — ciclo de vida event-first (#1018)', { tag: '@critical' 
         .getByRole('combobox', { name: 'Vendedor' }),
     ).toHaveText(/Profissional 2/)
 
-    // order.meta_updated — desconto de R$ 10 → total R$ 70.
     await authedPage.locator('input[name="discount"]').fill('10')
     await authedPage.getByRole('button', { name: 'Salvar' }).click()
     await expect(authedPage.getByText('R$ 70,00').first()).toBeVisible()
 
-    // #1319 — desconto acima do subtotal é REJEITADO com mensagem, e o total
-    // NÃO é corrompido (segue R$ 70, não vai a R$ 0). Teto = subtotal vendável.
     await authedPage.locator('input[name="discount"]').fill('9999')
     await authedPage.getByRole('button', { name: 'Salvar' }).click()
-    // A mensagem aparece inline (<p>) e no toast — `.first()` desambigua.
     await expect(
       authedPage.getByText(/desconto não pode ser maior que o subtotal/i).first(),
     ).toBeVisible()
     await expect(authedPage.getByText('R$ 70,00').first()).toBeVisible()
 
-    // Volta pra um desconto válido antes de seguir o fluxo.
     await authedPage.locator('input[name="discount"]').fill('10')
     await authedPage.getByRole('button', { name: 'Salvar' }).click()
 
-    // order.item_removed — remove a Pomada → subtotal 5000 − desconto 1000 = R$ 40.
     await authedPage
       .getByRole('listitem')
       .filter({ hasText: 'Pomada' })
@@ -115,8 +97,6 @@ test.describe('Order — ciclo de vida event-first (#1018)', { tag: '@critical' 
     await expect(authedPage.getByText('Pomada', { exact: true })).toHaveCount(0)
     await expect(authedPage.getByText('R$ 40,00').first()).toBeVisible()
 
-    // order.cancelled — cancela a comanda (confirm nativo). No sucesso navega
-    // pra /orders; voltar ao detalhe prova a projeção (status Cancelada).
     authedPage.on('dialog', (d) => d.accept())
     await authedPage.getByRole('button', { name: 'Cancelar venda' }).click()
     await expect(authedPage).toHaveURL(/\/orders(\?.*)?$/)

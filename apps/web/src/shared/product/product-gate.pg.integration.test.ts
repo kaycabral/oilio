@@ -1,24 +1,15 @@
 import { closeDb, getDb, PostgresProductSource, product } from '@cbrl/product'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Telemetry is best-effort and writes Firestore; this suite proves the Postgres
-// gate behavior, so we stub the event sink (no emulator needed here).
 vi.mock('./product-events', () => ({
   emitProductEvent: () => Promise.resolve(),
 }))
 
 import { resolveGate, runProductGate } from './product-gate'
 
-// Integration: the oilio registration gate against REAL Postgres (the sovereign
-// base from A1). Proves the gate resolves/contributes correctly and idempotently
-// — the engine half of AC-03/AC-04/AC-05. Brought up by the product Postgres
-// runner (scripts/oilio-gate-it.mjs) with DATABASE_URL injected; migrations are
-// applied here. The best-effort invariant (Postgres DOWN) is a separate suite.
-
 const EAN13 = '7891000100103'
 const GTIN14 = '07891000100103'
 
-// Schema is applied once by the suite's globalSetup (pg-integration-global-setup.ts).
 afterAll(async () => {
   await closeDb()
 })
@@ -35,8 +26,6 @@ describe('runProductGate — against real Postgres', () => {
     const rows = await getDb().select().from(product)
     expect(rows).toHaveLength(1)
     expect(rows[0]!.source).toBe('org-contributed')
-    // The consumer's product name reaches the base — not the 'Unnamed product'
-    // placeholder (regression: the gate used to discard the name).
     expect(rows[0]!.name).toBe('Leite Ninho 400g')
   })
 
@@ -57,7 +46,6 @@ describe('runProductGate — against real Postgres', () => {
 
     const rows = await getDb().select().from(product)
     expect(rows).toHaveLength(1)
-    // Existing provenance preserved — a reference never downgrades to org-contributed.
     expect(rows[0]!.source).toBe('official')
   })
 

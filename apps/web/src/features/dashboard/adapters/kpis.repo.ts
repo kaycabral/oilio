@@ -23,11 +23,6 @@ const decodeOrder = Schema.decodeUnknownSync(Order)
 const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 const decodeSubscription = Schema.decodeUnknownSync(Subscription)
 
-// MRR/ARR/assinantes refletem só a unidade ativa (brief 0043, AC-03). A
-// assinatura é dona de uma unidade (`Subscription.unitId`, #1117), então o
-// filtro de unidade espelha o de orders/appointments — org-wide só quando não
-// há unidade no contexto. Lê a projeção tipada sob RLS, escopada ao status +
-// unidade, e decodifica pelo schema do domínio (sem cast).
 async function loadSubscriptionsByStatus(
   orgId: string,
   status: Subscription['status'],
@@ -80,9 +75,6 @@ async function loadClosedOrdersInWindow(orgId: string, win: QueryWindow): Promis
 }
 
 async function loadAppointmentsInWindow(orgId: string, win: QueryWindow): Promise<Appointment[]> {
-  // UNIT-SCOPED (brief 0061 § Grupo C / AC-04): mirrors `loadClosedOrdersInWindow`
-  // — the null unit is handled as `IS NULL` (no `$4` param) and `app.current_unit`
-  // is pinned to `win.unitId ?? ''`.
   const unitClause = win.unitId === null ? 'unit_id IS NULL' : 'unit_id = $4'
   const params: unknown[] = [orgId, win.fromUtc, win.toUtcExclusive]
   if (win.unitId !== null) params.push(win.unitId)
@@ -135,11 +127,9 @@ export async function loadDashboardKpis(
   const avgPrev = ordersPrev.length ? Math.round(revenuePrev / ordersPrev.length) : 0
 
   return {
-    // Snapshot — point-in-time, no comparison surface in V0.
     mrrCents: { value: mrrCents, previousValue: null },
     arrCents: { value: mrrCents * 12, previousValue: null },
     activeSubscribers: { value: activeSubs.length, previousValue: null },
-    // Period-bound — comparison vs previous equal-length window.
     revenueCents: { value: revenueCurrent, previousValue: revenuePrev },
     occupancyPct: {
       value: computeOccupancyPct(apptsCurrent),

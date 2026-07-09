@@ -7,18 +7,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 import { orgBillingProjector } from './org-billing-projector'
 
-/**
- * RLS isolation + CHECK constraint proof for `org_billing` (brief 0071, AC-02) —
- * the Assinatura Oilio table. Mirrors `config-rls-isolation.events.pg.integration`:
- * the ephemeral Postgres connects as superuser (bypasses RLS), so isolation runs
- * through a NON-superuser role (`oilio_billing_rls_app`, NOBYPASSRLS — the prod
- * runtime shape). Invariants are proven by the DB, not mocked.
- *
- * Also proves the non-RLS `org_billing_stripe_index`: the webhook lookup table is
- * INTENTIONALLY readable without an org GUC (it's how the session-less webhook
- * resolves stripe_customer_id → org_id).
- */
-
 const APP_ROLE = 'oilio_billing_rls_app'
 const APP_PASSWORD = 'rls_test'
 
@@ -52,9 +40,6 @@ async function appClient(orgId: string): Promise<Client> {
   return c
 }
 
-// A PoolClient (not a bare Client) scoped to the app RLS role — the exact shape the
-// projector's `upsert` takes, so the projector runs on the real NOBYPASSRLS role
-// (proves the RLS interaction, not a hand-built INSERT).
 let appPool: Pool | null = null
 async function appPoolClient(orgId: string): Promise<PoolClient> {
   appPool ??= new Pool({ connectionString: appUrl })
@@ -83,7 +68,6 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
   })
 
   afterAll(async () => {
-    // Close the app-role pool BEFORE dropping the role (open connections block DROP).
     await appPool?.end()
     appPool = null
     const pool = getEventStorePool()
@@ -127,19 +111,8 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
   })
 
   it('projects the FIRST org_billing event under RLS even when the reduced state carries no orgId (regression: the prod-smoke 500)', async () => {
-    // The real bug the prod smoke caught: clicking "Assinar o Pro" emits the FIRST
-    // org_billing.updated for a Free org, whose changes omit orgId — so the reduced
-    // state is INITIAL_ORG_BILLING_STATE (orgId: '', id: ''). The projector must NOT
-    // write org_id = '' (the org-isolation WITH CHECK would refuse it, 42501 → 500).
-    // It sources identity from the REF, so the row lands with the real org_id. This
-    // exercises the actual projector on the actual RLS role — not a hand-built INSERT.
     await seedOrg(ORG_A)
 
-    // Build the state the way the REAL path does: reduce the exact event the checkout
-    // emits (org_billing.updated whose changes omit orgId/id) from INITIAL via the
-    // actual reducer. The reducer seeds createdAt/updatedAt from meta but does NOT
-    // fill orgId — so the reduced state keeps orgId: '' (the bug surface). Passing a
-    // hand-built state would test an impossible shape; this is faithful to prod.
     const meta = {
       version: 1,
       timestamp: '2026-01-01T00:00:00Z',
@@ -151,13 +124,11 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
       { _tag: 'org_billing.updated', changes: { stripeCustomerId: 'cus_smoke' } },
       meta,
     )
-    // precondition: the reducer leaves identity empty (the bug surface)
     expect(state.orgId).toBe('')
     const ref = aggregateRef(OrgBillingConfig, ORG_A, ORG_A)
 
     const a = await appPoolClient(ORG_A)
     try {
-      // Must NOT throw 42501 — the projector derives org_id/id from the ref.
       await orgBillingProjector.upsert(a, ref, state)
       const row = await a.query<{ org_id: string; id: string }>(
         'SELECT org_id, id FROM org_billing',
@@ -184,7 +155,6 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
     }
   })
 
-  // ── CHECK constraints — proven by the DB ────────────────────────────────────
   it('rejects an invalid tier (CHECK org_billing_tier_check)', async () => {
     await seedOrg(ORG_A)
     await expect(
@@ -193,7 +163,6 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
          VALUES ($1,$1,1,'enterprise','active',1,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG_A],
       ),
-      // 23514 = check_violation
     ).rejects.toMatchObject({ code: '23514' })
   })
 
@@ -219,7 +188,6 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
     ).rejects.toMatchObject({ code: '23514' })
   })
 
-  // ── partial-UNIQUE on stripe ids ────────────────────────────────────────────
   it('rejects two orgs sharing the same stripe_subscription_id (partial UNIQUE)', async () => {
     await seedOrg(ORG_A)
     await seedOrg(ORG_B)
@@ -235,11 +203,9 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
          VALUES ($1,$1,1,'pro','active',1,'sub_dup',false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG_B],
       ),
-      // 23505 = unique_violation
     ).rejects.toMatchObject({ code: '23505' })
   })
 
-  // ── stripe index is NON-RLS by design (webhook lookup) ──────────────────────
   it('org_billing_stripe_index is readable WITHOUT an org GUC (session-less webhook lookup)', async () => {
     await seedOrg(ORG_A)
     await getEventStorePool().query(

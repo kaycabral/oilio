@@ -4,8 +4,6 @@ import { SubscriptionEventSchema } from './events'
 
 const decode = Schema.decodeUnknownSync(SubscriptionEventSchema)
 
-// A fully-populated plan snapshot exercising every PlanSnapshotSchema field
-// (optional axes included) so their literals/shapes are pinned on decode.
 const plan = {
   planId: 'p1',
   name: 'Mensal Corte',
@@ -23,8 +21,6 @@ const plan = {
   bookingLimits: { maxPerDay: 1, maxConcurrent: 2, requireCompleteBeforeNext: true },
 }
 
-// Kept as its own object (not just a SAMPLES entry) so the negative cases below
-// can spread it without widening to `unknown`.
 const created = {
   _tag: 'subscription.created',
   id: 's1',
@@ -40,9 +36,6 @@ const created = {
   pastDueThreshold: 3,
 }
 
-// One minimal-but-valid event per `_tag`. Decoding each through the union
-// exercises every variant's `_tag` literal and required fields — a mutated
-// literal (e.g. → '') makes the matching sample fail to decode, killing it.
 const SAMPLES: Record<string, unknown> = {
   'subscription.created': created,
   'subscription.charge_settled': { _tag: 'subscription.charge_settled' },

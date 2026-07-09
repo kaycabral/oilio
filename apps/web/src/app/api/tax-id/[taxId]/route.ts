@@ -5,9 +5,6 @@ import { withRequestContext } from '@/shared/lib/request-context'
 import { Schema } from 'effect'
 import { NextResponse } from 'next/server'
 
-// 1d cache — CNPJ registry data changes rarely, but `situacao_cadastral` gates
-// signup (brief 0046), so a shorter TTL than the 7d CEP cache keeps the ATIVA
-// check reasonably fresh. BrasilAPI orchestrates Receita/MinhaReceita upstream.
 export const revalidate = 86400
 
 async function getHandler(_req: Request, { params }: { params: Promise<{ taxId: string }> }) {

@@ -9,37 +9,16 @@ import { useMemo, useRef, useState } from 'react'
 
 const INVITABLE_ROLES: Role[] = ['manager', 'member_operator', 'receptionist']
 
-// Member-invite surface, in parity with the client-invite modal (brief 0087,
-// Grupo D). The owner types ONLY the invitee's mobile (masked) + the role; the
-// link/copy/open-on-WhatsApp affordances are ALWAYS visible (via
-// `InviteLinkActions`) so the modal never grows — they flip from disabled to
-// enabled as the number becomes a valid BR mobile.
-//
-// Unlike the client invite (whose link is built client-side from pure core),
-// the member link needs a server round-trip to mint the signed token (the role
-// grant is a privilege — brief 0084). So `onEnsure` calls `createInvite`, which
-// resolves the org + base URL server-side and returns the real link; until then
-// the preview shows a placeholder token and stays disabled (not copyable).
 export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string }) {
   const [rawPhone, setRawPhone] = useState('')
   const [role, setRole] = useState<Role | ''>('')
   const [error, setError] = useState<string | null>(null)
-  // The minted invite (real token) — null until the owner generates it. Kept in
-  // BOTH state (drives the link-preview render) and a ref: `onSend` fires in the
-  // same click that mints the link, before the state re-render lands, so it must
-  // read the fresh href synchronously (the ref), not the stale state.
   const [invite, setInvite] = useState<{ link: string; whatsappHref: string } | null>(null)
   const inviteRef = useRef<{ link: string; whatsappHref: string } | null>(null)
 
-  // Ready = a valid BR mobile is typed AND a role is picked. Same threshold the
-  // old form used to enable submit; here it enables the affordances.
   const mobileValid = useMemo(() => normalizeBrazilMobile(rawPhone) !== null, [rawPhone])
   const ready = mobileValid && role !== ''
 
-  // Live preview of the accept link. Before generation the token + invite id
-  // aren't minted, so the preview carries placeholders (the field stays disabled
-  // so this half-baked link can't be selected/copied). After generation it shows
-  // the real link.
   function resolveLinkPreview(): string {
     if (invite) return invite.link
     if (ready) return `${baseUrl}/invites/${orgId}/••••••?token=••••••`
@@ -47,8 +26,6 @@ export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string 
   }
   const linkPreview = resolveLinkPreview()
 
-  // Mint the invite server-side (round-trip) and cache it. Returns the real link
-  // or null on failure. Called by copy/send before doing their thing.
   async function ensureLink(): Promise<string | null> {
     const current = inviteRef.current
     if (current) return current.link
@@ -69,10 +46,6 @@ export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string 
   }
 
   function resolveSendHref(): string | null {
-    // Read the ref, not the state: `ensureLink` just set it synchronously in this
-    // same click, whereas the `invite` state re-render hasn't landed yet.
-    // `InviteLinkActions` owns the window (opened synchronously in the click) and
-    // navigates it to this href, so the popup survives the mint round-trip.
     return inviteRef.current?.whatsappHref ?? null
   }
 
@@ -88,7 +61,6 @@ export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string 
             name="mobile"
             onValueChange={(masked) => {
               setRawPhone(masked)
-              // A new number invalidates any already-minted link.
               inviteRef.current = null
               setInvite(null)
             }}
@@ -123,7 +95,6 @@ export function InviteForm({ orgId, baseUrl }: { orgId: string; baseUrl: string 
         </div>
       </div>
 
-      {/* Explain the privileges being granted, updating with the selected role. */}
       {role ? (
         <p className="text-muted-foreground text-sm" role="note" aria-label="Permissões do papel">
           <span className="font-medium">{roleLabel(role)}:</span> {roleDescription(role)}

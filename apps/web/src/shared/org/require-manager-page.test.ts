@@ -1,18 +1,3 @@
-// Unit tests for `requireManagerPage` (brief 0029, AC-08) — the PAGE-level
-// server wall behind the nav's client-side `requires: 'manageOrg'` gate.
-//
-// This is the helper that closes the original leak: routes hidden from
-// non-managers in the sidebar (/copilot, /team, /settings/billing, /reports, ...) were
-// still reachable by typing the URL because their loaders only checked auth, not
-// role. requireManagerPage REDIRECTS a non-manager, so the wall can't be skipped
-// per-route. These tests pin that contract:
-//   - owner / manager → returns the ctx (allowed through)
-//   - memberOperation / receptionist → redirect (blocked), default to /agenda
-//   - not signed in / no org → redirect to /login / /onboarding (auth chain)
-//
-// `redirect` throws in Next; it's mocked to throw a recognizable sentinel so the
-// test asserts WHERE a blocked visitor lands.
-
 import { defaultPermissionsForRole, type Role } from '@/domain'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

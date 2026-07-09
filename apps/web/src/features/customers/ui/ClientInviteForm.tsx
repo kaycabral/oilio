@@ -7,8 +7,6 @@ import { Button, Input, Label } from '@cbrl/design'
 import { Check, Copy } from 'lucide-react'
 import { useMemo, useState, useTransition } from 'react'
 
-// WhatsApp glyph — the action that matters here is "send on WhatsApp", so it gets
-// the brand mark on the primary button (no generic "send" icon competing).
 function WhatsappIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
@@ -17,14 +15,6 @@ function WhatsappIcon({ className }: { className?: string }) {
   )
 }
 
-// Contextual client-invite surface (brief 0077, Grupo B — #1279). The recep
-// informs ONLY the WhatsApp number; the invite targets the active unit (passed
-// in). The link is built CLIENT-SIDE from pure core the moment the number is
-// valid (only the number is dynamic — base URL, org, unit and attribution are
-// fixed), so there's no submit round-trip just to see it. Sending it ("Abrir no
-// WhatsApp") records the PII-zero funnel event server-side. No Customer with
-// recep-typed PII is created — the customer materializes their own account
-// (login → complete) and lands on this unit's booking.
 export function ClientInviteForm({
   unitSlug,
   baseUrl,
@@ -42,8 +32,6 @@ export function ClientInviteForm({
   const [copied, setCopied] = useState(false)
   const [, startTransition] = useTransition()
 
-  // Pure: rebuilds as the number changes. `ok: false` (number not yet valid)
-  // keeps the link/affordances hidden — same threshold that used to gate submit.
   const invite = useMemo(
     () =>
       buildClientInviteWhatsapp({
@@ -70,10 +58,6 @@ export function ClientInviteForm({
   const ready = invite.ok
 
   function onCopy(url: string): void {
-    // `navigator.clipboard` only exists in a secure context (HTTPS/localhost) —
-    // on a LAN host over HTTP it's undefined. Guard + fall back to the legacy
-    // execCommand so "Copiar" never throws (incident: reading 'writeText' of
-    // undefined on http://<host>).
     const done = () => {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2000)
@@ -87,9 +71,7 @@ export function ClientInviteForm({
 
   function onSend(): void {
     if (!invite.ok) return
-    // Open WhatsApp immediately (must be inside the click to dodge popup blockers).
     window.open(invite.href, '_blank', 'noopener,noreferrer')
-    // Record the funnel event best-effort; never blocks the send.
     startTransition(() => {
       void recordClientInviteIssued({ unitSlug })
     })
@@ -138,8 +120,6 @@ export function ClientInviteForm({
   )
 }
 
-// Last-resort clipboard for non-secure contexts: a hidden textarea + execCommand.
-// Deprecated but the only thing that works over plain HTTP on a LAN host.
 function fallbackCopy(text: string, onDone: () => void): void {
   const ta = document.createElement('textarea')
   ta.value = text

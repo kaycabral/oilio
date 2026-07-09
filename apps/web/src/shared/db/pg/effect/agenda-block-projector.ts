@@ -5,23 +5,8 @@ import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `agenda-block` context (brief 0060, Grupo C) — plugged
- * into the per-context typed-projection registry without reopening the
- * `PersistencePort`.
- *
- * `upsert` decodes the reduced `state` against the domain `AgendaBlock` union
- * (recurring | one_off). It lifts the `kind` discriminant + scope ids (org/unit/
- * memberOperation) onto columns the DB constrains and rides the full variant body
- * (reason/weekday/open/close/startAt/endAt) in the `block` JSONB so the read
- * round-trips to the exact union. The DB enforces the invariants — a violation
- * rolls back event + projection together. No PII.
- */
-
 const decodeAgendaBlock = Schema.decodeUnknownSync(AgendaBlock)
 
-/** The ordered `agenda_blocks` column list — single source of truth for the
- * runtime upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1. */
 export const AGENDA_BLOCK_COLUMNS = [
   'org_id',
   'id',
@@ -35,8 +20,6 @@ export const AGENDA_BLOCK_COLUMNS = [
 ] as const
 
 export function agendaBlockColumnValues(block: AgendaBlock, version: number): unknown[] {
-  // The full variant body rides in JSONB (the discriminant + scope ids are also
-  // lifted to columns, but the body is authoritative on read).
   const body = {
     reason: block.reason,
     weekday: block.weekday,
@@ -58,12 +41,6 @@ export function agendaBlockColumnValues(block: AgendaBlock, version: number): un
   ]
 }
 
-// `member_id` derived from the operational profile (brief 0076 AC-04). A
-// whole-unit block has a NULL `member_operation_id`, so the subquery yields NULL
-// and `member_id` is NULL in lock-step (both FKs are SET NULL). When a member is
-// scoped, the FK guarantees the profile row exists in this tx, so the subquery
-// resolves to its membership. Built by the shared `buildMemberIdUpsert` (same rule
-// for appointments).
 const UPSERT = buildMemberIdUpsert('agenda_blocks', AGENDA_BLOCK_COLUMNS)
 
 function stateVersion(state: FirestoreDoc): number {
@@ -76,10 +53,6 @@ async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDo
   await client.query(UPSERT, agendaBlockColumnValues(block, stateVersion(state)))
 }
 
-// Row shape the typed table stores; mapped back to the reducer's doc on read.
-// `block` JSONB carries the full variant body; `kind`/`member_operation_id` are also
-// columns (DB CHECK + queryability) but the body + discriminant reconstruct the
-// exact domain union.
 export type AgendaBlockRow = {
   org_id: string
   id: string
@@ -89,9 +62,6 @@ export type AgendaBlockRow = {
   member_operation_id: string | null
   block: {
     reason: string
-    // Day-name weekday (`'monday'`…) for a recurring block, null for one_off —
-    // mirrors the domain `RecurringAgendaBlock.weekday` (a `Weekday` literal,
-    // NOT a number).
     weekday: string | null
     open: string | null
     close: string | null

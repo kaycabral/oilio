@@ -1,15 +1,3 @@
-// Server-side slot-grid refusal proof (brief 0080, Grupo A — AC-01/02/03):
-// `createAppointment` and `updateAppointment` reject a `startAt` that does not
-// land on the unit's configured slot grid (inside business hours), no matter
-// what the client posts — a forged/stale POST is barred at the action.
-//
-// Seam: the full reception actions run against REAL Postgres; only the session
-// (`getSessionUser`) is mocked, so `requireOrgCtx` resolves the seeded
-// membership exactly like production. The unit is in APPOINTMENT mode with
-// Mon–Fri 09:00–12:00 BR business hours on a 30-min grid, so 09:15 is off-grid
-// and 10:00 is on-grid. The test asserts BOTH the refusal AND the absence of
-// the side-effect event (no `appointment.created` / `appointment.rescheduled`).
-
 import { defaultPermissionsForRole, normalizeBrazilPhone, type Role } from '@/domain'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
@@ -23,15 +11,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { createAppointment, updateAppointment } from './agenda.actions'
 
-// Frozen "now" for the whole suite. The slot-grid gate rejects past starts
-// (`enforce-slot-grid` defaults `nowMs` to the real clock), so the test freezes
-// the clock to this instant — strictly BEFORE BOOKING_DATE — making every case
-// hermetic: the booked slot is always in the future regardless of the calendar
-// date the suite runs on. Also the seed timestamp for all fixture rows.
 const TS = '2026-06-01T12:00:00.000Z'
-// Mon–Fri 09:00–12:00 BR (= 12:00–15:00 UTC), 30-min grid. 2026-07-06 is a
-// Monday, a month after the frozen `TS`. On-grid: 10:00 BR. Off-grid: 09:15 BR
-// (between 30-min steps).
 const BOOKING_DATE = '2026-07-06'
 const ON_GRID_TIME = '10:00'
 const OFF_GRID_TIME = '09:15'
@@ -218,10 +198,6 @@ describe('appointment write — slot-grid gate (brief 0080, Grupo A)', () => {
   const CUSTOMER = 'cust-1'
 
   beforeEach(async () => {
-    // Freeze the wall clock so the slot-grid gate always sees BOOKING_DATE as a
-    // future slot. `toFake: ['Date']` freezes only the clock — setTimeout/etc.
-    // stay real, so `Date.now()`-based unique-id helpers and pg driver timers
-    // are unaffected.
     vi.useFakeTimers({ toFake: ['Date'], now: new Date(TS) })
     await pool().query(`TRUNCATE ${TABLES} CASCADE`)
     vi.clearAllMocks()

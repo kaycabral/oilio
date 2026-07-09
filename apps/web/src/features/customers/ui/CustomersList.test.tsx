@@ -11,17 +11,12 @@ vi.mock('@/features/customers/adapters/customers.actions', () => ({
   getCustomerDeletionImpactAction: vi.fn(),
 }))
 
-// The list toolbar's search/pagination wire to the URL via `useListUrlControls`,
-// which reads the Next router. Stub it (the app shell mounts the real one).
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn() }),
   usePathname: () => '/customers',
   useSearchParams: () => new URLSearchParams(),
 }))
 
-// The invite dialog reads the active unit from the org context (the invite
-// targets the unit the owner is operating — no unit chooser). Stub `useOrg` with
-// a single published appointment unit so the dialog renders its enabled state.
 vi.mock('@/shared/org/org-context', () => ({
   useOrg: () => ({
     org: { slug: 'barbearia', name: 'Barbearia' },
@@ -61,8 +56,6 @@ vi.mock('@/shared/org/org-context', () => ({
   }),
 }))
 
-// The WhatsApp/birthday markers use Tooltip, which needs a provider (the app
-// shell supplies one in production).
 function renderList(props: Parameters<typeof CustomersList>[0]) {
   return render(
     <TooltipProvider>
@@ -105,7 +98,6 @@ describe('CustomersList', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
     expect(screen.getByText('Maria Silva')).toBeInTheDocument()
     expect(screen.getByText('João Souza')).toBeInTheDocument()
-    // Avatar fallback monogram when there's no photo.
     expect(screen.getByText('MS')).toBeInTheDocument()
     expect(screen.getByText('JS')).toBeInTheDocument()
   })
@@ -125,13 +117,11 @@ describe('CustomersList', () => {
       canDelete: false,
       isFiltered: false,
     })
-    // Exactly one marker — only the customer whose birthday is today.
     expect(screen.getAllByLabelText('Aniversário hoje')).toHaveLength(1)
   })
 
   it('exposes a WhatsApp shortcut and the overflow menu per row', () => {
     renderList({ customers, searchQuery: '', canDelete: true, isFiltered: false })
-    // WhatsApp is a link (wa.me); the ⋯ menu is a button.
     const wa = screen.getByRole('link', { name: 'WhatsApp de Maria Silva' })
     expect(wa).toHaveAttribute('href', expect.stringContaining('wa.me/'))
     expect(screen.getByRole('button', { name: 'Ações de Maria Silva' })).toBeInTheDocument()

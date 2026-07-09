@@ -16,25 +16,6 @@ import { buildAppointment, buildUser } from '@/shared/fixtures/domain-builders'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { offboardMemberInOrg } from './offboard-member'
 
-/**
- * Member offboarding saga against REAL Postgres (#1103/#1104/#1105, brief 0041 —
- * the rewrite of the Firestore-emulator `offboard-member.integration.test.ts`).
- * Post-cutover the whole offboard runs as ONE ACID transaction via `commitSaga`
- * (brief 0061 § Grupo C): membership revoked + memberOperation suspended + future
- * appointments cancelled + the memberOperation's agenda-blocks deleted + the
- * member's pending invites deleted, all in one tx; the `invites_pii` LGPD
- * sidecars are dropped post-commit. The owner is immune; the saga is vetoed
- * (before any mutation) by an OPEN comanda; re-running is idempotent; the vínculo
- * PII (`member_operations_pii`) is RETAINED (art. 16).
- *
- * The production reads/writes run over the event-store pool (RLS bypassed
- * locally/CI — the policies are proven in the isolation specs). Preconditions are
- * seeded as typed projection rows (appointments/agenda-blocks via the projector
- * column mappers; memberships/memberOperations/orders/users/invites via the store
- * helpers or raw INSERT matching the schema). The cascade events read those
- * seeded projection docs and reproject. Per-run-unique ids; no global wipe.
- */
-
 const TS = '2026-06-01T12:00:00.000Z'
 const FUTURE = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString()
 const PAST = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString()
@@ -45,9 +26,6 @@ function uniqueId(prefix: string): string {
   return `${prefix}-${Date.now()}-${seq}`
 }
 
-// A unique, already-normalized BR mobile (`55` + DDD + 9 digits) so that
-// `normalizeBrazilPhone(x) === x` and `users_mobile_unique` never collides
-// across seeded rows. 9 trailing digits derived from a monotonic counter.
 function uniquePhone(): string {
   seq += 1
   const suffix = String(seq).padStart(8, '0').slice(-8)
@@ -62,10 +40,6 @@ async function seedOrg(orgId: string): Promise<void> {
   )
 }
 
-// Idempotent FK-parent seeds (brief 0068 D2). The child projections
-// (appointments/agenda_blocks/orders) carry composite FKs into
-// units/customers/catalog_items; a case may seed several children sharing the
-// same parent, so each is `ON CONFLICT DO NOTHING`.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
@@ -103,29 +77,16 @@ async function seedMembership(orgId: string, userId: string, role: Role): Promis
   return id
 }
 
-// MemberOperation projection + its retained PII sidecar (must survive offboarding).
-// `operationalStatus` is DERIVED on read (#1226 AC-02): operational ⇔ the linked
-// User has a mobile ∧ ≥1 unit ∧ ≥1 service. So an OPERATIONAL seed must wire a
-// mobile-bearing User + a service + the join rows; pass an empty `unitIds` (no
-// units ⇒ derives `incomplete`) for a non-operational seed.
 async function seedMemberOperation(
   orgId: string,
   userId: string,
   unitIds: string[] = [],
 ): Promise<string> {
   const id = uniqueId('pro')
-  // The linked User carries the mobile the derive keys on (operational seed).
-  // No explicit number — the builder derives a unique one per uid (WhatsApp is
-  // globally unique, so two seeded users can't share a fixed placeholder).
   await putUser(buildUser(userId, TS, { completionCompleted: true }))
-  // One service so the derive's `≥1 service` axis is satisfied for an operational
-  // seed; for a non-operational seed (`unitIds: []`) the missing unit floors it.
   const serviceId = unitIds.length > 0 ? uniqueId('svc') : null
   const catalogServiceIds = serviceId ? [serviceId] : []
   if (serviceId) await seedService(orgId, serviceId)
-  // The operational profile hangs off the membership (brief 0076 AC-02) — ensure
-  // the parent membership exists so the composite FK is satisfiable (idempotent;
-  // the offboard cases seed their own membership status separately).
   await getEventStorePool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
      VALUES ($1,$1||'_'||$2,$2,1,'member_operator','active',$3,'{}'::jsonb,$3)
@@ -141,10 +102,6 @@ async function seedMemberOperation(
     `INSERT INTO member_operations_pii (org_id, id, tax_identity) VALUES ($1,$2,NULL)`,
     [orgId, id],
   )
-  // Seeding memberOperations directly (not via the projector) must mirror the
-  // `member_operation_units` / `member_operation_services` join rows the projector now
-  // writes (brief 0068 D3) — the offboard re-projects the memberOperation, and its
-  // join writes need the parent unit/service rows to exist (composite FKs).
   for (const unitId of unitIds) {
     await seedUnit(orgId, unitId)
     await getEventStorePool().query(
@@ -176,16 +133,10 @@ async function seedAppointment(
     endAt: startAt,
     status,
   })
-  // FK parents: appointment unit_id → units, customer_id → customers, service_id
-  // → catalog_items (builder defaults unit 'unit', customer 'cust', service
-  // 'svc'). member_operation_id already exists (seedMemberOperation ran first).
   await seedUnit(orgId, appt.unitId)
   await seedCustomer(orgId, appt.customerId)
   await seedService(orgId, appt.serviceId)
   const placeholders = APPOINTMENT_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-  // `member_id` (brief 0076 AC-04) is derived from the operational profile via a
-  // correlated subquery on `member_operation_id`, mirroring the projector — not a
-  // placeholder. org_id is $1, member_operation_id is $5 in APPOINTMENT_COLUMNS.
   const orgIdRef = `$${APPOINTMENT_COLUMNS.indexOf('org_id') + 1}`
   const memberOpIdRef = `$${APPOINTMENT_COLUMNS.indexOf('member_operation_id') + 1}`
   const memberIdDerived = `(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = ${orgIdRef} AND mo.id = ${memberOpIdRef})`
@@ -213,11 +164,8 @@ async function seedAgendaBlock(orgId: string, memberOperationId: string | null):
     createdAt: TS,
     updatedAt: TS,
   }
-  // FK parent: agenda_block unit_id → units (block.unitId === 'unit-1').
   await seedUnit(orgId, block.unitId)
   const placeholders = AGENDA_BLOCK_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-  // `member_id` (brief 0076 AC-04) derived via subquery; NULL when member_operation_id
-  // is NULL (whole-unit block), mirroring the projector.
   const orgIdRef = `$${AGENDA_BLOCK_COLUMNS.indexOf('org_id') + 1}`
   const memberOpIdRef = `$${AGENDA_BLOCK_COLUMNS.indexOf('member_operation_id') + 1}`
   const memberIdDerived = `(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = ${orgIdRef} AND mo.id = ${memberOpIdRef})`
@@ -248,8 +196,6 @@ async function seedOpenOrder(
   ])
   const closedAt = status === 'closed' ? TS : null
   const paymentMethod = status === 'closed' ? 'cash' : null
-  // FK parents: order unit_id → units ('unit-1'), customer_id → customers
-  // ('cust-1').
   await seedUnit(orgId, 'unit-1')
   await seedCustomer(orgId, 'cust-1')
   await getEventStorePool().query(
@@ -320,8 +266,6 @@ async function piiExists(table: string, orgId: string, id: string): Promise<bool
 }
 
 async function countRevokedEvents(orgId: string, membershipId: string): Promise<number> {
-  // The saga emits `membership.updated` with `payload.changes.status = 'revoked'`.
-  // The event data lives in the `envelope` JSONB (`_tag` + `payload`).
   const res = await getEventStorePool().query<{ n: number }>(
     `SELECT count(*)::int AS n FROM events
        WHERE org_id = $1
@@ -355,14 +299,9 @@ describe('offboardMemberInOrg — core (Postgres)', () => {
     const res = await offboardMemberInOrg(orgId, userId, actorId)
     expect(res.ok).toBe(true)
 
-    // Operability is severed by the REVOKED membership (every operational read
-    // keys on an active membership) — not by a memberOperation event (#1226 AC-02:
-    // `operationalStatus` is derived on read, no `member_operation.suspended`).
     expect(await membershipStatus(orgId, membershipId)).toBe('revoked')
     expect(await countRevokedEvents(orgId, membershipId)).toBe(1)
-    // MemberOperation projection RETAINED (not deleted), reversible.
     expect(await rowExists('member_operations', orgId, proId)).toBe(true)
-    // RETENTION (art. 16): the vínculo PII is RETAINED.
     expect(await piiExists('member_operations_pii', orgId, proId)).toBe(true)
   })
 
@@ -430,7 +369,6 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
 
     expect(await statusOf('appointments', orgId, futureAppt)).toBe('cancelled')
     expect(await rowExists('appointments', orgId, futureAppt)).toBe(true)
-    // Past appointment LEFT untouched.
     expect(await statusOf('appointments', orgId, pastAppt)).toBe('scheduled')
   })
 
@@ -448,7 +386,6 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
     expect(res.ok).toBe(true)
 
     expect(await rowExists('agenda_blocks', orgId, proBlock)).toBe(false)
-    // Org-wide block (memberOperationId == null) is NOT the member's — kept.
     expect(await rowExists('agenda_blocks', orgId, orgBlock)).toBe(true)
   })
 
@@ -466,7 +403,6 @@ describe('offboardMemberInOrg — cascade (Postgres)', () => {
     expect(res.ok).toBe(false)
     if (!res.ok) expect(res.error).toMatch(/comanda aberta/i)
 
-    // Veto runs BEFORE any mutation: membership intact, appointment untouched.
     expect(await membershipStatus(orgId, membershipId)).toBe('active')
     expect(await statusOf('appointments', orgId, futureAppt)).toBe('scheduled')
   })
@@ -550,7 +486,6 @@ describe('offboardMemberInOrg — capacity/invites (Postgres)', () => {
     await seedOrg(orgId)
     await seedMembership(orgId, userId, 'member_operator')
     await seedMemberOperation(orgId, userId, ['unit-shared'])
-    // Another operational memberOperation remains on the same unit.
     await seedMemberOperation(orgId, otherUserId, ['unit-shared'])
 
     const res = await offboardMemberInOrg(orgId, userId, actorId)
@@ -562,9 +497,6 @@ describe('offboardMemberInOrg — capacity/invites (Postgres)', () => {
     const orgId = uniqueId('org')
     const userId = uniqueId('user')
     const actorId = uniqueId('actor')
-    // Distinct BR mobiles: the member's number vs. an unrelated invitee's. The
-    // offboard matches a pending invite to the member by normalized WhatsApp
-    // (brief 0084) — the accept-flow no longer keys on email.
     const memberMobile = uniquePhone()
     const otherMobile = uniquePhone()
     await seedOrg(orgId)
@@ -578,12 +510,9 @@ describe('offboardMemberInOrg — capacity/invites (Postgres)', () => {
     const res = await offboardMemberInOrg(orgId, userId, actorId)
     expect(res.ok).toBe(true)
 
-    // The member's pending invite + its PII are gone.
     expect(await rowExists('invites', orgId, pendingInvite)).toBe(false)
     expect(await piiExists('invites_pii', orgId, pendingInvite)).toBe(false)
-    // Another invitee's pending invite is untouched.
     expect(await rowExists('invites', orgId, otherInvite)).toBe(true)
-    // An accepted (historical) invite for the same WhatsApp is LEFT.
     expect(await rowExists('invites', orgId, acceptedInvite)).toBe(true)
   })
 

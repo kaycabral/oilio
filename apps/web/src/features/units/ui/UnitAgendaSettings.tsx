@@ -1,12 +1,6 @@
 import { appointmentAgenda, type Unit } from '@/domain'
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@cbrl/design'
 
-// The agenda-mode-only settings of a Unit (PRD Identidade v2 / C3): the
-// cancellation policy + confirmation/reminder/cancellation messages. These moved
-// Org→Unit and live ONLY in `appointment` mode — there is NO separate global
-// "Políticas" page anymore (it was retired). This card therefore renders only
-// when the unit is in appointment mode; for fixed/always_open it renders
-// nothing (the configs don't exist by construction).
 export function UnitAgendaSettings({ unit }: { unit: Unit }) {
   const appointment = appointmentAgenda(unit.agenda)
   if (!appointment) return null

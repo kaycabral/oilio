@@ -7,12 +7,6 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-// Decode a captured console argument (the JSON log line) without leaking `any`:
-// the spy hands back `unknown[]`, so narrow the first arg to string before parse.
-// Returns a readonly record narrowed via a guard (no assertion) so property reads
-// stay type-safe (`entry.severity` etc.) and `toMatchObject` works.
-// Type guard: a parsed JSON value is a string-keyed record. Narrowing through a
-// guard (not an assertion) keeps the repo's no-unsafe-assertion rule happy.
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null
 }
@@ -85,8 +79,6 @@ describe('logger', () => {
   })
 
   it('serializes an Error in meta to name/message/stack instead of {}', () => {
-    // A bare Error's own props are non-enumerable, so JSON.stringify would drop
-    // message/stack — defeating the whole point of the wave. It must be normalized.
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     const boom = new Error('duplicate key on org_links_pkey')
     logger.error('transaction defect', { scope: 'commitSaga', defect: boom })
@@ -109,7 +101,6 @@ describe('logger', () => {
     const serialized = entry.err
     if (!isRecord(serialized)) throw new Error('err should serialize to an object')
     expect(serialized.code).toBe('23505')
-    // `detail` (which embeds the whatsapp PII) must NOT be copied.
     expect(serialized).not.toHaveProperty('detail')
     expect(JSON.stringify(entry)).not.toContain('5511999999999')
   })
@@ -125,16 +116,12 @@ describe('logger', () => {
     })
     const entry = parseLine(err.mock.calls[0]?.[0])
     expect(entry.whatsapp).toBe('[redacted]')
-    // `mobile` is the renamed person-number field (brief 0087); the backstop
-    // must redact it too or the rename would open a new disclosure vector.
     expect(entry.mobile).toBe('[redacted]')
     expect(entry.email).toBe('[redacted]')
-    // Nested PII is redacted too (key-only top-level check would miss this).
     const nested = entry.nested
     if (!isRecord(nested)) throw new Error('nested should be an object')
     expect(nested.email).toBe('[redacted]')
     expect(nested.ok).toBe('keep')
-    // Non-PII context is preserved.
     expect(entry.orgId).toBe('org-1')
   })
 
@@ -144,8 +131,6 @@ describe('logger', () => {
     logger.error('pretty me', { code: '42' })
     const line: unknown = err.mock.calls[0]?.[0]
     if (typeof line !== 'string') throw new Error('expected a string log line')
-    // A pretty line is a bare coloured string, not a JSON object — it neither
-    // starts with `{` nor parses as one.
     expect(line.trimStart().startsWith('{')).toBe(false)
     expect(line).toContain('ERROR')
     expect(line).toContain('pretty me')

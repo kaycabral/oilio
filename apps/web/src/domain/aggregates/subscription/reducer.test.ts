@@ -126,9 +126,6 @@ describe('Subscription reducer', () => {
   })
 
   it('cancelled → corte imediato com cancelledAt do meta', () => {
-    // Parte de um estado com cancelamento agendado (cancelAtPeriodEnd=true) pra
-    // provar que `cancelled` força o flag de volta a false e zera a próxima
-    // cobrança — não só herda o default.
     const scheduled: SubscriptionState = {
       ...created(),
       cancelAtPeriodEnd: true,
@@ -181,10 +178,8 @@ describe('Subscription reducer', () => {
       meta(2),
     )
     expect(s.plan).toEqual(PLAN_B)
-    // Não retroage no período/consumo corrente — só o snapshot muda.
     expect(s.status).toBe('active')
     expect(s.currentPeriod).toEqual(active.currentPeriod)
-    // Renovação herda o novo snapshot (a action reusa `state.plan`).
     const renewed = applySubscriptionEvent(
       s,
       {

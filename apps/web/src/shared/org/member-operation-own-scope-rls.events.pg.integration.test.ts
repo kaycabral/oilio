@@ -2,23 +2,6 @@ import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../db/pg/pool'
 
-/**
- * MemberOperation own-scope RLS proof (brief 0075, #1256) against REAL Postgres.
- * Migration 0005 adds an `app.current_member_operation` predicate to the
- * `appointments` and `agenda_blocks` policies: PERMISSIVE when the GUC is
- * unset/empty (the balcão — owner/manager/recepção), RESTRICTIVE to the acting
- * memberOperation's own rows when set. This proves the DATABASE refuses
- * cross-memberOperation read AND write — a self-scoped memberOperation can never reach
- * a colleague's appointment.
- *
- * Proven through a NON-superuser role (`oilio_prof_app`, NOBYPASSRLS — the
- * production runtime shape) with `app.current_org` + `app.current_member_operation`
- * set per connection. The ephemeral Postgres connects as superuser (RLS bypass),
- * so a proof over the superuser pool would be vacuous. Seeding happens over the
- * superuser pool so fixtures exist regardless of policy.
- * OILIO_DATABASE_URL is set by the events-IT runner.
- */
-
 const APP_ROLE = 'oilio_prof_app'
 const APP_PASSWORD = 'rls_test'
 
@@ -72,7 +55,6 @@ async function seedCustomer(): Promise<void> {
   )
 }
 
-// The service `appointments.service_id` references (FK → catalog_items).
 async function seedService(): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
@@ -82,8 +64,6 @@ async function seedService(): Promise<void> {
   )
 }
 
-// One minimal valid appointment owned by `memberOperationId`, over the superuser
-// pool (bypasses RLS). Satisfies the NOT NULL + FK columns.
 async function seedAppointment(id: string, memberOperationId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO appointments (
@@ -99,7 +79,6 @@ async function seedAppointment(id: string, memberOperationId: string): Promise<v
   )
 }
 
-// One agenda block; `memberOperationId` null = unit-wide (owned by no one).
 async function seedBlock(id: string, memberOperationId: string | null): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, member_operation_id, block, created_at, updated_at, member_id)
@@ -108,8 +87,6 @@ async function seedBlock(id: string, memberOperationId: string | null): Promise<
   )
 }
 
-// A fresh connection AS the non-superuser app role, with org + (optional)
-// memberOperation GUCs set. Empty memberOperation = balcão (org/unit-wide).
 async function appClient(memberOperationId = ''): Promise<Client> {
   const c = new Client({ connectionString: appUrl })
   await c.connect()
@@ -138,9 +115,6 @@ describe('Postgres RLS — memberOperation own-scope on appointments/agenda_bloc
 
   beforeEach(async () => {
     const pool = getEventStorePool()
-    // One CASCADE truncate from the roots: appointments/agenda_blocks are FK
-    // children of units/memberOperations/customers, so truncating the parents with
-    // CASCADE clears the children too (a separate child truncate hits the FK).
     await pool.query('TRUNCATE orgs, units, member_operations, customers, catalog_items CASCADE')
     await seedOrg()
     await seedUnit()
@@ -199,7 +173,6 @@ describe('Postgres RLS — memberOperation own-scope on appointments/agenda_bloc
              $1||'_'||('user-'||$3))`,
           [ORG, UNIT, PRO_B, CUSTOMER],
         ),
-        // 42501 = insufficient_privilege (RLS WITH CHECK violation)
       ).rejects.toMatchObject({ code: '42501' })
     } finally {
       await a.end()
@@ -211,8 +184,6 @@ describe('Postgres RLS — memberOperation own-scope on appointments/agenda_bloc
 
     const a = await appClient(PRO_A)
     try {
-      // The colleague's row is invisible under the USING predicate, so the UPDATE
-      // matches nothing — a memberOperation cannot cancel/reschedule another's.
       const res = await a.query(`UPDATE appointments SET status = 'canceled' WHERE id = 'apt-b'`)
       expect(res.rowCount).toBe(0)
     } finally {

@@ -1,7 +1,3 @@
-// Close-order + undo-close sagas — extracted from order-write-helpers to stay
-// under the module-size gate. Both run as ONE Postgres ACID transaction (brief
-// 0061 § Grupo A / AC-02).
-
 import {
   type CashMovement,
   type Commission,
@@ -32,12 +28,6 @@ import 'server-only'
 
 import { type ConsumptionPlan } from './order-write-helpers'
 
-// Resolves the absolute target stock for each product BEFORE the close runs,
-// reading the live catalog stock and clamping at 0, lifted out so the Postgres
-// saga can append the resolved value as a pure step (no read needed inside the
-// cascade). The `stockDecrements` list already came from the single-source
-// `stockDecrementTargets` (every product, regardless of coverage — #B4). Skips
-// non-product / missing refs, so the saga step set is deterministic.
 async function resolveStockTargets(
   orgId: string,
   stockDecrements: { refId: string; quantity: number }[],
@@ -52,11 +42,6 @@ async function resolveStockTargets(
   return targets
 }
 
-// Builds the close-order cascade as an ordered list of saga steps (brief 0061 §
-// Grupo A / AC-02). Each step appends one aggregate's event THROUGH the shared
-// transaction (`appendEventToTx`), so under Postgres the whole cascade commits
-// atomically (or rolls back as one). Order mirrors the Firestore saga: assinatura
-// → estoque → comissões → caixa → appointment.completed → order.closed (anchor).
 export function buildCloseOrderSteps(args: {
   orgId: string
   actorUid: string
@@ -163,10 +148,6 @@ export function buildCloseOrderSteps(args: {
           subtotalCents: totals.subtotalCents,
           totalCents: totals.totalCents,
           paymentMethod,
-          // Snapshot the items + unit on the event (ADR 0016 D5): the Razão derives
-          // per-item revenue from `order.closed` alone, scoped to the unit. The
-          // order is immutable at close (only open orders take item edits), so
-          // this is the final shape.
           items: order.items,
           unitId: order.unitId,
         },
@@ -178,14 +159,6 @@ export function buildCloseOrderSteps(args: {
   return steps
 }
 
-// Cascata-saga (#1026): no backend Postgres (brief 0061 § Grupo A / AC-02) a
-// cascata roda como UMA transação ACID via `commitSaga`: todos os eventos +
-// projeções commitam juntos, e uma falha no meio (CHECK/FK/RLS) faz ROLLBACK
-// total — zero linha de qualquer aggregate. A atomicidade do banco substitui a
-// compensação manual: não há desfazer. Ordem: consumo de assinatura → estoque →
-// comissões → caixa → appointment.completed → order.closed (âncora, por último).
-//
-// Retorna erro ou null.
 export async function emitCloseOrderSaga(args: {
   orgId: string
   actorUid: string
@@ -196,17 +169,11 @@ export async function emitCloseOrderSaga(args: {
   closedAt: string
   consumption: ConsumptionPlan
   commissions: Commission[]
-  // Own-scope RLS for the WRITE (brief 0075, #1265): the saga emits
-  // `appointment.completed` on the own-scope-protected `appointments` table, so a
-  // self-scoped closer must run under their own scope — the DB WITH CHECK is the
-  // last line of defense, not just the `canOperateOpenOrder` app gate. Undefined
-  // for the balcão (permissive).
   security?: WriteSecurity
 }): Promise<string | null> {
   const { orgId, actorUid, orderId, order, paymentMethod, totals, closedAt } = args
   const { subscriptionToConsume, stockDecrements } = args.consumption
 
-  // Caixa sem sessão (brief 0015): só a parte vendida vira movimento `sale`.
   const saleMovement =
     paymentMethod && totals.totalCents > 0
       ? buildSaleMovement({
@@ -219,9 +186,6 @@ export async function emitCloseOrderSaga(args: {
         })
       : null
 
-  // Pre-resolve the live stock targets (read outside the tx — the quantity is
-  // fixed; reading current stock to clamp is the only dependency), then run the
-  // whole cascade as ONE ACID transaction.
   const stockTargets = await resolveStockTargets(orgId, stockDecrements)
   const steps = buildCloseOrderSteps({
     orgId,

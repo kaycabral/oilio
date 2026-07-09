@@ -44,7 +44,6 @@ describe('buildAppointmentWhatsappLink', () => {
     expect(decoded).toContain('Corte')
     expect(decoded).toContain('Bruno')
     expect(decoded).toContain('Salão X')
-    // 13:00 UTC → 10:00 São Paulo, date dd/mm/yyyy
     expect(decoded).toContain('15/06/2026')
     expect(decoded).toContain('10:00')
   })
@@ -92,8 +91,6 @@ describe('gridTimeOptions', () => {
   })
 
   it('trims the tail when the service overruns the close', () => {
-    // 60-min service in a 09:00–11:00 window on a 30-min grid: last valid start
-    // is 10:00 (ends 11:00); 10:30 would end 11:30, past close.
     expect(gridTimeOptions([{ open: '09:00', close: '11:00' }], 30, 60)).toEqual([
       '09:00',
       '09:30',
@@ -137,7 +134,6 @@ describe('gridTimeOptions', () => {
 
   describe('pastCutoff (#1314 — drop past slots on the current day)', () => {
     const DATE = '2026-07-01'
-    // nowMs anchored to 10:00 org-local on DATE.
     const nowMs = new Date(fromOrgTime({ date: DATE, hour: 10, minute: 0 }, TZ)).getTime()
 
     it('omits slots before nowMs, keeps the rest', () => {
@@ -151,7 +147,6 @@ describe('gridTimeOptions', () => {
     })
 
     it('keeps the slot whose start equals nowMs (>= cutoff)', () => {
-      // 10:00 starts exactly at nowMs and must remain (rule is `startMs >= nowMs`).
       const opts = gridTimeOptions([{ open: '09:00', close: '12:00' }], 30, 30, {
         date: DATE,
         timezone: TZ,
@@ -173,14 +168,12 @@ describe('gridTimeOptions', () => {
 })
 
 describe('resolveStartTimePicker (#1314 — NEW never preselects a past slot)', () => {
-  // already past-cut (09:00/09:30 dropped)
   const GRID = ['10:00', '10:30', '11:00']
 
   it('NEW defaults to the first grid slot and never re-injects the fallback', () => {
     const r = resolveStartTimePicker({
       grid: GRID,
       editMode: false,
-      // '09:00' is the past fallback
       initialStartTime: '09:00',
       keepInitial: true,
     })
@@ -204,7 +197,6 @@ describe('resolveStartTimePicker (#1314 — NEW never preselects a past slot)', 
     const r = resolveStartTimePicker({
       grid: GRID,
       editMode: true,
-      // '08:00' is off-grid (before open)
       initialStartTime: '08:00',
       keepInitial: true,
     })
@@ -237,7 +229,6 @@ describe('resolveStartTimePicker (#1314 — NEW never preselects a past slot)', 
 describe('filterGridByBusy (#1318 — omit slots the professional is already busy in)', () => {
   const DATE = '2026-06-15'
   const GRID = ['09:00', '09:30', '10:00', '10:30', '11:00']
-  // 10:00–10:30 in São Paulo (13:00–13:30 UTC).
   const busyAt10 = {
     id: 'a1',
     memberOperationId: 'p1',
@@ -247,14 +238,12 @@ describe('filterGridByBusy (#1318 — omit slots the professional is already bus
   }
 
   it('drops the exact overlapping slot, keeping back-to-back neighbours (half-open)', () => {
-    // 10:00 collides; 09:30 (ends 10:00) and 10:30 (starts at boundary) do NOT.
     expect(
       filterGridByBusy(GRID, [busyAt10], { date: DATE, timezone: TZ, durationMinutes: 30 }),
     ).toEqual(['09:00', '09:30', '10:30', '11:00'])
   })
 
   it('drops every slot a longer service would overrun into the busy window', () => {
-    // 60-min service: 09:30 (09:30–10:30) and 10:00 (10:00–11:00) both hit 10:00–10:30.
     expect(
       filterGridByBusy(GRID, [busyAt10], { date: DATE, timezone: TZ, durationMinutes: 60 }),
     ).toEqual(['09:00', '10:30', '11:00'])

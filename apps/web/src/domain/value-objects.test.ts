@@ -3,9 +3,6 @@ import { describe, expect, it } from 'vitest'
 
 import { NonEmptyString, NonNegativeInt } from './value-objects'
 
-// The shared read-model invariants (#1283 / brief 0078 Group A + G). Both are
-// CONSTRAINTS enforced at the schema decode (the event boundary), unbranded so
-// `.Type` stays string/number — the DB CHECK is the second layer.
 describe('NonEmptyString', () => {
   it('decodes a non-empty string', () => {
     expect(Schema.decodeUnknownSync(NonEmptyString)('abc')).toBe('abc')

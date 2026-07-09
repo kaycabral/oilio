@@ -10,18 +10,6 @@ import { getPublicOrgBundle } from '@/features/self-book/adapters/public-org'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 
-// Platform-canonical signup (#840 + refator pós-revisão). The act of
-// signing up is a Oilio event (global User in `users/{uid}`),
-// not an establishment event — the org is *attribution* of intent,
-// not the boundary of account creation. We accept an optional `?from=
-// {org-slug}` to surface context ("you came here through Salão X")
-// and to materialize a Customer shadow in that org at completion.
-//
-// Without `?from`, the page still works as a platform signup — useful
-// for direct marketing links into the SaaS without a specific org.
-// Invalid/unpublished `?from` is silently ignored (falls back to
-// platform-only) instead of 404 — the platform signup itself is valid.
-
 type PageProps = { searchParams: Promise<Record<string, string | undefined>> }
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
@@ -38,9 +26,6 @@ export default async function PublicSignupPage({ searchParams }: PageProps) {
   const from = params.from
   const bundle = from ? await getPublicOrgBundle(from) : null
 
-  // Post-OAuth target: completion step FIRST (see `buildSignupNext`), then the
-  // booking destination resolved below — its path carries the org slug, which the
-  // completion step reads to attribute the Customer.
   const next = buildSignupNext(resolveBookingTarget(from, bundle != null, params))
 
   return (
@@ -77,12 +62,6 @@ export default async function PublicSignupPage({ searchParams }: PageProps) {
   )
 }
 
-// Resolve where the visitor lands after completing the profile. The invite
-// targets a specific unit (`unit`), so we route to THAT unit's booking entry
-// (`/{org}/{unit}` → catalog → real availability slots). Without a valid unit we
-// fall back to the org profile (`/{org}`), which itself routes into a unit. We
-// never route to the removed org-level `/{org}/book`. Null when there's no org
-// context (plain platform signup → `buildSignupNext` sends to the done page).
 function resolveBookingTarget(
   orgSlug: string | undefined,
   hasOrg: boolean,
@@ -95,10 +74,6 @@ function resolveBookingTarget(
   return `${path}${attributionSuffix(params)}`
 }
 
-// Re-serialize the captured attribution (sanitized through the domain boundary)
-// onto the post-completion booking URL, so the channel/campaign that brought the
-// visitor survives the OAuth round-trip and lands on the Customer write. Returns
-// '' when there's nothing to carry, keeping the URL clean.
 function attributionSuffix(params: Record<string, string | undefined>): string {
   const attribution = attributionFromParams((key) => params[key] ?? null)
   const query = attributionToSearchParams(attribution).toString()

@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// The single validation layer composes three adapters; mock each at its module
-// boundary so the test asserts the ORDER + short-circuit (brief 0080, Grupo B)
-// without I/O. `server-only` is a no-op stub under vitest.
 const mocks = vi.hoisted(() => ({
   enforceSlotGrid: vi.fn(),
   checkSlotConflicts: vi.fn(),
@@ -23,9 +20,6 @@ import { validateAppointmentWrite } from './validate-appointment-write'
 
 type WriteArgs = Parameters<typeof validateAppointmentWrite>[0]
 
-// The layer only reads id/timezone/agenda.mode off the unit; the slot-grid +
-// scope checks it delegates to are mocked, so a minimal appointment-mode stub
-// is enough. Typed via the param type so no cast is needed.
 const UNIT: WriteArgs['unit'] = {
   id: 'u1',
   timezone: 'America/Sao_Paulo',

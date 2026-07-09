@@ -50,12 +50,10 @@ describe('getBlockSegmentsForDay', () => {
   })
 
   it('skips recurring block on a different weekday', () => {
-    // 2026-05-15 is Friday
     expect(getBlockSegmentsForDay([lunch('b1')], '2026-05-15', BR)).toHaveLength(0)
   })
 
   it('intersects one-off interval that lies on the day', () => {
-    // 14:00–16:00 BR on 2026-05-20 = 17:00–19:00 UTC
     const b = oneOff('b2', '2026-05-20T17:00:00.000Z', '2026-05-20T19:00:00.000Z')
     const segs = getBlockSegmentsForDay([b], '2026-05-20', BR)
     expect(segs).toHaveLength(1)
@@ -68,8 +66,6 @@ describe('getBlockSegmentsForDay', () => {
   })
 
   it('clips one-off that starts the day before in BR', () => {
-    // 23:00 BR (=02:00 UTC next day) on 2026-05-19 to 02:00 BR on 2026-05-20.
-    // For 2026-05-20: starts before the day, ends at 02:00 → segment [0, 120]
     const b = oneOff('b3', '2026-05-20T02:00:00.000Z', '2026-05-20T05:00:00.000Z')
     const segs = getBlockSegmentsForDay([b], '2026-05-20', BR)
     expect(segs).toHaveLength(1)
@@ -77,7 +73,6 @@ describe('getBlockSegmentsForDay', () => {
   })
 
   it('covers full day when one-off spans across multiple days', () => {
-    // Whole-week vacation: 2026-05-18 00:00 BR to 2026-05-25 00:00 BR
     const b = oneOff('b4', '2026-05-18T03:00:00.000Z', '2026-05-25T03:00:00.000Z')
     const segs = getBlockSegmentsForDay([b], '2026-05-20', BR)
     expect(segs).toHaveLength(1)

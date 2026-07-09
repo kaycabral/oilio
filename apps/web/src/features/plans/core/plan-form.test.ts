@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { findDanglingCoverageRef, parseAllowedTimeScope, parsePlanForm } from './plan-form'
 
-// Helper pra montar FormData minimalista pros casos.
 function makeForm(entries: Record<string, string | string[]>): FormData {
   const fd = new FormData()
   for (const [key, value] of Object.entries(entries)) {

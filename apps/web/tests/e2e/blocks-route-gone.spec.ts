@@ -1,8 +1,3 @@
-// Regression E2E for #1083 (brief 0036 AC-01/AC-05): the `/blocks` route is
-// removed entirely — list, `new`, and `[id]`. Blocking lives in the responsible
-// context now (unit config + member detail). Navigating to `/blocks` must 404,
-// and the nav no longer offers "Bloqueios".
-
 import { expect, test } from './fixtures'
 
 test.describe('`/blocks` removida (#1083 AC-01/AC-05)', () => {

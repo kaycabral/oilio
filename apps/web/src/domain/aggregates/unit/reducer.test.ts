@@ -28,11 +28,6 @@ const FIXED_STATE: UnitState = {
   agenda: { mode: 'fixed', businessHours: HOURS },
 }
 
-// Self-booking publication is NOT event-sourced (PRD Identidade v2 / SPIKE
-// "inferred availability"): there is no publish/unpublish event. A unit goes
-// public by switching its agenda mode to `appointment` via `unit.updated` — the
-// reducer just projects the new agenda, and `isUnitPubliclyLive` derives the
-// public state from it on read.
 describe('applyUnitEvent — agenda transitions (inferred publication)', () => {
   it('switches the unit into the appointment agenda via unit.updated', () => {
     const next = applyUnitEvent(

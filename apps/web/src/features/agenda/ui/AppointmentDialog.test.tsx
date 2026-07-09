@@ -3,16 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppointmentDialog } from './AppointmentDialog'
 
-// The action-form wrappers (`*FormAction`) are what the dialog dispatches
-// directly via `<form action>`. They take `(prevState, formData)` and we
-// stub them at that boundary. `useActionState` invokes the mock with a
-// FormData instance; assertions read the appointmentId hidden input back
-// out of that FormData to confirm the right id was wired up.
-
 type ActionResult = { ok: true; appointmentId?: string } | { ok: false; error: string }
-// `createAppointment(formData)` and `updateAppointment(id, formData)` are the
-// create/update server actions; the `*FormAction` wrappers take
-// `(prevState, formData)` from `useActionState`.
 type CreateAction = (formData: FormData) => Promise<ActionResult>
 type UpdateAction = (id: string, formData: FormData) => Promise<ActionResult>
 type FormAction = (prevState: unknown, formData: FormData) => Promise<ActionResult>
@@ -106,7 +97,6 @@ function buildAppointment(overrides: Partial<Appointment> = {}): Appointment {
     memberOperationId: 'p1',
     customerId: 'c1',
     serviceId: 's1',
-    // 2026-05-15 10:00 in America/Sao_Paulo = 13:00 UTC.
     startAt: '2026-05-15T13:00:00.000Z',
     endAt: '2026-05-15T13:30:00.000Z',
     status: 'scheduled',
@@ -150,9 +140,6 @@ function makeBaseProps() {
   }
 }
 
-// `useActionState` invokes the mock with (prevState, formData). The hidden
-// `appointmentId` input is the contract between the form and the action —
-// reading it back asserts the right id was wired into the form.
 function assertCalledWithAppointmentId(
   mock: ReturnType<typeof vi.fn<FormAction>>,
   appointmentId: string,
@@ -172,10 +159,6 @@ beforeEach(() => {
   mocks.startAttendanceFormAction.mockReset()
   mocks.routerPush.mockReset()
   mocks.routerRefresh.mockReset()
-  // #1314 — the start-time grid now drops past slots relative to `Date.now()`.
-  // Fixtures live on 2026-05-15 (10:00/11:00 SP); pin "now" to 08:00 SP that
-  // day so those slots stay in the future and remain offerable. The no-show
-  // fixtures use 2020/2099 explicitly, so they're unaffected by this clock.
   vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.setSystemTime(new Date('2026-05-15T11:00:00.000Z'))
 })
@@ -188,9 +171,6 @@ describe('AppointmentDialog — cancel flow (#639)', () => {
   it('shows the cancel-confirmation step before calling the cancel action', () => {
     const baseProps = makeBaseProps()
     render(<AppointmentDialog {...baseProps} appointment={buildAppointment()} />)
-    // The destructive action is two-step: first click reveals "Cancelar mesmo?"
-    // confirmation, second click ("Sim") fires the action. Protects against
-    // accidental cancellations from a misclick.
     fireEvent.click(screen.getByRole('button', { name: /^cancelar agendamento$/i }))
     expect(screen.getByText(/cancelar mesmo\?/i)).toBeInTheDocument()
     expect(mocks.cancelAppointmentFormAction).not.toHaveBeenCalled()
@@ -235,15 +215,9 @@ describe('AppointmentDialog — reschedule (#639)', () => {
     const baseProps = makeBaseProps()
     render(<AppointmentDialog {...baseProps} appointment={buildAppointment()} />)
 
-    // Reschedule by picking a different grid slot (10:00 → 11:00) from the
-    // start-time Select. Radix opens via Pointer Capture + scrollIntoView, both
-    // stubbed in vitest.setup; click the trigger then the option.
     fireEvent.click(screen.getByRole('combobox', { name: /início/i }))
     fireEvent.click(screen.getByRole('option', { name: '11:00' }))
 
-    // Save button is associated with the main form via `form="…"` attribute
-    // (button sits in DialogFooter outside the form DOM); submit by clicking
-    // it directly instead of via `form.submit()`.
     fireEvent.click(screen.getByRole('button', { name: /^salvar$/i }))
     await waitFor(() => expect(mocks.updateAppointment).toHaveBeenCalledTimes(1))
     const [id, fd] = mocks.updateAppointment.mock.calls[0]!
@@ -261,19 +235,10 @@ describe('AppointmentDialog — reschedule (#639)', () => {
     })
     const baseProps = makeBaseProps()
     render(<AppointmentDialog {...baseProps} appointment={buildAppointment()} />)
-    // Submit the form directly. jsdom doesn't reliably propagate the submit
-    // from a `form="…"` attribute on a button OUTSIDE the form via
-    // fireEvent.click — `fireEvent.submit(form)` is the canonical way to
-    // exercise the action handler in this layout. The Save button is wired to
-    // the main form via its `form` attribute, so its `.form` property resolves
-    // the owning form without raw DOM traversal.
     const saveButton = screen.getByRole('button', { name: /^salvar$/i })
     const form = saveButton instanceof HTMLButtonElement ? saveButton.form : null
     expect(form).not.toBeNull()
     fireEvent.submit(form ?? saveButton)
-    // findByText waits for the error to land in the DOM (one async flush of
-    // the action's microtasks). Once it returns, the chain is settled and we
-    // can read everything synchronously.
     expect(await screen.findByText(/conflito com outro agendamento/i)).toBeInTheDocument()
     expect(mocks.updateAppointment).toHaveBeenCalledTimes(1)
     expect(baseProps.onOpenChange).not.toHaveBeenCalled()
@@ -281,19 +246,13 @@ describe('AppointmentDialog — reschedule (#639)', () => {
 })
 
 describe('AppointmentDialog — past-slot preselection (#1314)', () => {
-  // businessHours 09:00–12:00, slotMinutes 30, service 30min → grid 09:00…11:30.
   it('NEW after 09:00 does not offer or preselect a past slot; default is the first future slot', () => {
-    // "now" = 2026-05-15 10:00 SP (13:00 UTC): 09:00/09:30 are past, 10:00+ future.
     vi.setSystemTime(new Date('2026-05-15T13:00:00.000Z'))
     const baseProps = makeBaseProps()
-    // NEW: no appointment. The fallback initial start is '09:00' — already past.
     render(<AppointmentDialog {...baseProps} appointment={null} />)
-    // The trigger shows the default-selected value; it must be the first future
-    // slot (10:00), never the past 09:00 (which the write path would reject).
     const combobox = screen.getByRole('combobox', { name: /início/i })
     expect(combobox).toHaveTextContent('10:00')
     expect(combobox).not.toHaveTextContent('09:00')
-    // And the past 09:00/09:30 must NOT be re-injected into the options either.
     fireEvent.click(combobox)
     expect(screen.queryByRole('option', { name: '09:00' })).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: '09:30' })).not.toBeInTheDocument()
@@ -301,8 +260,6 @@ describe('AppointmentDialog — past-slot preselection (#1314)', () => {
   })
 
   it('EDIT preserves the appointment start even when it fell off the grid', () => {
-    // "now" = 08:00 SP so nothing is past. Appointment starts 08:00 SP (11:00
-    // UTC) — before the 09:00 open, so it is NOT a grid slot; edit must keep it.
     vi.setSystemTime(new Date('2026-05-15T10:00:00.000Z'))
     const baseProps = makeBaseProps()
     render(
@@ -315,14 +272,11 @@ describe('AppointmentDialog — past-slot preselection (#1314)', () => {
       />,
     )
     fireEvent.click(screen.getByRole('combobox', { name: /início/i }))
-    // The off-grid start (08:00) is re-injected so the edit doesn't drop it.
     expect(screen.getByRole('option', { name: '08:00' })).toBeInTheDocument()
   })
 })
 
 describe('AppointmentDialog — omit already-busy slots (#1318)', () => {
-  // grid 09:00…11:30 (30-min slots, 30-min service). "now" pinned to 08:00 SP so
-  // nothing is past. p1 is busy 10:00–10:30 SP (13:00–13:30 UTC).
   const busyAt10 = {
     p1: [
       buildAppointment({
@@ -337,12 +291,9 @@ describe('AppointmentDialog — omit already-busy slots (#1318)', () => {
     vi.setSystemTime(new Date('2026-05-15T11:00:00.000Z'))
     const baseProps = makeBaseProps()
     render(<AppointmentDialog {...baseProps} appointment={null} busyByMemberOperation={busyAt10} />)
-    // Pick the professional first (balcão flow): only then does the picker know
-    // whose busy day to omit — matching the repro (choose pro → slot filtered).
     fireEvent.click(screen.getByRole('combobox', { name: /profissional/i }))
     fireEvent.click(screen.getByRole('option', { name: 'Ana' }))
     fireEvent.click(screen.getByRole('combobox', { name: /início/i }))
-    // 10:00 collides and must be gone; the back-to-back neighbours stay.
     expect(screen.queryByRole('option', { name: '10:00' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: '09:30' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '10:30' })).toBeInTheDocument()
@@ -351,7 +302,6 @@ describe('AppointmentDialog — omit already-busy slots (#1318)', () => {
   it('EDIT keeps the appointment its own slot (excludeAppointmentId)', () => {
     vi.setSystemTime(new Date('2026-05-15T11:00:00.000Z'))
     const baseProps = makeBaseProps()
-    // The edited appointment (a1) IS the 10:00 booking; its own slot must remain.
     const own = {
       p1: [
         buildAppointment({
@@ -469,7 +419,6 @@ describe('AppointmentDialog — no-show flow (#871)', () => {
     fireEvent.click(screen.getByRole('button', { name: /^desmarcar não compareceu$/i }))
     expect(await screen.findByText(/não está marcado como não compareceu/i)).toBeInTheDocument()
     assertCalledWithAppointmentId(mocks.unmarkAppointmentNoShowFormAction, 'a1')
-    // On failure the dialog stays open so the staff can try again.
     expect(baseProps.onOpenChange).not.toHaveBeenCalled()
   })
 })

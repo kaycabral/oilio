@@ -5,9 +5,6 @@ import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@cbrl/design'
 
 import { WhatsappIcon } from './icons/whatsapp'
 
-// Exposed (always-visible) WhatsApp quick-action for a list row — sits beside the
-// ⋯ menu. Opens wa.me for the number; the tooltip reveals the formatted number
-// on hover. Renders nothing when the phone can't be normalized (no broken link).
 export function WhatsappAction({ phone, label }: { phone: string; label?: string }) {
   const normalized = normalizeBrazilPhone(phone)
   if (!normalized) return null

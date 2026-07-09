@@ -1,10 +1,5 @@
 import { formString } from '@/shared/form-data'
 
-// Parsed intent of the walk-in order's customer selector (brief 0081 / #1323).
-// Three modes: `existing` (link a picked customer), `new` (register + link a
-// customer inline), `none` (unlink — detach the current customer). `new` reuses
-// the shared `resolveCustomerIdForWrite` upsert path in the action; `none` maps to
-// a `customerId: null` assign event (link/unlink/swap are one nullable event).
 export type ParsedAssignCustomer =
   | { mode: 'existing'; customerId: string }
   | { mode: 'new'; newCustomer: { name: string; mobile: string } }

@@ -49,12 +49,6 @@ function formatAddress(unit: Unit): string {
   return `${street}${number ? `, ${number}` : ''} — ${city}/${state}`
 }
 
-// Folder-manager for the Negócios surface (PRD Identidade v2, F5).
-// Replaces the old "Empresa" page. The ACTIVE Negócio is expanded with its
-// Unidades; other Negócios render as switchable rows (the multi-org invariant
-// forbids reading their units here — switching makes one active, then it
-// expands). For a single Negócio with a single Unidade it collapses to one
-// simple card — no hierarchy shoved at users who don't need it.
 export function OrganizationsManager({
   org,
   units,
@@ -70,10 +64,6 @@ export function OrganizationsManager({
 }) {
   const { setActiveOrg } = useOrg()
   const otherOrgs = orgs.filter((o) => o.id !== org.id)
-  // Free unlocks the FIRST unit (gracious floor); a 2nd needs `units.unlimited`
-  // (Pro+). So offer "+ Nova unidade" only when the tier is unlimited OR there
-  // are no units yet; otherwise show the upgrade CTA instead of a dialog that
-  // createUnit would reject at submit (brief 0082).
   const canAddUnit = useCapability('units.unlimited') || units.length === 0
 
   return (
@@ -197,9 +187,6 @@ function UnitRow({
     </span>
   )
 
-  // Read-only members see a static row; managers get an edit link + (owner)
-  // the Excluir/Arquivar overflow action — the unit CRUD lives right here on
-  // /orgs (PRD Identidade v2 — simplification), not a separate page.
   if (!canManage) {
     return (
       <li className="flex items-center gap-3 py-3">

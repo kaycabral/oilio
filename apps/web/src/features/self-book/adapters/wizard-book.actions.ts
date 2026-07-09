@@ -37,20 +37,9 @@ import { getOrgBySlug } from '@/shared/org/org'
 import { listStoredUnitsForOrg } from '@/shared/org/unit-read'
 import { channelOf, emitClientFunnelEvent } from '@/shared/product'
 
-// Server action for the unit-scoped booking wizard (#844) — the canonical public
-// booking path. Key traits:
-//   - `unitSlug` comes from the path, not the form.
-//   - `startAt` comes pre-resolved as an ISO UTC instant (from the availability
-//     calendar click) — only real, available slots reach here.
-//   - `memberOperationId` is required (the calendar in #842 always assigns a pro).
-
 export type WizardBookingResult =
   | { ok: true; bookingId: string; orgId: string; unitSlug: string }
   | { ok: false; error: string }
-  // Brief 0019 Group C — AC-12. Surfaces a special signal when the
-  // customer already has the maximum same-day appointments allowed by
-  // their plan. The client opens a "trocar horário" modal pointing at
-  // the existing appointment instead of creating a duplicate.
   | {
       ok: false
       kind: 'reschedule-required'
@@ -58,30 +47,15 @@ export type WizardBookingResult =
       existingAppointment: { id: string; startAt: string }
       rescheduleHref: string
     }
-  // Brief 0019 Group D — AC-17. Defense-in-depth rejected the booking
-  // because the slot falls outside the customer's subscription scope
-  // (temporal axis). The client trades the generic error for a friendly
-  // message with a "Falar no WhatsApp" CTA pointing at the unit.
   | { ok: false; kind: 'out-of-scope'; error: string }
-  // Brief 0077 Grupo A — AC-01/AC-03 (#1275). The action refuses to book
-  // without an authenticated session: nobody agenda sem login. The client
-  // sends the visitor to Google login, returning to this booking URL.
   | { ok: false; kind: 'needs-login' }
-  // Brief 0077 Grupo A — AC-03/AC-04 (#1274/#1275). Logged in but the
-  // profile isn't complete (no whatsapp/birthDate) — the DB CHECK + this
-  // gate both refuse. The client sends the visitor to completar cadastro,
-  // returning here. PII comes from the completed profile, never the form.
   | { ok: false; kind: 'needs-completion' }
 
-// Resolve the unit / service / memberOperation and validate they form a bookable
-// combination in this unit (public visibility, links, approval). Error or trio.
 async function resolveWizardEntities(
   orgId: string,
   fields: Pick<WizardFields, 'serviceId' | 'memberOperationId'>,
   unitSlug: string,
 ): Promise<{ unit: StoredUnit; service: CatalogItem; memberOperation: MemberOperation } | string> {
-  // Typed projection reads under RLS (Postgres cutover, #1202): units list +
-  // catalog item + memberOperation. The three are independent — run in parallel.
   const [units, service, memberOperation] = await Promise.all([
     listStoredUnitsForOrg(orgId),
     getCatalogItemById(orgId, fields.serviceId),
@@ -91,7 +65,6 @@ async function resolveWizardEntities(
   const unit = units.find((u) => u.slug === unitSlug)
   if (!unit) return 'Unidade não encontrada.'
 
-  // Unified catalog read (brief 0023, #1004): kind service + public visibility.
   if (!service) return 'Serviço não encontrado.'
   if (!isCatalogService(service)) return 'Item não é um serviço.'
   if (!service.active || !service.publicVisible) return 'Serviço indisponível.'
@@ -112,10 +85,6 @@ async function resolveWizardEntities(
   return { unit, service, memberOperation }
 }
 
-// Defense-in-depth (brief 0019): re-check the signed-in visitor's subscription
-// scope server-side (category coverage + temporal window), even though the
-// availability UI filtered slots. Avulso (no session) skips. Returns the plan's
-// booking limits to enforce, or an out-of-scope `WizardBookingResult`.
 async function checkWizardSubscriptionScope(args: {
   org: { id: string; timezone: string }
   session: Awaited<ReturnType<typeof getSessionUser>>
@@ -126,7 +95,6 @@ async function checkWizardSubscriptionScope(args: {
   if (!session) return { bookingLimits: null }
   const scope = await resolveCustomerSubscriptionScope(org.id, session.uid)
 
-  // Category coverage (brief 0023, AC-06).
   if (scope.includedCategoryIds) {
     const covered = service.categoryId !== null && scope.includedCategoryIds.has(service.categoryId)
     if (!covered) {
@@ -162,9 +130,6 @@ async function checkWizardSubscriptionScope(args: {
   return { bookingLimits: scope.bookingLimits }
 }
 
-// Behavioral scope enforcement (brief 0019, Group C — AC-12..14). Avulso (no
-// session / no subscription) skips. Returns a reschedule-required/blocked
-// `WizardBookingResult`, or null when the booking may proceed.
 async function enforceWizardBookingLimits(args: {
   org: { id: string; timezone: string }
   customerId: string
@@ -187,8 +152,6 @@ async function enforceWizardBookingLimits(args: {
       kind: 'reschedule-required',
       error: 'Você já tem um agendamento neste dia. Reagende-o em vez de criar um novo.',
       existingAppointment: limitCheck.existingAppointment,
-      // Self-service customer routes (brief 0003 #651) host the per-appointment
-      // reschedule flow — point the modal there.
       rescheduleHref: `/me/appointments`,
     }
   }
@@ -213,10 +176,6 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   if (typeof fields === 'string') return { ok: false, error: fields }
   const { serviceId, memberOperationId, startAtDate } = fields
 
-  // Login gate (brief 0077 Grupo A — AC-01/AC-03/AC-04, #1275). Nobody agenda
-  // sem login + cadastro completo. Server-side authority: even a tampered UI
-  // hits these two refusals. The customer is DERIVED from the authenticated uid
-  // — the confirm step carries no Nome/WhatsApp/email (those were removed).
   const session = await getSessionUser()
   if (!session) return { ok: false, kind: 'needs-login' }
   const sessionUser = await getUserDoc(session.uid)
@@ -228,11 +187,6 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   if (typeof entities === 'string') return { ok: false, error: entities }
   const { unit, service } = entities
 
-  // Publish gate, timezone and cancellation policy are the establishment's now
-  // (PRD Identidade v2 — moved Org→Unit): gate on the unit's inferred public
-  // availability (appointment mode + complete address & hours — no stored publish
-  // flag, the same rule the landing/slots use) and use the unit's tz for all
-  // temporal logic below.
   if (!isUnitPubliclyLive(unit)) {
     return { ok: false, error: 'Estabelecimento indisponível.' }
   }
@@ -241,10 +195,6 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   const resolved = resolveCatalogItemForUnit(service, unit.id)
   const endAt = new Date(startAtDate.getTime() + resolved.durationMinutes * 60_000)
 
-  // Brief 0080 (Grupo A) — the backend is authoritative over the grid: a forged
-  // POST whose `startAt` is off the slot grid, outside hours, past, or whose
-  // service overruns close is rejected here, so the `:42-43` "only real slots
-  // reach here" trust in the client is no longer load-bearing.
   const gridCheck = enforceSlotGrid({
     unit,
     startAt: startAtDate.toISOString(),
@@ -255,8 +205,6 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   })
   if (!gridCheck.ok) return { ok: false, error: gridCheck.error }
 
-  // Behavioral scope (brief 0019, Group C — AC-12..14) reuses the same resolver;
-  // hoist the booking limits to enforce below once the customer is materialized.
   const scopeResult = await checkWizardSubscriptionScope({
     org: unitScope,
     session,
@@ -266,14 +214,8 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
   if ('error' in scopeResult) return scopeResult.error
   const bookingLimitsForCustomer = scopeResult.bookingLimits
 
-  // Touch attribution (brief 0077 AC-11) from the contextual link's params,
-  // forwarded as hidden form fields. Backend re-sanitizes (single boundary).
   const attribution = attributionFromParams((k) => formString(formData, k) || null)
 
-  // Customer derived from the logged-in uid (#1275) — NOT from typed PII. The
-  // User doc already holds the (completed) PII; we only need the per-org shadow.
-  // Idempotent: a returning customer gets their existing shadow. Write-once
-  // acquisition lands only on first materialization.
   const customer = await ensureSelfSignupCustomer(org.id, session.uid, attribution)
   const customerId = customer.customerId
 
@@ -304,12 +246,9 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     servicePriceCentsSnapshot: resolved.priceCents,
     serviceDurationMinutesSnapshot: resolved.durationMinutes,
     commissionSnapshot: resolved.commission,
-    // Snapshot da cancellation policy no commit (#1038). Accessor branch-free —
-    // resolve a policy do appointment ou o default fora dele, já normalizada.
     cancellationPolicySnapshot: unitCancellationPolicySnapshot(unit.agenda),
     customerUserId: userIds.ids.customerUserId,
     memberOperatorUserId: userIds.ids.memberOperatorUserId,
-    // Per-booking touch attribution (brief 0077 AC-11).
     attribution,
     createdAt: now,
     updatedAt: now,
@@ -328,7 +267,6 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     }
   }
 
-  // Funnel event (brief 0077 AC-12) — PII-zero touch attribution. Best-effort.
   await emitClientFunnelEvent({
     event: 'appointment_created',
     orgId: org.id,
@@ -336,7 +274,5 @@ export async function createWizardBooking(formData: FormData): Promise<WizardBoo
     ...channelOf(attribution),
   })
 
-  // Auditoria = stream: `commitAppointmentBooking` já emite `appointment.created`
-  // (fonte de verdade). Sem `audit_logs` paralelo (erradicação ES, #1029).
   return { ok: true, bookingId, orgId: org.id, unitSlug: unit.slug }
 }

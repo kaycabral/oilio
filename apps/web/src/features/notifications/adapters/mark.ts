@@ -5,7 +5,6 @@ import { emitEvent } from '@/shared/effect-bridge'
 
 export type MarkResult = { ok: true } | { ok: false; error: string }
 
-// AC-16: marca como lida (sem agir) — emite notification.read (seta readAt).
 export async function markNotificationRead(
   orgId: string,
   notificationId: string,
@@ -19,8 +18,6 @@ export async function markNotificationRead(
   return result.ok ? { ok: true } : { ok: false, error: result.error }
 }
 
-// AC-17: adia — emite notification.snoozed com snoozedUntil futuro. A
-// notificação some do popover (fetchUnitNotifications filtra) até chegar.
 export async function snoozeNotification({
   orgId,
   notificationId,

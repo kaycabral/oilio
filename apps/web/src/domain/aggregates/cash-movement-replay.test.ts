@@ -1,7 +1,3 @@
-// AC-09/AC-10 (brief 0025), fatia caixa (#1019) — caixa sem sessão (0015):
-// o movimento de caixa é event-first (created carrega o snapshot completo,
-// standalone, sem cashRegisterId). created → replay == projeção, campo a campo.
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 

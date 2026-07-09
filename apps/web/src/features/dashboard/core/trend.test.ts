@@ -66,7 +66,6 @@ describe('bucketByLocalDay', () => {
   }
 
   it('attributes a Brazilian late-night sale to the correct local day', () => {
-    // 23:30 BR on 2026-03-13 = 02:30Z on 2026-03-14 (BR is UTC-3, no DST)
     const c = makeTestOrder('2026-03-14T02:30:00.000Z', 5000)
     const days = ['2026-03-13', '2026-03-14']
     const result = bucketByLocalDay([c], [], TZ, days)
@@ -102,7 +101,6 @@ describe('bucketByLocalDay', () => {
       TZ,
       days,
     )
-    // 2026-03-15T01:00Z = 2026-03-14T22:00 BR → bucket on 2026-03-14
     expect(result).toEqual([
       { date: '2026-03-14', revenueCents: 0, newSubs: 3 },
       { date: '2026-03-15', revenueCents: 0, newSubs: 0 },
@@ -111,7 +109,6 @@ describe('bucketByLocalDay', () => {
 
   it('drops points outside the requested day range', () => {
     const days = ['2026-03-14']
-    // Order from 2026-03-13 BR is not in the day list — should be dropped.
     const result = bucketByLocalDay([makeTestOrder('2026-03-13T12:00:00.000Z', 999)], [], TZ, days)
     expect(result).toEqual([{ date: '2026-03-14', revenueCents: 0, newSubs: 0 }])
   })

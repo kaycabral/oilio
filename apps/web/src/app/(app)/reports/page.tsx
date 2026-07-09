@@ -14,10 +14,6 @@ export default async function ReportsHubPage({
 }) {
   const props = await loadReportsPage(await searchParams)
 
-  // Off-plan → 404, like a route that doesn't exist (brief 0088 AC-06). Reports is
-  // gated by `reports.sales`; the loader returns `sales: null` exactly when the
-  // tier lacks it (and materialized nothing). A per-section capability (commissions)
-  // the tier lacks is hidden inside `ReportsView`, not upsold.
   if (!props.sales) notFound()
 
   return (

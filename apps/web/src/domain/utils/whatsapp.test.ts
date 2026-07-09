@@ -71,7 +71,6 @@ describe('resolveWhatsappTemplates', () => {
   })
 
   it('returns all defaults for an empty object (no field present, no throw)', () => {
-    // Each `partial?.x?.trim()` must short-circuit when the key is absent.
     expect(resolveWhatsappTemplates({})).toEqual(DEFAULT_WHATSAPP_TEMPLATES)
   })
 })

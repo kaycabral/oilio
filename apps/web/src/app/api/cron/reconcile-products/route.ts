@@ -4,11 +4,6 @@ import { withRequestContext } from '@/shared/lib/request-context'
 import { Effect } from 'effect'
 import { NextResponse } from 'next/server'
 
-// Reconciliation cron (brief 0050, AC-08). Reprocesses the catalog items whose
-// sovereign-base contribution was deferred (base was down at registration).
-// Molded on `daily-notifications/route.ts`: verifies the cron secret, runs the
-// per-item-tolerant generator, returns the reconciled count.
-
 function verifyCronSecret(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) return false
@@ -23,8 +18,6 @@ async function postHandler(request: Request) {
 
   const url = new URL(request.url)
   const nowParam = url.searchParams.get('now')
-  // Guard against a malformed `?now=` — `new Date('garbage')` is an Invalid Date
-  // (not null), which would later throw on `.toISOString()` and abort the sweep.
   const parsedNow = nowParam ? new Date(nowParam) : new Date()
   const now = Number.isNaN(parsedNow.getTime()) ? new Date() : parsedNow
 

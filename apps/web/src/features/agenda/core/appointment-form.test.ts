@@ -13,8 +13,6 @@ function form(fields: Record<string, string>): FormData {
   return fd
 }
 
-// Narrows the parse result's `T | string` union without a cast: the parser
-// returns an error string on rejection, so a successful parse is "not a string".
 function asParsed(r: ParsedAppointment | string): ParsedAppointment {
   if (typeof r === 'string') throw new Error(`expected a parsed appointment, got: ${r}`)
   return r
@@ -91,7 +89,6 @@ describe('resolveStartEnd', () => {
     if (typeof r === 'object') {
       const delta = new Date(r.endAt).getTime() - new Date(r.startAt).getTime()
       expect(delta).toBe(30 * 60_000)
-      // 10:00 in São Paulo (UTC-3) → 13:00 UTC
       expect(r.startAt).toBe('2026-06-15T13:00:00.000Z')
     }
   })

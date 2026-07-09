@@ -1,9 +1,3 @@
-// Pure read-model for the Copiloto tracking (brief 0042, #1115). Computes
-// realizado-após-comissão, ritmo and run-rate projection against the goal — all
-// derived live from order/commission projections, NO event emitted (read-only).
-// Kept pure + injectable so the degenerate cases (no sales, no commission) are
-// unit-testable without the emulator.
-
 import { getOrgDayBoundsUtc, getTodayInOrgTz } from '@/domain'
 
 export type PartialLabelKind = 'after-commission' | 'revenue-only'
@@ -15,8 +9,6 @@ export type GoalPeriodWindow = {
   daysInMonth: number
 }
 
-// Resolve the UTC window + elapsed/total days for a `YYYY-MM` period in the
-// org timezone. Pure + injectable clock (unit-testable run-rate inputs).
 export function resolveGoalPeriodWindow(
   period: string,
   tz: string,
@@ -46,15 +38,9 @@ export function resolveGoalPeriodWindow(
 
 export type GoalTracking = {
   targetCents: number
-  // Resultado-após-comissão (partial — cost isn't modeled yet).
   realizedCents: number
-  // `after-commission`: there was commission to subtract → "falta custo".
-  // `revenue-only`: no commission at all (SaaS / produto-puro) → "só receita".
   partialLabel: PartialLabelKind
-  // Realizado as a % of the target (0..∞, 1 decimal).
   pacePct: number
-  // Run-rate close projection; null = n/d (no sales to extrapolate / no day
-  // elapsed) so the UI never divides by zero nor fakes a closing number.
   projectionCents: number | null
   projectionPct: number | null
 }
@@ -63,9 +49,6 @@ export function realizedAfterCommission(revenueCents: number, commissionCents: n
   return revenueCents - commissionCents
 }
 
-// Linear run-rate: realizado / dias_decorridos × dias_no_mês. Returns null
-// (n/d) when there are no sales (nothing to extrapolate) or no day has elapsed
-// (avoids ÷0) — AC-05.
 export function runRateProjectionCents(
   realizedCents: number,
   elapsedDays: number,
@@ -76,8 +59,6 @@ export function runRateProjectionCents(
   return Math.round((realizedCents / elapsedDays) * daysInMonth)
 }
 
-// AC-06: the label keys off whether any commission was subtracted. If none,
-// the realizado IS pure revenue, so "só receita" is the honest label.
 export function partialLabelKind(commissionCents: number): PartialLabelKind {
   return commissionCents > 0 ? 'after-commission' : 'revenue-only'
 }

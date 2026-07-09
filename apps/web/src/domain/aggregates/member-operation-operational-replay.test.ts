@@ -1,18 +1,3 @@
-// #1226 AC-02 (DoD § Replay) — `operationalStatus` is NO LONGER materialized on
-// the memberOperation projection: it is DERIVED on read from real facts
-// (mobile ∧ ≥1 unit ∧ ≥1 service). The `member_operation.activated` /
-// `member_operation.suspended` events are no longer emitted, but HISTORICAL streams
-// that emitted them must still REPLAY without breaking — the reducer treats them
-// as no-ops. This test proves the replay-safety contract:
-//   - a legacy stream (created → activated → suspended) replays cleanly;
-//   - those transition events leave the state untouched (no-op);
-//   - the replayed state carries no `operationalStatus` field;
-//   - a legacy `member_operation.created` whose payload still carried
-//     `operationalStatus` decodes (excess property ignored).
-//
-// Also exercises the pure derivation rule (the read-layer gate) so the
-// "operational when accepted ∧ mobile ∧ ≥1 unit ∧ ≥1 service" rule stays pinned.
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -22,9 +7,6 @@ import { appendEvent, replayAggregate } from '../effect/event-store'
 import { MemberOperationConfig } from './member-operation/config'
 import { deriveOperationalStatus } from './member-operation/derive-operational'
 
-// A legacy `member_operation.created` payload — note it still carries the now-dropped
-// `operationalStatus` key (a historical stream). Decode must tolerate it as an
-// excess property (a drop, unlike a rename, needs no normalization).
 const LEGACY_CREATED_DATA = {
   id: 'pro1',
   orgId: 't1',
@@ -54,8 +36,6 @@ describe('MemberOperation operational — legacy activate/suspend events replay 
           actorId: 'actor-1',
           payload: { changes: { unitIds: ['u1'], catalogServiceIds: ['s1'] } },
         })
-        // Legacy transition events — no longer emitted, but historical streams
-        // have them. The reducer must accept + ignore them.
         yield* appendEvent(MemberOperationConfig, ref, {
           _tag: 'member_operation.activated',
           actorId: 'actor-1',
@@ -73,17 +53,11 @@ describe('MemberOperation operational — legacy activate/suspend events replay 
       replayAggregate(MemberOperationConfig, ref).pipe(Effect.provide(layer)),
     )
 
-    // Replay matches the projection and reconstructs the real state from the
-    // stream alone — the transition events did not break decoding.
     expect(replayed).toEqual(store.get(docKey(ref)))
     expect(replayed._version).toBe(4)
-    // The transitions are no-ops: the operational fields come only from
-    // created/updated, untouched by activated/suspended.
     expect(replayed.unitIds).toEqual(['u1'])
     expect(replayed.catalogServiceIds).toEqual(['s1'])
     expect(replayed.userId).toBe('u-pro1')
-    // The dropped column is absent from the projected state (excess key ignored
-    // on the legacy created payload; never re-introduced by the no-op events).
     expect('operationalStatus' in replayed).toBe(false)
   })
 

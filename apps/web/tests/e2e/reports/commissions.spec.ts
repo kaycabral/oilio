@@ -1,21 +1,3 @@
-// E2E spec — brief 0022 #998 + #1000 (Relatório de comissões pendente/pago).
-//
-// - AC-05 relatório lista comissões do período com valores + status + totais
-// - AC-05 totais por profissional (pendente/pago) + filtro por status
-// - AC-07 atendimentos cobertos por assinatura: contagem + valor de catálogo
-//   por profissional; serviço de venda comissionável fica de fora
-// - empty state: relatório sem dados abre sem erro
-// - filtro por período retorna só registros no range
-// - migração (#998): comissão com estado legado de split é lida como `pendente`
-//
-// Seed direto de comissões/orders via REST do emulator (mais rápido que fechar
-// order por order) — o relatório é uma projeção read-only.
-//
-// Brief 0031 (#1062): a seção Comissões foi dobrada no hub `/reports` (a rota
-// `/reports/commissions` redireciona pra lá). Os specs apontam pro hub; a
-// casca do `<CommissionReport>` (heading "Relatório de comissões", filtros) é
-// a mesma.
-
 import { expect, test } from '../fixtures'
 import { chooseOption } from '../helpers/select'
 import {
@@ -31,17 +13,10 @@ type SeedCommission = {
   liquidationStatus: 'pendente' | 'pago' | 'auto_split'
   createdAt: string
   itemKind?: 'service' | 'product'
-  // Unit the source order belongs to (brief 0039 AC-04 scoping). Defaults to
-  // the org's first unit.
   unitId?: string
 }
 
 async function seedCommission(org: SeededOrg, c: SeedCommission): Promise<void> {
-  // The report scopes commissions by unit through their source order (brief
-  // 0039 AC-04 — Commission has no `unitId`, the closed order carries it). Seed
-  // the matching closed order so the commission stays in scope (in production a
-  // commission always has its closing order in the same window). `unitId`
-  // defaults to the org's first unit unless the case overrides it.
   const orderId = await seedClosedOrderHelper({
     orgId: org.orgId,
     unitId: c.unitId ?? org.unitIds[0] ?? 'unit',
@@ -50,9 +25,6 @@ async function seedCommission(org: SeededOrg, c: SeedCommission): Promise<void> 
     totalCents: c.amountCents * 2,
     closedAt: c.createdAt,
   })
-  // Legacy split states (#998) are not part of the seeded Commission union; the
-  // report read-path migrates any non-`pago` liquidation status to `pendente`.
-  // Seed those as `pendente` (the migrated value the report would surface).
   const liquidationStatus = c.liquidationStatus === 'pago' ? 'pago' : 'pendente'
   await seedCommissionDoc({
     orgId: org.orgId,
@@ -73,14 +45,6 @@ type SeedCoveredLine = {
   quantity: number
 }
 
-// Seed direto de comandas fechadas — o relatório de cobertos (AC-07) lê closed
-// orders no período. O summary de cobertos (`summarizeCoveredAttendances`)
-// agrega por item ao longo de todas as orders, então uma order por linha é
-// equivalente a uma order com N itens. O `seedClosedOrder` do session.ts
-// (Postgres) semeia uma order de item único: subscription-coberta liquida
-// `totalCents: 0` mantendo o `unitPriceCents`/subtotal no preço de catálogo (o
-// valor que o report soma); venda mantém o total no preço cheio. `quantity`
-// fica em 1 (única quantidade exercitada por este AC).
 async function seedClosedOrder(
   org: SeededOrg,
   lines: SeedCoveredLine[],
@@ -92,10 +56,6 @@ async function seedClosedOrder(
       unitId: org.unitIds[0] ?? 'unit',
       customerId: null,
       attributedUserId: l.attributedUserId,
-      // Coberta por assinatura → 0 em caixa, preço de catálogo no subtotal/item.
-      // Venda → preço cheio (não compõe a contagem de cobertos de toda forma).
-      // `paymentMethod` não afeta o summary de cobertos (lê só `coverage`), então
-      // fica no default do helper.
       totalCents: l.coverage === 'subscription' ? 0 : l.unitPriceCents,
       subtotalCents: l.unitPriceCents,
       coverage: l.coverage,
@@ -130,7 +90,6 @@ test.describe('Relatório de comissões (#998)', () => {
       liquidationStatus: 'pago',
       createdAt: now,
     })
-    // Migração (#998): estado legado de split é lido como `pendente`.
     await seedCommission(org, {
       attributedUserId: proUser,
       itemName: 'Comissao Legada',
@@ -145,14 +104,9 @@ test.describe('Relatório de comissões (#998)', () => {
     await expect(authedPage.getByText('Corte Pendente')).toBeVisible()
     await expect(authedPage.getByText('Barba Paga')).toBeVisible()
     await expect(authedPage.getByText('Comissao Legada')).toBeVisible()
-    // Valores aparecem no card de resumo e na linha — basta confirmar presença.
     await expect(authedPage.getByText('R$ 25,00').first()).toBeVisible()
     await expect(authedPage.getByText('R$ 10,00').first()).toBeVisible()
-    // Total agregado (25 + 10 + 5) — aparece no card de resumo e na linha do
-    // profissional (único profissional → mesmo total). Basta confirmar presença.
     await expect(authedPage.getByText('R$ 40,00').first()).toBeVisible()
-    // Estado legado migra para Pendente (não aparece "Split automático"). A
-    // linha da comissão legada mostra o status `Pendente`.
     const legacyRow = authedPage.getByRole('listitem').filter({ hasText: 'Comissao Legada' })
     await expect(legacyRow.getByText('Pendente')).toBeVisible()
     await expect(authedPage.getByText('Split automático')).toBeHidden()
@@ -176,15 +130,10 @@ test.describe('Relatório de comissões (#998)', () => {
       createdAt: '2026-01-01T12:00:00.000Z',
     })
 
-    // Range default (últimos 7 dias) só mostra a recente.
     await authedPage.goto('/reports')
     await expect(authedPage.getByText('Comissao Recente')).toBeVisible()
     await expect(authedPage.getByText('Comissao Antiga')).toBeHidden()
 
-    // Ampliando o range pra incluir janeiro, a antiga aparece. O hub `/reports`
-    // tem DUAS faixas de data (Vendas + Comissões), então escopo o `De`/`Filtrar`
-    // ao form da seção Comissões — único com o botão "Filtrar" (Vendas usa
-    // "Aplicar") e o select "Membro".
     const commissionsForm = authedPage.locator('form', {
       has: authedPage.getByRole('button', { name: 'Filtrar' }),
     })
@@ -223,18 +172,14 @@ test.describe('Relatório de comissões (#998)', () => {
     })
 
     await authedPage.goto('/reports')
-    // Sem filtro: ambos na lista, totais por profissional mostram os dois.
     await expect(authedPage.getByText('Servico Pendente')).toBeVisible()
     await expect(authedPage.getByText('Servico Pago')).toBeVisible()
     await expect(authedPage.getByRole('heading', { name: 'Por membro' })).toBeVisible()
 
-    // Filtra por status `pago` → só o pago fica na lista; o resumo segue com os
-    // dois (recorte por profissional/período, não por status).
     await chooseOption(authedPage, 'Status', 'Pago')
     await authedPage.getByRole('button', { name: 'Filtrar' }).click()
     await expect(authedPage.getByText('Servico Pago')).toBeVisible({ timeout: 5000 })
     await expect(authedPage.getByText('Servico Pendente')).toBeHidden()
-    // Resumo pendente (R$ 25,00) continua visível mesmo filtrando a lista por pago.
     await expect(authedPage.getByText('R$ 25,00').first()).toBeVisible()
   })
 
@@ -256,7 +201,6 @@ test.describe('Relatório de comissões (#998)', () => {
           unitPriceCents: 5000,
           quantity: 1,
         },
-        // Serviço de venda comissionável — NÃO entra na contagem de cobertos.
         {
           attributedUserId: proUser,
           name: 'Corte Vendido',
@@ -273,8 +217,6 @@ test.describe('Relatório de comissões (#998)', () => {
     await expect(
       authedPage.getByRole('heading', { name: 'Atendimentos cobertos por assinatura' }),
     ).toBeVisible()
-    // 1 atendimento coberto, valor de catálogo R$ 50,00 (o serviço de venda
-    // não conta). A venda comissionável não aparece nesta seção.
     const coveredRow = authedPage.getByRole('row').filter({ hasText: 'R$ 50,00' })
     await expect(coveredRow).toBeVisible()
     await expect(coveredRow.getByText('1', { exact: true })).toBeVisible()

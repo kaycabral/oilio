@@ -9,16 +9,10 @@ const userCommonFields = {
   avatarUrl: Schema.NullOr(Schema.String),
   emailVerified: Schema.Boolean,
   currentOrgId: Schema.NullOr(Schema.String),
-  // PF/PJ identity. Same shape used by Org and MemberOperation. Null until the
-  // user activates a role that requires it. See [[02-Estrategia-Modelo-Identidade]].
   taxIdentity: Schema.NullOr(TaxIdentity),
-  // Personal description and skills surfaced on memberOperation profiles.
   bio: Schema.NullOr(Schema.String),
   specialties: Schema.NullOr(Schema.mutable(Schema.Array(Schema.String))),
-  // Timestamp when the doc became backed by a Firebase Auth identity (#839).
-  // Null on stubs created by the recepcionista path.
   claimedAt: Schema.NullOr(Schema.String),
-  // LGPD — proof the user accepted the current Terms / Privacy versions.
   termsAcceptedAt: Schema.NullOr(Schema.String),
   termsVersion: Schema.NullOr(Schema.String),
   privacyAcceptedAt: Schema.NullOr(Schema.String),
@@ -26,17 +20,6 @@ const userCommonFields = {
   createdAt: Schema.String,
   updatedAt: Schema.String,
 }
-
-// mobile (canonical contact number — the person's Brazilian mobile) and
-// birthDate (ISO `YYYY-MM-DD`, powers aniversariantes) are modeled as a
-// discriminated union across the account's two independent axes —
-// `completionCompleted` and `anonymizedAt` — so the only representable states
-// are the real ones:
-//   • Incomplete — post-OAuth, before the completion step (#838): PII nullable.
-//   • Complete   — completion done (mobile ∧ birthDate REQUIRED).
-//   • Anonymized — LGPD art. 18 erasure (#1093): PII scrubbed to null.
-// A "completed account with no mobile" can ONLY exist via the Anonymized
-// branch (`anonymizedAt` set); any other path producing it fails to decode.
 
 const UserIncomplete = Schema.mutable(
   Schema.Struct({

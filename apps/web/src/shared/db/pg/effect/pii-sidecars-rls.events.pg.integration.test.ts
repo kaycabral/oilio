@@ -2,22 +2,6 @@ import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 
-/**
- * RLS isolation proof for the four deletable PII sidecars (migration feature F —
- * cutover, brief 0062, AC-03): `invites_pii`, `member_operations_pii`, `units_pii`,
- * `unit_tax_identity`. Each is org-only — the policy filters
- * `org_id = current_setting('app.current_org')` on USING (read) and WITH CHECK
- * (write) — so an org can never read or write another org's PII rows, and a
- * connection with NO org context is fail-closed (zero rows).
- *
- * Mirrors `config-rls-isolation.events.pg.integration.test.ts`: the ephemeral
- * Postgres connects as superuser (which bypasses RLS), so every isolation
- * assertion runs through a NON-superuser role (`oilio_rls_app`, no BYPASSRLS).
- * Seeding happens over the superuser pool so the fixtures exist regardless of
- * policy. Each table carries different columns, so `seedRow` / `writeForeign`
- * switch on the table to satisfy each row's NOT NULL columns.
- */
-
 const APP_ROLE = 'oilio_rls_app'
 const APP_PASSWORD = 'rls_test'
 
@@ -42,7 +26,6 @@ async function seedOrg(id: string): Promise<void> {
   )
 }
 
-// Seed one minimal valid row per sidecar (over the superuser pool, bypassing RLS).
 async function seedRow(table: PiiSidecar, orgId: string, id: string): Promise<void> {
   const pool = getEventStorePool()
   switch (table) {
@@ -77,8 +60,6 @@ async function seedRow(table: PiiSidecar, orgId: string, id: string): Promise<vo
   }
 }
 
-// A write of a FOREIGN-org row, attempted through an org-A session (must be
-// refused by WITH CHECK). Same column shapes as `seedRow`, but for org B.
 function foreignInsert(
   table: PiiSidecar,
   orgId: string,
@@ -108,7 +89,6 @@ function foreignInsert(
   }
 }
 
-// A fresh connection AS the non-superuser app role, with `app.current_org` set.
 async function appClient(orgId: string): Promise<Client> {
   const c = new Client({ connectionString: appUrl })
   await c.connect()
@@ -143,7 +123,6 @@ describe('Postgres RLS isolation — PII sidecars (brief 0062, AC-03)', () => {
     await closeEventStoreDb()
   })
 
-  // ── Cross-org READ refusal — proven for ALL 4 sidecars ─────────────────────
   for (const table of PII_SIDECARS) {
     it(`${table}: a session scoped to org A reads ZERO rows of org B (read isolation)`, async () => {
       await seedOrg(ORG_A)
@@ -162,7 +141,6 @@ describe('Postgres RLS isolation — PII sidecars (brief 0062, AC-03)', () => {
     })
   }
 
-  // ── Cross-org WRITE refusal — proven for ALL 4 sidecars ────────────────────
   for (const table of PII_SIDECARS) {
     it(`${table}: a session scoped to org A CANNOT INSERT a row for org B (WITH CHECK)`, async () => {
       await seedOrg(ORG_A)
@@ -171,7 +149,6 @@ describe('Postgres RLS isolation — PII sidecars (brief 0062, AC-03)', () => {
       const a = await appClient(ORG_A)
       const { sql, params } = foreignInsert(table, ORG_B, 'b')
       try {
-        // 42501 = insufficient_privilege (RLS WITH CHECK violation)
         await expect(a.query(sql, params)).rejects.toMatchObject({ code: '42501' })
       } finally {
         await a.end()
@@ -179,7 +156,6 @@ describe('Postgres RLS isolation — PII sidecars (brief 0062, AC-03)', () => {
     })
   }
 
-  // ── Fail-closed: no GUC → zero rows — proven for ALL 4 sidecars ─────────────
   for (const table of PII_SIDECARS) {
     it(`${table}: a session with NO org context (GUC unset) sees zero rows (fail-closed)`, async () => {
       await seedOrg(ORG_A)

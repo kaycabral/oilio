@@ -1,11 +1,6 @@
 import { expect, test } from '../fixtures'
 import { AgendaPage } from '../pages'
 
-// Scaffold spec for the E2E retrofit (#743). Exercises the seed+session
-// fixture end-to-end and asserts the agenda renders for a freshly seeded
-// org. Read-only — does not depend on React onChange firing inside
-// form-action forms (see #763).
-
 test.describe('Agenda — com profissional aprovado e horários configurados', () => {
   test.use({
     orgInput: {
@@ -20,8 +15,6 @@ test.describe('Agenda — com profissional aprovado e horários configurados', (
   test('renderiza a coluna do profissional cadastrado', async ({ authedPage }) => {
     const agenda = new AgendaPage(authedPage)
     const resp = await authedPage.goto('/agenda')
-    // Diagnostic: if the layout redirected us out (login / onboarding), the
-    // assertion below would say the heading is missing. Make it loud instead.
     expect(authedPage.url()).toContain('/agenda')
     expect(resp?.status()).toBeLessThan(400)
     await expect(agenda.heading()).toBeVisible()
@@ -43,10 +36,6 @@ test.describe('Agenda — com profissional de cadastro incompleto', () => {
   test('profissional não operacional NÃO aparece na agenda (só em Equipe)', async ({
     authedPage,
   }) => {
-    // The agenda lists only BOOKABLE memberOperations (operational + active
-    // memberOperation-role membership). An incomplete profile must NOT become a
-    // column — it belongs only on the Team page, where its "cadastro incompleto"
-    // badge lives. Showing it here only clutters the grid and misleads the UX.
     const agenda = new AgendaPage(authedPage)
     await agenda.goto()
     await expect(agenda.memberOperationColumn('Profissional 1')).toHaveCount(0)

@@ -7,7 +7,6 @@ describe('currentPeriod', () => {
   })
 
   it('resolves the period by the org timezone, not UTC', () => {
-    // 2026-07-01T01:00:00Z is still 2026-06-30 22:00 in São Paulo (UTC-3) → June.
     expect(currentPeriod('America/Sao_Paulo', new Date('2026-07-01T01:00:00Z'))).toBe('2026-06')
   })
 })

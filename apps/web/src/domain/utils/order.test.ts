@@ -30,10 +30,6 @@ describe('computeOrderTotals', () => {
     })
   })
 
-  // Defesa em profundidade do #1319: mesmo que a action falhe em barrar um
-  // desconto > subtotal, o core clampa o TOTAL a 0 — a receita nunca fica
-  // inconsistente. O reject com mensagem (teto = subtotal) vive na action
-  // `updateOrderMeta`, não aqui; este teste trava o clamp do núcleo.
   it('total não fica negativo quando desconto > subtotal (#1319)', () => {
     const items = [{ quantity: 1, unitPriceCents: 1000 }]
     expect(computeOrderTotals(items, 5000)).toEqual({
@@ -87,7 +83,6 @@ describe('computeCommissionAmountCents', () => {
   })
 
   it('percentage: arredonda half-up', () => {
-    // 333 * 50% = 166.5 → 167
     expect(computeCommissionAmountCents(333, { kind: 'percentage', value: 50 })).toBe(167)
   })
 

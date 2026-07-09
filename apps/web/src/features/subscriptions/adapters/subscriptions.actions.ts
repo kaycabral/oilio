@@ -30,7 +30,6 @@ import { getSubscriptionPlanById } from '@/shared/org/subscription-plan-read'
 
 const decodeSubscription = Schema.decodeUnknownSync(Subscription)
 
-// Single subscription by id, read from the typed projection under RLS.
 async function getSubscriptionById(orgId: string, id: string): Promise<Subscription | null> {
   const rows = await readUnderRls<SubscriptionRow>(orgId, (client) =>
     client
@@ -55,8 +54,6 @@ export type {
 
 const ACTIVE_SUBSCRIPTION_STATUSES = ['pending', 'active', 'past_due', 'suspended'] as const
 
-// Whether the customer already has a non-terminal subscription in this org (V0
-// assumes 1 plan per customer). Existence check under RLS — no decode.
 async function customerHasActiveSubscription(orgId: string, customerId: string): Promise<boolean> {
   const rows = await readUnderRls<{ exists: boolean }>(orgId, (client) =>
     client
@@ -73,18 +70,11 @@ async function customerHasActiveSubscription(orgId: string, customerId: string):
 }
 
 export async function createSubscription(formData: FormData): Promise<SubscriptionMutationResult> {
-  // Adesão a recurso recorrente → manager RBAC + `plans.recurring` tier wall
-  // (brief 0072/0082/0088 AC-01). A subscription CONSUMES the recurring
-  // capability just as creating the plan does. Converged onto the shared guard
-  // so create shares the SAME wall as update/change/reactivate.
   const r = await requireRecurringManagerCtx()
   if (!r.ok) return r
   const parsed = parseCreateForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  // Contexto de unidade único (brief 0043): a assinatura nasce na unidade
-  // ativa do contexto. Sem unidade não há onde ancorar o MRR — espelha
-  // `createOrder`.
   const { activeUnitId } = await resolveActiveUnit(r.ctx.membership)
   if (!activeUnitId) {
     return { ok: false, error: 'Nenhuma unidade ativa — crie uma unidade antes de assinar' }
@@ -99,21 +89,11 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
   if (!customerUserId) return { ok: false, error: 'Cliente não encontrado' }
   if (!plan) return { ok: false, error: 'Plano não encontrado' }
 
-  // Pre-flight (UX): falha cedo se o plano já está inativo/descontinuado ao
-  // abrir. A verdade que fecha a corrida vem do read transacional no guard
-  // abaixo — esta checagem é só pra mensagem rápida no caminho feliz.
   if (!plan.active) return { ok: false, error: 'Plano está inativo' }
-  // A discontinued (soft-deleted) plan must NOT back a NEW subscription — the
-  // active subscribers finish their cycle on their frozen snapshot, but novas
-  // adesões ficam bloqueadas (brief 0033, bug 1 + AC-08 use-time guard). The
-  // `/subscriptions/new` picker already filters archived plans; this is the
-  // server-side defense so a stale form / direct call can't slip through.
   if (plan.archivedAt) {
     return { ok: false, error: 'Plano foi descontinuado e não aceita novas adesões' }
   }
 
-  // Bloqueia segunda assinatura ativa pro mesmo cliente — modelo V0 assume
-  // 1 plano por cliente. Owner pode cancelar e criar nova se precisar trocar.
   if (await customerHasActiveSubscription(orgId, parsed.customerId)) {
     return { ok: false, error: 'Cliente já possui assinatura ativa — cancele antes de criar nova' }
   }
@@ -125,12 +105,6 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
   const chargeId = newId()
   const planRef = aggregateRef(SubscriptionPlanConfig, orgId, parsed.planId)
 
-  // Guard transacional de descontinuação + preço (brief 0033 AC-08/AC-09): o
-  // read do plano (ativo + preço) acontece DENTRO da transação que appenda
-  // `subscription.created`, travando o doc do plano. Descontinuado no commit →
-  // rejeita; preço snapshotado = min(exibido, vigente). Leitura de definição pra
-  // guardar/snapshotar o WRITE de UM aggregate (a assinatura). O preço apurado é
-  // capturado pra a cobrança herdar o MESMO valor legal do snapshot.
   const subRef = aggregateRef(SubscriptionConfig, orgId, subId)
   const chargeRef = aggregateRef(ChargeConfig, orgId, chargeId)
 
@@ -148,8 +122,6 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
         if (!livePlan.active || livePlan.archivedAt) {
           return { _tag: 'reject' as const, message: 'Plano descontinuado' }
         }
-        // AC-09 — preço na divergência segue a lei (CDC art. 30 + Decreto
-        // 5.903/2006 art. 5º): cobra o MENOR entre o exibido e o vigente.
         const lawful = computeLawfulPrice(parsed.displayedPriceCents, livePlan.priceCents)
         const planSnapshot = buildPlanSnapshot(livePlan, {
           billingCycle: parsed.billingCycle,
@@ -174,10 +146,6 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
       }),
   }
 
-  // The charge inherits the LAWFUL price resolved in the guard — read it off the
-  // resolved subscription payload's plan snapshot, so the charge can never carry
-  // a price the subscription didn't. Event-first: a cobrança nasce de
-  // `charge.created` (snapshot completo).
   const buildCharge = (amountCents: number): Charge => ({
     id: chargeId,
     orgId,
@@ -198,11 +166,6 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
     createdAt: now,
     updatedAt: now,
   })
-  // The charge MUST inherit the lawful price the guard computed and baked into the
-  // snapshot (min(displayed, current) — AC-09 / CDC art. 30). If the resolved
-  // payload doesn't carry it (a future snapshot-shape change), FAIL rather than
-  // fall back to the pre-flight `plan.priceCents` — that pre-tx value is exactly
-  // what AC-09 forbids, and a silent fallback would overcharge invisibly.
   const lawfulFrom = (payload: Record<string, unknown>): number => {
     const planSnap = payload['plan']
     if (planSnap && typeof planSnap === 'object' && 'priceCents' in planSnap) {
@@ -212,9 +175,6 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
     throw new Error('subscription.created payload missing a numeric plan.priceCents (lawful price)')
   }
 
-  // Subscription + charge as ONE ACID transaction — the subscription is never
-  // orphaned of its charge on the failure path (brief 0061 § Grupo B / AC-02).
-  // The guard resolves the price in-tx; the charge inherits it.
   const outcome = await commitGuardedThenAppend(guardedSub, ChargeConfig, chargeRef, (payload) => ({
     _tag: 'charge.created',
     actorId: r.ctx.session.uid,
@@ -237,12 +197,6 @@ export async function cancelSubscription(
   if (!sub) return { ok: false, error: 'Assinatura não encontrada' }
   if (sub.status === 'cancelled') return { ok: false, error: 'Assinatura já cancelada' }
 
-  // Cancelamento SUAVE (ao fim do ciclo) — espelha o self-cancel do cliente
-  // (`me/subscriptions/actions.ts`, AC-12 do brief 0003). O evento
-  // `cancel_scheduled` só marca `cancelAtPeriodEnd`; status segue ativo e o
-  // benefício vale até o fim do período. O corte efetivo (status='cancelled'
-  // via `subscription.cancelled`) acontece em `renewSubscription` no vencimento.
-  // Auditoria vem do stream — sem `recordAudit` paralelo (AC-07).
   const scheduled = await emitEvent(
     SubscriptionConfig,
     aggregateRef(SubscriptionConfig, orgId, subscriptionId),
@@ -262,24 +216,10 @@ export async function cancelSubscription(
   return { ok: true }
 }
 
-/**
- * Troca explícita de plano de um assinante (ADR 0010, D5 / AC-07). NÃO é
- * efeito colateral de editar o plano — editar o plano nunca retroage no
- * snapshot congelado (`buildPlanSnapshot` no create). Esta action é o único
- * caminho para mover um assinante para outro plano: captura um snapshot fresco
- * do plano de destino e emite `subscription.plan_changed`. Não retroativo —
- * vale do change-point em diante; a renovação herda o novo snapshot.
- *
- * Guardas: owner/manager; assinatura existe e não cancelada; plano de destino
- * existe + ativo; plano de destino difere do contratado (idempotente).
- */
 export async function changeSubscriptionPlan(
   subscriptionId: string,
   newPlanId: string,
 ): Promise<ChargeMutationResult> {
-  // Adesão a recurso recorrente → parede de tier + manager RBAC (brief 0088
-  // AC-01). Antes só o role guard rodava, então uma org rebaixada pra Free
-  // trocava de plano por POST direto.
   const r = await requireRecurringManagerCtx()
   if (!r.ok) return r
 
@@ -301,8 +241,6 @@ export async function changeSubscriptionPlan(
   if (!plan) return { ok: false, error: 'Plano de destino não encontrado' }
   if (!plan.active) return { ok: false, error: 'Plano de destino está inativo' }
 
-  // Preserva o ciclo de cobrança contratado — a troca é de escopo/preço do
-  // plano, não do cadência de cobrança vigente.
   const planSnapshot = buildPlanSnapshot(plan, { billingCycle: sub.plan.billingCycle })
 
   const changed = await emitEvent(
@@ -324,9 +262,6 @@ export async function changeSubscriptionPlan(
 export async function reactivateSubscription(
   subscriptionId: string,
 ): Promise<ChargeMutationResult> {
-  // Consumo de recurso recorrente (reabre a recorrência) → parede de tier +
-  // manager RBAC (brief 0088 AC-01). Parte da cadeia cancel(não-gated)→downgrade
-  // →reactivate: sem o gate, a Free mantinha recorrência viva.
   const r = await requireRecurringManagerCtx()
   if (!r.ok) return r
 

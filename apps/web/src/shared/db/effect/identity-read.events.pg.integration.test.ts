@@ -10,21 +10,6 @@ import { getOrg } from '@/shared/org/org'
 import { Effect } from 'effect'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-/**
- * IDENTITY reads against real Postgres (brief 0059, AC-04) — the read side of
- * the identity cycle: write through the port (event + typed projection in one
- * tx, under RLS), then read back through the SAME accessor the app uses, getting
- * the identical decoded shape.
- *
- * Scoped to the reads that DON'T enrich from Firestore (`getOrg`,
- * `getMembership`) — `listUnitsForOrg`/`listOrgMembers` merge PII/user names from
- * Firestore sidecars and are proven by the E2E (which runs the emulator). The
- * read path sets `app.current_org` via `readUnderRls`; here the ephemeral
- * Postgres is superuser (bypasses RLS), so this proves the routing + decode
- * round-trip, and `rls-isolation.events.pg.integration.test.ts` proves the
- * policy enforcement with a non-superuser role.
- */
-
 const ORG = 'org-read'
 
 function org(id: string, overrides: Partial<StoredOrg> = {}): StoredOrg {
@@ -62,9 +47,6 @@ function membership(
   }
 }
 
-// A membership with a non-null `rls_unit_scope` carries a FK to `units`
-// (D2/0068) — seed the parent unit so `membership.created` projects without
-// tripping `memberships_rls_unit_scope_fk`.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
@@ -116,7 +98,6 @@ describe('Identity reads — Postgres (brief 0059, AC-04)', () => {
     expect(found).not.toBeNull()
     expect(found?.name).toBe('Lava-Rápido Central')
     expect(found?.vertical).toBe('auto_wash')
-    // branding is normalized (the JSONB body round-trips through the projection)
     expect(found?.branding).toEqual(DEFAULT_ORG_BRANDING)
   })
 

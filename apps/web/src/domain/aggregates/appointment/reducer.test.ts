@@ -22,7 +22,6 @@ const CREATED_DATA: Partial<AppointmentState> = {
   customerUserId: 'u-c1',
 }
 
-// Fold a created event from the empty seed so later events have a real state.
 function created(): AppointmentState {
   return applyAppointmentEvent(
     INITIAL_APPOINTMENT_STATE,
@@ -48,7 +47,6 @@ describe('applyAppointmentEvent', () => {
     )
     expect(state._version).toBe(7)
     expect(state.updatedAt).toBe('2026-06-02T08:00:00.000Z')
-    // createdAt is not touched by a non-created event.
     expect(state.createdAt).toBe('2026-06-01T10:00:00.000Z')
   })
 

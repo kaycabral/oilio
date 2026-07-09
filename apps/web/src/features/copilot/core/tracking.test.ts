@@ -36,7 +36,6 @@ describe('realizedAfterCommission', () => {
 
 describe('runRateProjectionCents', () => {
   it('extrapolates linearly by elapsed days', () => {
-    // 30_000 in 10 of 30 days → 90_000 projected.
     expect(runRateProjectionCents(30_000, 10, 30, true)).toBe(90_000)
   })
 

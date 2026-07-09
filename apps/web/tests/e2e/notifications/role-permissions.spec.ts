@@ -1,9 +1,3 @@
-// E2E spec — sub-issue #959 do brief 0018 (Grupo E).
-//
-// AC via browser real, com sessão de RECEPTIONIST (não o owner do fixture):
-// - AC-18: receptionist NÃO vê cash_register_open/payment_failure no sininho
-// - AC-20: /settings/notifications é read-only pra receptionist
-
 import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import { NotificationState } from '@/domain/aggregates/notification/types'
 import { aggregateRef } from '@/domain/effect'
@@ -16,18 +10,10 @@ import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { seedAuthUser, seedMembershipFor, signInAndAttachSession } from '../helpers/session'
 
-// Points the user's active-org pointer at `orgId` (Postgres `users` table,
-// post-cutover). Mirrors what the product write path does on org switch.
 async function setCurrentOrg(uid: string, orgId: string): Promise<void> {
   await patchUser(uid, { current_org_id: orgId }, new Date().toISOString())
 }
 
-// Seeds a notification straight into Postgres (the event store, post-cutover):
-// the `notification.created` event (v1) + the typed projection row, in one tx —
-// the same column helpers the runtime projector writes, so the seed can't drift
-// from production. The bell reads the projection via `/api/notifications`.
-// The spec drives `type` as a plain string; decode it against the domain literal
-// union so an invalid type fails loudly instead of casting.
 const decodeNotificationType = Schema.decodeUnknownSync(NotificationState.fields.type)
 
 async function seedNotification(orgId: string, unitId: string, type: string): Promise<void> {
@@ -111,8 +97,6 @@ test.describe.serial('Notification role permissions (receptionist)', () => {
 
     await page.goto('/agenda')
 
-    // Opening the popover refetches /api/notifications, so the receptionist's
-    // role-filtered list is loaded deterministically (no reload/sleep needed).
     const loaded = page.waitForResponse((r) => /\/api\/notifications\?/.test(r.url()) && r.ok())
     await page.getByRole('button', { name: 'Notificações' }).click()
     await loaded
@@ -138,7 +122,6 @@ test.describe.serial('Notification role permissions (receptionist)', () => {
 
     await page.goto('/settings/notifications')
 
-    // Vê os templates, mas os campos estão desabilitados (read-only).
     const birthdayBox = page.locator('#body-birthday')
     await expect(birthdayBox).toBeVisible()
     await expect(birthdayBox).toBeDisabled()

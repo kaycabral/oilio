@@ -17,14 +17,6 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-// Brief 0021 — fechamento fiscal-ready (pagamento real + assinatura como consumo).
-// Baseline E2E (princípio #17): cria comanda mista (venda + consumo), fecha,
-// confere total a pagar + saldo do plano; remove a venda → 100% consumo fecha
-// sem pagamento; assinatura sem saldo → não marca consumo (degenerado).
-
-// The subscription projection row, narrowed to the `current_period` JSONB
-// column whose `consumed` counter this spec reads. The projector stores the
-// rolling period verbatim (Number `consumed`); pg parses JSONB into an object.
 const SubscriptionRowSchema = Schema.Struct({
   current_period: Schema.Struct({
     consumed: Schema.optionalWith(Schema.Number, { default: () => 0 }),
@@ -59,9 +51,6 @@ async function seedFixture(
   const subId = await seedSubscription(org.orgId, customerId, {
     planName: 'Mensal Corte',
     usageLimit: { kind: 'count', quantity: 4 },
-    // Plan covers the SERVICE only (Corte) — the product (Pomada) is sold, not
-    // covered. Scoping `includedItemIds` to the service makes the auto-mark
-    // (brief 0079) leave Pomada as `sale`, so the mixed-comanda tests stay mixed.
     includedItemIds: [serviceId],
     ...subOpts,
   })
@@ -95,9 +84,6 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
   async function startOrder(authedPage: Page) {
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-09-08')
-    // Resilient card-open → "Iniciar atendimento" → order URL (see AgendaPage).
-    // The naive card-click + button-click dropped the pre-hydration click and
-    // flaked; startAttendance retries the dialog open until it's visible.
     await agenda.startAttendance(/Cliente Plano/)
   }
 
@@ -108,8 +94,6 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
     const { subId } = await seedFixture(org)
     await startOrder(authedPage)
 
-    // O Corte coberto já nasce como consumo do plano (auto-marcação, brief 0079)
-    // → some do total a pagar (AC-03/05), sem flip manual.
     await expect(
       authedPage
         .getByRole('listitem')
@@ -117,10 +101,8 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
         .getByRole('combobox', { name: 'Cobertura do item' }),
     ).toHaveText('Consumo do plano')
 
-    // Adiciona Pomada (venda) pelo "Adicionar item" único (#1005, AC-11).
     await addCatalogItemToOrder(authedPage, 'Pomada')
 
-    // Total a pagar = só o produto (R$ 30,00); o serviço é consumo.
     await expect(authedPage.getByText('R$ 30,00').first()).toBeVisible()
 
     await choosePaymentMethod(authedPage, 'pix')
@@ -130,7 +112,6 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
 
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible()
     await expect(authedPage.getByText(/PIX/).first()).toBeVisible()
-    // Plano consumiu 1 serviço (o Corte coberto).
     expect(await readConsumed(org.orgId, subId)).toBe(1)
   })
 
@@ -138,7 +119,6 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
     const { subId } = await seedFixture(org)
     await startOrder(authedPage)
 
-    // O Corte coberto já entra como consumo do plano (auto-marcação, brief 0079).
     await expect(
       authedPage
         .getByRole('listitem')
@@ -146,13 +126,9 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
         .getByRole('combobox', { name: 'Cobertura do item' }),
     ).toHaveText('Consumo do plano')
 
-    // Sem item de venda → painel mostra que fecha sem pagamento.
     await expect(authedPage.getByText(/100% coberta pelo plano/)).toBeVisible()
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
     const dialog = authedPage.getByRole('dialog', { name: 'Confirmar fechamento' })
-    // `exact` so this matches only the item's coverage label, not the new
-    // no-sale DialogDescription ("...consumo do plano, sem cobrança nem
-    // comissão") — that substring would otherwise resolve two elements (#1328).
     await expect(dialog.getByText('Consumo do plano', { exact: true })).toBeVisible()
     await dialog.getByRole('button', { name: /Confirmar fechamento/ }).click()
 
@@ -164,7 +140,6 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
     org,
     authedPage,
   }) => {
-    // Plano por contagem com saldo esgotado (quantity 1, já consumido 1).
     await seedFixture(org, { usageLimit: { kind: 'count', quantity: 1 }, consumed: 1 })
     await startOrder(authedPage)
 
@@ -173,8 +148,6 @@ test.describe('Order — fechamento fiscal-ready (#990/#991/#992)', { tag: '@cri
       .filter({ hasText: 'Corte' })
       .getByRole('combobox', { name: 'Cobertura do item' })
     await expect(coverage).toBeVisible()
-    // A cobertura migrou pra combobox Radix: a opção desabilitada é um
-    // <SelectItem disabled> renderizado num portal só quando o combobox abre.
     await coverage.click()
     await expect(authedPage.getByRole('option', { name: 'Consumo do plano' })).toBeDisabled()
   })

@@ -36,7 +36,6 @@ import type { ChargeMutationResult } from '@/features/subscriptions/core/subscri
 const decodeCharge = Schema.decodeUnknownSync(Charge)
 const decodeSubscription = Schema.decodeUnknownSync(Subscription)
 
-// Single charge by id, read from the typed projection under RLS.
 async function getChargeById(orgId: string, chargeId: string): Promise<Charge | null> {
   const rows = await readUnderRls<ChargeRow>(orgId, (client) =>
     client
@@ -47,7 +46,6 @@ async function getChargeById(orgId: string, chargeId: string): Promise<Charge | 
   return row ? decodeCharge(chargeRowToDoc(row)) : null
 }
 
-// Single subscription by id, read from the typed projection under RLS.
 async function getSubscriptionById(orgId: string, id: string): Promise<Subscription | null> {
   const rows = await readUnderRls<SubscriptionRow>(orgId, (client) =>
     client
@@ -62,8 +60,6 @@ async function getSubscriptionById(orgId: string, id: string): Promise<Subscript
 }
 
 export async function markChargePaid(chargeId: string): Promise<ChargeMutationResult> {
-  // Contábil mas é RE-consumo da capability: `subscription.charge_settled`
-  // reabre a recorrência. Parede de tier + manager RBAC (brief 0088 AC-01).
   const r = await requireRecurringManagerCtx()
   if (!r.ok) return r
 
@@ -81,9 +77,6 @@ export async function markChargePaid(chargeId: string): Promise<ChargeMutationRe
   const actorId = r.ctx.session.uid
   const now = new Date().toISOString()
 
-  // The cascade: `charge.succeeded` then (unless cancelled) `subscription
-  // .charge_settled` — settling reactivates the subscription, preserving period +
-  // consumption. Two aggregates → ONE ACID transaction.
   const outcome = await commitSaga(
     buildMarkPaidSteps({
       orgId,
@@ -108,8 +101,6 @@ export async function markChargeFailed(
   chargeId: string,
   reason: string | null,
 ): Promise<ChargeMutationResult> {
-  // Consumo de recurso recorrente (operação sobre a cobrança da assinatura).
-  // Parede de tier + manager RBAC (brief 0088 AC-01).
   const r = await requireRecurringManagerCtx()
   if (!r.ok) return r
 
@@ -131,10 +122,6 @@ export async function markChargeFailed(
   const subStatus = nextSubscriptionStatusAfterFailure(sub.status, charge.attempts)
   const failureReason = reason?.trim() || null
 
-  // The cascade: `charge.failed` then `subscription.charge_failed` (the action
-  // decides the next sub status; the reducer projects it). Two aggregates → ONE
-  // ACID transaction. The notification dispatch is a side-effect that runs AFTER
-  // the cascade lands.
   async function dispatchFailureNotification(): Promise<void> {
     await dispatchNotificationReactions('subscription.charge_failed', actorId, {
       reason: failureReason ?? 'manual_mark',
@@ -163,15 +150,7 @@ export async function markChargeFailed(
   return { ok: true }
 }
 
-/**
- * Renova manualmente — fecha período atual e abre o próximo, criando
- * novo charge `scheduled`. Em produção, isso é disparado por cron quando
- * `Date.now() >= currentPeriod.endAt`. V0 expõe botão na UI p/ owner
- * exercitar o fluxo sem precisar esperar o ciclo virar.
- */
 export async function renewSubscription(subscriptionId: string): Promise<ChargeMutationResult> {
-  // Consumo de recurso recorrente (abre novo ciclo/charge). Parede de tier +
-  // manager RBAC (brief 0088 AC-01).
   const r = await requireRecurringManagerCtx()
   if (!r.ok) return r
 
@@ -182,8 +161,6 @@ export async function renewSubscription(subscriptionId: string): Promise<ChargeM
 
   const now = new Date().toISOString()
 
-  // cancelAtPeriodEnd=true: encerra de vez ao invés de renovar. O evento
-  // `cancelled` projeta status='cancelled' + cancelledAt + nextChargeDate=null.
   if (sub.cancelAtPeriodEnd) {
     const cancelled = await emitEvent(
       SubscriptionConfig,
@@ -206,8 +183,6 @@ export async function renewSubscription(subscriptionId: string): Promise<ChargeM
   const charge: Charge = {
     id: chargeId,
     orgId,
-    // Herda a unidade da assinatura (brief 0043) — o ciclo seguinte cobra na
-    // mesma unidade que originou a recorrência.
     unitId: sub.unitId,
     subscriptionId,
     customerId: sub.customerId,
@@ -228,10 +203,6 @@ export async function renewSubscription(subscriptionId: string): Promise<ChargeM
 
   const actorId = r.ctx.session.uid
 
-  // The cascade: the next cycle's `charge.created` then the subscription's
-  // `renewed` (new period; resets consumption; keeps status). Two aggregates →
-  // ONE ACID transaction. The activation notification runs after the cascade
-  // lands.
   async function dispatchRenewalNotification(): Promise<void> {
     await dispatchNotificationReactions('subscription.activated', actorId, {
       orgId,
@@ -258,15 +229,11 @@ export async function renewSubscription(subscriptionId: string): Promise<ChargeM
 }
 
 export async function deleteSubscription(subscriptionId: string): Promise<ChargeMutationResult> {
-  // Hard-delete só por owner — perda de histórico financeiro é risco.
-  // Cancelamento (acima) é o caminho padrão.
   const r = await requireOwnerCtx()
   if (!r.ok) return r
 
   const orgId = r.ctx.membership.orgId
 
-  // Event-first: emite `deleted` (o appendEvent preserva o stream e NÃO
-  // reprojeta — convenção `.deleted`) e só então remove o read model.
   const deleted = await emitEvent(
     SubscriptionConfig,
     aggregateRef(SubscriptionConfig, orgId, subscriptionId),
@@ -277,9 +244,6 @@ export async function deleteSubscription(subscriptionId: string): Promise<Charge
     },
   )
   if (!deleted.ok) return { ok: false, error: deleted.error }
-  // A cross-aggregate `ON DELETE RESTRICT` FK (brief 0068 D2 — charges referencing
-  // this subscription) is the DB's last-line guard: convert its 23503 into a
-  // friendly result instead of a raw 500.
   try {
     await deleteOrgProjectionDoc(aggregateRef(SubscriptionConfig, orgId, subscriptionId))
   } catch (err) {
@@ -289,8 +253,6 @@ export async function deleteSubscription(subscriptionId: string): Promise<Charge
         error: 'Não é possível excluir esta assinatura: há cobranças vinculadas a ela.',
       }
     }
-    // A non-FK defect (CHECK/RLS/unknown) would otherwise escape as a raw
-    // 500; map it to the canonical generic message (detail stays in the log).
     return { ok: false as const, error: messageForCategory(classifyError(err)) }
   }
 

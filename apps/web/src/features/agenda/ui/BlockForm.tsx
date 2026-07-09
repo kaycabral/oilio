@@ -32,11 +32,6 @@ const WEEKDAY_OPTIONS: { value: Weekday; label: string }[] = [
   { value: 'sunday', label: 'Domingo' },
 ]
 
-// The block's owner is fixed by the surface that renders the form (brief 0036):
-// a unit-wide block (config da unidade) or a single memberOperation's block (member
-// detail). The owner fields (unitId/memberOperationId) are never free choices here
-// — they're hidden inputs derived from the context. A multi-unit memberOperation
-// picks WHICH of their units the block applies to.
 export type BlockOwner =
   | { scope: 'unit'; unitId: string }
   | { scope: 'member_operator'; memberOperationId: string; units: StoredUnit[] }
@@ -93,7 +88,6 @@ export function BlockForm({
       onChange={refresh}
       className="flex flex-col gap-4"
     >
-      {/* Owner is fixed by context — submitted as hidden inputs. */}
       {owner.scope === 'unit' ? (
         <>
           <input type="hidden" name="unitId" value={owner.unitId} />

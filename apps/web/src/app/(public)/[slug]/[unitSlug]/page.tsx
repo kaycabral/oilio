@@ -47,23 +47,12 @@ export default async function PublicUnitCatalogPage({ params, searchParams }: Pa
   })
   if (!bundle) notFound()
 
-  // Spatial scope guard (brief 0019, Group A — AC-03). When the visitor
-  // has an active subscription in this org, prevent them from
-  // landing on a unit outside the union allowlist via direct URL.
-  // Avulso (no session) sees every unit — same as before. We resolve
-  // the full scope (not just the allowlist) so we can render the AC-16
-  // coverage banner without a second Firestore read.
   const scope = await resolveScopeForSession(bundle.org.id)
   if (scope?.unitAllowlist && !scope.unitAllowlist.has(bundle.unit.id)) notFound()
 
-  // A visitor who already has a session (e.g. came through invite → signup)
-  // shouldn't see the "Cadastrar-se" CTA. Reading the session opts this page out
-  // of static rendering — correct, since the CTA varies per visitor.
   const session = await getSessionUser()
   const isLoggedIn = session !== null
 
-  // Brief 0079 (#1307). Mark plan-covered services so the catalog badges + sorts
-  // them. Resolved server-side; the wizard never sees the balance count.
   const coveredItemIds = resolveCoveredServiceIds({
     scope,
     catalogServiceItems: bundle.catalogServiceItems,

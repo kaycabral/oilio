@@ -1,9 +1,3 @@
-// AC-01/AC-02 (brief 0023) — replay reconstrói o doc completo do CatalogItem
-// unificado (serviço/produto). Para cada kind: created (snapshot) → updated
-// (changes) → replayAggregate == projeção, campo a campo. Prova que nenhum
-// campo é escrito fora de eventos (event-first) e que ambos os kinds
-// reconstroem corretamente a partir do stream.
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -106,8 +100,6 @@ describe('CatalogItem — replay reconstrói o doc completo (event-first)', () =
     expect(doc['stock']).toBe(8)
   })
 
-  // Degenerate datum (#1002 test plan): uncategorized product without
-  // commission. Replay must still reconstruct it faithfully.
   it('degenerate — product, categoryId null, commission null', async () => {
     const doc = await checkReplay(
       'prod2',
@@ -175,8 +167,6 @@ describe('CatalogItem — replay reconstrói o doc completo (event-first)', () =
         })
       }).pipe(Effect.provide(layer)),
     )
-    // Replay from the stream still yields the last state (event log is the
-    // source of truth); the projection doc removal is the caller's hard-delete.
     const replayed = await Effect.runPromise(
       replayAggregate(CatalogItemConfig, ref).pipe(Effect.provide(layer)),
     )

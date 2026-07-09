@@ -6,16 +6,9 @@ import { withRequestContext } from '@/shared/lib/request-context'
 import { requireEnv } from '@cbrl/env'
 import { NextResponse } from 'next/server'
 
-// Stripe webhook (brief 0074). Must run on Node (raw body + crypto signature
-// check; the pg pool is not Edge-compatible) and must never be cached.
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Reserve an event.id for processing (AC-02). Returns true if this is the first
-// time we see it (we own the processing), false if already recorded (duplicate
-// delivery → caller returns 200 without re-applying). Insert-first BEFORE the
-// state change so a crash mid-handle does NOT leave the id marked done — see the
-// rollback on failure below.
 async function reserveEvent(eventId: string): Promise<boolean> {
   const res = await getEventStorePool().query(
     'INSERT INTO stripe_webhook_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING',
@@ -36,8 +29,6 @@ async function postHandler(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'Missing stripe-signature' }, { status: 400 })
   }
 
-  // Raw body is REQUIRED for signature verification — never parse/re-serialize
-  // before constructEvent, or the computed signature won't match.
   const rawBody = await request.text()
 
   const stripe = getStripe()
@@ -48,7 +39,6 @@ async function postHandler(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  // Dedup: claim the id first. A duplicate delivery short-circuits to 200.
   const fresh = await reserveEvent(event.id)
   if (!fresh) return NextResponse.json({ received: true, duplicate: true })
 
@@ -57,8 +47,6 @@ async function postHandler(request: Request): Promise<Response> {
       retrieveSubscription: (id) => stripe.subscriptions.retrieve(id),
     })
   } catch (err) {
-    // A handle failure must NOT keep the id marked done — release it so Stripe's
-    // retry reprocesses, and return 500 so Stripe knows to retry.
     await releaseEvent(event.id)
     logger.error('handle failed', {
       scope: 'stripe-webhook',
@@ -72,5 +60,4 @@ async function postHandler(request: Request): Promise<Response> {
   return NextResponse.json({ received: true })
 }
 
-// Wrap so the whole handler runs inside a correlation-id scope (brief 0086 AC-04).
 export const POST = withRequestContext(postHandler)

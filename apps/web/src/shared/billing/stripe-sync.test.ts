@@ -1,16 +1,3 @@
-// Unit tests for `syncStripeSubscriptionQuantity` (brief 0073, AC-02) — the
-// post-commit hook that keeps the Stripe subscription `quantity` aligned with the
-// Negócio's active unit count. The load-bearing invariants:
-//   - no-op when the org has no paid subscription (Free has no Stripe object);
-//   - no-op when the count already matches (avoids a needless prorated charge);
-//   - on drift, `stripe.subscriptions.update` is called with the new quantity and
-//     `proration_behavior: 'create_prorations'`;
-//   - it NEVER throws — a Stripe failure is swallowed (the reconcile cron is the
-//     safety net), so the unit mutation that triggered it can't be rolled back.
-//
-// All three deps are mocked (no DB, no network), mirroring the canonical
-// server-action unit pattern (subscriptions.actions.test).
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -132,9 +119,6 @@ describe('syncStripeSubscriptionQuantity', () => {
     const errSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
 
     await expect(syncStripeSubscriptionQuantity('org-1')).resolves.toBeUndefined()
-    // Assert WHAT is logged, not just that it logged: the failure cause (the
-    // caught Error) must reach the log as meta — the logger normalizes it so the
-    // message survives (a plain JSON.stringify would drop it to `{}`).
     expect(errSpy).toHaveBeenCalledWith(
       'failed',
       expect.objectContaining({ scope: 'syncStripeSubscriptionQuantity', orgId: 'org-1' }),

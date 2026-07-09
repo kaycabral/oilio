@@ -23,7 +23,6 @@ describe('ProductCodeField', () => {
   it('rende o campo com label humano e name=gtin, sem jargão técnico (AC-04)', () => {
     const { input } = renderField()
     expect(input).toHaveAttribute('name', 'gtin')
-    // No GTIN/SKU/barcode jargon anywhere in the rendered surface.
     expect(document.body.textContent ?? '').not.toMatch(/gtin|sku|código de barras|barcode/i)
   })
 

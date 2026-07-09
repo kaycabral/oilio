@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildSaleMovement } from './sale-movement'
 
-// Unit test for the PURE part of the cash adapter (brief 0065 § Grupo B, AC-04):
-// `buildSaleMovement` turns the close inputs into a `sale` CashMovement row. The
-// I/O part (`recordSaleMovement` → emitEvent) is proven against real Postgres in
-// `sale-movement.events.pg.integration.test.ts`. Here we lock the row SHAPE: a
-// `sale` is always `direction: 'in'`, carries the order link, and snapshots the
-// amount/method/actor verbatim — the invariant the close-order cash leg relies on.
-
 describe('buildSaleMovement', () => {
   const params = {
     orgId: 't1',
@@ -28,7 +21,6 @@ describe('buildSaleMovement', () => {
     expect(m.recordedByUid).toBe('actor-1')
     expect(m.orgId).toBe('t1')
     expect(m.unitId).toBe('u1')
-    // A sale movement carries no expense category and no free-text description.
     expect(m.expenseCategoryId).toBeNull()
     expect(m.description).toBeNull()
   })

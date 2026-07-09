@@ -77,7 +77,6 @@ describe('derivePlanFormDefaults', () => {
       derivePlanFormDefaults(plan({ allowedTimeScope: { advanceBookingDays: 30 } }))
         .restrictAdvance,
     ).toBe(true)
-    // advanceBookingDays 0 is not a restriction
     expect(
       derivePlanFormDefaults(plan({ allowedTimeScope: { advanceBookingDays: 0 } })).restrictAdvance,
     ).toBe(false)

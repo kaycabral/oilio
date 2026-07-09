@@ -92,10 +92,6 @@ function appt(o: Partial<Appointment> = {}): Appointment {
   }
 }
 
-// 2026-08-17 is a Monday. Business hours 09:00–12:00 BR = 12:00–15:00 UTC.
-// Slots at 09:00, 09:30, 10:00, 10:30, 11:00, 11:30 BR with 30min slotMinutes.
-// Last slot start = 11:30 BR (ends at 12:00, closing time).
-
 describe('computeAvailabilityForDay', () => {
   it('returns the full grid when there are no conflicts', () => {
     const slots = computeAvailabilityForDay({
@@ -137,7 +133,6 @@ describe('computeAvailabilityForDay', () => {
   })
 
   it('returns empty when the service is longer than the open window', () => {
-    // 09:00–12:00 = 180min window; a 240min service never fits.
     const slots = computeAvailabilityForDay({
       service: svc({ durationMinutes: 240 }),
       unitId: UNIT_ID,
@@ -159,7 +154,6 @@ describe('computeAvailabilityForDay', () => {
       unitId: UNIT_ID,
       memberOperations: [pro()],
       unitBusinessHours: bh(),
-      // 10:00–10:30 BR busy.
       appointments: [
         appt({ startAt: '2026-08-17T13:00:00.000Z', endAt: '2026-08-17T13:30:00.000Z' }),
       ],
@@ -172,7 +166,6 @@ describe('computeAvailabilityForDay', () => {
     expect(slots.map((s) => s.startAt)).toEqual([
       '2026-08-17T12:00:00.000Z',
       '2026-08-17T12:30:00.000Z',
-      // 13:00 dropped (overlap).
       '2026-08-17T13:30:00.000Z',
       '2026-08-17T14:00:00.000Z',
       '2026-08-17T14:30:00.000Z',
@@ -208,7 +201,6 @@ describe('computeAvailabilityForDay', () => {
       memberOperations: [pro()],
       unitBusinessHours: bh(),
       appointments: [],
-      // Block 10:00–11:00 BR for this pro.
       blockSegments: [
         {
           blockId: 'b1',
@@ -248,7 +240,6 @@ describe('computeAvailabilityForDay', () => {
       '2026-08-17T13:00:00.000Z',
       '2026-08-17T13:30:00.000Z',
       '2026-08-17T14:00:00.000Z',
-      // 11:30 BR is now skipped — service ends at 12:30, past closing.
     ])
   })
 
@@ -279,7 +270,6 @@ describe('computeAvailabilityForDay', () => {
       date: '2026-08-17',
       slotMinutes: 30,
       timezone: BR,
-      // Now = 10:15 BR. 09:00, 09:30, 10:00 are past.
       nowMs: new Date('2026-08-17T13:15:00.000Z').getTime(),
     })
     expect(slots.map((s) => s.startAt)).toEqual([
@@ -321,14 +311,10 @@ describe('computeAvailabilityForDay', () => {
       timezone: BR,
       nowMs: new Date('2026-08-15T00:00:00.000Z').getTime(),
     })
-    // 6 slots × 2 pros = 12.
     expect(slots).toHaveLength(12)
   })
 })
 
-// Boundary cases that pin the exact comparison operators and predicates the
-// broader tests above leave free (mutation burndown). All use the Monday
-// 2026-08-17, 09:00–12:00 BR window (= 12:00–15:00 UTC).
 describe('computeAvailabilityForDay — mutation boundaries', () => {
   const FAR_PAST = new Date('2026-08-15T00:00:00.000Z').getTime()
   function run(overrides: Partial<Parameters<typeof computeAvailabilityForDay>[0]>) {
@@ -348,7 +334,6 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
   }
 
   it('keeps the single slot when the service exactly fills the window (lastStartMin == openMin)', () => {
-    // 09:00–12:00 = 180min; a 180min service fits exactly once, at 09:00.
     expect(run({ service: svc({ durationMinutes: 180 }), slotMinutes: 180 })).toEqual([
       '2026-08-17T12:00:00.000Z',
     ])
@@ -377,13 +362,11 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
   })
 
   it('keeps the slot at exactly nowMs (past cutoff is strict <)', () => {
-    // First slot is 09:00 BR = 12:00 UTC. now == that instant → slot kept.
     const slots = run({ nowMs: new Date('2026-08-17T12:00:00.000Z').getTime() })
     expect(slots[0]).toBe('2026-08-17T12:00:00.000Z')
   })
 
   it('ignores a block owned by a different memberOperation, applies a unit-wide (null) block', () => {
-    // Block 09:00–12:00 for someone else → must NOT touch p1.
     expect(
       run({
         blockSegments: [
@@ -397,7 +380,6 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
         ],
       }),
     ).toHaveLength(6)
-    // Same span as a unit-wide block → blocks every p1 slot.
     expect(
       run({
         blockSegments: [
@@ -408,8 +390,6 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
   })
 
   it('treats block/slot boundaries as half-open (touching edges do not overlap)', () => {
-    // Block 09:30–10:00 (570–600). Slot 09:00 ends at 09:30 (touch → free);
-    // slot 09:30 overlaps (gone); slot 10:00 starts at block end (touch → free).
     const slots = run({
       blockSegments: [
         { blockId: 'b1', memberOperationId: 'p1', reason: 'Café', startMin: 570, endMin: 600 },
@@ -431,7 +411,6 @@ describe('computeAvailabilityForDay — mutation boundaries', () => {
   })
 
   it("does not let another memberOperation's appointment block this one's slot", () => {
-    // p1 has a free grid; p2 is booked 10:00–10:30. p1's 10:00 slot must stay.
     const slots = computeAvailabilityForDay({
       service: svc(),
       unitId: UNIT_ID,

@@ -18,23 +18,6 @@ import {
   type UnitRow,
 } from './unit-projector'
 
-/**
- * Pure-mapping unit tests for the identity typed projectors (brief 0059). These
- * exercise the `*ColumnValues` (domain → ordered SQL row) and `rowToDoc` (row →
- * reducer doc) functions WITHOUT a database — the runtime upsert + the E2E seed
- * both go through `*ColumnValues`, so this pins the column count/order and the
- * round-trip shape. The DB-level routing/constraints are proven by the
- * `*.events.pg.integration` suite.
- *
- * The key invariant: a row built from `*ColumnValues`, read back as a `*Row`, and
- * passed through `rowToDoc` reconstructs the domain fields — the lockstep that
- * keeps the seed and the runtime projector from drifting.
- */
-
-// Pull a column's value out of the ordered `*ColumnValues` array by its name in
-// the matching `*COLUMNS` list — lets a test build a typed `*Row` literal from
-// the column-values output without a dynamic-keyed cast. bigint columns come back
-// from pg as strings; `asPgBigint` models that for the numeric-coercion paths.
 function valueAt(columns: readonly string[], values: readonly unknown[], col: string): unknown {
   return values[columns.indexOf(col)]
 }
@@ -42,10 +25,6 @@ function asPgBigint(v: unknown): string {
   return String(v)
 }
 
-// Typed `*Row` literals built from `*ColumnValues` (via column name, not a
-// dynamic-keyed cast) — models the row `client.query<*Row>(...)` returns. `pg`
-// hands bigint columns back as strings (version), so those go through asPgBigint;
-// double precision / text / jsonb come back as their JS value.
 function orgRow(o: StoredOrg, version: number): OrgRow {
   const v = orgColumnValues(o, version)
   const at = (c: string): unknown => valueAt(ORG_COLUMNS, v, c)
@@ -134,7 +113,6 @@ describe('org projector — pure mapping', () => {
       vertical: 'barbershop',
       ownerUserId: 'owner-1',
     })
-    // null website is omitted (optional on the domain shape)
     expect('website' in doc).toBe(false)
   })
 
@@ -233,9 +211,6 @@ describe('unit projector — pure mapping', () => {
   })
 
   it('rowToDoc round-trips a fixed-agenda informal unit', () => {
-    // rowToDoc returns the untyped FirestoreDoc the reducer rehydrates from;
-    // assert on its fields without narrowing (the schema decode is proven by the
-    // integration replay test).
     const doc = unitRowToDoc(unitRow(baseUnit, 4))
     expect(doc._version).toBe(4)
     expect(doc.name).toBe('Centro')

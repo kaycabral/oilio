@@ -38,8 +38,6 @@ const baseProps = {
   unitName: 'Centro',
 }
 
-// Submit via the CTA's owning <form> (canonical repo pattern) so the React
-// Server Action fires without driving Radix in jsdom.
 function submitForm(): void {
   const submit = screen.getByRole('button', { name: /confirmar agendamento|entrar e confirmar/i })
   const form = submit instanceof HTMLButtonElement ? submit.form : null
@@ -94,9 +92,6 @@ describe('ConfirmBookingForm — login gate (brief 0077 #1275)', () => {
     expect(push.mock.calls[0]![0]).toMatch(/^\/onboarding\/profile\?next=/)
   })
 
-  // #1316 — a visitor on an inherited session can bail out of the wrong
-  // identity: logout (session cookie + firebase) then back to /login with this
-  // booking URL as `next` so re-auth resumes on the confirm step.
   it('offers "Trocar de conta" to a signed-in viewer and logs out to /login?next=', async () => {
     render(<ConfirmBookingForm {...baseProps} viewerName="Maria Silva" />)
     const link = screen.getByRole('button', { name: /não é você\? trocar de conta/i })

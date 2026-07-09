@@ -25,7 +25,6 @@ describe('isValidTimeScopeHHmm', () => {
 })
 
 describe('isDayOfWeekAllowed', () => {
-  // 2025-11-19 is a Wednesday (day 3).
   const wednesday = new Date('2025-11-19T12:00:00.000-03:00').toISOString()
   it('admits all when filter undefined', () => {
     expect(isDayOfWeekAllowed(undefined, wednesday, TZ)).toBe(true)
@@ -39,7 +38,6 @@ describe('isDayOfWeekAllowed', () => {
 })
 
 describe('isHourRangeAllowed', () => {
-  // 10:30 local SP -> 13:30 UTC.
   const tenAmLocal = new Date('2025-11-19T10:30:00.000-03:00').toISOString()
   const sevenPmLocal = new Date('2025-11-19T19:00:00.000-03:00').toISOString()
   it('admits all when undefined', () => {
@@ -137,8 +135,6 @@ describe('mergeAllowedTimeScopes', () => {
   })
 })
 
-// Targeted edge cases for mutation coverage: boundaries, each-axis rejection
-// in the all-axes check, and the merge collapse/union rules.
 describe('time-scope — edge cases (mutation)', () => {
   const utc = '2026-06-15T15:00:00.000Z'
   const weekday = new Date(Date.UTC(2026, 5, 15)).getUTCDay()
@@ -207,34 +203,27 @@ describe('time-scope — edge cases (mutation)', () => {
     expect(mergeAllowedTimeScopes({ daysOfWeek: [1, 2] }, { daysOfWeek: [2, 3] })).toEqual({
       daysOfWeek: [1, 2, 3],
     })
-    // most-permissive: each side restricts a different single axis → the other
-    // side is unrestricted there → both axes collapse → null.
     expect(
       mergeAllowedTimeScopes({ daysOfWeek: [1] }, { hourRange: { start: '09:00', end: '12:00' } }),
     ).toBeNull()
-    // both sides restrict the SAME two axes → union + widest envelope survive.
     expect(
       mergeAllowedTimeScopes(
         { daysOfWeek: [1], hourRange: { start: '10:00', end: '12:00' } },
         { daysOfWeek: [2], hourRange: { start: '09:00', end: '14:00' } },
       ),
     ).toEqual({ daysOfWeek: [1, 2], hourRange: { start: '09:00', end: '14:00' } })
-    // union covering all 7 days collapses the axis
     expect(
       mergeAllowedTimeScopes({ daysOfWeek: [0, 1, 2, 3] }, { daysOfWeek: [4, 5, 6] }),
     ).toBeNull()
-    // hourRange = widest envelope
     expect(
       mergeAllowedTimeScopes(
         { hourRange: { start: '10:00', end: '12:00' } },
         { hourRange: { start: '09:00', end: '14:00' } },
       ),
     ).toEqual({ hourRange: { start: '09:00', end: '14:00' } })
-    // advanceBookingDays = max window
     expect(mergeAllowedTimeScopes({ advanceBookingDays: 7 }, { advanceBookingDays: 30 })).toEqual({
       advanceBookingDays: 30,
     })
-    // every axis collapses → null
     expect(mergeAllowedTimeScopes({ daysOfWeek: [1] }, { advanceBookingDays: 5 })).toBeNull()
   })
 })

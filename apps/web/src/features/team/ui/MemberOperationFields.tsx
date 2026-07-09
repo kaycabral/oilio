@@ -11,8 +11,6 @@ import {
 import { Checkbox, Input, Label } from '@cbrl/design'
 import { useId } from 'react'
 
-// Identity + approval + commission fieldsets — rendered only while the member is
-// (and stays) a memberOperation. Split out so the form's render stays under the gate.
 export function MemberOperationIdentityFields({
   memberOperation,
   taxKind,
@@ -81,7 +79,6 @@ export function MemberOperationIdentityFields({
         ) : null}
       </fieldset>
 
-      {/* Status operacional — read-only, DERIVADO de fatos reais (#1047). */}
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium">Status operacional</span>
         <span className="text-sm" role="group" aria-label="Status operacional">
@@ -128,7 +125,6 @@ export function MemberOperationIdentityFields({
   )
 }
 
-// Units + services scope fieldsets for a memberOperation member.
 export function MemberOperationScopeFields({
   units,
   selectedUnitIds,
@@ -193,8 +189,6 @@ export function MemberOperationScopeFields({
   )
 }
 
-// The services checklist has 3 empty-states before the actual picker — split out
-// so the scope fieldset stays under the gate.
 function ServicesPicker({
   services,
   selectedUnitCount,

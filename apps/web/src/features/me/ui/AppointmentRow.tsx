@@ -27,15 +27,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, useTransition } from 'react'
 
-// Slot-grid source for the self-service reschedule picker (brief 0080, Grupo C).
-// Null outside appointment mode — the picker stays closed and the customer
-// re-books through the wizard link.
 export type RescheduleConfig = {
   slotMinutes: number
   businessHours: BusinessHours | null
   timezone: string
-  // The booked service's duration — the picker only offers starts that fit
-  // within business hours (brief 0080).
   durationMinutes: number
 }
 
@@ -51,17 +46,12 @@ export type AppointmentRowData = {
   endAtLabel: string
   priceLabel: string
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
-  // Result of `canCustomerCancelAppointment` computed server-side so the
-  // button reflects the same gate the action enforces.
   canCancel: boolean
   cancelReason: string | null
   cancellationPolicy: CancellationPolicy
   reschedule: RescheduleConfig | null
 }
 
-// The inline new-slot picker (brief 0080, Grupo C). Owns its own date/time state
-// + the reschedule call so the parent row stays simple. On success it signals
-// the parent to swap to the "reagendado" confirmation.
 function ReschedulePanel({
   data,
   config,
@@ -77,9 +67,6 @@ function ReschedulePanel({
   const today = getTodayInOrgTz(config.timezone)
   const [date, setDate] = useState(today)
   const [startTime, setStartTime] = useState('')
-  // #1318: the professional's CROSS-UNIT busy intervals for the selected day,
-  // fetched server-side (the client can pick any future date, so it re-queries
-  // per date — same shape as the public wizard, #1313). Empty until it lands.
   const [busy, setBusy] = useState<AppointmentForOverlap[]>([])
 
   useEffect(() => {
@@ -104,8 +91,6 @@ function ReschedulePanel({
     if (!date) return []
     const dayHours = getBusinessHoursForDay(config.businessHours, date, config.timezone)
     const grid = gridTimeOptions(dayHours, config.slotMinutes, config.durationMinutes)
-    // Omit the starts the professional is already busy in (#1318); the customer's
-    // own appointment is excluded so its current slot never disappears mid-move.
     return filterGridByBusy(grid, busy, {
       date,
       timezone: config.timezone,
@@ -180,8 +165,6 @@ function ReschedulePanel({
   )
 }
 
-// The cancel + reschedule controls for a still-scheduled appointment. Owns the
-// cancel call + the reschedule toggle/error so the row shell stays declarative.
 function ScheduledActions({
   data,
   onCancelled,
@@ -293,11 +276,6 @@ export function AppointmentRow({ data }: { data: AppointmentRowData }) {
         <ScheduledActions
           data={data}
           onCancelled={() => setCancelled(true)}
-          // A successful reschedule changes a server-projected value (the new
-          // start/end labels), which optimistic client state can't produce —
-          // refresh so the Server Component re-renders with the new time and
-          // the panel closes (mirrors ConfirmBookingForm). Fixes the stale
-          // "atualize a página" banner that showed the OLD time (#B9).
           onRescheduled={() => router.refresh()}
         />
       ) : null}

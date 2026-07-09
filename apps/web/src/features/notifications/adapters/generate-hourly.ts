@@ -36,9 +36,6 @@ export function generateHourlyNotifications(
 ): Effect.Effect<number, EventValidationError, PersistencePort> {
   return Effect.gen(function* () {
     const persistence = yield* PersistencePort
-    // Enumerate tenants from the PUBLIC directory (no RLS) — a platform-wide
-    // sweep can't read the RLS-guarded `orgs` table under a NOBYPASSRLS runtime
-    // role. Each org's data below is read org-scoped (RLS enforced) as usual.
     const orgIds = yield* Effect.promise(() => listAllOrgIds())
     let created = 0
 

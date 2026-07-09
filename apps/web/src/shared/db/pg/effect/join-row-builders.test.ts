@@ -8,12 +8,6 @@ import {
   planUnitAllowlistRows,
 } from './subscription-plan-projector'
 
-// Pure-mapping coverage for the D3 join-row builders (brief 0068). These turn an
-// aggregate's N:N arrays into `[org_id, owner_id, member_id]` tuples that the
-// production projector AND the e2e seed both insert into the join tables — so
-// pinning the tuple shape here keeps the runtime and the fixture in lockstep
-// (the same lockstep the integration suite proves at the DB level). No I/O.
-
 describe('memberOperation join-row builders', () => {
   const base: StoredMemberOperation = {
     id: 'pro-1',

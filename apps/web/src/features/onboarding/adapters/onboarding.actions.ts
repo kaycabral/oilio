@@ -24,17 +24,6 @@ const SLUG_MAX_ATTEMPTS = 20
 
 export type CreateOrgResult = { ok: true; orgId: string } | { ok: false; error: string }
 
-// Identity-pure saga (org + membership + `users.currentOrgId`). Postgres ACID
-// (brief 0061 § Grupo C / #1199): org + membership commit together or ROLLBACK as
-// one — no manual compensation. The `users.currentOrgId` write is non-aggregate
-// (global auth row) so it lands AFTER the tx commits (idempotent).
-// Free = 1 Negócio por usuário (brief 0072; fecha a brecha de N Negócios Free de
-// 1 unidade). The first Negócio is free; a second one requires that the user
-// already has at least one PAID (Pro+) Negócio. This is the cross-org gate —
-// memberships is org-neutral by design, so counting owner-memberships across
-// orgs does not violate RLS. `getOrgBilling` defaults to Free for orgs with no
-// billing row, so a user with only Free Negócios is correctly blocked. Returns
-// the denial message, or `null` when the user may create one more Negócio.
 async function secondOrgDenied(userId: string): Promise<string | null> {
   const ownerOrgIds = (await getUserMemberships(userId))
     .filter((m) => m.role === 'owner')
@@ -52,10 +41,6 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
   if (!session) return { ok: false, error: 'Not signed in' }
   if (!session.emailVerified) return { ok: false, error: 'Email not verified' }
 
-  // Fail-fast (out of the lock): reject an obvious 2º-Negócio attempt before
-  // doing any work. This is NOT the wall — a concurrent double-submit races past
-  // it (both read 0 owner-memberships). The real wall is the re-check INSIDE the
-  // advisory lock below (brief 0088 AC-10 / H2).
   const fastDenial = await secondOrgDenied(session.uid)
   if (fastDenial) return { ok: false, error: fastDenial }
 
@@ -69,12 +54,6 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
   const orgId = newId()
   const now = new Date().toISOString()
 
-  // The Org is a pure folder/shell (PRD Identidade v2): name, slug, segment
-  // (vertical), branding, ownerUserId, timestamps. NO fiscal identity (the CNPJ
-  // is the establishment's — `Unit.fiscal`) and NO agenda/self-booking config
-  // (timezone, slot, cancellation, confirmation messages, self-booking publish
-  // moved to `Unit.agenda`). Those are set per-unit when the first unit is
-  // created. The projection stores only these fields.
   const org = {
     id: orgId,
     name,
@@ -102,24 +81,10 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
 
   const genericError = 'Não foi possível concluir a criação da conta. Tente de novo.'
 
-  // NO auto-matriz (PRD Identidade v2 / brief 0046 AC-02): the Org (a pasta) is
-  // born WITHOUT a unit — "Negócio sem unidade" right after signup is the
-  // intentional empty-state that guides first-unit creation. The org + the
-  // owner's membership are the two aggregates of this cascade; the `currentOrgId`
-  // on the user is a non-aggregate auth-doc write that lands post-commit.
-
-  // The 2º-Negócio gate is transactionalized against TOCTOU (brief 0088 AC-10 /
-  // H2): the re-check + commit run INSIDE a per-user advisory lock. A concurrent
-  // double-submit serializes here — the second caller blocks until the first
-  // commits, then its re-check sees the just-created org and is refused. The
-  // fail-fast check above narrows the window; THIS is the wall.
   const lockedOutcome = await withUserOnboardingLock(session.uid, async () => {
     const denial = await secondOrgDenied(session.uid)
     if (denial) return { ok: false as const, error: denial }
 
-    // ACID (brief 0061 § Grupo C / #1199): org + membership commit together or
-    // ROLLBACK as one — no manual compensation. The `users.currentOrgId` write is
-    // non-aggregate (global auth row), so it lands AFTER the tx commits.
     const outcome = await commitSaga([
       (tx: TransactionContext) =>
         appendEventToTx(
@@ -149,19 +114,9 @@ export async function createOrg(formData: FormData): Promise<CreateOrgResult> {
   if (!lockedOutcome.ok) return { ok: false, error: lockedOutcome.error }
   await patchUser(session.uid, { current_org_id: orgId }, now)
 
-  // Return the new id WITHOUT navigating — the caller decides. Additional-Negócio
-  // creation (`NewOrgDialog`) does a SOFT context switch in place (setActiveOrg +
-  // router.refresh, mirroring `UnitOrgSwitcher`); first-Negócio onboarding
-  // (`OnboardingForm`) enters the app client-side. No `redirect` here avoids the
-  // hard navigation / full dashboard reload.
   return { ok: true, orgId }
 }
 
-// Org-slug uniqueness is a GLOBAL, non-org-scoped read (there is no `current_org`
-// yet — the org is being born). It can't ride the org-scoped RLS on the `orgs`
-// table, so it resolves through the public org directory (a public-by-contract
-// projection, no RLS; brief 0062) — the same path `getOrgBySlug` uses. A free
-// slug returns null from the directory.
 async function generateUniqueSlug(name: string): Promise<string | null> {
   const base = slugify(name) || 'empresa'
   for (let i = 0; i < SLUG_MAX_ATTEMPTS; i++) {

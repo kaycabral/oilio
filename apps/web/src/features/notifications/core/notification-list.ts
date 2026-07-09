@@ -1,7 +1,3 @@
-// Pure view-model + role visibility for the notifications list (brief 0039).
-// Maps raw Firestore doc data into a typed row and drops types the role may not
-// see (AC-18/19: receptionist não vê tipos manager-only). No I/O — the adapter
-// fetches; this decides shape + visibility.
 import { type Role, allowedNotificationTypesForRole } from '@/domain'
 
 export type NotificationView = {
@@ -48,7 +44,6 @@ export function toNotificationView(doc: RawDoc): NotificationView {
   }
 }
 
-// AC-18/19: receptionist não vê tipos manager-only (financeiro/admin).
 export function filterNotificationsForRole(docs: RawDoc[], role: Role): NotificationView[] {
   const allowed = new Set<string>(allowedNotificationTypesForRole(role))
   return docs.map(toNotificationView).filter((n) => allowed.has(n.type))

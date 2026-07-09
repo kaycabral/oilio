@@ -118,8 +118,6 @@ describe('CategoryPicker', () => {
 describe('CommissionFieldset', () => {
   it('none por padrão esconde o campo de valor', () => {
     render(<CommissionFieldset commission={null} />)
-    // The value input (labelled "Percentual (%)" / "Valor (R$)") is absent;
-    // the radio options share the bare "Percentual"/"Valor fixo" labels.
     expect(screen.queryByLabelText(/percentual \(%\)|valor \(r\$\)/i)).not.toBeInTheDocument()
   })
 

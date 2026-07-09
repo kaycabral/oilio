@@ -37,11 +37,6 @@ export function OrderItemRow({
   const lineTotal = item.quantity * item.unitPriceCents
   const attributed = memberByUserId[item.attributedUserId]
   const covered = coverageOf(item) === 'subscription'
-  // Cobertura disponível pra qualquer kind (serviço ou produto) com assinatura
-  // ativa (brief 0024, AC-04 — produto coberto baixa estoque). A opção "consumo"
-  // fica desabilitada quando não há saldo (e o item ainda não está coberto) —
-  // caso degenerado do brief 0021. A cobertura real (item ∈ snapshot) é validada
-  // no servidor ao marcar/fechar.
   const canCover =
     subscriptionCoverage !== null &&
     (subscriptionCoverage.remaining === null || subscriptionCoverage.remaining > 0 || covered)
@@ -62,9 +57,6 @@ export function OrderItemRow({
         </div>
         <div className="text-muted-foreground mt-0.5 text-xs">
           {item.quantity} × {formatBRL(item.unitPriceCents)}
-          {/* Item coberto pelo plano não gera comissão (brief 0079 — covered
-              service: no commission). Não anunciar "comissão X%" que não vai
-              existir — confundia o operador (#1328). */}
           {item.commission && !covered ? (
             <>
               {' · comissão '}
@@ -117,7 +109,6 @@ export function OrderItemRow({
                   {m.name}
                 </SelectItem>
               ))}
-              {/* Mantém o atual mesmo se ele caiu da lista de membros ativos. */}
               {attributed && !members.some((m) => m.userId === attributed.userId) ? (
                 <SelectItem value={attributed.userId}>{attributed.name} (inativo)</SelectItem>
               ) : null}

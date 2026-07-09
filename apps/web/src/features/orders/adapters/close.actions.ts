@@ -38,13 +38,7 @@ import {
 
 const UNDO_CLOSE_WINDOW_MS = 5 * 60 * 1000
 
-// Revalidate-only wrapper (Pattern B) — the close confirmation dialog needs the
-// backend error surfaced inline without navigating, so `useActionState` consumes
-// this and renders `state.error` inside the open dialog.
 export type CloseOrderFormState = { ok: boolean; error?: string }
-// Revalidate-only wrapper (Pattern B) — botão "Desfazer fechamento" do
-// OrderDetail dispara via `<form action>`; erro (ex.: janela expirada) volta
-// inline sem navegar.
 export type UndoCloseOrderFormState = { ok: boolean; error?: string }
 
 export async function closeOrder(orderId: string, formData: FormData): Promise<CloseOrderResult> {
@@ -57,11 +51,6 @@ export async function closeOrder(orderId: string, formData: FormData): Promise<C
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): the balcão (owner/manager/recepção) closes
-  // any comanda; a self-scoped memberOperation closes one only when EVERY item is
-  // attributed to them — so they never emit a colleague's commission. A
-  // multi-memberOperation comanda is the balcão's to close. Shared with the open-order
-  // edit guards via `canOperateOpenOrder`.
   if (!canOperateOpenOrder(r.ctx.membership, loaded.order.items)) {
     return { ok: false, error: 'Você só pode fechar comandas atribuídas a você' }
   }
@@ -69,8 +58,6 @@ export async function closeOrder(orderId: string, formData: FormData): Promise<C
   const itemsErr = validateClosableItems(loaded.order.items)
   if (itemsErr) return { ok: false, error: itemsErr }
 
-  // Fiscal-aware (brief 0021): forma de pagamento real é exigida só quando há
-  // item de venda. Comanda 100% coberta por assinatura fecha SEM pagamento (AC-02/06).
   const sale = hasSaleItem(loaded.order.items)
   if (sale && !paymentMethodRaw) {
     return { ok: false, error: 'Forma de pagamento é obrigatória para itens de venda' }
@@ -101,10 +88,6 @@ export async function closeOrder(orderId: string, formData: FormData): Promise<C
     closedAt,
     consumption,
     commissions,
-    // Own-scope RLS for the WRITE (brief 0075, #1265): a self-scoped closer runs
-    // under their own scope so the DB own-scope WITH CHECK on the emitted
-    // `appointment.completed` is enforced, not just the `canOperateOpenOrder` gate
-    // above. Balcão → undefined (permissive).
     security: await resolveWriteSecurity(r.ctx.membership, loaded.order.unitId),
   })
   if (sagaErr) return { ok: false, error: sagaErr }
@@ -126,7 +109,6 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
     return { ok: false, error: 'Só uma venda fechada pode ser desfeita' }
   }
 
-  // AC-09: janela de 5 minutos a partir do fechamento.
   const closedAtMs = order.closedAt ? Date.parse(order.closedAt) : Number.NaN
   if (Number.isNaN(closedAtMs) || Date.now() - closedAtMs > UNDO_CLOSE_WINDOW_MS) {
     return { ok: false, error: 'A janela de 5 minutos para desfazer o fechamento expirou' }
@@ -135,14 +117,8 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
   const now = new Date().toISOString()
   const orgId = r.ctx.membership.orgId
 
-  // Comissões geradas no close (projeção a remover do read model) — backend-aware.
   const commissions = await loadCommissionsForOrder(orgId, orderId)
 
-  // AC-04 (brief 0022 #999): comissão já paga representa dinheiro repassado por
-  // fora (Pix/dinheiro). Estorná-la silenciosamente perderia o registro do
-  // pagamento, então a reabertura é BLOQUEADA enquanto houver comissão `pago`
-  // vinculada — erro à mostra. Janela de 5 min ainda aberta + comissão já paga
-  // é raro; quando ocorre, o owner decide explicitamente (não há undo cego).
   const paidCommission = commissions.find((c) => liquidationStatusOf(c) === 'pago')
   if (paidCommission) {
     return {
@@ -151,14 +127,8 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
     }
   }
 
-  // Movimento de venda original (existe só se havia caixa aberto no close) —
-  // backend-aware.
   const sale = await loadSaleMovementForOrder(orgId, orderId)
 
-  // Restaura a cota consumida pelos itens cobertos por assinatura (brief 0021
-  // consumo por item via `coverage`; brief 0024 estende a produtos). Mesma
-  // quantidade de itens cobertos (qualquer kind) debitada no close — revertida
-  // event-first (usage_incremented negativo).
   let subscriptionRestore: { id: string; amount: number } | null = null
   const coveredQty = coveredItemQuantity(order.items)
   if (coveredQty > 0 && order.customerId) {
@@ -166,15 +136,8 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
     if (subId) subscriptionRestore = { id: subId, amount: coveredQty }
   }
 
-  // Devolve o estoque baixado no fechamento. MESMA fonte única do decremento
-  // (`stockDecrementTargets`) sobre a comanda fechada (imutável) → o que o close
-  // baixou é exatamente o que o undo devolve, por construção (#B4). Compensação
-  // event-first: `catalog_item.updated` somando de volta a quantidade.
   const stockRestores = stockDecrementTargets(order.items)
 
-  // AC-08: estorno do caixa. Nunca deletamos o `sale` — appendamos um
-  // `sale_reversal` standalone (brief 0015 — caixa sem sessão) que neta a venda.
-  // O id é mintado localmente (UUID, backend-agnóstico).
   let cashReversal: { movement: CashMovement } | null = null
   if (sale) {
     const reversalId = newId()
@@ -196,9 +159,6 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
     }
   }
 
-  // Reverte (appointment/cota/estoque/caixa/comissões) + reabre. No Postgres, tudo
-  // numa transação ACID única (AC-02); no Firestore, sequencial. A âncora
-  // `order.reopened` (AC-10) faz parte da mesma operação.
   const undoErr = await emitUndoClose({
     orgId,
     actorUid: r.ctx.session.uid,
@@ -208,17 +168,8 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
     cashReversal,
     commissionIds: commissions.map((c) => c.id),
     reopen: {
-      // Competência do estorno = agora (a reversão é um fato do período corrente);
-      // competência da venda estornada = o fechamento original (ADR 0016 D3/D5).
-      // Ambos em UTC ISO (storage UTC; o fuso da unidade só entra no display),
-      // consistentes com `closedAt`.
       reopenedAt: now,
       reversedClosedAt: order.closedAt ?? now,
-      // Receita reconhecida a estornar + unidade, SNAPSHOTADAS no evento (ADR 0016
-      // D5): o Razão lê por janela de competência e a venda original pode estar
-      // fora dela (fechou dia 30, reabriu dia 1) — o estorno tem que ser correto
-      // sem depender de correlacionar a comanda fechada. Mesmo cálculo de receita
-      // reconhecida que `classifyClosedOrder` distribui por item.
       reversedRevenueCents: recognizedSaleRevenueCents(order.items),
       unitId: order.unitId,
       commissionsReversed: commissions.length,
@@ -234,24 +185,6 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
   revalidatePath('/reports')
   return { ok: true, orderId }
 }
-
-// ── Form action wrappers (progressive enhancement) ───────────────────────────
-//
-// `<form action={…}>` submission lets the agenda dialog dispatch this server
-// action without depending on hydration. The success path redirects to the
-// new order — `redirect()` throws Next.js's internal `NEXT_REDIRECT` marker
-// which the framework intercepts at the action boundary and turns into a
-// client navigation; the agenda dialog dismounts naturally with no
-// `router.push` call.
-//
-// **No `useActionState` wrapper on this one.** Wrapping a redirecting action
-// in `useActionState` is unsupported in Next 16 — the `NEXT_REDIRECT` marker
-// crosses the React state-update boundary and shows up as a server error in
-// the dev/prod overlay. For redirect-on-success actions the canonical
-// pattern is plain `<form action={fn}>` with `useFormStatus` inside the
-// submit button for pending UI. Error feedback comes from a thrown Error
-// (caught by the route's error boundary) or by inverting the design to
-// `<form action={fn}>` + page-level revalidate (no redirect).
 
 export async function closeOrderFormAction(
   _prev: CloseOrderFormState,

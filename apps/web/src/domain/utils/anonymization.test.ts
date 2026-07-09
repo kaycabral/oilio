@@ -25,8 +25,6 @@ describe('anonymizedSubjectCode', () => {
   })
 
   it('derives the exact code (pins the FNV-1a fold + base32 mapping)', () => {
-    // Hardcoded expected values — a one-off in the hash loop or alphabet index
-    // would shift these.
     expect(anonymizedSubjectCode('user-1')).toBe('MBY6')
     expect(anonymizedSubjectCode('abc')).toBe('B8TF')
   })
@@ -43,7 +41,6 @@ describe('anonymizedSubjectCode', () => {
 
   it('differs across distinct userIds (no trivial collisions)', () => {
     const codes = new Set(Array.from({ length: 50 }, (_, i) => anonymizedSubjectCode(`user-${i}`)))
-    // Not a guarantee of zero collisions, but the spread should be wide.
     expect(codes.size).toBeGreaterThan(40)
   })
 })
@@ -98,7 +95,6 @@ describe('resolveSubjectName', () => {
     ).toBe(`Recepção ${code}`)
   })
 
-  // Per-org blocking (LGPD art. 18 "bloqueio") — brief 0032 / #1096, AC-09.
   it('returns the neutral label when blockedInOrg on a non-anonymized account', () => {
     const code = anonymizedSubjectCode('u1')
     expect(

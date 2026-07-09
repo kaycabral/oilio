@@ -31,24 +31,14 @@ vi.mock('@/shared/org/org', () => ({
   getOrg: mocks.getOrg,
 }))
 
-// #1317 — a user with no membership might still be a CUSTOMER of some org
-// (self-signup, brief 0077). The layout consults `listLinkedOrgIds` to route
-// them to their own area instead of the "create a business" onboarding.
 vi.mock('@/shared/identity/org-links', () => ({
   listLinkedOrgIds: mocks.listLinkedOrgIds,
 }))
 
-// The layout reads the active Negócio's Plano Oilio tier to seed OrgProvider
-// (brief 0072). Mock the read seam — this is a layout-gating unit test; the
-// billing read has its own integration coverage (org-billing RLS).
 vi.mock('@/shared/org/billing-read', () => ({
   getOrgTier: vi.fn(() => Promise.resolve('free')),
 }))
 
-// Post-cutover (#1202) the unit reads moved to Postgres (`readUnderRls`); the
-// layout consumes them only through `needsUnitSelection`/`resolveActiveUnit`, so
-// mock that seam directly — this is a layout-gating unit test, not a unit-read one
-// (the unit read is covered by active-unit's own tests + the integration suite).
 vi.mock('@/shared/org/active-unit', () => ({
   needsUnitSelection: mocks.needsUnitSelection,
   resolveActiveUnit: mocks.resolveActiveUnit,
@@ -64,12 +54,8 @@ vi.mock('@/components/app-shell', () => ({
   ),
 }))
 
-// next/navigation.redirect throws NEXT_REDIRECT in real Next; we throw a
-// shaped sentinel so each redirect destination is assertable by message.
 const REDIRECT_SENTINEL = Symbol('NEXT_REDIRECT')
 type RedirectError = Error & { [REDIRECT_SENTINEL]: true }
-// resolveActiveUnit reads the device-local active-unit cookie when the org has
-// units; outside a request scope `cookies()` throws, so stub an empty store.
 vi.mock('next/headers', () => ({
   cookies: () => Promise.resolve({ get: () => undefined }),
 }))
@@ -143,7 +129,6 @@ describe('AppLayout — auth and org gating', () => {
       emailVerified: true,
     })
     mocks.getActiveOrgContext.mockResolvedValue(null)
-    // Self-signup customer: no membership, but `org_links` to an org they book at.
     mocks.listLinkedOrgIds.mockResolvedValue(['org-9'])
     await expect(captureRedirect()).resolves.toBe('/me/appointments')
   })
@@ -170,9 +155,6 @@ describe('AppLayout — auth and org gating', () => {
       id: 't1',
       name: 'Test',
     })
-    // PRD Identidade v2 (simplification): a Negócio with no Unidade is a NORMAL
-    // empty state, not a forced onboarding screen. The owner lands in the app and
-    // creates a Unidade as an ordinary action from /orgs — no redirect.
     await expect(callLayout()).resolves.toBeTruthy()
   })
 
@@ -251,7 +233,6 @@ describe('AppLayout — auth and org gating', () => {
       ],
       activeUnitId: 'unit-1',
     })
-    // App is operable from signup once a unit exists — no global wizard gate.
     await expect(callLayout()).resolves.toBeTruthy()
   })
 
@@ -273,8 +254,6 @@ describe('AppLayout — auth and org gating', () => {
       },
       membership: { orgId: 't1', userId: 'u1', role: 'owner' },
     })
-    // getOrg must not even be reached when completion fails — the
-    // sequence checks user.completionCompleted first.
     await expect(captureRedirect()).resolves.toBe('/onboarding/profile')
     expect(mocks.getOrg).not.toHaveBeenCalled()
   })

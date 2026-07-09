@@ -1,20 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 
-/**
- * Cross-aggregate foreign-key proof against REAL Postgres (brief 0068 D2 — the
- * proof NEW to this phase). The relacionalização replaced the Firestore-era
- * id-by-convention refs with real composite FKs `(org_id, ref) → target(org_id,
- * id)`. This spec proves the DATABASE refuses a hard-delete of a parent row that
- * still has dependents (SQLSTATE `23503`) — the last-line guard the delete server
- * actions (AC-02) convert into a friendly message via `isForeignKeyViolation`.
- *
- * Seeding runs over the superuser pool (bypassing RLS) so the fixtures exist; the
- * DELETE also runs there — the FK is enforced for owner and app role alike (a FK
- * is not an RLS policy). The assertions match SQLSTATE `23503` (the code the app
- * helper keys on), not a brittle message string.
- */
-
 const FK_VIOLATION = '23503'
 const ORG = 'fk-org'
 const UNIT = 'fk-unit'
@@ -162,9 +148,6 @@ describe('cross-aggregate FK RESTRICT — proof against Postgres (brief 0068 D2)
   })
 
   it('does NOT block a category delete (catalog_items.category_id is SET NULL, not RESTRICT)', async () => {
-    // A category with a catalog item pointing at it can be deleted; the FK nulls
-    // the child's `category_id` (re-buckets to "Sem categoria") instead of
-    // refusing — the one cross-aggregate ref that is SET NULL by design.
     await pool().query(
       `INSERT INTO categories (org_id, id, last_event_version, name, active, created_at, updated_at)
        VALUES ($1,'cat-1',1,'Cat',true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,

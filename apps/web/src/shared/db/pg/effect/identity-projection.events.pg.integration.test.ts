@@ -10,22 +10,6 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 import { deletePostgresProjection, PostgresPersistenceLayer } from './postgres-layer'
 
-/**
- * Typed projection routing for the IDENTITY contexts (`org`/`unit`/`membership`)
- * against REAL Postgres (brief 0059, AC-01 + AC-05). Proves the second family of
- * contexts plugs into the per-context typed-projection mechanism the pilot
- * (feature B) extracted, WITHOUT reopening the `PersistencePort`:
- *   - each projection lands in its TYPED table (`orgs`/`units`/`memberships`),
- *     NOT the generic `projections` JSONB store, in the SAME tx as its event;
- *   - the DATABASE refuses an invariant violation (enum CHECK / non-empty / FK);
- *   - replay reconstructs the typed state (the union bodies round-trip);
- *   - a hard-delete drops the typed row while the event history is preserved;
- *   - the catalog-item path (feature B) keeps working (no regression).
- *
- * globalSetup applies the migrations; OILIO_DATABASE_URL is the ephemeral `oilio`
- * database (docker locally, services:postgres in CI).
- */
-
 const ORG = 'org-id'
 const orgRef = (id: string) => aggregateRef(OrgConfig, id, id)
 const unitRef = (orgId: string, id: string) => aggregateRef(UnitConfig, orgId, id)
@@ -160,7 +144,6 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
     expect(await rowCount('units', ORG, 'u1')).toBe(1)
     expect(await rowCount('memberships', ORG, `${ORG}_user-1`)).toBe(1)
 
-    // None used the generic JSONB store.
     expect(await genericCount(ORG, ORG)).toBe(0)
     expect(await genericCount(ORG, 'u1')).toBe(0)
     expect(await genericCount(ORG, `${ORG}_user-1`)).toBe(0)
@@ -221,15 +204,12 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
   })
 
   it('AC-01: the DATABASE refuses an invalid vertical (enum CHECK), rolling back event + projection', async () => {
-    // Bypass the domain schema (which would also reject) to prove the DB CHECK
-    // independently: write a raw row with a bad vertical.
     await expect(
       getEventStorePool().query(
         `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
          VALUES ($1,$1,1,'X','x','telepathy','u','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         ['bad'],
       ),
-      // 23514 = check_violation
     ).rejects.toMatchObject({ code: '23514' })
   })
 
@@ -249,7 +229,6 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
         `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
          VALUES ('ghost-org','u',1,'C','c','America/Sao_Paulo','fixed','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
       ),
-      // 23503 = foreign_key_violation
     ).rejects.toMatchObject({ code: '23503' })
   })
 
@@ -271,7 +250,6 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
       [ORG],
     )
-    // created + deleted both in the log
     expect(events.rows[0]?.n).toBe(2)
   })
 })

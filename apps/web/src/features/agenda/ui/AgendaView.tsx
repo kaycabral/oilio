@@ -33,9 +33,6 @@ function formatDateLabel(iso: string): string {
 
 export type AgendaViewProps = {
   date: string
-  // Brief 0081 (#1312): URL-driven "mostrar cancelados" state. Off by default —
-  // the read hides `cancelled`; on re-fetches the day with cancelled included so
-  // the grid can split a shared slot.
   showCancelled: boolean
   timezone: string
   slotMinutes: SlotMinutes
@@ -43,9 +40,6 @@ export type AgendaViewProps = {
   activeUnitId: string | null
   memberOperations: MemberOperation[]
   appointments: Appointment[]
-  // #1318: the day's CROSS-UNIT appointments per bookable professional, keyed by
-  // memberOperationId. The dialog picker uses the selected professional's list to
-  // omit already-busy starts (mirrors the public self-book, #1313).
   busyByMemberOperation: Record<string, Appointment[]>
   customersById: Record<string, Customer>
   servicesById: Record<string, CatalogServiceItem>
@@ -59,8 +53,6 @@ export type AgendaViewProps = {
   canManage: boolean
   selfMemberOperationId: string | null
   canManageCustomers: boolean
-  // #1268: this self-scoped member's operational profile isn't provisioned yet —
-  // the grid is empty by design (fail-closed). Render the explicit empty-state.
   memberOperationMissing: boolean
 }
 
@@ -94,9 +86,6 @@ export function AgendaView({
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const canCreate = activeUnitId !== null && memberOperations.length > 0 && services.length > 0
 
-  // The appointment-mode grid config for the active unit, or null when the unit
-  // isn't in appointment mode (always_open/fixed) — there the dialog keeps a
-  // free time input, since the backend enforces no grid there (brief 0080).
   const appointmentGrid = useMemo(() => {
     const active = units.find((u) => u.id === activeUnitId)
     if (!active || active.agenda.mode !== 'appointment') return null
@@ -118,9 +107,6 @@ export function AgendaView({
     if (!open) setSelectedAppointment(null)
   }
 
-  // Date and the `showCancelled` toggle (brief 0081 #1312) are both URL state.
-  // Navigation preserves the other param so toggling cancelled doesn't reset the
-  // day and changing the day doesn't drop the toggle.
   function navigate(next: { date?: string; showCancelled?: boolean }) {
     const sp = new URLSearchParams()
     sp.set('date', next.date ?? date)
@@ -203,9 +189,6 @@ export function AgendaView({
       ) : null}
 
       {(() => {
-        // #1268: a self-scoped member without a provisioned operational profile.
-        // Takes priority over the unit/member empty-states — the reads were
-        // skipped fail-closed, so the grid would otherwise read as data loss.
         if (memberOperationMissing) {
           return (
             <EmptyState
@@ -231,11 +214,6 @@ export function AgendaView({
           )
         }
         if (memberOperations.length === 0) {
-          // #1326 AC2/AC3: the empty-state must not leak a management CTA to a
-          // non-manager. A professional/receptionist who lands here (their own
-          // profile exists but isn't linked to this unit) gets a neutral state,
-          // not "convide um profissional" — inviting isn't their action, and
-          // `/team` would reject them anyway. Managers keep the actionable CTA.
           return canManage ? (
             <EmptyState
               icon={<CalendarDays />}

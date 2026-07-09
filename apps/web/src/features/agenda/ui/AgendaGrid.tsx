@@ -14,13 +14,9 @@ import {
 import { cn } from '@cbrl/design'
 import { useMemo } from 'react'
 
-// MVP: range fixo 06h-22h. Slot granularity vem do org (#633).
 const GRID_START_HOUR = 6
 const GRID_END_HOUR = 22
 const TOTAL_MINUTES = (GRID_END_HOUR - GRID_START_HOUR) * 60
-// Constant vertical density across granularities: 1.067 px/min ≈ 64px por hora,
-// 16px por slot de 15min. Mudar slotMinutes não estica/encolhe o grid — só muda
-// onde aparecem as guides finas.
 const MINUTE_PX = 16 / 15
 const TOTAL_HEIGHT_PX = TOTAL_MINUTES * MINUTE_PX
 
@@ -41,14 +37,6 @@ function formatHHmm(iso: string, tz: string): string {
 
 type Band = { top: number; height: number }
 
-// Returns the rectangles (in px, relative to the column top) that should be
-// dimmed because they fall outside the day's open ranges.
-// - Not configured (hasBusinessHours=false): no bands.
-// - Closed all day (no ranges && hasBusinessHours=true): one band covering the
-//   entire grid — the "Fechado" label is rendered separately.
-// - Open ranges (SPIKE multi-interval): shade the complement of the union of
-//   ranges within the visible grid — before the first open, BETWEEN ranges
-//   (lunch gap), and after the last close.
 function computeOffHoursBands(dayHours: readonly HoursRange[], hasBusinessHours: boolean): Band[] {
   if (!hasBusinessHours) return []
   if (dayHours.length === 0) return [{ top: 0, height: TOTAL_HEIGHT_PX }]
@@ -81,15 +69,6 @@ function computeOffHoursBands(dayHours: readonly HoursRange[], hasBusinessHours:
   return bands
 }
 
-// Horizontal split for overlapping appointments (brief 0081 #1312 AC-04):
-// Google-Agenda-style side-by-side. Two appointments in the same column whose
-// time ranges intersect share the width; the cancelled card (toggle on) sits
-// next to the active one instead of covering it.
-//
-// Classic interval-graph lane packing: sweep appointments in start order, assign
-// each the lowest lane index free at its start, and the lane count for its
-// connected overlap cluster — so a 1+1 collision splits 50/50, a lone card keeps
-// the full width, and N>2 degrades gracefully (1/N each, still legible).
 type SlotLane = { lane: number; lanes: number }
 
 function computeSlotLanes(
@@ -110,8 +89,6 @@ function computeSlotLanes(
   }
 
   for (const a of ordered) {
-    // A gap from the running cluster max-end closes the cluster: nothing after
-    // this point overlaps anything before it.
     if (a.startMin >= clusterEnd && cluster.length > 0) flush()
     const taken = new Set(cluster.filter((c) => c.endMin > a.startMin).map((c) => c.lane))
     let lane = 0
@@ -123,11 +100,6 @@ function computeSlotLanes(
   return result
 }
 
-// Status carries a left accent stripe (border-l-4) so it reads at a glance
-// against the muted lunch/break bands. `scheduled` is the operational state the
-// user acts on, so it's the most present (solid fill + accent); terminal states
-// (completed/no_show/cancelled) stay softer. Fixes the washed-out scheduled card
-// that looked disabled (bg-primary/10 was nearly invisible over bg-muted/30).
 const STATUS_STYLES: Record<Appointment['status'], string> = {
   scheduled: 'bg-primary/15 border-primary/40 border-l-4 border-l-primary text-foreground',
   completed:
@@ -158,8 +130,6 @@ export function AgendaGrid({
   timezone: string
   slotMinutes: SlotMinutes
   dayHours: readonly HoursRange[]
-  // True when the active unit has businessHours configured. When false, the
-  // overlay is suppressed (no signal yet).
   hasBusinessHours: boolean
   blockSegments: readonly BlockSegment[]
   onSelectAppointment?: (appointment: Appointment) => void
@@ -261,8 +231,6 @@ function MemberOperationColumn({
   blockSegments: readonly BlockSegment[]
   onSelectAppointment?: (appointment: Appointment) => void
 }) {
-  // Sub-hour tick lines at every slotMinutes boundary that isn't already an
-  // hour line (those carry the stronger style below).
   const slotTickTops: number[] = []
   if (slotMinutes < 60) {
     for (let m = slotMinutes; m < TOTAL_MINUTES; m += slotMinutes) {
@@ -273,10 +241,6 @@ function MemberOperationColumn({
   const offHoursBands = computeOffHoursBands(dayHours, hasBusinessHours)
   const closedAllDay = hasBusinessHours && dayHours.length === 0
 
-  // Resolve grid-relative minutes once, drop off-grid cards, then pack
-  // overlapping survivors into horizontal lanes (AC-04). Memoized so the sort +
-  // interval packing runs only when the column's appointments (or the day) change
-  // — not on every re-render (e.g. opening/closing the appointment dialog).
   const { placed, lanes } = useMemo(() => {
     const placedCards = appointments
       .map((a) => ({
@@ -314,8 +278,6 @@ function MemberOperationColumn({
       className="border-border relative border-r last:border-r-0"
       style={{ height: TOTAL_HEIGHT_PX }}
     >
-      {/* Off-hours overlays — rendered before grid lines so the dim covers them
-          but they still show through faintly. */}
       {offHoursBands.map((b, i) => (
         <div
           key={`off-${i}`}
@@ -324,7 +286,6 @@ function MemberOperationColumn({
         />
       ))}
 
-      {/* Slot tick lines (sub-hour). Rendered first so hour lines paint on top. */}
       {slotTickTops.map((top) => (
         <div
           key={`slot-${top}`}
@@ -333,7 +294,6 @@ function MemberOperationColumn({
         />
       ))}
 
-      {/* Hour grid lines */}
       {Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }).map((_, i) => (
         <div
           key={`hour-${i}`}
@@ -348,9 +308,6 @@ function MemberOperationColumn({
         </div>
       ) : null}
 
-      {/* Agenda blocks (lunch, absences). Rendered above off-hours and grid
-          lines so they stand out, below appointments so a manual override is
-          still visible if booked on top. */}
       {visibleBlocks.map((b) => (
         <div
           key={`block-${b.blockId}`}
@@ -370,8 +327,6 @@ function MemberOperationColumn({
       {placed.map(({ a, startMin, endMin }) => {
         const top = startMin * MINUTE_PX
         const height = (endMin - startMin) * MINUTE_PX
-        // Lane geometry: split the column (minus the existing 4px gutters) into
-        // `lanes` equal tracks. A lone card spans the full width as before.
         const { lane, lanes: laneCount } = lanes.get(a.id) ?? { lane: 0, lanes: 1 }
         const widthPct = 100 / laneCount
         const positioning =

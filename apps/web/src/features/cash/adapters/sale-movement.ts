@@ -5,11 +5,6 @@ import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
 import 'server-only'
 
-// Builds the `sale` movement doc (a fresh id + the full append-only row) without
-// persisting it — shared by `recordSaleMovement` (the standalone Firestore path)
-// and the ACID close-order saga (brief 0061 § Grupo A), so both construct the
-// SAME shape. The id is a backend-agnostic UUID (`newId`) — the Postgres path
-// stores it under the cash_movement aggregate ref `{orgId, id}`.
 export function buildSaleMovement(params: {
   orgId: string
   unitId: string
@@ -35,11 +30,6 @@ export function buildSaleMovement(params: {
   }
 }
 
-// Grava um movement `sale` standalone (brief 0015 — caixa sem sessão): a parte
-// vendida em dinheiro de uma comanda vira movimento financeiro SEMPRE, sem
-// depender de caixa aberto. Event-first (brief 0025 #1019): o movimento nasce
-// de `cash_movement.created` (a projeção escreve o doc) — auditoria = stream.
-// Idempotência por orderId é do caller — closeOrder chama uma vez por fechamento.
 export async function recordSaleMovement(params: {
   orgId: string
   unitId: string

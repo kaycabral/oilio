@@ -31,12 +31,10 @@ describe('normalizeBrazilPhone', () => {
   })
 
   it('keeps a 12-digit number (already with country code)', () => {
-    // '447911123456' is 12 digits → the explicit 12/13 branch.
     expect(normalizeBrazilPhone('+44 7911 123456')).toBe('447911123456')
   })
 
   it('keeps 14- and 15-digit numbers via the >=11 && <=15 E.164 fallback', () => {
-    // Not 10/11/12/13 → exercises the generic length-11..15 branch.
     expect(normalizeBrazilPhone('12345678901234')).toBe('12345678901234')
     expect(normalizeBrazilPhone('123456789012345')).toBe('123456789012345')
   })
@@ -62,7 +60,6 @@ describe('normalizeBrazilMobile', () => {
   })
 
   it('rejects an 11-digit number without the mandatory 9th digit', () => {
-    // DDD 11 + 8 digits that do NOT start with 9 → not a mobile.
     expect(normalizeBrazilMobile('1181234567')).toBeNull()
     expect(normalizeBrazilMobile('11812345678')).toBeNull()
   })

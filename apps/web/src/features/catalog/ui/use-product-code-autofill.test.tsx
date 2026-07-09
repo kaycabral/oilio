@@ -6,8 +6,6 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProductCodeAutofill } from './use-product-code-autofill'
 
-// The two boca actions are the only I/O; mock them so the hook's React glue (race
-// guards, dedup, debounce, reset, derived flags) is tested in isolation.
 const lookup = vi.hoisted(() => vi.fn<(code: string) => Promise<CodeLookupOutcome>>())
 vi.mock('@/features/catalog/adapters/product-lookup.action', () => ({
   lookupProductForForm: lookup,
@@ -46,12 +44,10 @@ describe('useProductCodeAutofill — nameRequired (AC-03/AC-08)', () => {
     lookup.mockResolvedValueOnce(FOUND)
     const { result } = renderHook(() => useProductCodeAutofill())
 
-    // idle: required
     expect(result.current.nameRequired).toBe(true)
 
     act(() => result.current.lookup('7891000100103'))
     await waitFor(() => expect(result.current.state.kind).toBe('filled'))
-    // hit: not required (filled from base), locked
     expect(result.current.nameRequired).toBe(false)
     expect(result.current.locked).toBe(true)
   })
@@ -77,19 +73,16 @@ describe('useProductCodeAutofill — nameRequired (AC-03/AC-08)', () => {
 
 describe('useProductCodeAutofill — race + dedup', () => {
   it('a superseded (slower, earlier) lookup never overwrites the newer one', async () => {
-    // First call resolves LATE with a hit; second resolves first with a miss.
     let resolveFirst: (o: CodeLookupOutcome) => void = () => {}
     lookup
       .mockImplementationOnce(() => new Promise((r) => (resolveFirst = r)))
       .mockResolvedValueOnce({ status: 'new' })
 
     const { result } = renderHook(() => useProductCodeAutofill())
-    // request 1 (in-flight) then request 2 (newer, resolves first)
     act(() => result.current.lookup('7891000100103'))
     act(() => result.current.lookup('0036000291452'))
     await waitFor(() => expect(result.current.state.kind).toBe('contributing'))
 
-    // Now the stale request 1 resolves — it must be dropped.
     await act(async () => {
       resolveFirst(FOUND)
       await Promise.resolve()
@@ -102,7 +95,6 @@ describe('useProductCodeAutofill — race + dedup', () => {
     const { result } = renderHook(() => useProductCodeAutofill())
     act(() => result.current.lookup('0036000291452'))
     await waitFor(() => expect(result.current.state.kind).toBe('contributing'))
-    // same code — deduped, no second action call
     act(() => result.current.lookup('0036000291452'))
     expect(lookup).toHaveBeenCalledTimes(1)
   })
@@ -116,7 +108,6 @@ describe('useProductCodeAutofill — race + dedup', () => {
     act(() => result.current.reset())
     expect(result.current.state.kind).toBe('idle')
 
-    // Same code is honored again after a reset (lastCode forgotten).
     act(() => result.current.lookup('7891000100103'))
     await waitFor(() => expect(lookup).toHaveBeenCalledTimes(2))
   })
@@ -132,7 +123,6 @@ describe('useProductCodeAutofill — name search (feature D, AC-01/AC-05)', () =
     act(() => result.current.searchByName('nin'))
     act(() => result.current.searchByName('ninh'))
     act(() => result.current.searchByName('ninho'))
-    // No call yet — still inside the debounce window.
     expect(search).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -148,7 +138,6 @@ describe('useProductCodeAutofill — name search (feature D, AC-01/AC-05)', () =
     search.mockResolvedValue([SUGGESTION])
     const { result } = renderHook(() => useProductCodeAutofill())
 
-    // First get some suggestions on screen…
     act(() => result.current.searchByName('ninho'))
     await act(async () => {
       vi.advanceTimersByTime(250)
@@ -156,14 +145,12 @@ describe('useProductCodeAutofill — name search (feature D, AC-01/AC-05)', () =
     })
     expect(result.current.suggestions).toHaveLength(1)
 
-    // …then drop below the min — suggestions clear without a new query.
     act(() => result.current.searchByName('ni'))
     expect(result.current.suggestions).toEqual([])
     await act(async () => {
       vi.advanceTimersByTime(250)
       await Promise.resolve()
     })
-    // No second query ran.
     expect(search).toHaveBeenCalledTimes(1)
   })
 
@@ -175,7 +162,6 @@ describe('useProductCodeAutofill — name search (feature D, AC-01/AC-05)', () =
     expect(result.current.locked).toBe(true)
     expect(result.current.nameRequired).toBe(false)
     expect(result.current.filledName).toBe('Leite Ninho 400g')
-    // The chosen product's key is wired so the save references it like a code hit.
     expect(result.current.referenceGtin14).toBe('07891000100103')
     expect(result.current.suggestions).toEqual([])
   })
@@ -199,7 +185,6 @@ describe('useProductCodeAutofill — name search (feature D, AC-01/AC-05)', () =
     })
     expect(result.current.suggestions).toHaveLength(1)
 
-    // The stale first search resolves late — it must be dropped.
     await act(async () => {
       resolveFirst([])
       await Promise.resolve()
@@ -227,11 +212,9 @@ describe('useProductCodeAutofill — name search (feature D, AC-01/AC-05)', () =
     search.mockResolvedValue([SUGGESTION])
     const { result } = renderHook(() => useProductCodeAutofill())
 
-    // Type, then select WITHIN the debounce window (before the timer fires).
     act(() => result.current.searchByName('ninho'))
     act(() => result.current.selectSuggestion(SUGGESTION))
 
-    // Let the (now-cancelled) debounce window elapse — no search must run.
     await act(async () => {
       vi.advanceTimersByTime(250)
       await Promise.resolve()
@@ -242,8 +225,6 @@ describe('useProductCodeAutofill — name search (feature D, AC-01/AC-05)', () =
   })
 
   it('an in-flight code lookup cannot overwrite a name selection (cross-boca race)', async () => {
-    // Code lookup is in flight (resolves late with a hit); the user selects a name
-    // suggestion before it resolves. The stale code hit must NOT clobber the fill.
     let resolveCode: (o: CodeLookupOutcome) => void = () => {}
     lookup.mockImplementationOnce(() => new Promise((r) => (resolveCode = r)))
 
@@ -251,13 +232,11 @@ describe('useProductCodeAutofill — name search (feature D, AC-01/AC-05)', () =
     act(() => result.current.lookup('7891000100103'))
     act(() => result.current.selectSuggestion(SUGGESTION))
 
-    // The earlier code lookup resolves now — its outcome is stale, must be dropped.
     await act(async () => {
       resolveCode(FOUND)
       await Promise.resolve()
     })
 
-    // State stays the NAME fill (source carries the wired gtin), not the code hit.
     expect(result.current.state.kind).toBe('filled')
     expect(result.current.referenceGtin14).toBe('07891000100103')
   })

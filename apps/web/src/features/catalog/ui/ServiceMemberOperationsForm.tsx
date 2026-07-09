@@ -5,10 +5,6 @@ import { setServiceMemberOperations } from '@/features/catalog/adapters/catalog.
 import { Button, Checkbox } from '@cbrl/design'
 import { useState, useTransition } from 'react'
 
-// Cross-entry editor for the #876 link: from a service item's catalog editor,
-// the owner flips which memberOperations execute it. Moved here from the deleted
-// `/services` route (brief 0023, AC-10). Mirror of the multi-select inside
-// MemberOperationForm — same data, two entry points (DRY of intent).
 export function ServiceMemberOperationsForm({
   service,
   memberOperations,

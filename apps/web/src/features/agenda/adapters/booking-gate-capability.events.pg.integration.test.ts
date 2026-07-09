@@ -1,15 +1,3 @@
-// The booking write gate `loadApprovedMemberOperation` must enforce the SAME
-// invariant the agenda read filters on (brief 0076 AC-03): a member is bookable
-// iff the membership carries `canBeBooked` ∧ the profile is operational. After
-// the `BookableProfessional` brand was retired, "bookable" is the capability —
-// so the write path (createAppointment/updateAppointment) must refuse a member
-// whose `canBeBooked` was toggled off, even though they are still operational and
-// still hidden from the grid. This proves the read and write can't drift (a stale
-// form / deep link can't book a soft-disabled member).
-//
-// The memberOperation is minted through the real write path; the gate reads the
-// enriched `MemberOperation` + the membership capability exactly like production.
-
 import { defaultPermissionsForRole } from '@/domain'
 import { MemberOperationConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
@@ -65,8 +53,6 @@ async function seedService(orgId: string, serviceId: string): Promise<void> {
   )
 }
 
-// Seed a membership for `userId` with `canBeBooked` either on (the memberOperation
-// preset) or forced off. Seeded BEFORE the memberOperation (composite FK parent).
 async function seedMembership(orgId: string, userId: string, canBeBooked: boolean): Promise<void> {
   const permissions = { ...defaultPermissionsForRole('member_operator'), canBeBooked }
   await pool().query(
@@ -76,9 +62,6 @@ async function seedMembership(orgId: string, userId: string, canBeBooked: boolea
   )
 }
 
-// Mint an OPERATIONAL memberOperation (whatsapp ∧ ≥1 unit ∧ ≥1 service) through the
-// real write path; `canBeBooked` is the only axis the tests vary. Returns the
-// memberOperation id (what the booking gate is keyed on).
 async function seedOperationalMemberOperation(
   orgId: string,
   unitId: string,
@@ -136,8 +119,6 @@ describe('loadApprovedMemberOperation — booking write gate keys on canBeBooked
   it('operational memberOperation with canBeBooked OFF → REFUSES the booking (capability gate)', async () => {
     const orgId = uniqueOrg()
     await seedOrg(orgId)
-    // Operational on every readiness axis, but the capability was toggled off
-    // (soft-disabled — out of the grid). The write must refuse it too.
     const proId = await seedOperationalMemberOperation(orgId, UNIT, SERVICE, false)
     const result = await loadApprovedMemberOperation(orgId, proId)
     expect(typeof result).toBe('string')

@@ -10,16 +10,6 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 import { PostgresPersistenceLayer, deletePostgresProjection } from './postgres-layer'
 
-// Typed projection routing for the `catalog_item` context against REAL Postgres
-// (brief 0058, AC-01 + AC-03). Proves the per-context typed-projection mechanism:
-// a `catalog_item` projection lands in the TYPED `catalog_items` table (NOT the
-// generic `projections` JSONB store) in the SAME transaction as its event; the
-// DATABASE refuses an invariant violation (kind / blank name / negative price /
-// bad visibility / wrong kind-shape); replay reconstructs the typed state; and a
-// hard-delete drops the typed row while the generic store is untouched.
-// globalSetup applies the migrations; OILIO_DATABASE_URL is the ephemeral `oilio`
-// database (docker locally, services:postgres in CI).
-
 const ORG = 'org-cat'
 const refOf = (id: string) => aggregateRef(CatalogItemConfig, ORG, id)
 
@@ -70,9 +60,6 @@ function product(id: string, overrides: Partial<CatalogProductItem> = {}): Catal
   }
 }
 
-// Parent rows the new D2/0068 catalog_items FKs require: `org_id → orgs` and the
-// (org_id, category_id) → categories composite. Seeded over the superuser pool
-// with ON CONFLICT so repeated ids are idempotent.
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
@@ -91,9 +78,6 @@ async function seedCategory(orgId: string, categoryId: string): Promise<void> {
   )
 }
 
-// The `catalog_item_units` join FK (brief 0068 D3) requires each `unitIds` ref to
-// exist in `units(org_id, id)`; the projector mirrors the array in the same tx,
-// so the parent units must be seeded first.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
@@ -161,9 +145,6 @@ async function genericProjectionCount(id: string): Promise<number> {
 describe('Postgres typed projection — catalog_items (brief 0058)', () => {
   beforeEach(async () => {
     const pool = getEventStorePool()
-    // CASCADE: `catalog_items` is now referenced by `appointments.service_id`
-    // (brief 0068 D2), so a plain TRUNCATE is refused even with zero referencing
-    // rows.
     await pool.query('TRUNCATE events, projections, catalog_items CASCADE')
   })
 
@@ -182,10 +163,8 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
     expect(row.org_id).toBe(ORG)
     expect(Number(row.duration_minutes)).toBe(30)
 
-    // The generic JSONB store was NOT used for this context.
     expect(await genericProjectionCount('svc1')).toBe(0)
 
-    // The event still landed in the append-only log (same tx).
     const pool = getEventStorePool()
     const events = await pool.query<{ n: number }>(
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
@@ -216,7 +195,6 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
   it('AC-01: the DATABASE refuses a blank name (CHECK), rolling back event + projection', async () => {
     await expect(create(service('svc-blank', { name: '   ' }))).rejects.toThrow()
 
-    // Atomic: neither the typed row nor the event survived the rollback.
     expect(await typedRow('svc-blank')).toBeUndefined()
     const pool = getEventStorePool()
     const events = await pool.query<{ n: number }>(
@@ -232,8 +210,6 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
   })
 
   it('AC-01: the DATABASE refuses the wrong kind-shape (service carrying stock)', async () => {
-    // A service that somehow carries a product-only column violates the
-    // conditional kind-shape CHECK — refused by the DB, not the app.
     const pool = getEventStorePool()
     await expect(
       pool.query(
@@ -243,7 +219,6 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
          VALUES ($1,$2,1,'service','X',100,'visible',true,30,5,'[]'::jsonb,true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG, 'bad'],
       ),
-      // 23514 = Postgres check_violation.
     ).rejects.toMatchObject({ code: '23514' })
   })
 
@@ -251,8 +226,6 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
     await create(service('svc-del'))
     expect(await typedRow('svc-del')).toBeDefined()
 
-    // The `*.deleted` event is appended (history), the projection write is
-    // skipped by the event store, and the backend-aware delete drops the row.
     await Effect.runPromise(
       appendEvent(CatalogItemConfig, refOf('svc-del'), {
         _tag: 'catalog_item.deleted',
@@ -268,7 +241,6 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
       ['svc-del'],
     )
-    // created + deleted both kept in the append-only log.
     expect(events.rows[0]?.n).toBe(2)
   })
 })

@@ -135,14 +135,10 @@ describe('shapeCommissionsSection', () => {
       statusFilter: null,
     })
     expect(out.memberNameByUserId.u1).toBe('Ana (revogada)')
-    // Member without a commission snapshot falls back to the live name.
     expect(out.memberNameByUserId.u2).toBe('Bruno')
   })
 
   it('filters covered attendances by the member filter', () => {
-    // A closed order with two subscription-covered service items, one per
-    // memberOperation, so `byMemberOperation` has both — the member filter then keeps
-    // only the matching memberOperation's covered row.
     const coveredItem = (attributedUserId: string) => ({
       id: `it-${attributedUserId}`,
       kind: 'service' as const,

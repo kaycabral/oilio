@@ -9,8 +9,6 @@ import {
 } from '../helpers/session'
 import { PublicBookingPage, orgSlug } from '../pages'
 
-// Issue #842 — Calendário público de slots disponíveis.
-
 test.describe('Landing pública — calendário de disponibilidade', () => {
   test.describe('com serviço selecionado', () => {
     test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
@@ -28,8 +26,6 @@ test.describe('Landing pública — calendário de disponibilidade', () => {
 
       const targetDate = nextWeekday('Wed')
 
-      // Pre-block 09:00 BR (12:00 UTC) with an existing appointment so that slot
-      // is dropped — we can assert both presence (other slots) and absence (09:00).
       const cust = await seedCustomer(org.orgId, { name: 'Bloqueado', mobile: uniqueWhatsapp() })
       await seedAppointment({
         orgId: org.orgId,
@@ -46,7 +42,6 @@ test.describe('Landing pública — calendário de disponibilidade', () => {
       await booking.gotoAvailability('unidade-1', { serviceId, from: targetDate })
       await expect(page.getByRole('heading', { name: /escolha data e horário/i })).toBeVisible()
 
-      // 09:30 (and later) BR slots stay available; 09:00 is blocked.
       await expect(page.getByText('09:30').first()).toBeVisible()
       await expect(page.getByText('10:00').first()).toBeVisible()
       await expect(page.getByText('09:00').first()).toHaveCount(0)

@@ -18,9 +18,6 @@ import { Avatar, AvatarFallback, AvatarImage, List } from '@cbrl/design'
 import { Users } from 'lucide-react'
 import { ClientInviteDialog } from './ClientInviteDialog'
 
-// Maps the server impact into the dialog's "isto vai…" list + blocker. An open
-// comanda is the only hard blocker (brief 0033, AC-07); the active subscription
-// and future appointments are what the cascade will cancel.
 function buildImpact(c: Customer): () => Promise<DeletionImpact> {
   return async () => {
     const i = await getCustomerDeletionImpactAction(c.id)
@@ -47,8 +44,6 @@ function buildImpact(c: Customer): () => Promise<DeletionImpact> {
   }
 }
 
-// Two-letter monogram for the avatar fallback when the customer has no photo.
-// Mirrors the pattern in `components/user-menu.tsx`.
 function initials(name: string): string {
   const parts = name
     .trim()
@@ -67,9 +62,7 @@ export function CustomersList({
 }: {
   customers: Customer[]
   searchQuery: string
-  // Role gate (owner/manager).
   canDelete: boolean
-  // True when data exists but the search slice is empty (filtered-empty).
   isFiltered: boolean
 }) {
   const { setParams } = useListUrlControls()
@@ -99,9 +92,6 @@ export function CustomersList({
         title: 'Nenhum cliente cadastrado',
         description:
           'Convide seu primeiro cliente: você informa o WhatsApp e ele faz o próprio cadastro pelo link.',
-        // The List hides the header (and its invite button) when truly empty, so
-        // the empty state carries its own invite CTA — otherwise the first-client
-        // moment would have no way to invite. Same dialog, default trigger.
         actionSlot: <ClientInviteDialog />,
       }}
       filteredEmpty={{ title: 'Nenhum cliente para esta busca.' }}
@@ -110,9 +100,6 @@ export function CustomersList({
           { kind: 'link', label: 'Ver', href: toRoute(`/customers/${c.id}`) },
         ]
         if (canDelete) {
-          // Operator delete (brief 0033, AC-07/AC-10) — NOT LGPD. Lists what will
-          // be cancelled, preserves the NAME in history; an OPEN comanda blocks.
-          // High impact → type the name to confirm.
           actions.push({
             kind: 'delete',
             action: () => deleteCustomer(c.id),
@@ -130,7 +117,6 @@ export function CustomersList({
               <AvatarFallback>{initials(c.name)}</AvatarFallback>
             </Avatar>
           ),
-          // Birthday marker sits next to the name — only ON the birthday.
           title:
             c.birthDate && isBirthdayToday(c.birthDate) ? (
               <span className="flex min-w-0 items-center gap-1.5">
@@ -140,11 +126,7 @@ export function CustomersList({
             ) : (
               c.name
             ),
-          // Contact line under the name: the WhatsApp number, masked in the BR
-          // display format. The exposed WhatsApp action stays as the quick "open
-          // chat" affordance; this just makes the number visible + scannable.
           description: c.mobile ? formatBrazilPhone(c.mobile) : undefined,
-          // Exposed WhatsApp shortcut beside the ⋯ menu (tooltip reveals number).
           actions: (
             <>
               <WhatsappAction phone={c.mobile} label={`WhatsApp de ${c.name}`} />

@@ -1,16 +1,3 @@
-// Feature-level E2E — brief 0021 § Definition of Done (parent #989).
-//
-// 1 test por cenário do DoD, validando o contrato da feature "Fechamento
-// fiscal-ready (pagamento real + assinatura como consumo)" como gate do parent
-// — escopo cross-component do parent, não das sub-issues isoladas
-// (#990/#991/#992):
-// - Cenário 1: venda real fecha com forma de pagamento real [critical]
-// - Cenário 2: comanda 100% coberta fecha como consumo (sem tender, sem NF) [critical]
-// - Cenário 3: comanda mista (coberto + vendido) [critical]
-//
-// Nome distinto de `orders/feature-dod.spec.ts` (DoD do brief 0002 #944).
-// Roda contra emulator + build de produção (modo canônico do playwright.config).
-
 import { SubscriptionConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import type { Page } from '@playwright/test'
@@ -30,16 +17,11 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-// The `subscriptions` projection stores the period as a JSONB `current_period`
-// column; this spec only reads its `consumed` counter (the plan-usage balance).
 const CurrentPeriodSchema = Schema.Struct({
   consumed: Schema.optional(Schema.Number),
 })
 const decodeCurrentPeriod = Schema.decodeUnknownSync(CurrentPeriodSchema)
 
-// Reads the plan-usage `consumed` counter off the Postgres `subscriptions`
-// projection (post-cutover). `current_period` is JSONB → decode the nested
-// counter; absent/null period → 0 (mirrors the old emulator read).
 async function readConsumed(orgId: string, subId: string): Promise<number> {
   const row = await pgReadProjection(
     'subscriptions',
@@ -49,9 +31,6 @@ async function readConsumed(orgId: string, subId: string): Promise<number> {
   return decodeCurrentPeriod(row.current_period).consumed ?? 0
 }
 
-// Seed de um atendimento de serviço (Corte) pra um cliente nomeado. Quando
-// `withSubscription`, cria assinatura ativa por contagem (saldo 4) — chave dos
-// cenários de consumo.
 async function seedServiceFor(
   org: SeededOrg,
   customerName: string,
@@ -64,16 +43,11 @@ async function seedServiceFor(
     priceCents: 5000,
     commission: { kind: 'percentage', value: 50 },
   })
-  // Cada cenário roda em org próprio (fixture) com mobile distinto — o
-  // Customer é org-scoped, sem colisão entre cenários.
   const customerId = await seedCustomer(org.orgId, { name: customerName, mobile })
   const subId = withSubscription
     ? await seedSubscription(org.orgId, customerId, {
         planName: 'Mensal Corte',
         usageLimit: { kind: 'count', quantity: 4 },
-        // Plan covers the SERVICE only (Corte). The product sold in the mixed
-        // scenario (Pomada) must stay `sale` — scoping coverage keeps the
-        // auto-mark (brief 0079) off it.
         includedItemIds: [serviceId],
       })
     : null
@@ -96,9 +70,6 @@ async function seedServiceFor(
 async function startOrderFor(authedPage: Page, customerName: string): Promise<void> {
   const agenda = new AgendaPage(authedPage)
   await agenda.goto('2026-09-08')
-  // Resilient card-open → "Iniciar atendimento" → order URL. The naive
-  // card-click + button-click sequence dropped the pre-hydration click and
-  // flaked under parallel load; startAttendance retries the dialog open.
   await agenda.startAttendance(new RegExp(customerName))
 }
 
@@ -125,18 +96,14 @@ test.describe(
     })
 
     test('Cenário 1: venda real fecha com forma de pagamento real', async ({ org, authedPage }) => {
-      // Cliente SEM assinatura → o item é venda; o fechamento exige forma real.
       await seedServiceFor(org, 'Cliente Venda', uniqueWhatsapp(), false)
       await startOrderFor(authedPage, 'Cliente Venda')
 
-      // Total a pagar = o serviço vendido (R$ 50,00) — base da receita/NF futura.
       await expect(authedPage.getByText('R$ 50,00').first()).toBeVisible()
 
-      // Forma de pagamento real obrigatória (AC-02) → dinheiro.
       await choosePaymentMethod(authedPage, 'cash')
       await confirmClose(authedPage)
 
-      // Fechou com o instrumento real registrado (base pra NF futura).
       await expect(authedPage.getByText(/Dinheiro/).first()).toBeVisible()
     })
 
@@ -147,8 +114,6 @@ test.describe(
       const { subId } = await seedServiceFor(org, 'Cliente Plano', uniqueWhatsapp(), true)
       await startOrderFor(authedPage, 'Cliente Plano')
 
-      // O Corte coberto já entra como consumo do plano (auto-marcação, brief 0079)
-      // → comanda fica 100% coberta sem flip manual.
       await expect(
         authedPage
           .getByRole('listitem')
@@ -156,11 +121,9 @@ test.describe(
           .getByRole('combobox', { name: 'Cobertura do item' }),
       ).toHaveText('Consumo do plano')
 
-      // Sem item de venda → fecha sem forma de pagamento (AC-06).
       await expect(authedPage.getByText(/100% coberta pelo plano/)).toBeVisible()
       await confirmClose(authedPage)
 
-      // Saldo do plano decrementado; nenhuma receita/forma de pagamento gerada.
       expect(await readConsumed(org.orgId, subId!)).toBe(1)
     })
 
@@ -172,8 +135,6 @@ test.describe(
       await seedProduct(org.orgId, { name: 'Pomada', priceCents: 3000 })
       await startOrderFor(authedPage, 'Cliente Misto')
 
-      // Serviço coberto já entra como consumo (auto-marcação, brief 0079) → some
-      // do total a pagar, sem flip manual.
       await expect(
         authedPage
           .getByRole('listitem')
@@ -181,16 +142,13 @@ test.describe(
           .getByRole('combobox', { name: 'Cobertura do item' }),
       ).toHaveText('Consumo do plano')
 
-      // Produto vendido (venda real) pelo "Adicionar item" único (#1005).
       await addCatalogItemToOrder(authedPage, 'Pomada')
 
-      // Total a pagar = só o produto (R$ 30,00); o serviço é consumo.
       await expect(authedPage.getByText('R$ 30,00').first()).toBeVisible()
 
       await choosePaymentMethod(authedPage, 'pix')
       await confirmClose(authedPage)
 
-      // Produto fechou com PIX; o serviço debitou 1 do plano.
       await expect(authedPage.getByText(/PIX/).first()).toBeVisible()
       expect(await readConsumed(org.orgId, subId!)).toBe(1)
     })

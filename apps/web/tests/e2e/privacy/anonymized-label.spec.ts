@@ -4,23 +4,6 @@ import { getUserById, putUser } from '@/shared/db/pg/users-store'
 import { expect, test } from '../fixtures'
 import { seedCustomer, seedMember, seedOrg, signInAndAttachSession } from '../helpers/session'
 
-// Feature-level E2E — neutral label for anonymized accounts (brief 0032 / #1095).
-//
-// AC-03: wherever a name is resolved LIVE from the global `users/{uid}`, an
-// anonymized account (`anonymizedAt` set) shows the neutral label
-// `‹Role› ‹CODE›` (ex.: "Cliente 7K2A") instead of the scrubbed name — no
-// "removido"/reason. Two anonymized subjects stay distinct (different codes);
-// a NON-anonymized account keeps its real name.
-//
-// Surfaces covered (all inherit the shared resolver `resolveSubjectName`):
-//   - customer list (`customer-read`)
-//   - team list + member detail (`membership` / `/team/[userId]`)
-
-// Marks a global account as anonymized, mirroring the #1093 scrub: PII fields
-// go null and `anonymizedAt` is stamped. The resolver keys off `anonymizedAt`.
-// Post-cutover the global account lives in the Postgres `users` table, so we
-// read the seeded row and re-upsert it with the canonical scrub patch (single
-// source of truth via `buildUserAnonymizationScrub`).
 async function anonymizeUser(userId: string): Promise<void> {
   const user = await getUserById(userId)
   if (user === null) {
@@ -76,16 +59,12 @@ test.describe('neutral label for anonymized accounts', () => {
     const labelA = `Cliente ${anonymizedSubjectCode(anonUserA)}`
     const labelB = `Cliente ${anonymizedSubjectCode(anonUserB)}`
 
-    // Both anonymized customers render the neutral label.
     await expect(page.getByText(labelA, { exact: true })).toBeVisible()
     await expect(page.getByText(labelB, { exact: true })).toBeVisible()
-    // Distinct subjects → distinct codes (no collapse).
     expect(labelA).not.toEqual(labelB)
-    // The scrubbed names never surface; no "removido"/reason text.
     await expect(page.getByText('Ana Anonimizada')).toHaveCount(0)
     await expect(page.getByText('Bruno Anonimizado')).toHaveCount(0)
     await expect(page.getByText(/removido/i)).toHaveCount(0)
-    // The non-anonymized account keeps its real name.
     await expect(page.getByText('Carla Ativa', { exact: true })).toBeVisible()
   })
 
@@ -104,13 +83,11 @@ test.describe('neutral label for anonymized accounts', () => {
     await signInAndAttachSession(context, owner.email, owner.password)
     const page = await context.newPage()
 
-    // Team list (member-name join via `listOrgMembers` / `/team`).
     await page.goto('/team')
     await expect(page.getByText(label, { exact: true }).first()).toBeVisible()
     await expect(page.getByText('Daniel Profissional')).toHaveCount(0)
     await expect(page.getByText(/removido/i)).toHaveCount(0)
 
-    // Member detail `/team/[userId]` (0037) — heading shows the neutral label.
     await page.goto(`/team/${userId}`)
     await expect(page.getByRole('heading', { name: label })).toBeVisible()
     await expect(page.getByText('Daniel Profissional')).toHaveCount(0)

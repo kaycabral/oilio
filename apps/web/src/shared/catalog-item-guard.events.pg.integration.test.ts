@@ -16,36 +16,8 @@ import { Effect, Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-/**
- * Atomic use-time guard (brief 0033 AC-08/AC-09) against REAL Postgres — the
- * cutover rewrite of the old Firestore-emulator `effect-bridge.integration.test`.
- *
- * `emitEventGuarded` resolves the appended event's payload from a transactional
- * read of a definition (a real `catalog_items` projection) INSIDE the SAME
- * Postgres tx that appends the event + projection. The guard:
- *   - rejects when the definition is discontinued (`archivedAt`/`!active`) →
- *     `GuardRejectedError`, mapped to `{ ok:false }` by the bridge;
- *   - snapshots the price as `min(displayed, current)` (CDC art. 30 + Decreto
- *     5.903/2006 art. 5º — never charge more than displayed);
- *   - serializes against a concurrent discontinuation/reprice — the price the
- *     guard snapshots is always lawful (≤ displayed), whatever the commit order.
- *
- * A synthetic `ticket` aggregate (generic `projections` store) keeps the test on
- * the GUARD mechanism #1112 adds — the price-bearing snapshot — exactly as the
- * old synthetic-aggregate test did; the real order/subscription reducers are
- * covered by their own replay suites. The definition it reads is a REAL
- * `catalog_items` projection, created through the event store, so the guard's
- * `reader.getDoc(path, CatalogItem)` exercises the production read path verbatim
- * (mirrors `orders.actions` `addItemToOrder`).
- *
- * globalSetup applies the migrations; OILIO_DATABASE_URL is the ephemeral `oilio`
- * database (docker locally, services:postgres in CI).
- */
-
 const ORG = 'org-guard'
 
-// ── Synthetic ticket aggregate: its `priceCents` is snapshotted from a real
-//    catalog-item definition at append-time (mirrors order-item create).
 type TicketState = {
   readonly _version: number
   readonly priceCents: number
@@ -59,12 +31,6 @@ const TicketEventSchema = Schema.Struct({
 })
 type TicketEvent = Schema.Schema.Type<typeof TicketEventSchema>
 
-// Modeled on a real `AggregateType` (`goal`) so the typed ref/config contract
-// holds (the `type` union is closed post-D6); the domain is a synthetic ticket.
-// The aggregate is routed to the GENERIC `projections` store by the test
-// projector registered in `beforeAll` — keeping the test on the GUARD mechanism
-// (#1112), the price-bearing snapshot, exactly as the old synthetic-aggregate
-// test did.
 const TICKET_TYPE = 'goal' as const
 
 const TicketConfig: AggregateConfig<TicketState, TicketEvent> = {
@@ -79,10 +45,6 @@ const TicketConfig: AggregateConfig<TicketState, TicketEvent> = {
   currentSchemaVersion: 1,
 }
 
-// Route the synthetic ticket aggregate to the generic `projections` JSONB store
-// (the fallback an org-neutral aggregate gets) so its reduced state lands where
-// `ticketPrice` reads it — the typed `goal` projector would otherwise capture
-// the write into the `goals` table.
 async function readGenericProjection(
   client: PoolClient,
   ref: AggregateRef,
@@ -131,10 +93,6 @@ async function seedOrgAndUnit(): Promise<void> {
      VALUES ($1,$1,1,'Org','slug','barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [ORG],
   )
-  // The catalog items below are scoped to `unit-seed` (`unitIds` is non-empty,
-  // #1283), and the projector mirrors that into `catalog_item_units` under a
-  // composite FK → `units`. Seed the unit so the join row resolves; the address
-  // is complete to satisfy `units_address_complete`.
   await pool.query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
      VALUES ($1,'unit-seed',1,'Unit','unit-seed','America/Sao_Paulo','always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
@@ -154,9 +112,6 @@ function serviceDef(
     categoryId: null,
     priceCents,
     commission: null,
-    // Non-empty (#1283): a catalog item is always scoped to ≥1 unit. This guard
-    // test is about price/discontinuation, not unit scope — any placeholder unit
-    // satisfies the `unitIds` invariant (domain `NonEmptyArray` + DB CHECK).
     unitIds: ['unit-seed'],
     unitOverrides: null,
     publicVisible: true,
@@ -208,8 +163,6 @@ async function archive(id: string): Promise<void> {
   )
 }
 
-// The guard both `addItemToOrder` and `subscribe` reuse: read the definition
-// transactionally, reject when discontinued, snapshot `min(displayed, current)`.
 function runGuard(defId: string, ticketId: string, displayed: number | null) {
   return emitEventGuarded<TicketState, TicketEvent>({
     config: TicketConfig,
@@ -273,7 +226,6 @@ describe('emitEventGuarded — atomic discontinuation + lawful price on Postgres
   })
 
   it('charges the displayed price when the current price rose between display and commit', async () => {
-    // Displayed 5000, but the live price is 8000 → charge the lower (displayed).
     await createDef('d1', 8000)
     const res = await runGuard('d1', 'k1', 5000)
     expect(res.ok).toBe(true)
@@ -281,7 +233,6 @@ describe('emitEventGuarded — atomic discontinuation + lawful price on Postgres
   })
 
   it('charges the current price when it dropped below the displayed price', async () => {
-    // Displayed 5000, but the live price dropped to 3000 → charge the lower (current).
     await createDef('d1', 3000)
     const res = await runGuard('d1', 'k1', 5000)
     expect(res.ok).toBe(true)
@@ -297,7 +248,6 @@ describe('emitEventGuarded — atomic discontinuation + lawful price on Postgres
 
   it('a discontinuation committed BEFORE the appends rejects every one (no stale add)', async () => {
     await createDef('d1', 5000)
-    // Discontinue first, THEN fire many appends — all must reject.
     await archive('d1')
 
     const appends = await Promise.all(
@@ -311,10 +261,6 @@ describe('emitEventGuarded — atomic discontinuation + lawful price on Postgres
   }, 30_000)
 
   it('the snapshotted price is always lawful (≤ displayed) under a concurrent reprice', async () => {
-    // The price the guard reads inside the tx is whatever is committed at read
-    // time; whether the reprice (down to 3000) lands before or after each append,
-    // min(displayed=5000, current) is NEVER above the displayed price. The
-    // anti-undercharge invariant holds regardless of the commit order.
     await createDef('d1', 5000)
     const results = await Promise.all([
       ...Array.from({ length: 6 }, (_, i) => runGuard('d1', `k${i}`, 5000)),
@@ -323,7 +269,6 @@ describe('emitEventGuarded — atomic discontinuation + lawful price on Postgres
     expect(results).toHaveLength(7)
     for (let i = 0; i < 6; i += 1) {
       const price = await ticketPrice(`k${i}`)
-      // a version clash rolled one back — never undercharges, never overcharges.
       if (price === null) continue
       expect(price).toBeLessThanOrEqual(5000)
       expect([3000, 5000]).toContain(price)

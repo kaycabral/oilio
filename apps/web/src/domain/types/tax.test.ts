@@ -223,11 +223,8 @@ describe('UnitFiscal (brief 0048 AC-01)', () => {
 })
 
 describe('CNPJ-14 structure derivations (brief 0048 AC-09)', () => {
-  // 40.148.980/0001-99 — matriz (ordem 0001), raiz 40148980.
   const MATRIZ = '40148980000199'
-  // Same raiz, ordem 0002 — a filial.
   const FILIAL = '40148980000279'
-  // Different raiz entirely.
   const OTHER = '11222333000181'
 
   it('derives raiz (first 8) and ordem (next 4), digit-only and from masked input', () => {
@@ -259,11 +256,9 @@ describe('CNPJ-14 structure derivations (brief 0048 AC-09)', () => {
       company('d', OTHER),
     ]
     const groups = groupUnitsByRaiz(units)
-    // Two raízes: 40148980 (matriz + filial) and 11222333 (single).
     expect(groups.size).toBe(2)
     expect(groups.get('40148980')?.map((u) => u.id)).toEqual(['a', 'b'])
     expect(groups.get('11222333')?.map((u) => u.id)).toEqual(['d'])
-    // The informal unit is in no group (it carries no CNPJ; not an invariant).
     expect([...groups.values()].flat().map((u) => u.id)).not.toContain('c')
   })
 

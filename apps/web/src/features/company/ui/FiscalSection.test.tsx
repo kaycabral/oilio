@@ -85,7 +85,6 @@ describe('FiscalSection (brief 0048 AC-08 — read-only fiscal)', () => {
       />,
     )
     expect(screen.getByText('CABRAL TECNOLOGIA LTDA')).toBeInTheDocument()
-    // The trade-name cell renders the em-dash placeholder.
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
   })
 

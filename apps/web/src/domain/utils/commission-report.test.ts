@@ -62,7 +62,6 @@ describe('summarizeCommissionsByMember', () => {
     const p1 = rows.find((r) => r.attributedUserId === 'p1')!
     const p2 = rows.find((r) => r.attributedUserId === 'p2')!
     expect(rows).toHaveLength(2)
-    // Total pendente do membro = soma das não pagas (métrica secundária).
     expect(p1.byStatus.pendente).toEqual({ count: 1, totalCents: 2500 })
     expect(p1.byStatus.pago).toEqual({ count: 1, totalCents: 1000 })
     expect(p1.totalCents).toBe(3500)
@@ -72,8 +71,6 @@ describe('summarizeCommissionsByMember', () => {
 
   it('agrupa comissão de membro não-profissional (recepção) por userId', () => {
     const rows = summarizeCommissionsByMember([
-      // Produto vendido pela recepção — chaveado pelo userId do membro, não por
-      // um doc id de MemberOperation.
       commission({
         attributedUserId: 'reception-user',
         itemKind: 'product',
@@ -135,7 +132,6 @@ describe('summarizeCoveredAttendances', () => {
     ])
     const p1 = report.byMemberOperation.find((r) => r.memberOperationId === 'p1')!
     expect(p1.count).toBe(2)
-    // 5000*1 + 3000*2 = 11000
     expect(p1.catalogValueCents).toBe(11000)
     expect(report.totalCount).toBe(2)
     expect(report.totalCatalogValueCents).toBe(11000)
@@ -144,11 +140,8 @@ describe('summarizeCoveredAttendances', () => {
   it('exclui venda (sale) e produtos do relatório de cobertos', () => {
     const report = summarizeCoveredAttendances([
       order([
-        // Serviço de venda comissionável — NÃO entra na contagem de cobertos.
         orderItem({ coverage: 'sale', unitPriceCents: 4000 }),
-        // Sem coverage → lido como `sale` via coverageOf — fora.
         orderItem({ unitPriceCents: 4000 }),
-        // Produto coberto (cenário degenerado) — produtos não são cobertos.
         orderItem({ kind: 'product', coverage: 'subscription', unitPriceCents: 9000 }),
       ]),
     ])

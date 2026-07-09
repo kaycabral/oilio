@@ -27,9 +27,6 @@ export function getClientApp(): FirebaseApp {
 export function getClientAuth(): Auth {
   const auth = getAuth(getClientApp())
   if (useEmulators && !authEmulatorWired) {
-    // Connect to the emulator on the SAME host the page was loaded from, so the
-    // app works over localhost AND over the LAN/.local hostname (e.g. testing on
-    // a phone/tablet at ideapad.local:3005). Falls back to loopback under SSR.
     const emuHost = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1'
     connectAuthEmulator(auth, `http://${emuHost}:9099`, { disableWarnings: true })
     authEmulatorWired = true

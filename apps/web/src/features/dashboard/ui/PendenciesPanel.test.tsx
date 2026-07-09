@@ -37,7 +37,6 @@ describe('PendenciesPanel', () => {
     )
     expect(screen.getByText('Vendas em aberto')).toBeInTheDocument()
     expect(screen.getByText('Alice')).toBeInTheDocument()
-    // 30h > 48 false → "30h em aberto"
     expect(screen.getByText(/Centro.*30h em aberto.*R\$\s?100,00/)).toBeInTheDocument()
     const link = screen.getByRole('link', { name: /Alice/ })
     expect(link).toHaveAttribute('href', '/orders/cm1')

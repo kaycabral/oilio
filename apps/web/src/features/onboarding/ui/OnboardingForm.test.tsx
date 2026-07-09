@@ -30,7 +30,6 @@ describe('OnboardingForm — ultra-light signup (brief 0046)', () => {
     render(<OnboardingForm />)
     expect(screen.getByText('Dê um nome ao seu negócio')).toBeInTheDocument()
     expect(screen.getByText('Você pode mudar depois.')).toBeInTheDocument()
-    // The verbose v1 filler is gone.
     expect(screen.queryByText(/URL pública/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/Criar empresa/i)).not.toBeInTheDocument()
   })
@@ -42,8 +41,6 @@ describe('OnboardingForm — ultra-light signup (brief 0046)', () => {
     expect(screen.queryByText('Vertical')).not.toBeInTheDocument()
   })
 
-  // First Negócio (post-signup) enters the app on success (Fix 1) — unlike the
-  // additional-Negócio dialog, which does a soft in-place context switch.
   it('enters the app (router.replace) on a successful create', async () => {
     createOrg.mockResolvedValue({ ok: true, orgId: 'org-1' })
     render(<OnboardingForm />)

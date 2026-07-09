@@ -54,9 +54,7 @@ export function OrdersList({
   customers: Record<string, Customer>
   filter: OrdersFilter
   searchQuery: string
-  // Barbershop vertical also offers starting a sale from the agenda.
   isAgendaVertical: boolean
-  // True when sales exist in the unit but the status/search slice is empty.
   isFiltered: boolean
 }) {
   const { setParams } = useListUrlControls()
@@ -64,8 +62,6 @@ export function OrdersList({
     resetKey: `${filter}|${searchQuery}`,
   })
 
-  // Information hierarchy: the amount is the protagonist (trailing), then who +
-  // status (title row), then when (meta) and item count (description).
   return (
     <List
       items={pageItems}
@@ -84,7 +80,6 @@ export function OrdersList({
                 .
               </span>
             ) : null}
-            {/* AC-01: entrypoint de venda avulsa (appointmentId null, sem cliente). */}
             <form action={createOrderFormAction}>
               <NewSaleButton />
             </form>
@@ -117,8 +112,6 @@ export function OrdersList({
             title="Nenhuma venda registrada"
             description="Registre a primeira venda desta unidade."
           />
-          {/* The create action is a server-action form (NewSaleButton needs
-              useFormStatus), so the single CTA is the form, not a link. */}
           <form action={createOrderFormAction}>
             <NewSaleButton />
           </form>
@@ -126,13 +119,9 @@ export function OrdersList({
       }
       filteredEmpty={{ title: 'Nenhuma venda para o filtro atual.' }}
       renderItem={(o) => {
-        // Venda anônima (brief 0030, AC-02): sem `customerId` é uma venda avulsa
-        // de balcão — distingue de "Cliente removido" (tinha cliente, doc sumiu).
         const customer = o.customerId ? customers[o.customerId] : null
         const customerLabel = o.customerId ? (customer?.name ?? 'Cliente removido') : 'Venda avulsa'
         const itemCount = o.items.length
-        // The status badge already says "Fechada"/"Aberta"; the meta shows only
-        // WHEN (relative, e.g. "há 2 dias") — no redundant "Fechada em" prefix.
         const isClosed = o.status === 'closed' && o.closedAt != null
         const dateIso = isClosed && o.closedAt ? o.closedAt : o.createdAt
         return {

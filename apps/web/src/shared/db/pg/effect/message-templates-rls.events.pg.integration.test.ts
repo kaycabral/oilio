@@ -2,19 +2,6 @@ import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 
-/**
- * RLS isolation proof for `message_templates` (migration feature F — cutover,
- * brief 0062, AC-03). The notification message library is an org-only config
- * table: the policy filters `org_id = current_setting('app.current_org')` on both
- * USING (read) and WITH CHECK (write).
- *
- * Mirrors `config-rls-isolation.events.pg.integration.test.ts`: the ephemeral
- * Postgres connects as superuser (which bypasses RLS), so every isolation
- * assertion runs through a NON-superuser role (`oilio_rls_app`, no BYPASSRLS —
- * the production runtime shape). Seeding happens over the superuser pool so the
- * fixtures exist regardless of policy.
- */
-
 const APP_ROLE = 'oilio_rls_app'
 const APP_PASSWORD = 'rls_test'
 
@@ -39,7 +26,6 @@ async function seedTemplate(orgId: string, type: string): Promise<void> {
   )
 }
 
-// A fresh connection AS the non-superuser app role, with `app.current_org` set.
 async function appClient(orgId: string): Promise<Client> {
   const c = new Client({ connectionString: appUrl })
   await c.connect()
@@ -100,7 +86,6 @@ describe('Postgres RLS isolation — message_templates (brief 0062, AC-03)', () 
            VALUES ($1,'birthday','x',true,'2026-01-01T00:00:00Z')`,
           [ORG_B],
         ),
-        // 42501 = insufficient_privilege (RLS WITH CHECK violation)
       ).rejects.toMatchObject({ code: '42501' })
     } finally {
       await a.end()

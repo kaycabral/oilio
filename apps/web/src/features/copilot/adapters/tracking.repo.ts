@@ -20,7 +20,6 @@ const decodeCommission = Schema.decodeUnknownSync(Commission)
 const decodeCharge = Schema.decodeUnknownSync(Charge)
 const decodeSubscription = Schema.decodeUnknownSync(Subscription)
 
-// Closed orders for the active unit in the goal window. `<=` on both bounds.
 async function loadClosedOrders(
   orgId: string,
   unitId: string,
@@ -42,8 +41,6 @@ async function loadClosedOrders(
   return rows.map((r) => decodeOrder(orderRowToDoc(r)))
 }
 
-// Commissions in the goal window (org-wide; unit-scoping maps via the period's
-// closed orders at the call-site, since a commission has no `unitId`).
 async function loadCommissionsInWindow(
   orgId: string,
   window: GoalPeriodWindow,
@@ -60,9 +57,6 @@ async function loadCommissionsInWindow(
   return rows.map((r) => decodeCommission(commissionRowToDoc(r)))
 }
 
-// Settled (paid) charges for the active unit in the goal window — recurring
-// recognized revenue. Scoped by the unit snapshot captured on the charge
-// (`Charge.unitId`, #1117); `paid_at` is ISO text, inclusive on both bounds.
 async function loadPaidChargesInWindow(
   orgId: string,
   unitId: string,
@@ -84,8 +78,6 @@ async function loadPaidChargesInWindow(
   return rows.map((r) => decodeCharge(chargeRowToDoc(r)))
 }
 
-// All subscriptions owned by the active unit (MRR observation input). The
-// caller filters the active subset.
 async function loadSubscriptionsForUnit(orgId: string, unitId: string): Promise<Subscription[]> {
   const rows = await readUnderRls<SubscriptionRow>(
     orgId,
@@ -102,19 +94,11 @@ async function loadSubscriptionsForUnit(orgId: string, unitId: string): Promise<
 }
 
 export type GoalActuals = {
-  // Realizado = receita avulsa (order) + receita recorrente reconhecida (charge
-  // liquidado no período), menos comissão. Tudo escopado à unidade ativa.
   revenueCents: number
   commissionCents: number
-  // MRR da unidade — observação/projeção, NUNCA somado ao realizado (AC-08).
-  // Snapshot point-in-time das assinaturas ativas.
   mrrCents: number
 }
 
-// Realizado inputs for the active unit. Revenue = closed orders (avulso) +
-// settled subscription charges in the period (recorrente reconhecida, AC-08);
-// commission is subtracted. MRR is computed separately as an observation — it
-// is NOT recognized revenue and never enters the realizado.
 export async function loadGoalActuals(
   orgId: string,
   unitId: string,
@@ -122,11 +106,8 @@ export async function loadGoalActuals(
 ): Promise<GoalActuals> {
   const [orders, charges, commissions, subscriptions] = await Promise.all([
     loadClosedOrders(orgId, unitId, window),
-    // Recurring recognized revenue: charges settled (paid) within the period,
-    // scoped by the unit snapshot captured on the charge (`Charge.unitId`, #1117).
     loadPaidChargesInWindow(orgId, unitId, window),
     loadCommissionsInWindow(orgId, window),
-    // MRR observation: active subscriptions owned by the unit.
     loadSubscriptionsForUnit(orgId, unitId),
   ])
 
@@ -134,8 +115,6 @@ export async function loadGoalActuals(
 
   const recurringRevenueCents = charges.reduce((acc, c) => acc + c.amountCents, 0)
 
-  // Commission has no `unitId` (it references the closing order), so unit-scoping
-  // maps via the period's closed orders for this unit — mirrors reports.
   const orderIds = new Set(orders.map((o) => o.id))
   const commissionCents = commissions
     .filter((c) => orderIds.has(c.orderId))

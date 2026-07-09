@@ -3,19 +3,6 @@ import { AuthzError } from '@/shared/org/membership'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { assertCustomerIdNotBlocked, assertCustomerNotBlocked } from './assert-customer-not-blocked'
 
-/**
- * Per-org CUSTOMER write-guard against REAL Postgres (brief 0032, AC-11 — the
- * rewrite of the Firestore-emulator `assert-customer-not-blocked.integration.
- * test.ts`). Post-cutover (brief 0062) the block is the materialized `archived_at`
- * on the customer shadow (no `blocked_subjects` marker table): the guard reads
- * that field under RLS and throws `AuthzError` for a blocked subject.
- *
- * Reads run over the event-store pool (RLS bypassed locally/CI — the policies are
- * proven in the isolation specs). A blocked subject is seeded as a customer
- * shadow row with `archived_at` set; an allowed subject has it NULL. Per-run-
- * unique ids; no global wipe between cases.
- */
-
 const TS = '2026-06-01T12:00:00.000Z'
 
 let seq = 0
@@ -32,7 +19,6 @@ async function seedOrg(orgId: string): Promise<void> {
   )
 }
 
-// Seeds a customer shadow for `userId`. `archived` set → the materialized block.
 async function seedCustomerShadow(
   orgId: string,
   userId: string,

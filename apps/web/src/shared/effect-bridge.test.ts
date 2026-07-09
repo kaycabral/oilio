@@ -1,31 +1,13 @@
-// Unit tests for the saga bridge helpers (brief 0061) — `commitSaga` and
-// `commitGuardedThenAppend`. The persistence Layer is mocked to an in-memory
-// store (no Postgres/Firestore), so the bridge's success/failure mapping is
-// covered cast-free: a clean run → `{ ok: true }`; a schema/guard reject →
-// `{ ok: false, error }` with the whole tx rolled back.
-
 import { CashMovementConfig, CommissionConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEventToTx, PersistencePort } from '@/domain/effect'
 import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
 import { Effect, Layer } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// In-memory replay layer (ref-keyed, real event log) standing in for the Postgres
-// substrate (#1202): the bridge's success/rollback/defect mapping is what's under
-// test, not the pg layer (proven by the `*.events.pg.integration.test.ts` suite).
 const { store, layer: memoryLayer } = makeReplayStore()
 
-// When set, the mocked layer makes every `runTransaction` die with this defect —
-// simulating a pg constraint refusal thrown deep in the live layer (#1344). This
-// is how the single-aggregate writers' `catchAllDefect` net gets exercised in a
-// unit test: the bridge sees a raw defect and must map it to `{ok:false}`.
 let injectedDefect: Error | null = null
 
-// A layer whose `runTransaction` dies with `injectedDefect` (when set), else
-// delegates to the real in-memory port. Built lazily inside the getter so the
-// hoisted mock factory doesn't touch `memoryLayer`/`injectedDefect` too early.
-// The single-aggregate writers only reach `runTransaction`; the read methods are
-// never hit on this path, so they die loudly if they somehow are.
 function activeLayer() {
   if (!injectedDefect) return memoryLayer
   const defect = injectedDefect
@@ -39,9 +21,6 @@ function activeLayer() {
   })
 }
 
-// The mock factory is hoisted above the definitions, so expose the layer through
-// a getter — the bridge reads `PostgresPersistenceLayer` lazily (inside
-// `Effect.provide(...)` at call time), by when the definitions exist.
 vi.mock('@/shared/db/pg/effect/postgres-layer', () => ({
   get PostgresPersistenceLayer() {
     return activeLayer()
@@ -51,13 +30,7 @@ vi.mock('@/shared/db/pg/effect/postgres-layer', () => ({
 const commissionRef = aggregateRef(CommissionConfig, 't1', 'c1')
 const cashMovementRef = aggregateRef(CashMovementConfig, 't1', 'm1')
 
-// A pg constraint refusal surfaces as a thrown DEFECT, not a typed failure (the
-// layer throws inside Effect.promise). The bridge writers must catch it and
-// return {ok:false} instead of rejecting → no unhandled 500. The message must be
-// HONEST about which kind it was (#1320): only a 23505 version clash is a
-// retriable concurrency conflict; a FK/CHECK/RLS refusal is deterministic.
 function pgDefect(code: string): Error {
-  // Shape a pg `DatabaseError`-like object (carries `code`) the guards inspect.
   return Object.assign(new Error(`pg error ${code}`), { code })
 }
 
@@ -134,7 +107,6 @@ describe('commitSaga', () => {
   it('maps a FK violation (23503) to the integrity message, NOT concurrency (#1320)', async () => {
     const result = await commitSaga([() => Effect.die(pgDefect('23503'))])
     expect(result.ok).toBe(false)
-    // The bug this fixes: a FK refusal used to masquerade as "tente de novo".
     if (!result.ok) {
       expect(result.error).toMatch(/restrição de integridade/i)
       expect(result.error).not.toMatch(/concorrência/i)
@@ -150,7 +122,6 @@ describe('commitSaga', () => {
   it('maps an RLS refusal (42501) to a neutral permission message, not integrity/concurrency', async () => {
     const result = await commitSaga([() => Effect.die(pgDefect('42501'))])
     expect(result.ok).toBe(false)
-    // RLS is `forbidden`, distinct from `integrity` — and never confirms row state.
     if (!result.ok) {
       expect(result.error).toMatch(/permissão/i)
       expect(result.error).not.toMatch(/concorrência/i)
@@ -158,8 +129,6 @@ describe('commitSaga', () => {
   })
 
   it('maps a 23P01 double-book exclusion to integrity, never a retriable message', async () => {
-    // The no-double-book GiST constraint is a deterministic refusal (a concurrent
-    // reschedule taking the slot). It must NOT read as "tente de novo" (#1320).
     const result = await commitSaga([() => Effect.die(pgDefect('23P01'))])
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -171,7 +140,6 @@ describe('commitSaga', () => {
   it('never leaks the raw SQLSTATE or pg error text to the client', async () => {
     const result = await commitSaga([() => Effect.die(pgDefect('23503'))])
     expect(result.ok).toBe(false)
-    // The generic message must not carry the code or the "pg error ..." text.
     if (!result.ok) {
       expect(result.error).not.toMatch(/23503/)
       expect(result.error).not.toMatch(/pg error/i)
@@ -181,7 +149,6 @@ describe('commitSaga', () => {
   it('an unrecognised defect does not invite a retry (non-conflict = honest)', async () => {
     const result = await commitSaga([() => Effect.die(pgDefect('08006'))])
     expect(result.ok).toBe(false)
-    // `unknown` must not say "tente de novo" — only a real 23505 conflict does.
     if (!result.ok) expect(result.error).not.toMatch(/de novo/i)
   })
 })
@@ -242,11 +209,6 @@ describe('commitGuardedThenAppend', () => {
   })
 })
 
-// #1344: the single-aggregate writers gain the same DB-defect net the saga
-// writers already had. A raw pg refusal (thrown as a defect by the live layer)
-// must map to `{ok:false}` with the honest per-category message — never escape as
-// an unhandled 500, never leak the SQLSTATE — while the existing typed `catchTag`
-// handling (validation reject) stays intact.
 describe('emitEvent — DB-defect net', () => {
   it('commits and returns ok on a clean append', async () => {
     const result = await emitEvent(CommissionConfig, commissionRef, {

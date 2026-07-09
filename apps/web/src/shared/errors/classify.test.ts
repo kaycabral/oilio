@@ -3,15 +3,10 @@ import { ERROR_MESSAGES, messageForCategory } from '@/shared/errors/messages'
 import * as Cause from 'effect/Cause'
 import { describe, expect, it } from 'vitest'
 
-// Shape a pg `DatabaseError`-like object (carries `code` + optional `constraint`),
-// as the classifier inspects it via `unwrapPgError`.
 function pgError(code: string, constraint?: string): Error {
   return Object.assign(new Error(`pg error ${code}`), { code, constraint })
 }
 
-// A pg error that surfaces through the Effect runtime is parked under a
-// `FiberFailure` — the object exposes the `Cause` under the private symbol the
-// unwrapper follows. This mirrors the real saga-path defect shape.
 const FIBER_FAILURE_CAUSE = Symbol.for('effect/Runtime/FiberFailure/Cause')
 function fiberWrapped(err: Error): unknown {
   return { [FIBER_FAILURE_CAUSE]: Cause.die(err) }
@@ -35,8 +30,6 @@ describe('classifyError', () => {
   })
 
   it('classifies a 23P01 exclusion (double-book) violation as integrity, not unknown', () => {
-    // Deterministic refusal (the no-double-book GiST constraint) — must NOT fall
-    // into `unknown`, whose message would (wrongly) not read as an integrity error.
     expect(classifyError(pgError('23P01'))).toBe('integrity')
   })
 
@@ -45,9 +38,6 @@ describe('classifyError', () => {
   })
 
   it('does not let a wrapper error with a non-SQLSTATE code shadow the real pg error', () => {
-    // An outer error (e.g. a Node system error) carries a non-SQLSTATE string
-    // `code`; the real pg DatabaseError sits deeper on the chain. The walk must
-    // skip the wrapper and find the SQLSTATE, not stop at 'ECONNRESET'.
     const wrapped = Object.assign(new Error('socket hang up'), {
       code: 'ECONNRESET',
       cause: pgError('23505'),
@@ -83,7 +73,6 @@ describe('ERROR_MESSAGES', () => {
 
   it('never carries a SQLSTATE, constraint name, stack or event tag', () => {
     for (const msg of Object.values(ERROR_MESSAGES)) {
-      // No 5-char SQLSTATE codes, no "constraint"/"event"/"schema" technical leak.
       expect(msg).not.toMatch(/\b\d{5}\b/)
       expect(msg).not.toMatch(/constraint|sqlstate|violation|event '|_tag/i)
     }
@@ -91,7 +80,6 @@ describe('ERROR_MESSAGES', () => {
 
   it('only the conflict message invites a retry ("de novo")', () => {
     expect(ERROR_MESSAGES.conflict).toMatch(/de novo/i)
-    // integrity is deterministic — must NOT say "tente de novo".
     expect(ERROR_MESSAGES.integrity).not.toMatch(/de novo/i)
   })
 })

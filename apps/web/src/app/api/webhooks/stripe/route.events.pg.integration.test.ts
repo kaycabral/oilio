@@ -1,14 +1,3 @@
-// Integration test for the Stripe webhook ROUTE handler (brief 0074, AC-01/AC-02)
-// against REAL Postgres. The handleStripeEvent dispatch is covered separately
-// (stripe-webhook.events.pg.integration); here we prove the HTTP edge the route
-// owns: signature verification, and the idempotency dedup (reserve/release) that
-// makes Stripe retries safe.
-//
-// Decisive case: a DUPLICATE delivery (same event.id) short-circuits to 200
-// {duplicate:true} WITHOUT re-applying the handler — and a handler FAILURE
-// releases the reserved id so Stripe's retry reprocesses it (the id is not left
-// marked done).
-
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import Stripe from 'stripe'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,8 +5,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const WEBHOOK_SECRET = 'whsec_test_secret'
 const PRO_MONTHLY = 'price_pro_monthly_test'
 
-// Offline signing instance (HMAC, no network) — shared by the route mock and the
-// test's request builder so the signature verifies.
 const stripe = new Stripe('sk_test_unused', { apiVersion: '2026-06-24.dahlia' })
 
 const mocks = vi.hoisted(() => ({
@@ -91,8 +78,6 @@ function subscriptionObject(subId: string, orgId: string): unknown {
   }
 }
 
-// Build a real, fully-typed Stripe.Subscription by round-tripping a signed event
-// — the discriminated union narrows data.object to Subscription (zero casts).
 function buildSubscription(subId: string, orgId: string): Stripe.Subscription {
   const payload = JSON.stringify({
     id: 'evt_sub',
@@ -144,8 +129,6 @@ describe('Stripe webhook route (brief 0074, AC-01/AC-02)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    // checkout.session.completed makes the handler retrieve the subscription —
-    // return a real, typed Subscription for the requested id.
     mocks.retrieve.mockImplementation((id: string) =>
       Promise.resolve(buildSubscription(id, 'org-1')),
     )
@@ -180,7 +163,6 @@ describe('Stripe webhook route (brief 0074, AC-01/AC-02)', () => {
   })
 
   it('short-circuits a duplicate delivery to 200 {duplicate:true} without reprocessing', async () => {
-    // Same event.id both times — reuse the exact payload so the signature + id match.
     const payload = checkoutPayload('org-1', 'sub_1')
 
     const first = await POST(signedRequest(payload))
@@ -192,7 +174,6 @@ describe('Stripe webhook route (brief 0074, AC-01/AC-02)', () => {
 
     expect(second.status).toBe(200)
     expect(body).toMatchObject({ received: true, duplicate: true })
-    // handler not invoked again on the duplicate (retrieve not called a 2nd time)
     expect(mocks.retrieve.mock.calls.length).toBe(callsAfterFirst)
     expect(await eventCount()).toBe(1)
   })
@@ -204,7 +185,6 @@ describe('Stripe webhook route (brief 0074, AC-01/AC-02)', () => {
     const res = await POST(signedRequest(checkoutPayload('org-1', 'sub_1')))
 
     expect(res.status).toBe(500)
-    // id released → not left marked done, so a retry can reprocess
     expect(await eventCount()).toBe(0)
 
     errSpy.mockRestore()

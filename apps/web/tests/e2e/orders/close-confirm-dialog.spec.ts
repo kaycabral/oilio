@@ -1,10 +1,3 @@
-// E2E spec — sub-issue #945 do brief 0002 (Tela de revisão pré-fechamento).
-//
-// AC [smoke]/[critical] via browser real (emulator):
-// - AC-01: clicar "Fechar venda" abre dialog com resumo (item + executor + total + método)
-// - AC-02: cancelar / ESC fecha o dialog sem fechar a order (nenhum side effect)
-// - AC-03: erro do backend (closeOrder) aparece inline no dialog, sem navegar
-
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { choosePaymentMethod } from '../helpers/select'
@@ -84,13 +77,11 @@ test.describe('Order — dialog de confirmação pré-fechamento', { tag: '@crit
 
     const dialog = authedPage.getByRole('dialog', { name: 'Confirmar fechamento' })
     await expect(dialog).toBeVisible()
-    // Resumo: item + executor por item + valor da linha + método + total.
     await expect(dialog.getByText('Corte')).toBeVisible()
     await expect(dialog.getByText('Profissional 1')).toBeVisible()
     await expect(dialog.getByText('1 × R$ 50,00')).toBeVisible()
     await expect(dialog.getByText('PIX')).toBeVisible()
     await expect(dialog.getByText('Total')).toBeVisible()
-    // Ainda não fechou — a order continua aberta atrás do dialog.
     await expect(dialog.getByRole('button', { name: /Confirmar fechamento/ })).toBeVisible()
   })
 
@@ -108,11 +99,9 @@ test.describe('Order — dialog de confirmação pré-fechamento', { tag: '@crit
     await dialog.getByRole('button', { name: 'Cancelar' }).click()
     await expect(dialog).toBeHidden()
 
-    // Nenhum side effect: order segue editável (botão de fechar visível) e sem comissão.
     await expect(authedPage.getByRole('button', { name: /Fechar venda/ })).toBeVisible()
     await expect(authedPage.getByText(/Comissões geradas/i)).toBeHidden()
 
-    // ESC também fecha sem efeito.
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
     await expect(dialog).toBeVisible()
     await authedPage.keyboard.press('Escape')
@@ -124,39 +113,23 @@ test.describe('Order — dialog de confirmação pré-fechamento', { tag: '@crit
     org,
     authedPage,
   }) => {
-    // Trigger determinístico de rejeição do `closeOrder` alcançável por UI
-    // válida: o item é marcado como "Consumo do plano" enquanto o cliente tem
-    // assinatura ATIVA (a marcação passa), depois a assinatura é cancelada
-    // (race real: cancelada em outra sessão com a comanda aberta). No
-    // fechamento, `closeOrder` re-consulta a assinatura ativa, não acha
-    // nenhuma e rejeita com "Cliente não possui assinatura ativa para o
-    // consumo marcado" — o que prova o contrato de erro inline (dialog segue
-    // aberto, com `alert`, sem navegar). O método anterior ("subscription" no
-    // select de pagamento) ficou inalcançável: não existe forma de pagamento
-    // `subscription`, e a cobertura por item é guardada na UI.
     const { customerId, serviceId } = await seedOrderFixture(org)
     const subscriptionId = await seedSubscription(org.orgId, customerId, {
       status: 'active',
-      // Cobre o item da comanda explicitamente — a marcação de cobertura passa.
       includedItemIds: [serviceId],
     })
     await openSeededOrder(authedPage)
 
-    // Com assinatura ativa cobrindo o item, a comanda já nasce com ele em
-    // "Consumo do plano" (auto-marcação, brief 0079) — sem flip manual.
     await expect(
       authedPage.getByRole('combobox', { name: 'Cobertura do item' }).first(),
     ).toHaveText('Consumo do plano')
 
-    // Assinatura cancelada com a comanda aberta → o fechamento vai falhar.
     await setSubscriptionStatus(org.orgId, subscriptionId, 'cancelled')
 
-    // Sem item de venda, a venda fecha "100% coberta" — botão habilitado.
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
     const dialog = authedPage.getByRole('dialog', { name: 'Confirmar fechamento' })
     await dialog.getByRole('button', { name: /Confirmar fechamento/ }).click()
 
-    // Erro inline; dialog permanece aberto; URL não muda (continua na order).
     await expect(dialog.getByRole('alert')).toContainText(/assinatura/i)
     await expect(dialog).toBeVisible()
     await expect(authedPage).toHaveURL(/\/orders\/.+/)

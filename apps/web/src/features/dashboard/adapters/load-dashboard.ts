@@ -29,26 +29,11 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
 }
 
 export async function loadDashboardPage(params: SearchParams): Promise<DashboardPageProps> {
-  // Manager-only: the Dashboard surfaces financeiro KPIs (faturamento, ticket
-  // médio, receita), so a non-manager (receptionist/memberOperation) is redirected
-  // to /agenda. Mirrors the server-side wall on /copilot, /reports, /team,
-  // /settings/billing — the nav `requires: 'manageOrg'` gate alone is cosmetic.
   const ctx = await requireManagerPage()
 
   const orgId = ctx.membership.orgId
-  // Active (non-archived) units ordered by name. The dashboard only ever scopes
-  // to the active unit (KPIs/trend/pendencies) and labels it + pendency items —
-  // an archived unit can never be the active unit nor own an open pendency, so
-  // the active-only narrowing vs the former all-units read is inert here.
   const units = await listUnitsForOrg(orgId)
-  // Every surface reads only the active unit from the shared context (brief
-  // 0044): the cross-unit aggregate ("Todas as unidades") is gone. The top
-  // switcher is the single source of unit context; `activeUnitId` is null only
-  // for a org with no units yet (operational data is empty in that case).
   const { activeUnitId } = await resolveActiveUnit(ctx.membership)
-  // Timezone is the establishment's (PRD Identidade v2 — moved Org→Unit): use
-  // the active unit's tz; fall back to the first unit / default for an org with
-  // no unit yet.
   const orgTz =
     (activeUnitId ? units.find((u) => u.id === activeUnitId)?.timezone : undefined) ??
     units[0]?.timezone ??
@@ -61,10 +46,8 @@ export async function loadDashboardPage(params: SearchParams): Promise<Dashboard
     },
     orgTz,
   )
-  // KPIs/trend always scope to the active unit.
   const scopedFilters = { ...filters, unitId: activeUnitId }
 
-  // Pendências are operational — always scoped to the active unit.
   const pendenciesUnitId = activeUnitId
   const [kpis, trendPoints, pendencies] = await Promise.all([
     loadDashboardKpis(orgId, scopedFilters),
@@ -72,23 +55,12 @@ export async function loadDashboardPage(params: SearchParams): Promise<Dashboard
     loadDashboardPendencies(orgId, pendenciesUnitId),
   ])
 
-  // Lookup tables so the pendencies panel can display human-readable names
-  // without N extra reads per item. Customers are restricted to the ones
-  // referenced by open orders — full customer list is intentionally not
-  // loaded here.
   const unitsById = Object.fromEntries(units.map((u) => [u.id, u.name]))
-  // Vendas avulsas (brief 0030) não têm cliente — só os ids referenciados (não
-  // nulos) precisam virar nome.
   const referencedCustomerIds = new Set(
     pendencies.openOrders.map((c) => c.customerId).filter((id): id is string => id !== null),
   )
   const customersById: Record<string, string> = {}
   if (referencedCustomerIds.size > 0) {
-    // `name` is PII (lives on `users/`); the canonical org-scoped read resolves
-    // names via enrichment (handles blocked/anonymized labels). Filtered to the
-    // referenced ids in memory — the org's customer collection is small and the
-    // Firestore `in` 30-id cap (a query limit, not a semantic one) no longer
-    // applies, so every referenced customer now resolves.
     const customers = await listCustomersForOrg(orgId)
     for (const c of customers) {
       if (referencedCustomerIds.has(c.id)) customersById[c.id] = c.name

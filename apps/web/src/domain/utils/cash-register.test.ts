@@ -134,8 +134,6 @@ describe('computeMovementTotals', () => {
   })
 
   it('sale_reversal nets out the sale by method and direction (#946)', () => {
-    // Venda em cash + estorno em cash → salesByMethod.cash neta a zero e o
-    // estorno sai como cashOut (reverte o drawer).
     const t = computeMovementTotals([
       movement('sale', 5000, 'cash'),
       movement('sale_reversal', 5000, 'cash'),
@@ -147,8 +145,6 @@ describe('computeMovementTotals', () => {
   })
 
   it('sale/sale_reversal with null paymentMethod skip the per-method breakdown', () => {
-    // Defensive: paymentMethod is nullable on the type. A sale without a method
-    // still counts toward the in/out totals but never buckets into salesByMethod.
     const t = computeMovementTotals([movement('sale', 4000), movement('sale_reversal', 1000)])
     expect(t.totalInCents).toBe(4000)
     expect(t.totalOutCents).toBe(1000)
@@ -157,8 +153,6 @@ describe('computeMovementTotals', () => {
   })
 
   it('sale_reversal of a pix sale does not move the drawer', () => {
-    // Estorno de venda pix: neta salesByMethod.pix, mas não mexe no caixa
-    // físico (igual a venda pix original não mexeu).
     const t = computeMovementTotals([
       movement('sale', 3000, 'pix'),
       movement('sale_reversal', 3000, 'pix'),

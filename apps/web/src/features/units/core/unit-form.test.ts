@@ -138,10 +138,6 @@ describe('parseUnitForm', () => {
   })
 
   it('rejects a landline at the boundary (strict BR mobile, 9th digit)', () => {
-    // A CNPJ import may bring a fixed line. The unit contact must be a
-    // WhatsApp-capable mobile (brief 0087) — the boundary rejects a 10-digit
-    // landline with a handled error rather than letting it reach the INSERT and
-    // violate the `units_pii_mobile_br_format` CHECK (a raw 500).
     const result = parseUnitForm(fd({ ...VALID_UNIT, mobile: '1133334444' }))
     expect(typeof result).toBe('string')
     expect(result).toMatch(/9 dígitos/)
@@ -160,10 +156,6 @@ describe('parseUnitForm', () => {
   })
 
   it('rejects a unit with no operating day declared (hours REQUIRED in v2)', () => {
-    // No `bh_*_enabled` => parseBusinessHours returns null. A unit is an
-    // operating establishment, so the empty hours config is rejected at the
-    // boundary rather than producing a unit without businessHours (PRD
-    // Identidade v2 § Contrato de tipagem).
     const noDays = { ...VALID_ADDRESS, name: 'Matriz', mobile: '11999998888' }
     expect(typeof parseUnitForm(fd(noDays))).toBe('string')
   })
@@ -189,10 +181,6 @@ const APPOINTMENT_INPUT = {
   },
 } as const
 
-// assembleAgenda builds the discriminated union from the parsed mode + hours +
-// the inline appointment config (PRD Identidade v2 / C3). The appointment-only
-// configs exist ONLY in the appointment variant and now come from the form; the
-// self-booking publish state is preserved from the prior agenda.
 describe('assembleAgenda', () => {
   it('builds the fixed variant (no agenda-only configs)', () => {
     expect(assembleAgenda('fixed', HOURS, null, null)).toEqual({
@@ -242,7 +230,6 @@ describe('assembleAgenda', () => {
     const newHours: BusinessHours = { ...HOURS, tuesday: { open: '10:00', close: '16:00' } }
     const agenda = assembleAgenda('appointment', newHours, prior, APPOINTMENT_INPUT)
     if (agenda.mode !== 'appointment') throw new Error('expected appointment')
-    // Hours + configs come from the new form input.
     expect(agenda.businessHours).toEqual(newHours)
     expect(agenda.slotMinutes).toBe(15)
   })
@@ -290,7 +277,6 @@ describe('parseAppointmentConfig', () => {
     expect(config.cancellationPolicy.minNoticeMinutes).toBe(
       DEFAULT_CANCELLATION_POLICY.minNoticeMinutes,
     )
-    // Empty templates fall back to the canonical defaults.
     expect(config.confirmationTemplates).toEqual(DEFAULT_WHATSAPP_TEMPLATES)
   })
 

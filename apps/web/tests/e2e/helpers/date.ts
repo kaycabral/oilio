@@ -1,10 +1,3 @@
-// Date helpers shared across E2E specs.
-//
-// Specs need a deterministic future weekday to seed appointments and exercise
-// the public booking flow. Each spec used to reimplement nextWeekday() inline
-// (5 copies, two type signatures); centralising avoids drift and gives one
-// place to fix bugs (e.g. month-end wrap, DST).
-
 export type Weekday = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun'
 
 const WEEKDAY_INDEX: Record<Weekday, number> = {
@@ -17,9 +10,6 @@ const WEEKDAY_INDEX: Record<Weekday, number> = {
   Sat: 6,
 }
 
-// Returns the next occurrence of `target` (exclusive of today) as a UTC
-// `YYYY-MM-DD` string. Accepts both the Weekday string form and the numeric
-// 0–6 form (Sunday = 0, matching `Date#getUTCDay()`).
 export function nextWeekday(target: Weekday | number): string {
   const targetIdx = typeof target === 'number' ? target : WEEKDAY_INDEX[target]
   const now = new Date()

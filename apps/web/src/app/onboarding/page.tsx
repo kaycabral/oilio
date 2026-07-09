@@ -10,8 +10,6 @@ export default async function OnboardingPage() {
   const session = await getSessionUser()
   if (!session) redirect('/login')
 
-  // #838 — completion step gates everything past OAuth, including org
-  // creation. Send the user to /onboarding/profile first.
   const user = await getUserDoc(session.uid)
   if (!user?.completionCompleted) redirect('/onboarding/profile?next=/onboarding')
 
@@ -20,6 +18,5 @@ export default async function OnboardingPage() {
     redirect('/dashboard')
   }
 
-  // Centering comes from the shared onboarding layout (CenteredScreen).
   return <OnboardingForm />
 }
