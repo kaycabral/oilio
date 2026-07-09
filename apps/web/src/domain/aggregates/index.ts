@@ -51,6 +51,18 @@ export { applyGoalEvent } from './goal/reducer'
 export { INITIAL_GOAL_STATE } from './goal/types'
 export type { GoalState } from './goal/types'
 
+export { FixedCostConfig } from './fixed-cost/config'
+export type { FixedCostEvent } from './fixed-cost/events'
+export { applyFixedCostEvent } from './fixed-cost/reducer'
+export { INITIAL_FIXED_COST_STATE } from './fixed-cost/types'
+export type { FixedCostState } from './fixed-cost/types'
+
+export { FixedCostOverrideConfig } from './fixed-cost-override/config'
+export type { FixedCostOverrideEvent } from './fixed-cost-override/events'
+export { applyFixedCostOverrideEvent } from './fixed-cost-override/reducer'
+export { INITIAL_FIXED_COST_OVERRIDE_STATE } from './fixed-cost-override/types'
+export type { FixedCostOverrideState } from './fixed-cost-override/types'
+
 export { CatalogItemConfig } from './catalog-item/config'
 export { CatalogItemNotFoundError } from './catalog-item/errors'
 export type { CatalogItemEvent } from './catalog-item/events'

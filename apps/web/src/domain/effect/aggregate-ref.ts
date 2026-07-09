@@ -7,6 +7,8 @@ export type AggregateType =
   | 'charge'
   | 'commission'
   | 'customer'
+  | 'fixed_cost'
+  | 'fixed_cost_override'
   | 'goal'
   | 'invite'
   | 'membership'
