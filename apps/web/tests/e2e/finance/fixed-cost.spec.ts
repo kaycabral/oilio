@@ -7,6 +7,12 @@ function midCurrentMonthIso(): string {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 15, 12, 0, 0)).toISOString()
 }
 
+function nextMonthLabel(): string {
+  const now = new Date()
+  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
 test.describe('Financeiro — captura de custo fixo (brief 0092)', () => {
   test.describe('unidade única', () => {
     test.use({ orgInput: { unitCount: 1 } })
@@ -63,6 +69,60 @@ test.describe('Financeiro — captura de custo fixo (brief 0092)', () => {
       await authedPage.getByLabel('Valor mensal (R$)').fill('0')
       const submit = authedPage.getByRole('button', { name: 'Adicionar custo fixo' })
       await expect(submit).toBeDisabled()
+    })
+
+    test('Cenário 2: editar o valor não retroage (vigência versionada)', async ({
+      authedPage,
+      org,
+    }) => {
+      const unitId = org.unitIds[0]
+      assertDefined(unitId, 'expected a 1-unit org')
+      await seedRazaoRevenue(org.orgId, {
+        unitId,
+        amountCents: 500000,
+        periodStartAt: midCurrentMonthIso(),
+      })
+
+      await authedPage.goto('/finance')
+      await authedPage.getByLabel('Nome').fill('Aluguel')
+      await authedPage.getByLabel('Valor mensal (R$)').fill('2000')
+      await authedPage.getByRole('button', { name: 'Adicionar custo fixo' }).click()
+      await expect(authedPage.getByText('Aluguel')).toBeVisible()
+
+      const breakEven = authedPage.getByText(/Pra se pagar, venda/)
+      await expect(breakEven).toContainText(/R\$\s*2\.000,00/)
+
+      await authedPage.getByRole('button', { name: 'Ações de Aluguel' }).click()
+      await authedPage.getByRole('menuitem', { name: 'Editar valor' }).click()
+      const dialog = authedPage.getByRole('dialog')
+      await dialog.getByLabel('Novo valor mensal (R$)').fill('4000')
+      await dialog.getByLabel('A partir do mês').fill(nextMonthLabel())
+      await dialog.getByRole('button', { name: 'Salvar novo valor' }).click()
+      await expect(dialog).toBeHidden()
+
+      await expect(breakEven).toContainText(/R\$\s*2\.000,00/)
+      await expect(breakEven).not.toContainText(/R\$\s*4\.000,00/)
+    })
+
+    test('Cenário 4: arquivar um custo fixo remove da lista de ativos', async ({ authedPage }) => {
+      await authedPage.goto('/finance')
+      await authedPage.getByLabel('Nome').fill('Aluguel Loja')
+      await authedPage.getByLabel('Valor mensal (R$)').fill('2000')
+      await authedPage.getByRole('button', { name: 'Adicionar custo fixo' }).click()
+
+      const item = authedPage.getByRole('listitem').filter({ hasText: 'Aluguel Loja' })
+      await expect(item).toBeVisible()
+
+      await authedPage.getByRole('button', { name: 'Ações de Aluguel Loja' }).click()
+      await authedPage.getByRole('menuitem', { name: 'Arquivar' }).click()
+      const confirm = authedPage.getByRole('alertdialog')
+      await confirm.getByRole('button', { name: 'Arquivar' }).click()
+      await expect(confirm).toBeHidden()
+
+      await expect(
+        authedPage.getByRole('listitem').filter({ hasText: 'Aluguel Loja' }),
+      ).toHaveCount(0)
+      await expect(authedPage.getByText('Nenhum custo fixo')).toBeVisible()
     })
   })
 
