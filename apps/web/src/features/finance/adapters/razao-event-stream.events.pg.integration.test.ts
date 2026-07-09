@@ -301,4 +301,44 @@ describe('Razão deriva do event stream por competência (brief 0091, ADR 0016)'
     // `partial: true` — o único variável presente é a comissão (falta imposto/MDR/CMV).
     expect(mc.partial).toBe(true)
   })
+
+  it('estorno cross-window: order.reopened em agosto estorna a venda de julho (snapshot no evento)', async () => {
+    // A venda `ord-1` fechou em JULHO (competência closedAt). Reabrimos em AGOSTO:
+    // o evento carrega `reversedRevenueCents`+`unitId` snapshotados, então o Razão
+    // de agosto tem a contrapartida MESMO sem a comanda fechada estar na janela de
+    // agosto — o bug que o review pegou (correlação in-window perdia o estorno).
+    await run(
+      appendEvent(OrderConfig, orderRef('ord-1'), {
+        _tag: 'order.reopened',
+        actorId: 'staff-1',
+        payload: {
+          reopenedAt: '2026-08-03T09:00:00.000Z',
+          reversedClosedAt: CLOSED_AT,
+          reversedRevenueCents: 5000,
+          unitId: UNIT,
+          commissionsReversed: 1,
+          cashReversalMovementId: null,
+          subscriptionRestored: false,
+        },
+      }),
+    )
+
+    const august = await readOrgLedger({
+      orgId: ORG,
+      fromIso: '2026-08-01T00:00:00.000Z',
+      toIso: '2026-09-01T00:00:00.000Z',
+    })
+    const reversal = august.find((e) => e.source === 'order' && e.direction === 'out')
+    expect(reversal).toMatchObject({
+      nature: 'revenue',
+      direction: 'out',
+      amountCents: 5000,
+      unitId: UNIT,
+      occurredAt: '2026-08-03T09:00:00.000Z',
+    })
+    // Julho permanece com a receita original (imutabilidade — não reescreve o passado).
+    const july = await readOrgLedger(JULY)
+    expect(july.some((e) => e.source === 'order' && e.direction === 'in')).toBe(true)
+    expect(july.some((e) => e.source === 'order' && e.direction === 'out')).toBe(false)
+  })
 })

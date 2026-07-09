@@ -301,7 +301,7 @@ export {
   isCashPaymentMethod,
 } from './utils/cash-register'
 export type { CashMovementTotals } from './utils/cash-register'
-export { classifyLedger } from './utils/ledger'
+export { classifyLedger, recognizedSaleRevenueCents } from './utils/ledger'
 export type { ClosedOrderFact, LedgerFact, OrderReopenedFact } from './utils/ledger'
 
 export {

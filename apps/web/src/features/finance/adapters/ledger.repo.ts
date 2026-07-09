@@ -57,14 +57,13 @@ function rowToFact(row: OrgEventRow): LedgerFact | null {
         reopen: {
           orderId: row.aggregateId,
           orgId: row.orgId,
-          // `order.reopened` estorna a receita da comanda pelo `orderId`
-          // correlato (a receita reconhecida já carrega a unidade da venda). A
-          // unidade do lançamento de estorno é a da comanda reaberta; o núcleo a
-          // resolve do índice de comandas fechadas, então '' aqui é aceitável —
-          // mas o evento não a carrega hoje (o estorno é derivado, não avulso).
-          unitId: '',
+          // Valor a estornar + unidade vêm SNAPSHOTADOS no próprio evento (ADR 0016
+          // D5) — a venda original pode ter fechado fora da janela lida, então o
+          // núcleo não pode correlacioná-los da comanda fechada in-window.
+          unitId: event.unitId,
           reopenedAt: event.reopenedAt,
           reversedClosedAt: event.reversedClosedAt,
+          reversedRevenueCents: event.reversedRevenueCents,
         },
       }
     }

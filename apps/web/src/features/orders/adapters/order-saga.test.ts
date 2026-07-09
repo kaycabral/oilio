@@ -169,6 +169,8 @@ describe('buildUndoCloseSteps', () => {
       reopen: {
         reopenedAt: '2026-06-02T00:00:00Z',
         reversedClosedAt: '2026-06-01T00:00:00Z',
+        reversedRevenueCents: 5000,
+        unitId: 'unit-a',
         commissionsReversed: 0,
         cashReversalMovementId: null,
         subscriptionRestored: false,
@@ -192,6 +194,8 @@ describe('buildUndoCloseSteps', () => {
       reopen: {
         reopenedAt: '2026-06-02T00:00:00Z',
         reversedClosedAt: '2026-06-01T00:00:00Z',
+        reversedRevenueCents: 5000,
+        unitId: 'unit-a',
         commissionsReversed: 2,
         cashReversalMovementId: 'rev-1',
         subscriptionRestored: true,
@@ -223,6 +227,8 @@ describe('buildUndoCloseSteps', () => {
         reopen: {
           reopenedAt: '2026-06-02T00:00:00Z',
           reversedClosedAt: '2026-06-01T00:00:00Z',
+          reversedRevenueCents: 5000,
+          unitId: 'unit-a',
           commissionsReversed: 1,
           cashReversalMovementId: 'rev-1',
           subscriptionRestored: true,

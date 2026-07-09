@@ -39,14 +39,19 @@ export type ClosedOrderFact = {
   readonly items: readonly OrderItem[]
 }
 
-// O estorno tal como `order.reopened` o carrega: a comanda estornada + as duas
-// competências (do estorno e da venda original). `unitId` herda da comanda.
+// O estorno tal como `order.reopened` o carrega: a comanda estornada, as duas
+// competências (do estorno e da venda original), a receita reconhecida a estornar
+// e a unidade — TODOS snapshotados no evento (ADR 0016 D5). O evento é
+// auto-suficiente: a venda original pode estar fora da janela lida (fechou dia 30,
+// reabriu dia 1), então o valor/unidade NÃO podem ser correlacionados da comanda
+// fechada in-window — vêm do próprio evento de estorno.
 export type OrderReopenedFact = {
   readonly orderId: string
   readonly orgId: string
   readonly unitId: string
   readonly reopenedAt: string
   readonly reversedClosedAt: string
+  readonly reversedRevenueCents: number
 }
 
 type Direction = 'in' | 'out'
@@ -83,6 +88,17 @@ function entry(fields: {
     itemId: fields.itemId,
     occurredAt: fields.occurredAt,
   }
+}
+
+// Receita reconhecida de uma comanda: soma dos itens `coverage === 'sale'` (item
+// coberto por assinatura debita o plano, não gera receita — brief 0021). Fonte
+// ÚNICA do valor de venda avulsa: `classifyClosedOrder` a distribui por item; o
+// produtor de `order.reopened` a snapshota no evento pra o estorno ser correto sem
+// correlacionar a comanda fechada (ADR 0016 D5).
+export function recognizedSaleRevenueCents(items: readonly OrderItem[]): number {
+  return items
+    .filter((item) => coverageOf(item) === 'sale')
+    .reduce((sum, item) => sum + computeItemLineTotal(item), 0)
 }
 
 // Receita avulsa da comanda fechada — por item (granularidade base). Só itens
@@ -186,8 +202,9 @@ function classifyChargeRefund(charge: Charge): LedgerEntry[] {
 
 // Estorno de venda avulsa (`order.reopened`, ADR 0016 D3): contrapartida da receita
 // da comanda reaberta. Competência = `reopenedAt` (a data do estorno), preservando
-// a imutabilidade do período em que a venda foi reconhecida. O valor a estornar é a
-// receita reconhecida daquela venda — reconstruída dos entries da comanda.
+// a imutabilidade do período em que a venda foi reconhecida. O valor a estornar e a
+// unidade vêm SNAPSHOTADOS no próprio evento (`reversedRevenueCents`, `unitId`) —
+// não da comanda fechada correlata, que pode estar fora da janela lida.
 function classifyOrderReopened(
   reopen: OrderReopenedFact,
   reversedRevenueCents: number,
@@ -217,20 +234,12 @@ function classifyOrderReopened(
 // segurança — o Razão soma o que consegue fundamentar.
 export function classifyLedger(facts: readonly LedgerFact[]): LedgerEntry[] {
   // Índice das comandas fechadas por orderId — fonte de unidade/competência das
-  // comissões e da receita a estornar num reopen.
+  // COMISSÕES (que não carregam unidade). O estorno NÃO usa este índice: a venda
+  // reaberta pode ter fechado numa janela anterior, então o valor a reverter + a
+  // unidade vêm do próprio `order.reopened` (snapshot, ADR 0016 D5).
   const closedByOrderId = new Map<string, ClosedOrderFact>()
   for (const fact of facts) {
     if (fact.kind === 'order_closed') closedByOrderId.set(fact.order.id, fact.order)
-  }
-
-  // Receita reconhecida por comanda (pra o estorno saber quanto reverter).
-  const revenueByOrderId = new Map<string, number>()
-  for (const [orderId, order] of closedByOrderId) {
-    const revenue = classifyClosedOrder(order).reduce((sum, e) => {
-      const cents: number = e.amountCents
-      return sum + cents
-    }, 0)
-    revenueByOrderId.set(orderId, revenue)
   }
 
   const entries: LedgerEntry[] = []
@@ -252,11 +261,11 @@ export function classifyLedger(facts: readonly LedgerFact[]): LedgerEntry[] {
       case 'charge_refunded':
         entries.push(...classifyChargeRefund(fact.charge))
         break
-      case 'order_reopened': {
-        const reversed = revenueByOrderId.get(fact.reopen.orderId) ?? 0
-        entries.push(...classifyOrderReopened(fact.reopen, reversed))
+      case 'order_reopened':
+        // Valor + unidade do próprio evento (auto-suficiente): correto mesmo se a
+        // venda original fechou fora da janela lida.
+        entries.push(...classifyOrderReopened(fact.reopen, fact.reopen.reversedRevenueCents))
         break
-      }
     }
   }
   return entries
