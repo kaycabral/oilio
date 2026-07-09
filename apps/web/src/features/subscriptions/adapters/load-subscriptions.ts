@@ -36,7 +36,7 @@ export type SubscriptionsPageData = {
   locked: boolean
 }
 
-const OPEN_STATUSES: SubscriptionStatus[] = ['pending', 'active', 'past_due', 'suspended']
+const OPEN_STATUSES: SubscriptionStatus[] = ['active', 'past_due']
 
 async function loadSubscriptionStatusSlice(
   orgId: string,

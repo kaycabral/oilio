@@ -15,10 +15,8 @@ import { CreditCard, RotateCw } from 'lucide-react'
 import Link from 'next/link'
 
 const STATUS_TONE: Record<SubscriptionStatus, StatusTone> = {
-  pending: 'warning',
   active: 'success',
   past_due: 'warning',
-  suspended: 'danger',
   cancelled: 'neutral',
   cancelled_for_non_payment: 'danger',
 }

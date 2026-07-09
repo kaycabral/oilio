@@ -21,12 +21,7 @@ const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 
 const ERASURE_ACTOR = 'system:erasure'
 
-const ACTIVE_SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = [
-  'pending',
-  'active',
-  'past_due',
-  'suspended',
-]
+const ACTIVE_SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = ['active', 'past_due']
 
 const PENDING_CHARGE_STATUSES = new Set(['scheduled', 'recovering'])
 
