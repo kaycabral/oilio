@@ -12,6 +12,7 @@ import {
   Typography,
 } from '@cbrl/design'
 import { FIXED_COST_CATEGORY_LABELS, FixedCostForm } from './FixedCostForm'
+import { FixedCostRowActions } from './FixedCostRowActions'
 
 export function FinanceView(props: FinancePageProps) {
   return (
@@ -107,7 +108,10 @@ function FixedCostList({
                     {FIXED_COST_CATEGORY_LABELS[cost.category]}
                   </Badge>
                 </div>
-                <span className="tabular-nums">{formatBrl(cost.amountCents)}</span>
+                <div className="flex items-center gap-3">
+                  <span className="tabular-nums">{formatBrl(cost.amountCents)}</span>
+                  <FixedCostRowActions cost={cost} />
+                </div>
               </li>
             ))}
           </ul>
