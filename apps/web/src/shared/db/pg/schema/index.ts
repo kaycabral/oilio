@@ -21,6 +21,12 @@ export {
 export { commissions, type NewCommissionRow, type StoredCommissionRow } from './commissions'
 export { customers, type NewCustomerRow, type StoredCustomerRow } from './customers'
 export { events, type NewEvent, type StoredEvent } from './events'
+export {
+  fixedCostOverrides,
+  type NewFixedCostOverrideRow,
+  type StoredFixedCostOverrideRow,
+} from './fixed_cost_overrides'
+export { fixedCosts, type NewFixedCostRow, type StoredFixedCostRow } from './fixed_costs'
 export { goals, type NewGoalRow, type StoredGoalRow } from './goals'
 export { invites, type NewInviteRow, type StoredInviteRow } from './invites'
 export { invitesPii, type NewInvitePiiRow, type StoredInvitePiiRow } from './invites_pii'

@@ -228,6 +228,15 @@ export {
   liquidationStatusOf,
 } from './types/commission'
 export {
+  FIXED_COST_CATEGORIES,
+  FIXED_COST_DEFAULT_CATEGORY,
+  FIXED_COST_NAME_MAX,
+  FIXED_COST_NAME_MIN,
+  FixedCost,
+  FixedCostCategory,
+  FixedCostOverride,
+} from './types/fixed-cost'
+export {
   GOAL_PERIOD_PATTERN,
   GOAL_TARGET_MIN_CENTS,
   Goal,
