@@ -127,11 +127,20 @@ async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc
   return row ? rowToDoc(row) : null
 }
 
+async function readForUpdate(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+  const res = await client.query<ChargeRow>(
+    'SELECT * FROM charges WHERE org_id = $1 AND id = $2 FOR UPDATE',
+    [ref.orgId, ref.id],
+  )
+  const row = res.rows[0]
+  return row ? rowToDoc(row) : null
+}
+
 async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
   await client.query('DELETE FROM charges WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-export const chargeProjector: TypedProjector = { read, upsert, delete: remove }
+export const chargeProjector: TypedProjector = { read, readForUpdate, upsert, delete: remove }
 
 export const CHARGE_AGGREGATE_TYPE = 'charge'
 

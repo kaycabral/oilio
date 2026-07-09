@@ -111,9 +111,12 @@ export async function commitGuardedThenAppend<
   NEncoded = NEvent,
 >(
   guarded: GuardedAppend<GState, GEvent>,
-  nextConfig: AggregateConfig<NState, NEvent, NEncoded>,
-  nextRef: AggregateRef,
-  buildNext: (resolvedPayload: Record<string, unknown>) => EventInput<NEvent['_tag']>,
+  next: {
+    readonly config: AggregateConfig<NState, NEvent, NEncoded>
+    readonly ref: AggregateRef
+    readonly buildEvent: (resolvedPayload: Record<string, unknown>) => EventInput<NEvent['_tag']>
+    readonly buildExtraSteps?: (resolvedPayload: Record<string, unknown>) => readonly SagaStep[]
+  },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   return Effect.runPromise(
     Effect.gen(function* () {
@@ -123,11 +126,16 @@ export async function commitGuardedThenAppend<
           const guardedOutcome = yield* appendEventGuardedToTx(guarded, tx)
           if (guardedOutcome._tag !== 'ok') return guardedOutcome
           yield* appendEventToTx(
-            nextConfig,
-            nextRef,
-            buildNext(guardedOutcome.envelope.payload),
+            next.config,
+            next.ref,
+            next.buildEvent(guardedOutcome.envelope.payload),
             tx,
           )
+          for (const step of (next.buildExtraSteps ?? (() => []))(
+            guardedOutcome.envelope.payload,
+          )) {
+            yield* step(tx)
+          }
           return guardedOutcome
         }),
       )
@@ -139,6 +147,9 @@ export async function commitGuardedThenAppend<
       }
       return { ok: true as const }
     }).pipe(
+      Effect.catchTag('GuardRejectedError', (e) =>
+        Effect.succeed({ ok: false as const, error: e.message }),
+      ),
       Effect.catchTag('EventValidationError', () =>
         Effect.succeed({ ok: false as const, error: messageForCategory('validation') }),
       ),

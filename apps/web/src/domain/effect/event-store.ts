@@ -317,6 +317,30 @@ export function appendEventGuarded<
   })
 }
 
+export function guardedStep<
+  State extends { readonly _version: number },
+  Event extends { readonly _tag: string },
+>(append: GuardedAppend<State, Event>): SagaStep {
+  return (tx: TransactionContext) =>
+    Effect.gen(function* () {
+      const outcome = yield* appendEventGuardedToTx(append, tx)
+      if (outcome._tag === 'reject') {
+        return yield* Effect.fail(
+          new GuardRejectedError({ aggregateType: append.config.type, message: outcome.message }),
+        )
+      }
+      if (outcome._tag === 'invalid') {
+        return yield* Effect.fail(
+          new EventValidationError({
+            aggregateType: append.config.type,
+            message: `Invalid event '${append.tag}': schema validation failed`,
+          }),
+        )
+      }
+      return outcome.envelope
+    })
+}
+
 export function buildInitialEvent<
   State extends { readonly _version: number },
   Event extends { readonly _tag: string },

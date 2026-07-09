@@ -50,6 +50,7 @@ export {
   appendEventToTx,
   buildInitialEvent,
   decodeStreamEvent,
+  guardedStep,
   replayAggregate,
   runSaga,
   type AggregateConfig,
