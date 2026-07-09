@@ -189,6 +189,8 @@ describe('Order reducer', () => {
         _tag: 'order.reopened',
         reopenedAt: '2026-06-02T09:00:00Z',
         reversedClosedAt: '2026-06-01T12:00:00Z',
+        reversedRevenueCents: 8000,
+        unitId: 'u1',
         commissionsReversed: 1,
         cashReversalMovementId: 'cm_estorno',
         subscriptionRestored: true,

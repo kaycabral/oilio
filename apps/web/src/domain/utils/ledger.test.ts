@@ -215,6 +215,7 @@ describe('classifyLedger — estorno por contrapartida (imutabilidade)', () => {
           unitId: 'unit1',
           reopenedAt: '2026-08-05T10:00:00.000Z',
           reversedClosedAt: '2026-07-01T13:00:00.000Z',
+          reversedRevenueCents: 5000,
         },
       },
     ])
@@ -222,25 +223,54 @@ describe('classifyLedger — estorno por contrapartida (imutabilidade)', () => {
     expect(reversal).toMatchObject({
       nature: 'revenue',
       direction: 'out',
-      // amountCents = a receita reconhecida daquela venda; occurredAt = reopenedAt, não a competência original.
+      // amountCents = a receita snapshotada no evento; occurredAt = reopenedAt, não a competência original.
       amountCents: 5000,
       source: 'order',
+      unitId: 'unit1',
       occurredAt: '2026-08-05T10:00:00.000Z',
     })
     // A receita original permanece (aditivo — não reescreve o passado).
     expect(entries.filter((e) => e.direction === 'in')).toHaveLength(1)
   })
 
-  it('reopen sem order.closed correlato não gera contrapartida (nada a estornar)', () => {
+  it('reopen cross-window (venda fechou fora da janela) AINDA estorna — valor+unidade do evento', () => {
+    // A comanda fechada NÃO está na lista (fechou numa janela anterior). O estorno
+    // deriva do snapshot do próprio evento — não da correlação com a comanda.
     const entries = classifyLedger([
       {
         kind: 'order_reopened',
         reopen: {
-          orderId: 'orphan',
+          orderId: 'ord-prior-window',
+          orgId: 't1',
+          unitId: 'unit-x',
+          reopenedAt: '2026-08-01T10:00:00.000Z',
+          reversedClosedAt: '2026-07-31T23:59:00.000Z',
+          reversedRevenueCents: 7000,
+        },
+      },
+    ])
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      nature: 'revenue',
+      direction: 'out',
+      amountCents: 7000,
+      source: 'order',
+      unitId: 'unit-x',
+      occurredAt: '2026-08-01T10:00:00.000Z',
+    })
+  })
+
+  it('reopen com receita reconhecida zero (só itens cobertos) não gera contrapartida', () => {
+    const entries = classifyLedger([
+      {
+        kind: 'order_reopened',
+        reopen: {
+          orderId: 'ord-covered',
           orgId: 't1',
           unitId: 'unit1',
           reopenedAt: '2026-08-05T10:00:00.000Z',
           reversedClosedAt: '2026-07-01T13:00:00.000Z',
+          reversedRevenueCents: 0,
         },
       },
     ])

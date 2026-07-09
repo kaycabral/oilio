@@ -84,6 +84,16 @@ export const OrderReopenedSchema = Schema.Struct({
   _tag: Schema.Literal('order.reopened'),
   reopenedAt: Schema.String,
   reversedClosedAt: Schema.String,
+  // The revenue recognized by the reversed sale + the unit it was booked to,
+  // snapshotted so the reversal is derivable FROM THIS EVENT ALONE (ADR 0016 D5).
+  // The Razão reads the org+window stream: the original `order.closed` may fall
+  // in a PRIOR competence window (a sale closed on the 30th, reopened on the 1st),
+  // so correlating to the in-window closed order would reverse 0 and lose the
+  // estorno. Carrying the amount+unit on the reopen event makes the counter-entry
+  // correct regardless of window, and lands it on the right unit. Legacy v1
+  // `order.reopened` (neither field) is lifted by the order upcaster (config.ts).
+  reversedRevenueCents: Schema.Number,
+  unitId: Schema.String,
   commissionsReversed: Schema.Number,
   cashReversalMovementId: Schema.NullOr(Schema.String),
   subscriptionRestored: Schema.Boolean,

@@ -10,6 +10,7 @@ import {
   coveredItemQuantity,
   hasSaleItem,
   liquidationStatusOf,
+  recognizedSaleRevenueCents,
   stockDecrementTargets,
 } from '@/domain'
 import { newId } from '@/shared/db/pg/new-id'
@@ -213,6 +214,13 @@ export async function undoCloseOrder(orderId: string): Promise<OrderMutationResu
       // consistentes com `closedAt`.
       reopenedAt: now,
       reversedClosedAt: order.closedAt ?? now,
+      // Receita reconhecida a estornar + unidade, SNAPSHOTADAS no evento (ADR 0016
+      // D5): o Razão lê por janela de competência e a venda original pode estar
+      // fora dela (fechou dia 30, reabriu dia 1) — o estorno tem que ser correto
+      // sem depender de correlacionar a comanda fechada. Mesmo cálculo de receita
+      // reconhecida que `classifyClosedOrder` distribui por item.
+      reversedRevenueCents: recognizedSaleRevenueCents(order.items),
+      unitId: order.unitId,
       commissionsReversed: commissions.length,
       cashReversalMovementId: cashReversal?.movement.id ?? null,
       subscriptionRestored: subscriptionRestore !== null,
