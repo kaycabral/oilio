@@ -42,6 +42,10 @@ import {
 } from '@/domain/aggregates'
 import type { BillingCycle } from '@/domain/billing/tiers'
 import { appendEventToTx, aggregateRef as ref, type SagaStep } from '@/domain/effect'
+import {
+  buildMarkFailedSteps,
+  buildMarkPaidSteps,
+} from '@/features/subscriptions/adapters/subscription-charges-saga'
 import { getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import { commitSaga } from '@/shared/effect-bridge'
@@ -436,41 +440,21 @@ export async function seedSubscriptionCharges(args: {
       { _tag: 'charge.created', actorId, payload: { data: scheduledCharge } },
       tx,
     )
-  // The settle event the Razão recognizes as revenue. Its changeset MUST carry
-  // amountCents/unitId/periodStartAt — the ledger reads revenue off this event
-  // and stamps competence at periodStartAt (event-competence.ts).
-  const firstChargeSucceeded: SagaStep = (tx) =>
-    appendEventToTx(
-      ChargeConfig,
-      ref(ChargeConfig, orgId, firstChargeId),
-      {
-        _tag: 'charge.succeeded',
-        actorId,
-        payload: {
-          changes: {
-            status: 'paid',
-            paidAt: now,
-            failedAt: null,
-            failureReason: null,
-            attempts: 1,
-            lastActorUid: actorId,
-            updatedAt: now,
-            periodStartAt: args.periodStart,
-            amountCents,
-            unitId,
-          },
-        },
-      },
-      tx,
-    )
-  const firstSubSettled: SagaStep = (tx) =>
-    appendEventToTx(
-      SubscriptionConfig,
-      ref(SubscriptionConfig, orgId, subscriptionId),
-      { _tag: 'subscription.charge_settled', actorId, payload: {} },
-      tx,
-    )
-  const firstCascade = await commitSaga([firstChargeCreated, firstChargeSucceeded, firstSubSettled])
+  const firstCascade = await commitSaga([
+    firstChargeCreated,
+    ...buildMarkPaidSteps({
+      orgId,
+      actorId,
+      chargeId: firstChargeId,
+      subscriptionId,
+      attempts: 0,
+      now,
+      periodStartAt: args.periodStart,
+      amountCents,
+      unitId,
+      settle: true,
+    }),
+  ])
   if (!firstCascade.ok) {
     throw new Error(`seed charge (paid) for ${subscriptionId} failed: ${firstCascade.error}`)
   }
@@ -513,38 +497,20 @@ export async function seedSubscriptionCharges(args: {
       { _tag: 'charge.created', actorId, payload: { data: scheduledSecond } },
       tx,
     )
-  const secondChargeFailed: SagaStep = (tx) =>
-    appendEventToTx(
-      ChargeConfig,
-      ref(ChargeConfig, orgId, secondChargeId),
-      {
-        _tag: 'charge.failed',
-        actorId,
-        payload: {
-          changes: {
-            status: 'recovering',
-            failedAt: now,
-            failureReason: 'card_declined',
-            attempts: 1,
-            lastActorUid: actorId,
-            updatedAt: now,
-          },
-        },
-      },
-      tx,
-    )
-  const subPastDue: SagaStep = (tx) =>
-    appendEventToTx(
-      SubscriptionConfig,
-      ref(SubscriptionConfig, orgId, subscriptionId),
-      {
-        _tag: 'subscription.charge_failed',
-        actorId,
-        payload: { reason: 'card_declined', status: 'past_due' },
-      },
-      tx,
-    )
-  const secondCascade = await commitSaga([secondChargeCreated, secondChargeFailed, subPastDue])
+  const secondCascade = await commitSaga([
+    secondChargeCreated,
+    ...buildMarkFailedSteps({
+      orgId,
+      actorId,
+      chargeId: secondChargeId,
+      subscriptionId,
+      now,
+      nextChargeStatus: 'recovering',
+      nextChargeAttempts: 1,
+      subStatus: 'past_due',
+      failureReason: 'card_declined',
+    }),
+  ])
   if (!secondCascade.ok) {
     throw new Error(`seed charge (failed) for ${subscriptionId} failed: ${secondCascade.error}`)
   }

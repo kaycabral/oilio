@@ -62,7 +62,7 @@ async function seedService(id = SERVICE): Promise<void> {
 async function seedSubscription(id = SUBSCRIPTION): Promise<void> {
   await pool().query(
     `INSERT INTO subscriptions (org_id, id, unit_id, last_event_version, customer_id, customer_user_id, status, billing_cycle, cancel_at_period_end, next_charge_date, past_due_cycles, past_due_threshold, cancellation_reason, cancelled_at, plan, current_period, created_at, updated_at)
-     VALUES ($1,$2,$3,1,$4,NULL,'pending','monthly',false,NULL,0,3,NULL,NULL,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+     VALUES ($1,$2,$3,1,$4,NULL,'active','monthly',false,NULL,0,3,NULL,NULL,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [ORG, id, UNIT, CUSTOMER],
   )
 }
