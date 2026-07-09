@@ -14,33 +14,18 @@ import { useEffect, useId, useRef, useState, useTransition } from 'react'
 
 export type MutationResult = { ok: true } | { ok: false; error: string }
 
-// What removing the row will affect, loaded lazily when the dialog opens
-// (brief 0033, AC-10). `lines` is the human-readable "isto vai…" list; a non-null
-// `blockedReason` means the deletion is refused (e.g. an open comanda) — the
-// destructive button stays disabled and the reason shows.
 export type DeletionImpact = { lines: string[]; blockedReason?: string | null }
 
-// Shared confirm contract — the inputs that describe a destructive deletion.
-// Both the standalone `DeleteAction` (own trigger) and the `RowActions` ⋯ menu
-// (external trigger) drive the same `ConfirmDeleteDialog` with this shape.
 export type ConfirmDeleteProps = {
   action: () => Promise<MutationResult>
   title: string
   description: string
   confirmLabel?: string
-  // High impact: require typing this exact text (the entity name) to enable the
-  // destructive button.
   confirmText?: string
-  // High impact: fetch + render what will be lost when the dialog opens.
   loadImpact?: () => Promise<DeletionImpact>
-  // Optional client-side follow-up (e.g. router.refresh) on success.
   onDeleted?: () => void
 }
 
-// Controlled confirm dialog (no trigger of its own) — open state is owned by the
-// caller, so it works both behind the standalone button below AND as a ⋯ menu
-// item (see `RowActions`). Keeps the full safe-confirm pattern (brief 0033,
-// AC-10): inverted footer, lazy impact loss-list, optional type-to-confirm.
 export function ConfirmDeleteDialog({
   open,
   onOpenChange,
@@ -61,16 +46,10 @@ export function ConfirmDeleteDialog({
   const [impact, setImpact] = useState<DeletionImpact | null>(null)
   const [loadingImpact, setLoadingImpact] = useState(false)
   const confirmInputId = useId()
-  // Safety focus (AC-10): the prominent "Cancelar" gets focus when the dialog
-  // opens, so a reflex Enter never confirms the destructive action.
   const cancelRef = useRef<HTMLButtonElement>(null)
-  // `loadImpact` identity may change per render (callers build it inline); keep
-  // it in a ref so the open-effect depends only on `open`.
   const loadImpactRef = useRef(loadImpact)
   loadImpactRef.current = loadImpact
 
-  // Opening (driven by the caller's state) resets the dialog and lazily loads
-  // the impact loss-list.
   useEffect(() => {
     if (!open) return
     setError(null)
@@ -95,7 +74,6 @@ export function ConfirmDeleteDialog({
       const res = await action()
       if (!res.ok) {
         setError(res.error)
-        // Keep the dialog open so the failure reads in context.
         return
       }
       onOpenChange(false)
@@ -151,8 +129,6 @@ export function ConfirmDeleteDialog({
 
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
-        {/* INVERTED footer (AC-10): destructive on the left, the prominent
-            auto-focused "Cancelar" on the right — a reflex click never confirms. */}
         <AlertDialogFooter>
           <Button
             type="button"
@@ -177,16 +153,6 @@ export function ConfirmDeleteDialog({
   )
 }
 
-// Single destructive-action widget (brief 0033 — #1070). ONE "Excluir" verb
-// across every entity surface; clicking opens the shared Radix AlertDialog
-// (never the native `confirm()`). Whether the server hard-deletes or soft-deletes
-// is decided server-side — the UI never exposes "Arquivar". This is the
-// standalone (own-trigger) form; for a ⋯ overflow menu use `RowActions`, which
-// drives the same `ConfirmDeleteDialog`.
-//
-// Disabled tier (kept for memberOperation, where an active membership hard-blocks
-// and the lifecycle is a separate offboarding flow, 0041): `canDelete={false}` +
-// `disabledReason` renders a disabled trigger that explains itself.
 export function DeleteAction({
   triggerLabel = 'Excluir',
   canDelete = true,
@@ -194,14 +160,11 @@ export function DeleteAction({
   ...confirm
 }: ConfirmDeleteProps & {
   triggerLabel?: string
-  // When false, the action is impossible for this row → disabled trigger.
   canDelete?: boolean
   disabledReason?: string
 }) {
   const [open, setOpen] = useState(false)
 
-  // Impossible action → a disabled trigger that explains itself (never an
-  // AlertDialog that errors on confirm).
   if (!canDelete) {
     return (
       <span className="inline-flex flex-col items-end">

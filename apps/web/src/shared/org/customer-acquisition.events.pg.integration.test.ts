@@ -4,21 +4,6 @@ import { getCustomerById } from '@/shared/org/customer-read'
 import { ensureSelfSignupCustomer, upsertCustomerWithUser } from '@/shared/org/customer-upsert'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
-/**
- * Acquisition write-once against REAL Postgres (brief 0077 Grupo D — AC-10/AC-11,
- * #1280). The Customer's `acquisition` is the FIRST-touch channel that created the
- * org relationship; a later touch via another channel must NOT overwrite it (that
- * touch lives on the Appointment). The shadow is materialized once and re-entry
- * for the SAME userId returns it untouched. Proven through the real event-sourced
- * path (event → reducer → projection → JSONB column → read).
- *
- * Also pins the post-#1276 contract: `upsertCustomerWithUser` no longer folds by
- * WhatsApp — a quick-add typing a number that already has an owner is REFUSED
- * (the global `users_mobile_unique` index), surfaced as a handled error.
- *
- * Per-run-unique org so cases never collide on the shared database.
- */
-
 let seq = 0
 function uniq(prefix: string): string {
   seq += 1
@@ -26,8 +11,6 @@ function uniq(prefix: string): string {
 }
 
 async function seedOrg(orgId: string): Promise<void> {
-  // Minimal org row so the customer FK (org_id → orgs.org_id) holds. Raw insert
-  // over the superuser pool (RLS bypassed for seed). PK is `org_id`.
   await getEventStorePool().query(
     `INSERT INTO orgs
        (org_id, id, last_event_version, name, slug, vertical, branding, owner_user_id,
@@ -54,15 +37,8 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
     await getEventStorePool().query("DELETE FROM orgs WHERE org_id LIKE 'org-acq-%'")
   })
 
-  // A distinct, well-formed BR mobile per call so quick-add inserts don't collide
-  // across cases OR across runs on the shared DB (the global uniqueness index is
-  // exactly what's under test). Stub Users persist (no cleanup), so the number
-  // must be unique per run — derive the trailing digits from the wall clock.
   function uniqueMobileRaw(): string {
     seq += 1
-    // DDD 11 + the mandatory mobile `9` + 8 unique subscriber digits, so the
-    // number is a valid BR mobile (normalizeBrazilMobile / the DB br_format
-    // CHECK both require the 9th digit).
     const tail = String((Date.now() + seq) % 100_000_000).padStart(8, '0')
     return `119${tail}`
   }
@@ -92,7 +68,6 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
   it('does NOT overwrite acquisition when the same userId re-enters via another channel', async () => {
     const orgId = uniq('org-acq')
     await seedOrg(orgId)
-    // First touch: QR (materializes the shadow + the global User).
     const first = await upsertCustomerWithUser({
       orgId,
       name: 'Cliente',
@@ -104,8 +79,6 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
     expect(first.ok).toBe(true)
     if (!first.ok) return
 
-    // Same human (same userId) re-enters via WhatsApp invite — different channel.
-    // Re-entry is keyed by userId (no WhatsApp fold), the real idempotent path.
     const second = await ensureSelfSignupCustomer(orgId, first.userId, {
       source: 'whatsapp',
       medium: 'invite',
@@ -115,11 +88,9 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
       actorId: 'recep-1',
       intent: 'signup',
     })
-    // Same customer shadow reused (no second customer created).
     expect(second.customerId).toBe(first.customerId)
     expect(second.created).toBe(false)
 
-    // Acquisition stays the ORIGINAL QR touch — write-once.
     const customer = await getCustomerById(orgId, first.customerId)
     expect(customer?.acquisition).toEqual(QR_ACQUISITION)
   })
@@ -137,8 +108,6 @@ describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
     })
     expect(first.ok).toBe(true)
 
-    // A second quick-add typing the SAME number is refused — the global
-    // uniqueness index forbids a second User on that number (brief 0077, #1276).
     const second = await upsertCustomerWithUser({
       orgId,
       name: 'Outra Pessoa',

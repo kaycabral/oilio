@@ -1,12 +1,3 @@
-// Feature-level test — brief 0025 § Definition of Done (parent #1010).
-// Prova de conformidade ES total: pra cada aggregate conformado nas 11 fatias,
-// valida os 3 cenários do DoD em um sweep:
-//   Cenário 1 — toda mutação é event-first (evento no stream + projeção derivada)
-//   Cenário 2 — replay reconstrói o estado completo (deep-equal à projeção)
-//   Cenário 3 — auditoria vem do stream (o evento carrega quem/quê/quando)
-// Os replay tests por-aggregate cobrem o detalhe de cada um; este é o gate do
-// parent — a garantia cross-aggregate de que a conformidade vale pra todos.
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -21,8 +12,6 @@ import { CommissionConfig } from './commission/config'
 import { MembershipConfig } from './membership/config'
 import { OrderConfig } from './order/config'
 
-// Valida os 3 cenários do DoD pra um aggregate conformado, a partir de um
-// `created` (snapshot). Genérico → preserva os tipos concretos de cada config.
 async function checkDod<
   State extends { readonly _version: number },
   Event extends { readonly _tag: string },
@@ -43,27 +32,20 @@ async function checkDod<
     }).pipe(Effect.provide(layer)),
   )
 
-  // Cenário 1 — a mutação é event-first: o evento existe no stream do aggregate
-  // e a projeção (doc) foi derivada dele.
   const event = events.get(docKey(ref))?.[0]
   const projection = store.get(docKey(ref))
   expect(event, 'evento no stream').toBeTruthy()
   expect(projection, 'projeção derivada').toBeTruthy()
 
-  // Cenário 3 — auditoria vem do stream: o evento carrega quem (actorId),
-  // quando (timestamp) e o quê (_tag). Sem recordAudit paralelo.
   expect(event!['actorId']).toBe('actor-1')
   expect(event!['_tag']).toBe(createdTag)
   expect(typeof event!['timestamp']).toBe('string')
 
-  // Cenário 2 — replay reconstrói o estado deep-equal à projeção.
   const replayed = await Effect.runPromise(replayAggregate(config, ref).pipe(Effect.provide(layer)))
   expect(replayed).toEqual(projection)
   expect(replayed._version).toBe(1)
 }
 
-// Aggregates conformados nas fatias do 0025 (cada um tem replay test dedicado;
-// aqui provamos o invariante cross-aggregate como gate do parent).
 const CASES: { name: string; run: () => Promise<void> }[] = [
   {
     name: 'membership',

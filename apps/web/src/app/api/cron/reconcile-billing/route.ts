@@ -2,11 +2,6 @@ import { reconcileBillingQuantities } from '@/features/billing/adapters/reconcil
 import { withRequestContext } from '@/shared/lib/request-context'
 import { NextResponse } from 'next/server'
 
-// Billing reconciliation cron (brief 0074, AC-04). Re-asserts that each actively-
-// subscribed Negócio's Stripe subscription quantity matches its live unit count,
-// closing any drift left by the best-effort post-commit sync. Auth + shape molded
-// on `reconcile-products/route.ts`: verifies the cron secret, runs the per-org-
-// tolerant sweep, returns the number of orgs reconciled.
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 

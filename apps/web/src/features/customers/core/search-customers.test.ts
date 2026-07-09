@@ -2,8 +2,6 @@ import type { Customer } from '@/domain'
 import { describe, expect, it } from 'vitest'
 import { searchCustomers } from './search-customers'
 
-// Customer factory — the search only reads name/mobile, but we build a fully
-// valid Customer (no cast) so the test never drifts from the schema.
 function customer(args: { id: string; name: string; mobile: string }): Customer {
   return {
     id: args.id,
@@ -50,7 +48,6 @@ describe('searchCustomers', () => {
   })
 
   it('unions name and WhatsApp hits without duplicates, keeping name sort', () => {
-    // "11" hits Bruno + Carla by DDD digits; nobody by name.
     expect(searchCustomers(all, '11').map((c) => c.id)).toEqual(['2', '3'])
   })
 

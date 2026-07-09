@@ -4,9 +4,6 @@ import { parseWizardFields } from './wizard-fields'
 const NOW = Date.parse('2026-03-10T12:00:00.000Z')
 const FUTURE = '2026-03-11T12:00:00.000Z'
 
-// Since brief 0077 (#1275) the confirm step carries NO customer PII — login is
-// required and the Customer is derived from the authenticated uid — so the
-// parser only validates the booking coordinates (service/pro/startAt).
 function form(overrides: Record<string, string> = {}): FormData {
   const base: Record<string, string> = {
     serviceId: 's1',
@@ -30,8 +27,6 @@ describe('parseWizardFields', () => {
   })
 
   it('does not parse any customer PII (none is carried anymore)', () => {
-    // Even if a tampered form smuggles PII fields, the parser ignores them —
-    // the typed result has only the booking coordinates.
     const result = parseWizardFields(
       form({ customerName: 'Maria', customerWhatsapp: '11999999999' }),
       NOW,

@@ -28,7 +28,6 @@ describe('canCustomerCancelAppointment', () => {
   })
 
   it('blocks inside the policy window', () => {
-    // Appointment in 1h, policy requires 2h → blocked.
     const r = canCustomerCancelAppointment(apptAt('2026-06-01T13:00:00.000Z'), policy2h, NOW)
     expect(r.ok).toBe(false)
     if (r.ok) return
@@ -38,7 +37,6 @@ describe('canCustomerCancelAppointment', () => {
   })
 
   it('allows cancel exactly at the policy threshold', () => {
-    // Appointment in 120 min, policy requires 120 → ok (>= boundary).
     const r = canCustomerCancelAppointment(apptAt('2026-06-01T14:00:00.000Z'), policy2h, NOW)
     expect(r).toEqual({ ok: true })
   })
@@ -76,14 +74,8 @@ describe('canCustomerCancelAppointment', () => {
     expect(r.reason).toBe('already_no_show')
   })
 
-  // #1038 — snapshot-on-use. The helper decides purely from the policy it's
-  // handed; the read-sites feed it `appointment.cancellationPolicySnapshot`.
-  // This proves the booking-time policy (snapshot) drives the decision even
-  // when the org's LIVE policy later diverges.
   describe('snapshot governs eligibility, not the live org policy (#1038)', () => {
     it('booked under strict policy → still blocked even if live policy is now off', () => {
-      // Appointment 1h ahead. Snapshot froze a 2h window → inside it → blocked,
-      // regardless of the org having since disabled cancellation.
       const snapshotAtCommit: CancellationPolicy = { enabled: true, minNoticeMinutes: 120 }
       const r = canCustomerCancelAppointment(
         apptAt('2026-06-01T13:00:00.000Z'),
@@ -97,8 +89,6 @@ describe('canCustomerCancelAppointment', () => {
     })
 
     it('booked under disabled policy → still allowed even if live policy is now strict', () => {
-      // Appointment 1h ahead. Snapshot froze a disabled policy → allowed, even
-      // though the org has since enabled a 2h window.
       const snapshotAtCommit: CancellationPolicy = { enabled: false, minNoticeMinutes: 120 }
       const r = canCustomerCancelAppointment(
         apptAt('2026-06-01T13:00:00.000Z'),

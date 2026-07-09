@@ -2,11 +2,6 @@ import { expect, test } from '../fixtures'
 import { seedBlock } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-// Retrofit pro PR #723 (issue #635) — agenda_blocks recurring + one-off.
-// 2026-08-12 é uma quarta-feira (Wed) em BR. O bloco recorrente "Almoço"
-// 12:00-13:00 quarta renderiza. O bloco one-off "Médico" 14:00-16:00 BR
-// renderiza no mesmo dia.
-
 test.describe('Agenda — bloqueios', () => {
   test.use({
     orgInput: {
@@ -35,7 +30,6 @@ test.describe('Agenda — bloqueios', () => {
   })
 
   test('bloco pontual aparece na data específica', async ({ org, authedPage }) => {
-    // BR is UTC-3. 14:00-16:00 BR == 17:00-19:00 UTC.
     await seedBlock({
       kind: 'one_off',
       orgId: org.orgId,

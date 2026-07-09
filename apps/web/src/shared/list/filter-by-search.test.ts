@@ -29,12 +29,10 @@ describe('filterBySearch', () => {
   })
 
   it('matches against any field, not just the first', () => {
-    // "carla@example.com" only matches via the email field (and case-folded).
     expect(filterBySearch(rows, 'carla@example', fields)).toEqual([rows[2]])
   })
 
   it('tolerates null/undefined field values without throwing', () => {
-    // Bruno has a null email; the null field must be skipped, not crash.
     expect(filterBySearch(rows, 'bruno', fields)).toEqual([rows[1]])
   })
 

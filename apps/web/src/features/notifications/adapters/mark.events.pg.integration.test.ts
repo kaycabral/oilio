@@ -1,20 +1,3 @@
-// Postgres integration test — #958, brief 0018 Grupo D (re-substrated to
-// Postgres by the cutover, #1202).
-//
-// Runs against the ephemeral `oilio` Postgres (OILIO_DATABASE_URL); the
-// event-store globalSetup applies the migrations.
-//
-// Cobre:
-// - AC-16: markNotificationRead seta read_at + some do fetch (unread)
-// - AC-17: snoozeNotification seta snoozed_until + some do fetch até chegar
-//
-// The notification is created through the REAL event store (`notification.created`
-// over the Postgres layer), then `markNotificationRead`/`snoozeNotification`
-// (which `emitEvent` `notification.read`/`notification.snoozed`) drive the
-// projection — exactly the production write path. Reads go through the live
-// `fetchUnreadNotificationsForUnit`; the read_at/snoozed_until snapshots are
-// verified with a direct row read over the superuser pool.
-
 import { NotificationConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
@@ -38,9 +21,6 @@ async function seedOrg(orgId: string): Promise<void> {
   )
 }
 
-// Creates a notification through the event store (`notification.created`), the
-// same append the cron generator runs — so the aggregate has real history for
-// the read/snooze events to fold over.
 async function seedNotif(orgId: string, id: string, type = 'order_stale'): Promise<void> {
   await Effect.runPromise(
     appendEvent(NotificationConfig, aggregateRef(NotificationConfig, orgId, id), {
@@ -71,9 +51,6 @@ async function readNotifColumn(
     `SELECT ${column} AS value FROM notifications WHERE org_id = $1 AND id = $2`,
     [orgId, id],
   )
-  // `*_at` columns are `timestamptz` (brief 0068 D1): the pg driver returns a
-  // `Date`, not the stored ISO string. Normalize to ISO at this raw-read
-  // boundary so assertions compare like-for-like (mirrors projector `rowToDoc`).
   const value = res.rows[0]?.value ?? null
   return value == null ? null : new Date(value).toISOString()
 }
@@ -132,11 +109,9 @@ describe('snoozeNotification (AC-17) — Postgres', () => {
 
     expect(await readNotifColumn(orgId, 'n1', 'snoozed_until')).toBe('2026-06-01T16:00:00.000Z')
 
-    // Antes do snoozedUntil → oculto
     const hidden = await fetchUnreadNotificationsForUnit({ orgId, unitId: 'u1', limit: 10, now })
     expect(hidden.unreadCount).toBe(0)
 
-    // Depois do snoozedUntil → reaparece
     const later = new Date('2026-06-01T17:00:00.000Z')
     const back = await fetchUnreadNotificationsForUnit({
       orgId,

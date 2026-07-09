@@ -9,21 +9,6 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { getPartialContributionMargin } from './contribution-margin.repo'
 import { readOrgLedger } from './ledger.repo'
 
-/**
- * DoD da re-fundação do Razão (brief 0091, Onda 2; ADR 0016) contra Postgres REAL.
- * Prova o invariante central: o Razão deriva do EVENT STREAM por competência —
- * NÃO das projeções. Semeamos EVENTOS pelo caminho real (`appendEvent` →
- * `writeEvent` deriva `occurred_at` via `competenceOf`) e lemos via `readOrgLedger`
- * + `getPartialContributionMargin`. Cada asserção ancora numa decisão da ADR:
- *   - venda avulsa reconhecida em `order.closed.closedAt`, por item (D2)
- *   - comissão = CSP herda unidade + competência da comanda correlata (D5)
- *   - assinatura reconhecida em `periodStartAt`, não no pagamento (D2)
- *   - a janela `[from,to)` é por competência (fato gerador), não por gravação
- *   - MC parcial = receita − CSP, derivada só do Razão (cuts.ts, AC-03)
- *
- * globalSetup aplica as migrations (incl. 0020 occurred_at + backfill).
- */
-
 const ORG = 'org-razao'
 const UNIT = 'unit-razao'
 
@@ -31,8 +16,6 @@ function pool() {
   return getEventStorePool()
 }
 
-// Projeções de order/charge têm FK pra `orgs`/`units` — semeamos os pais antes do
-// stream. Os eventos em si não têm FK, mas a projeção derivada no mesmo tx sim.
 async function seedParents(): Promise<void> {
   await pool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
@@ -46,7 +29,6 @@ async function seedParents(): Promise<void> {
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, UNIT],
   )
-  // A projeção de `charges` tem FK pra `customers` + `subscriptions` (0068 D2).
   await pool().query(
     `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
      VALUES ($1,'cust-1',1,'user-cust-1',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
@@ -82,16 +64,11 @@ const SALE_ITEM = {
   attributedUserId: 'pro-1',
 }
 
-// Competências deliberadamente distintas da data de "gravação": a venda é fechada
-// em 2026-07-10; a comissão nasce nela; a assinatura cobre julho (periodStartAt
-// 2026-07-01) mas é paga em agosto. Uma janela de JULHO deve capturar as três
-// pela competência — nunca pela data de pagamento da assinatura.
 const CLOSED_AT = '2026-07-10T13:00:00.000Z'
 const PERIOD_START = '2026-07-01T00:00:00.000Z'
 const PAID_AT = '2026-08-04T10:00:00.000Z'
 
 async function seedScenario(): Promise<void> {
-  // Venda avulsa: created (open) → item_added → closed (snapshot items + unitId).
   await run(
     appendEvent(OrderConfig, orderRef('ord-1'), {
       _tag: 'order.created',
@@ -138,7 +115,6 @@ async function seedScenario(): Promise<void> {
     }),
   )
 
-  // Comissão do item (CSP): createdAt = closedAt (herda a competência da venda).
   await run(
     appendEvent(CommissionConfig, commissionRef('com-1'), {
       _tag: 'commission.created',
@@ -163,8 +139,6 @@ async function seedScenario(): Promise<void> {
     }),
   )
 
-  // Assinatura: created (scheduled) → succeeded (paid em agosto, mas competência =
-  // periodStartAt de julho; o changeset snapshota amountCents + unitId + período).
   await run(
     appendEvent(ChargeConfig, chargeRef('chg-1'), {
       _tag: 'charge.created',
@@ -239,12 +213,10 @@ describe('Razão deriva do event stream por competência (brief 0091, ADR 0016)'
       [ORG],
     )
     const byTag = new Map(res.rows.map((r) => [r.tag, r.occurred_at]))
-    // Eventos de competência têm occurred_at; os demais (created/item_added) NULL.
     expect(byTag.get('order.created')).toBeNull()
     expect(byTag.get('order.item_added')).toBeNull()
     expect(new Date(byTag.get('order.closed')!).toISOString()).toBe(CLOSED_AT)
     expect(new Date(byTag.get('commission.created')!).toISOString()).toBe(CLOSED_AT)
-    // A assinatura: competência = período (julho), NÃO o pagamento (agosto).
     expect(new Date(byTag.get('charge.succeeded')!).toISOString()).toBe(PERIOD_START)
   })
 
@@ -260,7 +232,6 @@ describe('Razão deriva do event stream por competência (brief 0091, ADR 0016)'
     })
 
     const csp = ledger.find((e) => e.nature === 'csp')
-    // Comissão herda unidade + competência da comanda correlata (ADR 0016 D5).
     expect(csp).toMatchObject({
       nature: 'csp',
       direction: 'out',
@@ -273,7 +244,6 @@ describe('Razão deriva do event stream por competência (brief 0091, ADR 0016)'
     expect(subRevenue).toMatchObject({
       nature: 'revenue',
       amountCents: 9000,
-      // Competência = período de serviço (julho), não o pagamento (agosto).
       occurredAt: PERIOD_START,
     })
   })
@@ -282,8 +252,6 @@ describe('Razão deriva do event stream por competência (brief 0091, ADR 0016)'
     const july = await readOrgLedger(JULY)
     expect(july.some((e) => e.source === 'charge')).toBe(true)
 
-    // Agosto (mês do PAGAMENTO) NÃO contém a receita da assinatura — ela foi
-    // reconhecida em julho pela competência do período, não pelo caixa.
     const august = await readOrgLedger({
       orgId: ORG,
       fromIso: '2026-08-01T00:00:00.000Z',
@@ -294,19 +262,13 @@ describe('Razão deriva do event stream por competência (brief 0091, ADR 0016)'
 
   it('getPartialContributionMargin = receita − CSP, derivada só do Razão (cuts.ts)', async () => {
     const mc = await getPartialContributionMargin(JULY)
-    // Receita = 5000 (venda) + 9000 (assinatura) = 14000; CSP = 2000 (comissão).
     expect(mc.revenueCents).toBe(14000)
     expect(mc.variableCostCents).toBe(2000)
     expect(mc.marginCents).toBe(12000)
-    // `partial: true` — o único variável presente é a comissão (falta imposto/MDR/CMV).
     expect(mc.partial).toBe(true)
   })
 
   it('estorno cross-window: order.reopened em agosto estorna a venda de julho (snapshot no evento)', async () => {
-    // A venda `ord-1` fechou em JULHO (competência closedAt). Reabrimos em AGOSTO:
-    // o evento carrega `reversedRevenueCents`+`unitId` snapshotados, então o Razão
-    // de agosto tem a contrapartida MESMO sem a comanda fechada estar na janela de
-    // agosto — o bug que o review pegou (correlação in-window perdia o estorno).
     await run(
       appendEvent(OrderConfig, orderRef('ord-1'), {
         _tag: 'order.reopened',
@@ -336,7 +298,6 @@ describe('Razão deriva do event stream por competência (brief 0091, ADR 0016)'
       unitId: UNIT,
       occurredAt: '2026-08-03T09:00:00.000Z',
     })
-    // Julho permanece com a receita original (imutabilidade — não reescreve o passado).
     const july = await readOrgLedger(JULY)
     expect(july.some((e) => e.source === 'order' && e.direction === 'in')).toBe(true)
     expect(july.some((e) => e.source === 'order' && e.direction === 'out')).toBe(false)

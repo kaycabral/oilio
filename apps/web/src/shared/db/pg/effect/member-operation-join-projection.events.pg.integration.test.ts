@@ -7,16 +7,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 import { PostgresPersistenceLayer } from './postgres-layer'
 
-/**
- * Join-table projection proof for `memberOperation ↔ unit / service` against REAL
- * Postgres (brief 0068 D3). Proves: the projector mirrors the reduced state's
- * `unit_ids` / `catalog_service_ids` arrays into the `member_operation_units` /
- * `member_operation_services` join tables in the SAME tx as the event; a shrunk array
- * leaves no orphan rows (delete-then-insert idempotency); REPLAY reconstructs the
- * join rows from the array; the FKs refuse a dangling unit/service ref; and RLS
- * isolates the rows per org.
- */
-
 const ORG = 'org-pj'
 const UNIT_A = 'unit-a'
 const UNIT_B = 'unit-b'
@@ -76,9 +66,6 @@ async function seedService(id: string): Promise<void> {
 }
 
 async function seedMembership(): Promise<void> {
-  // The operational profile hangs off the membership (brief 0076 AC-02): the
-  // projector derives `member_id` as `{ORG}_{userId}` and the composite FK needs
-  // this parent. PRO's userId is `user-pro-1`.
   await pool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
      VALUES ($1,$1||'_user-pro-1','user-pro-1',1,'member_operator','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
@@ -181,14 +168,9 @@ describe('Postgres join projection — memberOperation ↔ unit/service (brief 0
   it('replay reconstructs the reduced state the join rows derive from', async () => {
     await create(memberOperation())
     await update({ unitIds: [UNIT_B] })
-    // `replayAggregate` rebuilds the reduced state in memory (it does not
-    // re-run the projector); the join tables are a projection OF that state, so
-    // proving replay yields the right arrays proves the rows are derivable. The
-    // same-tx mirroring + idempotency are proven by the cases above.
     const state = await replay()
     expect(state.unitIds).toEqual([UNIT_B])
     expect(state.catalogServiceIds).toEqual([SVC_A, SVC_B])
-    // And the live projection (written by the last upsert) matches.
     expect(await unitIds()).toEqual([UNIT_B])
     expect(await serviceJoinIds()).toEqual([SVC_A, SVC_B])
   })

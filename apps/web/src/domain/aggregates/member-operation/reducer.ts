@@ -16,12 +16,6 @@ export function applyMemberOperationEvent(
       return { ...base, ...event.changes, updatedAt: meta.timestamp }
     case 'member_operation.deleted':
       return base
-    // Operational-readiness transitions are NO-OPS (#1226 AC-02). The status is
-    // no longer materialized on the projection — it is DERIVED on read from real
-    // facts (mobile present ∧ ≥1 unit ∧ ≥1 service; see `deriveOperationalStatus`).
-    // New writes no longer emit these events, but the schemas stay in the union
-    // and the cases stay here so HISTORICAL streams (which DID emit them) still
-    // replay without breaking — they simply leave the state untouched.
     case 'member_operation.activated':
       return base
     case 'member_operation.suspended':

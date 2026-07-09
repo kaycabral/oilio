@@ -1,7 +1,3 @@
-// Undo-close saga — extracted from order-write-helpers/order-saga to stay under
-// the module-size gate. Runs as ONE Postgres ACID transaction (brief 0061 §
-// Grupo A / AC-02: reverse + reopen atomically, no manual compensation).
-
 import { isCatalogProduct, type CashMovement, type Order } from '@/domain'
 import {
   AppointmentConfig,
@@ -42,12 +38,6 @@ type UndoCloseArgs = {
   }
 }
 
-// Resolves the absolute restored stock for each product (every kind==='product',
-// coverage-agnostic — #B4), reading live catalog stock, lifted so the Postgres
-// saga can append it as a pure step. The input comes from `stockDecrementTargets`
-// on close, so the undo restores EXACTLY what the close decremented — symmetry by
-// construction. Never narrow this to "covered products": that reintroduces the B4
-// hole (stock coupled to coverage) and desyncs close vs undo.
 async function resolveStockRestoreTargets(
   orgId: string,
   stockRestores: { refId: string; quantity: number }[],
@@ -62,10 +52,6 @@ async function resolveStockRestoreTargets(
   return targets
 }
 
-// Builds the undo cascade as ordered saga steps (Postgres ACID path): appointment
-// → scheduled, subscription cota restored, stock returned, cash reversal appended,
-// commissions removed (event + projection drop via `appendDeleteToTx`), and the
-// `order.reopened` anchor — ALL in one tx so the reopen is atomic.
 export function buildUndoCloseSteps(args: {
   orgId: string
   actorUid: string
@@ -174,14 +160,6 @@ export function buildUndoCloseSteps(args: {
   return steps
 }
 
-// Desfaz o fechamento de uma order dentro de 5 min. No backend Postgres (brief
-// 0061 § Grupo A / AC-02): a reversão + o `order.reopened` rodam como UMA
-// transação ACID via `commitSaga` — appointment volta a `scheduled`, cota
-// restaurada, estoque devolvido, estorno de caixa apendado, comissões removidas
-// (evento + projeção dropada na mesma tx) e a order reaberta, tudo atômico. Não
-// há compensação manual: se qualquer passo falha, o banco faz ROLLBACK total.
-//
-// Retorna erro (string) ou null.
 export async function emitUndoClose(args: UndoCloseArgs): Promise<string | null> {
   const { orgId, actorUid, order, subscriptionRestore, cashReversal } = args
   const orderId = order.id

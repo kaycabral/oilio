@@ -3,9 +3,6 @@ import { describe, expect, it } from 'vitest'
 
 import { OrderItem } from './order'
 
-// OrderItem lives in the `items` JSONB of orders (no DB CHECK/FK viable), so the
-// non-empty invariant on its required ids/labels (#1283 / brief 0078 AC-13) is
-// enforced ONLY at the domain decode. These lock that boundary.
 describe('OrderItem non-empty invariant (#1283 Group E)', () => {
   const VALID = {
     id: 'item-1',

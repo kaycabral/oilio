@@ -13,12 +13,6 @@ import { EstablishmentErasureList } from '@/features/settings/ui/EstablishmentEr
 import { NotificationTemplatesForm } from '@/features/settings/ui/NotificationTemplatesForm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@cbrl/design'
 
-// The section BODIES rendered inside the Configurações modal (brief 0090). Just
-// the content blocks — the section title + description live in the modal's
-// DialogHeader (SETTINGS_SECTIONS meta), so they are not repeated here. The
-// `/settings/X` full pages wrap the same feature components in a SettingsSection
-// header instead; both converge on the components below, so they never drift.
-
 export function ProfilePanel({ data }: { data: ProfileSectionData }) {
   return (
     <Card>

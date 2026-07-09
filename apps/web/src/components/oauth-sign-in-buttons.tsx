@@ -6,14 +6,6 @@ import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-// Google sign-in via popup for ALL browsers. We deliberately do NOT use
-// signInWithRedirect: its result is recovered on the way back from
-// cross-page storage, which Safari/iOS (ITP) and other privacy-partitioning
-// browsers wipe — so getRedirectResult comes back empty and the user silently
-// bounces to sign-in. Popup resolves the credential in the same promise (no
-// cross-page storage), so it works uniformly. It's gesture-initiated (fired from
-// the button's onClick), so browser popup blockers allow it. This is Firebase's
-// recommended default for web sign-in.
 export type OAuthSignInButtonsProps = {
   next: string
   googleLabel?: string
@@ -46,8 +38,6 @@ export function OAuthSignInButtons({
     } catch {
       started.current = false
       setPending(false)
-      // Firebase Auth errors carry technical text (`auth/...`); show a fixed
-      // friendly message instead of echoing the raw error.
       toast.error('Não foi possível entrar. Tente novamente.')
     }
   }

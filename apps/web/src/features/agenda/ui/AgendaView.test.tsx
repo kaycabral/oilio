@@ -13,9 +13,6 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.routerPush, refresh: mocks.routerRefresh }),
 }))
 
-// The grid contains pure presentation that we don't care to render in this
-// test. Stub it to a marker so the AgendaView container shape is what's
-// asserted.
 vi.mock('./AgendaGrid', () => ({
   AgendaGrid: () => <div role="grid" aria-label="agenda-grid" />,
 }))
@@ -49,10 +46,6 @@ const baseProps = {
   slotMinutes: 15 as const,
   units: [buildUnit('u1')],
   activeUnitId: 'u1',
-  // The agenda only ever receives bookable memberOperations (operational + a
-  // CURRENTLY active membership carrying `canBeBooked`) —
-  // `listBookableMemberOperationsForOrg` applies that filter. Plain `MemberOperation`
-  // since brief 0076 retired the `BookableProfessional` brand (AC-03).
   memberOperations: [
     {
       id: 'p1',
@@ -90,17 +83,12 @@ beforeEach(() => {
   mocks.routerRefresh.mockReset()
 })
 
-// The slot-granularity control was removed from the agenda (#633/#746 reverted):
-// slot size is now configured ONLY in the unit's hours settings. So this file
-// no longer covers a slot picker — it covers the off-hours banner gating.
-
 describe('AgendaView — off-hours banner (#749)', () => {
   it('shows the off-hours banner when hasBusinessHours is false', () => {
     render(<AgendaView {...baseProps} hasBusinessHours={false} canManage />)
     expect(
       screen.getByText(/esta unidade ainda não tem horários de funcionamento/i),
     ).toBeInTheDocument()
-    // Manager sees the deeplink to configure hours.
     expect(screen.getByRole('link', { name: /configurar horários/i })).toHaveAttribute(
       'href',
       '/units/u1',
@@ -138,15 +126,10 @@ describe('AgendaView — off-hours banner (#749)', () => {
   })
 })
 
-// #1268: a self-scoped member whose operational profile isn't provisioned yet
-// resolves to the fail-closed sentinel scope; `load-agenda` skips the reads and
-// flags `memberOperationMissing`. The grid must NOT read as data loss — an
-// explicit, actionable empty-state carries the reason instead.
 describe('AgendaView — missing operational profile empty-state (#1268)', () => {
   it('renders the explicit empty-state instead of the (empty) grid', () => {
     render(<AgendaView {...baseProps} hasBusinessHours memberOperationMissing canManage={false} />)
     expect(screen.getByText(/seu perfil de agenda ainda não está pronto/i)).toBeInTheDocument()
-    // The grid is suppressed — no mute blank surface.
     expect(screen.queryByRole('grid', { name: 'agenda-grid' })).not.toBeInTheDocument()
   })
 
@@ -172,10 +155,6 @@ describe('AgendaView — missing operational profile empty-state (#1268)', () =>
   })
 })
 
-// #1326 AC2/AC3: when the active unit has no linked professional, the empty-state
-// must not leak a management CTA to a non-manager. Managers get the actionable
-// "Convidar profissional"; a professional/receptionist gets a neutral state
-// explaining they're not linked to this unit — inviting isn't their action.
 describe('AgendaView — no-professional empty-state gating (#1326)', () => {
   const noProProps = { ...baseProps, memberOperations: [], hasBusinessHours: true }
 
@@ -191,15 +170,11 @@ describe('AgendaView — no-professional empty-state gating (#1326)', () => {
   it('shows a neutral state (no invite CTA) to a non-manager', () => {
     render(<AgendaView {...noProProps} canManage={false} />)
     expect(screen.getByText(/você ainda não atende nesta unidade/i)).toBeInTheDocument()
-    // The management CTA and the manager-facing copy must not leak.
     expect(screen.queryByRole('link', { name: /convidar profissional/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/nenhum profissional nesta unidade/i)).not.toBeInTheDocument()
   })
 })
 
-// Brief 0081 (#1312 AC-03): the "mostrar cancelados" toggle is URL-driven.
-// Off by default; clicking it pushes `?showCancelled=1` (preserving the day);
-// clicking it while on drops the param. The day nav must carry the toggle along.
 describe('AgendaView — show-cancelled toggle (#1312)', () => {
   beforeEach(() => vi.clearAllMocks())
 

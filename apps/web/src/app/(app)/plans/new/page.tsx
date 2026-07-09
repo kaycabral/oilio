@@ -7,7 +7,6 @@ import { notFound } from 'next/navigation'
 export default async function NewPlanPage() {
   const { units, catalogItems, categories, locked } = await loadNewPlanPage()
 
-  // Off-plan → 404, like a route that doesn't exist (brief 0088 AC-06).
   if (locked) notFound()
 
   return (

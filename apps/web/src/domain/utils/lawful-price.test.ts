@@ -3,12 +3,10 @@ import { lawfulPriceCents } from './lawful-price'
 
 describe('lawfulPriceCents (brief 0033 AC-09)', () => {
   it('charges the displayed price when the current price rose above it', () => {
-    // Displayed 5000, live raised to 8000 → never charge more than displayed.
     expect(lawfulPriceCents(5000, 8000)).toBe(5000)
   })
 
   it('charges the current price when it dropped below the displayed price', () => {
-    // Displayed 5000, live dropped to 3000 → lower prevails (consumer benefits).
     expect(lawfulPriceCents(5000, 3000)).toBe(3000)
   })
 

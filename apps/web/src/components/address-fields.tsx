@@ -19,18 +19,6 @@ function formatCep(value: string): string {
   return `${digits.slice(0, 5)}-${digits.slice(5)}`
 }
 
-/**
- * Form fields pra endereço com CEP lookup automático.
- *
- * Dois modos:
- * - **default** (CRUD `/units`): todos os campos editáveis. Owner pode
- *   corrigir o que vier do lookup.
- * - **simplified** (onboarding wizard): só CEP, número e complemento
- *   editáveis; estado/cidade/bairro/logradouro renderizam como labels
- *   read-only. A seção complementar (campos editáveis + labels) só aparece
- *   após o lookup retornar dados — antes disso o usuário só vê o CEP.
- *   Owner ajusta o que vier do lookup depois em `/units` se precisar.
- */
 export function AddressFields({
   defaults,
   simplified = false,
@@ -138,7 +126,6 @@ function SimplifiedBody({
 }) {
   return (
     <>
-      {/* Hidden inputs validados pelo form.checkValidity — submit fica desabilitado se o lookup ainda não retornou. */}
       <input type="hidden" name="state" value={state} required />
       <input type="hidden" name="city" value={city} required />
       <input type="hidden" name="neighborhood" value={neighborhood} required />

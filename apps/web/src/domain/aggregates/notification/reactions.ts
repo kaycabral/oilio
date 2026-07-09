@@ -13,9 +13,6 @@ import { NotificationConfig } from './config'
 import { createNotification } from './helpers'
 import type { NotificationType } from './types'
 
-// Reaction payloads as delivered by `dispatchNotificationReactions` (the caller
-// passes these explicitly — see customers/subscription-charges actions). Decoded
-// here so handlers read typed fields with no `as`.
 const NewCustomerPayload = Schema.Struct({
   orgId: Schema.String,
   name: Schema.String,

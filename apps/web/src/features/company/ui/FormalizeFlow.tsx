@@ -7,7 +7,6 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from '
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
-// The shape `/api/tax-id/[taxId]` returns (the normalized `CompanyLookup`).
 type CompanyLookupResponse = {
   profile: {
     taxId: string
@@ -62,8 +61,6 @@ function asSize(v: unknown): CompanyLookupResponse['profile']['companySize'] {
   return v === 'micro' || v === 'small' ? v : 'other'
 }
 
-// Build the typed lookup from the untyped JSON the route returns — field by
-// field, no cast (the route already decoded + normalized; this re-narrows).
 function validateLookup(data: unknown): CompanyLookupResponse {
   if (!isRecord(data) || !isRecord(data.profile)) throw new Error('Resposta inválida')
   const p = data.profile
@@ -113,10 +110,6 @@ export function FormalizeFlow({ unitId }: { unitId: string }) {
     try {
       const res = await fetch(`/api/tax-id/${digits}`)
       if (!res.ok) {
-        // The API's own `error` is a curated business message ("CNPJ não
-        // encontrado.") — surface it. A missing body means a technical failure
-        // (network / unexpected status) whose raw text must not leak: fall back
-        // to a fixed friendly message (disclosure wall, brief 0085).
         const body = await readJson(res, validateErrorBody).catch((): { error?: string } => ({}))
         setError(body.error ?? 'Falha na consulta do CNPJ. Tente novamente.')
         return
@@ -125,7 +118,6 @@ export function FormalizeFlow({ unitId }: { unitId: string }) {
       setLookup(data)
       setStep('review')
     } catch {
-      // A thrown error here is technical (network / parse) — never user-facing text.
       setError('Falha na consulta do CNPJ. Tente novamente.')
     } finally {
       setLooking(false)

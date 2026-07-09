@@ -1,9 +1,3 @@
-// Render tests for the UpgradeGate / UpgradeCta (brief 0082) — the reusable
-// upgrade affordance shared across the gated surfaces. Proves the two branches
-// a tester would eyeball: unlocked renders children untouched; locked replaces
-// them with the consistent CTA (per-capability copy + a single "Fazer upgrade"
-// link to /settings/billing). `useCapability` is mocked so each test drives the tier.
-
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

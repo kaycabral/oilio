@@ -1,16 +1,3 @@
-// brief 0037 #1086 (AC-04/AC-05/AC-06) — role-edit lifecycle, domain layer.
-//
-// `changeMemberRole` (server action) is a saga over two aggregates. The pieces
-// it relies on are pure/replayable and pinned here so the behavior stays
-// anchored to this issue:
-//   - AC-06: permissions are re-derived from the role default in the same
-//     `membership.updated` event; replay reconstructs role + permissions in
-//     lock-step (no stale gate).
-//   - AC-04/AC-05: a demotion away from memberOperation leaves the projection in
-//     place (never deleted; reversible). `operationalStatus` is now DERIVED on
-//     read (#1226 AC-02), so legacy `member_operation.suspended` events are no-ops —
-//     replay tolerates them and preserves the projection's operational data.
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -45,7 +32,6 @@ describe('Role-edit — permissions re-derivadas no mesmo fluxo (#1086 AC-06)', 
           actorId: 'actor-1',
           payload: { data },
         })
-        // Promote → memberOperation: role + permissions re-derived in one event.
         yield* appendEvent(MembershipConfig, ref, {
           _tag: 'membership.updated',
           actorId: 'actor-1',
@@ -64,13 +50,10 @@ describe('Role-edit — permissions re-derivadas no mesmo fluxo (#1086 AC-06)', 
     )
     expect(promoted).toEqual(store.get(docKey(ref)))
     expect(promoted.role).toBe('member_operator')
-    // The memberOperation default grants own-agenda and revokes receptionist ops —
-    // no stale gate from the receptionist defaults.
     expect(promoted.permissions).toEqual(defaultPermissionsForRole('member_operator'))
     expect(promoted.permissions.canHaveAgenda).toBe(true)
     expect(promoted.permissions.canManageCustomers).toBe(false)
 
-    // Demote back → receptionist: permissions re-derive again.
     await Effect.runPromise(
       appendEvent(MembershipConfig, ref, {
         _tag: 'membership.updated',
@@ -113,8 +96,6 @@ describe('Role-edit — demoção preserva a projeção; suspended legado é no-
             },
           },
         })
-        // Legacy demotion event — no longer emitted, but historical streams have
-        // it. `operationalStatus` is derived on read now, so this is a no-op.
         yield* appendEvent(MemberOperationConfig, ref, {
           _tag: 'member_operation.suspended',
           actorId: 'actor-1',
@@ -127,12 +108,8 @@ describe('Role-edit — demoção preserva a projeção; suspended legado é no-
       replayAggregate(MemberOperationConfig, ref).pipe(Effect.provide(layer)),
     )
     expect(deactivated).toEqual(store.get(docKey(ref)))
-    // AC-05: the projection is NOT deleted — it stays in the store, untouched by
-    // the no-op transition. Reversible, history kept.
     expect(store.get(docKey(ref))).toBeDefined()
-    // The status is no longer materialized on the projection (derived on read).
     expect('operationalStatus' in deactivated).toBe(false)
-    // The operational data (units/services) is preserved for reversibility.
     expect(deactivated.unitIds).toEqual(['unit-1'])
     expect(deactivated.catalogServiceIds).toEqual(['svc-1'])
   })

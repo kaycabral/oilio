@@ -3,30 +3,6 @@ import { Client } from 'pg'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../db/pg/pool'
 
-/**
- * PER-SUBJECT RLS proof for the identity reverse index `org_links` against REAL
- * Postgres (cutover, brief 0062 — the rewrite of the Firestore-emulator
- * `org-links.integration.test.ts`). Migration 0012 puts `org_links` under
- * `FORCE ROW LEVEL SECURITY` with a per-subject policy
- * (`user_id = current_setting('app.current_user_id')`): a subject reads/writes
- * ONLY their own links ("where am I a customer?"). This proves the DATABASE
- * refuses cross-subject access — the per-subject analogue of the org-scoped
- * `rls-isolation.events.pg.integration.test.ts`.
- *
- * Two layers are proven:
- *   1. The DB policy directly, through a NON-superuser role (`oilio_links_app`,
- *      no BYPASSRLS — the production runtime shape) with `app.current_user_id`
- *      set per connection. The ephemeral Postgres connects as superuser, which
- *      bypasses RLS, so a proof over the superuser pool would be vacuous.
- *   2. The production helpers (`linkCustomerOrg` / `listLinkedOrgIds` /
- *      `isLinkedToOrg`) — idempotency of the link + per-subject reads. These run
- *      over the superuser pool (they set `app.current_user_id` themselves via
- *      `readAsSubject`), so they exercise the helper logic, not the policy.
- *
- * Seeding happens over the superuser pool (bypassing RLS) so fixtures exist
- * regardless of policy. OILIO_DATABASE_URL is set by the events-IT runner.
- */
-
 const APP_ROLE = 'oilio_links_app'
 const APP_PASSWORD = 'rls_test'
 
@@ -46,8 +22,6 @@ async function seedLink(userId: string, orgId: string): Promise<void> {
   )
 }
 
-// A fresh connection AS the non-superuser app role, with the per-subject GUC set
-// for the subject under test.
 async function subjectClient(userId: string): Promise<Client> {
   const c = new Client({ connectionString: appUrl })
   await c.connect()
@@ -100,7 +74,6 @@ describe('Postgres RLS isolation — org_links per-subject (brief 0062)', () => 
           `INSERT INTO org_links (user_id, org_id, linked_at) VALUES ($1, $2, '2026-01-01T00:00:00Z')`,
           [USER_B, ORG_B1],
         ),
-        // 42501 = insufficient_privilege (RLS WITH CHECK violation)
       ).rejects.toMatchObject({ code: '42501' })
     } finally {
       await a.end()
@@ -136,20 +109,15 @@ describe('org-links helpers — idempotency + per-subject reads', () => {
       [USER_A, ORG_A1],
     )
     expect(first.rowCount).toBe(1)
-    // `linked_at` is `timestamptz` (brief 0068 D1): the pg driver returns a
-    // `Date`, so normalize to ISO before the shape assertion.
     const firstLinkedAt = new Date(first.rows[0]!.linked_at).toISOString()
     expect(firstLinkedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
 
-    // Re-linking the same pair is a no-op — ON CONFLICT DO NOTHING keeps the row.
     await linkCustomerOrg(USER_A, ORG_A1)
     const second = await getEventStorePool().query<{ linked_at: string }>(
       'SELECT linked_at FROM org_links WHERE user_id = $1',
       [USER_A],
     )
     expect(second.rowCount).toBe(1)
-    // Same raw-read normalization as `firstLinkedAt` (the pg driver returns a
-    // `Date` for the `timestamptz` column): compare ISO-to-ISO.
     const secondLinkedAt =
       second.rows[0] == null ? null : new Date(second.rows[0].linked_at).toISOString()
     expect(secondLinkedAt).toBe(firstLinkedAt)
@@ -169,7 +137,6 @@ describe('org-links helpers — idempotency + per-subject reads', () => {
 
     const linked = await listLinkedOrgIds(USER_A)
     expect(linked.sort()).toEqual([ORG_A1, ORG_A2].sort())
-    // The other subject's link is NOT visible — per-subject scope.
     expect(linked).not.toContain(ORG_B1)
 
     expect(await isLinkedToOrg(USER_A, ORG_A1)).toBe(true)

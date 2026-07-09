@@ -3,8 +3,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cbrl/design'
 import { Cake } from 'lucide-react'
 
-// Birthday marker shown beside a person's name only on their birthday (gate with
-// `isBirthdayToday`). Icon-only; the tooltip + `aria-label` explain it.
 export function BirthdayIndicator() {
   return (
     <Tooltip>

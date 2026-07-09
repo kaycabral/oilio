@@ -12,15 +12,9 @@ export type CustomersPageData = {
   state: ListSurfaceState
 }
 
-// Imperative shell for the customers list route. Active customers only — a
-// blocked (LGPD #1100) or operator-deactivated (#1069) customer drops from the
-// management list; their history still resolves elsewhere. Search by name reads
-// from the URL (`q`); pagination is client-side.
 export async function loadCustomersPage(
   rawParams: { q?: string } = {},
 ): Promise<CustomersPageData> {
-  // Customers is a balcão/management surface (brief 0075): a self-scoped
-  // memberOperation (no `canManageCustomers`) is redirected; recepção/manager pass.
   const ctx = await requireCapabilityPage('canManageCustomers')
 
   const canDelete = canManageOrg(ctx.membership.role)
@@ -28,7 +22,6 @@ export async function loadCustomersPage(
   const allCustomers = (await listActiveCustomersForOrg(ctx.membership.orgId)).sort((a, b) =>
     a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }),
   )
-  // Search by name OR WhatsApp (functional core — see `searchCustomers`).
   const customers = searchCustomers(allCustomers, searchQuery)
   const state = resolveListSurfaceState({
     hasAnyData: allCustomers.length > 0,
@@ -38,9 +31,6 @@ export async function loadCustomersPage(
   return { customers, searchQuery, canDelete, state }
 }
 
-// Imperative shell for the read-only detail route — resolves the customer or
-// null (404). Same capability wall as the list. The establishment only consults
-// a customer (#1279); editing the data belongs to the customer (#1278).
 export async function loadCustomerForView(customerId: string): Promise<Customer | null> {
   const ctx = await requireCapabilityPage('canManageCustomers')
   return getCustomerById(ctx.membership.orgId, customerId)

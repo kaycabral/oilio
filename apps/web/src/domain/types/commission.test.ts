@@ -11,8 +11,6 @@ describe('liquidationStatusOf', () => {
     expect(liquidationStatusOf({ liquidationStatus: 'pago' })).toBe('pago')
   })
 
-  // Migração (brief 0022 #998): nenhum estado legado de split foi liquidado via
-  // gateway, então todos mapeiam para `pendente` na leitura.
   it.each(['auto_split', 'simulated_split', 'manual_only', 'manual_pending', 'manual_done'])(
     'mapeia estado legado %s para pendente',
     (legacy) => {

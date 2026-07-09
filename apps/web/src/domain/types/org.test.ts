@@ -6,10 +6,6 @@ import {
   normalizeOrgBranding,
 } from './org'
 
-// NOTE: cancellation-policy + slotMinutes helpers moved Org→Unit (context 3) —
-// their tests now live in `unit.test.ts`. The Org is a pure folder (no agenda /
-// self-booking config), so this file only covers branding + the public URL guard.
-
 describe('isValidPublicHttpUrl', () => {
   it('accepts http and https', () => {
     expect(isValidPublicHttpUrl('https://cdn.example.com/logo.png')).toBe(true)

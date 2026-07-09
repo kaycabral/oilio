@@ -19,13 +19,6 @@ async function runSteps(steps: SagaStep[]): Promise<{
   return { store, events }
 }
 
-/**
- * Pure unit test for the offboard saga STEP BUILDER (brief 0061 § Grupo C). It
- * turns the resolved cascade (membership + memberOperation + appointments + blocks +
- * invites) into an ordered `SagaStep[]` — pure, no I/O. The ACID rollback
- * behavior is covered by `domain/effect/saga.test.ts` and the integration suite.
- */
-
 describe('buildOffboardSteps', () => {
   it('a member with no memberOperation projection is just the membership revoke', () => {
     const resolved: ResolvedOffboard = {
@@ -53,9 +46,6 @@ describe('buildOffboardSteps', () => {
       inviteIds: ['inv-1'],
     }
     const steps = buildOffboardSteps(resolved, 't1', 'actor')
-    // membership revoke + 2 appointments + 1 block + 1 invite. No
-    // `member_operation.suspended` step (#1226 AC-02): operationalStatus is derived
-    // on read and the revoked membership already severs operability.
     expect(steps).toHaveLength(5)
   })
 
@@ -78,7 +68,6 @@ describe('buildOffboardSteps', () => {
     expect(store.get(docKey(aggregateRef(AppointmentConfig, 't1', 'apt-1')))).toMatchObject({
       status: 'cancelled',
     })
-    // agenda_block + invite were `.deleted` → row dropped (event kept).
     expect(store.get(docKey(blockRef))).toBeUndefined()
     expect(events.get(docKey(blockRef))).toHaveLength(1)
     expect(store.get(docKey(aggregateRef(InviteConfig, 't1', 'inv-1')))).toBeUndefined()

@@ -14,7 +14,6 @@ describe('request-context', () => {
       getRequestContext(),
     )
     expect(seen).toEqual({ correlationId: 'c1', orgId: 'o1' })
-    // Scope closed — back to undefined.
     expect(getRequestContext()).toBeUndefined()
   })
 
@@ -54,7 +53,6 @@ describe('correlationIdFromHeaders', () => {
     const a = correlationIdFromHeaders(new Headers())
     const b = correlationIdFromHeaders(new Headers())
     expect(a).toBeTruthy()
-    // Two calls with no header yield two distinct UUIDs.
     expect(a).not.toBe(b)
   })
 

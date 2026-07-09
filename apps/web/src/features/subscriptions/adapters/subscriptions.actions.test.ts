@@ -1,16 +1,3 @@
-// Unit tests pro server action `changeSubscriptionPlan` (ADR 0010, D5 / AC-07).
-//
-// A troca de plano é event-first: a action emite `subscription.plan_changed`
-// com um snapshot FRESCO do plano de destino (via `buildPlanSnapshot`) — nunca
-// write direto. O teste assere o domain event emitido + as guardas (RBAC,
-// assinatura cancelada, mesmo plano, plano inexistente/inativo).
-//
-// Pós-cutover (#1202) Postgres é o único backend: a assinatura é lida do
-// projection tipado via `readUnderRls` (mockado pra devolver uma row já no
-// shape de projector) e o plano de destino via `getSubscriptionPlanById`
-// (mockado). `emitEvent` é mockado (sem DB). `buildPlanSnapshot` roda de verdade
-// (é puro) pra garantir que o payload carrega um snapshot real.
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type EmitArgs = [unknown, string, { _tag: string; payload: Record<string, unknown> }]
@@ -63,9 +50,6 @@ const CURRENT_PLAN_SNAPSHOT = {
   usageLimit: { kind: 'unlimited' as const },
 }
 
-// A typed `subscriptions` projection row (the shape `readUnderRls` returns and
-// `subscriptionRowToDoc`+decode round-trips). `getSubscriptionById` SELECTs by
-// `aggregate_path`, so a single row stands for the looked-up subscription.
 function subscriptionRow({
   status,
   plan = CURRENT_PLAN_SNAPSHOT,
@@ -100,8 +84,6 @@ function subscriptionRow({
   }
 }
 
-// Stub the subscription read (`readUnderRls`) + the target-plan read
-// (`getSubscriptionPlanById`). `subscription === null` → no row (not found).
 function stubReads({ subscription, plan }: { subscription: unknown; plan?: unknown }) {
   mocks.readUnderRls.mockResolvedValue(subscription === null ? [] : [subscription])
   mocks.getSubscriptionPlanById.mockResolvedValue(plan ?? null)
@@ -113,10 +95,6 @@ beforeEach(() => {
 
 describe('createSubscription — tier gate (brief 0088)', () => {
   it('rejeita no tier Free: assinar CONSOME plans.recurring (parede de backend)', async () => {
-    // A Pro→Free downgrade keeps the plan rows; the server action is the real
-    // wall. The tier wall now lives IN `requireRecurringManagerCtx` (RBAC + tier),
-    // so a rejection there short-circuits BEFORE any plan/customer read or event.
-    // (The wall's own tier logic is covered by `require-capability.test.ts`.)
     mocks.requireRecurringManagerCtx.mockResolvedValue({
       ok: false,
       error: 'Planos e assinaturas estão disponíveis no plano Pro. Faça upgrade para continuar.',
@@ -129,7 +107,6 @@ describe('createSubscription — tier gate (brief 0088)', () => {
 
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error).toContain('Pro')
-    // The gate short-circuits: no plan/customer read, no event.
     expect(mocks.getSubscriptionPlanById).not.toHaveBeenCalled()
     expect(mocks.emitEvent).not.toHaveBeenCalled()
   })
@@ -236,7 +213,6 @@ describe('changeSubscriptionPlan', () => {
     expect(planRecord.planId).toBe('plan-b')
     expect(planRecord.priceCents).toBe(15000)
     expect(planRecord.includedItemIds).toEqual(['svc-corte', 'svc-barba'])
-    // Preserva o ciclo de cobrança contratado (monthly), não o do plano destino.
     expect(planRecord.billingCycle).toBe('monthly')
   })
 })

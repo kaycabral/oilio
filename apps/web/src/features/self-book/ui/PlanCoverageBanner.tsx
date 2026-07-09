@@ -1,10 +1,5 @@
 import type { AllowedTimeScope, BookingLimits, StoredUnit } from '@/domain'
 
-// Brief 0019 Group D — AC-16. Discreet banner that reminds the
-// subscribed customer of the coverage they actually have on this
-// org. Server component — receives the already-resolved scope.
-// Skips render entirely when every axis is unrestricted (avulso path
-// or unrestricted plan): the avulso UX must not change.
 export function PlanCoverageBanner({
   unitAllowlist,
   allowedTimeScope,
@@ -14,9 +9,6 @@ export function PlanCoverageBanner({
   unitAllowlist: Set<string> | null
   allowedTimeScope: AllowedTimeScope | null
   bookingLimits: BookingLimits | null
-  // Full list of units in the org — used to translate allow-listed
-  // ids into human names. Order is rendered as-is (loader already sorts
-  // by name).
   units: StoredUnit[]
 }) {
   const parts: string[] = []
@@ -43,12 +35,6 @@ export function PlanCoverageBanner({
     const d = allowedTimeScope.advanceBookingDays
     parts.push(`até ${d} ${d === 1 ? 'dia' : 'dias'} de antecedência`)
   }
-  // Only `maxPerDay` is surfaced here. `maxConcurrent` and
-  // `requireCompleteBeforeNext` are deliberately omitted — they're
-  // behavioral guardrails against vaga-segurando (anti-abuse), not
-  // shape of "what the plan covers". Surfacing them in a coverage
-  // pitch would muddle the message; the enforcement message at
-  // booking time already explains the rule in context.
   if (typeof bookingLimits?.maxPerDay === 'number' && bookingLimits.maxPerDay > 0) {
     const n = bookingLimits.maxPerDay
     parts.push(`${n} ${n === 1 ? 'agendamento' : 'agendamentos'} por dia`)
@@ -68,9 +54,6 @@ export function PlanCoverageBanner({
   )
 }
 
-// "Alvorada" → "Alvorada"
-// "Alvorada", "Djalma" → "Alvorada e Djalma"
-// "A", "B", "C" → "A, B e C"
 function formatUnitsList(names: string[]): string {
   if (names.length === 0) return ''
   if (names.length === 1) return names[0]!
@@ -80,7 +63,6 @@ function formatUnitsList(names: string[]): string {
   return `${head} e ${tail}`
 }
 
-// JS weekday index (0 = Sun … 6 = Sat) → short pt-BR label.
 const WEEKDAY_SHORT_PT: Record<number, string> = {
   0: 'dom',
   1: 'seg',
@@ -91,13 +73,8 @@ const WEEKDAY_SHORT_PT: Record<number, string> = {
   6: 'sáb',
 }
 
-// Pretty-print a sorted list of weekday indexes. Collapses contiguous
-// Monday-Friday into "seg a sex" — the most common case — and falls
-// back to a comma list otherwise. Doesn't try to be clever with other
-// ranges (eg. "ter a qui"): not worth the cognitive cost for a banner.
 function formatDaysOfWeek(days: readonly number[]): string {
   const sorted = [...days].sort((a, b) => a - b)
-  // Monday-to-Friday collapses regardless of order in input.
   if (
     sorted.length === 5 &&
     sorted[0] === 1 &&
@@ -114,7 +91,6 @@ function formatDaysOfWeek(days: readonly number[]): string {
     .join(', ')
 }
 
-// "08:00" → "08h", "08:30" → "08h30".
 function formatHHmmPt(hhmm: string): string {
   const [h, m] = hhmm.split(':')
   if (!h || !m) return hhmm

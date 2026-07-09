@@ -92,7 +92,6 @@ describe('deriveProfilePrefill (progressive profiling — brief 0077 #1277)', ()
       birthDate: '1990-05-05',
     })
     expect(p.missing).toEqual(['name'])
-    // The single char is still carried so the customer edits rather than retypes.
     expect(p.name).toBe('M')
   })
 

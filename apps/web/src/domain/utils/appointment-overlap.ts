@@ -1,11 +1,3 @@
-// Conflict detection for a new/edited appointment against existing appointments
-// and agenda blocks. Operates on ISO-UTC instants — callers convert org-local
-// inputs to UTC before calling.
-//
-// Semantics: half-open intervals [start, end). Two intervals overlap when
-// `a.start < b.end && b.start < a.end`. Equal boundaries (back-to-back) DO NOT
-// overlap — booking at 10:00 right after a 09:00–10:00 appointment is allowed.
-
 import type { BlockSegment } from './agenda-blocks'
 import { toOrgTime } from './timezone'
 
@@ -14,9 +6,6 @@ export type AppointmentInterval = {
   endAt: string
 }
 
-// The minimal projection of an existing appointment overlap detection needs —
-// a full `Appointment` is structurally assignable. Keeping the contract narrow
-// lets callers decode only these fields at the read boundary.
 export type AppointmentForOverlap = {
   readonly id: string
   readonly memberOperationId: string
@@ -67,13 +56,8 @@ function blockConflicts({
   if (proposedStart.dateISO !== date) return []
   const proposedEnd = toOrgTime(proposed.endAt, tz)
   const startMin = proposedStart.hour * 60 + proposedStart.minute
-  // If the proposed interval crosses midnight, clip at 1440 — anything past
-  // belongs to the next day and is handled by that day's segments.
   const endMin = proposedEnd.dateISO === date ? proposedEnd.hour * 60 + proposedEnd.minute : 1440
 
-  // Block segments are minutes-from-midnight on the target date. A segment
-  // conflicts when it overlaps [startMin, endMin) and applies to this
-  // memberOperation (unit-wide or matching id).
   return blockSegments
     .filter(
       (seg) =>
@@ -84,12 +68,6 @@ function blockConflicts({
     .map((seg) => ({ kind: 'block', blockId: seg.blockId, reason: seg.reason }))
 }
 
-// Finds appointments and blocks that overlap the proposed interval for a given
-// memberOperation on a given local day. Cancelled appointments are ignored.
-//
-// - `existing` should be pre-filtered to the same unit + memberOperation + day.
-// - `blockSegments` are already resolved for the day in org tz.
-// - `excludeAppointmentId` skips a specific appointment id (for edit flows).
 export function findAppointmentConflicts({
   proposed,
   memberOperationId,

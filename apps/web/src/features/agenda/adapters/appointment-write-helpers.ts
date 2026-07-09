@@ -1,9 +1,3 @@
-// Internal write/saga helpers for the agenda booking actions — extracted from
-// the 'use server' module so it stays under the module-size gate. These are NOT
-// server actions (never form-invoked directly); they're the imperative-shell
-// helpers the actions compose. `AppointmentMutationResult` is type-only imported
-// back from ./actions (erased at compile — no runtime cycle).
-
 import { revalidatePath } from 'next/cache'
 
 import type { Appointment, MemberOperation, resolveCatalogItemForUnit } from '@/domain'
@@ -36,8 +30,6 @@ export type AppointmentMutationResult =
   | { ok: true; appointmentId: string }
   | { ok: false; error: string; conflicts?: string[] }
 
-// Surfaces the per-org CUSTOMER write-guard (brief 0032, AC-11) as an action
-// error instead of a thrown `AuthzError`. Returns null when allowed.
 export async function guardCustomerNotBlocked(
   orgId: string,
   customerId: string,
@@ -53,14 +45,8 @@ export async function guardCustomerNotBlocked(
   }
 }
 
-// The "pick existing OR register new inline" resolver moved to
-// `@/shared/org/resolve-customer-for-write` (brief 0081/#1323), so the walk-in
-// order path shares the exact same logic + `canManageCustomers` gate. Re-exported
-// here under the original name to keep this module's call-sites stable.
 export { resolveCustomerIdForWrite as resolveAppointmentCustomerId } from '@/shared/org/resolve-customer-for-write'
 
-// Helpers return `T | string` (error message) — the form-parser convention used
-// across this app (see `parseAppointmentForm`).
 export async function loadActiveCatalogService(
   orgId: string,
   serviceId: string,
@@ -72,14 +58,6 @@ export async function loadActiveCatalogService(
   return item
 }
 
-// Booking gate: only a BOOKABLE member takes bookings — re-checked on update too
-// (owner could move an appointment onto a non-bookable member). Post brief 0076
-// "bookable" is the capability `canBeBooked` ∧ operational readiness (the retired
-// `BookableProfessional` brand's contract, now a server-side gate): the agenda
-// read filters on exactly this (`listBookableMemberOperationsForOrg`), so the write
-// path must enforce it too — a member soft-disabled via `canBeBooked=false`
-// stays out of the grid AND can't receive a booking through a stale form / deep
-// link. Mirrors the read invariant so the two can't drift.
 export async function loadApprovedMemberOperation(
   orgId: string,
   memberOperationId: string,
@@ -96,9 +74,6 @@ export async function loadApprovedMemberOperation(
   return memberOperation
 }
 
-// Pre-flight conflict check (blocks + appointment overlap) for a proposed slot.
-// Returns a staff-friendly error + labels, or null when the slot is free. The
-// in-transaction check at commit time is the authoritative one under contention.
 export async function checkSlotConflicts(args: {
   orgId: string
   org: { timezone: string }
@@ -110,17 +85,10 @@ export async function checkSlotConflicts(args: {
   const { orgId, org, parsed, startAt, endAt, excludeAppointmentId } = args
   const { startUtc: dayStart, endUtc: dayEnd } = getOrgDayBoundsUtc(parsed.date, org.timezone)
   const [existing, blocks] = await Promise.all([
-    // The authoritative anti-double-book is the DB exclusion constraint at commit
-    // time; this is the staff-friendly pre-flight. Reads the professional's day
-    // CROSS-UNIT (#1313): the constraint scopes by member_operation regardless of
-    // unit, so a slot they already fill in another unit must conflict here too —
-    // otherwise the picker offers it and the commit rejects with a misleading
-    // "just taken" error. `findAppointmentConflicts` filters by memberOperation.
     listMemberOperationAppointmentsInRange(orgId, parsed.memberOperationId, {
       startUtc: dayStart,
       endUtc: dayEnd,
     }),
-    // Blocks stay unit-scoped — a block is a physical closure of THIS unit.
     listAgendaBlocksForUnit(orgId, parsed.unitId),
   ])
   const blockSegments = getBlockSegmentsForDay(blocks, parsed.date, org.timezone)
@@ -140,9 +108,6 @@ export async function checkSlotConflicts(args: {
   return { error: `Conflito com ${labels.join(', ')}`, conflicts: labels }
 }
 
-// Persist the edit event-first: refresh denormalized userIds when the customer
-// or memberOperation changed, emit `appointment.updated` (diff of mutable fields),
-// and add `appointment.rescheduled` when the start instant moved.
 export async function persistAppointmentUpdate(args: {
   orgId: string
   actorUid: string
@@ -153,9 +118,6 @@ export async function persistAppointmentUpdate(args: {
   endAt: string
   resolved: ReturnType<typeof resolveCatalogItemForUnit>
   serviceOrUnitChanged: boolean
-  // Own-scope RLS for the write (brief 0075, #1265) — forwarded to every event
-  // append so a self-scoped editor's writes pass the DB own-scope WITH CHECK.
-  // Undefined for the balcão (permissive).
   security?: WriteSecurity
 }): Promise<AppointmentMutationResult> {
   const { orgId, actorUid, appointmentId, parsed, previous, startAt, endAt, resolved, security } =

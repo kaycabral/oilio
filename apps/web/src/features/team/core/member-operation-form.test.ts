@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseMemberOperationForm, type MemberOperationPayload } from './member-operation-form'
 
-// Builds a FormData; array values are appended (so getAll works).
 function form(fields: Record<string, string | string[]>): FormData {
   const fd = new FormData()
   for (const [k, v] of Object.entries(fields)) {
@@ -11,8 +10,6 @@ function form(fields: Record<string, string | string[]>): FormData {
   return fd
 }
 
-// Narrows `MemberOperationPayload | string` without a cast: a rejection returns an
-// error string, so a successful parse is "not a string".
 function asPayload(r: MemberOperationPayload | string): MemberOperationPayload {
   if (typeof r === 'string') throw new Error(`expected a parsed memberOperation, got: ${r}`)
   return r

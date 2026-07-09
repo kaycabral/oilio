@@ -12,18 +12,11 @@ export type PlanLite = {
   active: boolean
 }
 
-// Lightweight loaders pra alimentar o form de criar assinatura sem expor
-// uma server action RPC (chamados apenas em server components).
 export async function loadCustomersAndPlans(
   orgId: string,
 ): Promise<{ customers: CustomerLite[]; plans: PlanLite[] }> {
   const [customers, plans] = await Promise.all([
-    // Active only — a blocked (LGPD) or operator-deactivated customer can't back
-    // a NEW subscription, mirroring the plan active-filter below. History still
-    // resolves both via the unfiltered read.
     listActiveCustomersForOrg(orgId),
-    // Backend-aware (brief 0060, Grupo B): Postgres typed table under RLS or the
-    // Firestore subcollection, both ordered by name.
     listSubscriptionPlansForOrg(orgId),
   ])
   return {
@@ -31,8 +24,6 @@ export async function loadCustomersAndPlans(
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
       .map((c) => ({ id: c.id, name: c.name })),
     plans: plans
-      // Active + not archived (brief 0027, AC-06) — a retired plan can't back
-      // a new subscription, but its snapshot still resolves historical ones.
       .filter((p) => p.active && !p.archivedAt)
       .map((p) => ({
         id: p.id,

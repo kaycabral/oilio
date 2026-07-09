@@ -8,23 +8,6 @@ import { registerTypedProjector, type TypedProjector } from './typed-projections
 
 const decodeNotificationState = Schema.decodeUnknownSync(NotificationState)
 
-/**
- * Typed projector for the `notification` context (brief 0060, Grupo C) — plugged
- * into the per-context typed-projection registry without reopening the
- * `PersistencePort`.
- *
- * `upsert` decodes the reduced `state` against the domain `NotificationState`
- * schema at the driver boundary (schema-validated, same pattern as the other 7
- * projectors). The `type`/`source` discriminants + reference ids + lifecycle
- * timestamps are columns the DB constrains; the opaque `payload` and the dispatch
- * snapshot ride in JSONB. No PII (payload references ids, never personal data
- * inline — ADR 0010). The DB enforces the enums — a violation rolls back event +
- * projection together. `NotificationState` has no `updatedAt` (the aggregate
- * doesn't track one), so the `updated_at` column mirrors `createdAt`.
- */
-
-/** The ordered `notifications` column list — single source of truth for the
- * runtime upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1. */
 export const NOTIFICATION_COLUMNS = [
   'org_id',
   'id',
@@ -46,9 +29,6 @@ export const NOTIFICATION_COLUMNS = [
   'updated_at',
 ] as const
 
-// Decode the reduced notification doc against the domain `NotificationState`
-// schema at this single driver boundary — schema-validated, so no cast leaks
-// into product code (same pattern as the other 7 typed projectors).
 function asState(state: FirestoreDoc): NotificationState {
   return decodeNotificationState(state)
 }
@@ -59,7 +39,6 @@ export function notificationColumnValues(
   version: number,
 ): unknown[] {
   const n = asState(state)
-  // Dispatch snapshot rides in JSONB — null while not dispatched.
   const dispatch =
     n.dispatchedChannel === null && n.dispatchedBody === null
       ? null
@@ -105,7 +84,6 @@ async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc
   await client.query(UPSERT, notificationColumnValues(state, ref, stateVersion(state)))
 }
 
-// Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type NotificationRow = {
   org_id: string
   id: string
@@ -163,9 +141,6 @@ async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
   await client.query('DELETE FROM notifications WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-// Org-scoped collection scan (the `notification` {@link CollectionRef}): filters on
-// `ref.orgId` under RLS, then translates the domain constraints (`where type/eventKey/unitId
-// ==`, `where subscriptionId ==`, `where dispatchedAt == null`, `limit`) to SQL.
 async function list(
   client: PoolClient,
   ref: CollectionRef,

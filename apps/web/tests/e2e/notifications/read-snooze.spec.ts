@@ -1,9 +1,3 @@
-// E2E spec — sub-issue #958 do brief 0018 (Grupo D).
-//
-// AC via browser real:
-// - AC-16: "marcar como lida" remove do popover (order_stale — sem ação WA)
-// - AC-17: "adiar" oculta do popover
-
 import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import type { NotificationState, NotificationType } from '@/domain/aggregates/notification/types'
 import { aggregateRef } from '@/domain/effect'
@@ -15,10 +9,6 @@ import type { Page } from '@playwright/test'
 import { randomBytes } from 'node:crypto'
 import { expect, test } from '../fixtures'
 
-// Seeds an `order_stale` notification straight into the Postgres event store
-// (post-cutover): one tx writing the `notification.created` event (version 1)
-// plus the typed `notifications` projection row, using the same column helpers
-// the runtime projector writes (so the seed can't drift from production).
 async function seedNotification(
   orgId: string,
   unitId: string,
@@ -86,9 +76,6 @@ async function seedNotification(
 
 async function openBellWithItem(authedPage: Page) {
   await authedPage.goto('/agenda')
-  // Opening the popover refetches /api/notifications (the bell fetches on mount
-  // AND on open), so we don't need to reload/sleep for the seeded item — wait
-  // deterministically for that fetch to settle, then assert.
   const loaded = authedPage.waitForResponse((r) => /\/api\/notifications\?/.test(r.url()) && r.ok())
   await authedPage.getByRole('button', { name: 'Notificações' }).click()
   await loaded

@@ -19,8 +19,6 @@ const decodeCommission = Schema.decodeUnknownSync(Commission)
 
 export type MarkPaidResult = { ok: true; markedCount: number } | { ok: false; error: string }
 
-// Plano Oilio gate (brief 0072): commission settlement is a Pro+ capability.
-// Returns an error result when the tier lacks `commissions`, or null when allowed.
 async function assertCommissionsCapability(orgId: string): Promise<MarkPaidResult | null> {
   const tier = await getOrgTier(orgId)
   if (!hasCapability(tier, 'commissions')) {
@@ -32,8 +30,6 @@ async function assertCommissionsCapability(orgId: string): Promise<MarkPaidResul
   return null
 }
 
-// READ of the commissions to be marked paid (a member's window). The write stays
-// on the event-store port (`emitEvent` below).
 async function loadMemberCommissionsInWindow(
   orgId: string,
   attributedUserId: string,
@@ -53,8 +49,6 @@ async function loadMemberCommissionsInWindow(
   return rows.map((r) => decodeCommission(commissionRowToDoc(r)))
 }
 
-// READ a single commission by id under RLS (the unit-mark imutability guard).
-// Mirrors the projection-read pattern; returns null when it doesn't exist.
 async function getCommissionById(orgId: string, commissionId: string): Promise<Commission | null> {
   const rows = await readUnderRls<CommissionRow>(orgId, (client) =>
     client
@@ -68,16 +62,6 @@ async function getCommissionById(orgId: string, commissionId: string): Promise<C
   return row ? decodeCommission(commissionRowToDoc(row)) : null
 }
 
-// AC-03 (brief 0022 #999): o owner marca uma comissão — ou um lote por
-// membro/período — como `pago`. Cada comissão pendente emite `commission.updated`
-// carregando `liquidationStatus: pago` + `paidAt` + `paymentProof` opcional
-// (event-first, sem write direto). Comissões já `pago` são imutáveis: ficam de
-// fora do lote silenciosamente (idempotência) e uma marcação explícita de uma
-// comissão paga é rejeitada com erro à mostra.
-//
-// O batch é a gestão canônica do owner ("marcar pago por membro/período"): paga
-// tudo o que está pendente no recorte, num gesto só. A chave do lote é o membro
-// (`attributedUserId`, brief 0030 AC-07) — qualquer papel, não só MemberOperation.
 export async function markCommissionsPaid(formData: FormData): Promise<MarkPaidResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return { ok: false, error: r.error }
@@ -105,8 +89,6 @@ export async function markCommissionsPaid(formData: FormData): Promise<MarkPaidR
     toIso,
   )
 
-  // Só as pendentes entram no lote — uma comissão já paga é imutável e fica
-  // intocada (idempotência: re-rodar o lote não duplica nem reverte pagamentos).
   const pending = commissions.filter((c) => liquidationStatusOf(c) === 'pendente')
   if (pending.length === 0) {
     return { ok: false, error: 'Nenhuma comissão pendente no período para este membro' }
@@ -131,9 +113,6 @@ export async function markCommissionsPaid(formData: FormData): Promise<MarkPaidR
   return { ok: true, markedCount }
 }
 
-// Marca UMA comissão específica como paga (AC-03 — caso unitário). Guarda de
-// imutabilidade explícita: rejeita se já estiver `pago` (não silenciosa, ao
-// contrário do batch que só pula). Mesmo evento `commission.updated`.
 export async function markCommissionPaid(formData: FormData): Promise<MarkPaidResult> {
   const r = await requireOwnerCtx()
   if (!r.ok) return { ok: false, error: r.error }
@@ -151,8 +130,6 @@ export async function markCommissionPaid(formData: FormData): Promise<MarkPaidRe
   const commission = await getCommissionById(r.ctx.membership.orgId, commissionId)
   if (!commission) return { ok: false, error: 'Comissão não encontrada' }
 
-  // Imutabilidade após pago (AC-03): uma comissão paga não pode ser re-marcada
-  // nem editada — a tentativa volta como erro à mostra.
   if (liquidationStatusOf(commission) === 'pago') {
     return { ok: false, error: 'Comissão já paga é imutável' }
   }
@@ -174,8 +151,6 @@ export async function markCommissionPaid(formData: FormData): Promise<MarkPaidRe
   return { ok: true, markedCount: 1 }
 }
 
-// useActionState wrapper (Pattern B) — o relatório dispara o lote via
-// `<form action>` e renderiza o resultado/erro inline sem navegar.
 export type MarkPaidFormState = { ok: boolean; error?: string; markedCount?: number }
 
 export async function markCommissionsPaidFormAction(

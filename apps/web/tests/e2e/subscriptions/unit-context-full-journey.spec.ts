@@ -1,17 +1,3 @@
-// Feature-level E2E — brief 0043 (assinatura por unidade), parent #1116.
-//
-// Valida o § Definition of Done do brief — princípio canônico #11 (DoD é
-// contrato) + #15 (parent issue tem sua PR Feature-level). As sub-issues
-// #1117 (modelo) e #1118 (leitura) já passaram em E2Es próprios; este spec
-// cruza os componentes (criação → persistência → dashboard → stream de eventos)
-// pra pegar bugs de integração que os granulares não detectam.
-//
-// Cenários canonicamente declarados em
-// [brief § DoD](https://gitlab.com/cbrl/cbrl/-/wikis/Produto/Funcionalidades/0043-assinatura-por-unidade):
-//   - Cenário 1 [critical]: assinatura nasce na unidade ativa (sub + charge)
-//   - Cenário 2 [critical]: MRR reflete só a unidade ativa
-//   - Cenário 3 [critical]: replay reconstrói o unitId (event-first)
-
 import { SubscriptionConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import type { Page } from '@playwright/test'
@@ -28,18 +14,12 @@ import {
   setActiveUnitCookie,
 } from '../helpers/session'
 
-// The `subscription.created` event envelope as returned by `pgReadEventStream`:
-// the event body lives flat under `payload` ({ _tag, ...payload }), so `unitId`
-// is read off `payload.unitId`. Lenient struct — only the sub-fields the assert
-// touches are described; the richer real envelope decodes fine.
 const EventEnvelope = Schema.Struct({
   _tag: Schema.String,
   payload: Schema.Struct({ unitId: Schema.optional(Schema.String) }),
 })
 const decodeEvent = Schema.decodeUnknownSync(EventEnvelope)
 
-// The projection's `unit_id` is the only source of `unitId` — the projection is
-// rebuilt from the `subscription.created` event payload (event-first).
 async function createdEventUnitId(orgId: string, subId: string): Promise<string | undefined> {
   const stream = await pgReadEventStream(aggregateRef(SubscriptionConfig, orgId, subId))
   for (const raw of stream) {
@@ -50,8 +30,6 @@ async function createdEventUnitId(orgId: string, subId: string): Promise<string 
   return undefined
 }
 
-// Reads the persisted subscription projection's `unit_id` (snake_case Postgres
-// column), or undefined when the row/column is absent.
 async function projectedUnitId(orgId: string, subId: string): Promise<string | undefined> {
   const row = await pgReadProjection(
     'subscriptions',
@@ -89,10 +67,8 @@ test.describe(
 
       const subId = authedPage.url().split('/subscriptions/')[1]!.split(/[/?#]/)[0]!
 
-      // Assinatura criada pelo fluxo real carrega a unidade ativa (AC-01).
       expect(await projectedUnitId(org.orgId, subId)).toBe(unitA)
 
-      // O Charge do ciclo snapshota o MESMO unitId (AC-02).
       const charges = await pgQueryProjection('charges', 'subscription_id', subId)
       expect(charges).toHaveLength(1)
       expect(charges[0]!.unit_id).toBe(unitA)
@@ -141,10 +117,6 @@ test.describe(
 
       const subId = authedPage.url().split('/subscriptions/')[1]!.split(/[/?#]/)[0]!
 
-      // Event-first: o `subscription.created` carrega o unitId, e a projeção
-      // (doc operacional) é idêntica a ele — provando que o estado reconstrói a
-      // partir do stream. (A igualdade campo-a-campo do replayAggregate é o teste
-      // de domínio `subscription/reducer` + `charge-replay`.)
       const eventUnitId = await createdEventUnitId(org.orgId, subId)
       const projected = await projectedUnitId(org.orgId, subId)
       expect(eventUnitId).toBe(unitA)

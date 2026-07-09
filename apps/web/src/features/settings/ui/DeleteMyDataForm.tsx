@@ -10,10 +10,6 @@ import { toast } from 'sonner'
 
 const CONFIRM_WORD = 'EXCLUIR'
 
-// Self-service erasure (brief 0032 / AC-07). Requires the subject to type a
-// confirmation word — the operation is irreversible (no reverse map, art. 12).
-// On success the session is destroyed and the user is bounced to /login: the
-// account no longer holds any PII to operate with.
 export function DeleteMyDataForm() {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -30,9 +26,6 @@ export function DeleteMyDataForm() {
         setError(res.error)
         return
       }
-      // No PII left — tear the session down and leave the app. Surface the
-      // informed-consent fact (brief 0032 / #1101, AC-12) when an active
-      // subscription was cancelled as part of the erasure cascade.
       await fetch('/api/session', { method: 'DELETE' }).catch(() => {})
       await signOut(getClientAuth()).catch(() => {})
       toast.success(

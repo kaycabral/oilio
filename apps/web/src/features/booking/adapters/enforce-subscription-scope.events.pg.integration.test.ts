@@ -1,17 +1,3 @@
-// Postgres integration test for enforceSubscriptionScope (re-substrated to
-// Postgres by the cutover, #1202).
-//
-// Valida que a recepção (/agenda) respeita as mesmas regras de plano que o
-// self-book — brief 0019, decisão 2026-05-22 (#960/#963) que removeu o bypass
-// histórico. Runs against the ephemeral `oilio` Postgres (OILIO_DATABASE_URL);
-// the event-store globalSetup applies the migrations.
-//
-// The read chain under test: getCustomerUserId (customers table) →
-// resolveCustomerSubscriptionScope (subscriptions, by customer_user_id) →
-// checkBookingLimits (appointments, by customer_id). All three projections are
-// seeded directly over the superuser pool (the runtime RLS shape is proven in
-// the dedicated isolation suites).
-
 import { isItemCoveredWithBalance, type SubscriptionPlanSnapshot } from '@/domain'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -48,9 +34,6 @@ async function seedOrg(orgId: string): Promise<void> {
   )
 }
 
-// Parent rows the new D2/0068 cross-aggregate FKs require: subscriptions.unit_id
-// → units (the seed uses 'unit-a'); appointments reference unit 'u1', memberOperation
-// 'p1' and service 's1'. Seeded over the superuser pool in beforeEach.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
@@ -92,9 +75,6 @@ async function seedCustomer(orgId: string, customerId: string, userId: string): 
   )
 }
 
-// Brief 0079 coverage tests need >1 subscription per customer and a non-zero
-// consumed count. `id`/`consumed` default to the historical values, so the
-// gating tests keep calling with the same 4 positional args.
 async function seedSubscription(
   orgId: string,
   customerId: string,
@@ -267,10 +247,6 @@ describe('enforceSubscriptionScope — Postgres', () => {
   })
 })
 
-// Brief 0079, Grupo A (#1305). The resolver now exposes, on top of the gating
-// axes, a `coverage[]` entry per scope-bearing subscription (frozen item/category
-// snapshot + period balance). The recognition layer derives "covered with
-// balance" from it; the gating result must stay byte-for-byte the same (additive).
 describe('resolveCustomerSubscriptionScope — coverage (brief 0079)', () => {
   let orgId: string
 
@@ -313,7 +289,6 @@ describe('resolveCustomerSubscriptionScope — coverage (brief 0079)', () => {
         remaining: 3,
       },
     ])
-    // Recognition predicate sees the item as covered-with-balance.
     expect(
       isItemCoveredWithBalance(scope.coverage, { id: 'item-corte', categoryId: 'cat-x' }),
     ).toBe(true)
@@ -352,9 +327,6 @@ describe('resolveCustomerSubscriptionScope — coverage (brief 0079)', () => {
   })
 
   it('excludes a past_due subscription from coverage — badge must match the charge', async () => {
-    // A past_due plan (unpaid) still shapes the gating axes (shipped 0019), but
-    // it does NOT feed recognition: the comanda's `active`-only charge would not
-    // honor it, so the wizard must not badge it (brief 0079, review #1335).
     await seedSubscriptionRow({
       orgId,
       customerId: 'c1',
@@ -366,7 +338,6 @@ describe('resolveCustomerSubscriptionScope — coverage (brief 0079)', () => {
       status: 'past_due',
     })
     const scope = await resolveCustomerSubscriptionScope(orgId, CUSTOMER_USER_ID)
-    // Recognition is empty (no badge), even though the subscription is scope-bearing.
     expect(scope.coverage).toEqual([])
     expect(isItemCoveredWithBalance(scope.coverage, { id: 'item-corte', categoryId: null })).toBe(
       false,
@@ -397,7 +368,6 @@ describe('resolveCustomerSubscriptionScope — coverage (brief 0079)', () => {
     })
     const scope = await resolveCustomerSubscriptionScope(orgId, CUSTOMER_USER_ID)
     expect(scope.coverage).toHaveLength(2)
-    // Corte: covered with balance (unlimited). Barba: covered but exhausted.
     expect(isItemCoveredWithBalance(scope.coverage, { id: 'item-corte', categoryId: null })).toBe(
       true,
     )

@@ -8,8 +8,6 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
   const { id } = await params
   const data = await loadEditPlanPage(id)
 
-  // Off-plan → 404, like a route that doesn't exist (brief 0088 AC-06). Narrows
-  // the union so `plan`/master-data are available below.
   if (data.locked) notFound()
 
   const { plan, units, catalogItems, categories } = data

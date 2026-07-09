@@ -1,9 +1,3 @@
-// Resolve a janela do relatório de caixa por período (brief 0015 AC-05), no
-// **fuso local da unidade/org** (ADR 0009 — relógio operacional). O "dia"
-// é o dia de calendário do org, não UTC nem o fuso do browser.
-//
-// Períodos: `day` (hoje), `week` (últimos 7 dias), `month` (mês corrente até
-// hoje), `custom` (from/to em yyyy-MM-dd). Default = `day` (o "hoje" do lojista).
 import { getOrgDayBoundsUtc, getTodayInOrgTz, shiftDateInOrgTz } from '@/domain'
 
 export const CASH_REPORT_PERIODS = ['day', 'week', 'month', 'custom'] as const
@@ -28,8 +22,6 @@ function isPeriod(v: unknown): v is CashReportPeriod {
   return typeof v === 'string' && (CASH_REPORT_PERIODS as readonly string[]).includes(v)
 }
 
-// `period` explícito vence; senão, `from`/`to` presentes ⇒ custom (compat com
-// filtros que mandam só datas); senão, o default (dia).
 function requestedPeriod(params: {
   period?: string
   from?: string
@@ -42,7 +34,6 @@ function requestedPeriod(params: {
 
 type DateWindow = { period: CashReportPeriod; fromDate: string; toDate: string }
 
-// Custom sem datas válidas → cai pro "hoje".
 function resolveCustomWindow(params: { from?: string; to?: string }, today: string): DateWindow {
   const f = params.from && isValidYmd(params.from) ? params.from : null
   const t = params.to && isValidYmd(params.to) ? params.to : null

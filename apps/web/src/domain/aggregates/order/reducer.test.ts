@@ -104,21 +104,18 @@ describe('Order reducer', () => {
   it('customer_assigned vincula/troca/desvincula o cliente numa comanda aberta (#1321)', () => {
     const open = { ...INITIAL_ORDER_STATE, status: 'open' as const, customerId: null, _version: 1 }
 
-    // vincula
     const linked = applyOrderEvent(
       open,
       { _tag: 'order.customer_assigned', customerId: 'c1' },
       meta(2),
     )
     expect(linked.customerId).toBe('c1')
-    // troca
     const swapped = applyOrderEvent(
       linked,
       { _tag: 'order.customer_assigned', customerId: 'c2' },
       meta(3),
     )
     expect(swapped.customerId).toBe('c2')
-    // desvincula (nullable — mesmo evento)
     const unlinked = applyOrderEvent(
       swapped,
       { _tag: 'order.customer_assigned', customerId: null },
@@ -200,7 +197,6 @@ describe('Order reducer', () => {
 
     expect(state.status).toBe('open')
     expect(state.paymentMethod).toBeNull()
-    // Conteúdo da order preservado ao reabrir.
     expect(state.totalCents).toBe(8000)
     expect(state.items).toHaveLength(1)
   })

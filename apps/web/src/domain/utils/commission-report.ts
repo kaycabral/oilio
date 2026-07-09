@@ -1,9 +1,3 @@
-// Commission report aggregation (brief 0022 #998 + #1000). Pure summarization
-// of commissions by liquidation status (`pendente`/`pago`) — count + total —
-// plus per-memberOperation grouping (#1000, AC-05) and the covered-attendance
-// report (#1000, AC-07). Kept here for reuse + unit testing; the page wires the
-// Firestore reads, these stay framework-free.
-
 import { type Commission, type LiquidationStatus, liquidationStatusOf } from '../types/commission'
 import { coverageOf, type Order } from '../types/order'
 
@@ -35,13 +29,6 @@ export function summarizeCommissions(commissions: readonly Commission[]): Commis
   return { byStatus, totalCents, count: commissions.length }
 }
 
-// Per-member rollup (brief 0022 #1000, AC-05; re-keyed by member in brief 0030
-// AC-07). For each member (`attributedUserId`) that has at least one commission
-// in the period, the pendente/pago breakdown + a combined total. The total
-// pendente of a member = sum of their unpaid commissions (a métrica secundária).
-// A member who is a memberOperation groups under the same `userId`, so the
-// memberOperation's row keeps showing up — grouping by member subsumes the old
-// per-memberOperation view.
 export type MemberCommissionSummary = {
   attributedUserId: string
 } & CommissionReportSummary
@@ -61,13 +48,6 @@ export function summarizeCommissionsByMember(
   }))
 }
 
-// Covered-attendance report (brief 0022 #1000, AC-07 — resolve 0021 § AC-09).
-// Counts services executed under subscription coverage and sums their catalog
-// value, per memberOperation. Covered items do NOT commission (brief 0021 AC-09);
-// this is read/count only — the data the owner uses to split the subscription
-// fund externally. A covered line = order item with `coverage: subscription`
-// AND `kind: service` (only services are covered; products are always a sale).
-// The catalog value = snapshot `unitPriceCents * quantity` on the order line.
 export type CoveredAttendanceSummary = {
   memberOperationId: string
   count: number
@@ -86,8 +66,6 @@ export function summarizeCoveredAttendances(orders: readonly Order[]): CoveredAt
   let totalCatalogValueCents = 0
   for (const order of orders) {
     for (const item of order.items) {
-      // Só serviços cobertos por assinatura entram. Venda (`sale`) e produtos
-      // ficam de fora — venda comissionável não é atendimento coberto.
       if (item.kind !== 'service' || coverageOf(item) !== 'subscription') continue
       const valueCents = item.unitPriceCents * item.quantity
       const existing = byMemberOperation.get(item.attributedUserId)

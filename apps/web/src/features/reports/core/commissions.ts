@@ -13,7 +13,6 @@ import {
 
 export type CommissionsMember = { userId: string; name: string }
 
-// View-model the Comissões section (`<CommissionReport>`) consumes.
 export type CommissionsSectionData = {
   commissions: Commission[]
   summary: CommissionReportSummary
@@ -34,13 +33,6 @@ export type ShapeCommissionsInput = {
   statusFilter: LiquidationStatus | null
 }
 
-/**
- * Pure view-model shaping for the Comissões section. Scopes commissions to the
- * active unit (Commission has no `unitId`: it references the closing `orderId`,
- * so we map orderId→unit via the period's closed orders), then applies
- * member/status filters and resolves display names from the commission snapshot
- * (brief 0041 AC-11) with the live member list as fallback.
- */
 export function shapeCommissionsSection(input: ShapeCommissionsInput): CommissionsSectionData {
   const { members, allCommissions, allClosedOrders, unitId, memberFilter, statusFilter } = input
 
@@ -65,12 +57,6 @@ export function shapeCommissionsSection(input: ShapeCommissionsInput): Commissio
 
   const summary = summarizeCommissions(scopedCommissions)
   const byMember = summarizeCommissionsByMember(scopedCommissions)
-  // Display name vem do SNAPSHOT na própria comissão (brief 0041 AC-11), NÃO do
-  // join ao vivo em `listOrgMembers` (que filtra `status==active` e dropa o
-  // membro revogado/suspenso → "--"). O snapshot é self-contained: profissional
-  // revogado (offboarding #1103) ou anonimizado-como-cliente ainda exibe o nome
-  // real (retenção de vínculo, art. 16). O join ao vivo entra só como fallback
-  // pros membros que ainda não têm comissão (ex.: o dropdown de filtro).
   const memberNameByUserId: Record<string, string> = Object.fromEntries(
     members.map((m) => [m.userId, m.name]),
   )

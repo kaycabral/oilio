@@ -8,26 +8,10 @@ import { getOrgBilling } from '@/shared/org/billing-read'
 import 'server-only'
 import type Stripe from 'stripe'
 
-// Stripe webhook dispatch (brief 0074, AC-03). Maps each handled Stripe event to
-// exactly one org_billing event via emitEvent. The write is RLS-safe without a
-// session: emitEvent sets the GUC `app.current_org` from `ref.orgId`, so the
-// webhook (no cookie) writes the org's own row by constructing the ref with the
-// resolved orgId. Stripe is the system of record; this only mirrors its ledger.
-
-// Stripe is webhook actor: there is no human session behind these writes. A
-// stable synthetic actor id makes the event stream auditable as "system, via
-// Stripe webhook" rather than attributing the change to a user.
 const WEBHOOK_ACTOR_ID = 'system:stripe-webhook'
 
-// The events we act on. Anything else is acknowledged (200) and ignored — Stripe
-// retries only on non-2xx, so silently dropping unhandled types is correct.
 const HANDLED_EVENTS = new Set<Stripe.Event['type']>([
   'checkout.session.completed',
-  // Async payment methods (boleto) don't settle at checkout: the session
-  // completes with a PENDING payment, and Stripe fires these later — success
-  // when the boleto is paid (activate, same as completed), failure when it
-  // expires unpaid (past_due). Without these, a paid boleto would never flip
-  // the org out of `incomplete`.
   'checkout.session.async_payment_succeeded',
   'checkout.session.async_payment_failed',
   'customer.subscription.created',
@@ -40,11 +24,6 @@ export function isHandledEvent(type: Stripe.Event['type']): boolean {
   return HANDLED_EVENTS.has(type)
 }
 
-// Resolve the Negócio an event belongs to. Primary: the orgId we stamped on the
-// Stripe object at checkout (subscription.metadata / session metadata /
-// client_reference_id). Fallback (events without our metadata, e.g.
-// invoice.payment_failed): the non-RLS index that maps stripe_customer_id →
-// org_id. Read on the raw pool — the index is public-by-contract, not org-scoped.
 async function orgIdFromCustomer(customerId: string | null): Promise<string | null> {
   if (!customerId) return null
   const res = await getEventStorePool().query<{ org_id: string }>(
@@ -61,8 +40,6 @@ function customerId(
   return typeof value === 'string' ? value : value.id
 }
 
-// Epoch seconds (Stripe) → ISO string (our boundary), or null. Stripe omits the
-// field as undefined; org_billing stores null.
 function toIso(epochSeconds: number | null | undefined): string | null {
   if (epochSeconds === null || epochSeconds === undefined) return null
   return new Date(epochSeconds * 1000).toISOString()
@@ -80,14 +57,10 @@ function mapStatus(status: Stripe.Subscription.Status): OrgBillingStatus {
     case 'unpaid':
       return 'canceled'
     default:
-      // incomplete / incomplete_expired / paused — treat as not-yet-active.
       return 'incomplete'
   }
 }
 
-// Derive the org_billing fields a subscription implies. Per-unit graduated
-// pricing: `unitQuantity` = the subscription item quantity Stripe is billing;
-// `currentPeriodEnd` lives on the ITEM (not the subscription) in this API version.
 function fieldsFromSubscription(sub: Stripe.Subscription): Partial<StoredOrgBilling> {
   const item = sub.items.data[0]
   const priceId = item?.price.id
@@ -113,16 +86,11 @@ async function emitUpdate(
   tag: 'org_billing.updated' | 'org_billing.canceled',
   changes: Partial<StoredOrgBilling>,
 ): Promise<void> {
-  // Always carry id/orgId: a subscription.updated / payment_failed can be the
-  // FIRST event for this Negócio (no prior activation), and the projection's PK
-  // is org_id — the row must be born identified.
   const res = await emitEvent(OrgBillingConfig, aggregateRef(OrgBillingConfig, orgId, orgId), {
     _tag: tag,
     actorId: WEBHOOK_ACTOR_ID,
     payload: { changes: { ...changes, id: orgId, orgId } },
   })
-  // Surface so the webhook returns non-2xx and Stripe retries (the idempotency
-  // row is only written AFTER a successful handle — see the route).
   if (!res.ok) throw new Error(`org_billing ${tag} failed for ${orgId}: ${res.error}`)
 }
 
@@ -133,8 +101,6 @@ async function handleSubscriptionChange(
   const orgId = sub.metadata.orgId || (await orgIdFromCustomer(customerId(sub.customer)))
   if (!orgId) return
   const changes = fieldsFromSubscription(sub)
-  // subscription.deleted: the plan ends — drop to free. cancel_at_period_end
-  // keeps capabilities until currentPeriodEnd (the period fields above carry it).
   if (tag === 'org_billing.canceled') {
     changes.tier = 'free'
     changes.status = 'canceled'
@@ -142,10 +108,6 @@ async function handleSubscriptionChange(
   await emitUpdate(orgId, tag, changes)
 }
 
-// checkout.session.completed: the subscription was just created. We have the
-// session (orgId via client_reference_id/metadata, the customer, the
-// subscription id). Retrieve the subscription to read the price/period/quantity,
-// then activate.
 async function handleCheckoutCompleted(
   session: Stripe.Checkout.Session,
   retrieveSubscription: (id: string) => Promise<Stripe.Subscription>,
@@ -164,8 +126,6 @@ async function handleCheckoutCompleted(
   const existing = await getOrgBilling(orgId)
   const sub_fields = fieldsFromSubscription(sub)
 
-  // Activation writes the full doc (org_billing.activated overwrites state). Keep
-  // the existing customer id if Stripe didn't echo one on the subscription.
   const data: StoredOrgBilling = {
     ...existing,
     ...sub_fields,
@@ -191,8 +151,6 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
   await emitUpdate(orgId, 'org_billing.updated', { status: 'past_due' })
 }
 
-// Resolve the Negócio from a checkout session, same precedence as activation:
-// the orgId we stamped (client_reference_id / metadata), then the customer index.
 async function orgIdFromSession(session: Stripe.Checkout.Session): Promise<string | null> {
   return (
     session.client_reference_id ||
@@ -201,27 +159,17 @@ async function orgIdFromSession(session: Stripe.Checkout.Session): Promise<strin
   )
 }
 
-// checkout.session.async_payment_failed: an async payment (boleto) expired
-// unpaid. The subscription never activated, so mark past_due — the org stays
-// off the paid tier and the owner can retry from the billing panel.
 async function handleAsyncPaymentFailed(session: Stripe.Checkout.Session): Promise<void> {
   const orgId = await orgIdFromSession(session)
   if (!orgId) return
   await emitUpdate(orgId, 'org_billing.updated', { status: 'past_due' })
 }
 
-// Apply one Stripe event to org_billing. Idempotency (event.id dedup) is handled
-// by the route BEFORE this runs; the reducer is also content-idempotent as a
-// second layer. Throws on a write failure so the route can return non-2xx and let
-// Stripe retry. `deps` injects the Stripe retrieve call so tests can stub it.
 export async function handleStripeEvent(
   event: Stripe.Event,
   deps: { retrieveSubscription: (id: string) => Promise<Stripe.Subscription> },
 ): Promise<void> {
   switch (event.type) {
-    // A boleto paid after checkout (async_payment_succeeded) activates
-    // identically to a synchronous (card) completion: the session still carries
-    // orgId + subscription id.
     case 'checkout.session.completed':
     case 'checkout.session.async_payment_succeeded':
       await handleCheckoutCompleted(event.data.object, deps.retrieveSubscription)
@@ -231,10 +179,6 @@ export async function handleStripeEvent(
       return
     case 'customer.subscription.created':
     case 'customer.subscription.updated':
-      // `.created` covers subscriptions born OUTSIDE the checkout flow (e.g. a
-      // Customer Portal plan change). The partial update carries the full
-      // subscription state (tier/status/period/quantity), so a fresh org_billing
-      // row is born correctly — the reducer seeds id/timestamps.
       await handleSubscriptionChange(event.data.object, 'org_billing.updated')
       return
     case 'customer.subscription.deleted':
@@ -244,7 +188,6 @@ export async function handleStripeEvent(
       await handlePaymentFailed(event.data.object)
       return
     default:
-      // Not in HANDLED_EVENTS — acknowledged and ignored.
       return
   }
 }

@@ -1,25 +1,3 @@
-// Feature-level E2E — brief 0052 § Definition of Done (parent #1157, B2).
-//
-// B2 is a PURELY NOMINAL refactor on the critical path: it renames the symbols
-// that say `service` but operate on `catalog_items` — the MemberOperation service
-// FK list, the RBAC catalog-management permission, the agenda active-service
-// loader, the public-services wrapper, and the public bundle's service slice —
-// all to the `catalog*` vocabulary (see no-legacy-catalog-symbols.mjs for the
-// exact before/after pairs). The PRD requires REAL E2E in the DoD because the
-// renamed catalogServiceIds field decides WHO serves WHICH item (availability/
-// booking) — a silent regression would break the agenda. This spec proves the
-// renamed names still drive the same behavior, end-to-end, against the emulator.
-//
-// - Cenário 1 [critical]: booking by memberOperation uses catalogServiceIds —
-//   availability lists/allocates the linked pro, drops a slot already taken.
-// - Cenário 3 [critical]: commission by service still accrues identically after
-//   the rename (close an order with a commissionable service → pending record).
-// - Cenário 4 [critical]: zero legacy symbol remains (the lint guard passes).
-//
-// RBAC (Cenário 2) is proven by the rules integration suite
-// (firestore-rules.integration.test.ts) under the renamed canManageCatalog
-// gate — kept there because it asserts allow/deny against the emulator rules.
-
 import { execFileSync } from 'node:child_process'
 
 import { expect, test } from '../fixtures'
@@ -51,13 +29,9 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
         publicVisible: true,
         unitIds: [unitId],
       })
-      // The link is written through the renamed field (updateMask.fieldPaths=
-      // catalogServiceIds) — this is the rename under test driving availability.
       await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
       const targetDate = nextWeekday('Wed')
-      // Pre-take 09:00 BR (12:00 UTC) so that slot is dropped — proves the
-      // renamed field still feeds allocation, not just rendering.
       const cust = await seedCustomer(org.orgId, { name: 'Tomado', mobile: uniqueWhatsapp() })
       await seedAppointment({
         orgId: org.orgId,
@@ -74,7 +48,6 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
       await booking.gotoAvailability('unidade-1', { serviceId, from: targetDate })
       await expect(page.getByRole('heading', { name: /escolha data e horário/i })).toBeVisible()
 
-      // The linked pro's later slots stay available; the taken 09:00 is gone.
       await expect(page.getByText('09:30').first()).toBeVisible()
       await expect(page.getByText('10:00').first()).toBeVisible()
       await expect(page.getByText('09:00').first()).toHaveCount(0)
@@ -92,8 +65,6 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
         publicVisible: true,
         unitIds: [unitId],
       })
-      // Deliberately DO NOT link the memberOperation to the service. With an empty
-      // catalogServiceIds, the pro must not be offered for this service.
       const booking = new PublicBookingPage(page, orgSlug(org.orgId))
       await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
       await expect(page.getByText(/sem horários disponíveis nesta data/i)).toBeVisible()
@@ -111,10 +82,6 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
       },
     })
 
-    // Consumes the service through closing a comanda — the `order` aggregate's
-    // read-path is migrated by feature E (Onda 3), not the catalog-item pilot.
-    // Covered on the Firestore backend; Postgres coverage lands with feature E.
-    // Conditional registration (the repo bans `test.skip`).
     if (!skipOnPostgres())
       test('fechar comanda com serviço comissionável gera comissão pendente', async ({
         org,
@@ -153,7 +120,6 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
         await authedPage.getByRole('button', { name: /Iniciar atendimento/ }).click()
         await expect(authedPage).toHaveURL(/\/orders\/.+/)
 
-        // Total = serviço R$ 60,00; fecha com pix.
         await expect(authedPage.getByText('R$ 60,00').first()).toBeVisible()
         await choosePaymentMethod(authedPage, 'pix')
         await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
@@ -161,18 +127,12 @@ test.describe('Feature 0052 — Definition of Done (renames de catálogo, B2)', 
         await dialog.getByRole('button', { name: /Confirmar fechamento/ }).click()
         await expect(authedPage.getByText(/Fechada em/)).toBeVisible({ timeout: 5000 })
 
-        // Commission accrued for the executing memberOperation — 50% of R$ 60,00.
         await authedPage.goto('/reports/commissions')
         await expect(authedPage.getByText('R$ 30,00').first()).toBeVisible({ timeout: 5000 })
       })
   })
 
   test('Cenário 4 — nenhum símbolo legado restante (guard de lint)', () => {
-    // AC-09 is enforced cheaply by the no-legacy-catalog-symbols.mjs guard in
-    // the lint job; this test re-asserts the same invariant as the DoD proof so
-    // the feature gate is self-contained. Playwright runs with cwd =
-    // apps/oilio/web, so the guard sits at scripts/. A non-zero exit (legacy
-    // symbol found) throws with the offending lines; empty stdout = clean.
     const out = execFileSync('node', ['scripts/no-legacy-catalog-symbols.mjs'], {
       encoding: 'utf8',
     })

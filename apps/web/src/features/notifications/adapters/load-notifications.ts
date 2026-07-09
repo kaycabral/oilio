@@ -15,13 +15,6 @@ export type NotificationsPageData = {
   activeType: string
 }
 
-// Imperative shell for the notifications list route. Notifications are
-// operational (brief 0039, AC-01): they follow the active unit from the shared
-// context (0029) — the per-feature unit filter is gone. The doc→view mapping
-// and role visibility live in core. Backend-aware (brief 0060, Grupo C): the
-// unit read is `listNotificationsForUnit` (Postgres typed table under RLS, or
-// Firestore); the type filter + recency sort + 50-cap run in JS over the
-// unit-scoped set (small), identical for both backends.
 export async function loadNotificationsPage(searchParams: {
   type?: string
   page?: string
@@ -37,10 +30,6 @@ export async function loadNotificationsPage(searchParams: {
   const orgId = ctx.membership.orgId
   const { activeUnitId } = await resolveActiveUnit(ctx.membership)
 
-  // No active unit (org without units yet) → nothing to scope to; render the
-  // empty state instead of issuing a `unitId == null` query. The read applies
-  // `type` filter + `createdAt` desc order + the 50-cap at the source (bounded
-  // read, both backends), so no JS sort/slice is needed here.
   const docs = activeUnitId
     ? await listNotificationsForUnit(orgId, activeUnitId, { type: searchParams.type })
     : []

@@ -19,12 +19,6 @@ import { toast } from 'sonner'
 
 type Mode = 'existing' | 'new'
 
-// Customer selector for a walk-in order (brief 0081 / #1323). Renders in the
-// header while the order is editable, to link / swap / unlink the customer via a
-// `<form action>` server action (the repo's mandatory mutation pattern). Mirrors
-// the AppointmentDialog picker: pick an existing customer OR register a new one
-// inline (gated on `canRegisterCustomer`). On success the server re-evaluates
-// coverage, so a linked subscriber's covered items auto-mark on the refresh.
 export function OrderCustomerSelector({
   orderId,
   customer,
@@ -40,9 +34,6 @@ export function OrderCustomerSelector({
   const [pending, startTransition] = useTransition()
   const [mode, setMode] = useState<Mode>('existing')
 
-  // Client handler wrapping the server action (repo pattern — see OrderAddItemForm):
-  // the action returns a result, so a thin `onSubmit` runs it in a transition and
-  // surfaces the error via toast, keeping `<form action>` progressive-enhancement.
   function onSubmit(formData: FormData) {
     startTransition(async () => {
       const res = await assignCustomerToOrder(orderId, formData)

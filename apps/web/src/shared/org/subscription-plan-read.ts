@@ -1,7 +1,3 @@
-// Server-side reads for the `subscription-plan` context (brief 0060, Grupo B).
-// Plans carry NO PII, so there is no sidecar merge — the read just decodes the
-// typed projection from the `subscription_plans` table under RLS.
-
 import { SubscriptionPlan } from '@/domain'
 import {
   type SubscriptionPlanRow,
@@ -12,8 +8,6 @@ import { Schema } from 'effect'
 
 const decodeSubscriptionPlan = Schema.decodeUnknownSync(SubscriptionPlan)
 
-// List all subscription plans for a org, ordered by name, from the typed table
-// under RLS.
 export async function listSubscriptionPlansForOrg(orgId: string): Promise<SubscriptionPlan[]> {
   const rows = await readUnderRls<SubscriptionPlanRow>(orgId, (client) =>
     client
@@ -42,11 +36,6 @@ export async function getSubscriptionPlanById(
   return row ? decodeSubscriptionPlan(rowToDoc(row)) : null
 }
 
-// Whether ANY of the org's plans includes `categoryId` in its coverage — the
-// category delete-vs-archive FK guard (`categoryReferenceCount`). Served by the
-// `plan_included_categories` join table (brief 0068 D3) via its
-// (org_id, category_id) index, replacing the JSONB `included_category_ids @>`
-// containment scan. No full decode — existence only.
 export async function anyPlanIncludesCategory(orgId: string, categoryId: string): Promise<boolean> {
   const rows = await readUnderRls<{ exists: boolean }>(orgId, (client) =>
     client

@@ -10,10 +10,6 @@ import {
   buildRenewSteps,
 } from './subscription-charges-saga'
 
-// Runs the built steps against an in-memory tx so the step closures (the arrow
-// bodies calling appendEventToTx) actually execute — proving the cascade writes
-// land and covering the closure branches. The real ACID/rollback behavior lives
-// in `charge-subscription-saga-acid.events.pg.integration.test.ts` (#1200).
 async function runSteps(steps: SagaStep[]): Promise<Map<string, FirestoreDoc>> {
   const { store, layer } = makeReplayStore()
   await Effect.runPromise(runSaga(steps).pipe(Effect.provide(layer)))

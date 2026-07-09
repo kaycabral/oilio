@@ -4,25 +4,6 @@ import { buildUser } from '@/shared/fixtures/domain-builders'
 import { listCustomersForOrg } from '@/shared/org/customer-read'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-/**
- * Materialize-at-completion against REAL Postgres (brief 0077 Grupo E / Cenário 3
- * — #1278). Finishing the profile turns the visitor into a Customer of the
- * establishment recovered from the return URL (intent=signup), even before any
- * booking — revising [[0001]]'s deferred-to-first-booking materialization.
- *
- * Proves end-to-end through the real action:
- *   - the Customer shadow appears in the org's customer list after completion;
- *   - it carries the write-once acquisition from the invite attribution;
- *   - the completion funnel events land (signed_in + profile_completed, PII-zero);
- *   - re-completion is idempotent (no duplicate Customer);
- *   - a plain platform signup (no establishment context) creates no Customer.
- *
- * `getSessionUser` + `next/navigation` redirect are mocked (the action is an RSC
- * boundary); everything below them hits the ephemeral Postgres for real.
- */
-
-// Sentinel error message so the test can absorb the success `redirect()` (Next's
-// redirect throws too) without pulling in Next's real redirect machinery.
 const REDIRECT_MESSAGE = 'NEXT_REDIRECT_TEST_SENTINEL'
 let sessionUid: string | null = null
 
@@ -36,7 +17,6 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
-// Imported AFTER the mocks so the action picks up the mocked deps.
 const { completeProfile } = await import('./complete-profile.actions')
 
 const TS = '2026-06-01T12:00:00.000Z'
@@ -57,7 +37,6 @@ async function seedPublishedOrg(orgId: string, slug: string): Promise<void> {
      ON CONFLICT (org_id) DO NOTHING`,
     [orgId, slug],
   )
-  // `getOrgBySlug` reads the public directory, not `orgs` directly.
   await pool.query(
     `INSERT INTO public_org_directory
        (org_id, slug, name, vertical, owner_user_id, branding, created_at, updated_at)
@@ -77,7 +56,6 @@ function completionForm(opts: { context?: string; next?: string }): FormData {
   return fd
 }
 
-// Run the action and absorb the success redirect sentinel.
 async function runComplete(fd: FormData): Promise<void> {
   try {
     await completeProfile(fd)
@@ -117,14 +95,11 @@ describe('completeProfile materializes a Customer (brief 0077 #1278)', () => {
       completionForm({ context: `from=${slug}&cbrl_source=whatsapp&cbrl_intent=signup` }),
     )
 
-    // Customer appears in the org's list — the establishment "ganhou" the client.
     const customers = await listCustomersForOrg(orgId)
     expect(customers).toHaveLength(1)
     expect(customers[0]?.userId).toBe(uid)
-    // Write-once acquisition from the invite channel.
     expect(customers[0]?.acquisition?.source).toBe('whatsapp')
 
-    // Completion funnel events landed (PII-zero).
     const events = await getEventStorePool().query<{ event: string }>(
       'SELECT event FROM client_funnel_events WHERE org_id = $1 ORDER BY id',
       [orgId],
@@ -146,8 +121,6 @@ describe('completeProfile materializes a Customer (brief 0077 #1278)', () => {
 
     const ctx = `from=${slug}&cbrl_source=qr&cbrl_intent=signup`
     await runComplete(completionForm({ context: ctx }))
-    // Second call: the user is now completed → the action falls through to the
-    // redirect without re-materializing. Either way there must be exactly one.
     await runComplete(completionForm({ context: ctx }))
 
     const customers = await listCustomersForOrg(orgId)
@@ -163,7 +136,6 @@ describe('completeProfile materializes a Customer (brief 0077 #1278)', () => {
     sessionUid = uid
     await putUser(buildUser(uid, TS, { completionCompleted: false, claimedAt: TS }))
 
-    // No `context` → no org to join.
     await runComplete(completionForm({ next: '/dashboard' }))
 
     expect(await listCustomersForOrg(orgId)).toHaveLength(0)

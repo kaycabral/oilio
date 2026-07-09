@@ -32,9 +32,6 @@ import { CreditCard, Sparkles, Star } from 'lucide-react'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
-// Display copy for each tier (the marketing names live in PricingTiers; here we
-// only need the short human label for the current-plan card and the upgrade
-// buttons). Keyed by the domain slug so it can never drift from enforcement.
 const TIER_LABEL: Record<Tier, string> = {
   free: 'Grátis',
   pro: 'Pro',
@@ -57,8 +54,6 @@ const INVOICE_STATUS_LABEL: Record<string, string> = {
   draft: 'Rascunho',
 }
 
-// Card brand → the display name shown next to the masked number. Falls back to a
-// capitalized brand for anything Stripe returns that we haven't mapped.
 const CARD_BRAND_LABEL: Record<string, string> = {
   visa: 'Visa',
   mastercard: 'Mastercard',
@@ -81,12 +76,7 @@ type BillingPanelProps = {
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
   hasStripeCustomer: boolean
-  // Only the owner can subscribe or open the portal (brief 0073). Managers see
-  // the read-only panel; the actions are hidden for them (the server action also
-  // enforces owner-only — defense in depth).
   canManageBilling: boolean
-  // Live Stripe details (not projected into org_billing). Null/[] when there's no
-  // customer yet or Stripe read failed — the panel degrades gracefully.
   paymentMethod: PaymentMethodSummary | null
   invoices: InvoiceSummary[]
 }
@@ -112,11 +102,6 @@ function formatAmount(amount: number, currency: string): string {
   }).format(amount / 100)
 }
 
-// Self-service billing surface for the Assinatura Oilio (brief 0073 + 0090).
-// Fidelity target: the approved prototype (brief 0090 § Referência visual) — a
-// plan card, a payment-method block, an invoices table, and the cancellation
-// zone, in that order. Per-unit graduated pricing: the charge follows the active
-// unit count, so the plan card surfaces both counts (they converge via webhook).
 export function BillingPanel({
   tier,
   status,
@@ -154,8 +139,6 @@ export function BillingPanel({
     })
   }
 
-  // Not subscribed yet — the plan card gives way to the subscribe call to action
-  // (the prototype's populated layout only applies once there's a paid plan).
   if (!isPaid) {
     return (
       <SubscribeCard
@@ -178,7 +161,6 @@ export function BillingPanel({
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Plan card — icon + name + status badge + context line + "Ajustar plano". */}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-4">
           <div className="bg-muted flex size-11 shrink-0 items-center justify-center rounded-lg">
@@ -209,7 +191,6 @@ export function BillingPanel({
         </CardContent>
       </Card>
 
-      {/* Payment method. */}
       <section className="flex flex-col gap-3">
         <Typography variant="large">Pagamento</Typography>
         {paymentMethod ? (
@@ -240,7 +221,6 @@ export function BillingPanel({
         )}
       </section>
 
-      {/* Invoices. */}
       <section className="flex flex-col gap-3">
         <Typography variant="large">Faturas</Typography>
         {invoices.length > 0 ? (
@@ -297,7 +277,6 @@ export function BillingPanel({
   )
 }
 
-// The subscribe call to action shown to a Free org (no paid plan yet).
 function SubscribeCard({
   canManageBilling,
   cycle,
@@ -366,9 +345,6 @@ function SubscribeCard({
   )
 }
 
-// The native cancellation zone (brief 0090, AC-09): a destructive block + the
-// confirm AlertDialog. Rendered only when the owner may cancel a live paid
-// subscription. The confirm emits `billing_cancel_confirmed` server-side.
 function CancellationZone({ tier, periodEnd }: { tier: Tier; periodEnd: string | null }) {
   const [pending, startTransition] = useTransition()
 

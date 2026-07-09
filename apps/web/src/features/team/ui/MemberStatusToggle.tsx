@@ -5,14 +5,6 @@ import { Button } from '@cbrl/design'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
-// Deactivate / reactivate a member — brief 0029 #1053 (AC-10). Member-level
-// lifecycle (vacation / dismissal / health), flips `membership.status`
-// active ↔ suspended, event-sourced server-side. Owner/manager only, never the
-// owner nor the viewer's own membership (gated by the page + the action).
-//
-// A `suspended` membership has no effective access: the action emits
-// `membership.updated` with `status`, and every operational read/write keys on
-// `status == 'active'`. Here we only surface the toggle + reflect the state.
 export function MemberStatusToggle({
   targetUserId,
   status,

@@ -1,8 +1,3 @@
-// Pure default-derivation + label maps for the plan form, extracted from the
-// 'use client' component (Functional Core / Imperative Shell) so the toggle/
-// checkbox initial states and the formatted price/quantity are importable +
-// unit-tested. No React, no I/O.
-
 import { type BillingCycle, type SubscriptionPlan, type WEEKDAYS } from '@/domain'
 
 export const CYCLE_LABELS: Record<BillingCycle, string> = {
@@ -12,8 +7,6 @@ export const CYCLE_LABELS: Record<BillingCycle, string> = {
   annual: 'Anual',
 }
 
-// Brief 0019 Group B — weekday labels for the daysOfWeek toggle.
-// Order mirrors `WEEKDAYS` (0=domingo … 6=sábado).
 export const WEEKDAY_LABELS: Record<(typeof WEEKDAYS)[number], string> = {
   sunday: 'Dom',
   monday: 'Seg',
@@ -26,10 +19,6 @@ export const WEEKDAY_LABELS: Record<(typeof WEEKDAYS)[number], string> = {
 
 export type LimitKind = 'unlimited' | 'count'
 
-// Derive every default the form starts from off the (optional) plan being
-// edited — the toggle/checkbox initial states + the formatted price/quantity.
-// Each scope axis (units / days / hours / advance / booking-limits) is
-// independent: a plan snapshot opts into any subset (briefs 0019/0024).
 export function derivePlanFormDefaults(plan?: SubscriptionPlan) {
   const scope = plan?.allowedTimeScope
   const limits = plan?.bookingLimits

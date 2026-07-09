@@ -2,16 +2,6 @@
 
 import { useEffect, useState } from 'react'
 
-// TEMPORARY diagnostic overlay (remove after the UserMenu-disappears bug is
-// root-caused). A standalone PWA gives no console, and the reported failure —
-// the sidebar-footer UserMenu vanishes and stays gone until the app is killed —
-// looks like a client-side exception that a nested boundary swallows (the rest
-// of the app keeps working, so it is NOT the top-level error.tsx). To catch it
-// wherever it originates, this listens to the GLOBAL error channels
-// (`window.onerror` for render/sync throws, `unhandledrejection` for async) and
-// paints the message + stack in a fixed banner, readable straight from the phone.
-// Render any thrown value (Error or not) to a readable string without touching
-// the DOM lib's `any`-typed `reason`.
 function describe(value: unknown): string {
   return value instanceof Error
     ? `${value.name}: ${value.message}\n${value.stack ?? ''}`
@@ -31,15 +21,9 @@ export function DebugErrorOverlay() {
       push('error', `${event.message}${stack}`)
     }
     const onRejection = (event: PromiseRejectionEvent) => {
-      // `event.reason` is typed `any` by the DOM lib; `describe` narrows via
-      // `unknown` so no `any` leaks into the call.
       push('unhandledrejection', describe(event.reason))
     }
 
-    // Resource-load failures (e.g. the Google avatar image returning 403/429)
-    // do NOT bubble to `window.onerror` — they only fire on the element in the
-    // CAPTURE phase. Listen in capture so a broken <img> is visible too, since a
-    // failing AvatarImage is a prime suspect for the vanishing footer content.
     const onCapture = (event: Event) => {
       const t = event.target
       if (t instanceof HTMLImageElement) push('img-error', `<img> falhou: ${t.src}`)

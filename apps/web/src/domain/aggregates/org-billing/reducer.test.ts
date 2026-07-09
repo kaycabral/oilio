@@ -40,10 +40,6 @@ describe('applyOrgBillingEvent', () => {
   })
 
   it('activated fills createdAt/updatedAt from meta when the data has empty timestamps', () => {
-    // The webhook builds `data` off the Free default (createdAt/updatedAt = ''),
-    // so the reducer must seed both from the stream meta — otherwise the
-    // projection writes an empty string into a timestamptz column (regression,
-    // brief 0074).
     const next = applyOrgBillingEvent(
       INITIAL_ORG_BILLING_STATE,
       {
@@ -57,9 +53,6 @@ describe('applyOrgBillingEvent', () => {
   })
 
   it('updated as the FIRST event seeds createdAt from meta (no prior activation)', () => {
-    // Stripe may deliver subscription.updated before checkout.session.completed;
-    // the row is born here, so createdAt must come from meta, not stay '' from
-    // the seed state (regression, brief 0074).
     const next = applyOrgBillingEvent(
       INITIAL_ORG_BILLING_STATE,
       {

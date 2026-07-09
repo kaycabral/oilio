@@ -1,14 +1,3 @@
-// Integration test for the billing reconcile sweep (brief 0074, AC-04) against
-// REAL Postgres. The sweep enumerates Negócios with a live Stripe subscription on
-// the RAW pool (no session — it's platform infra) and calls
-// `syncStripeSubscriptionQuantity` once per org. We prove the SELECTION (which
-// orgs are swept) against actual rows, mocking only the per-org sync so the test
-// asserts the loop's reach without hitting Stripe.
-//
-// Selection contract: stripe_subscription_id IS NOT NULL AND status IN
-// ('active','trialing','past_due'). Free orgs (no row / no sub) and canceled subs
-// are excluded — a canceled plan has nothing left to reconcile.
-
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -59,7 +48,6 @@ describe('reconcileBillingQuantities (brief 0074, AC-04)', () => {
     await seedBilling('org-active', { status: 'active', subId: 'sub_a' })
     await seedBilling('org-trialing', { status: 'trialing', subId: 'sub_t' })
     await seedBilling('org-pastdue', { status: 'past_due', subId: 'sub_p' })
-    // excluded: canceled, and active-but-no-subscription (lazy customer, never paid)
     await seedBilling('org-canceled', { status: 'canceled', subId: 'sub_c' })
     await seedBilling('org-nosub', { status: 'active', subId: null })
 
@@ -81,9 +69,6 @@ describe('reconcileBillingQuantities (brief 0074, AC-04)', () => {
   })
 
   it('reconciles every live org in one pass (per-org sync never throws by contract)', async () => {
-    // The tolerance lives in syncStripeSubscriptionQuantity, which swallows its
-    // own errors (proven in stripe-sync.test) — so the sweep relies on it
-    // resolving for every org and completes the full set in one pass.
     await seedBilling('org-1', { status: 'active', subId: 'sub_1' })
     await seedBilling('org-2', { status: 'past_due', subId: 'sub_2' })
 

@@ -5,26 +5,8 @@ import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `subscription-plan` context (brief 0060, Grupo B) —
- * plugged into the per-context typed-projection registry without reopening the
- * `PersistencePort`.
- *
- * `upsert` decodes the reduced `state` against the domain `SubscriptionPlan`
- * schema (no PII — the full shape is stored). It lifts the union discriminant
- * (`usageLimit.kind`) to a column the DB constrains and keeps the variant body +
- * the optional scope rules + the coverage arrays in JSONB (mirrors the
- * catalog-item / unit union mapping — discriminant column + JSONB body). The DB
- * enforces the invariants — a violation rolls back event + projection together.
- */
-
 const decodeSubscriptionPlan = Schema.decodeUnknownSync(SubscriptionPlan)
 
-/**
- * The ordered `subscription_plans` column list — single source of truth for the
- * runtime upsert and the E2E seed (so the two writers can never drift). Mirrors
- * the `INSERT` placeholders 1:1.
- */
 export const SUBSCRIPTION_PLAN_COLUMNS = [
   'org_id',
   'id',
@@ -64,8 +46,6 @@ export function subscriptionPlanColumnValues(
     plan.usageLimit,
     JSON.stringify(plan.includedItemIds),
     JSON.stringify(plan.includedCategoryIds),
-    // Optional scope rules — absent/null collapses to NULL (unrestricted). Arrays
-    // stringified; structs passed raw (node-pg encodes both for `jsonb`).
     plan.unitAllowlist == null ? null : JSON.stringify(plan.unitAllowlist),
     plan.allowedTimeScope ?? null,
     plan.bookingLimits ?? null,
@@ -84,15 +64,6 @@ const UPSERT = `
   ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
-// ── Derived join tables (brief 0068 D3): plan ↔ item / category / unit-allowlist ─
-// The N:N arrays (`includedItemIds`/`includedCategoryIds`/`unitAllowlist`) stay in
-// the reduced state (reducer untouched); the projector mirrors them into
-// relational rows in the SAME tx (the `org-projector` public-directory pattern).
-// Delete-then-insert keeps replay/edit idempotent — a shrunk array leaves no
-// orphan rows. The SQL + value-builders are exported so any seed writing
-// `subscription_plans` directly stays in lockstep and never drifts. Mirrors the
-// LIVE plan definition only — the frozen `subscriptions.plan` snapshot (ADR 0010)
-// is never mirrored.
 export const PLAN_INCLUDED_ITEMS_DELETE =
   'DELETE FROM plan_included_items WHERE org_id = $1 AND plan_id = $2'
 export const PLAN_INCLUDED_ITEMS_INSERT =
@@ -114,8 +85,6 @@ export function planIncludedCategoryRows(plan: SubscriptionPlan): unknown[][] {
   return plan.includedCategoryIds.map((categoryId) => [plan.orgId, plan.id, categoryId])
 }
 
-// `unitAllowlist` is nullable: null/absent = no restriction → ZERO rows. Only a
-// present, non-null array materializes rows.
 export function planUnitAllowlistRows(plan: SubscriptionPlan): unknown[][] {
   if (plan.unitAllowlist == null) return []
   return plan.unitAllowlist.map((unitId) => [plan.orgId, plan.id, unitId])
@@ -129,8 +98,6 @@ function stateVersion(state: FirestoreDoc): number {
 async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
   const plan = decodeSubscriptionPlan(state)
   await client.query(UPSERT, subscriptionPlanColumnValues(plan, stateVersion(state)))
-  // Mirror the N:N arrays into the join tables (same tx). Delete-then-insert so a
-  // shrunk array leaves no orphans and replay is idempotent.
   await client.query(PLAN_INCLUDED_ITEMS_DELETE, [plan.orgId, plan.id])
   for (const row of planIncludedItemRows(plan)) {
     await client.query(PLAN_INCLUDED_ITEMS_INSERT, row)
@@ -145,10 +112,6 @@ async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDo
   }
 }
 
-// Row shape the typed table stores; mapped back to the reducer's doc on read.
-// `usage_limit` JSONB carries the full union body (the discriminant is also
-// lifted to `usage_limit_kind`, but the body is authoritative on read). The
-// optional scope-rule JSONB columns are null when unrestricted.
 export type SubscriptionPlanRow = {
   org_id: string
   id: string
@@ -170,10 +133,6 @@ export type SubscriptionPlanRow = {
   updated_at: string
 }
 
-// Reconstructs the reducer's projected doc from the typed row (inverse of
-// `upsert`). The optional scope rules are re-attached ONLY when present (a NULL
-// column round-trips to the field being absent — the create-omits semantics of
-// `unitAllowlist`/`allowedTimeScope`/`bookingLimits`). `_version` is re-attached.
 export function rowToDoc(row: SubscriptionPlanRow): FirestoreDoc {
   const base = {
     _version: Number(row.last_event_version),
@@ -208,9 +167,6 @@ async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc
   return row ? rowToDoc(row) : null
 }
 
-// Locked read for the price/availability guard (brief 0033 AC-08): `FOR UPDATE`
-// holds the plan row until the guarded append's tx ends, so a concurrent
-// reprice/discontinuation can't let two appends snapshot a stale plan price.
 async function readForUpdate(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
   const res = await client.query<SubscriptionPlanRow>(
     'SELECT * FROM subscription_plans WHERE org_id = $1 AND id = $2 FOR UPDATE',
@@ -221,9 +177,6 @@ async function readForUpdate(client: PoolClient, ref: AggregateRef): Promise<Fir
 }
 
 async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
-  // Drop the join rows explicitly (the parent FK is ON DELETE cascade, so this is
-  // defensive + mirrors `member-operation-projector`'s join cleanup). The ref carries
-  // the org + id directly.
   await client.query(PLAN_INCLUDED_ITEMS_DELETE, [ref.orgId, ref.id])
   await client.query(PLAN_INCLUDED_CATEGORIES_DELETE, [ref.orgId, ref.id])
   await client.query(PLAN_UNIT_ALLOWLIST_DELETE, [ref.orgId, ref.id])
@@ -240,12 +193,6 @@ export const subscriptionPlanProjector: TypedProjector = {
   delete: remove,
 }
 
-/**
- * `aggregate_type` for subscription plans = the typed `AggregateType` literal
- * (`config.type`, singular `subscription_plan`) — D6 (ADR 0013). The Postgres
- * Layer routes by the ref's `type`, so registration and routing agree on this
- * literal.
- */
 export const SUBSCRIPTION_PLAN_AGGREGATE_TYPE = SubscriptionPlanConfig.type
 
 registerTypedProjector(SUBSCRIPTION_PLAN_AGGREGATE_TYPE, subscriptionPlanProjector)

@@ -20,7 +20,6 @@ export type SelfCancelResult = { ok: true } | { ok: false; error: string }
 
 const decodeSubscription = Schema.decodeUnknownSync(Subscription)
 
-// Loads a single subscription by id. Returns null when absent.
 async function loadSubscriptionById(
   orgId: string,
   subscriptionId: string,
@@ -37,19 +36,6 @@ async function loadSubscriptionById(
   return row ? decodeSubscription(subscriptionRowToDoc(row)) : null
 }
 
-// #651 — Customer self-cancel pela página `/me/subscriptions`.
-//
-// Authorization: cliente só cancela Subscription onde
-// `customerUserId === session.uid`. Cross-org access enforced via User
-// (sem membership) — pattern espelha #845 (cancelOwnAppointment).
-//
-// Behavior (AC-12 do brief 0003): cancelamento mid-cycle marca
-// `cancelAtPeriodEnd: true` — Subscription continua usável até fim do
-// currentPeriod. Renewal hook detecta cancelAtPeriodEnd no fim e vira
-// `cancelled` (lá em renewSubscription action existente).
-//
-// Audit: `subscription.cancel` com `metadata.via: 'self_cancel'` pra
-// distinguir de owner-cancel (managers cancelam via /(app)/subscriptions).
 export async function cancelOwnSubscription(input: {
   orgId: string
   subscriptionId: string
@@ -65,10 +51,6 @@ export async function cancelOwnSubscription(input: {
     return { ok: false, error: CUSTOMER_CANCEL_REASON_MESSAGES[decision.reason] }
   }
 
-  // Event-first: a projeção (`cancelAtPeriodEnd`/`cancellationReason`) vem do
-  // `subscription.cancel_scheduled`, não de um `subRef.update()` paralelo. A
-  // auditoria "quem cancelou, quando" é o próprio stream — sem `audit_logs`
-  // (erradicação ES, #1029).
   const scheduled = await emitEvent(
     SubscriptionConfig,
     aggregateRef(SubscriptionConfig, input.orgId, input.subscriptionId),

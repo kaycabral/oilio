@@ -1,10 +1,3 @@
-// Pure order-building helpers, extracted from the `'use server'` actions module
-// so they're importable + unit-testable (they were trapped inside the server
-// file before, reachable only via e2e). No I/O here — Firestore loads, event
-// emission and revalidation stay in the actions. These cover the financially
-// load-bearing bits: form parsing/validation, the lawful-price snapshot, totals
-// recompute, payment-method parsing and closability checks.
-
 import {
   type CatalogItem,
   type Order,
@@ -24,12 +17,7 @@ export type ParsedItem = {
   kind: OrderItemKind
   refId: string
   quantity: number
-  // `userId` do membro atribuído (brief 0030, AC-04). Vazio = aplica o default
-  // esperto no servidor (produto/avulsa → opener; serviço → idem fallback).
   attributedUserId: string
-  // Preço unitário EXIBIDO ao operador no momento de montar o carrinho (brief
-  // 0033 AC-09). `null` quando a UI não mandou (ex.: progressive-enhancement sem
-  // JS) — aí o commit cobra o preço vigente sem o teto do exibido.
   displayedPriceCents: number | null
 }
 
@@ -41,18 +29,12 @@ export function parseItemForm(formData: FormData): ParsedItem | string {
 
   const qty = Number(formData.get('quantity'))
   if (!Number.isFinite(qty) || qty <= 0 || qty > 999) return 'Quantidade inválida'
-  // Serviços só fazem sentido em qty=1 — duração e comissão são por execução.
-  // Múltiplas execuções = múltiplos items.
   if (kindRaw === 'service' && qty !== 1) {
     return 'Serviço sempre tem quantidade 1 — adicione outro item se precisar'
   }
 
-  // Atribuição é OBRIGATÓRIA com default (AC-04): a UI manda o `userId` do membro
-  // pré-selecionado; se vier vazio, o caller aplica o default (membro que abriu).
   const attributedUserId = formString(formData, 'attributedUserId').trim()
 
-  // Preço exibido ao operador (brief 0033 AC-09). Campo opcional — sem ele o
-  // commit não aplica o teto `min(exibido, vigente)` (cobra o vigente).
   const displayedRaw = formString(formData, 'displayedPriceCents').trim()
   let displayedPriceCents: number | null = null
   if (displayedRaw) {
@@ -84,11 +66,7 @@ export function snapshotCatalogItem(
     if (!isCatalogProduct(item)) return 'Item não é um produto'
     if (!item.active || item.archivedAt) return 'Produto descontinuado'
   }
-  // Use per-unit effective price/commission (#874). Order é unit-scoped, então a
-  // unit do order define qual override aplica.
   const resolved = resolveCatalogItemForUnit(item, unitId)
-  // AC-09 — preço na divergência segue a lei (CDC art. 30 + Decreto 5.903/2006
-  // art. 5º): cobra o MENOR entre o exibido e o vigente, nunca mais que o exibido.
   const unitPriceCents = lawfulPriceCents(parsed.displayedPriceCents, resolved.priceCents)
   return {
     kind: parsed.kind,
@@ -119,8 +97,6 @@ export function parsePaymentMethod(raw: string): PaymentMethod | null {
   return PAYMENT_METHODS.find((method) => method === raw) ?? null
 }
 
-// Defesa em profundidade (brief 0030, AC-04): comanda não-vazia e todo item com
-// membro atribuído. Retorna a mensagem de erro, ou null quando ok.
 export function validateClosableItems(items: OrderItem[]): string | null {
   if (items.length === 0) return 'Venda vazia — adicione pelo menos um item'
   for (const item of items) {

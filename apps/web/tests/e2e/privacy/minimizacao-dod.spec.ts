@@ -1,9 +1,3 @@
-// Feature-level E2E — brief 0040 (minimização de texto livre), DoD do parent
-// #1108. 1 test() por cenário do DoD: cada um prova a AUSÊNCIA do campo de texto
-// livre removido (notes/tags) E que o fluxo segue funcionando. As provas por
-// fatia vivem nos baselines (customers/orders/agenda); aqui o parent re-afirma o
-// contrato inteiro num lugar só (princípio #15).
-
 import { expect, test } from '../fixtures'
 import { seedCustomer, seedOpenOrder, seedService } from '../helpers/session'
 import { AgendaPage } from '../pages'
@@ -19,11 +13,7 @@ test.describe('Minimização de texto livre — DoD 0040 (#1108)', { tag: '@crit
     },
   })
 
-  // Cenário 1 — cadastrar cliente sem texto livre.
   test('cenário 1: convite de cliente sem campo de notas nem tags', async ({ authedPage }) => {
-    // Desde o brief 0077 (#1279) o estabelecimento não digita PII do cliente: o
-    // convite contextual (só o WhatsApp) abre num modal na lista. A minimização
-    // do 0040 segue valendo — nenhum texto livre (notes/tags) aqui.
     await authedPage.goto('/customers')
     await authedPage.getByRole('button', { name: 'Convidar cliente' }).click()
     const dialog = authedPage.getByRole('dialog')
@@ -31,13 +21,10 @@ test.describe('Minimização de texto livre — DoD 0040 (#1108)', { tag: '@crit
     await expect(dialog.locator('[name="tags"]')).toHaveCount(0)
     await expect(dialog.locator('textarea[name="notes"]')).toHaveCount(0)
     await expect(dialog.getByText('Observações')).toHaveCount(0)
-    // Fluxo segue: o link do convite é montado na hora só com o número (sem
-    // submit, sem criar Customer/PII aqui).
     await dialog.locator('input[name="whatsapp"]').fill(`119${String(Date.now()).slice(-8)}`)
     await expect(dialog.getByRole('textbox', { name: 'Link do convite' })).toHaveValue(/\/signup\?/)
   })
 
-  // Cenário 2 — fechar venda sem observações.
   test('cenário 2: detalhe da venda sem campo de observações (só desconto)', async ({
     org,
     authedPage,
@@ -50,13 +37,11 @@ test.describe('Minimização de texto livre — DoD 0040 (#1108)', { tag: '@crit
       attributedUserId: org.uid,
     })
     await authedPage.goto(`/orders/${orderId}`)
-    // O form de meta da venda não tem mais "Observações" — só o desconto.
     await expect(authedPage.locator('textarea[name="notes"]')).toHaveCount(0)
     await expect(authedPage.getByText('Observações')).toHaveCount(0)
     await expect(authedPage.locator('input[name="discount"]')).toBeVisible()
   })
 
-  // Cenário 3 — agendar sem notas.
   test('cenário 3: diálogo de agendamento sem campo de notas', async ({ org, authedPage }) => {
     await seedService(org.orgId, { name: 'Corte DoD', durationMinutes: 30, priceCents: 5000 })
     await seedCustomer(org.orgId, { name: `Cli Agenda ${Date.now()}` })
@@ -67,7 +52,6 @@ test.describe('Minimização de texto livre — DoD 0040 (#1108)', { tag: '@crit
     await newBtn.click()
     const dialog = agenda.newAppointmentDialog()
     await expect(dialog).toBeVisible()
-    // Sem "Observações" no diálogo; os campos estruturados seguem.
     await expect(dialog.locator('textarea[name="notes"]')).toHaveCount(0)
     await expect(dialog.getByText('Observações')).toHaveCount(0)
     await expect(dialog.getByText('Serviço', { exact: true })).toBeVisible()

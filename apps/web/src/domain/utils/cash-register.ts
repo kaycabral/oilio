@@ -3,27 +3,18 @@ import type { PaymentMethod } from '../types/order'
 
 export function getMovementDirection(kind: CashMovementKind): CashMovementDirection {
   if (kind === 'sale' || kind === 'suprimento') return 'in'
-  // sale_reversal, sangria, despesa → saída.
   return 'out'
 }
 
-// Só dinheiro afeta o saldo físico do caixa. Outros métodos (pix/cartão)
-// entram como movement de `sale` pra trilha contábil completa, mas não
-// movem o caixa físico — `expectedClosingBalanceCents` ignora.
 export function isCashPaymentMethod(method: PaymentMethod | null): boolean {
   return method === 'cash'
 }
 
-// Resumo agregado de um caixa (ou intervalo) — usado em listas, relatório
-// diário, e cálculo de `expectedClosingBalance` no fechamento.
 export type CashMovementTotals = {
-  // Soma de tudo que entra/sai (independente do método).
   totalInCents: number
   totalOutCents: number
-  // Apenas movements em dinheiro afetam o saldo físico esperado.
   cashInCents: number
   cashOutCents: number
-  // Por categoria — útil pro relatório diário.
   salesByMethod: Record<PaymentMethod, number>
   sangriaCents: number
   suprimentoCents: number
@@ -38,13 +29,7 @@ const ZERO_SALES_BY_METHOD: Record<PaymentMethod, number> = {
   pix: 0,
 }
 
-// Regra de "dinheiro": `kind === 'sale'` só conta como cash se o paymentMethod
-// for `cash`. Pra qualquer outro kind (opening, sangria, suprimento, despesa),
-// o paymentMethod é null ou irrelevante — eles são sempre em dinheiro físico.
 function affectsCashBalance(m: CashMovement): boolean {
-  // `sale` e `sale_reversal` só mexem no caixa físico se forem em dinheiro
-  // (pix/cartão entram na trilha mas não movem a gaveta). Os demais kinds são
-  // sempre dinheiro físico.
   if (m.kind === 'sale' || m.kind === 'sale_reversal') return isCashPaymentMethod(m.paymentMethod)
   return true
 }
@@ -66,7 +51,6 @@ function accumulateKind(totals: CashMovementTotals, m: CashMovement): void {
       if (m.paymentMethod) totals.salesByMethod[m.paymentMethod] += m.amountCents
       return
     case 'sale_reversal':
-      // Estorno reduz a venda líquida do método correspondente.
       if (m.paymentMethod) totals.salesByMethod[m.paymentMethod] -= m.amountCents
       return
     case 'sangria':

@@ -8,7 +8,6 @@ describe('SUBSCRIPTION_STATUS_LABEL', () => {
       const label = SUBSCRIPTION_STATUS_LABEL[status]
       expect(label, `missing label for status "${status}"`).toBeDefined()
       expect(label.trim().length).toBeGreaterThan(0)
-      // The label must be humanized, never the raw enum value surfaced to the user.
       expect(label).not.toBe(status)
     }
   })

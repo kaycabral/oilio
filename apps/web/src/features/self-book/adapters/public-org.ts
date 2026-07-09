@@ -20,32 +20,16 @@ import { getOrgBySlug } from '@/shared/org/org'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import 'server-only'
 
-// Legacy org-wide bundle. Still used by `/{orgSlug}/book` (single-
-// unit booking — the wizard in #844 will replace it). Returns the raw
-// `CatalogServiceItem[]` (no sanitization) since the consumer is server-only.
-// Sourced directly from the unified catalog (brief 0023, #1004 → 0053/B3).
 export type PublicOrgBundle = {
   org: Org
   catalogServiceItems: CatalogServiceItem[]
 }
 
-// Org landing payload (#841). Used by `/{orgSlug}` to decide
-// single-unit (catalog inline) vs multi-unit (picker). `units` is the
-// full list of unit docs — the page renders names/addresses for the
-// picker; sanitization isn't required since unit docs carry no
-// commission/PII.
 export type PublicOrgSummary = {
   org: Org
   units: Unit[]
 }
 
-// Unit-scoped catalog payload (#841). `catalogServiceItems` is the public
-// projection of the unit's kind-service items via `toPublicCatalogItem` —
-// drops commission/unitOverrides/active/publicVisible and resolves
-// priceCents/durationMinutes per the unit override stack. When the optional
-// `memberOperationId` filter is applied, it is further narrowed to entries the
-// pro executes (#876). Brief 0053/B3 converges this onto `PublicCatalogItem`
-// (the unified projection, AC-08 — #1004), closing the UI convergence (#1005).
 export type PublicUnitBundle = {
   org: Org
   unit: Unit
@@ -55,27 +39,19 @@ export type PublicUnitBundle = {
 }
 
 async function loadOrgUnits(orgId: string): Promise<Unit[]> {
-  // PII (whatsapp/email) lives in `units_pii` and is merged on read (#1036).
   return listUnitsForOrg(orgId)
 }
 
-// Raw active + public kind-service catalog items (brief 0023, #1004).
 async function loadPublicCatalogServiceItems(orgId: string): Promise<CatalogServiceItem[]> {
   const items = await listCatalogItems(orgId)
   return items.filter(isCatalogService).filter((s) => s.active && s.publicVisible)
 }
 
-// Legacy bundle. Toda leitura passa pelo admin SDK (server-only) — Firestore
-// Rules continuam bloqueando read pra não-members; expomos só o slice que
-// o público deve ver (Org base + serviços com publicVisible=true && active).
 export async function getPublicOrgBundle(slug: string): Promise<PublicOrgBundle | null> {
   if (!isValidSlug(slug) || isReservedSlug(slug)) return null
 
   const org = await getOrgBySlug(slug)
   if (!org) return null
-  // Self-booking is per-unit now (PRD Identidade v2 — moved Org→Unit) and
-  // inferred (no stored publish flag): the org-wide legacy bundle is live iff
-  // ≥1 unit is publicly live (appointment agenda + configured hours).
   const units = await loadOrgUnits(org.id)
   if (!units.some(isUnitPubliclyLive)) return null
 
@@ -83,33 +59,17 @@ export async function getPublicOrgBundle(slug: string): Promise<PublicOrgBundle 
   return { org, catalogServiceItems }
 }
 
-// Resolve the public landing payload for `/{orgSlug}` (#841). Returns
-// null when slug is malformed/reserved, org doesn't exist, or the
-// owner hasn't published the self-booking page yet (#988 gate).
 export async function getPublicOrgSummary(slug: string): Promise<PublicOrgSummary | null> {
   if (!isValidSlug(slug) || isReservedSlug(slug)) return null
 
   const org = await getOrgBySlug(slug)
   if (!org) return null
 
-  // The landing lists only publicly-live units (PRD Identidade v2 — self-booking
-  // is a per-unit, inferred appointment-agenda concern: appointment mode +
-  // configured hours, no stored flag). None live → 404 (the derived org-level
-  // "is anything live", computed not stored).
   const units = (await loadOrgUnits(org.id)).filter(isUnitPubliclyLive)
   if (units.length === 0) return null
   return { org, units }
 }
 
-// Resolve the unit-scoped catalog for `/{orgSlug}/{unitSlug}` (#841).
-// Returns null on malformed/reserved slug, missing org/unit, or
-// unpublished self-booking (#988 gate).
-//
-// `memberOperationId` further filters the catalog to services the pro
-// executes — used by `/{orgSlug}/{unitSlug}?memberOperation={id}`. An
-// unknown/unauthorized id returns an empty catalog (not null) so the user
-// can clear the filter without hitting a 404, and `memberOperation` stays
-// null so the UI doesn't pretend the filter is active.
 export async function getPublicUnitBundle(
   slug: string,
   unitSlug: string,
@@ -124,19 +84,12 @@ export async function getPublicUnitBundle(
   const [units, serviceItems, memberOperations, categories] = await Promise.all([
     loadOrgUnits(org.id),
     loadPublicCatalogServiceItems(org.id),
-    // Backend-aware read (Postgres typed table under RLS / Firestore); enriched
-    // with PII (name from `member_operations_pii`/User), so no separate merge below.
     listMemberOperationsForOrg(org.id),
-    // Categories (org-wide, RLS-scoped) resolve each item's `categoryId` to a
-    // render-ready name for the public catalog — see the label map below.
     listCategoriesForOrg(org.id),
   ])
 
   const unit = units.find((u) => u.slug === unitSlug)
   if (!unit) return null
-  // A unit's public page is offline unless it is publicly live — inferred from
-  // its appointment agenda + configured hours (PRD Identidade v2 — per-unit,
-  // no stored publish flag), even if siblings are live.
   if (!isUnitPubliclyLive(unit)) return null
 
   let unitServices = serviceItems.filter(
@@ -159,17 +112,10 @@ export async function getPublicUnitBundle(
     }
   }
 
-  // Category-label resolution covers only ACTIVE categories (mirrors the
-  // owner-facing catalog, brief 0033 AC-11): an item pointing at an
-  // archived/deleted category resolves to `null` → the public UI omits the
-  // label rather than leaking the raw id.
   const categoryNameById = new Map(
     categories.filter((c) => !c.archivedAt).map((c) => [c.id, c.name]),
   )
 
-  // Unified public projection (brief 0023, AC-08 → 0053/B3): the unit's
-  // kind-service items projected via `toPublicCatalogItem` — one shape for the
-  // public catalog, sanitized + per-unit resolved.
   const catalogServiceItems = unitServices.map((s) =>
     toPublicCatalogItem(s, unit.id, categoryNameById),
   )

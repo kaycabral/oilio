@@ -55,7 +55,6 @@ describe('parseProfileForm', () => {
 })
 
 describe('meetsMinAge', () => {
-  // Local-time constructor so getFullYear/getMonth/getDate are tz-stable.
   const today = new Date(2026, 5, 12)
 
   it('accepts a birth date older than the cutoff', () => {

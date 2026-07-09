@@ -8,7 +8,6 @@ export const InviteCreatedSchema = Schema.Struct({
 
 export const InviteUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('invite.updated'),
-  // `Schema.partial` exige struct (não atravessa o refinement do StoredInvite).
   changes: Schema.partial(StoredInviteFields),
 })
 

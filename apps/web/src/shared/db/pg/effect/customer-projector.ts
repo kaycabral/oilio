@@ -5,23 +5,8 @@ import type { PoolClient } from 'pg'
 import { buildCollectionQueryTail } from './collection-query'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `customer` context (brief 0060, Grupo A) — plugged into
- * the per-context typed-projection registry without reopening the
- * `PersistencePort`.
- *
- * `upsert` decodes the reduced `state` against the domain `StoredCustomer` schema
- * (the PII-omitted shape — name/whatsapp/email/birthDate/avatarUrl come live from
- * the global `users/{userId}` doc at read time). Only the operational fields
- * persist: the `user_id` link and the two distinct non-active markers
- * (`archived_at` LGPD block / `deactivated_at` operator removal). The DB enforces
- * the invariants — a violation rolls back event + projection together.
- */
-
 const decodeCustomer = Schema.decodeUnknownSync(StoredCustomer)
 
-/** The ordered `customers` column list — single source of truth for the runtime
- * upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1. */
 export const CUSTOMER_COLUMNS = [
   'org_id',
   'id',
@@ -46,8 +31,6 @@ export function customerColumnValues(
     customer.userId,
     customer.archivedAt,
     customer.deactivatedAt,
-    // Composite attribution → JSONB (mirrors the schema's JSONB for structural
-    // state). Null stays null; a value is stringified for the bound param.
     customer.acquisition === null ? null : JSON.stringify(customer.acquisition),
     customer.createdAt,
     customer.updatedAt,
@@ -74,7 +57,6 @@ async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc
   await client.query(UPSERT, customerColumnValues(customer, ref, stateVersion(state)))
 }
 
-// Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type CustomerRow = {
   org_id: string
   id: string
@@ -82,16 +64,11 @@ export type CustomerRow = {
   user_id: string
   archived_at: string | null
   deactivated_at: string | null
-  // JSONB — driver returns the parsed object (or null). Passed through to the
-  // doc as-is; the `StoredCustomer` decode validates the shape on read.
   acquisition: unknown
   created_at: string
   updated_at: string
 }
 
-// Reconstructs the reducer's projected doc from the typed row (inverse of
-// `upsert`). `_version` is re-attached. PII is NOT present (merged from `users/`
-// at read time).
 export function rowToDoc(row: CustomerRow): FirestoreDoc {
   return {
     _version: Number(row.last_event_version),
@@ -119,9 +96,6 @@ async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
   await client.query('DELETE FROM customers WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-// Org-scoped collection scan (the `customer` collection for an org): the birthday
-// cron sweeps the org's customers (no constraints) and joins each to its
-// `users/{uid}` PII doc.
 async function list(
   client: PoolClient,
   ref: CollectionRef,

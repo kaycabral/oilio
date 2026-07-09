@@ -4,8 +4,6 @@ import { NotificationEventSchema } from './events'
 
 const decode = Schema.decodeUnknownSync(NotificationEventSchema)
 
-// Kept as its own object so the negative cases can spread it without widening
-// to `unknown`. Exercises every NotificationCreatedSchema field on decode.
 const created = {
   _tag: 'notification.created',
   orgId: 't1',
@@ -20,9 +18,6 @@ const created = {
   validUntil: null,
 }
 
-// One minimal-but-valid event per `_tag`. Decoding each through the union
-// exercises every variant's `_tag` literal and required fields — a mutated
-// literal (e.g. → '') makes the matching sample fail to decode, killing it.
 const SAMPLES: Record<string, unknown> = {
   'notification.created': created,
   'notification.dispatched': {
@@ -38,8 +33,6 @@ const SAMPLES: Record<string, unknown> = {
   'notification.expired': { _tag: 'notification.expired' },
 }
 
-// Every NotificationType literal — decoding a created event with each kills the
-// corresponding Schema.Literal mutant in the union.
 const NOTIFICATION_TYPES = [
   'birthday',
   'subscription_expiring_tomorrow',

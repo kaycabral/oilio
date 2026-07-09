@@ -7,15 +7,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 import { PostgresPersistenceLayer } from './postgres-layer'
 
-/**
- * Join-table projection proof for `catalog-item ↔ unit` against REAL Postgres
- * (brief 0068 D3, #1225). Proves: the projector mirrors the reduced state's
- * `unitIds` array into the `catalog_item_units` join table in the SAME tx as the
- * event; a shrunk array leaves no orphan rows (delete-then-insert idempotency);
- * REPLAY reconstructs the reduced state the rows derive from; the FK refuses a
- * dangling unit ref; cascade-on-delete; and RLS isolates the rows per org.
- */
-
 const ORG = 'org-ciu'
 const UNIT_A = 'unit-a'
 const UNIT_B = 'unit-b'
@@ -158,12 +149,6 @@ describe('Postgres join projection — catalog-item ↔ unit (brief 0068 D3)', (
   })
 
   it('an empty unitIds array is refused at the event boundary (#1283), writing nothing', async () => {
-    // A catalog item with no unit is a phantom (#1283): the `catalog_item.created`
-    // event schema filters on a non-empty `unitIds` (`UnitScopedCatalogItem`), so
-    // the payload fails to decode at `appendEvent` — fail-fast at the OUTER
-    // boundary, before the DB CHECK (`catalog_items_unit_ids_nonempty`, proven by
-    // the identity-catalog-nonempty suite). The event never persists, so the join
-    // table stays empty.
     await expect(create(item({ unitIds: [] }))).rejects.toThrow()
     expect(await unitIds()).toEqual([])
     const events = await pool().query<{ n: string }>(

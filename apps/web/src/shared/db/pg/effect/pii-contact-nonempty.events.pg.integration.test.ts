@@ -2,15 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 
-/**
- * Proof that the DB rejects an empty required contact PII (#1283, brief 0078
- * Group B). `units_pii.mobile` and `invites_pii.mobile` are NOT NULL but a bare
- * `''` satisfied NOT NULL before the `*_nonempty` CHECK; and a `''` mobile on a
- * `completion_completed` user satisfied the old `IS NOT NULL` branch of
- * `users_completed_profile_complete`. These run against the ephemeral Postgres
- * over the superuser pool (the CHECK is enforced regardless of RLS role).
- */
-
 const ORG = 'org-nonempty'
 
 async function seedOrg(id: string): Promise<void> {

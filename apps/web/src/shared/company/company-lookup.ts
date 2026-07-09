@@ -7,9 +7,6 @@ import {
   deriveTaxRegime,
 } from '@/domain'
 
-// Subset of the BrasilAPI `cnpj/v1` payload we consume. Every field is optional
-// (and the numeric ones tolerate the string form the API sometimes returns) so
-// a partial/degraded response normalizes to safe defaults instead of throwing.
 const CnaeSecundaria = Schema.Struct({
   codigo: Schema.optional(Schema.Union(Schema.Number, Schema.String)),
   descricao: Schema.optional(Schema.String),
@@ -32,11 +29,6 @@ export const BrasilApiCnpjResponse = Schema.Struct({
 })
 export type BrasilApiCnpjResponse = typeof BrasilApiCnpjResponse.Type
 
-// What the lookup endpoint returns. Split by LGPD class so the caller
-// (`createOrg`, #1132) can route each part to its home: `profile` is
-// corporate (→ `org.created` event + `StoredOrg`), while `legalName` /
-// `tradeName` are PII (→ deletable doc). `profile.registrationStatus` drives
-// the ATIVA gate. See brief 0046.
 export type CompanyLookup = {
   profile: CompanyProfile
   legalName: string
@@ -61,9 +53,6 @@ function nonEmptyOrNull(value: string | undefined): string | null {
   return trimmed && trimmed.length > 0 ? trimmed : null
 }
 
-// Maps a decoded BrasilAPI response into our domain shape. Pure (no I/O) so the
-// snake_case→domain mapping + regime/size derivations are unit-tested without
-// the network. `taxId` comes from the validated request param, not the body.
 export function normalizeCompanyLookup(raw: BrasilApiCnpjResponse, taxId: string): CompanyLookup {
   const optsForSimples = raw.opcao_pelo_simples === true
   const isMei = raw.opcao_pelo_mei === true

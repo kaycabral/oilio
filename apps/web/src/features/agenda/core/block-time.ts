@@ -1,8 +1,5 @@
 import { toOrgTime } from '@/domain'
 
-// Convert a one-off block's UTC range into org-local form-input strings
-// (`date` YYYY-MM-DD, `start`/`end` HH:mm). Used to pre-fill the edit form and
-// to render the "when" column.
 export function oneOffToLocal(
   startAt: string,
   endAt: string,

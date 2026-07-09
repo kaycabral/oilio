@@ -14,11 +14,6 @@ import { useState, type ReactNode } from 'react'
 
 import { ConfirmDeleteDialog, type ConfirmDeleteProps } from './destructive/DeleteAction'
 
-// Declarative per-row overflow (⋯) menu — the single actions affordance across
-// every list surface. Navigation/edit and any custom op are plain menu items;
-// the destructive `delete` item drives the shared `ConfirmDeleteDialog` (brief
-// 0033 safe-confirm) via the canonical menu-item-opens-dialog pattern, so the
-// confirm logic lives in one place. At most one `delete` action per row.
 export type RowAction =
   | { kind: 'link'; label: string; href: Route; icon?: ReactNode }
   | {
@@ -32,7 +27,6 @@ export type RowAction =
       kind: 'delete'
       label?: string
       icon?: ReactNode
-      // When false, the menu item is disabled and explains itself via `title`.
       disabled?: boolean
       disabledReason?: string
     } & ConfirmDeleteProps)
@@ -81,7 +75,6 @@ export function RowActions({ actions, label = 'Ações' }: { actions: RowAction[
                 variant="destructive"
                 disabled={a.disabled}
                 title={a.disabled ? a.disabledReason : undefined}
-                // Keep the menu from stealing focus before the dialog mounts.
                 onSelect={(e) => {
                   e.preventDefault()
                   if (!a.disabled) setDeleteOpen(true)

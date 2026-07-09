@@ -15,10 +15,6 @@ export type NotificationType = typeof NotificationType.Type
 export const NotificationSource = Schema.Literal('cron', 'event')
 export type NotificationSource = typeof NotificationSource.Type
 
-// Effect Schema for the reduced notification state — the source of truth the
-// typed Postgres projector decodes against at the driver boundary (brief 0060,
-// Grupo C), mirroring the other 7 aggregates. No PII (`payload` references ids,
-// never personal data inline — ADR 0010).
 export const NotificationState = Schema.Struct({
   id: Schema.String,
   orgId: Schema.String,
@@ -33,8 +29,6 @@ export const NotificationState = Schema.Struct({
   createdAt: Schema.NullOr(Schema.String),
   readAt: Schema.NullOr(Schema.String),
   dispatchedAt: Schema.NullOr(Schema.String),
-  // Snapshot do envio (AC-14) — projetados de notification.dispatched. null
-  // enquanto não despachada.
   dispatchedChannel: Schema.NullOr(Schema.String),
   dispatchedBody: Schema.NullOr(Schema.String),
   validUntil: Schema.NullOr(Schema.String),

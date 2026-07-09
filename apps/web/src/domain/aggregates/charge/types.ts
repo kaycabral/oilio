@@ -2,9 +2,6 @@ import type { Charge } from '@/domain/types/charge'
 
 export type { ChargeStatus } from '@/domain/types/charge'
 
-// AC-05 (brief 0025): a projeção cobre o doc operacional inteiro da cobrança
-// (período, vencimento, tentativas, datas de liquidação/falha),
-// derivada só de eventos. `ChargeState` == `Charge` + `_version`.
 export type ChargeState = Charge & { readonly _version: number }
 
 export const INITIAL_CHARGE_STATE: ChargeState = {

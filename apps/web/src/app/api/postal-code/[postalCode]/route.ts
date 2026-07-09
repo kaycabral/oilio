@@ -3,8 +3,6 @@ import { withRequestContext } from '@/shared/lib/request-context'
 import { Schema } from 'effect'
 import { NextResponse } from 'next/server'
 
-// BrasilAPI fields are optional here because every read below uses `?? fallback`
-// — a partial response degrades to defaults rather than throwing.
 const BrasilApiResponseSchema = Schema.Struct({
   cep: Schema.optional(Schema.String),
   state: Schema.optional(Schema.String),
@@ -21,7 +19,6 @@ export type PostalCodeLookup = {
   street: string
 }
 
-// 7d cache — endereço muda raramente. Pattern copiado de apps/tekoa.
 export const revalidate = 604800
 
 async function getHandler(_req: Request, { params }: { params: Promise<{ postalCode: string }> }) {

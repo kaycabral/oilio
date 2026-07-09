@@ -1,11 +1,3 @@
-// Postgres integration test — #959, brief 0018 Grupo E (re-substrated to
-// Postgres by the cutover, #1202).
-//
-// AC-18/19: fetchUnreadNotificationsForUnit com allowedTypes (derivado do role)
-// — count + items respeitam a visibilidade. Receptionist não vê tipos
-// financeiros. Live read path (`@/shared/org/notification-read`), typed
-// `notifications` projection seeded directly over the superuser pool.
-
 import { allowedNotificationTypesForRole } from '@/domain'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { fetchUnreadNotificationsForUnit } from '@/shared/org/notification-read'

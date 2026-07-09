@@ -1,7 +1,5 @@
 import { Typography } from '@cbrl/design'
 
-// FAQ canônico de pricing — fonte de verdade na Wiki
-// [Estrategia/Modelo-de-Receita § 5].
 const FAQ = [
   {
     question: 'Como funciona a cobrança por unidade?',

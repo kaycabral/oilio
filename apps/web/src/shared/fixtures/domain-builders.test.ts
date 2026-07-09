@@ -1,11 +1,3 @@
-// The builders exist to produce schema-VALID docs (the seeds that wrote partial
-// docs were silently illegal under the tightened domain schemas). So the test
-// that matters is: each builder's output decodes through its domain schema, and
-// the invariant branches (cancelled→cancelledAt, accepted→acceptedAt, paid→
-// paidAt, completed account→PII) stay legal — both the satisfied case AND the
-// violated case the refinement is there to reject. A field added to a type that
-// the builder forgets fails here.
-
 import {
   Appointment,
   Charge,

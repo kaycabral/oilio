@@ -1,22 +1,9 @@
-// E2E spec — sub-issue #956 do brief 0018 (Grupo B).
-//
-// AC [smoke] via endpoint direto (não-UI):
-// - AC-07: cron diário gera 3 toques de vencimento (D-1, D+1, D+7)
-// - AC-10: idempotência — rodar 2× não duplica
-//
-// Testa via POST /api/cron/daily-notifications contra Postgres (post-cutover).
-
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { readJson } from '../helpers/rest-json'
 import { CRON_SECRET } from '../helpers/secrets'
 import { pgQueryProjection, seedCustomer, seedSubscription } from '../helpers/session'
 
-// Patches the seeded subscription's `currentPeriod.endAt` directly on the
-// `subscriptions` projection (the cron reads `currentPeriod.endAt` off the
-// projection — `generate-daily.ts`). Post-cutover the period is a JSONB column;
-// `jsonb_set` rewrites only the `endAt` key, leaving `startAt`/`consumed` intact
-// (mirrors the old Firestore updateMask on `currentPeriod.endAt`).
 async function patchSubscriptionPeriod(orgId: string, subId: string, endAt: string): Promise<void> {
   const { Client } = await import('pg')
   const client = new Client({ connectionString: process.env.OILIO_DATABASE_URL })
@@ -33,10 +20,6 @@ async function patchSubscriptionPeriod(orgId: string, subId: string, endAt: stri
   }
 }
 
-// Reads the subscription-expiring notifications for a given subscription in an
-// org. Post-cutover the notifications live in the typed `notifications` table
-// (snake_case columns); we filter by `subscription_id` and narrow to the org +
-// type in JS (same predicate the old Firestore composite query expressed).
 async function readExpiringTomorrowNotifications(
   orgId: string,
   subId: string,
@@ -45,9 +28,6 @@ async function readExpiringTomorrowNotifications(
   return rows.filter((r) => r.org_id === orgId && r.type === 'subscription_expiring_tomorrow')
 }
 
-// Seeded units open 09:00 (America/Sao_Paulo = UTC-3).
-// Cron window: [open-45min, open-15min] = [08:15, 08:45] local = [11:15, 11:45] UTC.
-// We pick a Wednesday (weekday with businessHours) at 08:30 local → 11:30 UTC.
 function cronNowForDate(localDate: string): string {
   return `${localDate}T11:30:00.000Z`
 }

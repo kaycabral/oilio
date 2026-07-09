@@ -1,38 +1,3 @@
-// Feature-level E2E — parent #1054 (epic 0030 "Venda multi-vertical").
-//
-// This is the PARENT's composite journey: it validates the brief's Definition
-// of Done end-to-end (Cenários 1–4 + baseline), NOT the granular per-AC
-// coverage the sub-issue specs already prove exhaustively against the emulator:
-//   - orders/standalone-sale.spec.ts            (#1055 · AC-01/02 — venda
-//     avulsa, cliente opcional, regressão agendamento)
-//   - orders/member-attribution.spec.ts         (#1056 · AC-04/05 — atribuição
-//     por membro, default esperto, recepção sem MemberOperation fecha)
-//   - orders/member-attribution-commission.spec.ts (#1057 · AC-06/07 — comissão
-//     chaveada por membro, agrupada em /reports/commissions)
-//   - orders/venda-terminology-pos.spec.ts      (#1058 · AC-09/10 — copy "Venda",
-//     busca POS + steppers)
-//
-// Here we re-assert the SAME invariants stitched into the one journey the
-// commerce/serviço operator lives, driving the FINAL UX after the 4 subs:
-//   - venda avulsa nasce sem agendamento, sem cliente, atribuída ao membro que
-//     abriu, fecha com pagamento real (dinheiro) e gera comissão pendente pro
-//     membro quando o item tem regra;
-//   - a comanda de serviço (caminho da agenda) segue intacta — nasce ligada ao
-//     appointment, serviço default-atribuído ao profissional, cascatas como antes;
-//   - todo item SEMPRE tem um membro atribuído, editável — nunca fecha venda com
-//     item órfão; serviço-agendamento → profissional, produto/avulsa → operador;
-//   - comissão de vendedor não-profissional (recepção) cai pro userId do membro,
-//     aparece em /reports/commissions agrupada por membro, status pendente, sem
-//     exigir identidade fiscal (liquidação manual, 0022);
-//   - baseline: /orders (UI "Vendas") render + empty com CTA "Nova venda"; fluxo
-//     real (criar → adicionar → atribuir → fechar → lista de fechadas); cancelar
-//     venda aberta re-renderiza a lista; degenerado (sem cliente; produto sem
-//     regra → atribuído, mas sem registro de comissão).
-//
-// Runs against the running emulator (no mocks, auth only). Seeds via the session
-// helpers and reads order/commission state straight from Postgres (the event
-// store, post-cutover) to assert the stitched invariants.
-
 import { liquidationStatusOf } from '@/domain'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
@@ -50,15 +15,6 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-// --- Postgres projection readers ----------------------------------------------
-// The journeys read state straight from the `orders`/`commissions` typed
-// projections (snake_case columns; `items` is a JSONB array of the domain
-// OrderItem shape) to assert invariants the UI only hints at (nullable
-// customerId/appointmentId, per-item attributedUserId, commission key +
-// liquidation status). Each row is decoded with a lenient Schema describing
-// only the sub-fields the asserts touch (excess columns are ignored).
-
-// One JSONB order item — only `attributedUserId` matters for the asserts.
 const OrderItemRow = Schema.Struct({ attributedUserId: Schema.String })
 const OrderRow = Schema.Struct({
   id: Schema.String,
@@ -116,8 +72,6 @@ async function readCommissions(orgId: string): Promise<ReadCommission[]> {
   })
 }
 
-// Closes the open sale via the WORKING payment path (cash) — never the broken
-// `subscription` option (pre-existing bug in close-confirm-dialog.spec.ts).
 async function closeWithCash(
   authedPage: Parameters<typeof addCatalogItemToOrder>[0],
 ): Promise<void> {
@@ -140,17 +94,11 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
     },
   })
 
-  // Cenário 1 — venda avulsa de produto (varejo). Folds in the baseline:
-  // render+empty (/orders "Vendas" with "Nova venda"), real flow (criar →
-  // adicionar → atribuir → fechar → lista de fechadas) and the degenerate case
-  // (sem cliente). On close, the commissionable product generates a PENDING
-  // commission for the member who sold — no customer, no appointment, no pro.
   test.describe('Cenário 1 — venda avulsa de produto (varejo)', () => {
     test('/orders render+empty → cria avulsa, atribui ao operador, fecha com pagamento → fechada + comissão pendente; sem cliente/agendamento', async ({
       org,
       authedPage,
     }) => {
-      // Produto comissionável (50% de R$ 30 = R$ 15) — comissiona o membro.
       await seedCatalogItem(org.orgId, {
         kind: 'product',
         name: 'Cimento CP-II',
@@ -159,42 +107,33 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
         unitIds: [org.unitIds[0]!],
       })
 
-      // Baseline render + empty: sem vendas na unidade → protagonist empty-state
-      // (brief 0034), com o CTA único "Nova venda" (header escondido).
       await authedPage.goto('/orders')
       await expect(authedPage.getByText('Nenhuma venda registrada')).toBeVisible()
       const novaVenda = authedPage.getByRole('button', { name: 'Nova venda' })
       await expect(novaVenda).toBeVisible()
 
-      // Fluxo real: abre uma venda AVULSA (sem agendamento, sem cliente).
       await novaVenda.click()
       await expect(authedPage).toHaveURL(/\/orders\/.+/)
       await expect(authedPage.getByRole('heading', { name: 'Venda avulsa' })).toBeVisible()
       await expect(authedPage.getByText('agendamento vinculado')).toBeHidden()
 
-      // Adiciona o produto: default-atribui ao operador (o owner que abriu).
       await addCatalogItemToOrder(authedPage, 'Cimento CP-II')
       const row = authedPage.getByRole('listitem').filter({ hasText: 'Cimento CP-II' })
       await expect(row).toBeVisible()
       await expect(row.getByRole('combobox', { name: 'Vendedor' })).toHaveText('E2E Owner')
 
-      // Fecha pelo caminho que funciona (dinheiro) — nunca o `subscription` quebrado.
       await closeWithCash(authedPage)
 
-      // Aparece na lista de fechadas rotulada como "Venda avulsa".
       await authedPage.goto('/orders?status=closed')
       await expect(authedPage.getByText('Venda avulsa').first()).toBeVisible()
       await expect(authedPage.getByText('Fechada', { exact: true }).first()).toBeVisible()
 
-      // Invariantes lidos do Postgres: a venda fechou SEM cliente, SEM
-      // agendamento, com o item atribuído ao operador.
       const order = (await readOrders(org.orgId)).find((o) => o.status === 'closed')
       expect(order).toBeDefined()
       expect(order!.customerId).toBeNull()
       expect(order!.appointmentId).toBeNull()
       expect(order!.itemAttributions).toEqual([org.uid])
 
-      // Comissão PENDENTE gerada pro membro que vendeu (o operador).
       const commissions = await readCommissions(org.orgId)
       expect(commissions).toHaveLength(1)
       expect(commissions[0]!.attributedUserId).toBe(org.uid)
@@ -202,9 +141,6 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
     })
   })
 
-  // Cenário 2 — comanda de serviço segue intacta (caminho da agenda).
-  // A venda nasce ligada ao appointment, o serviço default-atribuído ao
-  // profissional, e o fechamento cascateia a comissão do serviço como antes.
   test.describe('Cenário 2 — comanda de serviço segue intacta', () => {
     test('agenda → iniciar atendimento → venda ligada ao appointment, serviço atribuído ao pro, fecha + cascata de comissão', async ({
       org,
@@ -239,20 +175,16 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       await authedPage.getByRole('button', { name: /Cliente Agendado/ }).click()
       await authedPage.getByRole('button', { name: /Iniciar atendimento/ }).click()
 
-      // A venda nasce ligada ao appointment (carrega o cliente), NÃO é avulsa.
       await expect(authedPage).toHaveURL(/\/orders\/.+/)
       await expect(authedPage.getByRole('heading', { name: 'Cliente Agendado' })).toBeVisible()
       await expect(authedPage.getByText('agendamento vinculado')).toBeVisible()
 
-      // O serviço default-atribui ao profissional do agendamento (rótulo "Executor").
       const serviceRow = authedPage.getByRole('listitem').filter({ hasText: 'Corte Jornada' })
       await expect(serviceRow.getByRole('combobox', { name: 'Executor' })).toBeVisible()
 
       const proUid = `e2e-prof-user-${org.memberOperationIds[0]!}`
       await closeWithCash(authedPage)
 
-      // Invariantes: venda ligada ao appointment, com cliente, serviço atribuído
-      // ao profissional; cascata gera a comissão dele.
       const order = (await readOrders(org.orgId)).find((o) => o.status === 'closed')
       expect(order).toBeDefined()
       expect(order!.customerId).toBe(customerId)
@@ -266,10 +198,6 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
     })
   })
 
-  // Cenário 3 — atribuição obrigatória com default (editável). Service-on-
-  // appointment defaults to the pro; a product on the same sale defaults to the
-  // opener; the product attribution is editable to another member. Every item
-  // always carries an owner.
   test.describe('Cenário 3 — atribuição obrigatória com default', () => {
     test('serviço-agendamento → pro; produto → operador (editável p/ outro membro); todo item tem dono', async ({
       org,
@@ -307,11 +235,9 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       await authedPage.getByRole('button', { name: /Iniciar atendimento/ }).click()
       await expect(authedPage).toHaveURL(/\/orders\/.+/)
 
-      // Serviço-agendamento → default = profissional (rótulo "Executor").
       const serviceRow = authedPage.getByRole('listitem').filter({ hasText: 'Corte' })
       await expect(serviceRow.getByRole('combobox', { name: 'Executor' })).toBeVisible()
 
-      // Produto → default = operador que abriu (E2E Owner), depois editável.
       await addCatalogItemToOrder(authedPage, 'Pomada')
       const productSeller = () =>
         authedPage
@@ -320,12 +246,10 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
           .getByRole('combobox', { name: 'Vendedor' })
       await expect(productSeller()).toHaveText('E2E Owner')
 
-      // Edita a atribuição do produto pra outro membro — sempre tem um dono.
       await productSeller().click()
       await authedPage.getByRole('option', { name: 'Gerente Loja' }).click()
       await expect(productSeller()).toHaveText('Gerente Loja')
 
-      // Invariante: NENHUM item fica sem dono — serviço pro pro, produto pro gerente.
       const proUid = `e2e-prof-user-${org.memberOperationIds[0]!}`
       const order = (await readOrders(org.orgId)).find((o) => o.appointmentId != null)
       expect(order).toBeDefined()
@@ -335,18 +259,11 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
     })
   })
 
-  // Cenário 4 — comissão pro vendedor não-profissional. A commissionable product
-  // sold by a reception (no MemberOperation) closes; the commission is keyed by the
-  // member's userId and appears in /reports/commissions grouped by member,
-  // status pending. Folds in the degenerate baseline: a product WITHOUT a
-  // commission rule is attributed but generates NO commission, and the cancel
-  // baseline (cancelling an open sale re-renders the list).
   test.describe('Cenário 4 — comissão pro vendedor não-profissional', () => {
     test('produto comissionável da recepção fecha → comissão por membro pendente em /reports/commissions; produto sem regra não comissiona; cancelar re-renderiza', async ({
       org,
       authedPage,
     }) => {
-      // Produto comissionável (50% de R$ 30 = R$ 15) — comissiona qualquer membro.
       await seedCatalogItem(org.orgId, {
         kind: 'product',
         name: 'Argamassa',
@@ -354,15 +271,12 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
         commission: { kind: 'percentage', value: 50 },
         unitIds: [org.unitIds[0]!],
       })
-      // Produto SEM regra (degenerado): atribuído mas não comissiona.
       await seedProduct(org.orgId, { name: 'Prego Sem Comissao', priceCents: 1000 })
-      // Recepção SEM MemberOperation projection — o caso que a generalização destrava.
       const recepcao = await seedMember(org.orgId, {
         role: 'receptionist',
         displayName: 'Recepção Balcão',
       })
 
-      // Baseline cancelar: abre uma venda, cancela, a lista volta a renderizar.
       await authedPage.goto('/orders')
       await authedPage.getByRole('button', { name: 'Nova venda' }).click()
       await expect(authedPage).toHaveURL(/\/orders\/.+/)
@@ -371,7 +285,6 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       await expect(authedPage).toHaveURL(/\/orders(\?.*)?$/)
       await expect(authedPage.getByRole('heading', { name: 'Vendas' })).toBeVisible()
 
-      // Venda de verdade: dois produtos atribuídos à recepção, um sem regra.
       await authedPage.getByRole('button', { name: 'Nova venda' }).click()
       await expect(authedPage).toHaveURL(/\/orders\/.+/)
 
@@ -395,10 +308,8 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       await authedPage.getByRole('option', { name: 'Recepção Balcão' }).click()
       await expect(pregoSeller()).toHaveText('Recepção Balcão')
 
-      // Fecha com dinheiro — não trava por falta de profissional aprovado (AC-05).
       await closeWithCash(authedPage)
 
-      // Relatório agrupa POR MEMBRO: a recepção com a comissão pendente de R$ 15.
       await authedPage.goto('/reports/commissions')
       await expect(
         authedPage.getByRole('heading', { name: 'Relatório de comissões' }),
@@ -407,11 +318,8 @@ test.describe('Venda multi-vertical — DoD (#1054 · 0030)', () => {
       const memberRow = authedPage.getByRole('row').filter({ hasText: 'Recepção Balcão' })
       await expect(memberRow).toBeVisible()
       await expect(memberRow.getByText('R$ 15,00').first()).toBeVisible()
-      // O produto sem regra NÃO aparece como comissão.
       await expect(authedPage.getByText('Prego Sem Comissao')).toBeHidden()
 
-      // Invariantes lidos do Postgres: ambos os produtos atribuídos à recepção;
-      // SÓ uma comissão (do comissionável), chaveada pelo userId dela, pendente.
       const closed = (await readOrders(org.orgId)).find((o) => o.status === 'closed')
       expect(closed).toBeDefined()
       expect(closed!.itemAttributions).toEqual([recepcao.userId, recepcao.userId])

@@ -1,14 +1,3 @@
-// Auto-marked subscription coverage on add (brief 0079, #1306 — AC-06/07/09).
-// When a subscriber's comanda gains an item the plan covers WITH balance, the
-// item must enter as `coverage: subscription` (R$ 0,00, debits no total) without
-// the operator flipping the selector. Covered-but-exhausted, not-covered, and
-// no-customer all stay `sale` (AC-07). Products follow the same rule (AC-09).
-//
-// Seam mirrors order-item-attribution-gate: the full `addItemToOrder` action runs
-// against REAL Postgres; only `getSessionUser` is mocked so `requireOrgCtx`
-// resolves the acting membership from the seeded row. The test asserts the
-// coverage the order projection ends up with — the auto-mark, not a checklist.
-
 import { computeOrderTotals, defaultPermissionsForRole, type Order, type Role } from '@/domain'
 import { OrderConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
@@ -61,7 +50,6 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
   )
 }
 
-// Product seed — no MemberOperation required to operate (retail; brief 0030 AC-05).
 async function seedProduct(
   orgId: string,
   productId: string,
@@ -76,8 +64,6 @@ async function seedProduct(
   )
 }
 
-// A `category_id` on catalog_items has a FK to `categories`; the convenience-
-// coverage case needs the referenced row to exist.
 async function seedCategory(orgId: string, categoryId: string): Promise<void> {
   await pool().query(
     `INSERT INTO categories (org_id, id, last_event_version, name, icon, color, active, archived_at, created_at, updated_at)
@@ -149,7 +135,6 @@ async function seedSubscription(args: {
   )
 }
 
-// Opens an OPEN order, optionally bound to a customer (a subscriber's comanda).
 async function seedOpenOrder(
   orgId: string,
   unitId: string,
@@ -250,7 +235,6 @@ describe('order item coverage auto-set on add (brief 0079, #1306)', () => {
     const order = await loadOrderById(orgId, orderId)
     expect(order?.items[0]?.coverage).toBe('subscription')
     expect(order?.items[0]?.subscriptionId).toBeTruthy()
-    // Covered item leaves the total to pay — the comanda owes nothing for it.
     expect(order?.totalCents).toBe(0)
   })
 
@@ -273,7 +257,6 @@ describe('order item coverage auto-set on add (brief 0079, #1306)', () => {
 
     expect(result.ok).toBe(true)
     const order = await loadOrderById(orgId, orderId)
-    // No `coverage` field → read as `sale`; the item composes the total.
     expect(order?.items[0]?.coverage ?? 'sale').toBe('sale')
     expect(order?.totalCents).toBe(3000)
   })
@@ -368,7 +351,6 @@ describe('order item coverage auto-set on add (brief 0079, #1306)', () => {
 
     const order = await loadOrderById(orgId, orderId)
     const coverages = order?.items.map((it) => it.coverage ?? 'sale')
-    // Balance covers one; the second exceeds it and falls back to sale.
     expect(coverages).toEqual(['subscription', 'sale'])
     expect(order?.totalCents).toBe(3000)
   })

@@ -37,7 +37,6 @@ describe('CompleteProfileForm — progressive profiling (brief 0077 #1277)', () 
         next="/dashboard"
       />,
     )
-    // No name from Google → editable input shown so the user can provide it.
     expect(screen.getByLabelText(/nome/i)).toBeInTheDocument()
     expect(screen.queryByText(/você é/i)).not.toBeInTheDocument()
   })
@@ -49,7 +48,6 @@ describe('CompleteProfileForm — progressive profiling (brief 0077 #1277)', () 
         next="/dashboard"
       />,
     )
-    // Name is on file → only whatsapp + birthDate are asked, both required.
     expect(screen.getAllByText('*')).toHaveLength(2)
   })
 
@@ -60,7 +58,6 @@ describe('CompleteProfileForm — progressive profiling (brief 0077 #1277)', () 
         next="/dashboard"
       />,
     )
-    // name + whatsapp + birthDate all asked → three required markers.
     expect(screen.getAllByText('*')).toHaveLength(3)
   })
 })

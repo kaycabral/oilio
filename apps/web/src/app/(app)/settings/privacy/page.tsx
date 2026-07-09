@@ -16,13 +16,6 @@ import {
 } from '@cbrl/design'
 import { redirect } from 'next/navigation'
 
-// Self-service privacy surface (brief 0032 / AC-07 + AC-10): the subject's own
-// account area where they exercise the LGPD right to erasure. They discover the
-// establishments where they are a CUSTOMER (via the identity-layer reverse index
-// `users/{uid}/org_links` — a per-user read, NOT a cross-org query) and,
-// per establishment, can either block their data there (per-org, #1100) or
-// erase their whole account (global anonymization, #1093). Anonymization is
-// irreversible and account-level; records are retained de-identified (AC-04).
 export default async function PrivacySettingsPage() {
   if (!isFirebaseConfigured()) redirect('/')
 
@@ -38,8 +31,6 @@ export default async function PrivacySettingsPage() {
     section: 'privacy',
   })
 
-  // Per-user read of the subject's OWN reverse index — discovers where they are
-  // a customer without any cross-org query (ADR 0004 clarifying note).
   const establishments = await listMyCustomerEstablishments(session.uid)
 
   const meta = settingsSectionMeta('privacy')

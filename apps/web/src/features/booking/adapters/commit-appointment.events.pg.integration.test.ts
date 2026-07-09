@@ -1,19 +1,3 @@
-// Integration test for the Postgres anti-double-book guard (#843, brief 0061 §
-// Grupo C cutover #1202) against REAL Postgres.
-//
-//   pnpm --filter @oilio/web test:integration
-//
-// The guarantee is the database's: the `appointments_no_double_book` GiST EXCLUDE
-// constraint (migration 0013) refuses two `scheduled` appointments for the same
-// org + memberOperation whose `[start_at, end_at)` intervals overlap. The
-// `commitAppointmentBooking` adapter emits `appointment.created` through the event
-// store (projection INSERT in the SAME tx); a conflicting slot raises 23P01 and
-// the tx rolls back → `{ ok: false, error: 'slot_taken' }`. The loser logs the
-// contention signal via `logger` (não audit_logs — erradicação ES #1029).
-//
-// globalSetup applies the migrations; OILIO_DATABASE_URL is the ephemeral `oilio`
-// database (docker locally, services:postgres in CI).
-
 import type { Appointment } from '@/domain'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { logger } from '@/shared/lib'
@@ -56,10 +40,6 @@ function buildAppointment(
   }
 }
 
-// Parent rows the new D2/0068 cross-aggregate FKs require: the appointment
-// references org, unit (u1), memberOperation (p1/p2), service catalog item (s1) and
-// the per-appointment customer. The first four are seeded once in beforeEach; the
-// customer (dynamic id `c-${id}`) is seeded just-in-time inside `commit`.
 async function seedOrg(orgId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
@@ -117,7 +97,6 @@ const commit = async (
   actorUid = 'staff',
   via = 'internal_panel',
 ) => {
-  // The appointment.customer_id FK needs the customer shadow to exist first.
   await seedCustomer(orgId, appt.customerId, appt.customerUserId)
   return commitAppointmentBooking({ orgId, appointment: appt, actorUid, via })
 }
@@ -167,7 +146,6 @@ describe('commitAppointmentBooking — Postgres anti-double-book (#843)', () => 
     )
     expect(res).toEqual({ ok: false, error: 'slot_taken' })
 
-    // The loser emits the contention signal via logger (not audit_logs).
     expect(warnSpy).toHaveBeenCalledTimes(1)
     expect(warnSpy).toHaveBeenCalledWith(
       'appointment.double_book_blocked',
@@ -177,14 +155,12 @@ describe('commitAppointmentBooking — Postgres anti-double-book (#843)', () => 
 
   it('allows back-to-back appointments (half-open intervals)', async () => {
     await commit(orgId, buildAppointment(orgId, 'a', '2026-08-15T13:00:00.000Z', 30))
-    // Starts exactly when the previous one ends — half-open `[)` → no overlap.
     const res = await commit(orgId, buildAppointment(orgId, 'b', '2026-08-15T13:30:00.000Z', 30))
     expect(res).toEqual({ ok: true })
   })
 
   it('lets a new booking reuse the slot after the first is cancelled', async () => {
     await commit(orgId, buildAppointment(orgId, 'taken', '2026-08-15T13:00:00.000Z'))
-    // Move it out of `scheduled` so the partial-index exclusion no longer applies.
     await getEventStorePool().query(
       `UPDATE appointments SET status = 'cancelled' WHERE org_id = $1 AND id = $2`,
       [orgId, 'taken'],

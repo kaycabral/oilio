@@ -9,8 +9,6 @@ function meta(version: number, timestamp = '2026-06-01T10:00:00.000Z'): EventMet
   return { version, timestamp, actorId: 'user-1', schemaVersion: 1 }
 }
 
-// `charge.created` snapshots the full operational doc (the action builds a
-// complete `Charge`), so the event payload is the full shape.
 const CREATED_DATA: Charge = {
   id: 'ch1',
   orgId: 't1',
@@ -47,9 +45,6 @@ describe('applyChargeEvent', () => {
     expect(state._version).toBe(1)
   })
 
-  // succeeded / failed / cancelled share one change-applying branch. Each tag
-  // must reach it (not fall through to the default no-op) — a blanked case
-  // label would drop the changes.
   it('succeeded applies the changes', () => {
     const state = applyChargeEvent(
       created(),

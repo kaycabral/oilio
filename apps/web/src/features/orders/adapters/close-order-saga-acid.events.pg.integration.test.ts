@@ -22,26 +22,6 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildCloseOrderSteps } from './order-saga'
 import { buildUndoCloseSteps } from './order-undo-saga'
 
-/**
- * ACID behaviour of the CLOSE-ORDER + UNDO-CLOSE cascades against REAL Postgres
- * (brief 0064). The close-order saga moves money: it stacks subscription-usage →
- * stock → commissions → cash → appointment.completed → order.closed into ONE
- * `commitSaga` (brief 0061 § Grupo A / AC-02). This proves the invariant the
- * action relies on: when a step mid-cascade trips a DB constraint, the WHOLE
- * transaction rolls back — cash is NEVER credited and a commission NEVER accrued
- * while the order stays open (no partial financial state survives a crash).
- *
- * We exercise the real step builders (`buildCloseOrderSteps`/`buildUndoCloseSteps`,
- * pure) through `runSaga` + the Postgres layer — the same primitive `commitSaga`
- * wraps. The rollback step carries `amountCents: -1` on a `commission.created`:
- * schema-valid (`Schema.Number`), but it trips the DB `commissions_amount_cents_nonneg`
- * CHECK at projection time, so the failure comes from the transaction boundary,
- * exactly like a real constraint breach would.
- *
- * globalSetup applies the migrations; OILIO_DATABASE_URL is the ephemeral `oilio`
- * database (docker locally, services:postgres in CI).
- */
-
 const ORG = 't1'
 const ORDER = 'o1'
 const SUB = 'sub-1'
@@ -108,9 +88,6 @@ const saleMovement: CashMovement = {
   createdAt: '2026-06-01T12:00:00.000Z',
 }
 
-// The appointment must exist (version 1) before close completes it / undo reopens
-// it — the cascade emits `appointment.completed` / `appointment.updated`, which
-// reduce over an existing aggregate.
 function appointmentCreatedStep(): SagaStep {
   return (tx) =>
     appendEventToTx(
@@ -143,8 +120,6 @@ function appointmentCreatedStep(): SagaStep {
     )
 }
 
-// Seed a subscription so subscription.usage_incremented reduces over an existing
-// aggregate.
 function subscriptionCreatedStep(): SagaStep {
   return (tx) =>
     appendEventToTx(
@@ -179,8 +154,6 @@ function subscriptionCreatedStep(): SagaStep {
     )
 }
 
-// Seed an OPEN order so order.closed / order.reopened reduce over an existing
-// aggregate.
 function orderCreatedStep(): SagaStep {
   return (tx) =>
     appendEventToTx(
@@ -191,11 +164,6 @@ function orderCreatedStep(): SagaStep {
     )
 }
 
-// Parent rows the new D2/0068 cross-aggregate FKs require: the order/appointment/
-// subscription projections reference org (t1), unit (u1), customer (c1),
-// memberOperation (the appointment.memberOperationId 'u1') and the service catalog item
-// (the appointment.serviceId 'svc-1'). Seeded over the superuser pool before the
-// saga appends the aggregates.
 async function seedParents(): Promise<void> {
   const pool = getEventStorePool()
   await pool.query(
@@ -216,8 +184,6 @@ async function seedParents(): Promise<void> {
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, 'c1'],
   )
-  // The operational profile hangs off the membership (brief 0076 AC-02) — seed
-  // the parent membership first so the composite FK is satisfiable.
   await pool.query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
      VALUES ($1,$1||'_user-'||$2,'user-'||$2,1,'member_operator','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
@@ -240,9 +206,6 @@ async function seedParents(): Promise<void> {
 
 async function seedPrereqs(): Promise<void> {
   await seedParents()
-  // The appointment is created BEFORE the order: `orders.appointment_id` carries
-  // a (non-deferrable) composite FK → appointments(org_id,id) (brief 0068 D2), so
-  // the referenced appointment row must already exist when the order projects.
   await Effect.runPromise(
     runSaga([appointmentCreatedStep(), orderCreatedStep(), subscriptionCreatedStep()]).pipe(
       Effect.provide(PostgresPersistenceLayer),
@@ -264,7 +227,6 @@ function readOrderStatus(ref: AggregateRef): Promise<string | null> {
     .then((res) => res.rows[0]?.status ?? null)
 }
 function readSubscriptionVersion(ref: AggregateRef): Promise<number | null> {
-  // `pg` returns bigint columns as strings — coerce so the assertion is numeric.
   return getEventStorePool()
     .query<{ last_event_version: string }>(
       'SELECT last_event_version FROM subscriptions WHERE org_id = $1 AND id = $2',
@@ -283,7 +245,6 @@ describe('close-order cascade — ACID (Postgres)', () => {
     await closeEventStoreDb()
   })
 
-  // AC-02 — happy: the whole cascade commits together, every projection consistent.
   it('commits the full close cascade in one tx (order closed + commission + cash + appointment completed)', async () => {
     await seedPrereqs()
 
@@ -307,19 +268,12 @@ describe('close-order cascade — ACID (Postgres)', () => {
     expect(await readCount('commissions', commissionRef('com-1'))).toBe(1)
     expect(await readCount('cash_movements', cashRef('m1'))).toBe(1)
     expect(await readCount('appointments', appointmentRef('apt-1'))).toBe(1)
-    // The subscription usage step landed in the same tx too: version went
-    // 1 (created) → 2 (usage_incremented).
     expect(await readSubscriptionVersion(subscriptionRef(SUB))).toBe(2)
   })
 
-  // AC-01 — rollback: a step mid-cascade trips a DB CHECK → the WHOLE tx reverts.
   it('rolls back the WHOLE cascade when a commission step trips a DB CHECK', async () => {
     await seedPrereqs()
 
-    // The cash movement is appended BEFORE the bad commission in the step order,
-    // and order.closed is the anchor AFTER it — so if rollback is NOT atomic, the
-    // cash row and/or a closed order would leak. The negative amount is schema-valid
-    // (Number) but trips `commissions_amount_cents_nonneg`.
     const steps = buildCloseOrderSteps({
       orgId: ORG,
       actorUid: 'test',
@@ -339,8 +293,6 @@ describe('close-order cascade — ACID (Postgres)', () => {
     )
     expect(exit._tag).toBe('Failure')
 
-    // Nothing from the cascade landed: cash never credited, commission never
-    // accrued, the order stays OPEN, the appointment stays scheduled.
     expect(await readCount('cash_movements', cashRef('m1'))).toBe(0)
     expect(await readCount('commissions', commissionRef('com-1'))).toBe(0)
     expect(await readOrderStatus(orderRef(ORDER))).toBe('open')
@@ -357,9 +309,7 @@ describe('undo-close cascade — ACID (Postgres)', () => {
     await closeEventStoreDb()
   })
 
-  // AC-03 — undo happy: reverse + reopen commit atomically.
   it('commits the undo cascade in one tx (order reopened + reversal cash + commission dropped)', async () => {
-    // Seed: prereqs + a closed order with a commission to drop.
     await seedPrereqs()
     await Effect.runPromise(
       runSaga(
@@ -405,11 +355,9 @@ describe('undo-close cascade — ACID (Postgres)', () => {
 
     expect(await readOrderStatus(orderRef(ORDER))).toBe('open')
     expect(await readCount('cash_movements', cashRef('rev-1'))).toBe(1)
-    // The commission projection was dropped in the same tx (appendDeleteToTx).
     expect(await readCount('commissions', commissionRef('com-1'))).toBe(0)
   })
 
-  // AC-03 — undo rollback: a bad reversal step reverts the whole reopen.
   it('rolls back the WHOLE undo when the reversal cash step trips a DB CHECK', async () => {
     await seedPrereqs()
     await Effect.runPromise(
@@ -436,7 +384,6 @@ describe('undo-close cascade — ACID (Postgres)', () => {
       order: { ...baseOrder, status: 'closed', closedAt: '2026-06-01T12:00:00.000Z' },
       subscriptionRestore: { id: SUB, amount: 1 },
       stockRestoreTargets: [],
-      // Negative reversal amount trips cash_movements_amount_cents_nonneg.
       cashReversal: {
         movement: {
           ...saleMovement,
@@ -463,8 +410,6 @@ describe('undo-close cascade — ACID (Postgres)', () => {
     )
     expect(exit._tag).toBe('Failure')
 
-    // The reopen reverted as one tx: order stays CLOSED, commission NOT dropped,
-    // reversal cash never landed.
     expect(await readOrderStatus(orderRef(ORDER))).toBe('closed')
     expect(await readCount('commissions', commissionRef('com-1'))).toBe(1)
     expect(await readCount('cash_movements', cashRef('rev-1'))).toBe(0)

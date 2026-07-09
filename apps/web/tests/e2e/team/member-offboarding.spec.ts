@@ -1,24 +1,3 @@
-// Feature E2E for #1103 (brief 0041 AC-01/AC-04/AC-10): the establishment's
-// unified "remover do time" offboarding orchestration. An owner removes a
-// member from the member detail at `/team/{userId}`:
-//
-//   - AC-10: the membership goes to the TERMINAL `revoked` status (event-first,
-//     `membership.updated { status }`); the member loses org access (every
-//     gate keys on `status == 'active'`) and DROPS from the active team list.
-//   - the memberOperation projection is DEACTIVATED (`member_operation.suspended`),
-//     NOT deleted — off the public agenda, history preserved.
-//   - RETENTION (brief 0041, art. 16 — the boundary with customer erasure 0032):
-//     `member_operations_pii` is RETAINED. The vínculo data stays identifiable; the
-//     offboarding NEVER scrubs it.
-//   - AC-01: you cannot remove yourself (no self-lockout) nor the owner.
-//   - AC-04: re-running the removal is idempotent (already-revoked → no-op,
-//     no throw, no duplicate status event).
-//
-// Runs against the emulator (auth only) + Postgres (event store). Reads the
-// membership + its event stream + the memberOperation projection + its PII sidecar
-// straight from Postgres to assert the projection AND the event-sourced
-// transition.
-
 import { membershipDocId } from '@/domain'
 import {
   AgendaBlockConfig,
@@ -47,9 +26,6 @@ import {
 } from '../helpers/session'
 import { MemberOperationsPage } from '../pages'
 
-// The `membership.updated` event envelope, narrowed to the `_tag` + the nested
-// `payload.changes.status` string this spec reads. The offboard saga appends
-// `{ _tag: 'membership.updated', payload: { changes: { status: 'revoked' } } }`.
 const MembershipStatusEventSchema = Schema.Struct({
   _tag: Schema.optional(Schema.String),
   payload: Schema.optional(
@@ -60,9 +36,6 @@ const MembershipStatusEventSchema = Schema.Struct({
 })
 const decodeMembershipStatusEvent = Schema.decodeUnknownSync(MembershipStatusEventSchema)
 
-// Lists the `status` values carried by `membership.updated` events on a
-// membership's stream (event-first proof: the severance lives in the immutable
-// stream, not a bare doc write). Mirrors `member-deactivate.spec`.
 async function listMembershipStatusEvents(orgId: string, membershipId: string): Promise<string[]> {
   const stream = await pgReadEventStream(aggregateRef(MembershipConfig, orgId, membershipId))
   return stream
@@ -72,9 +45,6 @@ async function listMembershipStatusEvents(orgId: string, membershipId: string): 
     .filter((s): s is string => typeof s === 'string')
 }
 
-// True when the `member_operations_pii/{id}` projection still exists (RETENTION
-// assertion, AC — art. 16). Post-cutover the PII sidecar is a Postgres row keyed
-// by aggregate path; its presence is the retention proof.
 async function memberOperationPiiExists(
   orgId: string,
   memberOperationId: string,
@@ -85,7 +55,6 @@ async function memberOperationPiiExists(
   )
 }
 
-// Reads the membership `status` off its Postgres projection; null when absent.
 async function readMembershipStatus(orgId: string, membershipId: string): Promise<string | null> {
   const row = await pgReadProjection(
     'memberships',
@@ -94,7 +63,6 @@ async function readMembershipStatus(orgId: string, membershipId: string): Promis
   return typeof row?.status === 'string' ? row.status : null
 }
 
-// Reads an appointment `status` off its Postgres projection; null when absent.
 async function readAppointmentStatus(orgId: string, appointmentId: string): Promise<string | null> {
   const row = await pgReadProjection(
     'appointments',
@@ -103,13 +71,10 @@ async function readAppointmentStatus(orgId: string, appointmentId: string): Prom
   return typeof row?.status === 'string' ? row.status : null
 }
 
-// True when the agenda-block projection still exists (offboarding cleanup
-// assertion, brief 0041 AC-07).
 async function blockExists(orgId: string, blockId: string): Promise<boolean> {
   return pgProjectionExists('agenda_blocks', aggregateRef(AgendaBlockConfig, orgId, blockId))
 }
 
-// True when the invite projection still exists (AC-09 cleanup assertion).
 async function inviteExists(orgId: string, inviteId: string): Promise<boolean> {
   return pgProjectionExists('invites', aggregateRef(InviteConfig, orgId, inviteId))
 }
@@ -125,8 +90,6 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
 
-    // Baseline: active membership, an approved projection, PII present, no
-    // status-change event yet.
     expect(await readMembershipStatus(org.orgId, membershipId)).toBe('active')
     expect((await readMemberOperationByUserId(org.orgId, proUserId))?.operationalStatus).toBe(
       'operational',
@@ -134,40 +97,24 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
     expect(await memberOperationPiiExists(org.orgId, proId)).toBe(true)
     expect(await listMembershipStatusEvents(org.orgId, membershipId)).toEqual([])
 
-    // The member shows on the active team list before removal.
     const pros = new MemberOperationsPage(authedPage)
     await pros.gotoList()
     await expect(authedPage.getByText('Profissional 1')).toBeVisible()
 
-    // Remove from the member detail.
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
 
-    // AC-10: membership goes terminal `revoked` (loses access).
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
-    // Event-first: the transition is recorded as a membership.updated event.
     expect(await listMembershipStatusEvents(org.orgId, membershipId)).toContain('revoked')
 
-    // MemberOperation projection RETAINED (not deleted), reversible (#1226 AC-02):
-    // operability is severed by the REVOKED membership above — every operational
-    // surface (active team list, agenda) keys on an active membership — NOT by a
-    // `member_operation.suspended` event. `operationalStatus` is derived purely from
-    // profile facts (whatsapp ∧ units ∧ services), so it stays `operational` on
-    // the retained projection; the revoked membership is what takes the member
-    // off the agenda (proven by the active-team-list assertion below).
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
     expect(await readMemberOperationByUserId(org.orgId, proUserId)).not.toBeNull()
 
-    // RETENTION (art. 16): the vínculo PII is RETAINED — not scrubbed.
     expect(await memberOperationPiiExists(org.orgId, proId)).toBe(true)
 
-    // Gone from the active team list.
     await pros.gotoList()
     await expect(authedPage.getByText('Profissional 1')).toHaveCount(0)
 
-    // AC-04 idempotency: re-running the removal is a safe no-op — no throw, no
-    // duplicate status event. The action short-circuits on already-revoked, so
-    // the detail still renders and the stream keeps exactly one `revoked`.
     const beforeCount = (await listMembershipStatusEvents(org.orgId, membershipId)).filter(
       (s) => s === 'revoked',
     ).length
@@ -176,23 +123,11 @@ test.describe('Equipe — offboarding de membro (#1103)', { tag: '@critical' }, 
 
   test('não é possível remover o owner (identidade imutável)', async ({ org, authedPage }) => {
     const pros = new MemberOperationsPage(authedPage)
-    // The owner detail is read-only and offers no remove affordance.
     await pros.gotoByUserId(org.uid)
     await expect(authedPage.getByRole('form', { name: 'Remover do time' })).toHaveCount(0)
   })
 })
 
-// Feature E2E for #1104 (brief 0041 AC-02/AC-05/AC-07): the offboarding cascade
-// over agenda/comanda/blocks. Same UI entry point (owner removes from the member
-// detail), driving the cascade steps of `offboardMemberInOrg`:
-//
-//   - AC-05 (settlement-first): an OPEN comanda attributed to the member VETOES
-//     the removal — surfaced as a clear error; the saga never starts (membership
-//     stays active, future appointment untouched).
-//   - AC-02: the member's FUTURE appointments are CANCELLED. The cancelled
-//     appointment is RETAINED struck-through in the grid — the doc still exists
-//     (assert status flip + retention, NOT grid absence). Past ones are LEFT.
-//   - AC-07: the member's agenda-blocks are removed; org-wide blocks stay.
 test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' }, () => {
   test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
@@ -205,7 +140,6 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
     const membershipId = membershipDocId(org.orgId, proUserId)
     const customerId = await seedCustomer(org.orgId, { name: 'Cliente Comanda' })
 
-    // Future appointment + open comanda attributed to the member.
     const future = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString()
     const apptId = await seedAppointment({
       orgId: org.orgId,
@@ -227,7 +161,6 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
 
-    // Veto surfaces a clear error AND nothing was mutated.
     await expect(authedPage.getByText(/comanda aberta/i)).toBeVisible()
     expect(await readMembershipStatus(org.orgId, membershipId)).toBe('active')
     expect(await readAppointmentStatus(org.orgId, apptId)).toBe('scheduled')
@@ -286,8 +219,6 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
 
-    // AC-02: future appointment CANCELLED but RETAINED (doc still exists,
-    // grid renders it struck-through — not removed).
     await expect.poll(() => readAppointmentStatus(org.orgId, futureAppt)).toBe('cancelled')
     expect(
       await pgReadProjection(
@@ -295,32 +226,13 @@ test.describe('Equipe — cascade de offboarding (#1104)', { tag: '@critical' },
         aggregateRef(AppointmentConfig, org.orgId, futureAppt),
       ),
     ).not.toBeNull()
-    // Past appointment LEFT untouched.
     expect(await readAppointmentStatus(org.orgId, pastAppt)).toBe('scheduled')
 
-    // AC-07: the member's block is gone; the org-wide block stays. NOTE
-    // (hours-model spike): the spike only removed the unit-level *recurring*
-    // closures (now expressed via business hours); standalone one-off
-    // `agenda_blocks` — member-scoped and org-wide — still exist and
-    // offboarding still cleans the member's, so this assertion stands.
-    // Block-cleanup is a later saga step — poll for the member's block to go.
     await expect.poll(() => blockExists(org.orgId, proBlock)).toBe(false)
     expect(await blockExists(org.orgId, orgBlock)).toBe(true)
   })
 })
 
-// Feature E2E for #1105 (brief 0041 AC-06/AC-08/AC-09): the offboarding cascade
-// over commissions / unit-capacity / invites. Same UI entry point (owner removes
-// from the member detail):
-//
-//   - AC-06 (revised — commit 308146f, MR !1111 rejected): a PENDING commission
-//     does NOT veto or warn. The "acerto entre as partes" is an off-system
-//     settlement between the parties; the removal proceeds and the commission is
-//     LEFT pending + identifiable (still attributed to the member's real userId).
-//   - AC-08 (edge, non-blocking): removing the only memberOperation of a unit leaves
-//     it with 0 active memberOperations → a NON-BLOCKING warning is surfaced; the
-//     member is still removed.
-//   - AC-09: the member's PENDING invite (matched by email) is cleaned.
 test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' }, () => {
   test.use({ orgInput: { unitCount: 1, memberOperationCount: 1 } })
 
@@ -332,8 +244,6 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
 
-    // A commission always belongs to a closed order (FK `commissions_order_id_fk`
-    // is NOT NULL + RESTRICT, #1220 D2) — seed the source order first.
     const orderId = await seedClosedOrder({
       orgId: org.orgId,
       unitId: org.unitIds[0]!,
@@ -353,12 +263,8 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     await pros.gotoByUserId(proUserId)
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
 
-    // No veto: the removal goes through despite the pending commission (the
-    // "acerto entre as partes" is settled off-system).
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
 
-    // The pending commission is LEFT untouched: still pending, still attributed
-    // to the removed member's real userId (resolves to the real name in reports).
     const commission = await pgReadProjection(
       'commissions',
       aggregateRef(CommissionConfig, org.orgId, pendingCommission),
@@ -377,17 +283,11 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
 
     const pros = new MemberOperationsPage(authedPage)
     await pros.gotoByUserId(proUserId)
-    // The remove button submits via a hydrated client handler that sets the
-    // AC-08 warning; wait for the button to be actionable so the click goes
-    // through React (a pre-hydration native submit would bypass `setWarning`).
     const submit = authedPage.getByRole('button', { name: 'Remover do time' })
     await expect(submit).toBeEnabled()
     await submit.click()
 
-    // Non-blocking: the warning is surfaced (the unit is left with no active
-    // memberOperation).
     await expect(authedPage.getByText(/sem profissional/i)).toBeVisible()
-    // And the member IS removed (membership terminal `revoked`).
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
   })
 
@@ -398,10 +298,6 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     const proId = org.memberOperationIds[0]!
     const proUserId = `e2e-prof-user-${proId}`
     const membershipId = membershipDocId(org.orgId, proUserId)
-    // Brief 0084: the offboard matches a pending invite to the member by
-    // normalized WhatsApp (the accept-flow no longer keys on email). The
-    // operational-pro fixture seeded a WhatsApp on the member's User — read it
-    // back so the seeded invite carries the same number.
     const proUser = await readUser(proUserId)
     const proWhatsapp = proUser?.mobile
     expect(proWhatsapp, 'operational pro must have a seeded WhatsApp').toBeTruthy()
@@ -426,7 +322,6 @@ test.describe('Equipe — cascade de offboarding (#1105)', { tag: '@critical' },
     await authedPage.getByRole('button', { name: 'Remover do time' }).click()
     await expect.poll(() => readMembershipStatus(org.orgId, membershipId)).toBe('revoked')
 
-    // The member's pending invite is gone; another member's invite is left.
     await expect.poll(() => inviteExists(org.orgId, inviteId)).toBe(false)
     expect(await inviteExists(org.orgId, otherInviteId)).toBe(true)
   })

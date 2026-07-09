@@ -9,9 +9,6 @@ import type { Tier } from '@/domain/billing/tiers'
 const NOW = '2026-01-01T00:00:00.000Z'
 const withAgenda: NavOrgSignals = { usesAgenda: true }
 
-// Default the tier to `pro` for the RBAC-focused cases: Pro unlocks every
-// billing capability, so the billing axis is a no-op there and these assertions
-// isolate the role gate. The billing-axis cases below pass `free` explicitly.
 function sectionsFor(role: Role, signals: NavOrgSignals = withAgenda, tier: Tier = 'pro') {
   return getNavSections(buildMembership('t1', 'u1', NOW, { role }), signals, tier)
 }
@@ -24,14 +21,11 @@ function labels(role: Role, signals?: NavOrgSignals, tier?: Tier): string[] {
 
 describe('getNavSections', () => {
   it('shows every operational section + manageOrg item to an owner', () => {
-    // Sidebar is operational-only after brief 0090: Perfil/Privacidade/billing
-    // moved to the Configurações modal, so there is no "Conta" section here.
     const sections = sectionsFor('owner')
     expect(sections.map((s) => s.label)).toEqual(['Operação', 'Cadastros', 'Administração'])
     expect(labels('owner')).toEqual(
       expect.arrayContaining(['Relatórios', 'Copiloto', 'Dashboard', 'Equipe']),
     )
-    // Personal + billing surfaces no longer live in the sidebar.
     expect(labels('owner')).not.toEqual(
       expect.arrayContaining(['Perfil', 'Privacidade', 'Plano e cobrança']),
     )
@@ -49,11 +43,8 @@ describe('getNavSections', () => {
     expect(sections.map((s) => s.label)).not.toContain('Administração')
     const flat = labels('receptionist')
     expect(flat).not.toContain('Relatórios')
-    // Dashboard surfaces financeiro KPIs — manager-only, hidden from receptionist.
     expect(flat).not.toContain('Dashboard')
     expect(flat).not.toContain('Equipe')
-    // Baseline operation stays reachable; Perfil/Privacidade moved to the modal
-    // (reached via the UserMenu), no longer sidebar entries (brief 0090).
     expect(flat).toContain('Clientes')
     expect(flat).not.toContain('Perfil')
     expect(flat).not.toContain('Privacidade')
@@ -71,8 +62,6 @@ describe('getNavSections', () => {
     }
   })
 
-  // Billing/tier axis (brief 0088 AC-06): surfaces the plan doesn't unlock are
-  // hidden from the sidebar entirely, orthogonal to RBAC.
   describe('billing/tier axis', () => {
     it('hides plan-gated surfaces from a Free owner', () => {
       const free = labels('owner', withAgenda, 'free')
@@ -84,7 +73,6 @@ describe('getNavSections', () => {
 
     it('keeps ungated surfaces for a Free owner', () => {
       const free = labels('owner', withAgenda, 'free')
-      // Baseline Free operation stays: agenda, sales, customers, catalog, orgs.
       expect(free).toEqual(
         expect.arrayContaining(['Agenda', 'Vendas', 'Clientes', 'Catálogo', 'Negócios']),
       )
@@ -98,8 +86,6 @@ describe('getNavSections', () => {
     })
 
     it('drops the Cadastros section entry for Planos on Free but keeps the section', () => {
-      // Cadastros still has Clientes/Catálogo on Free — the section survives, only
-      // the Planos entry (plan-gated) is dropped.
       const sections = sectionsFor('owner', withAgenda, 'free')
       const cadastros = sections.find((s) => s.label === 'Cadastros')
       expect(cadastros?.items.map((i) => i.label)).toEqual(['Clientes', 'Catálogo'])

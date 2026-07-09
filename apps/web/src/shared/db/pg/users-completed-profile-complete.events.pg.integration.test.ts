@@ -1,29 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from './pool'
 
-/**
- * Complete-registration invariant on `users` against REAL Postgres (brief 0077
- * AC-02, #1274) — the DATABASE layer of the defesa-em-3-camadas. The
- * `users_completed_profile_complete` CHECK (migration 0009) refuses a COMPLETED
- * user (`completion_completed = true`) whose `mobile` or `birth_date` is null:
- * nobody finishes registration without them, so nobody who logged in lingers
- * *usable* with an incomplete profile.
- *
- * Keyed on `completion_completed`, NOT `claimed_at`: login (claimed) precedes the
- * completion form (brief Fluxo principal steps 4→5), so claimed-but-not-completed
- * is a legitimate transient that the CHECK must admit.
- *
- * Proven directly at the DB (raw INSERT/UPDATE on the event-store pool, no domain
- * decode in the middle) so the failure is the constraint, not the application:
- *   - completed + missing PII → rejected (SQLSTATE 23514, check_violation)
- *   - completed + complete    → accepted
- *   - claimed but NOT completed + missing PII → accepted (login→complete transient)
- *   - stub (not completed) + missing PII → accepted (recepcionista exemption)
- *   - completed + anonymized + null PII → accepted (LGPD scrub carve-out)
- *
- * Per-run-unique uids so cases never collide across a shared database.
- */
-
 const CHECK_VIOLATION = '23514'
 const CONSTRAINT = 'users_completed_profile_complete'
 const TS = '2026-06-01T12:00:00.000Z'
@@ -34,9 +11,6 @@ function uniqueUid(label: string): string {
   return `u-${label}-${Date.now()}-${seq}`
 }
 
-// Minimal raw insert into `users`; overridable per case. Mirrors the table's
-// NOT-NULL columns (email_verified / completion_completed / created_at /
-// updated_at) and leaves the PII / completion / claim columns to the case.
 async function insertUser(overrides: {
   uid: string
   completionCompleted?: boolean
@@ -64,8 +38,6 @@ async function insertUser(overrides: {
 
 describe('users_completed_profile_complete CHECK (brief 0077 AC-02)', () => {
   beforeEach(async () => {
-    // Clean only the rows this file makes (per-run-unique uids), keeping the
-    // shared DB intact for sibling suites.
     await getEventStorePool().query("DELETE FROM users WHERE uid LIKE 'u-%'")
   })
 

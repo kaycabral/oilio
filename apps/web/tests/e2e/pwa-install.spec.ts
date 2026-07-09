@@ -1,14 +1,7 @@
-// E2E for the installable PWA: the web app manifest route, its icons, and the
-// install-related <head> metadata. The route (`app/manifest.ts`) is new, so it
-// gets a golden-path spec — a broken/missing manifest silently demotes the app
-// from "installable" with no runtime error to catch it otherwise.
-
 import { Schema } from 'effect'
 import { expect, test } from './fixtures'
 import { parseJson } from './helpers/rest-json'
 
-// `APIResponse.text()` is the string boundary; decode runtime-validates the
-// shape so the suite never asserts an unchecked `as T` (repo no-escape rule).
 const ManifestIconSchema = Schema.Struct({
   src: Schema.String,
   sizes: Schema.String,
@@ -51,7 +44,6 @@ test.describe('PWA — instalável (manifest + ícones + metadata)', () => {
   test('o <head> liga o manifest + theme-color + apple touch icon @critical', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('link[rel="manifest"]')).toHaveCount(1)
-    // Next emits the light/dark themeColor pair from the `viewport` export.
     await expect(page.locator('meta[name="theme-color"]').first()).toHaveCount(1)
     await expect(page.locator('link[rel="apple-touch-icon"]')).not.toHaveCount(0)
   })

@@ -1,11 +1,3 @@
-// AC-09/AC-10 (brief 0025) — replay reconstrói o doc completo da comanda
-// (event-first: criar/adicionar item/trocar atribuição/meta/remover/cancelar
-// emitem evento, sem write-only). O ciclo de vida inteiro (menos fechamento,
-// que é #1026) → replay == projeção, campo a campo.
-//
-// Brief 0030 (AC-04): a atribuição de item é por MEMBRO (`attributedUserId`,
-// guarda o `userId` do membro) e o evento de troca é `order.item_attribution_changed`.
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -14,7 +6,6 @@ import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
 import { OrderConfig } from './order/config'
 
-// Serviço de agendamento → atribuído ao `userId` do profissional do appointment.
 const itemA = {
   id: 'i1',
   kind: 'service' as const,
@@ -25,8 +16,6 @@ const itemA = {
   commission: null,
   attributedUserId: 'pro-user-1',
 }
-// Produto vendido no balcão → atribuível a QUALQUER membro pelo `userId` (aqui a
-// recepção que vendeu), não a um doc id de MemberOperation.
 const itemB = {
   id: 'i2',
   kind: 'product' as const,
@@ -72,8 +61,6 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
           actorId: 'staff-1',
           payload: { changes: { items: [itemA, itemB], subtotalCents: 8000, totalCents: 8000 } },
         })
-        // Re-atribui o produto a outro membro (brief 0030, AC-04) — guarda o
-        // `userId`, não um doc id de MemberOperation.
         yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.item_attribution_changed',
           actorId: 'staff-1',
@@ -112,8 +99,6 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
     expect(replayed._version).toBe(6)
     expect(replayed.status).toBe('cancelled')
     expect(replayed.items).toHaveLength(1)
-    // Atribuição por membro sobrevive ao replay (brief 0030, AC-04): o serviço
-    // restante segue atribuído ao `userId` do profissional do agendamento.
     expect(replayed.items[0]!.attributedUserId).toBe('pro-user-1')
     expect(replayed.discountCents).toBe(1000)
     expect(replayed.totalCents).toBe(4000)
@@ -148,7 +133,6 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
           actorId: 'staff-1',
           payload: { data },
         })
-        // itemA marcado como consumo de assinatura → some do total a pagar.
         yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.item_coverage_changed',
           actorId: 'staff-1',
@@ -178,7 +162,6 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
   it('customer_assigned: avulsa anônima → vincula → replay reconstrói o customerId (#1321)', async () => {
     const { store, layer } = makeReplayStore()
     const ref = aggregateRef(OrderConfig, 't1', 'o3')
-    // Venda avulsa nasce anônima (customerId: null, brief 0030).
     const data = {
       id: 'o3',
       orgId: 't1',
@@ -204,7 +187,6 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
           actorId: 'staff-1',
           payload: { data },
         })
-        // Vincula um cliente pós-abertura (o evento novo do 0081).
         yield* appendEvent(OrderConfig, ref, {
           _tag: 'order.customer_assigned',
           actorId: 'staff-1',
@@ -218,7 +200,6 @@ describe('Order — replay reconstrói o doc completo (event-first)', () => {
       replayAggregate(OrderConfig, ref).pipe(Effect.provide(layer)),
     )
 
-    // O customerId reconstrói SÓ pelos eventos (nasceu null, o assign o setou).
     expect(replayed).toEqual(projection)
     expect(replayed._version).toBe(2)
     expect(replayed.customerId).toBe('c1')

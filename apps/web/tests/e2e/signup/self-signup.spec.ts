@@ -9,19 +9,6 @@ import {
   uniqueNationalWhatsapp,
 } from '../helpers/session'
 
-// #840 + refator pós-revisão. Signup virou plataforma-canônico em
-// `/signup?from={slug}`: o cadastro é evento do Oilio (User global);
-// o org é atribuição de intenção via query, não boundary de cadastro.
-//
-// O OAuth popup é impraticável de exercitar no Playwright, então o
-// shortcut padrão dos outros specs auth-bound é usado: `seedAuthUser` +
-// `signInAndAttachSession` produzem uma sessão equivalente à que o
-// Firebase OAuth mintaria, e a partir daí dirigimos a partir de
-// `/onboarding/profile` — o mesmo path que o botão OAuth navegaria via
-// seu `next`.
-
-// Lê os Customers materializados num org direto da projeção Postgres
-// (`customers`, snake_case). Cada linha carrega o FK `user_id` pro User global.
 async function listCustomers(orgId: string): Promise<Array<{ userId?: string }>> {
   const rows = await pgListByOrg('customers', orgId)
   return rows.map((r) => ({
@@ -51,19 +38,12 @@ test.describe('Auto-cadastro (#840)', () => {
       const customer = await seedAuthUser({ completionCompleted: false })
       await signInAndAttachSession(context, customer.email, customer.password, baseURL ?? undefined)
 
-      // O botão OAuth na /signup?from=... navega com next apontando pra entrada
-      // de agendamento da empresa (perfil → unidade), e ao completar o cadastro o
-      // usuário cai lá (não na antiga /signup/done). Vamos direto pro completion
-      // espelhando esse next.
       const next = `/${slug}`
       await page.goto(`/onboarding/profile?next=${encodeURIComponent(next)}`)
-      // Identity supplied the name (seedAuthUser displayName) — confirmed, not asked.
       await page.getByRole('textbox', { name: /whatsapp/i }).fill(uniqueNationalWhatsapp())
       await fillBirthDate(page, '30/06/1988')
       await page.getByRole('button', { name: /continuar/i }).click()
 
-      // Pós-cadastro abre direto a empresa correta (#1273 ajuste) — não a antiga
-      // tela /signup/done.
       await expect(page).toHaveURL(new RegExp(`/${slug}(/|$)`), { timeout: 10_000 })
 
       const customers = await listCustomers(seed.orgId)
@@ -81,14 +61,12 @@ test.describe('Auto-cadastro (#840)', () => {
     page,
     baseURL,
   }) => {
-    // Org existe pra cenário ser realista, mas o signup não atribui a ele.
     const seed = await seedOrg({ unitCount: 1, memberOperationCount: 1 })
 
     const customer = await seedAuthUser({ completionCompleted: false })
     await signInAndAttachSession(context, customer.email, customer.password, baseURL ?? undefined)
 
     await page.goto(`/onboarding/profile?next=${encodeURIComponent('/signup/done')}`)
-    // Identity supplied the name (seedAuthUser displayName) — confirmed, not asked.
     await page.getByRole('textbox', { name: /whatsapp/i }).fill(uniqueNationalWhatsapp())
     await fillBirthDate(page, '20/02/1985')
     await page.getByRole('button', { name: /continuar/i }).click()
@@ -96,7 +74,6 @@ test.describe('Auto-cadastro (#840)', () => {
     await expect(page).toHaveURL(/\/signup\/done$/, { timeout: 10_000 })
     await expect(page.getByText(/sua conta no oilio foi criada/i)).toBeVisible()
 
-    // Nenhum Customer materializado no org — usuário só existe como User global.
     const customers = await listCustomers(seed.orgId)
     expect(customers).toHaveLength(0)
   })
@@ -109,9 +86,6 @@ test.describe('Auto-cadastro (#840)', () => {
     const customer = await seedAuthUser({ completionCompleted: true })
     await signInAndAttachSession(context, customer.email, customer.password, baseURL ?? undefined)
 
-    // Slug que não existe — bundle fica null, /signup/done ignora o from e
-    // mostra o cadastro de plataforma puro. Não 404 (signup canônico vale
-    // independente de from).
     await page.goto('/signup/done?from=slug-que-nao-existe-12345')
     await expect(page).toHaveURL(/\/signup\/done\?from=/)
     await expect(page.getByText(/sua conta no oilio foi criada/i)).toBeVisible()

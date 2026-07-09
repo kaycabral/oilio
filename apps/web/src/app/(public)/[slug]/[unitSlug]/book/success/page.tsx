@@ -14,10 +14,6 @@ import { notFound } from 'next/navigation'
 
 const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 
-// Single appointment by id from the typed `appointments` table under RLS. The
-// page is reachable by anyone with the booking id (server-generated, not
-// enumerable — same trust model as a magic link); only the booker's own
-// appointment is rendered, no other customer's PII.
 async function getAppointmentById(orgId: string, apptId: string): Promise<Appointment | null> {
   const rows = await readUnderRls<AppointmentRow>(orgId, (client) =>
     client
@@ -52,20 +48,14 @@ export default async function WizardSuccessPage({ params, searchParams }: PagePr
   const unit = summary.units.find((u) => u.slug === unitSlug)
   if (!unit) notFound()
 
-  // Read the appointment + service + memberOperation + unit snapshot. We don't
-  // expose other customers' PII; we render only the booker's own appointment.
   const appointment = await getAppointmentById(summary.org.id, apptId)
   if (!appointment) notFound()
   if (appointment.unitId !== unit.id) notFound()
 
   const [service, memberOperation] = await Promise.all([
     getCatalogItemById(summary.org.id, appointment.serviceId),
-    // PII (name) merged from `professionals_pii` on read (#1036).
     getMemberOperationById(summary.org.id, appointment.memberOperationId),
   ])
-  // Unified catalog (brief 0023, #1004): only the name is rendered.
-  // `unit` comes from the enriched `summary.units` (whatsapp/email merged from
-  // `units_pii` on read, #1036) — no raw re-read needed.
   const unitDoc = unit
 
   const fmt = new Intl.DateTimeFormat('pt-BR', {

@@ -6,13 +6,6 @@ import { getActiveOrgContext } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
 import { redirect } from 'next/navigation'
 
-/**
- * First-access interstitial (brief 0029, AC-04). The `(app)` layout redirects
- * here when a multi-unit member has no chosen unit yet. Lives OUTSIDE `(app)`
- * so the layout's redirect can't loop. A single-unit member (AC-05) or a org
- * with <2 units never reaches this — and if they land here directly, we resolve
- * straight into the app instead of showing a pointless selector.
- */
 export default async function SelectUnitPage() {
   if (!isFirebaseConfigured()) redirect('/')
 
@@ -23,12 +16,9 @@ export default async function SelectUnitPage() {
   if (!ctx) redirect('/onboarding')
   if (!ctx.user.completionCompleted) redirect('/onboarding/profile')
 
-  // Single-unit members are pinned (AC-05) — no choice to make.
   if (ctx.membership.rlsUnitScope) redirect('/agenda')
 
   const units = await listAccessibleUnits(ctx.membership)
-  // Nothing to choose: <2 units enters directly (the layout resolver picks the
-  // single unit, or renders the empty state when there are none).
   if (units.length < 2) redirect('/agenda')
 
   const org = await getOrg(ctx.membership.orgId)

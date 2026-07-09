@@ -225,10 +225,6 @@ describe('autofill — codeNotice (sem jargão, AC-04)', () => {
 })
 
 describe('autocomplete por nome — client gate em lockstep com o engine (@cbrl/product)', () => {
-  // The client copies (MIN_SEARCH_TERM_LENGTH + normalizeSearchTerm) live here, not
-  // imported from @cbrl/product, because that barrel pulls the pg pool into the
-  // client bundle. This test is the guard that the copies never drift from the
-  // canonical server gate (it runs in node env, so it CAN import the engine).
   it('MIN_SEARCH_TERM_LENGTH iguala a constante do engine', () => {
     expect(MIN_SEARCH_TERM_LENGTH).toBe(ENGINE_MIN_SEARCH_TERM_LENGTH)
   })

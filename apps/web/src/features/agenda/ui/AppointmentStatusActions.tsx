@@ -12,14 +12,8 @@ import { Button } from '@cbrl/design'
 import { useActionState, useEffect } from 'react'
 import { useFormStatus } from 'react-dom'
 
-// `useActionState`'s initial value lives here (not in `agenda/actions.ts`)
-// because `'use server'` files may only export async functions — exporting
-// a plain object trips Next.js's server-action loader.
 const INITIAL_FORM_STATE: AppointmentFormActionState = { ok: false }
 
-// Status-dependent action cluster for an appointment being edited (scheduled →
-// WhatsApp/start/no-show; no_show → unmark). Split out so the dialog's render
-// stays under the complexity gate — one conditional in the parent, not four.
 export function AppointmentStatusActions({
   appointment,
   whatsappLink,
@@ -57,17 +51,7 @@ export function AppointmentStatusActions({
   )
 }
 
-// ── Action form components ────────────────────────────────────────────────
-// Each one is a self-contained `<form action={…}>` so it submits natively
-// without depending on React hydration. `useActionState` surfaces the
-// server response back into the dialog UI (pending, error, success → close).
-
 function StartAttendanceForm({ appointmentId }: { appointmentId: string }) {
-  // No `useActionState` here: this action redirects on success and the
-  // `NEXT_REDIRECT` internal marker doesn't cross useActionState's state
-  // boundary cleanly (surfaces as a server error overlay). Plain
-  // `<form action={fn}>` lets the framework handle the redirect; pending
-  // UI comes from `useFormStatus` inside the submit button.
   return (
     <form action={startAttendanceFormAction} className="flex flex-col gap-1">
       <input type="hidden" name="appointmentId" value={appointmentId} />

@@ -1,12 +1,6 @@
 import { CatalogItem, CatalogItemChanges } from '@/domain/types/catalog-item'
 import { Schema } from 'effect'
 
-// The non-empty-`unitIds` invariant (#1283) lives at the EVENT boundary, not the
-// base `CatalogItem` type (whose reducer INITIAL state carries the empty
-// zero-value transiently — see `types/catalog-item.ts`). A `catalog_item.created`
-// payload must scope the item to ≥1 unit; a phantom item (no unit) is refused at
-// `appendEvent` decode, fail-fast before the `catalog_items_unit_ids_nonempty`
-// DB CHECK.
 const UnitScopedCatalogItem = CatalogItem.pipe(
   Schema.filter((item) => item.unitIds.length > 0, {
     identifier: 'UnitScopedCatalogItem',
@@ -14,8 +8,6 @@ const UnitScopedCatalogItem = CatalogItem.pipe(
   }),
 )
 
-// An `updated` patch may omit `unitIds`; when present it must stay non-empty
-// (shrinking the scope to zero would orphan the item from every unit).
 const UnitScopedCatalogItemChanges = CatalogItemChanges.pipe(
   Schema.filter((changes) => changes.unitIds === undefined || changes.unitIds.length > 0, {
     identifier: 'UnitScopedCatalogItemChanges',

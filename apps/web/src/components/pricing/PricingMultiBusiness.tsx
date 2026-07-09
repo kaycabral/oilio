@@ -1,11 +1,6 @@
 import { Badge, Typography } from '@cbrl/design'
 import { KeyRound } from 'lucide-react'
 
-// Callout de venda do multi-negócio na /pricing: reforça, no momento da decisão
-// de plano, que gerenciar vários negócios num login está incluso em QUALQUER
-// plano (até o Grátis). Versão compacta do palco que a landing dá ao tema
-// (LandingMultiBusiness); o ângulo é "vem de graça". Distinto de multi-unidade
-// (filiais do mesmo negócio). Copy fala só da gente — sem comparar com o mercado.
 export function PricingMultiBusiness() {
   return (
     <section className="border-border flex flex-col items-center gap-4 rounded-2xl border border-dashed px-6 py-10 text-center">

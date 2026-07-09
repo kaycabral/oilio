@@ -12,7 +12,6 @@ import { SubscriptionConfig } from './subscription/config'
 const SUB_REF = aggregateRef(SubscriptionConfig, 't1', 's1')
 const ORDER_REF = aggregateRef(OrderConfig, 't1', 'o1')
 
-// Snapshot completo de criação — o evento `created` é a fonte única do estado.
 const CREATED_PAYLOAD = {
   id: 's1',
   orgId: 't1',
@@ -215,8 +214,6 @@ describe('Feature 0020 — Definition of Done', () => {
       replayAggregate(SubscriptionConfig, SUB_REF).pipe(Effect.provide(layer)),
     )
 
-    // Replay == projeção, campo a campo (não só status/version): a prova de
-    // que nenhum campo é escrito fora de eventos.
     expect(replayed).toEqual(projection)
     expect(replayed.status).toBe('active')
     expect(replayed.currentPeriod.consumed).toBe(3)

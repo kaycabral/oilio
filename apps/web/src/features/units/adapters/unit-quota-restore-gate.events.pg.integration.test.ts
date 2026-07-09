@@ -2,19 +2,6 @@ import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { assertActiveUnitQuota } from './units-quota'
 
-/**
- * H1 — restore-of-archived-unit quota hole against REAL Postgres (brief 0088
- * AC-10). `createUnit` gated the Free 1-unit cap, but `archiveUnit(id,false)`
- * (restore) only checked owner RBAC — so a Pro→Free org with a residual archived
- * unit could reactivate it by direct POST and reach 2+ active units.
- *
- * `assertActiveUnitQuota` is the shared wall now called by BOTH createUnit and
- * the restore branch. This proves it against real Postgres: a Free org with one
- * ACTIVE unit is refused a second; the same org on Pro is allowed; and archived
- * units don't count toward the cap (so a restore that would breach it is caught,
- * while one that stays within it passes).
- */
-
 const TS = '2026-06-01T12:00:00.000Z'
 let seq = 0
 function uniqOrg(): string {
@@ -36,8 +23,6 @@ async function seedOrg(orgId: string): Promise<void> {
 }
 
 async function seedTier(orgId: string, tier: 'pro' | 'advanced'): Promise<void> {
-  // A billing row lifts the org above Free (getOrgTier defaults to Free with no
-  // row). Only pro/advanced rows are seeded; Free = the absence of a row.
   await pool().query(
     `INSERT INTO org_billing (org_id, id, last_event_version, tier, status, created_at, updated_at)
      VALUES ($1,$1,1,$2,'active',$3,$3)
@@ -50,9 +35,6 @@ const ADDRESS_JSON =
   '{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'
 
 async function seedUnit(orgId: string, unitId: string, archived: boolean): Promise<void> {
-  // agenda/fiscal bodies carry the union discriminants the strict decode
-  // (`decodeStoredUnit`) requires — `always_open` needs only `mode`, `informal`
-  // only `kind`. `listUnitsForOrg` decodes each row, so `{}` bodies would fail.
   await pool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, archived_at, created_at, updated_at)
      VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal',$3::jsonb,'{"mode":"always_open"}'::jsonb,'{"kind":"informal"}'::jsonb,$4,$5,$5)
@@ -75,7 +57,6 @@ describe('assertActiveUnitQuota — restore gate (brief 0088 H1)', () => {
   it('Free com 1 unidade ativa: recusa a 2ª (o path de restore reusa esta parede)', async () => {
     const orgId = uniqOrg()
     await seedOrg(orgId)
-    // active
     await seedUnit(orgId, `${orgId}-a`, false)
 
     const err = await assertActiveUnitQuota(orgId)
@@ -85,10 +66,8 @@ describe('assertActiveUnitQuota — restore gate (brief 0088 H1)', () => {
   it('Free com 1 unidade ARQUIVADA residual: restore permitido (arquivada não conta)', async () => {
     const orgId = uniqOrg()
     await seedOrg(orgId)
-    // archived → not counted
     await seedUnit(orgId, `${orgId}-arch`, true)
 
-    // No active unit yet, so activating (restoring) the archived one is within cap.
     const err = await assertActiveUnitQuota(orgId)
     expect(err).toBeNull()
   })

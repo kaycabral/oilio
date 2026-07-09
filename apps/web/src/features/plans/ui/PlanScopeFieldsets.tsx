@@ -4,8 +4,6 @@ import { type AllowedTimeScope, type BookingLimits, WEEKDAYS } from '@/domain'
 import { WEEKDAY_LABELS } from '@/features/plans/core/plan-form-defaults'
 import { Checkbox, Input, Label } from '@cbrl/design'
 
-// Temporal scope (brief 0019 Group B): days-of-week / hour-range / advance
-// window, each axis independently toggled. Defaults read from the snapshot.
 export function PlanTimeScopeFieldset({
   restrictDays,
   setRestrictDays,
@@ -132,8 +130,6 @@ export function PlanTimeScopeFieldset({
   )
 }
 
-// Behavioral scope (brief 0019 Group C): per-day cap, concurrent-future cap,
-// require-complete-before-next. Sub-fields independently optional.
 export function PlanBookingLimitsFieldset({
   restrictBookingLimits,
   setRestrictBookingLimits,

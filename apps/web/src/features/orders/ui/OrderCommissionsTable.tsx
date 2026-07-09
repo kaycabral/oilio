@@ -29,11 +29,7 @@ export function OrderCommissionsTable({
         {commissions.map((c) => (
           <li key={c.id} className="flex items-center justify-between px-4 py-2">
             <div>
-              <span className="font-medium">
-                {/* Comissão chaveada por membro (#1057): `attributedUserId` é o
-                    `userId` do membro atribuído ao item, qualquer papel. */}
-                {memberByUserId[c.attributedUserId]?.name ?? '—'}
-              </span>
+              <span className="font-medium">{memberByUserId[c.attributedUserId]?.name ?? '—'}</span>
               <span className="text-muted-foreground"> · {c.itemName}</span>
             </div>
             <div className="text-muted-foreground text-xs">

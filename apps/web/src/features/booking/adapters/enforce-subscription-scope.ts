@@ -58,20 +58,11 @@ export async function enforceSubscriptionScope(args: {
   customerId: string
   unitId: string
   startAt: string
-  // Category of the booked service (brief 0023, AC-06 — #1004). Resolved from
-  // the catalog item's `categoryId`. When the customer's plan restricts coverage
-  // to a category set, a service outside it is rejected. `null` when the item is
-  // uncategorized — covered only if the plan is unrestricted. Optional so
-  // non-booking callers don't break.
   serviceCategoryId?: string | null
   excludeAppointmentId?: string
 }): Promise<ScopeEnforcementResult> {
   const { orgId, orgTimezone, customerId, unitId, startAt, serviceCategoryId } = args
 
-  // Backend-aware read (Postgres typed table under RLS / Firestore subcollection).
-  // Only the linked `userId` is needed; use the tolerant `getCustomerUserId` (not
-  // the strict-decoding `getCustomerById`) so a degenerate shadow doc doesn't
-  // throw — scope enforcement degrades to "allow" on an unresolvable customer.
   const userId = await getCustomerUserId(orgId, customerId)
   if (!userId) return { ok: true }
 

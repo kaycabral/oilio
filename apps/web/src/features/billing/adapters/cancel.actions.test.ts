@@ -1,18 +1,6 @@
-// Unit tests for the native cancellation server action (brief 0090, AC-09).
-// Gated on the `canManageBilling` capability (owner-only preset, #1377); flips
-// `cancel_at_period_end` on the Stripe subscription; the webhook projects the
-// flag onto org_billing (covered by the webhook integration test). Proven here
-// without network or DB (all deps mocked):
-//   - capability gate (denied → error result, no Stripe call)
-//   - "no subscription" guard (error result, no Stripe call)
-//   - happy path (updates the subscription with cancel_at_period_end + emits the
-//     confirmed funnel event)
-//   - Stripe failure maps to a friendly error result
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  // #1377 — billing gates on the `canManageBilling` capability, not `role ===`.
   guardCapability: vi.fn(),
   getOrgBilling: vi.fn(),
   subscriptionsUpdate: vi.fn(),
@@ -53,7 +41,6 @@ describe('cancelSubscription', () => {
 
     expect(res).toEqual({ ok: false, error: 'Permission denied' })
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
-    // Proves the gate is the CAPABILITY, not `role ===` (brief 0075 AC-01).
     expect(mocks.guardCapability).toHaveBeenCalledWith('canManageBilling')
   })
 

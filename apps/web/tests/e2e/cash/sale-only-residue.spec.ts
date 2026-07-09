@@ -1,12 +1,3 @@
-// Regression E2E — brief 0031 (remover resíduo de caixa), sub-issue #1060.
-//
-// Guardrail crítico do brief: o registro financeiro AUTOMÁTICO da venda
-// (`sale` no fechamento, `sale_reversal` no undo) NÃO pode regredir quando a
-// gaveta manual sai. E a superfície manual (AddMovementForm /
-// sangria/suprimento / /cash/categories) tem que estar GONE.
-//
-// Roda contra emulator + build de produção (modo canônico do playwright.config).
-
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { rowAction } from '../helpers/list'
@@ -20,9 +11,6 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-// Brief 0031 (#1062): `/cash` colapsou no hub `/reports`. O registro automático
-// da venda (`sale`/`sale_reversal`) agora é lido na seção Vendas do hub. As
-// linhas da venda aparecem na tabela de movimentos (não mais numa lista).
 const salesRow = (page: Page, label: string | RegExp) =>
   page.getByRole('row').filter({ hasText: label })
 
@@ -85,31 +73,21 @@ test.describe('Caixa 0031 — só venda automática, gaveta removida', () => {
   }) => {
     await seedOrderFixture(org)
 
-    // Fecha com dinheiro → registra a venda (sem depender de gaveta).
     await startOrder(authedPage)
     await closeWithCash(authedPage)
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible({ timeout: 5000 })
 
-    // A venda aparece na seção Vendas do hub `/reports` (mês cobre a data
-    // futura seedada). A linha mostra Tipo "Venda" + valor +R$ 50,00.
     await authedPage.goto('/reports?period=month')
     await expect(authedPage.getByRole('heading', { name: 'Vendas' })).toBeVisible()
     const saleRow = salesRow(authedPage, 'Venda').filter({ hasText: /\+\s*R\$\s*50,00/ })
     await expect(saleRow).toBeVisible()
 
-    // Desfaz → `sale_reversal` coexiste com a venda (append-only). A order foi
-    // fechada, então vive sob o filtro "Fechadas" (default de /orders é abertas).
     await authedPage.goto('/orders?status=closed')
-    // Orders rows are List items; open the detail via the ⋯ menu ("Ver detalhes"),
-    // which links to /orders/{id} (rows are no longer plain links).
     await rowAction(authedPage, /Cliente Residuo/, 'Ver detalhes')
     await expect(authedPage).toHaveURL(/\/orders\/.+/)
     await authedPage.getByRole('button', { name: /Desfazer fechamento/ }).click()
     await expect(authedPage.getByText(/Aberta em/)).toBeVisible({ timeout: 5000 })
 
-    // "Venda" é substring de "Estorno de venda"; distinguimos pelo sinal do
-    // valor (+ entrada vs. − estorno) pra evitar strict-mode violation com as
-    // duas linhas presentes (append-only: a venda nunca some).
     await authedPage.goto('/reports?period=month')
     await expect(
       salesRow(authedPage, 'Venda').filter({ hasText: /\+\s*R\$\s*50,00/ }),
@@ -120,16 +98,13 @@ test.describe('Caixa 0031 — só venda automática, gaveta removida', () => {
   })
 
   test('gaveta manual e categorias removidas da UI', async ({ authedPage }) => {
-    // `/cash` colapsou no hub: a rota redireciona pra `/reports`.
     await authedPage.goto('/cash')
     await expect(authedPage).toHaveURL(/\/reports$/)
     await expect(authedPage.getByRole('heading', { name: 'Relatórios' })).toBeVisible()
 
-    // Sem form de registro manual nem seletor de tipo de movimento.
     await expect(authedPage.getByRole('button', { name: 'Registrar movimento' })).toHaveCount(0)
     await expect(authedPage.getByRole('combobox', { name: 'Tipo' })).toHaveCount(0)
 
-    // Rota de categorias de despesa não existe mais → não renderiza o painel.
     await authedPage.goto('/cash/categories')
     await expect(authedPage.getByRole('heading', { name: /categorias de despesa/i })).toHaveCount(0)
   })

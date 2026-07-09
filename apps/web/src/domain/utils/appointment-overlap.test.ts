@@ -71,7 +71,6 @@ describe('intervalsOverlap', () => {
 describe('findAppointmentConflicts', () => {
   it('finds appointment overlap for same memberOperation', () => {
     const existing = [
-      // 10:00–11:00 local BR == 13:00–14:00 UTC
       appt({
         id: 'existing-1',
         startAt: '2026-05-14T13:00:00.000Z',
@@ -159,7 +158,6 @@ describe('findAppointmentConflicts', () => {
         endMin: 13 * 60,
       },
     ]
-    // 12:30 local BR == 15:30 UTC
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-14T15:30:00.000Z', endAt: '2026-05-14T16:00:00.000Z' },
       memberOperationId: 'p1',
@@ -202,7 +200,6 @@ describe('findAppointmentConflicts', () => {
         endMin: 13 * 60,
       },
     ]
-    // 13:00 local BR == 16:00 UTC — starts exactly when block ends
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-14T16:00:00.000Z', endAt: '2026-05-14T17:00:00.000Z' },
       memberOperationId: 'p1',
@@ -224,7 +221,6 @@ describe('findAppointmentConflicts', () => {
         endMin: 13 * 60,
       },
     ]
-    // Proposed sits on 2026-05-15, but we resolve blocks for DATE (2026-05-14).
     const conflicts = findAppointmentConflicts({
       proposed: { startAt: '2026-05-15T15:30:00.000Z', endAt: '2026-05-15T16:00:00.000Z' },
       memberOperationId: 'p1',
@@ -237,8 +233,6 @@ describe('findAppointmentConflicts', () => {
   })
 
   it('clips the proposed interval at midnight when it crosses into the next day', () => {
-    // 23:30–00:30 BR (= 02:30–03:30 UTC next day). The block at 23:00–24:00 local
-    // must still conflict via the clipped [1410, 1440) window on DATE.
     const blocks: BlockSegment[] = [
       {
         blockId: 'b1',
@@ -268,8 +262,6 @@ describe('findAppointmentConflicts', () => {
       }),
     ]
     const blocks: BlockSegment[] = [
-      // 14:15 local == 17:15 UTC. The proposed interval is 10:00–11:30 BR == 13:00–14:30 UTC.
-      // So this block must overlap. Use 10:30 BR for the block start:
       {
         blockId: 'b1',
         memberOperationId: null,

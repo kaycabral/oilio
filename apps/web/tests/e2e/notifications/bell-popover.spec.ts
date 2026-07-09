@@ -1,10 +1,3 @@
-// E2E spec — sub-issue #955 do brief 0018 (Grupo A).
-//
-// AC [smoke] via browser real:
-// - AC-01: sininho aparece no top bar com badge de não-lidas
-// - AC-03: popover renderiza items com icon + label + tempo relativo
-// - AC-04: sininho com 0 não-lidas → badge oculto + empty state no popover
-
 import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import type { NotificationState } from '@/domain/aggregates/notification/types'
 import { aggregateRef } from '@/domain/effect'
@@ -14,10 +7,6 @@ import {
 } from '@/shared/db/pg/effect/notification-projector'
 import { expect, test } from '../fixtures'
 
-// Seeds a notification projection (+ its `notification.created` event) directly
-// into Postgres — the `notification` context has no public seed helper, so this
-// mirrors the private `seedIdentityPostgres` path (event row + typed projection
-// row in one transaction) using the projector's canonical column list.
 async function seedNotification(
   orgId: string,
   unitId: string,
@@ -99,8 +88,6 @@ test.describe.serial('Notification bell + popover', () => {
     const bellButton = authedPage.getByRole('button', { name: 'Notificações' })
     await expect(bellButton).toBeVisible()
 
-    // Opening the popover refetches /api/notifications, so the seeded items are
-    // picked up deterministically — wait for that response instead of sleeping.
     const loaded = authedPage.waitForResponse(
       (r) => /\/api\/notifications\?/.test(r.url()) && r.ok(),
     )

@@ -5,9 +5,6 @@ import {
   type SubscriptionCoverageEntry,
 } from './subscription-coverage'
 
-// Brief 0024, Grupo B (AC-04). The consumption-time resolver: item ∈
-// includedItemIds (direct) OR item.categoryId ∈ includedCategoryIds (category
-// convenience expansion). Kind-agnostic — service and product resolve the same.
 const snapshot = (includedItemIds: string[], includedCategoryIds: string[]) => ({
   includedItemIds,
   includedCategoryIds,
@@ -56,18 +53,12 @@ describe('isItemCoveredBySubscription', () => {
   })
 
   it('an empty snapshot is unrestricted — covers everything (most permissive wins)', () => {
-    // Both lists empty = no item/category restriction; mirrors the booking path
-    // where empty `includedCategoryIds` collapses to "no restriction".
     const snap = snapshot([], [])
     expect(isItemCoveredBySubscription(snap, { id: 'item-barba', categoryId: 'cat-x' })).toBe(true)
     expect(isItemCoveredBySubscription(snap, { id: 'x', categoryId: null })).toBe(true)
   })
 })
 
-// Brief 0079, Grupo A (AC-01/AC-02). Recognition predicate: an item is "covered
-// with balance" when SOME scope-bearing subscription both covers it and still
-// has cycle balance. Decides badge/auto-mark presence; the balance count itself
-// never reaches the UI (asserted by the resolver returning `remaining` only).
 const entry = (
   includedItemIds: string[],
   includedCategoryIds: string[],
@@ -90,7 +81,6 @@ describe('isItemCoveredWithBalance', () => {
   })
 
   it('is false when the only covering subscription is out of balance (→ avulso)', () => {
-    // AC-04: covered but no balance → falls back to full price, no badge.
     const entries = [entry(['item-corte'], [], 0)]
     expect(isItemCoveredWithBalance(entries, { id: 'item-corte', categoryId: 'cat-cabelo' })).toBe(
       false,
@@ -109,8 +99,6 @@ describe('isItemCoveredWithBalance', () => {
   })
 
   it('picks the subscription with balance when another covers but is exhausted', () => {
-    // One plan covers Corte but is out of balance; another (unlimited) also
-    // covers it — the item keeps the badge via the second.
     const entries = [entry(['item-corte'], [], 0), entry([], ['cat-cabelo'], null)]
     expect(isItemCoveredWithBalance(entries, { id: 'item-corte', categoryId: 'cat-cabelo' })).toBe(
       true,

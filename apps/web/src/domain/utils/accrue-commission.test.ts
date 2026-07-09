@@ -1,8 +1,3 @@
-// AC-02 (brief 0022 #999) — decisão pura de accrual por item no fechamento.
-// Cobre: serviço comissionável gera snapshot com o valor da regra; produto sem
-// comissão (`commission: null`) é pulado; consumo de assinatura não comissiona;
-// regra que zera o valor não vira registro; comissão fixa usa o valor da regra.
-
 import { describe, expect, it } from 'vitest'
 
 import type { OrderItem } from '../types/order'
@@ -68,7 +63,6 @@ describe('accrueCommissionForItem', () => {
     ).toBeNull()
   })
 
-  // Brief 0041 AC-11 — snapshot de identidade do profissional na apuração.
   it('snapshota o nome do membro resolvido (retenção de vínculo, art. 16)', () => {
     const accrual = accrueCommissionForItem(item({ attributedUserId: 'pro-1' }), (uid) =>
       uid === 'pro-1' ? 'Zé Profissional' : '',

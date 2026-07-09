@@ -1,10 +1,3 @@
-// Render tests for ReportsView (brief 0082 AC-01/AC-03) — proves the gate a
-// tester would eyeball: when a section's data is `null` (the tier does not
-// unlock it, so the loader did NOT fetch it), the section is replaced by the
-// upgrade CTA instead of the report. The heavy child reports are mocked to a
-// text marker (queried by role/text, not a test hook); the focus is the
-// null-section → CTA substitution.
-
 import type { CashMovementTotals } from '@/domain/utils/cash-register'
 import type { CashReportRange } from '@/features/cash/core/range'
 import type { SalesSectionData } from '@/features/reports/adapters/sales.repo'
@@ -19,8 +12,6 @@ vi.mock('./CommissionReport', () => ({
   CommissionReport: () => <section aria-label="Comissões" />,
 }))
 vi.mock('@/shared/org/org-context', () => ({
-  // UpgradeCta renders the CTA directly (no capability check), but importing the
-  // module still pulls org-context — stub it so the render stays isolated.
   useCapability: () => false,
 }))
 
@@ -78,12 +69,9 @@ describe('ReportsView — tier gate (brief 0088)', () => {
   })
 
   it('hides the commissions section (no upsell) when that capability is off', () => {
-    // Post-0088: off-plan sections are HIDDEN, never upsold. `sales` is always
-    // present here — the route 404s when `reports.sales` is locked (page-level).
     render(<ReportsView range={range} sales={salesData} commissions={null} canMarkPaid />)
     expect(screen.getByRole('region', { name: 'Vendas' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Comissões' })).not.toBeInTheDocument()
-    // No CTA anywhere — upsell lives only in /settings/billing + /pricing.
     expect(screen.queryByRole('link', { name: 'Fazer upgrade' })).not.toBeInTheDocument()
   })
 })

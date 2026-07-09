@@ -4,10 +4,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NewOrgDialog } from './NewOrgDialog'
 
-// "+ Novo negócio" does a SMOOTH context switch on success (Fix 1): it calls
-// `createOrg`, then `setActiveOrg(orgId)` (the same mechanism `UnitOrgSwitcher`
-// uses — write `currentOrgId` + `router.refresh()`) and closes the dialog. It
-// must NEVER navigate away. Mock the server action + the org context.
 const createOrg = vi.fn<(fd: FormData) => Promise<CreateOrgResult>>()
 vi.mock('@/features/onboarding/adapters/onboarding.actions', () => ({
   createOrg: (fd: FormData) => createOrg(fd),
@@ -45,7 +41,6 @@ describe('NewOrgDialog — smooth context switch on create (Fix 1)', () => {
     submitForm()
 
     await waitFor(() => expect(setActiveOrg).toHaveBeenCalledWith('org-new'))
-    // Dialog closed → its title is gone (soft switch, stayed on the orgs page).
     await waitFor(() => expect(screen.queryByText('Novo negócio')).not.toBeInTheDocument())
   })
 

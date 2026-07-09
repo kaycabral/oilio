@@ -13,18 +13,6 @@ import { nextWeekday } from '../helpers/date'
 import { linkMemberOperationToServices, seedService } from '../helpers/session'
 import { orgSlug, PublicBookingPage } from '../pages'
 
-// Épico #672 — Landing pública por estabelecimento.
-// - #673 slug público resolve para uma página servida sem auth.
-// - #674 branding (logo/banner/descrição) aparece quando configurado.
-// - #675 catálogo público filtra `publicVisible && active`.
-// - #676 booking público cria customer + appointment.
-
-// Branding patch isn't covered by `helpers/session.ts` (one-off shape).
-// Post-cutover this re-projects the org under the event store (Postgres): read
-// the current projection, merge the branding patch, append the next
-// `org.updated` event, and re-write BOTH the org-scoped row AND the public
-// directory row (the public landing page reads `public_org_directory`, brief
-// 0062 — they must never drift). Keep this here until a second spec needs it.
 const decodeOrg = Schema.decodeUnknownSync(StoredOrg)
 
 async function patchOrgBranding(
@@ -80,9 +68,6 @@ async function patchOrgBranding(
       [...values],
     )
 
-    // Mirror the public fields into the public directory (same tx) — the public
-    // landing page reads this row, not the org-scoped projection. Reuse the
-    // projector's own upsert + values (single source of truth).
     await client.query(PUBLIC_DIRECTORY_UPSERT, publicOrgDirectoryValues(next))
     await client.query('COMMIT')
   } catch (err) {
@@ -101,8 +86,6 @@ test.describe('Landing pública — branding + catálogo + agendamento', () => {
       'renderiza branding + catálogo público e completa booking',
       { tag: '@critical' },
       async ({ org, authedPage: page }) => {
-        // Booking requires login since #1275; the seeded owner (completed) acts
-        // as the signed-in customer. The public catalog renders for them too.
         const slug = orgSlug(org.orgId)
 
         await patchOrgBranding(org.orgId, {
@@ -111,7 +94,6 @@ test.describe('Landing pública — branding + catálogo + agendamento', () => {
           description: 'Test studio descrição pública.',
         })
 
-        // Serviço visível no catálogo público.
         const serviceId = await seedService(org.orgId, {
           name: 'Corte Premium',
           durationMinutes: 30,
@@ -119,7 +101,6 @@ test.describe('Landing pública — branding + catálogo + agendamento', () => {
           publicVisible: true,
           unitIds: org.unitIds,
         })
-        // Serviço NÃO público — não deve aparecer no catálogo.
         await seedService(org.orgId, {
           name: 'Serviço Interno',
           durationMinutes: 30,
@@ -127,22 +108,17 @@ test.describe('Landing pública — branding + catálogo + agendamento', () => {
           publicVisible: false,
           unitIds: org.unitIds,
         })
-        // O slot de disponibilidade só aparece com o profissional vinculado ao serviço.
         await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
         const booking = new PublicBookingPage(page, slug)
 
-        // Página pública (sem auth).
         await booking.gotoCatalog()
         await expect(booking.orgHeading()).toBeVisible()
         await expect(page.getByText('Test studio descrição pública.')).toBeVisible()
         await expect(booking.serviceCard('Corte Premium')).toBeVisible()
         await expect(page.getByText(/R\$\s*65,00/)).toBeVisible()
-        // Service NÃO público fica escondido.
         await expect(page.getByText('Serviço Interno')).toHaveCount(0)
 
-        // Booking pelo wizard por-unidade (#844): disponibilidade real → confirmar.
-        // O owner seedado (logado + completo) age como o cliente.
         await booking.gotoAvailability('unidade-1', { serviceId, from: nextWeekday('Wed') })
         await booking
           .slotByMemberOperation(/profissional 1/i)

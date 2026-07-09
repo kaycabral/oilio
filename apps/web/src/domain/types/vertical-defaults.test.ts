@@ -27,8 +27,6 @@ describe('VERTICAL_DEFAULTS', () => {
         expect(s.durationMinutes).toBeLessThanOrEqual(24 * 60)
         expect(s.priceCents).toBeGreaterThanOrEqual(0)
       }
-      // Suggestion names must be unique per vertical — importSuggestedService
-      // looks up by name and the first match wins; duplicates would be a bug.
       const names = suggestedServices.map((s) => s.name)
       expect(new Set(names).size).toBe(names.length)
     }

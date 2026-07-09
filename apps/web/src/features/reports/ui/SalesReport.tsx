@@ -21,11 +21,6 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-// Vendas section of the /reports hub (brief 0031 AC-05). Migrated from
-// `CashReport`: same org-timezone period presets/custom range + CSV export,
-// but SALES ONLY — no unit dropdown (the hub scopes by the aggregate toggle's
-// `unitId`) and no despesa breakdown (expenses deferred). Only sale /
-// sale_reversal movements exist post-0031.
 const KIND_LABEL: Partial<Record<CashMovement['kind'], string>> = {
   sale: 'Venda',
   sale_reversal: 'Estorno de venda',
@@ -38,9 +33,6 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   pix: 'Pix',
 }
 
-// Ordem canônica das formas de pagamento. Tipado como `PaymentMethod[]` na
-// origem, então iterar aqui não precisa de assertion (ao contrário de
-// `Object.keys`, que alarga para `string`).
 const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'credit_card', 'debit_card', 'pix']
 
 const PERIOD_PRESETS: { value: CashReportPeriod; label: string }[] = [
@@ -67,9 +59,6 @@ export function SalesReport({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  // Transições separadas: trocar de preset e aplicar o range custom são ações
-  // distintas, então cada controle reflete só o próprio loading (antes um
-  // `pending` único acendia o "Aplicar" ao trocar de período).
   const [periodPending, startPeriodTransition] = useTransition()
   const [applyPending, startApplyTransition] = useTransition()
   const fromId = useId()
@@ -81,8 +70,6 @@ export function SalesReport({
     })
   }
 
-  // Preset (dia/semana/mês): só seta `period`; o range é resolvido no fuso do
-  // org no server. Limpa from/to (só fazem sentido no custom).
   function goPeriod(p: CashReportPeriod) {
     const next = new URLSearchParams(searchParams.toString())
     next.set('period', p)
@@ -116,9 +103,6 @@ export function SalesReport({
     URL.revokeObjectURL(url)
   }
 
-  // Vendas por forma de pagamento (filtra zeros pra evitar listão de zeros).
-  // Itera sobre as chaves conhecidas de PaymentMethod (via PAYMENT_LABEL) em vez
-  // de `Object.entries`, que alarga a chave para `string`.
   const salesByMethodEntries = useMemo<[PaymentMethod, number][]>(
     () =>
       PAYMENT_METHODS.map((pm): [PaymentMethod, number] => [pm, totals.salesByMethod[pm]]).filter(

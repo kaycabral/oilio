@@ -1,29 +1,12 @@
 import { Badge, Typography } from '@cbrl/design'
 import { Check, Minus } from 'lucide-react'
 
-// Tabela comparativa Plans × Features (padrão Notion): agrupa as capacidades por
-// categoria e mostra, coluna a coluna, o que cada Plano Oilio libera. É a visão
-// "linha a linha" que complementa os cards — o cliente confere o detalhe sem
-// abrir o app.
-//
-// FONTE DA VERDADE: cada célula reflete o que o tier realmente libera hoje
-// (@/domain/billing/capabilities → TIER_CAPABILITIES) ou o que está no roadmap
-// ("Em breve", brief 0070 AC-04 — roadmap, não capability). A ordem das colunas
-// segue TIER_ORDER + o tier de contato "Escala" no fim. Se packaging e
-// enforcement divergirem, o drift guard de PricingTiers (tiersMatchDomain) falha
-// primeiro; aqui a honestidade é manual e revisada junto.
-//
-// Colunas: Grátis · Pro · Avançado · Escala. Ordem idêntica aos cards.
 const COLUMNS = ['Grátis', 'Pro', 'Avançado', 'Escala'] as const
 
-// Estado de uma célula: incluído (✓), ausente (—), roadmap ("Em breve") ou texto
-// literal (ex.: "1 unidade"). O texto é encapsulado em `{ text }` pra o union não
-// colapsar `'soon'`/`true` num `string` genérico (mantém a checagem exaustiva).
 type Cell = boolean | 'soon' | { text: string }
 
 type Feature = {
   label: string
-  // Uma entrada por coluna, na ordem de COLUMNS.
   cells: readonly [Cell, Cell, Cell, Cell]
 }
 
@@ -32,10 +15,6 @@ type Group = {
   features: readonly Feature[]
 }
 
-// Herança de tier é cumulativa (Pro ⊃ Grátis, Avançado ⊃ Pro, Escala ⊃ Avançado),
-// então uma linha "incluída no Pro" também marca Avançado e Escala. As células
-// abaixo já expandem essa herança explicitamente pra a tabela ser lida sem
-// pressupor a regra.
 const GROUPS: readonly Group[] = [
   {
     title: 'Agenda e atendimento',
@@ -76,13 +55,6 @@ const GROUPS: readonly Group[] = [
           { text: 'Ilimitadas' },
         ],
       },
-      // "Membros da equipe" substitui as antigas linhas "Profissionais" (redundante
-      // — tudo é Membership) e "Equipe com papéis (RBAC)" (jargão + o gate de papéis
-      // por plano NÃO existe no código, era drift). O limite "Você + 1" no Grátis
-      // (o dono + 1 = 2 no total) é uma PROMESSA anunciada antes do enforcement: o
-      // gate de contagem de membros ainda será construído (feature Lyra pendente —
-      // createInvite conta membros e barra no Grátis). Até lá, membros são
-      // tecnicamente ilimitados; a divergência é consciente e rastreada.
       {
         label: 'Membros da equipe',
         cells: [
@@ -92,11 +64,6 @@ const GROUPS: readonly Group[] = [
           { text: 'Ilimitados' },
         ],
       },
-      // Multi-negócio é diferencial raro no mercado (gerenciar negócios DIFERENTES
-      // num login, cada um com seu plano) — incluso em TODOS os planos, até o
-      // Grátis. Distinto de multi-unidade (filiais do mesmo negócio). Vendido com
-      // palco na landing (MultiBusiness); aqui aparece como linha ✓ pra reforçar
-      // que vem de graça.
       { label: 'Vários negócios num login', cells: [true, true, true, true] },
     ],
   },
@@ -165,9 +132,6 @@ export function PricingComparison() {
         </Typography>
       </div>
 
-      {/* A tabela rola horizontalmente no mobile (overflow-x) sem quebrar o layout
-          da página — as 4 colunas de plano não cabem numa tela estreita, então o
-          contêiner é quem rola, nunca o body (regra de Artifact/responsividade). */}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse text-left">
           <thead>

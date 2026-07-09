@@ -7,15 +7,8 @@ import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { Schema } from 'effect'
 import 'server-only'
 
-// Reads for the `appointment` projection (brief 0061 § Grupo C / AC-04): reads
-// the typed `appointments` table under RLS. Org-wide (no unit pin) — the offboard
-// cascade looks up a memberOperation's appointments across the org's units.
-
 const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 
-// A single appointment by id. Returns null when absent. Reads the typed
-// `appointments` table under RLS (org-scoped — no unit pin: the staff
-// transitions/start-attendance flows address an appointment by id directly).
 export async function getAppointmentById(
   orgId: string,
   appointmentId: string,
@@ -32,25 +25,12 @@ export async function getAppointmentById(
   return row ? decodeAppointment(appointmentRowToDoc(row)) : null
 }
 
-// Every appointment of a unit whose `startAt` falls within `[startUtc, endUtc]`
-// (ISO text, inclusive) — the self-book availability read for one day. Pins
-// `app.current_unit` for the unit-scoped policy; `start_at` is ISO text so the
-// range compares lexicographically (UTC instants), matching the Firestore
-// `>=`/`<=` range query.
 export async function listUnitAppointmentsInRange(
   orgId: string,
   unitId: string,
   range: { startUtc: string; endUtc: string },
   options: {
-    // Own-scope (brief 0075, #1256): pass a memberOperation's id to restrict the read
-    // to THEIR appointments via the `app.current_member_operation` RLS predicate; `''`
-    // (the balcão) reads the whole unit. The SQL is unchanged — the database
-    // narrows the rows, so a memberOperation can't read a colleague's day.
     memberOperationId?: string
-    // Cancelled visibility (brief 0081, #1311 AC-01/02): by default the agenda grid
-    // hides `cancelled` so freed slots read as empty. Only `cancelled` is filtered —
-    // `scheduled`/`completed`/`no_show` always render (no_show is the day's record).
-    // The toggle (#1312) flips this to `true` to re-surface cancelled appointments.
     includeCancelled?: boolean
   } = {},
 ): Promise<Appointment[]> {
@@ -73,15 +53,6 @@ export async function listUnitAppointmentsInRange(
   return rows.map((row) => decodeAppointment(appointmentRowToDoc(row)))
 }
 
-// Every appointment of a memberOperation whose `startAt` falls within
-// `[startUtc, endUtc]` — CROSS-UNIT (no `unit_id` filter), because the same
-// memberOperation may serve several units and the anti-double-book invariant is
-// per-professional, not per-unit (constraint `appointments_no_double_book`
-// scopes by `(org_id, member_operation_id, tstzrange)`). Used by the booking
-// availability + conflict pre-flight so a slot the professional already fills in
-// ANOTHER unit is neither offered nor accepted (#1313). Org-wide read (no
-// `app.current_unit` pin — same as `listAppointmentsByMemberOperationId`);
-// `cancelled` is excluded so freed slots read as free.
 export async function listMemberOperationAppointmentsInRange(
   orgId: string,
   memberOperationId: string,
@@ -101,9 +72,6 @@ export async function listMemberOperationAppointmentsInRange(
   return rows.map((row) => decodeAppointment(appointmentRowToDoc(row)))
 }
 
-// Every appointment owned by a memberOperation in an org (any status). The caller
-// filters the future/scheduled subset — kept org-wide (no `app.current_unit`
-// pin) because a memberOperation may serve multiple units.
 export async function listAppointmentsByMemberOperationId(
   orgId: string,
   memberOperationId: string,

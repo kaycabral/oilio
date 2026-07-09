@@ -22,9 +22,7 @@ describe('formatRelativeDate', () => {
   })
 
   it('uses a short date for past beyond yesterday and far future', () => {
-    // Past beyond yesterday is NOT relative — just the short date.
     expect(formatRelativeDate('2026-06-10T08:00:00', NOW)).toBe('10/06/26')
-    // Future beyond the window falls back too.
     expect(formatRelativeDate('2026-07-14T08:00:00', NOW)).toBe('14/07/26')
   })
 })

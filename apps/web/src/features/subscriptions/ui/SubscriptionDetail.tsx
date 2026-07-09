@@ -81,8 +81,6 @@ function formatDateTime(iso: string | null): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-// Management actions (manager-only): renew / cancel / reactivate / change-plan.
-// Split out so the detail view stays under the complexity gate.
 function SubscriptionActions({
   subscription,
   switchablePlans,
@@ -149,9 +147,6 @@ function SubscriptionActions({
             </label>
           ) : null}
 
-          {/* Troca explícita de plano (ADR 0010, D5 / AC-07). Editar o plano
-              nunca move o assinante — esta é a única afford. Captura um snapshot
-              fresco do plano de destino; vale daqui pra frente. */}
           <div className="border-border space-y-2 rounded-md border border-dashed p-3">
             <span className="text-sm font-medium">Trocar plano</span>
             <p className="text-muted-foreground text-xs">
@@ -214,9 +209,6 @@ export function SubscriptionDetail({
   const [error, setError] = useState<string | null>(null)
   const [reason, setReason] = useState('')
 
-  // Planos elegíveis pra troca explícita (ADR 0010, D5 / AC-07): ativos e
-  // diferentes do contratado. Trocar o plano de um assinante ativo é ação
-  // explícita, nunca efeito de editar o plano.
   const switchablePlans = activePlans.filter((p) => p.id !== subscription.plan.planId)
   const [newPlanId, setNewPlanId] = useState('')
 

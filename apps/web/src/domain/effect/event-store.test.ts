@@ -14,11 +14,6 @@ import {
   type GuardResult,
 } from './event-store'
 
-// ---------------------------------------------------------------------------
-// Test aggregate: Counter (modeled on a real `AggregateType` — `goal` — so the
-// typed ref/config contract holds; the domain logic is a synthetic counter).
-// ---------------------------------------------------------------------------
-
 type CounterState = { readonly count: number; readonly _version: number }
 
 const CounterEvent = Schema.Union(
@@ -46,10 +41,6 @@ const CounterConfig: AggregateConfig<CounterState, CounterEvent> = {
 }
 
 const ref = aggregateRef(CounterConfig, 't1', 'c1')
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('Event Store', () => {
   describe('appendEvent', () => {

@@ -29,12 +29,6 @@ const VERTICAL_LABELS: Record<Vertical, string> = {
   other: 'Outro',
 }
 
-// "+ Novo negócio" — creates another Negócio (folder) for the same user. Reuses
-// the canonical `createOrg` saga (name + segment → folder WITHOUT a unit, the
-// intentional empty state). On success this is a SMOOTH in-place context switch
-// (no full reload): `setActiveOrg(orgId)` writes `currentOrgId` + `router.refresh()`
-// (the exact mechanism `UnitOrgSwitcher` uses), then the dialog closes. We stay
-// on the orgs page; it re-renders in the new Negócio's context.
 export function NewOrgDialog() {
   const { setActiveOrg } = useOrg()
   const [open, setOpen] = useState(false)
@@ -50,8 +44,6 @@ export function NewOrgDialog() {
         setError(res.error)
         return
       }
-      // Soft context switch — set the new Negócio active (+ RSC refresh, handled
-      // by the OrgProvider's setActiveOrg) and close the dialog. No navigation.
       await setActiveOrg(res.orgId)
       setOpen(false)
     })

@@ -19,12 +19,6 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
-// Self-service per-establishment CUSTOMER erasure (brief 0032 / AC-10, #1097).
-// Lists the establishments the subject discovered via the reverse index. Each
-// row offers "excluir meus dados deste estabelecimento" → a per-org block
-// (#1100), wiring the active-subscription warning (#1101) so the subject gives
-// informed consent before the destructive action. The whole-account erasure
-// (#1093) lives in the sibling `DeleteMyDataForm`.
 export function EstablishmentErasureList({
   establishments,
 }: {
@@ -58,8 +52,6 @@ function EraseInEstablishment({ establishment }: { establishment: LinkedEstablis
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  // On open, fetch the informed-consent pre-check (#1101): does the subject have
-  // an active subscription in this establishment that the block would cancel?
   function onOpenChange(next: boolean) {
     setOpen(next)
     setError(null)
@@ -96,8 +88,6 @@ function EraseInEstablishment({ establishment }: { establishment: LinkedEstablis
           ? `Seus dados em ${establishment.name} foram excluídos e sua assinatura ativa foi cancelada.`
           : `Seus dados em ${establishment.name} foram excluídos.`,
       )
-      // In the modal, reload the section's list in place; on the full page,
-      // refresh the route (see EditProfileForm for the rationale).
       if (reloadSection) reloadSection()
       else router.refresh()
     })

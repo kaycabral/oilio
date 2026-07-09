@@ -1,9 +1,3 @@
-// Like `domain-builders.test.ts`: each seed builder's output must decode through
-// its domain schema, so a field added/tightened on a domain type breaks the seed
-// here (zero drift) rather than at `db:seed` time against a FK/CHECK. The
-// discriminated-union builders (agenda block, cash movement, catalog item, unit
-// fiscal) are checked per variant — that's exactly where a wrong shape hides.
-
 import {
   AgendaBlock,
   CashMovement,

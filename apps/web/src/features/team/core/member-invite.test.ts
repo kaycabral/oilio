@@ -12,10 +12,8 @@ describe('buildMemberInviteWhatsapp', () => {
     })
     expect(res.ok).toBe(true)
     if (!res.ok) return
-    // Domestic 11-digit number → E.164 with `55` prefix.
     expect(res.whatsapp).toBe('5511900000000')
     expect(res.href.startsWith('https://wa.me/5511900000000?text=')).toBe(true)
-    // The invite link is carried in the (encoded) message.
     expect(decodeURIComponent(res.href)).toContain(inviteLink)
     expect(decodeURIComponent(res.href)).toContain('Barbearia X')
   })

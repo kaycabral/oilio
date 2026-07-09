@@ -14,11 +14,6 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn() },
 }))
 
-// The Negócio is a pure folder (PRD Identidade v2): the settings form edits only
-// name/segment/website/branding. The public `slug` is deferred (not surfaced);
-// the agenda configs (cancellation policy / confirmation messages / slot /
-// self-booking publish) moved to the per-unit agenda settings, so neither is on
-// this form.
 function buildOrg(overrides: Partial<Org> = {}): Org {
   return {
     id: 't1',

@@ -1,15 +1,7 @@
-// MessageTemplate — texto editável pelo owner, renderizado no envio de
-// notificação (wa.me hoje; outros canais no futuro). Persistência: config-doc
-// `orgs/{tid}/message_templates/{type}` (NÃO aggregate ES — ver brief 0018
-// § Riscos, decisão 2026-05-28). Espelha o pattern de `Org.whatsappTemplates`.
-
 import { Schema } from 'effect'
 
 import type { NotificationType } from '../aggregates/notification/types'
 
-// `NotificationType` is a hand-written `type` in the notification aggregate
-// (outside the read-model kernel). Projected here so `MessageTemplate.type` has
-// a schema source of truth; the `_proof` pins it to the canonical type.
 const NotificationTypeSchema = Schema.Literal(
   'birthday',
   'subscription_expiring_tomorrow',
@@ -40,9 +32,6 @@ export const MessageTemplate = Schema.mutable(
 )
 export type MessageTemplate = typeof MessageTemplate.Type
 
-// Tipos de notificação que viram mensagem pro cliente (têm template editável +
-// ação wa.me). Os demais (order_stale, cash_register_open, payment_failure) são
-// alertas operacionais internos — sem mensagem ao cliente.
 export const DISPATCHABLE_NOTIFICATION_TYPES = [
   'birthday',
   'subscription_expiring_tomorrow',
@@ -57,7 +46,6 @@ export function isDispatchableType(type: string): type is DispatchableNotificati
   return DISPATCHABLE_NOTIFICATION_TYPES.some((t) => t === type)
 }
 
-// Placeholders suportados nos templates. Documentados pro owner na UI.
 export const NOTIFICATION_TEMPLATE_PLACEHOLDERS = [
   '{cliente_nome}',
   '{servico}',
@@ -75,9 +63,6 @@ export const NotificationTemplateVars = Schema.mutable(
 )
 export type NotificationTemplateVars = typeof NotificationTemplateVars.Type
 
-// Templates default por tipo — pt-BR, reproduzindo o estilo da Aurora (positivo
-// + voucher pré-vencimento; neutro pós; re-engajamento no follow-up). Decisão
-// V1 calibrada com mensagens reais (brief 0018 § Riscos, janela de vencimento).
 export const DEFAULT_NOTIFICATION_TEMPLATES: Record<DispatchableNotificationType, string> = {
   birthday:
     'Olá {cliente_nome}! 🎉 Hoje é seu dia e a gente queria te desejar tudo de bom! Que tal comemorar com um {servico}? Te esperamos por aqui. 💈',
@@ -95,9 +80,6 @@ export function defaultTemplateBody(type: DispatchableNotificationType): string 
   return DEFAULT_NOTIFICATION_TEMPLATES[type]
 }
 
-// Substitui `{key}` pelo valor correspondente; chave ausente/vazia vira string
-// vazia (mensagem lê natural em vez de "{undefined}"). Mesmo mecanismo do
-// renderWhatsappTemplate, mas com vars pt-BR específicas de notificação.
 export function renderNotificationTemplate(body: string, vars: NotificationTemplateVars): string {
   const lookup = new Map(Object.entries(vars))
   return body.replace(/\{(\w+)\}/g, (_match, key: string) => lookup.get(key) ?? '')

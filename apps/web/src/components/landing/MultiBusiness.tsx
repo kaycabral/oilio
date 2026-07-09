@@ -1,11 +1,6 @@
 import { Typography } from '@cbrl/design'
 import { KeyRound, Layers, Wallet } from 'lucide-react'
 
-// Multi-negócio: gerenciar negócios DIFERENTES (uma barbearia + um lava-rápido)
-// num único login, cada um com o seu próprio plano. Distinto de multi-unidade
-// (filiais do MESMO negócio, coberto em Features). Estava escondido no FAQ;
-// ganhou seção própria por ser um diferencial forte. Copy fala só da gente —
-// sem comparar com o mercado (feedback do owner).
 const POINTS = [
   {
     icon: KeyRound,

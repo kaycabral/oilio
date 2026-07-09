@@ -1,9 +1,3 @@
-// Unit tests for the financial-core reads (brief 0061 § Grupo A/B — AC-04).
-// Postgres is the only backend post-cutover (#1202): the reads decode the typed
-// projection rows returned by `readUnderRls` (mocked here to canned rows in
-// projector-row shape — no DB). The full RLS round-trip is proven by the
-// `*.events.pg.integration.test.ts` suite.
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ readUnderRls: vi.fn() }))

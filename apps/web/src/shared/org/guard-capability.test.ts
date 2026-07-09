@@ -1,16 +1,3 @@
-// Unit tests for the app-level authorization helpers (brief 0075):
-// `guardCapability` (the REAL server-side wall for a membership capability),
-// `hasMembershipCapability` (the matrix predicate), `operatesFrontDesk` (balcão
-// vs self-scoped memberOperation) and `canActOnOwnedResource` (own-resource gate).
-//
-// Load-bearing invariant: authorization is gated by the membership's CAPABILITY
-// matrix, never by `role` directly — so the four roles stay presets the business
-// can later edit. The own-resource gate encodes the operational model: recepção/
-// owner/manager run the balcão for everyone; a memberOperation acts only on its own.
-//
-// Deps mocked: getSessionUser (session), getUserById (user doc → currentOrgId),
-// readUnderRls (membership row). The real requireOrgCtx + membership decode run.
-
 import { defaultPermissionsForRole, type Membership, type Role } from '@/domain'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -151,8 +138,6 @@ describe('guardCapability', () => {
     expect(mocks.readUnderRls).not.toHaveBeenCalled()
   })
 
-  // #1377 — billing authz flows through the same capability gate: the owner
-  // preset carries `canManageBilling`, every other role is default-denied.
   it('allows the owner and denies non-owners for canManageBilling', async () => {
     signedInAs('owner')
     expect((await guardCapability('canManageBilling')).ok).toBe(true)

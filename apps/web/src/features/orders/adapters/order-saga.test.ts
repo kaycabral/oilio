@@ -15,9 +15,6 @@ import { describe, expect, it } from 'vitest'
 import { buildCloseOrderSteps } from './order-saga'
 import { buildUndoCloseSteps } from './order-undo-saga'
 
-// Runs the built steps against an in-memory tx so the step closures (the arrow
-// bodies that call appendEventToTx/appendDeleteToTx) actually execute — proving
-// the cascade writes land, and covering the closure branches.
 async function runSteps(steps: SagaStep[]): Promise<Map<string, FirestoreDoc>> {
   const store = new Map<string, FirestoreDoc>()
   const tx: TransactionContext = {
@@ -35,15 +32,6 @@ async function runSteps(steps: SagaStep[]): Promise<Map<string, FirestoreDoc>> {
   for (const step of steps) await Effect.runPromise(step(tx))
   return store
 }
-
-/**
- * Pure unit tests for the close/undo saga STEP BUILDERS (brief 0061 § Grupo A).
- * They turn the resolved cascade inputs into an ordered `SagaStep[]` — pure, no
- * I/O — so we can assert the step set per input WITHOUT a database. The
- * end-to-end ACID behavior (commit-together + rollback-as-one against real
- * Postgres constraints) is covered by `close-order-saga-acid.events.pg.integration
- * .test.ts` (brief 0064); the in-memory step-execution path by `runSteps` below.
- */
 
 const baseOrder: Order = {
   id: 'o1',
@@ -128,7 +116,6 @@ describe('buildCloseOrderSteps', () => {
       commissions: [commission],
       saleMovement,
     })
-    // subscription + stock + commission + cash + appointment.completed + order.closed
     expect(steps).toHaveLength(6)
   })
 
@@ -202,7 +189,6 @@ describe('buildUndoCloseSteps', () => {
       },
       orderId: 'o1',
     })
-    // appointment + subscription + stock + cash + 2 commissions + order.reopened
     expect(steps).toHaveLength(7)
   })
 

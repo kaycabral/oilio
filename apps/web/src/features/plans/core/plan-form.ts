@@ -14,31 +14,11 @@ export type PlanPayload = {
   description: string | null
   priceCents: number
   billingCycle: BillingCycle
-  // FK array into CatalogItem.id (brief 0024, AC-01 — #1008). Canonical
-  // per-item coverage of ANY kind. Selected via the item picker in PlanForm.
-  // Existence is validated server-side against the org's `catalog_items`
-  // (AC-03, defense in depth) before the event is emitted.
   includedItemIds: string[]
-  // FK array into Category.id (brief 0023, AC-04 — #1003). Convenience coverage
-  // ("all items of category X") alongside `includedItemIds` (brief 0024,
-  // AC-02). Selected via a real category multi-select in PlanForm.
   includedCategoryIds: string[]
   usageLimit: UsageLimit
-  // Spatial scope (brief 0019, Group A). `undefined` = no restriction
-  // (all org units). Empty array would mean "no unit covered" which
-  // would silently break self-book — the parser collapses empty to
-  // `undefined` and the form guards by hiding the field until the
-  // owner explicitly opts in.
   unitAllowlist: string[] | undefined
-  // Temporal scope (brief 0019, Group B). `undefined` = unrestricted on
-  // every axis. Sub-fields independently optional. The parser collapses
-  // empty / non-positive inputs to `undefined` so reads never observe
-  // a "nothing bookable" state.
   allowedTimeScope: AllowedTimeScope | undefined
-  // Behavioral scope (brief 0019, Group C). `undefined` = no booking
-  // limits. Sub-fields independently optional. Empty / non-positive
-  // numeric inputs collapse to `undefined` on that axis so reads never
-  // observe a meaningless zero.
   bookingLimits: BookingLimits | undefined
   active: boolean
 }
@@ -61,9 +41,6 @@ export function parsePlanForm(formData: FormData): PlanPayload | string {
   if (!isBillingCycle(billingCycleRaw)) return 'Ciclo de cobrança inválido'
   const billingCycle: BillingCycle = billingCycleRaw
 
-  // Item + category coverage now ride as multi-value checkbox fields (one
-  // value per selected id) — no more comma-split free text. `Set` dedupes
-  // defensively.
   const includedItemIds = Array.from(
     new Set(
       formData
@@ -97,10 +74,6 @@ export function parsePlanForm(formData: FormData): PlanPayload | string {
 
   const active = formData.get('active') === 'on'
 
-  // Spatial scope (brief 0019, Group A — AC-01). Owner opts in via the
-  // `restrictUnits` toggle; the per-unit checkboxes share the
-  // `unitAllowlist` field. When the toggle is off we ignore any
-  // lingering checkbox values to keep `undefined === all units` clean.
   const restrictUnits = formData.get('restrictUnits') === 'on'
   let unitAllowlist: string[] | undefined
   if (restrictUnits) {
@@ -113,16 +86,9 @@ export function parsePlanForm(formData: FormData): PlanPayload | string {
     unitAllowlist = Array.from(new Set(raw))
   }
 
-  // Temporal scope (brief 0019, Group B — AC-05). Three independent
-  // toggles; absent toggles fall through to `undefined` on that axis.
-  // Anything that would mean "nothing bookable" (empty days, inverted
-  // hour range, zero advance window) is rejected loudly here rather
-  // than silently passed to the snapshot.
   const allowedTimeScope = parseAllowedTimeScope(formData)
   if (typeof allowedTimeScope === 'string') return allowedTimeScope
 
-  // Behavioral scope (brief 0019, Group C — AC-10). Single gate toggle;
-  // when off, ignore all sub-field inputs.
   const bookingLimits = parseBookingLimits(formData)
   if (typeof bookingLimits === 'string') return bookingLimits
 
@@ -140,11 +106,6 @@ export function parsePlanForm(formData: FormData): PlanPayload | string {
     active,
   }
 }
-
-// Form parsers extraídos do actions.ts ('use server'). Next 15 / Turbopack
-// rejeitam exports síncronos de arquivos 'use server' — Server Actions
-// devem ser async. Os parsers continuam síncronos (puramente derivados
-// do FormData), então moram aqui.
 
 export function parseAllowedTimeScope(formData: FormData): AllowedTimeScope | undefined | string {
   const out: AllowedTimeScope = {}
@@ -184,12 +145,6 @@ export function parseAllowedTimeScope(formData: FormData): AllowedTimeScope | un
     : out
 }
 
-// Coverage integrity (brief 0024, AC-03). Pure core of the server-side
-// existence check: given the ids referenced by a plan's coverage and the sets
-// of ids that actually exist under the org, returns a human-readable error
-// for the FIRST dangling reference, or `null` when every ref resolves. The
-// action wires the existing-id sets from Firestore reads; keeping the decision
-// pure makes it unit-testable without the emulator.
 export function findDanglingCoverageRef(
   includedItemIds: string[],
   includedCategoryIds: string[],

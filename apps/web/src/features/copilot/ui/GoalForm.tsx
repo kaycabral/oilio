@@ -9,7 +9,6 @@ import { useId, useState, useTransition } from 'react'
 type GoalFormProps = {
   unitId: string
   period: string
-  // When present, the form edits the existing goal; otherwise it defines a new one.
   goal?: Goal
 }
 

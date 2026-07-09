@@ -13,9 +13,6 @@ export default async function SubscriptionDetailPage({
   const data = await loadSubscriptionDetail(id)
   if (!data) notFound()
 
-  // Off-plan → behave like a route that doesn't exist (brief 0088 AC-06 / decisão
-  // 2026-07-03): standard 404, no locked screen. The loader materialized no
-  // subscription/customer PII (B1).
   if (data.locked) notFound()
 
   return (

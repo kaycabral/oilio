@@ -1,18 +1,3 @@
-// Server-side refusal proof for the item-attribution own-scope gate (brief 0075,
-// #1267): a self-scoped member_operator cannot attribute an order item to a
-// COLLEAGUE — neither when adding (`addItemToOrder`) nor when re-attributing
-// (`updateItemAttribution`). `denyIfNotOwnOrder` protects a comanda by its
-// EXISTING items, but a freshly-opened order (zero items) passes vacuously, so a
-// member could otherwise inject a colleague-attributed item (a commission line in
-// someone else's name). The gate locks the attribution TARGET itself: the balcão
-// attributes to anyone; a self-scoped member only to themselves. The smart
-// default (no `attributedUserId` → own uid) stays preserved.
-//
-// Seam: the full order actions run against REAL Postgres; only the session
-// (`getSessionUser`) is mocked, so `requireOrgCtx` resolves the acting membership
-// from the seeded `memberships` row exactly like production. The test asserts the
-// refusal AND that the order projection never gains a colleague-attributed item.
-
 import { computeOrderTotals, defaultPermissionsForRole, type Order, type Role } from '@/domain'
 import { OrderConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
@@ -27,8 +12,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ getSessionUser: vi.fn<() => Promise<SessionUser | null>>() }))
 vi.mock('@/shared/firebase/admin', () => ({ getSessionUser: mocks.getSessionUser }))
-// `revalidatePath` requires a Next request scope, absent in the integration
-// runner — stub it; the order write under test is upstream of it.
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { addItemToOrder, updateItemAttribution } from './orders.actions'
@@ -67,8 +50,6 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
   )
 }
 
-// Seed a PRODUCT (no MemberOperation required to operate — retail; brief 0030
-// AC-05). Read live inside `addItemToOrder`'s transactional guard.
 async function seedProduct(orgId: string, productId: string, unitId: string): Promise<void> {
   await pool().query(
     `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
@@ -97,8 +78,6 @@ async function seedActingUser(orgId: string, userId: string): Promise<void> {
   await putUser(buildUser(userId, TS, { currentOrgId: orgId, completionCompleted: true }))
 }
 
-// Opens an OPEN order through the real event-first path. `items` may carry an
-// initial item (already attributed) to drive the re-attribution test.
 async function seedOpenOrder(
   orgId: string,
   unitId: string,
@@ -182,7 +161,6 @@ describe('order item attribution own-scope gate (brief 0075, #1267)', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toBe('Você só pode atribuir itens a si mesmo')
-    // The order gained no item — the colleague-attributed commission line never formed.
     const order = await loadOrderById(orgId, orderId)
     expect(order?.items).toHaveLength(0)
   })
@@ -254,8 +232,6 @@ describe('order item attribution own-scope gate (brief 0075, #1267)', () => {
     await seedMembership(orgId, colleagueUid, 'member_operator')
     const productId = id('prod')
     await seedProduct(orgId, productId, UNIT)
-    // The order already holds one item attributed to the acting member, so
-    // `denyIfNotOwnOrder` passes — isolating the attribution-target gate.
     const itemId = 'item-1'
     const orderId = await seedOpenOrder(orgId, UNIT, [
       {
@@ -281,7 +257,6 @@ describe('order item attribution own-scope gate (brief 0075, #1267)', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toBe('Você só pode atribuir itens a si mesmo')
-    // Attribution unchanged — still the acting member's.
     const order = await loadOrderById(orgId, orderId)
     expect(order?.items[0]?.attributedUserId).toBe(actorUid)
   })

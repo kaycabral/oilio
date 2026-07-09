@@ -4,9 +4,6 @@ import { isStartAtOnGrid } from './slot-grid'
 
 const BR = 'America/Sao_Paulo'
 
-// 2026-08-17 is a Monday. Business hours 09:00–12:00 BR = 12:00–15:00 UTC.
-// 30-min grid: valid starts 09:00, 09:30, 10:00, 10:30, 11:00, 11:30 BR
-// (= 12:00, 12:30, 13:00, 13:30, 14:00, 14:30 UTC). 12:00 BR is the close.
 function bh(opts: Partial<BusinessHours> = {}): BusinessHours {
   const range = { open: '09:00', close: '12:00' }
   return {
@@ -25,7 +22,6 @@ describe('isStartAtOnGrid', () => {
   it('accepts a start that lands on a 30-min grid step inside hours', () => {
     expect(
       isStartAtOnGrid({
-        // 10:00 BR
         startAt: '2026-08-17T13:00:00.000Z',
         slotMinutes: 30,
         durationMinutes: 30,
@@ -38,7 +34,6 @@ describe('isStartAtOnGrid', () => {
   it('accepts the first slot at the open time', () => {
     expect(
       isStartAtOnGrid({
-        // 09:00 BR (open)
         startAt: '2026-08-17T12:00:00.000Z',
         slotMinutes: 30,
         durationMinutes: 30,
@@ -51,7 +46,6 @@ describe('isStartAtOnGrid', () => {
   it('rejects a start between grid steps', () => {
     expect(
       isStartAtOnGrid({
-        // 09:15 BR (off the 30-min grid)
         startAt: '2026-08-17T12:15:00.000Z',
         slotMinutes: 30,
         durationMinutes: 30,
@@ -64,7 +58,6 @@ describe('isStartAtOnGrid', () => {
   it('rejects a start before opening', () => {
     expect(
       isStartAtOnGrid({
-        // 08:30 BR (before 09:00)
         startAt: '2026-08-17T11:30:00.000Z',
         slotMinutes: 30,
         durationMinutes: 30,
@@ -77,7 +70,6 @@ describe('isStartAtOnGrid', () => {
   it('rejects a start at the closing time (slot must start before close)', () => {
     expect(
       isStartAtOnGrid({
-        // 12:00 BR (close)
         startAt: '2026-08-17T15:00:00.000Z',
         slotMinutes: 30,
         durationMinutes: 30,
@@ -90,7 +82,6 @@ describe('isStartAtOnGrid', () => {
   it('rejects a start on a closed weekday', () => {
     expect(
       isStartAtOnGrid({
-        // Sunday 10:00 BR
         startAt: '2026-08-16T13:00:00.000Z',
         slotMinutes: 30,
         durationMinutes: 30,
@@ -115,7 +106,6 @@ describe('isStartAtOnGrid', () => {
   it('rejects a forged start carrying sub-minute precision', () => {
     expect(
       isStartAtOnGrid({
-        // 10:00:30 BR — off-grid by seconds
         startAt: '2026-08-17T13:00:30.000Z',
         slotMinutes: 30,
         durationMinutes: 30,
@@ -132,7 +122,6 @@ describe('isStartAtOnGrid', () => {
         { open: '14:00', close: '18:00' },
       ],
     })
-    // 14:00 BR = 17:00 UTC — first slot of the afternoon window.
     expect(
       isStartAtOnGrid({
         startAt: '2026-08-17T17:00:00.000Z',
@@ -142,7 +131,6 @@ describe('isStartAtOnGrid', () => {
         timezone: BR,
       }),
     ).toBe(true)
-    // 12:30 BR = 15:30 UTC — inside the lunch gap.
     expect(
       isStartAtOnGrid({
         startAt: '2026-08-17T15:30:00.000Z',
@@ -157,7 +145,6 @@ describe('isStartAtOnGrid', () => {
   it('respects a non-default grid granularity (15 min)', () => {
     expect(
       isStartAtOnGrid({
-        // 09:15 BR — valid on a 15-min grid
         startAt: '2026-08-17T12:15:00.000Z',
         slotMinutes: 15,
         durationMinutes: 30,
@@ -180,8 +167,6 @@ describe('isStartAtOnGrid', () => {
   })
 
   it('rejects a start whose service overruns the closing time', () => {
-    // 11:30 BR = 14:30 UTC is on the 30-min grid, but a 60-min service ends at
-    // 12:30 — past the 12:00 close. Must be rejected (ends within hours).
     expect(
       isStartAtOnGrid({
         startAt: '2026-08-17T14:30:00.000Z',
@@ -191,7 +176,6 @@ describe('isStartAtOnGrid', () => {
         timezone: BR,
       }),
     ).toBe(false)
-    // The same start with a 30-min service fits (ends 12:00, the close).
     expect(
       isStartAtOnGrid({
         startAt: '2026-08-17T14:30:00.000Z',
@@ -204,7 +188,6 @@ describe('isStartAtOnGrid', () => {
   })
 
   it('rejects a start strictly before the nowMs cutoff (past slot)', () => {
-    // 10:00 BR, on-grid
     const start = '2026-08-17T13:00:00.000Z'
     expect(
       isStartAtOnGrid({

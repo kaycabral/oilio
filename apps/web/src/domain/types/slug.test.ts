@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isReservedSlug, isValidSlug, SLUG_HTML_PATTERN, SLUG_PATTERN, slugify } from './slug'
 
-// Hardcoded (NOT derived from the source Set/Map) so a blanked entry is caught:
-// iterating the mutated collection would assert against the mutated value and
-// pass vacuously.
 const RESERVED = [
   'admin',
   'agenda',
@@ -104,9 +101,6 @@ describe('SLUG_PATTERN', () => {
   })
 
   it('compiles under the default engine flags (runtime .test path)', () => {
-    // The runtime literal is compiled with default flags, never `v` — that's why
-    // the unescaped trailing `-` is fine here. The HTML attribute (compiled under
-    // `v` by Safari/iOS) is the one that needs escaping — see SLUG_HTML_PATTERN.
     expect(() => new RegExp(SLUG_PATTERN.source)).not.toThrow()
     expect(() => new RegExp(SLUG_PATTERN.source, 'u')).not.toThrow()
   })
@@ -120,10 +114,6 @@ describe('SLUG_HTML_PATTERN', () => {
   })
 
   it('compiles under the v (unicodeSets) flag, unlike the raw SLUG_PATTERN source (#1295)', () => {
-    // This is the crux of the bug: the raw source throws under `v` (the flag
-    // Safari/iOS uses for the HTML `pattern` attribute), the escaped HTML form
-    // does not. If SLUG_HTML_PATTERN ever regresses to an unescaped `-`, this
-    // fails — catching the exact defect the smoke found.
     expect(() => new RegExp(SLUG_PATTERN.source, 'v')).toThrow()
     expect(() => new RegExp(SLUG_HTML_PATTERN, 'v')).not.toThrow()
   })

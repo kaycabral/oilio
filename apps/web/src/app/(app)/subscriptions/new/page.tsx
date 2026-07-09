@@ -8,15 +8,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 export default async function NewSubscriptionPage() {
-  // Same canonical role guard the sibling loaders use (load-subscriptions) —
-  // gate by the `canManageSubscriptions` capability, never by role directly, so
-  // this page stays in lockstep with the permission matrix (brief 0075).
   const ctx = await requireCapabilityPage('canManageSubscriptions', '/subscriptions')
 
-  // Off-plan → 404, like a route that doesn't exist (brief 0088 AC-06). Assinaturas
-  // exigem `plans.recurring`; uma org Free acessando por URL direta recebe o 404
-  // padrão (sem materializar customers/plans). A parede real é `requireCapability`
-  // na action de criar.
   if (await isCapabilityLocked(ctx.membership.orgId, 'plans.recurring')) notFound()
 
   const { customers, plans } = await loadCustomersAndPlans(ctx.membership.orgId)

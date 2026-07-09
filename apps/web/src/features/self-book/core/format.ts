@@ -1,13 +1,7 @@
-// Presentation formatters shared across the self-book UI (ConfirmBookingForm and
-// the availability surfaces). Pure string derivations — no React/I/O — so they
-// live in core and are unit-tested directly.
-
-// "R$ 50,00" — cents to BRL currency.
 export function formatBRL(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-// "30 min", "1h", "1h30" — service duration in minutes to a compact label.
 export function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} min`
   const h = Math.floor(minutes / 60)
@@ -15,8 +9,6 @@ export function formatDuration(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, '0')}`
 }
 
-// Human window for a cancellation-policy notice: minutes → "45 minutos",
-// "1 hora", "3 horas", "2 dias". Falls back to hours when days aren't whole.
 export function formatNoticeWindow(minutes: number): string {
   if (minutes <= 0) return '0 minutos'
   if (minutes % 60 !== 0) return `${minutes} minutos`

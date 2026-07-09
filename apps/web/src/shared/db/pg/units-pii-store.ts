@@ -6,19 +6,6 @@ import { readUnderRls } from './rls-read'
 
 const decodeTaxIdentity = Schema.decodeUnknownSync(Schema.NullOr(TaxIdentitySchema))
 
-/**
- * CRUD helpers for the deletable unit PII sidecars `units_pii` (contact PII:
- * mobile/email) and `unit_tax_identity` (fiscal PII: the name-bearing
- * legalName/tradeName of a formalized unit) — migration feature F (cutover,
- * brief 0062). Both are org-scoped (org RLS), so reads go through
- * `readUnderRls(orgId, …)` and writes set `app.current_org` inside their
- * transaction. The sidecar holds the PII the typed `units` projection omits;
- * deleting a row erases the PII while the projection + event history stay intact
- * (ADR 0010 / LGPD).
- */
-
-// ── units_pii (contact PII) ────────────────────────────────────────────────
-
 export async function getUnitsPiiByIds(
   orgId: string,
   ids: readonly string[],
@@ -59,8 +46,6 @@ export async function deleteUnitsPii(orgId: string, unitId: string): Promise<voi
   )
 }
 
-// ── unit_tax_identity (fiscal PII) ───────────────────────────────────────────
-
 export async function getUnitTaxIdentityById(
   orgId: string,
   unitId: string,
@@ -99,8 +84,6 @@ export async function deleteUnitTaxIdentity(orgId: string, unitId: string): Prom
   )
 }
 
-// Run a write under the org RLS GUC (org-scoped sidecars). Sets `app.current_org`
-// inside the tx so the policy WITH CHECK admits the write.
 async function writeUnderOrg(
   orgId: string,
   fn: (client: PoolClient) => Promise<unknown>,

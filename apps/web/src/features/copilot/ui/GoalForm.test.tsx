@@ -22,8 +22,6 @@ const goal: Goal = {
 describe('GoalForm', () => {
   it('carries unit and period as hidden inputs', () => {
     render(<GoalForm unitId="unit-a" period="2026-06" />)
-    // Hidden inputs have no accessible role; reach the owning form via a
-    // labeled field's `.form` property and read the wired values via FormData.
     const target = screen.getByLabelText(/meta de lucro do mês/i)
     const form = target instanceof HTMLInputElement ? target.form : null
     expect(form).not.toBeNull()

@@ -1,10 +1,3 @@
-// Pure helper que decide se cliente pode cancelar sua Subscription via
-// `/me/subscriptions`. AC-11/12 do brief 0003 (sub-issue #651).
-//
-// Pattern espelha `canCustomerCancelAppointment` em #845.
-// Pure function (no I/O) pra mesma lógica rodar no SSR (decisão de habilitar
-// botão UI) e no server action (autorização de write).
-
 import type { Subscription, SubscriptionStatus } from './types/subscription'
 
 export type CustomerCancelReason =
@@ -17,18 +10,6 @@ export type CustomerCancelResult =
   | { canCancel: true }
   | { canCancel: false; reason: CustomerCancelReason }
 
-/**
- * Verifica se um User (via uid) pode cancelar uma Subscription self-service.
- *
- * Regras (v0.2.0 mínimas, sem janela de antecedência):
- * - Subscription tem que pertencer ao User (customerUserId === uid)
- * - Status precisa permitir cancelamento (pending, active, past_due, suspended)
- * - cancelAtPeriodEnd NÃO pode já estar marcado
- *
- * Janela de antecedência (minNoticeMinutes) NÃO é aplicada nesta versão.
- * Owner pode adicionar via org config futura — capturar atrito se
- * Aurora #X confirmar necessidade.
- */
 export function canCustomerCancelSubscription(
   subscription: Subscription,
   uid: string,

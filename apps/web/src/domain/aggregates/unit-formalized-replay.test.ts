@@ -1,10 +1,3 @@
-// AC-02 (brief 0048) — replay reconstrói a Unidade `company` a partir do stream.
-// created (informal) → formalized → replay == projeção: a Unidade transiciona
-// informal→company com CNPJ-14 + CompanyProfile + formalizedAt, SEM depender de
-// projeção materializada (event-first). Prova de que `unit.formalized` é a
-// fronteira fiscal e que o reducer a aplica deterministicamente. A identidade
-// fiscal mora na UNIDADE (PRD Identidade v2), não na Org.
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -90,16 +83,13 @@ describe('Unit — unit.formalized replay (brief 0048 AC-02)', () => {
       replayAggregate(UnitConfig, ref).pipe(Effect.provide(layer)),
     )
 
-    // Replay deep-equals the projection (no materialized-state dependency).
     expect(replayed).toEqual(projection)
     expect(replayed._version).toBe(2)
-    // The Unit is now company-stage with the full CNPJ-14 + profile + boundary.
     expect(replayed.fiscal.kind).toBe('company')
     if (replayed.fiscal.kind !== 'company') throw new Error('expected company')
     expect(replayed.fiscal.taxId).toBe(CNPJ)
     expect(replayed.fiscal.companyProfile).toEqual(companyProfile)
     expect(replayed.fiscal.formalizedAt).toBe(FORMALIZED_AT)
-    // Operational identity is untouched by formalization (zero migration).
     expect(replayed.name).toBe('Centro')
     expect(replayed.slug).toBe('centro')
   })
@@ -125,8 +115,6 @@ describe('Unit — unit.formalized replay (brief 0048 AC-02)', () => {
 
     const event = events.get(docKey(ref))![1]!
     const serialized = JSON.stringify(event)
-    // PII name fields never enter the immutable event (they live in the
-    // deletable orgs/{orgId}/units/{unitId}/private/taxIdentity doc).
     expect(serialized).not.toMatch(/legalName|tradeName|raz[aã]o/i)
     expect(event['_tag']).toBe('unit.formalized')
     expect(event['actorId']).toBe('owner-1')

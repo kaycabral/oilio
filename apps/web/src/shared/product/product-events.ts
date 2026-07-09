@@ -2,29 +2,12 @@ import { getEventStorePool } from '@/shared/db/pg/pool'
 import { logger } from '@/shared/lib/logger'
 import 'server-only'
 
-// Sovereign-base engine telemetry — brief 0050 (A2), namespace `product.*`.
-//
-// The base is CROSS-ORG: these events carry NO `orgId` and NO PII (canonical
-// Event Catalog § "product"). They describe the engine's behavior over a GTIN
-// — lookup result, auto-contribution, deferred contribution — for Wave 2 to
-// aggregate hit-rate from.
-//
-// Transport (post-cutover, brief 0062): an append-only `product_events` table in
-// the Postgres event store (the columns are the union of the four payloads; the
-// irrelevant ones are null per event). When the vendor-neutral product-telemetry
-// layer (`track()`, brief 0026) lands this becomes one adapter behind it; the
-// call-sites only depend on `emitProductEvent`, so they stay unchanged.
-//
-// Best-effort by construction: telemetry must NEVER trap the registration flow
-// (the best-effort invariant, AC-06) — a write failure is logged and swallowed.
-
 export type ProductEventName =
   | 'product_lookup'
   | 'product_search'
   | 'product_autocontributed'
   | 'product_contribution_deferred'
 
-// PII-free, org-free payloads. `gtin14` is a product key (not personal data).
 export type ProductLookupPayload = {
   readonly gtin14: string
   readonly result: 'hit' | 'miss'
@@ -32,9 +15,6 @@ export type ProductLookupPayload = {
   readonly latencyMs: number
 }
 
-// Name-autocomplete observability (feature D, brief 0055). NO PII and NO raw term
-// — only the term LENGTH, the result count and latency. The base is cross-org, so
-// no `orgId`. This is observability of the search boca, never a decision gate.
 export type ProductSearchPayload = {
   readonly queryLen: number
   readonly resultCount: number
@@ -57,7 +37,6 @@ type ProductEventPayload =
   | ({ event: 'product_autocontributed' } & ProductAutocontributedPayload)
   | ({ event: 'product_contribution_deferred' } & ProductContributionDeferredPayload)
 
-// Narrow the union to the columns each event populates; absent ones go null.
 function columnsFor(event: ProductEventPayload): {
   gtin14: string | null
   result: string | null
@@ -99,8 +78,6 @@ function columnsFor(event: ProductEventPayload): {
   }
 }
 
-// Emit a product-engine event. Server-only; best-effort — a failure here must
-// not bubble into the catalog write (the registration never breaks on the base).
 export async function emitProductEvent(event: ProductEventPayload): Promise<void> {
   const c = columnsFor(event)
   try {

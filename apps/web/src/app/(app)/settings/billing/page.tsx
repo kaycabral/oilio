@@ -8,20 +8,7 @@ import { getOrg } from '@/shared/org/org'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { SettingsSection } from '@cbrl/design'
 
-// Cobrança — the self-service billing surface for the Assinatura Oilio (brief
-// 0073, AC-03; moved under /settings by brief 0090). Reads the current
-// org_billing state (Free default when no row) plus the live unit count, and
-// hands it to the client panel. Only the owner can act (subscribe/portal);
-// manager sees the read-only view.
-//
-// Route lives under `/settings/billing` and is reached via the Configurações
-// modal (UserMenu → Cobrança). The app is context-based: billing follows the
-// active Negócio automatically, so it belongs with the user's own settings
-// surfaces rather than the operational sidebar (brief 0090).
 export default async function BillingPage() {
-  // Owner/manager only — exposes tier, billed units and billing period. The nav
-  // hides it from non-managers; this is the server wall. Manager sees the
-  // read-only view; only the owner gets the subscribe/portal actions below.
   const ctx = await requireManagerPage()
 
   track('settings_section_viewed', {
@@ -36,9 +23,6 @@ export default async function BillingPage() {
     getOrg(ctx.membership.orgId),
   ])
 
-  // Payment method + invoices live in Stripe (not projected into org_billing) —
-  // fetch them only when there's a customer, in parallel, best-effort (each read
-  // degrades to null/[] on failure). Free/no-customer orgs skip the round-trips.
   const [paymentMethod, invoices] = billing.stripeCustomerId
     ? await Promise.all([
         getDefaultPaymentMethod(billing.stripeCustomerId),

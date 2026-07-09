@@ -12,25 +12,6 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 import { PostgresPersistenceLayer } from './postgres-layer'
 
-/**
- * ACID rollback of the CHARGE ↔ SUBSCRIPTION cascades against REAL Postgres
- * (#1200). The `markChargePaid` / `markChargeFailed` / `renewSubscription`
- * actions run their two-aggregate cascade through `commitSaga` → `runSaga` under
- * the Postgres layer; this proves the invariant those actions rely on: when a
- * step mid-cascade violates a DB constraint, the WHOLE transaction rolls back —
- * the charge is never left paid/created while the subscription mutation is lost
- * (or vice-versa). The happy cascade commits both aggregates together.
- *
- * We exercise the primitive (`runSaga` + `appendEventToTx`) directly with the
- * cascade shapes the actions emit. The rollback step carries `amountCents: -1`
- * on a `charge.created` — schema-valid (`Schema.Number`), but it trips the DB
- * `charges_amount_cents_nonneg` CHECK at projection time, so the failure comes
- * from the transaction boundary, exactly like a real constraint breach would.
- *
- * globalSetup applies the migrations; OILIO_DATABASE_URL is the ephemeral `oilio`
- * database (docker locally, services:postgres in CI).
- */
-
 const ORG = 't1'
 const SUB = 'sub1'
 const CHARGE = 'ch1'
@@ -128,8 +109,6 @@ const subscriptionSettledStep: SagaStep = (tx) =>
     tx,
   )
 
-// Projection tables are keyed by composite PK (org_id, id) (D6, ADR 0013) — read
-// by the ref's org/id, never a path.
 function readCount(table: string, ref: AggregateRef): Promise<number> {
   return getEventStorePool()
     .query(`SELECT 1 FROM ${table} WHERE org_id = $1 AND id = $2`, [ref.orgId, ref.id])
@@ -150,9 +129,6 @@ function readNextChargeDate(ref: AggregateRef): Promise<string | null> {
       [ref.orgId, ref.id],
     )
     .then((res) => {
-      // `next_charge_date` is `timestamptz` (brief 0068 D1): the pg driver hands
-      // back a `Date` on this raw read. Normalize to ISO so the assertion
-      // compares like-for-like (mirrors the projector's `rowToDoc`).
       const value = res.rows[0]?.next_charge_date ?? null
       return value == null ? null : new Date(value).toISOString()
     })
@@ -166,10 +142,6 @@ function readSubStatus(ref: AggregateRef): Promise<string | null> {
     .then((res) => res.rows[0]?.status ?? null)
 }
 
-// The subscription/charge projections now carry org/unit/customer FKs (brief
-// 0068 D2): seed the parent rows so the saga writes satisfy them. The
-// `charges_subscription_id_fk` is DEFERRABLE (the saga appends the charge before
-// the subscription in the same tx) so it needs no standalone seed.
 async function seedParents(): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
@@ -220,16 +192,12 @@ describe('charge ↔ subscription cascade — ACID rollback (Postgres)', () => {
     )
 
     expect(await readStatus(chargeRef(CHARGE))).toBe('paid')
-    // Settling a non-cancelled subscription keeps it active — the cascade landed.
     expect(await readCount('subscriptions', subscriptionRef(SUB))).toBe(1)
   })
 
   it('rolls back the WHOLE cascade when the charge step trips a DB CHECK', async () => {
     await seedChargeAndSubscription()
 
-    // The renew cascade: a NEW charge (`charge.created`) then `subscription
-    // .renewed`. The new charge carries a negative amount → trips
-    // `charges_amount_cents_nonneg`. Schema accepts it (Number), the DB does not.
     const renewCharge = charge('ch2', { amountCents: -1 })
     const renewedStep: SagaStep = (tx) =>
       appendEventToTx(
@@ -254,9 +222,6 @@ describe('charge ↔ subscription cascade — ACID rollback (Postgres)', () => {
     )
     expect(exit._tag).toBe('Failure')
 
-    // The bad charge never landed AND the subscription.renewed mutation rolled
-    // back with it — nextChargeDate stays the ORIGINAL seed value, never the
-    // renewed one (2026-08-01), proving the whole cascade reverted as one tx.
     expect(await readCount('charges', chargeRef('ch2'))).toBe(0)
     expect(await readNextChargeDate(subscriptionRef(SUB))).toBe('2026-07-01T00:00:00.000Z')
   })
@@ -264,11 +229,6 @@ describe('charge ↔ subscription cascade — ACID rollback (Postgres)', () => {
   it('commits the markChargeFailed cascade below threshold — charge recovering, sub past_due (#1201)', async () => {
     await seedChargeAndSubscription()
 
-    // Below CHARGE_FAILURE_THRESHOLD the charge goes `recovering` (a valid
-    // ChargeStatus), NOT `past_due`. Before #1201 the failure policy returned
-    // `past_due` for the charge — not a ChargeStatus — so `charge.failed` tripped
-    // schema validation and the whole tx rolled back. The shape below mirrors what
-    // `markChargeFailed` emits via `buildMarkFailedSteps`; this proves it commits.
     const chargeFailedStep: SagaStep = (tx) =>
       appendEventToTx(
         ChargeConfig,

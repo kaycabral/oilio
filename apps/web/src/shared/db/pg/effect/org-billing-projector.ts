@@ -5,18 +5,6 @@ import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `org_billing` aggregate (brief 0071) — the Assinatura
- * Oilio. `upsert` decodes the reduced state against `StoredOrgBilling` at this
- * single driver boundary (no cast leaks), maps it onto the `org_billing` columns
- * (enums as CHECK-constrained TEXT, the rest scalar), and — when a Stripe customer
- * is linked — mirrors `stripe_customer_id → org_id` into the non-RLS lookup index
- * in the SAME transaction so the webhook can resolve the org without a session.
- *
- * `org_id` equals the bare `id` (the Negócio is its own scope), so the RLS policy
- * (`org_id = current_setting('app.current_org')`) filters a single row.
- */
-
 const decodeOrgBilling = Schema.decodeUnknownSync(StoredOrgBilling)
 
 export const ORG_BILLING_COLUMNS = [
@@ -63,7 +51,6 @@ const UPSERT = `
   ON CONFLICT (org_id) DO UPDATE SET ${CONFLICT_SET}
 `
 
-// Mirror stripe_customer_id → org_id into the non-RLS lookup index (same tx).
 const STRIPE_INDEX_UPSERT = `
   INSERT INTO org_billing_stripe_index (stripe_customer_id, org_id)
   VALUES ($1, $2)
@@ -76,15 +63,6 @@ function stateVersion(state: FirestoreDoc): number {
 }
 
 async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
-  // Identity (`org_id`/`id`) comes from the REF, not the reduced state. The ref is
-  // the canonical, always-present identity (it's the same value that set the GUC
-  // `app.current_org` for this write), whereas `state.orgId` is reducible to '' when
-  // the FIRST event is a partial `org_billing.updated` whose changes omit orgId (the
-  // reducer starts from INITIAL_ORG_BILLING_STATE, orgId: ''). Projecting org_id = ''
-  // is then refused by the org-isolation RLS WITH CHECK (org_id = current_org) — the
-  // 500 that reddened the prod smoke. Sourcing identity from the ref makes an empty
-  // org_id/id STRUCTURALLY impossible here, for every call-site, present and future —
-  // no call-site has to remember to re-inject its own identity into the changes.
   const billing: StoredOrgBilling = {
     ...decodeOrgBilling(state),
     orgId: ref.orgId,

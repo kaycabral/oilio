@@ -5,25 +5,8 @@ import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `membership` context (brief 0059, AC-01/AC-05) — the
- * user↔org join, plugged into the per-context typed-projection registry without
- * reopening the `PersistencePort`.
- *
- * `upsert` decodes the reduced `state` against the domain `Membership` schema at
- * this single driver boundary (schema-validated, no cast leaks), then maps it
- * onto the `memberships` columns: role/status as enum CHECKs, `rls_unit_scope`
- * as a nullable column (the RLS unit policy filters on it directly),
- * `permissions` as JSONB. The DB enforces the invariants — a violation rolls
- * back event + projection together.
- */
-
 const decodeMembership = Schema.decodeUnknownSync(Membership)
 
-/**
- * The ordered `memberships` column list — the single source of truth for the
- * runtime upsert and the E2E seed. Mirrors the `INSERT` placeholders 1:1.
- */
 export const MEMBERSHIP_COLUMNS = [
   'org_id',
   'id',
@@ -38,11 +21,6 @@ export const MEMBERSHIP_COLUMNS = [
   'updated_at',
 ] as const
 
-/**
- * Map a decoded `Membership` (+ aggregate ref and projection version) onto the
- * ordered `memberships` column VALUES — the inverse of `rowToDoc`, shared by the
- * runtime projector and the E2E seed. Order matches `MEMBERSHIP_COLUMNS` exactly.
- */
 export function membershipColumnValues(
   membership: Membership,
   ref: AggregateRef,
@@ -83,7 +61,6 @@ async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc
   await client.query(UPSERT, membershipColumnValues(membership, ref, stateVersion(state)))
 }
 
-// Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type MembershipRow = {
   org_id: string
   id: string
@@ -98,8 +75,6 @@ export type MembershipRow = {
   updated_at: string
 }
 
-// Reconstructs the reducer's projected doc from the typed row (inverse of
-// `upsert`). `_version` (a `bigint` column) is re-attached coerced to number.
 export function rowToDoc(row: MembershipRow): FirestoreDoc {
   return {
     _version: Number(row.last_event_version),
@@ -112,11 +87,6 @@ export function rowToDoc(row: MembershipRow): FirestoreDoc {
     joinedAt: new Date(row.joined_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
     rlsUnitScope: row.rls_unit_scope,
-    // Backfill capabilities absent from a legacy row (persisted before the key
-    // existed) from the role default (#1377) — a legacy owner keeps billing
-    // instead of silently decoding to the role-blind schema default. Present keys
-    // are preserved. `row.role` is a validated projection column; narrow it to the
-    // `Role` union (falls back to raw defaults only if a future role appears).
     permissions: withRoleDefaultedPermissions(
       Schema.decodeUnknownSync(Role)(row.role),
       row.permissions,
@@ -139,11 +109,6 @@ async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
 
 export const membershipProjector: TypedProjector = { read, upsert, delete: remove }
 
-/**
- * `aggregate_type` for memberships = the membership aggregate's `config.type`
- * (`MembershipConfig.type`, singular). The router looks the projector up by the
- * ref's typed `type` (D6, ADR 0013), so registration and routing agree.
- */
 export const MEMBERSHIP_AGGREGATE_TYPE = 'membership'
 
 registerTypedProjector(MEMBERSHIP_AGGREGATE_TYPE, membershipProjector)

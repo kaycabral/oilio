@@ -26,14 +26,6 @@ import {
 } from '@cbrl/design'
 import { useState } from 'react'
 
-// Appointment-only agenda configs, revealed INLINE by the unit form when the
-// hours mode = "appointment" (progressive disclosure, PRD Identidade v2 / C3):
-// the slot granularity, the self-service cancellation policy, and the
-// confirmation/reminder/cancellation message templates. These moved Org→Unit and
-// exist ONLY in the appointment agenda variant — the form never renders this
-// block for fixed/always_open. Sensible defaults (the canonical WhatsApp
-// templates + a 120-min notice) pre-fill the fields so they're ready but
-// editable. Field names match `parseAppointmentConfig` in the functional core.
 export function UnitAgendaConfigFields({
   slotMinutes,
   cancellationPolicy,

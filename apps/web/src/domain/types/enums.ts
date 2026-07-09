@@ -10,11 +10,6 @@ export type Vertical = typeof Vertical.Type
 
 export const VERTICALS: readonly Vertical[] = ['barbershop', 'auto_wash', 'auto_detailing', 'other']
 
-// Derived operational readiness for a MemberOperation being allowed to operate
-// (take bookings, appear on the agenda, receive split). There is no human
-// approver: the status is computed from facts. The projection exists only after
-// invite acceptance, so a memberOperation is either `incomplete` (joined, profile
-// not yet bookable) or `operational` (whatsapp + ≥1 unit + ≥1 service).
 export const OperationalStatus = Schema.Literal('incomplete', 'operational')
 export type OperationalStatus = typeof OperationalStatus.Type
 

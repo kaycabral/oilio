@@ -27,8 +27,6 @@ async function postHandler(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Opção de adiamento inválida' }, { status: 400 })
   }
 
-  // Timezone is the establishment's now (PRD Identidade v2 — moved Org→Unit);
-  // snooze is org-scoped, so use a representative unit's tz.
   const tz = await getOrgRepresentativeTimezone(ctx.membership.orgId)
 
   const { id } = await params

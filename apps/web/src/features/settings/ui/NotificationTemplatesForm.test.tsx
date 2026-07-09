@@ -1,7 +1,3 @@
-// NotificationTemplatesForm (brief 0090 cleanup): enabled templates show their
-// full editor; disabled ones collapse into a compact "Desativadas" list where
-// they can be turned back on — so hiding them is never a dead end.
-
 import type { MessageTemplate } from '@/domain'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -39,9 +35,7 @@ describe('NotificationTemplatesForm', () => {
         canManage
       />,
     )
-    // No editor (textarea) for the disabled one…
     expect(screen.queryByRole('textbox', { name: 'Mensagem' })).not.toBeInTheDocument()
-    // …it lives in the compact re-enable list.
     expect(screen.getByText('Desativadas')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ativar' })).toBeInTheDocument()
   })
@@ -61,8 +55,6 @@ describe('NotificationTemplatesForm', () => {
         canManage
       />,
     )
-    // Exactly one editor (the active birthday); the disabled new_customer shows
-    // only in the re-enable list (a single "Ativar" button), not as an editor.
     expect(screen.getAllByRole('textbox', { name: 'Mensagem' })).toHaveLength(1)
     expect(screen.getByText('Desativadas')).toBeInTheDocument()
     expect(screen.getByText('Novo cliente')).toBeInTheDocument()

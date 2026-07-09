@@ -3,12 +3,6 @@ import { makeReplayStore } from '@/domain/effect/test-layers'
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
-// Post-cutover (#1202) the daily sweep enumerates tenants from the PUBLIC org
-// directory (Postgres, no RLS) via `listAllOrgIds`, and resolves each customer's
-// birthDate PII from the global `users` table via `getUserById` (NOT the
-// org-scoped customer doc). Both are mocked so the test stays a pure unit (no DB):
-// `listAllOrgIds` returns the fixture's single org; `getUserById` reads the
-// `users/{uid}` entries seeded into the in-memory store below.
 const mocks = vi.hoisted(() => ({
   listAllOrgIds: vi.fn(() => Promise.resolve(['t1'])),
   usersByUid: new Map<string, Record<string, unknown>>(),
@@ -21,12 +15,7 @@ vi.mock('@/shared/db/pg/users-store', () => ({
 import { generateDailyNotifications } from './generate-daily'
 
 function makeStore(initial: Record<string, FirestoreDoc> = {}) {
-  // D6: the in-memory port is ref-keyed (`${type}/${orgId}/${id}`). Seed
-  // projections under those keys; `users/{uid}` is a non-aggregate global path
-  // (no RLS, no org_id) read via the mocked users-store, so it stays a plain key.
   const { store, layer } = makeReplayStore(initial)
-  // Seed the mocked `getUserById` from the store's global `users/{uid}` entries —
-  // mirrors the production join (customer.userId → users table) without a DB.
   mocks.usersByUid.clear()
   for (const [key, doc] of store) {
     if (key.startsWith('users/')) mocks.usersByUid.set(key.slice('users/'.length), doc)
@@ -56,7 +45,6 @@ describe('generateDailyNotifications', () => {
       },
       'customer/t1/c1': { id: 'c1', userId: 'user-1' },
       'customer/t1/c2': { id: 'c2', userId: 'user-2' },
-      // birthDate is PII — resolved from the global user doc, not the customer.
       'users/user-1': { birthDate: '1990-06-02' },
       'users/user-2': { birthDate: '1985-12-25' },
     })

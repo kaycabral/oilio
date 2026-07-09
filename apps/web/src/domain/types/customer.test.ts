@@ -33,7 +33,6 @@ describe('parseBirthDate', () => {
   })
 
   it('rejects a value with a trailing suffix (end anchor)', () => {
-    // The first 10 chars are a valid date; only the `$` anchor rejects this.
     expect(parseBirthDate('1990-05-16-99', today).ok).toBe(false)
   })
 
@@ -66,8 +65,6 @@ describe('parseBirthDate', () => {
   })
 
   it('zero-pads single-digit today month/day when comparing (no off-by-padding)', () => {
-    // 2026-01-05: without padStart, todayIso would be "2026-1-5" and the
-    // string comparison would mis-rank these boundary cases.
     const earlyToday = new Date(2026, 0, 5)
     expect(parseBirthDate('2026-01-05', earlyToday)).toEqual({ ok: true, value: '2026-01-05' })
     expect(parseBirthDate('2026-01-06', earlyToday).ok).toBe(false)

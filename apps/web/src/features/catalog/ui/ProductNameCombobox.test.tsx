@@ -90,7 +90,6 @@ describe('ProductNameCombobox', () => {
   it('navega com ↓ e escolhe com Enter (teclado)', () => {
     const { input, onSelect } = renderCombobox({ suggestions: SUGGESTIONS })
     fireEvent.focus(input)
-    // Two ArrowDowns highlight index 0 then index 1.
     fireEvent.keyDown(input, { key: 'ArrowDown' })
     fireEvent.keyDown(input, { key: 'ArrowDown' })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -113,11 +112,9 @@ describe('ProductNameCombobox', () => {
     )
     const input = screen.getByRole('combobox')
     fireEvent.focus(input)
-    // Highlight the SECOND row (index 1).
     fireEvent.keyDown(input, { key: 'ArrowDown' })
     fireEvent.keyDown(input, { key: 'ArrowDown' })
 
-    // A newer search returns a shorter list (only the first item).
     rerender(
       <ProductNameCombobox
         defaultName=""
@@ -131,10 +128,8 @@ describe('ProductNameCombobox', () => {
       />,
     )
 
-    // Highlight was reset — Enter now selects nothing (no stale index-1 row to pick).
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(onSelect).not.toHaveBeenCalled()
-    // And aria-activedescendant no longer dangles.
     expect(input).not.toHaveAttribute('aria-activedescendant')
   })
 
@@ -145,18 +140,10 @@ describe('ProductNameCombobox', () => {
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(onSelect).not.toHaveBeenCalled()
-    // Escape must also cancel a still-pending debounced search so it can't fire a
-    // late re-render after the user moved on (the submit/redirect race fix).
     expect(onDismiss).toHaveBeenCalled()
   })
 
   it('blur fecha a lista e aborta a busca SINCRONAMENTE (sem timer diferido)', () => {
-    // Regression: the old onBlur deferred this teardown by 120ms via setTimeout.
-    // When focus left for the submit button, that late setState re-ran the form's
-    // validity check (useFormValidity MutationObserver) and flickered "Criar" to
-    // disabled mid-submit, so the click no-op'd and the redirect never fired
-    // (product-autofill e2e hung 30s). Teardown must be synchronous on blur, with
-    // NO fake timers needed — if this needs `vi.advanceTimers`, the flake is back.
     const { input, onDismiss } = renderCombobox({ suggestions: SUGGESTIONS })
     fireEvent.focus(input)
     expect(screen.getByRole('listbox')).toBeInTheDocument()

@@ -13,9 +13,6 @@ export function applyUnitEvent(state: UnitState, event: UnitEvent, meta: EventMe
     case 'unit.archived':
       return { ...base, archivedAt: event.archivedAt }
     case 'unit.formalized':
-      // informal → company: the fiscal union becomes the single source of the
-      // company stage (CNPJ-14 + registry profile + formalization boundary).
-      // Matriz/filial/raiz are derived from `taxId` on read, never stored.
       return {
         ...base,
         fiscal: {

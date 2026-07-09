@@ -6,11 +6,6 @@ import { Store } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
-/**
- * First-access unit picker (brief 0029, AC-04). Writes the active-unit cookie
- * via the server action, then enters the app. Standalone (not under
- * OrgProvider) — it calls the action directly instead of via useOrg().
- */
 export function SelectUnitForm({
   orgName,
   units,

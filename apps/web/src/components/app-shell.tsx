@@ -31,11 +31,7 @@ export function AppShell({
 }) {
   const pathname = usePathname()
   const { membership, units, tier } = useOrg()
-  // SPIKE (hours mode): the org "uses the agenda" iff any unit is in
-  // appointment mode — drives whether the Agenda nav item shows (multi-vertical).
   const usesAgenda = units.some((u) => unitUsesAgenda(u))
-  // `tier` gates the billing axis (brief 0088 AC-06): surfaces the plan doesn't
-  // unlock are hidden from the sidebar entirely (upsell lives in /settings/billing + /pricing).
   const sections = getNavSections(membership, { usesAgenda }, tier)
 
   return (
@@ -58,11 +54,6 @@ export function AppShell({
           orgName={orgName}
         />
       }
-      // Compact account menu for the mobile header (#1374): below `md` the
-      // sidebar footer is off-canvas, so the account/Configurações/Sair menu is
-      // otherwise unreachable. Same UserMenu, but WITHOUT a custom trigger — the
-      // design shell then renders its compact avatar button (fits a phone header),
-      // not the wide sidebar-footer trigger.
       account={
         <UserMenu
           name={user.name}
@@ -74,22 +65,11 @@ export function AppShell({
       }
     >
       {children}
-      {/* The Configurações modal (brief 0090). A client dialog anchored to the
-          `#settings/X` URL hash, so it survives reload / tablet-resume / a form
-          refresh instead of collapsing to a full page. */}
       <SettingsModal />
     </BaseAppShell>
   )
 }
 
-// Account menu anchored at the sidebar footer (brief 0090, AC-02). The trigger
-// is a full-width `SidebarMenuButton` (avatar + name + active Negócio + a
-// chevron) — the shadcn/Claude Code "nav user" pattern — so it reads clearly as
-// an expandable button, not a bare avatar. It opens the identity dropdown
-// (Configurações + Sair). Configurações opens the settings modal at its default
-// section (Perfil); the app being context-based, billing follows the active
-// Negócio automatically. On the icon-collapsed rail the button folds to just the
-// avatar (the identity text and chevron are hidden by the sidebar's own rules).
 function SidebarUserMenu({
   name,
   secondary,
@@ -102,11 +82,6 @@ function SidebarUserMenu({
   orgName: string
 }) {
   return (
-    // Ajuda (helpHref) is intentionally omitted until a real /help surface
-    // exists — the brief lists it, but there's no help route yet and we don't
-    // invent one. The UserMenu supports it the day the route lands.
-    // Telemetry (settings_section_viewed) is emitted server-side by each section
-    // loader — track() can't run in this client component (brief 0090).
     <UserMenu
       name={name}
       secondary={secondary}
@@ -136,7 +111,6 @@ function SidebarUserMenu({
   )
 }
 
-// Org name expands inline; on the icon-collapsed rail it folds to initials.
 function Brand({ orgName }: { orgName: string }) {
   const initials = computeInitials(orgName)
   return (

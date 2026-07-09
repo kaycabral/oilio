@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { DASHBOARD_PERIODS, DEFAULT_PERIOD, periodLabel, resolveDashboardFilters } from './filters'
 
 const SP_TZ = 'America/Sao_Paulo'
-// Reference "now": 2026-03-15T12:00:00-03:00 → 15:00:00Z. Picked mid-month so
-// the month window has meaningful length.
 const NOW = new Date('2026-03-15T15:00:00.000Z')
 
 describe('resolveDashboardFilters', () => {
@@ -19,7 +17,6 @@ describe('resolveDashboardFilters', () => {
     const f = resolveDashboardFilters({ period: 'today' }, SP_TZ, NOW)
     expect(f.fromDate).toBe('2026-03-15')
     expect(f.toDate).toBe('2026-03-15')
-    // 00:00 SP → 03:00 UTC same day
     expect(f.fromUtc).toBe('2026-03-15T03:00:00.000Z')
     expect(f.toUtcExclusive).toBe('2026-03-16T03:00:00.000Z')
   })

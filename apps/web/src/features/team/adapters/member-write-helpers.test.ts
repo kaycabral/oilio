@@ -1,12 +1,3 @@
-// Unit tests for `resolveMemberOperatorRoleStep` (#1199 / #1226 AC-02) — the pure
-// decision the Postgres change-role saga turns into a step. `getMemberOperationByUserId`
-// is mocked (no DB); the create branch mints a fresh memberOperation id via `newId`
-// (a real UUID — no mock needed). Since `operationalStatus` is now derived on read
-// (#1226 AC-02), a role change no longer emits `member_operation.activated`/`.suspended`:
-// the only write is MATERIALIZING a new projection on first promotion. Covers all
-// branches: promote-no-existing → create, promote-with-existing → none,
-// demote → none, non-memberOperation → none.
-
 import type { MemberOperation } from '@/domain'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +7,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/shared/org/member-operation-read', () => ({
   getMemberOperationById: vi.fn(),
   getMemberOperationByUserId: mocks.getMemberOperationByUserId,
-  // unused by the resolver but imported by the module under test:
   writeMemberOperationPii: vi.fn(),
   deleteMemberOperationPii: vi.fn(),
 }))
@@ -67,8 +57,6 @@ describe('resolveMemberOperatorRoleStep', () => {
   })
 
   it('re-promotion WITH an existing projection → none (readiness is derived on read)', async () => {
-    // A projection already exists — nothing to materialize, and there is no
-    // activation event to emit anymore (status is derived on read).
     mocks.getMemberOperationByUserId.mockResolvedValue(pro({ operationalStatus: 'incomplete' }))
     const step = await resolveMemberOperatorRoleStep({
       ...base,
@@ -93,7 +81,6 @@ describe('resolveMemberOperatorRoleStep', () => {
       willBeMemberOperator: false,
     })
     expect(step.kind).toBe('none')
-    // The resolver short-circuits on `!willBeMemberOperator` — no projection read.
     expect(mocks.getMemberOperationByUserId).not.toHaveBeenCalled()
   })
 

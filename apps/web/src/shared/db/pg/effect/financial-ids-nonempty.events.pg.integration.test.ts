@@ -2,15 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 
-/**
- * Proof that the DB rejects an empty FK-less financial user-id (#1283, brief
- * 0078 Group D) — `commissions.{order_item_id,attributed_user_id,item_name}`,
- * `cash_movements.recorded_by_uid` — and that the new `charges_unit_id_fk`
- * refuses an unknown unit. IDs WITH an FK (customer_id, subscription_id, etc.)
- * are already barred by their FK and out of scope. Runs against the ephemeral
- * Postgres over the superuser pool.
- */
-
 const ORG = 'org-fin-ne'
 const UNIT = 'unit-fin'
 
@@ -36,7 +27,6 @@ async function seedOrgAndUnit(): Promise<void> {
      VALUES ($1,$2,1,'Unit','slug-'||$2,'America/Sao_Paulo','fixed','informal',$3::jsonb,'{"mode":"fixed","businessHours":{}}'::jsonb,'{"kind":"informal"}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [ORG, UNIT, COMPLETE_ADDRESS],
   )
-  // An order to satisfy commissions_order_id_fk.
   await pool.query(
     `INSERT INTO orders (org_id, id, last_event_version, unit_id, status, subtotal_cents, total_cents, discount_cents, items, created_at, updated_at)
      VALUES ($1,'order-1',1,$2,'open',0,0,0,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
@@ -44,7 +34,6 @@ async function seedOrgAndUnit(): Promise<void> {
   )
 }
 
-// Insert a commission with the given FK-less ids (the rest valid).
 function insertCommission(
   id: string,
   orderItemId: string,
@@ -63,7 +52,6 @@ function insertCommission(
 }
 
 function insertCashMovement(id: string, recordedByUid: string): Promise<unknown> {
-  // `suprimento`: direction 'in', no order/payment/expense links (kind_shape).
   return getEventStorePool().query(
     `INSERT INTO cash_movements
        (org_id, id, last_event_version, unit_id, kind, direction, amount_cents, recorded_by_uid, created_at)

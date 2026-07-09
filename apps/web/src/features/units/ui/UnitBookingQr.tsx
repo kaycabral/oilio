@@ -4,16 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@cbrl
 import QRCode from 'qrcode'
 import { CopyPublicUrlButton } from './CopyPublicUrlButton'
 
-// Booking-entry QR for a single unit (#864, contextual since brief 0077 #1279).
-// Lives on the unit page since the QR is a unit-level artifact. The URL now
-// carries QR attribution (`source=qr`) so a scan is attributed to the QR channel
-// (AC-06/AC-10), and — when a `booking` context is supplied — the chosen
-// service/professional/slot are baked in so the scanner lands straight on the
-// confirm step (the brief's "QR com serviço + profissional + horário"). Without a
-// context it's the unit-level entry: pick service/slot on the unit agenda.
-//
-// PII-zero by construction: the QR encodes org/unit + service/pro/slot ids +
-// attribution only — never a customer's name/phone (AC-06).
 export async function UnitBookingQr({
   orgSlug,
   unitSlug,
@@ -24,10 +14,7 @@ export async function UnitBookingQr({
   orgSlug: string
   unitSlug: string
   unitName: string
-  // Optional fully-resolved booking context (service + pro + slot) — when present
-  // the QR is contextual; when absent it's the unit entry point.
   booking?: BookingContext
-  // Optional campaign slug to attribute the QR to a named campaign (flyer, promo).
   campaign?: string
 }) {
   const baseUrl = await resolveBaseUrl()
@@ -42,7 +29,6 @@ export async function UnitBookingQr({
       campaign: campaign ?? null,
       content: null,
       term: null,
-      // A QR is anonymous physical media — no per-actor attribution.
       actorId: null,
       intent,
     },

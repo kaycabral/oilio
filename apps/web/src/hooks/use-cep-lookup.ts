@@ -44,10 +44,6 @@ function validatePostalCodeLookup(data: unknown): PostalCodeLookup {
   return { postalCode, state, city, neighborhood, street }
 }
 
-/**
- * Hook simples: dado um CEP (8 dígitos), busca em /api/postal-code/{cep} e
- * retorna o resultado. Limpa quando o CEP fica incompleto. Sem react-hook-form.
- */
 export function useCepLookup(cep: string): CepLookupResult {
   const digits = cep.replace(/\D/g, '')
   const [data, setData] = useState<PostalCodeLookup | null>(null)
@@ -66,12 +62,7 @@ export function useCepLookup(cep: string): CepLookupResult {
     fetch(`/api/postal-code/${digits}`)
       .then(async (r) => {
         if (!r.ok) {
-          // The API's own `error` is a curated business message ("CEP não
-          // encontrado.") — safe to show. A missing body is a technical failure
-          // (status/network) whose raw text must not leak.
           const body = await readJson(r, validateErrorBody).catch((): { error?: string } => ({}))
-          // A superseded lookup must not clobber the current one (the guard the
-          // old shared `.catch` enforced for every error path).
           if (cancelled) return
           setData(null)
           setError(body.error ?? 'Não foi possível consultar o CEP. Tente novamente.')
@@ -83,7 +74,6 @@ export function useCepLookup(cep: string): CepLookupResult {
         setError(null)
       })
       .catch(() => {
-        // A thrown error here is technical (network / parse) — never user-facing.
         if (cancelled) return
         setData(null)
         setError('Não foi possível consultar o CEP. Tente novamente.')

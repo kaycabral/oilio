@@ -41,14 +41,10 @@ export function OrderClosePanel({
   const [open, setOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
   const [state, formAction, pending] = useActionState(closeOrderFormAction, { ok: false })
-  // Forma de pagamento só é exigida quando há item de venda (brief 0021 AC-02).
-  // Venda 100% coberta pelo plano fecha sem pagamento.
   const sale = hasSaleItem(order.items)
   let paymentSummary = 'Consumo do plano'
   if (sale) paymentSummary = paymentMethod ? PAYMENT_LABEL[paymentMethod] : '—'
 
-  // Fecha o dialog e revalida só quando o backend confirma. Em erro, o dialog
-  // permanece aberto com `state.error` inline (AC-03).
   useEffect(() => {
     if (state.ok) {
       setOpen(false)
@@ -183,8 +179,6 @@ export function UndoClosePanel({
     }
   }, [state, onDone])
 
-  // AC-09: esconde o botão fora da janela de 5 min (backend revalida mesmo
-  // assim). closedAt ausente/inválido → nada a desfazer.
   const closedAtMs = closedAt ? Date.parse(closedAt) : Number.NaN
   if (Number.isNaN(closedAtMs) || Date.now() - closedAtMs > UNDO_CLOSE_WINDOW_MS) {
     return null

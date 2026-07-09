@@ -10,13 +10,6 @@ import { cookies } from 'next/headers'
 
 export type SetActiveUnitResult = { ok: true } | { ok: false; error: string }
 
-/**
- * Writes the ephemeral `activeUnitId` cookie after validating the target unit
- * against the member's accessible units (brief 0029, AC-01/AC-02). A
- * single-unit member (`membership.rlsUnitScope`) cannot switch — the cookie write is
- * rejected. The switcher UI that calls this lands in sub-issue #1051; the
- * action exists here so the shared context exposes a working `setActiveUnit`.
- */
 export async function setActiveUnit(unitId: string): Promise<SetActiveUnitResult> {
   const result = await requireOrgCtx()
   if (!result.ok) return { ok: false, error: result.error }

@@ -5,29 +5,8 @@ import type { PoolClient } from 'pg'
 import { buildCollectionQueryTail } from './collection-query'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `order` (comanda) ES context (brief 0061 § Grupo A) —
- * maps the reduced `Order` state onto the `orders` typed table whose conditional
- * CHECK enforces the status union (open/closed/cancelled ⇒ closedAt/payment
- * shape). `upsert` decodes the untyped projection doc against the domain `Order`
- * schema at this single driver boundary — schema-validated, so no cast leaks
- * into product code.
- *
- * `items[]` (the per-item snapshot composite) is a structural field, not a
- * primary-metric invariant, so it lives in JSONB — faithful to the reduced state
- * without inventing relational shape. The scalar invariants (status, totals,
- * payment method) are real columns the DB constrains. `customer_id` is an
- * id-ref only (ADR 0010 D2: PII stays in the apagável `users/` doc).
- */
-
 const decodeOrder = Schema.decodeUnknownSync(Order)
 
-/**
- * The ordered `orders` column list — single source of truth for the upsert
- * placeholders and the E2E seed. Mirrors the `INSERT` placeholders 1:1. The
- * composite `(org_id, id)` natural key leads (D6, ADR 0013); `last_event_version`
- * is the reducer's `_version` projection column (events.version is unchanged).
- */
 export const ORDER_COLUMNS = [
   'org_id',
   'id',
@@ -46,13 +25,6 @@ export const ORDER_COLUMNS = [
   'updated_at',
 ] as const
 
-/**
- * Map a decoded `Order` (+ aggregate ref and version) onto the ordered column
- * VALUES — the inverse of `rowToDoc`, shared by the runtime projector and the
- * E2E seed. Order matches `ORDER_COLUMNS`; `org_id`/`id` come from the ref. `items`
- * is `JSON.stringify`'d for the JSONB column; `closedAt`/`paymentMethod` are null
- * on a non-closed order (the union guarantees it, and the DB CHECK refuses otherwise).
- */
 export function orderColumnValues(order: Order, ref: AggregateRef, version: number): unknown[] {
   return [
     ref.orgId,
@@ -93,7 +65,6 @@ async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc
   await client.query(UPSERT, orderColumnValues(order, ref, stateVersion(state)))
 }
 
-// Row shape the typed table stores; mapped back to the reducer's doc on read.
 export type OrderRow = {
   org_id: string
   id: string
@@ -112,13 +83,6 @@ export type OrderRow = {
   updated_at: string
 }
 
-// Reconstructs the reducer's projected doc from the typed row (inverse of
-// `upsert`); `_version` re-attached from `last_event_version` so the event store
-// versions/replays correctly. `bigint` columns come back as strings from `pg` —
-// coerced to number. `items` is JSONB → already parsed by `pg`. The
-// status-discriminated fields (`closedAt`/`paymentMethod`) round-trip per the
-// union member (a non-closed order keeps them `null`, matching the
-// open/cancelled branch).
 export function rowToDoc(row: OrderRow): FirestoreDoc {
   return {
     _version: Number(row.last_event_version),
@@ -128,8 +92,6 @@ export function rowToDoc(row: OrderRow): FirestoreDoc {
     customerId: row.customer_id,
     appointmentId: row.appointment_id,
     status: row.status,
-    // `*_at` are `timestamptz` (brief 0068 D1): the pg driver returns a `Date`
-    // on the raw `SELECT *` read. Normalize to ISO; the domain stays `string`.
     closedAt: row.closed_at == null ? null : new Date(row.closed_at).toISOString(),
     paymentMethod: row.payment_method,
     discountCents: Number(row.discount_cents),
@@ -154,8 +116,6 @@ async function remove(client: PoolClient, ref: AggregateRef): Promise<void> {
   await client.query('DELETE FROM orders WHERE org_id = $1 AND id = $2', [ref.orgId, ref.id])
 }
 
-// Org-scoped collection scan (the `order` collection within an org): the hourly
-// cron reads the open orders (`where status == 'open'`) to flag stale ones.
 async function list(
   client: PoolClient,
   ref: CollectionRef,
@@ -171,10 +131,6 @@ async function list(
 
 export const orderProjector: TypedProjector = { read, upsert, delete: remove, list }
 
-/**
- * The typed `AggregateType` for orders = the `order` config type (D6, ADR 0013):
- * the registry routes by the ref's typed `type`, not by a path/table-name segment.
- */
 export const ORDER_AGGREGATE_TYPE = 'order'
 
 registerTypedProjector(ORDER_AGGREGATE_TYPE, orderProjector)

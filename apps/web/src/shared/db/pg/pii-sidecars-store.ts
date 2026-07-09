@@ -5,20 +5,7 @@ import type { PoolClient } from 'pg'
 import { getEventStorePool } from './pool'
 import { readUnderRls } from './rls-read'
 
-// Strict-decode the jsonb `tax_identity` column into the domain union (repo
-// convention: decode reads, never cast). Null = no PII on file.
 const decodeTaxIdentity = Schema.decodeUnknownSync(Schema.NullOr(TaxIdentity))
-
-/**
- * CRUD helpers for the deletable PII sidecars `invites_pii` / `member_operations_pii`
- * (migration feature F — cutover, brief 0062). Both are org-scoped (org RLS), so
- * reads go through `readUnderRls(orgId, …)` and writes set `app.current_org`
- * inside their transaction. The sidecar holds the PII the typed projection omits
- * (invite `email`, memberOperation `taxIdentity`); deleting a row erases the PII
- * while the projection + event history stay intact (ADR 0010 / LGPD).
- */
-
-// ── invites_pii ──────────────────────────────────────────────────────────────
 
 export async function getInvitePiiByIds(
   orgId: string,
@@ -56,8 +43,6 @@ export async function deleteInvitePii(orgId: string, id: string): Promise<void> 
     client.query('DELETE FROM invites_pii WHERE org_id = $1 AND id = $2', [orgId, id]),
   )
 }
-
-// ── member_operations_pii ──────────────────────────────────────────────────────────
 
 export async function getMemberOperationPiiByIds(
   orgId: string,
@@ -105,8 +90,6 @@ export async function deleteMemberOperationPii(orgId: string, id: string): Promi
   )
 }
 
-// Run a write under the org RLS GUC (org-scoped sidecars). Sets `app.current_org`
-// inside the tx so the policy WITH CHECK admits the write.
 async function writeUnderOrg(
   orgId: string,
   fn: (client: PoolClient) => Promise<unknown>,

@@ -2,24 +2,6 @@ import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 
-/**
- * RLS isolation proof for the CONFIG contexts (brief 0060, feature D, AC-02) —
- * the 8 aggregates migrated by D: memberOperation/customer/invite (Grupo A),
- * category/subscription_plan (Grupo B), agenda_block/goal/notification (Grupo C).
- *
- * Mirrors `rls-isolation.events.pg.integration.test.ts` (feature C). The
- * ephemeral Postgres connects as superuser (which bypasses RLS), so every
- * isolation assertion runs through a NON-superuser role (`oilio_rls_app`, no
- * BYPASSRLS — the production runtime shape). Seeding happens over the superuser
- * pool so the fixtures exist regardless of policy.
- *
- * Two policy families (per 0005_rls_config):
- *   - ORG-only (memberOperations/customers/invites/categories/subscription_plans):
- *     `org_id = current_setting('app.current_org', true)`.
- *   - ORG + UNIT (agenda_blocks/goals/notifications, which carry `unit_id`): the
- *     org predicate AND (no unit pinned OR the row's unit matches the session).
- */
-
 const APP_ROLE = 'oilio_rls_app'
 const APP_PASSWORD = 'rls_test'
 
@@ -30,7 +12,6 @@ const UNIT_A2 = 'unit-a2'
 
 let appUrl: string
 
-// The 8 config tables D brings under RLS.
 const ORG_ONLY_TABLES = [
   'member_operations',
   'customers',
@@ -49,9 +30,6 @@ async function seedOrg(id: string): Promise<void> {
   )
 }
 
-// The unit-scoped config tables (agenda_blocks/goals/notifications) carry the
-// `unit_id` FK (brief 0068 D2 → units(org_id,id)); seed the parent unit so the
-// fixture rows satisfy the FK.
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
@@ -61,9 +39,6 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
   )
 }
 
-// Seed one minimal valid row per table, satisfying its CHECK constraints, over
-// the superuser pool (bypasses RLS). `unitId` is only used by the unit-scoped
-// tables; the org-only tables ignore it.
 async function seedRow(table: string, orgId: string, id: string, unitId: string): Promise<void> {
   const pool = getEventStorePool()
   switch (table) {
@@ -137,8 +112,6 @@ async function seedRow(table: string, orgId: string, id: string, unitId: string)
   }
 }
 
-// A fresh connection AS the non-superuser app role, with the RLS GUCs set for the
-// scope under test (empty unit = org-wide).
 async function appClient(orgId: string, unitId = ''): Promise<Client> {
   const c = new Client({ connectionString: appUrl })
   await c.connect()
@@ -174,7 +147,6 @@ describe('Postgres RLS isolation — config (brief 0060, AC-02)', () => {
     await closeEventStoreDb()
   })
 
-  // ── Cross-org READ refusal — proven for ALL 8 tables ───────────────────────
   for (const table of [...ORG_ONLY_TABLES, ...UNIT_SCOPED_TABLES]) {
     it(`${table}: a session scoped to org A reads ZERO rows of org B (read isolation)`, async () => {
       await seedOrg(ORG_A)
@@ -193,7 +165,6 @@ describe('Postgres RLS isolation — config (brief 0060, AC-02)', () => {
     })
   }
 
-  // ── Cross-org WRITE refusal — a representative org-only + unit-scoped table ──
   it('a session scoped to org A CANNOT INSERT a category for org B (WITH CHECK)', async () => {
     await seedOrg(ORG_A)
     await seedOrg(ORG_B)
@@ -206,7 +177,6 @@ describe('Postgres RLS isolation — config (brief 0060, AC-02)', () => {
            VALUES ($1,'c',1,'C',true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
           [ORG_B],
         ),
-        // 42501 = insufficient_privilege (RLS WITH CHECK violation)
       ).rejects.toMatchObject({ code: '42501' })
     } finally {
       await a.end()
@@ -231,7 +201,6 @@ describe('Postgres RLS isolation — config (brief 0060, AC-02)', () => {
     }
   })
 
-  // ── Fail-closed: no GUC → zero rows ─────────────────────────────────────────
   it('a session with NO org context (GUC unset) sees zero rows (fail-closed)', async () => {
     await seedOrg(ORG_A)
     await seedRow('member_operations', ORG_A, 'a', UNIT_A1)
@@ -246,14 +215,12 @@ describe('Postgres RLS isolation — config (brief 0060, AC-02)', () => {
     }
   })
 
-  // ── Unit predicate — proven for ALL 3 unit-scoped tables ────────────────────
   for (const table of UNIT_SCOPED_TABLES) {
     it(`${table}: a single-unit-locked session does NOT see another unit; org-wide sees all`, async () => {
       await seedOrg(ORG_A)
       await seedRow(table, ORG_A, 'a1', UNIT_A1)
       await seedRow(table, ORG_A, 'a2', UNIT_A2)
 
-      // Locked to UNIT_A1 → sees only the A1 row.
       const locked = await appClient(ORG_A, UNIT_A1)
       try {
         const seen = await locked.query<{ unit_id: string }>(`SELECT unit_id FROM ${table}`)
@@ -263,7 +230,6 @@ describe('Postgres RLS isolation — config (brief 0060, AC-02)', () => {
         await locked.end()
       }
 
-      // Org-wide (empty unit GUC) → sees both.
       const orgWide = await appClient(ORG_A)
       try {
         const seen = await orgWide.query<{ unit_id: string }>(`SELECT unit_id FROM ${table}`)

@@ -1,14 +1,3 @@
-// Journey E2E for #1076 (brief 0035 AC-02) — the post-login landing chain, the
-// composite that a "básico" redirect bug slipped through. An authenticated user
-// hitting `/` was stuck on the public Hero ("Entrar"); `page.tsx` now sends them
-// into the app and `(app)/layout` resolves the destination by state. This spec
-// asserts ALL THREE branches end IN the app, never on the Hero — the bug becomes
-// a covered regression.
-//
-//   sem org            → /onboarding
-//   completion pendente   → /onboarding/profile
-//   com org (completo) → /dashboard
-
 import { expect, test } from '../fixtures'
 import { seedAuthUser, seedOrg, signInAndAttachSession } from '../helpers/session'
 
@@ -21,7 +10,6 @@ test.describe('Owner — login → landing por estado (#1076 · 0035)', { tag: '
     const user = await seedAuthUser({ completionCompleted: true })
     await signInAndAttachSession(context, user.email, user.password, baseURL ?? undefined)
 
-    // O bug: autenticado em `/` ficava no Hero público. Agora é roteado pro app.
     await page.goto('/')
     await expect(page).toHaveURL(/\/onboarding$/)
     await expect(page.getByRole('link', { name: 'Entrar' })).toHaveCount(0)

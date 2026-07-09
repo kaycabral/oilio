@@ -28,9 +28,6 @@ export function isValidPublicHttpUrl(value: unknown): value is string {
   }
 }
 
-// Narrows an unknown to an indexable record without asserting — lets the
-// `normalize*` parsers read fields off untrusted input cast-free (each field is
-// then guarded by its own typeof/validator check).
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -49,20 +46,12 @@ export function normalizeOrgBranding(raw: unknown): OrgBranding {
   }
 }
 
-// The Org is a pure folder/shell (PRD Identidade v2): name, slug, segment
-// (= vertical), branding, website, ownerUserId, timestamps. It carries NO
-// fiscal identity (the CNPJ is the establishment's — `Unit.fiscal`, brief 0048)
-// and NO agenda/self-booking config (timezone, slotMinutes, cancellationPolicy,
-// confirmation messages, self-booking publish state all moved to `Unit.agenda`
-// — they're establishment/agenda concerns of the Unit, not the folder).
 export const Org = Schema.mutable(
   Schema.Struct({
     id: Schema.String,
     name: Schema.String,
     slug: Schema.String,
     vertical: Vertical,
-    // The brand's site/domain (optional). Future: domain verification + Google
-    // Shopping (PRD Identidade § Contrato de tipagem — Org ganha `website`).
     website: Schema.optional(Schema.NullOr(Schema.String)),
     ownerUserId: Schema.String,
     branding: OrgBranding,
@@ -72,10 +61,5 @@ export const Org = Schema.mutable(
 )
 export type Org = typeof Org.Type
 
-// Storage projection of `Org`: the `orgs/{id}` doc. The Org has NO fiscal PII
-// anymore (PRD Identidade v2 — the fiscal identity moved to `Unit.fiscal`) and
-// no agenda config (moved to `Unit.agenda`), so the stored shape equals the
-// read model. `name` is the BUSINESS name (not titular PII) and stays on the
-// doc. Decode raw `orgs` docs against this.
 export const StoredOrg = Org
 export type StoredOrg = typeof StoredOrg.Type

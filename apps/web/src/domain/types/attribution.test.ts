@@ -9,7 +9,6 @@ import {
   sanitizeAttributionValue,
 } from './attribution'
 
-// Build a reader over a plain record for `attributionFromParams`.
 function reader(bag: Record<string, string>): (key: string) => string | null {
   return (key) => bag[key] ?? null
 }
@@ -20,8 +19,6 @@ describe('sanitizeAttributionValue (brief 0077 AC-13)', () => {
   })
 
   it('strips spaces, punctuation, unicode and injection chars', () => {
-    // `<b>oi</b> açaí!` → angle-brackets/slash/space/! dropped, accented vowels
-    // dropped (not in the allowlist): <b>→b, oi, </b>→b, açaí→aa.
     expect(sanitizeAttributionValue('  <b>oi</b> açaí! ')).toBe('boibaa')
   })
 
@@ -38,7 +35,6 @@ describe('sanitizeAttributionValue (brief 0077 AC-13)', () => {
     expect(sanitizeAttributionValue(null)).toBeNull()
     expect(sanitizeAttributionValue(undefined)).toBeNull()
     expect(sanitizeAttributionValue('   ')).toBeNull()
-    // all-stripped → null, not ""
     expect(sanitizeAttributionValue('!!!')).toBeNull()
   })
 })

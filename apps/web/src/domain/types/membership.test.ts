@@ -51,8 +51,6 @@ describe('membershipDocId', () => {
   })
 })
 
-// Exhaustive expected permission set per role — every field pinned so a flip
-// of any single boolean in `defaultPermissionsForRole` is caught (mutation).
 const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
   owner: {
     canHaveAgenda: false,
@@ -65,7 +63,6 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canViewFinancials: true,
     canManagePlans: true,
     canManageSubscriptions: true,
-    // Billing is owner-only (brief 0075, #1377) — only the owner preset grants it.
     canManageBilling: true,
     canBeBooked: false,
     canEarnCommission: false,
@@ -81,7 +78,6 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canViewFinancials: true,
     canManagePlans: true,
     canManageSubscriptions: true,
-    // Manager runs the business but never commits it to a paid contract (#1377).
     canManageBilling: false,
     canBeBooked: false,
     canEarnCommission: false,
@@ -89,8 +85,6 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
   member_operator: {
     canHaveAgenda: true,
     canManageOwnAgenda: true,
-    // Autonomous own-scoped model (brief 0075): a memberOperation books/cancels
-    // their OWN appointments. Manage* stays false.
     canCreateAppointment: true,
     canCancelAppointment: true,
     canManageCustomers: false,
@@ -100,8 +94,6 @@ const EXPECTED_PERMISSIONS: Record<Role, MembershipPermissions> = {
     canManagePlans: false,
     canManageSubscriptions: false,
     canManageBilling: false,
-    // The memberOperation preset is the only one with the operational capabilities
-    // on (brief 0076 AC-01).
     canBeBooked: true,
     canEarnCommission: true,
   },
@@ -147,9 +139,6 @@ describe('defaultPermissionsForRole', () => {
   })
 })
 
-// #1377 — billing authorization is a role capability (`canManageBilling`), gated
-// via the permission matrix, NOT `role === 'owner'` (brief 0075 AC-01). The
-// preset grants it to the owner only; every other role is default-denied.
 describe('canManageBilling capability (#1377)', () => {
   it('grants billing only to the owner (owner-only preset)', () => {
     expect(defaultPermissionsForRole('owner').canManageBilling).toBe(true)
@@ -159,12 +148,6 @@ describe('canManageBilling capability (#1377)', () => {
     }
   })
 
-  // Backward-compat: `permissions` is decoded from data persisted before this key
-  // existed (the `membership.created` event payload + the JSONB column, including
-  // the real production org). A membership WITHOUT `canManageBilling` must still
-  // decode — to `false` (default-DENY), never a decode failure that would break
-  // every legacy membership read. This is why the schema uses `optionalWith` with
-  // a default, not a plain required boolean.
   it('decodes a legacy membership without the key as canManageBilling=false', () => {
     const legacy = {
       canHaveAgenda: false,
@@ -179,14 +162,11 @@ describe('canManageBilling capability (#1377)', () => {
       canManageSubscriptions: true,
       canBeBooked: false,
       canEarnCommission: false,
-      // NOTE: no `canManageBilling` — the pre-#1377 persisted shape.
     }
     const decoded = Schema.decodeUnknownSync(MembershipPermissionsSchema)(legacy)
     expect(decoded.canManageBilling).toBe(false)
   })
 
-  // A present value is respected on decode (default only fills when ABSENT), so a
-  // future preset that grants billing to another role round-trips faithfully.
   it('respects an explicit canManageBilling on decode', () => {
     const decoded = Schema.decodeUnknownSync(MembershipPermissionsSchema)({
       ...defaultPermissionsForRole('manager'),
@@ -196,14 +176,7 @@ describe('canManageBilling capability (#1377)', () => {
   })
 })
 
-// #1377 regression: the schema default is role-BLIND (absent → false), which would
-// strip billing from a legacy OWNER whose membership predates the key. The
-// role-aware backfill runs at every read boundary (projector row→doc + event
-// replay) to restore the role-correct value. This is the exact bug caught while
-// smoking the billing page: the owner lost "Ajustar plano"/"Cancelar" until the
-// backfill filled `canManageBilling` from the owner default.
 describe('withRoleDefaultedPermissions (#1377)', () => {
-  // Legacy persisted permission object: every key EXCEPT the new capability.
   const legacyOwnerPerms = {
     canHaveAgenda: false,
     canManageOwnAgenda: false,
@@ -217,7 +190,6 @@ describe('withRoleDefaultedPermissions (#1377)', () => {
     canManageSubscriptions: true,
     canBeBooked: false,
     canEarnCommission: false,
-    // no canManageBilling
   }
 
   it('restores canManageBilling for a legacy owner from the role default', () => {
@@ -233,7 +205,6 @@ describe('withRoleDefaultedPermissions (#1377)', () => {
   })
 
   it('preserves an explicitly-present key over the role default', () => {
-    // An explicit toggle-OFF on an owner must survive the backfill (present wins).
     const perms = withRoleDefaultedPermissions('owner', {
       ...legacyOwnerPerms,
       canManageBilling: false,
@@ -250,8 +221,6 @@ describe('withRoleDefaultedPermissions (#1377)', () => {
 })
 
 describe('roleDescription', () => {
-  // Pin the exact copy per role: string-literal mutants (→ "") are killed, and
-  // every role branch is exercised so a fall-through is caught.
   const EXPECTED: Record<Role, string> = {
     owner: 'Acesso total: gerencia equipe, serviços, finanças e configurações do negócio.',
     manager: 'Gerencia equipe, serviços, planos e vê finanças — quase tudo, menos ser o dono.',
@@ -267,8 +236,6 @@ describe('roleDescription', () => {
 })
 
 describe('roleLabel', () => {
-  // Pin the exact label per role: single source for the copy shown in the role
-  // picker, the team list and the accept screen (#1299). Every branch exercised.
   const EXPECTED: Record<Role, string> = {
     owner: 'Dono',
     manager: 'Gerente',

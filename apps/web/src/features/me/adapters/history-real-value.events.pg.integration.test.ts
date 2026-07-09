@@ -1,15 +1,3 @@
-// Server-side proof for the customer-history real value (#1329): a COMPLETED
-// appointment that closed into an order shows what the customer really
-// experienced — "Coberto pelo plano" when the plan absorbed it, the amount
-// actually charged when it was a (possibly discounted) sale — instead of the
-// service price snapshot. A completed appointment with NO linked closed order
-// keeps the snapshot (legacy / no-show flows).
-//
-// Seam: the projections are seeded directly (final state only — no close saga),
-// the customer→org reverse index is written through the real `linkCustomerOrg`
-// (per-subject RLS), and `loadMyAppointmentsPage` runs as the customer. Only
-// `getSessionUser` is mocked.
-
 import { defaultPermissionsForRole, type Role } from '@/domain'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
@@ -106,7 +94,6 @@ async function seedMembership(orgId: string, userId: string, role: Role): Promis
   )
 }
 
-// Customer aggregate → materializes the `customers` row (appointment FK).
 async function seedCustomer(orgId: string, customerId: string, userId: string): Promise<void> {
   const { CustomerConfig } = await import('@/domain/aggregates')
   const { aggregateRef, appendEvent } = await import('@/domain/effect')
@@ -121,8 +108,6 @@ async function seedCustomer(orgId: string, customerId: string, userId: string): 
   )
 }
 
-// MemberOperation aggregate → materializes `member_operations` (appointment FK)
-// + the user/membership it hangs off. Returns { proId, memberUserId }.
 async function seedMemberOperation(
   orgId: string,
   unitId: string,
@@ -157,9 +142,6 @@ async function seedMemberOperation(
   return { proId, memberUserId }
 }
 
-// Direct INSERT of the FINAL state (completed). `member_id` is NOT NULL + FK to
-// memberships but lives outside the domain type (the projector derives it), so
-// it's set explicitly here.
 async function seedCompletedAppointment(args: {
   orgId: string
   id: string
@@ -189,7 +171,6 @@ async function seedCompletedAppointment(args: {
   )
 }
 
-// Direct INSERT of a closed order linked to the appointment.
 async function seedClosedOrder(args: {
   orgId: string
   id: string
@@ -252,7 +233,6 @@ async function seedCompletedWithLinkedState(orgId: string): Promise<string> {
     memberOperationId: proId,
     memberUserId,
   })
-  // Reverse index — without it `listLinkedOrgIds` returns [] and nothing loads.
   await linkCustomerOrg(customerUserId, orgId)
   mocks.getSessionUser.mockResolvedValue({
     uid: customerUserId,
@@ -290,7 +270,6 @@ describe('loadMyAppointmentsPage — customer-history real value (#1329)', () =>
 
     const { past } = await loadMyAppointmentsPage()
     expect(past).toHaveLength(1)
-    // The bug was showing R$ 50,00 (the price snapshot) for a R$0 experience.
     expect(past[0]?.priceLabel).toBe('Coberto pelo plano')
   })
 
@@ -311,8 +290,6 @@ describe('loadMyAppointmentsPage — customer-history real value (#1329)', () =>
 
     const { past } = await loadMyAppointmentsPage()
     expect(past).toHaveLength(1)
-    // R$ 40,00 charged (5000 − 1000), not the R$50 list price. Intl pt-BR uses a
-    // non-breaking space, so match the digits.
     expect(past[0]?.priceLabel).toContain('40,00')
     expect(past[0]?.priceLabel).not.toContain('50,00')
   })
@@ -320,11 +297,9 @@ describe('loadMyAppointmentsPage — customer-history real value (#1329)', () =>
   it('keeps the price snapshot when a completed appointment has no linked order', async () => {
     const orgId = uid('org')
     await seedCompletedWithLinkedState(orgId)
-    // No order seeded for appt-1.
 
     const { past } = await loadMyAppointmentsPage()
     expect(past).toHaveLength(1)
-    // Falls back to the snapshot (R$ 50,00) — no order to derive a real value.
     expect(past[0]?.priceLabel).toContain('50,00')
   })
 })

@@ -138,7 +138,6 @@ describe('classifyLedger — comissão (CSP) herda unidade da comanda', () => {
       amountCents: 2000,
       source: 'commission',
       itemId: 'it1',
-      // unitId herdado da order.closed, não '' (bug da v1); occurredAt = competência da venda.
       unitId: 'unit-x',
       occurredAt: '2026-07-01T13:00:00.000Z',
     })
@@ -172,7 +171,6 @@ describe('classifyLedger — assinatura (charge) por competência do período', 
       amountCents: 8000,
       source: 'charge',
       itemId: null,
-      // occurredAt = periodStartAt, NÃO paidAt (2026-07-04) — competência por período de serviço.
       occurredAt: '2026-07-01T00:00:00.000Z',
     })
   })
@@ -199,7 +197,6 @@ describe('classifyLedger — estorno por contrapartida (imutabilidade)', () => {
       amountCents: 8000,
       source: 'charge',
       sourceId: 'ch1:refund',
-      // occurredAt = competência do estorno (período corrente), não o período original.
       occurredAt: '2026-08-10T09:00:00.000Z',
     })
   })
@@ -223,19 +220,15 @@ describe('classifyLedger — estorno por contrapartida (imutabilidade)', () => {
     expect(reversal).toMatchObject({
       nature: 'revenue',
       direction: 'out',
-      // amountCents = a receita snapshotada no evento; occurredAt = reopenedAt, não a competência original.
       amountCents: 5000,
       source: 'order',
       unitId: 'unit1',
       occurredAt: '2026-08-05T10:00:00.000Z',
     })
-    // A receita original permanece (aditivo — não reescreve o passado).
     expect(entries.filter((e) => e.direction === 'in')).toHaveLength(1)
   })
 
   it('reopen cross-window (venda fechou fora da janela) AINDA estorna — valor+unidade do evento', () => {
-    // A comanda fechada NÃO está na lista (fechou numa janela anterior). O estorno
-    // deriva do snapshot do próprio evento — não da correlação com a comanda.
     const entries = classifyLedger([
       {
         kind: 'order_reopened',

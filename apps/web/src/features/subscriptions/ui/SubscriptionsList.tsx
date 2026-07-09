@@ -67,7 +67,6 @@ export function SubscriptionsList({
   canManage: boolean
   filter: SubscriptionsFilter
   searchQuery: string
-  // True when subscriptions exist but the status/search slice is empty.
   isFiltered: boolean
 }) {
   const { setParams } = useListUrlControls()
@@ -75,9 +74,6 @@ export function SubscriptionsList({
     resetKey: `${filter}|${searchQuery}`,
   })
 
-  // Hierarchy: price (trailing) + who/status (title row) lead; the plan + cycle
-  // identify it (description); the next charge date — when money moves — is the
-  // meta. Usage counts live on the detail page, off the list.
   return (
     <List
       items={pageItems}
@@ -129,8 +125,6 @@ export function SubscriptionsList({
           title: customerLabel,
           badge: <StatusBadges s={s} />,
           description: `${s.plan.name} · ${CYCLE_LABEL[s.plan.billingCycle]}`,
-          // Next charge is high-signal → relative date for quick scanning, with
-          // the renewal glyph; the exact date is on hover (the icon's title).
           meta: s.nextChargeDate ? (
             <span
               className="inline-flex items-center gap-1"

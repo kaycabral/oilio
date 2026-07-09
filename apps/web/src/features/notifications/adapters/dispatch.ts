@@ -12,11 +12,6 @@ import { isDispatchableType, resolveTemplateBody } from './message-templates'
 
 export type DispatchResult = { ok: true; link: string } | { ok: false; error: string }
 
-// AC-14: renderiza o template do tipo com dados reais do customer, monta o link
-// wa.me, e grava notification.dispatched com snapshot (channel + body NÃO
-// renderizado). Body renderizado vai só pro link; o snapshot guarda a receita.
-// Backend-aware (brief 0060, Grupo C): a notificação é lida por
-// `getNotificationById` (Postgres typed table sob RLS, ou Firestore).
 export async function dispatchNotificationWhatsapp(
   orgId: string,
   notificationId: string,
@@ -40,11 +35,6 @@ export async function dispatchNotificationWhatsapp(
 
   const body = await resolveTemplateBody(orgId, dispatchableType)
 
-  // `payload` is `unknown` on the FirestoreDoc; spread it into a plain record so
-  // each field read stays a guarded `unknown` access (no whole-object assertion).
-  // Exclude arrays — a `{ ...array }` would yield numeric-keyed entries and the
-  // template vars below would silently read undefined; only a plain object is a
-  // valid payload shape.
   const rawPayload = notif['payload']
   const payload: Record<string, unknown> =
     rawPayload && typeof rawPayload === 'object' && !Array.isArray(rawPayload)
@@ -62,7 +52,6 @@ export async function dispatchNotificationWhatsapp(
   const link = buildWhatsappLink(customer.mobile, rendered)
   if (!link) return { ok: false, error: 'WhatsApp do cliente é inválido' }
 
-  // Snapshot: body NÃO-renderizado (chave de variante) + canal.
   const result = await emitEvent(
     NotificationConfig,
     aggregateRef(NotificationConfig, orgId, notificationId),

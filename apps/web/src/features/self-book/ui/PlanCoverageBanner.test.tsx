@@ -4,8 +4,6 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { PlanCoverageBanner } from './PlanCoverageBanner'
 
-// Minimum-viable Unit fixture — banner only reads `id` + `name`, so the
-// rest is filler matching the schema for type safety.
 function makeUnit(id: string, name: string): Unit {
   return {
     id,

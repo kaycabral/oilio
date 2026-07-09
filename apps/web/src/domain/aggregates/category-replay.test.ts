@@ -1,9 +1,3 @@
-// AC-03/AC-04 (brief 0023, #1003) — replay reconstrói o doc completo do
-// Category (entidade de categoria do catálogo). created (snapshot) → updated
-// (changes) → replayAggregate == projeção, campo a campo. Prova que nenhum
-// campo é escrito fora de eventos (event-first) e cobre o caso degenerado
-// (categoria sem icon/color).
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -69,8 +63,6 @@ describe('Category — replay reconstrói o doc completo (event-first)', () => {
     expect(doc['active']).toBe(true)
   })
 
-  // Degenerate datum (#1003 test plan): categoria sem icon nem color. Replay
-  // deve reconstruir fielmente os nulls.
   it('degenerate — categoria sem icon/color', async () => {
     const doc = await checkReplay(
       'cat-2',
@@ -121,8 +113,6 @@ describe('Category — replay reconstrói o doc completo (event-first)', () => {
         })
       }).pipe(Effect.provide(layer)),
     )
-    // Replay from the stream still yields the last state (event log is the
-    // source of truth); the projection doc removal is the caller's hard-delete.
     const replayed = await Effect.runPromise(
       replayAggregate(CategoryConfig, ref).pipe(Effect.provide(layer)),
     )

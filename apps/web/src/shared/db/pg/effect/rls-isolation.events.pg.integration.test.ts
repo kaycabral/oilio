@@ -2,25 +2,6 @@ import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 
-/**
- * RLS isolation proof for the identity contexts against REAL Postgres (brief
- * 0059, AC-03 — the proof NEW to feature C). The pilot proved the typed tables;
- * this proves the DATABASE refuses cross-org and cross-unit access.
- *
- * Why a dedicated role: the ephemeral Postgres connects as `postgres`
- * (superuser), and a SUPERUSER bypasses RLS unconditionally — `FORCE ROW LEVEL
- * SECURITY` only binds the table OWNER, not a superuser. So a proof run over the
- * superuser pool would be vacuous (it sees everything). This spec creates a
- * NON-superuser role WITHOUT `BYPASSRLS` (the shape of the production runtime
- * role) and runs every isolation assertion through a connection as THAT role —
- * the only way the policies are actually exercised. Seeding happens over the
- * superuser pool (bypassing RLS) so the fixtures exist regardless of policy.
- *
- * The session GUCs (`app.current_org`/`app.current_unit`) are set with
- * `set_config(...)` per connection to simulate what `runTransaction` injects via
- * `SET LOCAL` per transaction.
- */
-
 const APP_ROLE = 'oilio_rls_app'
 const APP_PASSWORD = 'rls_test'
 
@@ -47,8 +28,6 @@ async function seedUnit(orgId: string, id: string): Promise<void> {
   )
 }
 
-// A fresh connection AS the non-superuser app role, with the RLS GUCs set for the
-// scope under test (empty unit = org-wide).
 async function appClient(orgId: string, unitId = ''): Promise<Client> {
   const c = new Client({ connectionString: appUrl })
   await c.connect()
@@ -60,17 +39,12 @@ async function appClient(orgId: string, unitId = ''): Promise<Client> {
 describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
   beforeAll(async () => {
     const pool = getEventStorePool()
-    // Create the non-superuser runtime-shaped role (no BYPASSRLS) and grant it
-    // DML on the identity tables. Idempotent across re-runs.
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
     await pool.query(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON orgs, units, memberships, catalog_items TO ${APP_ROLE}`,
     )
-    // Derive the app-role URL from the superuser URL (same host/port/db, swapped
-    // credentials). OILIO_DATABASE_URL is set by the events-IT runner — fail loud
-    // if absent (a misconfigured run must not silently pass).
     const base = process.env.OILIO_DATABASE_URL
     if (!base) throw new Error('OILIO_DATABASE_URL is required for the RLS isolation proof')
     appUrl = base.replace(/\/\/[^@]+@/, `//${APP_ROLE}:${APP_PASSWORD}@`)
@@ -107,14 +81,12 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
 
     const a = await appClient(ORG_A)
     try {
-      // The WITH CHECK clause refuses a row whose org_id != current_org.
       await expect(
         a.query(
           `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
            VALUES ($1,'u',1,'U','u','America/Sao_Paulo','fixed','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
           [ORG_B],
         ),
-        // 42501 = insufficient_privilege (RLS WITH CHECK violation)
       ).rejects.toMatchObject({ code: '42501' })
     } finally {
       await a.end()
@@ -127,8 +99,6 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
     const c = new Client({ connectionString: appUrl })
     await c.connect()
     try {
-      // No set_config → current_setting('app.current_org', true) is NULL → the
-      // USING predicate is NULL (not true) → zero rows visible.
       const visible = await c.query('SELECT org_id FROM orgs')
       expect(visible.rows).toHaveLength(0)
     } finally {
@@ -141,7 +111,6 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
     await seedUnit(ORG_A, UNIT_A1)
     await seedUnit(ORG_A, UNIT_A2)
 
-    // Locked to UNIT_A1 → sees only A1.
     const locked = await appClient(ORG_A, UNIT_A1)
     try {
       const seen = await locked.query<{ id: string }>('SELECT id FROM units ORDER BY id')
@@ -150,7 +119,6 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
       await locked.end()
     }
 
-    // Org-wide (empty unit GUC) → sees both.
     const orgWide = await appClient(ORG_A)
     try {
       const seen = await orgWide.query<{ id: string }>('SELECT id FROM units ORDER BY id')
@@ -164,9 +132,6 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
     await seedOrg(ORG_A)
     await seedUnit(ORG_A, UNIT_A1)
 
-    // No GUC set → fail-closed: the DELETE matches zero rows (the bug
-    // `deletePostgresProjection` would hit if it ran on a bare connection under
-    // the non-superuser runtime role).
     const noCtx = new Client({ connectionString: appUrl })
     await noCtx.connect()
     try {
@@ -178,11 +143,8 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
     } finally {
       await noCtx.end()
     }
-    // Still there (the unscoped delete was a no-op).
     expect((await getEventStorePool().query('SELECT 1 FROM units')).rowCount).toBe(1)
 
-    // Scoped to org A (what deletePostgresProjection now sets via set_config) →
-    // the row is actually removed.
     const a = await appClient(ORG_A)
     try {
       const res = await a.query('DELETE FROM units WHERE org_id = $1 AND id = $2', [ORG_A, UNIT_A1])

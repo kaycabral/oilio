@@ -3,14 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppointmentRow, type AppointmentRowData } from './AppointmentRow'
 
-// `rescheduleOwnAppointment` is the server action the panel calls. Stub it at
-// that boundary; `useRouter().refresh` is the contract the fix relies on — a
-// successful reschedule must refresh so the Server Component re-renders with the
-// new (server-projected) start/end labels instead of a stale "atualize a
-// página" banner showing the old time (#B9).
 const rescheduleOwnAppointment = vi.fn()
 const cancelOwnAppointment = vi.fn()
-// #1318: the panel fetches the professional's cross-unit busy per selected day.
 const loadOwnRescheduleBusy = vi.fn()
 const refresh = vi.fn()
 
@@ -62,17 +56,11 @@ beforeEach(() => {
   rescheduleOwnAppointment.mockReset()
   cancelOwnAppointment.mockReset()
   loadOwnRescheduleBusy.mockReset()
-  // Default: the professional has no busy interval, so the grid is unfiltered.
   loadOwnRescheduleBusy.mockResolvedValue({ ok: true, busy: [] })
   refresh.mockReset()
 })
 
 describe('AppointmentRow — reschedule refreshes the row (#B9)', () => {
-  // Pin "today" to a Thursday so the panel's default date lands on an open
-  // weekday (the fixture closes Sat/Sun) and 10:00 is a real, future-offerable
-  // slot. Without this the clock rolls to a weekend, the grid is empty, and the
-  // picker shows "Sem horários nesse dia" — the option lookup then fails purely
-  // by calendar. 2026-07-02 08:00 SP (11:00 UTC).
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date('2026-07-02T11:00:00.000Z'))
@@ -85,15 +73,12 @@ describe('AppointmentRow — reschedule refreshes the row (#B9)', () => {
     rescheduleOwnAppointment.mockResolvedValue({ ok: true })
     render(<AppointmentRow data={buildData()} />)
 
-    // Open the inline reschedule panel, pick a slot, confirm.
     fireEvent.click(screen.getByRole('button', { name: /^reagendar$/i }))
     fireEvent.click(screen.getByRole('combobox', { name: /novo horário/i }))
     fireEvent.click(screen.getByRole('option', { name: '10:00' }))
     fireEvent.click(screen.getByRole('button', { name: /confirmar novo horário/i }))
 
     await waitFor(() => expect(rescheduleOwnAppointment).toHaveBeenCalledTimes(1))
-    // The fix: refresh() pulls the new server-rendered time in, rather than
-    // showing the old "Atualize a página para ver o novo horário" banner.
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
     expect(screen.queryByText(/atualize a página/i)).not.toBeInTheDocument()
   })
@@ -116,8 +101,6 @@ describe('AppointmentRow — reschedule refreshes the row (#B9)', () => {
 })
 
 describe('AppointmentRow — reschedule omits busy slots (#1318)', () => {
-  // Pin "today" so the panel's default date is deterministic and future slots
-  // stay offerable. 2026-07-02 08:00 SP (11:00 UTC).
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date('2026-07-02T11:00:00.000Z'))
@@ -127,8 +110,6 @@ describe('AppointmentRow — reschedule omits busy slots (#1318)', () => {
   })
 
   it('omits a start the professional is already busy in for the day', async () => {
-    // Busy 10:00–10:30 SP (13:00–13:30 UTC) — a DIFFERENT appointment (not the
-    // one being moved), so it must be filtered out of the picker.
     loadOwnRescheduleBusy.mockResolvedValue({
       ok: true,
       busy: [
@@ -144,21 +125,17 @@ describe('AppointmentRow — reschedule omits busy slots (#1318)', () => {
     render(<AppointmentRow data={buildData()} />)
 
     fireEvent.click(screen.getByRole('button', { name: /^reagendar$/i }))
-    // Wait for the busy fetch to land before reading the options.
     await waitFor(() => expect(loadOwnRescheduleBusy).toHaveBeenCalled())
     fireEvent.click(screen.getByRole('combobox', { name: /novo horário/i }))
 
     await waitFor(() =>
       expect(screen.queryByRole('option', { name: '10:00' })).not.toBeInTheDocument(),
     )
-    // Back-to-back neighbours stay bookable.
     expect(screen.getByRole('option', { name: '09:30' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '10:30' })).toBeInTheDocument()
   })
 
   it('keeps the slot when the only busy interval is the appointment itself', async () => {
-    // The moved appointment (a1) reads back in its own busy window; excluding it
-    // means its current 10:00 slot must still be offered.
     loadOwnRescheduleBusy.mockResolvedValue({
       ok: true,
       busy: [

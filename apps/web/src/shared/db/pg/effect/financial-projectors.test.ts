@@ -48,23 +48,9 @@ import {
   type SubscriptionRow,
 } from './subscription-projector'
 
-/**
- * Pure-mapping unit tests for the financial-core typed projectors (brief 0061,
- * Feature E). Mirror `config-projectors.test.ts`: exercise `*ColumnValues`
- * (domain → ordered SQL row) and `rowToDoc` (row → reducer doc) WITHOUT a
- * database — the runtime upsert + the E2E seed both go through `*ColumnValues`,
- * so this pins the column count/order and the round-trip shape. The DB-level
- * routing/constraints/RLS are proven by the `*.events.pg.integration.test.ts`
- * suite. The invariant: a row built from `*ColumnValues`, read back as a `*Row`,
- * and passed through `rowToDoc` reconstructs the domain fields.
- */
-
 function valueAt(columns: readonly string[], values: readonly unknown[], col: string): unknown {
   return values[columns.indexOf(col)]
 }
-// Reads a nullable-text column out of the ordered values as `string | null`
-// WITHOUT an unsafe assertion — the projector only ever places a string or null
-// there, and a non-string coerces to null (which the `*Row` shape accepts).
 function textAt(
   columns: readonly string[],
   values: readonly unknown[],
@@ -246,8 +232,6 @@ describe('commission projector — pure mapping', () => {
   })
 
   it('a paid commission with no paidAt falls back to null (defensive branch)', () => {
-    // liquidationStatusOf returns "pago" but the optional paidAt is absent — the
-    // column-values guard yields null rather than undefined.
     const paidNoDate = { ...commission, liquidationStatus: 'pago' as const, paidAt: undefined }
     const v = commissionColumnValues(
       paidNoDate,

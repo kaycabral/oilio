@@ -4,17 +4,8 @@ import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { registerTypedProjector, type TypedProjector } from './typed-projections'
 
-/**
- * Typed projector for the `charge` ES context (brief 0061 § Grupo B). A charge is
- * flat (no composite state), so every field maps to a real column the DB
- * constrains (status enum, non-negative money). `upsert` decodes the untyped
- * projection doc against the domain `Charge` schema at this single driver
- * boundary — schema-validated, so no cast leaks into product code.
- */
-
 const decodeCharge = Schema.decodeUnknownSync(Charge)
 
-/** Ordered `charges` column list — single source of truth for upsert + seed. */
 export const CHARGE_COLUMNS = [
   'org_id',
   'id',
@@ -37,7 +28,6 @@ export const CHARGE_COLUMNS = [
   'updated_at',
 ] as const
 
-/** Map a decoded `Charge` onto the ordered column VALUES (inverse of `rowToDoc`). */
 export function chargeColumnValues(c: Charge, ref: AggregateRef, version: number): unknown[] {
   return [
     ref.orgId,
@@ -113,9 +103,6 @@ export function rowToDoc(row: ChargeRow): FirestoreDoc {
     subscriptionId: row.subscription_id,
     customerId: row.customer_id,
     amountCents: Number(row.amount_cents),
-    // `*_at`/`due_date` are `timestamptz` (brief 0068 D1): the pg driver returns
-    // a `Date` on the raw `SELECT *` read. Normalize to ISO (null-guarded for
-    // the nullable ones); the domain stays `string`.
     periodStartAt: new Date(row.period_start_at).toISOString(),
     periodEndAt: new Date(row.period_end_at).toISOString(),
     dueDate: new Date(row.due_date).toISOString(),

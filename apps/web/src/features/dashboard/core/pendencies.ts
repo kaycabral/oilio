@@ -1,11 +1,5 @@
 import { type Customer, type Order } from '@/domain'
 
-// V0 thresholds:
-// - Order aberta > 24h é candidata a "esquecida" — recepção pode fechar/anular.
-// - Cliente sem atividade há 60 dias é o gancho típico de reengajamento
-//   ("seu cliente sumiu — quer mandar um WhatsApp?").
-// (Caixa não tem mais sessão aberta — brief 0015 — então não há pendência de
-//  "caixa aberto".)
 export const COMANDA_STALE_HOURS = 24
 export const CUSTOMER_INACTIVE_DAYS = 60
 const HOUR_MS = 60 * 60 * 1000
@@ -14,7 +8,6 @@ const DAY_MS = 24 * HOUR_MS
 export type OpenOrderPendency = {
   id: string
   unitId: string
-  // Nullable: venda avulsa anônima (brief 0030, AC-02) não tem cliente.
   customerId: string | null
   openedAt: string
   totalCents: number
@@ -71,9 +64,6 @@ export function selectInactiveCustomerPendencies(
 ): InactiveCustomerPendency[] {
   const out: InactiveCustomerPendency[] = []
   for (const c of customers) {
-    // Cliente brand-new (created há menos do threshold) ainda não é "sumido".
-    // Sem essa guarda, todo cliente novo cadastrado em dia parado apareceria
-    // na lista — assustando o owner sem razão.
     if (daysBetween(c.createdAt, now) < thresholdDays) continue
     const days = daysBetween(c.updatedAt, now)
     if (days < thresholdDays) continue

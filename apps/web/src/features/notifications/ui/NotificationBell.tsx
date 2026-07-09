@@ -32,8 +32,6 @@ function validateNotificationList(data: unknown): NotificationListResponse {
 }
 
 export function NotificationBell() {
-  // Bell follows the active unit (brief 0039, AC-01) — no per-feature unit
-  // picker; the top switcher owns unit context.
   const { activeUnitId } = useOrg()
   const [notifications, setNotifications] = useState<NotificationSummary[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -48,7 +46,7 @@ export function NotificationBell() {
       setNotifications(data.items)
       setUnreadCount(data.unreadCount)
     } catch {
-      // silent — bell degrades gracefully
+      return
     }
   }, [activeUnitId])
 

@@ -7,18 +7,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 import { PostgresPersistenceLayer } from './postgres-layer'
 
-/**
- * Join-table projection proof for `subscription-plan ↔ item / category /
- * unit-allowlist` against REAL Postgres (brief 0068 D3, #1224 + #1225). Proves:
- * the projector mirrors the reduced state's `includedItemIds` /
- * `includedCategoryIds` / `unitAllowlist` arrays into the `plan_included_items` /
- * `plan_included_categories` / `plan_unit_allowlist` join tables in the SAME tx
- * as the event; a shrunk array leaves no orphan rows (delete-then-insert
- * idempotency); a NULL `unitAllowlist` writes ZERO rows; REPLAY reconstructs the
- * reduced state the rows derive from; the FKs refuse a dangling item/category/unit
- * ref; cascade-on-delete; and RLS isolates the rows per org.
- */
-
 const ORG = 'org-spj'
 const ITEM_A = 'item-a'
 const ITEM_B = 'item-b'
@@ -213,7 +201,6 @@ describe('Postgres join projection — subscription-plan ↔ item/category/allow
     const state = await replay()
     expect(state.includedItemIds).toEqual([ITEM_B])
     expect(state.includedCategoryIds).toEqual([CAT_A, CAT_B])
-    // The live projection (written by the last upsert) matches.
     expect(await itemIds()).toEqual([ITEM_B])
     expect(await categoryIds()).toEqual([CAT_A, CAT_B])
   })

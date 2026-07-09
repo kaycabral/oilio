@@ -1,5 +1,3 @@
-// True when `birthDate` (YYYY-MM-DD) falls on today's month+day. Used to flag a
-// person's birthday in lists. Calendar-day comparison in local time.
 export function isBirthdayToday(birthDate: string, now: number = Date.now()): boolean {
   const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(birthDate)
   if (!m) return false

@@ -4,11 +4,6 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { OrderItemRow } from './OrderItemRow'
 
-// A covered item (coverage: 'subscription') never generates commission
-// (brief 0079 — covered service: no commission). The row must not advertise a
-// "comissão X%" that will never be paid — it confused the operator at the
-// balcão (#1328). This locks the display rule so it can't silently regress.
-
 const member: OrgMember = {
   userId: 'u1',
   name: 'Zé Barbeiro',
@@ -55,7 +50,6 @@ describe('OrderItemRow — commission visibility vs coverage (#1328)', () => {
   it('hides the commission for an item covered by the plan (não gera comissão)', () => {
     renderRow(buildItem('subscription'))
     expect(screen.queryByText(/comissão/i)).not.toBeInTheDocument()
-    // The covered badge is what the operator sees instead.
     expect(screen.getByText(/consumo do plano/i)).toBeInTheDocument()
   })
 })

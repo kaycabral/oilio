@@ -1,8 +1,3 @@
-// Pure appointment-form parsing + slot math, extracted from the `'use server'`
-// actions (Functional Core / Imperative Shell) so they're importable +
-// unit-tested. No I/O — the actions keep the Firestore reads, conflict checks
-// and event emission.
-
 import { fromOrgTime } from '@/domain'
 import { formString } from '@/shared/form-data'
 

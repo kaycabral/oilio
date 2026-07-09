@@ -14,8 +14,6 @@ export type Crumb = {
   href: Route | null
 }
 
-// Thin adapter over the design-system Breadcrumb primitives: takes a crumbs
-// array and renders the shadcn structure (list/item/link/page/separator).
 export function Breadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
   return (
     <Breadcrumb>

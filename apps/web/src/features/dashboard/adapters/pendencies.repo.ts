@@ -38,9 +38,6 @@ export async function loadDashboardPendencies(
   unitId: string | null,
   now: Date = new Date(),
 ): Promise<DashboardPendencies> {
-  // Customers não têm unitId — a lista é org-wide independente do filtro.
-  // Helper resolve User PII em batch; sorting + limit aplicado depois pra
-  // manter o critério "menos atualizado primeiro" (sumido há mais tempo).
   const [orders, enrichedCustomers] = await Promise.all([
     loadOpenOrders(orgId, unitId),
     listCustomersForOrg(orgId),

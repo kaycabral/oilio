@@ -54,9 +54,6 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
   const appointment = await getAppointmentById(orgId, appointmentId)
   if (!appointment) return { ok: false, error: 'Agendamento não encontrado' }
 
-  // Own-resource (brief 0075, #1257): a self-scoped memberOperation only starts the
-  // attendance of THEIR OWN appointment; the balcão (owner/manager/recepção)
-  // starts any. Mirrors the agenda actions' own-resource wall.
   if (!canActOnOwnedResource(r.ctx.membership, appointment.memberOperatorUserId ?? '')) {
     return { ok: false, error: 'Você só pode iniciar os próprios atendimentos' }
   }
@@ -71,8 +68,6 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
     return { ok: false, error: 'Cliente marcado como ausente' }
   }
 
-  // Idempotência: se já existe order aberta pra este agendamento, retorna
-  // o ID dela em vez de criar outra. Evita duplo-click virar duas orders.
   const existingOrderId = await findOpenOrderIdForAppointment(orgId, appointmentId)
   if (existingOrderId) {
     return { ok: true, orderId: existingOrderId }
@@ -82,14 +77,9 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
     getCatalogItemById(orgId, appointment.serviceId),
     getMemberOperationById(orgId, appointment.memberOperationId),
   ])
-  // Unified catalog read (brief 0023, #1004). Only id/name are pulled live —
-  // the financial snapshot comes from the appointment, not the live item.
   if (!service) return { ok: false, error: 'Serviço do agendamento não encontrado' }
   if (!memberOperation) return { ok: false, error: 'Profissional do agendamento não encontrado' }
 
-  // Snapshot-first: order inicial herda os valores que o appointment
-  // gravou no commit (#875), não os live de Service. Owner mexer no
-  // override depois do booking não retroage no histórico financeiro.
   const initialItem: OrderItem = {
     id: genItemId(),
     kind: 'service',
@@ -98,17 +88,9 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
     quantity: 1,
     unitPriceCents: appointment.servicePriceCentsSnapshot,
     commission: appointment.commissionSnapshot,
-    // Atribuição por membro (brief 0030, AC-04): serviço de agendamento default
-    // ao `userId` do profissional do appointment — NÃO o doc id de MemberOperation.
     attributedUserId: memberOperation.userId,
   }
 
-  // Subscription-aware coverage default (brief 0079, AC-06). The appointment's
-  // service is the primary case the DoD calls out: a subscriber's comanda born
-  // from `Iniciar atendimento` must already read `Consumo do plano` when the plan
-  // covers the service with balance — the operator never flips it. Not covered /
-  // no balance / no customer → stays `sale`. Reuses the `service` row already
-  // loaded above as the coverage hint, so no second catalog read.
   const orderId = newId()
   const candidateOrder: Order = {
     id: orderId,
@@ -144,8 +126,6 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
     createdAt: now,
     updatedAt: now,
   }
-  // Event-first: a comanda nasce de `order.created` carregando o snapshot
-  // completo (a projeção escreve o doc — sem `ref.set` paralelo).
   const created = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.created',
     actorId: r.ctx.session.uid,
@@ -168,12 +148,6 @@ export async function startAttendance(appointmentId: string): Promise<OrderMutat
   return { ok: true, orderId }
 }
 
-// Venda avulsa (brief 0030, AC-01): novo entrypoint que abre uma order SEM
-// agendamento (`appointmentId: null`) e SEM cliente (`customerId: null`, AC-02).
-// Espelha a emissão event-first do `startAttendance`, mas nasce vazia (sem item
-// pré-populado) na unidade ativa do contexto (brief 0029). A atribuição de item
-// por membro e o default de vendedor são da fatia seguinte (#1056) — aqui a
-// venda só abre; os itens entram via `addItemToOrder`.
 export async function createOrder(): Promise<OrderMutationResult> {
   const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
@@ -190,7 +164,6 @@ export async function createOrder(): Promise<OrderMutationResult> {
     id: orderId,
     orgId,
     unitId: activeUnitId,
-    // Venda anônima: sem cliente e sem agendamento (AC-01/AC-02).
     customerId: null,
     appointmentId: null,
     status: 'open',
@@ -203,9 +176,6 @@ export async function createOrder(): Promise<OrderMutationResult> {
     createdAt: now,
     updatedAt: now,
   }
-  // Event-first: a venda nasce de `order.created` carregando o snapshot completo
-  // (a projeção escreve o doc — sem `ref.set` paralelo). O snapshot generalizado
-  // aceita `appointmentId: null` E `customerId: null` (brief 0030).
   const created = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.created',
     actorId: r.ctx.session.uid,
@@ -231,20 +201,11 @@ export async function addItemToOrder(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): a self-scoped memberOperation can only edit a
-  // comanda whose items are all theirs — never a colleague's.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
 
-  // Default esperto da atribuição (brief 0030, AC-04): item sem `attributedUserId`
-  // explícito fica atribuído ao membro que opera (o `userId` do ator). Cobre o
-  // caso de varejo — produto avulso vendido pela recepção atribui à recepção.
   if (!parsed.attributedUserId) parsed.attributedUserId = r.ctx.session.uid
 
-  // Atribuição own-scope (brief 0075, #1267): `denyIfNotOwnOrder` acima protege a
-  // comanda pelos ITENS existentes — uma comanda recém-aberta (zero itens) passa
-  // vacuamente, então trava a ATRIBUIÇÃO em si (balcão → qualquer membro;
-  // own-scoped → só a si mesmo).
   const attributionDenied = denyIfCannotAttributeTo(r.ctx.membership, parsed.attributedUserId)
   if (attributionDenied) return attributionDenied
 
@@ -256,27 +217,6 @@ export async function addItemToOrder(
   })
   if (operateError) return { ok: false, error: operateError }
 
-  // Guard transacional de descontinuação + preço (brief 0033 AC-08/AC-09): a
-  // leitura da definição (catalog_item — ativo + preço) acontece DENTRO da
-  // transação que appenda `order.item_added`, travando o doc. Concorrência
-  // otimista do Firestore fecha a corrida "descontinua/reprecifica em T / vende
-  // em T+δ": se a definição mudou entre o load e o commit, a tx re-tenta e
-  // re-lê o estado fresco. Descontinuado → rejeita; preço = min(exibido, vigente).
-  // É leitura de definição pra guardar/snapshotar o WRITE de UM aggregate (a
-  // order) — não é saga cross-aggregate.
-  // Subscription-aware coverage default (brief 0079, AC-06/AC-07). When the
-  // comanda belongs to a subscriber and the item is covered by the plan WITH
-  // remaining balance, the item enters as `subscription` (Consumo do plano,
-  // R$ 0,00) instead of the `sale` default — the operator no longer flips it by
-  // hand. No customer / not covered / out of balance → stays `sale` (AC-07).
-  //
-  // Resolved BEFORE the guard: coverage depends only on the customer, the item
-  // ref/quantity and the comanda's existing items — none of which the in-tx
-  // catalog read changes (that read only re-snapshots price/discontinuation).
-  // Keeping it out of the optimistic-lock transaction avoids extra I/O under the
-  // lock; the authoritative balance guard still runs at close
-  // (`validateCoveredItems`). The item id is fixed up front so the candidate
-  // order the resolver sees matches the item the event appends.
   const newItemId = genItemId()
   const candidate: OrderItem = {
     id: newItemId,
@@ -295,10 +235,6 @@ export async function addItemToOrder(
     idx: loaded.order.items.length,
   })
   const autosetSubscriptionId = coverageResolved.covered ? coverageResolved.subscriptionId : null
-  // AC-06: when the item entered `sale` but the customer HAS a subscription that
-  // just couldn't cover it (not in plan / no balance / expired), surface the
-  // specific reason so the operator sees WHY — never a silent full-price fallback.
-  // `no_customer` is a plain anonymous sale, not a denial worth explaining.
   const coverageNotice =
     !coverageResolved.covered && coverageResolved.reason !== 'no_customer'
       ? coverageDenialMessage(coverageResolved.reason)
@@ -355,8 +291,6 @@ export async function removeItemFromOrder(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): only the order's own memberOperation (or the
-  // balcão) may remove items — never a colleague's comanda.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
 
@@ -372,14 +306,11 @@ export async function removeItemFromOrder(
   }
 
   const patch = recalcAndPatch(items, loaded.order.discountCents)
-  // Event-first: `order.item_removed` carrega o patch recalculado.
   const removed = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.item_removed',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
   })
-  // Surface a DB defect (#1344): a dropped `{ok:false}` would report the item
-  // removed when it wasn't — stale total, wrong close amount.
   if (!removed.ok) return { ok: false, error: removed.error }
 
   revalidatePath(`/orders/${orderId}`)
@@ -387,10 +318,6 @@ export async function removeItemFromOrder(
   return { ok: true, orderId }
 }
 
-// Re-atribui um item a outro membro (brief 0030, AC-04). `attributedUserId` é o
-// `userId` global do membro (não doc id de MemberOperation). Valida que o membro
-// pode operar (AC-05) com a trava por `kind` do item, e emite o evento renomeado
-// `order.item_attribution_changed` carregando o patch recalculado.
 export async function updateItemAttribution(
   orderId: string,
   itemId: string,
@@ -404,16 +331,9 @@ export async function updateItemAttribution(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): a self-scoped memberOperation cannot
-  // re-attribute a colleague's item (and cannot pull a colleague's item onto
-  // themselves) — only the order's own memberOperation or the balcão may.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
 
-  // Atribuição own-scope (brief 0075, #1267): além de `denyIfNotOwnOrder` (que
-  // protege a comanda pelos itens), trava o DESTINO da re-atribuição — um membro
-  // own-scoped não pode empurrar o próprio item pra um colega; só o balcão
-  // re-atribui a qualquer membro.
   const attributionDenied = denyIfCannotAttributeTo(r.ctx.membership, attributedUserId)
   if (attributionDenied) return attributionDenied
 
@@ -431,14 +351,11 @@ export async function updateItemAttribution(
 
   const items = loaded.order.items.map((it, i) => (i === idx ? { ...it, attributedUserId } : it))
   const patch = recalcAndPatch(items, loaded.order.discountCents)
-  // Event-first: `order.item_attribution_changed` carrega o patch recalculado.
   const attributed = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.item_attribution_changed',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
   })
-  // Surface a DB defect (#1344): a dropped `{ok:false}` would mis-attribute the
-  // commission (the wrong professional gets paid) while reporting success.
   if (!attributed.ok) return { ok: false, error: attributed.error }
 
   revalidatePath(`/orders/${orderId}`)
@@ -457,8 +374,6 @@ export async function updateItemCoverage(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): only the order's own memberOperation (or the
-  // balcão) may flip an item's coverage — never a colleague's comanda.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
 
@@ -492,10 +407,6 @@ export async function updateItemCoverage(
   })
   if (!changed.ok) return { ok: false, error: changed.error }
 
-  // Operator overrode the suggested coverage (brief 0079, AC-08). Only a real,
-  // PERSISTED change is an override — a no-op call (same coverage) doesn't fire,
-  // and a failed append above already returned, so the analytics signal can't
-  // count a change that never landed.
   if (from !== coverage) {
     track('order_item_coverage_overridden', {
       org_id: orgId,
@@ -511,15 +422,6 @@ export async function updateItemCoverage(
   return { ok: true, orderId }
 }
 
-// Link / swap / unlink the customer on an OPEN order (brief 0081 / #1323). A
-// walk-in sale is born anonymous; this lets the front desk attach a customer
-// after opening, so the balcão inherits the 0079 subscription-coverage machine.
-// After the assign, EVERY item's coverage is re-evaluated (Cenário 4): a linked
-// subscriber's covered items auto-mark `subscription` (Cenário 2), and items that
-// lost coverage (unlink / swap to a non-subscriber / no balance) fall back to
-// `sale` — never left covered against a customer that can't cover them. The two
-// appends (assign + coverage patch) are on the SAME `order` aggregate, so this
-// stays a single-aggregate write, not a cross-aggregate saga.
 export async function assignCustomerToOrder(
   orderId: string,
   formData: FormData,
@@ -534,17 +436,13 @@ export async function assignCustomerToOrder(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): only the order's own memberOperation or the
-  // balcão may touch this comanda — never a colleague's.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
 
-  // Resolve the target customer id: existing / new-inline / null (unlink).
   const resolvedId = await resolveAssignedCustomerId(orgId, r.ctx.membership, parsed)
   if ('error' in resolvedId) return { ok: false, error: resolvedId.error }
   const customerId = resolvedId.customerId
 
-  // 1st append: the customer link/unlink (nullable — one event, brief 0081 A).
   const assigned = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.customer_assigned',
     actorId: r.ctx.session.uid,
@@ -552,8 +450,6 @@ export async function assignCustomerToOrder(
   })
   if (!assigned.ok) return { ok: false, error: assigned.error }
 
-  // 2nd append: re-evaluate every item's coverage against the new customer and
-  // persist the recalculated items + totals (Cenário 2 + Cenário 4).
   const reevaluated = await reevaluateCoverageForItems(orgId, { ...loaded.order, customerId })
   const patch = recalcAndPatch(reevaluated, loaded.order.discountCents)
   const changed = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
@@ -583,30 +479,20 @@ export async function updateOrderMeta(
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Own-resource (brief 0075, #1257): a self-scoped memberOperation can't apply a
-  // discount to a colleague's comanda — only its own memberOperation or the balcão.
   const denied = denyIfNotOwnOrder(r.ctx.membership, loaded.order.items)
   if (denied) return denied
 
-  // Desconto não excede o subtotal vendável (#1319). Teto = subtotal só de itens
-  // `sale` (itens cobertos por assinatura não compõem receita, então não podem
-  // ser "descontados"). Reject com mensagem à recepção; o core ainda clampa o
-  // total como defesa em profundidade (ver `computeOrderTotals`).
   const { subtotalCents } = computeOrderTotals(loaded.order.items, 0)
   if (discountCents > subtotalCents) {
     return { ok: false, error: 'Desconto não pode ser maior que o subtotal da venda' }
   }
 
   const patch = recalcAndPatch(loaded.order.items, discountCents)
-  // Event-first: `order.meta_updated` carrega o patch (desconto + totais).
   const updated = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.meta_updated',
     actorId: r.ctx.session.uid,
     payload: { changes: patch },
   })
-  // Surface a DB defect (#1344): a dropped `{ok:false}` would leave the discount/
-  // total unpersisted while the operator sees them applied — wrong amount charged
-  // at close.
   if (!updated.ok) return { ok: false, error: updated.error }
 
   revalidatePath(`/orders/${orderId}`)
@@ -614,7 +500,6 @@ export async function updateOrderMeta(
 }
 
 export async function cancelOrder(orderId: string): Promise<OrderMutationResult> {
-  // Cancelar é destrutivo (perde a venda) — restringe a owner/manager.
   const r = await requireManagerCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
@@ -622,14 +507,11 @@ export async function cancelOrder(orderId: string): Promise<OrderMutationResult>
   const loaded = await loadOpenOrder(orgId, orderId)
   if (typeof loaded === 'string') return { ok: false, error: loaded }
 
-  // Event-first: `order.cancelled` marca o status (a projeção escreve o doc).
   const cancelled = await emitEvent(OrderConfig, aggregateRef(OrderConfig, orgId, orderId), {
     _tag: 'order.cancelled',
     actorId: r.ctx.session.uid,
     payload: {},
   })
-  // Surface a DB defect (#1344): a dropped `{ok:false}` would report the order
-  // cancelled while it is still `open` — it could then be closed/charged.
   if (!cancelled.ok) return { ok: false, error: cancelled.error }
 
   revalidatePath(`/orders/${orderId}`)
@@ -637,9 +519,6 @@ export async function cancelOrder(orderId: string): Promise<OrderMutationResult>
   return { ok: true, orderId }
 }
 
-// Venda avulsa (brief 0030, AC-01): o botão "Nova venda" em /orders dispara via
-// `<form action>`. Mesmo padrão redirect-on-success do `startAttendanceFormAction`
-// — sem `useActionState` (o marker NEXT_REDIRECT não cruza o boundary de state).
 export async function createOrderFormAction(): Promise<void> {
   const res = await createOrder()
   if (!res.ok) throw new Error(res.error)

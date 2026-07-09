@@ -12,10 +12,6 @@ import { redirect } from 'next/navigation'
 
 type SearchParams = Promise<{ next?: string }>
 
-// Post-OAuth completion step (#838). Captures the data OAuth doesn't
-// give us — WhatsApp (canonical contact channel) and birthDate (powers
-// "aniversariantes" and gates by min age). After save the user is sent
-// to whatever route asked for completion (?next=...).
 export default async function CompleteProfilePage({
   searchParams,
 }: {
@@ -27,8 +23,6 @@ export default async function CompleteProfilePage({
   if (!session) redirect('/login')
 
   const user = await getUserById(session.uid)
-  // If the user already finished completion, bypass the page. Without this
-  // guard a bookmarked link could let them rewrite their profile.
   if (user?.completionCompleted) {
     const { next } = await searchParams
     redirect(safeNext(next))
@@ -36,10 +30,6 @@ export default async function CompleteProfilePage({
 
   const { next } = await searchParams
 
-  // Progressive profiling (#1277). Pre-fill what the identity already gives us —
-  // name + email from the Google OAuth profile, plus any whatsapp/birthDate a
-  // returning user already has — and only ask for what's still missing. The
-  // session falls back when the User doc lacks a name (fresh OAuth sign-in).
   const prefill = deriveProfilePrefill({
     name: user?.displayName ?? session.displayName,
     email: user?.email ?? session.email ?? null,
@@ -47,17 +37,11 @@ export default async function CompleteProfilePage({
     birthDate: user?.birthDate ?? null,
   })
 
-  // Copy reflects whether anything is actually missing (AC-08): a returning
-  // customer with everything on file just confirms; a fresh one fills the gaps.
   const intro =
     prefill.missing.length === 0
       ? 'Confira seus dados e confirme para finalizar a conta.'
       : 'Confirme seus dados — só falta o que ainda não temos.'
 
-  // Materialize-at-completion context (#1278): the establishment + attribution
-  // recovered from the return URL. Forwarded to the action as a query string so
-  // it can create the Customer (intent=signup) the moment completion finishes,
-  // not at the first booking. Null when this is a plain platform signup.
   const orgCtx = resolveSignupOrgContext(next)
   const contextQuery = orgCtx
     ? (() => {
@@ -67,7 +51,6 @@ export default async function CompleteProfilePage({
       })()
     : ''
 
-  // Centering comes from the shared onboarding layout (CenteredScreen).
   return (
     <div className="w-full">
       <Typography variant="pageTitle" className="mb-2">

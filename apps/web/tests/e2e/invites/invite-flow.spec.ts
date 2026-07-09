@@ -11,16 +11,6 @@ import {
   signInAndAttachSession,
 } from '../helpers/session'
 
-// Invite-flow E2E (#786, channel normalized to WhatsApp in brief 0084). Drives
-// the happy path + the guards that would silently let a wrong person in if they
-// regressed: tampered token + already-consumed (1-use). The strict email match
-// (#827) is GONE — identity binding is first-accept-wins, so a covering test
-// proves ANY authenticated Google account can accept a valid-token invite and
-// the first one claims it. Exercises the real accept action against the emulator.
-
-// A unique, already-normalized BR mobile so the seeded `invites_pii.whatsapp`
-// is stable across the run. The number is only the delivery channel — the
-// accept flow never matches on it.
 let phoneSeq = 0
 function uniqueWhatsapp(): string {
   phoneSeq += 1
@@ -48,17 +38,12 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
 
     await expect(page.getByRole('heading', { name: /convite para/i })).toBeVisible()
-    // The proposed role shows the human label, never the raw enum key (#1299).
     await expect(page.getByText(/papel proposto/i)).toContainText('Gerente')
 
     await page.getByRole('button', { name: /aceitar convite/i }).click()
 
-    // The server action redirects to /dashboard on success.
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })
 
-    // Invite is marked accepted; membership exists with the proposed role.
-    // acceptedByUid + acceptedAt are populated atomically with status (the
-    // first-accept-wins write-once binding).
     const acceptedInvite = await readInvite(owner.orgId, inviteId)
     expect(acceptedInvite?.status).toBe('accepted')
     expect(acceptedInvite?.acceptedByUid).toBe(invitee.uid)
@@ -69,7 +54,6 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     expect(m!.role).toBe('manager')
     expect(m!.status).toBe('active')
 
-    // #852: new memberships populate `rlsUnitScope` + `permissions` on creation.
     expect(m!.rlsUnitScope).toBeNull()
     expect(m!.permissions).toEqual(defaultPermissionsForRole('manager'))
 
@@ -95,7 +79,6 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
 
     await page.goto(`/invites/${owner.orgId}/${inviteId}?token=tampered-token-xyz`)
     await expect(page.getByRole('heading', { name: /token inválido/i })).toBeVisible()
-    // Invite stays pending — never gets consumed by a wrong token.
     expect(await readInviteStatus(owner.orgId, inviteId)).toBe('pending')
   })
 
@@ -104,10 +87,6 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
     page,
     baseURL,
   }) => {
-    // Brief 0084: the invite no longer binds to a typed email/phone. A Google
-    // account that was NOT pre-named on the invite still accepts it, because the
-    // signed token is the only barrier and the first accepter claims it. Under
-    // the old #827 rule this would have shown "e-mail diferente" and refused.
     const owner = await seedOrg({ unitCount: 0, memberOperationCount: 0 })
     const anyAccount = await seedAuthUser()
     const { inviteId, rawToken } = await seedInvite({
@@ -151,8 +130,6 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
 
     await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await page.getByRole('button', { name: /aceitar convite/i }).click()
-    // A memberOperation is NOT a manager, so the post-accept redirect targets
-    // `/agenda`; with no appointment unit it forwards to `/orders`.
     await expect(page).toHaveURL(/\/orders/, { timeout: 10_000 })
 
     const accepted = await readInvite(owner.orgId, inviteId)
@@ -194,7 +171,6 @@ test.describe('Fluxo de convite', { tag: '@critical' }, () => {
 
     await page.goto(`/invites/${owner.orgId}/${inviteId}?token=${rawToken}`)
     await expect(page.getByRole('heading', { name: /convite expirado/i })).toBeVisible()
-    // Stays pending in the doc — the page render path doesn't mutate.
     expect(await readInviteStatus(owner.orgId, inviteId)).toBe('pending')
   })
 })

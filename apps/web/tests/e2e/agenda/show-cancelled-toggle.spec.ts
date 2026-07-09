@@ -8,11 +8,6 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-// Brief 0081 (#1312) Cenário 2 [edge]: the "Mostrar cancelados" toggle (off by
-// default) re-surfaces cancelled appointments. When a cancelled appointment
-// shares a slot with an active one, the two render side by side (horizontal
-// split) — the cancelled card visible-but-marked, never covering the active.
-
 async function seedSharedSlot(
   org: SeededOrg,
 ): Promise<{ activeName: string; cancelledName: string }> {
@@ -31,9 +26,6 @@ async function seedSharedSlot(
     name: cancelledName,
     mobile: uniqueWhatsapp(),
   })
-  // SAME slot: 14:00–14:30 BR == 17:00–17:30 UTC on 2026-08-12. The cancelled
-  // one freed it (so booking the active one is legal); the grid must show both
-  // side by side when the toggle is on.
   for (const [customerId, status] of [
     [activeCustomerId, 'scheduled'],
     [cancelledCustomerId, 'cancelled'],
@@ -71,32 +63,25 @@ test.describe('Agenda — toggle mostrar cancelados + slot dividido', { tag: '@c
     const agenda = new AgendaPage(authedPage)
     await agenda.goto('2026-08-12')
 
-    // Default: active visible, cancelled hidden.
     await expect(agenda.appointmentCard(new RegExp(activeName))).toBeVisible()
     await expect(agenda.appointmentCard(new RegExp(cancelledName))).toHaveCount(0)
 
-    // Turn the toggle on → URL carries the param and the cancelled card appears.
     await agenda.showCancelledToggle().click()
     await expect(authedPage).toHaveURL(/showCancelled=1/)
     const cancelledCard = agenda.appointmentCard(new RegExp(cancelledName))
     await expect(cancelledCard).toBeVisible()
     await expect(agenda.appointmentCard(new RegExp(activeName))).toBeVisible()
 
-    // Side by side: both cards share the slot at half width, not stacked. The
-    // split uses a `calc(... %)` width; a lone/full card never does.
     const activeBox = await agenda.appointmentCard(new RegExp(activeName)).boundingBox()
     const cancelledBox = await cancelledCard.boundingBox()
     expect(activeBox).not.toBeNull()
     expect(cancelledBox).not.toBeNull()
-    // Horizontally offset (different left x), vertically aligned (same slot).
     expect(Math.abs(activeBox!.x - cancelledBox!.x)).toBeGreaterThan(20)
     expect(Math.abs(activeBox!.y - cancelledBox!.y)).toBeLessThan(2)
 
-    // The cancelled card carries its struck marking; the active one does not.
     await expect(cancelledCard).toHaveClass(/line-through/)
     await expect(agenda.appointmentCard(new RegExp(activeName))).not.toHaveClass(/line-through/)
 
-    // Turning it off again drops the param and hides the cancelled card.
     await agenda.showCancelledToggle().click()
     await expect(authedPage).not.toHaveURL(/showCancelled=1/)
     await expect(agenda.appointmentCard(new RegExp(cancelledName))).toHaveCount(0)

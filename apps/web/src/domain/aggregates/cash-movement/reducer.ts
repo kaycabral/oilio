@@ -7,7 +7,6 @@ export function applyCashMovementEvent(
   event: CashMovementEvent,
   meta: EventMeta,
 ): CashMovementState {
-  // Append-only: o único evento materializa o doc inteiro; não há transição.
   switch (event._tag) {
     case 'cash_movement.created':
       return { ...event.data, _version: meta.version }

@@ -1,16 +1,3 @@
-// Brief 0030 (#1055) — venda avulsa + cliente opcional.
-//
-// Baseline obrigatório da fatia (DoD): /orders renderiza com CTA "Nova venda";
-// criar uma venda AVULSA (appointmentId null) SEM cliente → adicionar um produto
-// atribuído a um profissional aprovado → fechar com dinheiro → aparece na lista
-// de fechadas como "Venda avulsa". Regressão: venda nascida de agendamento
-// continua carregando o cliente do appointment.
-//
-// Atribuição de item é por membro (`attributedUserId` = userId) com default
-// esperto (brief 0030, AC-04 / #1056): o produto avulso fica atribuído ao membro
-// que abriu a venda (o owner seedado). O caso de varejo puro — recepção sem
-// MemberOperation vendendo balcão — é coberto em member-attribution.spec.ts.
-
 import { CatalogItemConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { expect, test } from '../fixtures'
@@ -26,8 +13,6 @@ import {
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
 
-// Reads the live stock off the `catalog_items` projection — the source of truth
-// the close saga decrements. Shared shape with the plans consumption spec.
 async function readStock(orgId: string, itemId: string): Promise<number> {
   const row = await pgReadProjection(
     'catalog_items',
@@ -49,9 +34,6 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
   })
 
   test('AC-01: /orders renderiza vazia com CTA "Nova venda"', async ({ authedPage }) => {
-    // No sales in the active unit → protagonist empty-state (brief 0034 / #1073):
-    // the EmptyState takes over with the single "Nova venda" CTA; header + tabs
-    // are hidden.
     await authedPage.goto('/orders')
     await expect(authedPage.getByText('Nenhuma venda registrada')).toBeVisible()
     await expect(authedPage.getByRole('button', { name: 'Nova venda' })).toBeVisible()
@@ -62,15 +44,10 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
     org,
     authedPage,
   }) => {
-    // Produto comissionável (50% de R$ 30 = R$ 15) atribuível ao profissional.
-    // Estoque inicial conhecido (7) para provar o decremento no fechamento (#B4).
     const productId = await seedProduct(org.orgId, {
       name: 'Cimento CP-II',
       priceCents: 3000,
       stock: 7,
-      // Unit REAL da org: o fechamento re-projeta o produto (baixa estoque), e o
-      // espelho `catalog_item_units` tem FK → `units`. Placeholder faria a saga
-      // dar rollback (#B4 — ver comentário em `seedProduct`).
       unitIds: [org.unitIds[0]!],
     })
     expect(await readStock(org.orgId, productId)).toBe(7)
@@ -78,18 +55,14 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
     await authedPage.goto('/orders')
     await authedPage.getByRole('button', { name: 'Nova venda' }).click()
 
-    // Abre uma venda avulsa: sem agendamento, sem cliente.
     await expect(authedPage).toHaveURL(/\/orders\/.+/)
     await expect(authedPage.getByRole('heading', { name: 'Venda avulsa' })).toBeVisible()
-    // Não há agendamento vinculado.
     await expect(authedPage.getByText('agendamento vinculado')).toBeHidden()
 
-    // Adiciona o produto atribuído ao profissional aprovado seedado.
     await addCatalogItemToOrder(authedPage, 'Cimento CP-II')
     await expect(authedPage.getByText('Cimento CP-II', { exact: true })).toBeVisible()
     await expect(authedPage.getByText('R$ 30,00').first()).toBeVisible()
 
-    // Fecha com dinheiro (sem cliente não há cobertura de assinatura possível).
     await choosePaymentMethod(authedPage, 'cash')
     await authedPage.getByRole('button', { name: /Fechar venda/ }).click()
     const dialog = authedPage.getByRole('dialog', { name: 'Confirmar fechamento' })
@@ -97,12 +70,8 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
     await dialog.getByRole('button', { name: /Confirmar fechamento/ }).click()
     await expect(authedPage.getByText(/Fechada em/)).toBeVisible({ timeout: 5000 })
 
-    // #B4 — o produto vendido AVULSO baixa estoque no fechamento (7 − 1 = 6),
-    // igual a um consumo por assinatura. Antes do fix a venda de balcão nunca
-    // decrementava; esta é a prova ponta-a-ponta do desacoplamento estoque↔coverage.
     expect(await readStock(org.orgId, productId)).toBe(6)
 
-    // Aparece na lista de fechadas rotulada como "Venda avulsa".
     await authedPage.goto('/orders?status=closed')
     await expect(authedPage.getByText('Venda avulsa').first()).toBeVisible()
     await expect(authedPage.getByText('Fechada', { exact: true }).first()).toBeVisible()
@@ -138,7 +107,6 @@ test.describe('Venda avulsa — cliente opcional (brief 0030, #1055)', { tag: '@
     await authedPage.getByRole('button', { name: /Cliente Agendado/ }).click()
     await authedPage.getByRole('button', { name: /Iniciar atendimento/ }).click()
 
-    // A venda nasce ligada ao appointment e carrega o cliente — NÃO é "Venda avulsa".
     await expect(authedPage).toHaveURL(/\/orders\/.+/)
     await expect(authedPage.getByRole('heading', { name: 'Cliente Agendado' })).toBeVisible()
     await expect(authedPage.getByText('agendamento vinculado')).toBeVisible()

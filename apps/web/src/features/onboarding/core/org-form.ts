@@ -1,7 +1,3 @@
-// Functional core for the create-org form: pure parsing + validation of the
-// submitted FormData into a typed payload (or a user-facing error string). No
-// I/O — the createOrg saga (adapters) does the slug lookup + event emission.
-
 import { VERTICALS, type Vertical } from '@/domain'
 import { formString } from '@/shared/form-data'
 

@@ -19,10 +19,6 @@ import {
 } from '@cbrl/design'
 import { useMemo, useState } from 'react'
 
-// Plain-language pt-BR names for each template type. Deliberately non-technical
-// — the subscription touches used to carry the schedule jargon (D-1/D+1/D+7),
-// which meant nothing to a shop owner; the timing lives in the copy, not the
-// name.
 const TYPE_LABELS: Record<string, string> = {
   birthday: 'Aniversário',
   subscription_expiring_tomorrow: 'Assinatura vencendo',
@@ -35,10 +31,6 @@ function templateLabel(type: string): string {
   return TYPE_LABELS[type] ?? type
 }
 
-// Only the ENABLED templates show their full editor (an off template has nothing
-// worth editing — brief 0090 cleanup). The disabled ones collapse into a compact
-// "desativadas" list where they can be turned back on, so hiding them is never a
-// dead end.
 export function NotificationTemplatesForm({
   templates,
   canManage,
@@ -48,9 +40,6 @@ export function NotificationTemplatesForm({
 }) {
   const active = useMemo(() => templates.filter((t) => t.enabled), [templates])
   const disabled = useMemo(() => templates.filter((t) => !t.enabled), [templates])
-  // In the modal, a save that flips `enabled` moves a template between the active
-  // editors and the disabled list — reload the section so the split reflects it.
-  // On the full page `revalidatePath` in the action already re-renders the route.
   const reloadSection = useSettingsReload()
 
   return (
@@ -136,10 +125,6 @@ function TemplateCard({
 
         <CardContent>
           <fieldset disabled={!canManage || pending} className="flex flex-col gap-3">
-            {/* The visible "Mensagem" label is dropped for a cleaner card — the
-                accessible name is kept via aria-label, so screen readers and the
-                E2E `getByRole('textbox', { name: 'Mensagem' })` still resolve it.
-                Valid placeholders are highlighted inline as the owner types. */}
             <HighlightedTextarea
               id={`body-${template.type}`}
               name="body"
@@ -165,9 +150,6 @@ function TemplateCard({
   )
 }
 
-// Compact list of the off templates: name + a switch to turn back on. Turning it
-// on submits immediately (keeping the current body) so it reappears above with
-// its editor. No editor here — a disabled template has nothing to configure yet.
 function DisabledTemplates({
   templates,
   canManage,

@@ -83,15 +83,10 @@ describe('isValidUnitSlug', () => {
   })
 
   it('rejects slugs that are reserved at the top-level (transitively, via isValidSlug)', () => {
-    // `login` is reserved at top-level; isValidSlug rejects, so isValidUnitSlug
-    // also rejects — keeps consistency between namespaces.
     expect(isValidUnitSlug('login')).toBe(false)
   })
 })
 
-// The agenda union (PRD Identidade v2, context 3) discriminates by mode — these
-// derivations are the payoff: "uses agenda"/"is bookable" are computed from the
-// agenda variant, and the agenda-only configs exist ONLY in appointment mode.
 describe('unitUsesAgenda', () => {
   it('is true only for the appointment mode', () => {
     expect(unitUsesAgenda({ agenda: APPOINTMENT_AGENDA })).toBe(true)
@@ -111,10 +106,6 @@ describe('isUnitBookable', () => {
   })
 })
 
-// A unit's public booking page is INFERRED (PRD Identidade v2 / SPIKE: no stored
-// publish flag): live the moment it is in appointment mode AND carries a complete
-// address + at least one open weekday. This is the single gate shared by the
-// landing/slots, the client invite, the booking wizard and `public_visible`.
 describe('isUnitPubliclyLive', () => {
   const COMPLETE_ADDRESS: Address = {
     postalCode: '01310-100',
@@ -185,7 +176,6 @@ describe('appointment-only config accessors', () => {
       enabled: true,
       minNoticeMinutes: 120,
     })
-    // Outside appointment mode the policy doesn't exist → normalized default.
     expect(unitCancellationPolicySnapshot({ mode: 'fixed', businessHours: HOURS })).toEqual({
       enabled: false,
       minNoticeMinutes: 120,
@@ -197,8 +187,6 @@ describe('appointment-only config accessors', () => {
   })
 })
 
-// The agenda-only validators moved Org→Unit (context 3) — they now guard the
-// appointment-variant fields.
 describe('moved agenda validators (slotMinutes / cancellation notice)', () => {
   it('isValidSlotMinutes accepts the grid literals only', () => {
     expect(isValidSlotMinutes(15)).toBe(true)
@@ -242,10 +230,6 @@ describe('normalizeCancellationPolicy', () => {
   })
 })
 
-// Schema decode of the v2 Unit: `address`/`timezone`/`agenda` are now REQUIRED
-// (no nullable hours) — these round-trips lock the contract and exercise the
-// DayHours union (single range / multi-interval array / null), the Address
-// NullOr fields, and the agenda discriminated union.
 describe('Unit / StoredUnit schema (v2 — required address/timezone/agenda)', () => {
   const VALID_UNIT = {
     id: 'u1',
@@ -304,10 +288,6 @@ describe('Unit / StoredUnit schema (v2 — required address/timezone/agenda)', (
     expect(() => Schema.decodeUnknownSync(Unit)({ ...VALID_UNIT, address: null })).toThrow()
   })
 
-  // CompleteAddress is the schema the `unit.created`/`unit.updated` decode runs
-  // through (#1283 / brief 0078 AC-05): a persisted unit must carry a real
-  // address. The base `Address`/`Unit` stays permissive for the INITIAL
-  // zero-value; the tightening lives in the event schema (tested via decode here).
   describe('CompleteAddress (event-boundary address invariant)', () => {
     it('decodes a complete address', () => {
       const decoded = Schema.decodeUnknownSync(CompleteAddress)(VALID_UNIT.address)

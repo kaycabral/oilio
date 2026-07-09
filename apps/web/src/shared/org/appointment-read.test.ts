@@ -1,8 +1,3 @@
-// Unit test for the appointment read (brief 0061 § Grupo C — AC-04). Postgres is
-// the only backend post-cutover (#1202): the read decodes the typed `appointments`
-// rows returned by `readUnderRls` (mocked here to canned rows — no DB). The
-// full RLS round-trip is proven by the integration suite.
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ readUnderRls: vi.fn() }))
@@ -62,9 +57,6 @@ describe('listAppointmentsByMemberOperationId', () => {
 describe('listUnitAppointmentsInRange', () => {
   const RANGE = { startUtc: '2026-06-10T00:00:00.000Z', endUtc: '2026-06-10T23:59:59.999Z' }
 
-  // `readUnderRls` is mocked, so the SQL never hits a DB. To prove the status
-  // filter (brief 0081 #1311), run the read callback against a fake client that
-  // captures the query text, then assert on it.
   function captureQuery(): { sql: () => string } {
     let captured = ''
     mocks.readUnderRls.mockImplementation(async (_orgId: string, run: (c: unknown) => unknown) => {
@@ -90,8 +82,6 @@ describe('listUnitAppointmentsInRange', () => {
     const cap = captureQuery()
     await listUnitAppointmentsInRange('org-1', 'u1', RANGE)
     const sql = cap.sql()
-    // The only status predicate is the cancelled exclusion — nothing narrows
-    // scheduled/completed/no_show out.
     expect(sql).toContain("status <> 'cancelled'")
     expect(sql).not.toMatch(/status\s*=\s*/)
     expect(sql).not.toContain('no_show')
@@ -136,7 +126,6 @@ describe('listMemberOperationAppointmentsInRange (#1313 — cross-unit)', () => 
     await listMemberOperationAppointmentsInRange('org-1', 'pro-1', RANGE)
     const sql = cap.sql()
     expect(sql).toContain('member_operation_id = $2')
-    // Cross-unit: no unit pin — a slot the pro fills in another unit must surface.
     expect(sql).not.toContain('unit_id')
     expect(sql).toContain("status <> 'cancelled'")
     expect(cap.params()).toEqual(['org-1', 'pro-1', RANGE.startUtc, RANGE.endUtc])

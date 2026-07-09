@@ -1,9 +1,3 @@
-// Pure presentation logic for the order detail view, extracted from the
-// 'use client' component (Functional Core / Imperative Shell) so the catalog
-// build, POS quick-search filter, quantity clamp, status line and labels are
-// importable + unit-tested. No React, no I/O. The component keeps the JSX and
-// the action calls.
-
 import {
   type CatalogProductItem,
   type CatalogServiceItem,
@@ -12,10 +6,6 @@ import {
   type PaymentMethod,
 } from '@/domain'
 
-// AC-11: one option type spanning both kinds. The select option value encodes
-// `kind:refId` so the chosen item drives the line's `kind` — no separate
-// service/product picker. `code` is the product SKU (null for services) — the
-// POS quick-search (brief 0030, AC-10) matches on name OR code.
 export type CatalogOption = {
   id: string
   name: string
@@ -35,8 +25,6 @@ export function formatBRL(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-// AC-04 (brief 0030): o controle de atribuição é UM campo só (`attributedUserId`),
-// rotulado por `kind` — "Executor" pra serviço, "Vendedor" pra produto.
 export function attributionLabel(kind: OrderItemKind): string {
   return kind === 'service' ? 'Executor' : 'Vendedor'
 }
@@ -55,7 +43,6 @@ export function statusLine(
   return `Fechada em ${closedAt} · ${method}`
 }
 
-// Accent/case-insensitive normalize for the POS quick-search (AC-10).
 export function normalizeSearch(s: string): string {
   return s
     .toLowerCase()
@@ -64,9 +51,6 @@ export function normalizeSearch(s: string): string {
     .trim()
 }
 
-// AC-11: merge services + products into one catalog option list, sorted by name
-// so both kinds interleave. Products carry their `sku` as `code` so the POS
-// quick-search can match by code.
 export function buildCatalogOptions(
   services: Pick<CatalogServiceItem, 'id' | 'name' | 'priceCents'>[],
   products: Pick<CatalogProductItem, 'id' | 'name' | 'priceCents' | 'sku'>[],
@@ -89,8 +73,6 @@ export function buildCatalogOptions(
   ].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
 }
 
-// AC-10: filter the catalog picker by name OR code (product SKU),
-// case/accent-insensitive. Empty query returns the full list.
 export function filterCatalog(options: CatalogOption[], search: string): CatalogOption[] {
   const q = normalizeSearch(search)
   if (!q) return options
@@ -100,8 +82,6 @@ export function filterCatalog(options: CatalogOption[], search: string): Catalog
   )
 }
 
-// Service lines are always qty 1 (duration/commission are per execution);
-// product qty clamps to [1, 999].
 export function clampQuantity(quantity: number, isService: boolean): number {
   return isService ? 1 : Math.min(999, Math.max(1, quantity))
 }

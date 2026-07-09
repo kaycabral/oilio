@@ -3,17 +3,6 @@ import { Schema } from 'effect'
 import { NonEmptyString } from '@/domain/value-objects'
 import { PaymentMethod } from './order'
 
-// Financeiro V0 (brief 0031): só movimentos automáticos da venda. A gaveta
-// manual (sangria/suprimento/despesa) foi removida da UI — o tipo ainda os
-// enumera para projetar/exibir documentos legados (replay, CSV), mas nenhuma
-// operação manual os emite.
-// - sale: gerado quando a parte vendida em dinheiro de uma comanda fecha
-//   (sempre, sem depender de caixa aberto). Mantém ref ao orderId.
-// - sale_reversal: gerado quando o fechamento de uma order é desfeito (undo).
-//   Compensação append-only (nunca deletamos o `sale`): movimento de saída que
-//   estorna a venda, mantendo `orderId`. Espelha o paymentMethod da venda.
-// - sangria/suprimento/despesa: legados da gaveta manual (brief 0015), sem
-//   emissor ativo após o 0031.
 export const CASH_MOVEMENT_KINDS = [
   'sale',
   'sale_reversal',
@@ -31,18 +20,12 @@ const cashMovementCommonFields = {
   id: Schema.String,
   orgId: Schema.String,
   unitId: Schema.String,
-  // Sempre positivo. `direction` carrega o sinal.
   amountCents: Schema.Number,
   description: Schema.NullOr(Schema.String),
-  // Autor do movimento — não-vazio (#1283): sem FK, `''` cega a auditoria de caixa.
   recordedByUid: NonEmptyString,
   createdAt: Schema.String,
 }
 
-// União discriminada por `kind`. Cada natureza fixa o sinal (`direction`) e quais
-// vínculos existem: `sale`/`sale_reversal` carregam `orderId`; `despesa` carrega
-// `expenseCategoryId`; `sangria`/`suprimento` não têm vínculo. Vínculos não
-// aplicáveis ficam `null` (campos ES sob merge — ver convenção do projeto).
 const SaleMovement = Schema.mutable(
   Schema.Struct({
     ...cashMovementCommonFields,

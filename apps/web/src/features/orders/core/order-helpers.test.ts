@@ -135,14 +135,12 @@ describe('snapshotCatalogItem — lawful pricing (CDC art. 30)', () => {
   })
 
   it('charges the lower of displayed vs live (never above displayed)', () => {
-    // displayed below live → honor the displayed (the offer binds)
     const lower = snapshotCatalogItem(
       service({ priceCents: 8000 }),
       parsed({ displayedPriceCents: 5000 }),
       'u1',
     )
     expect(typeof lower === 'object' && lower.unitPriceCents).toBe(5000)
-    // live dropped below displayed → consumer benefits from the lower live
     const dropped = snapshotCatalogItem(
       service({ priceCents: 7000 }),
       parsed({ displayedPriceCents: 9000 }),

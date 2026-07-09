@@ -91,9 +91,6 @@ describe('isBusinessHoursConfigured', () => {
   it('is true when at least one weekday has a range', () => {
     expect(isBusinessHoursConfigured(FULL_WEEK)).toBe(true)
   })
-  // v2: the agenda always carries a businessHours object — an all-closed week
-  // (the EMPTY_BUSINESS_HOURS zero-value) means "not configured", NOT a present
-  // map. Guards the off-hours banner + publish readiness for a fresh unit.
   it('is false for an all-closed week (every day null)', () => {
     const allClosed: BusinessHours = {
       monday: null,
@@ -110,9 +107,7 @@ describe('isBusinessHoursConfigured', () => {
 
 describe('getWeekdayInOrgTz', () => {
   it('returns BR weekday for known dates', () => {
-    // 2026-05-14 is a Thursday
     expect(getWeekdayInOrgTz('2026-05-14', BR)).toBe('thursday')
-    // 2026-05-17 is a Sunday
     expect(getWeekdayInOrgTz('2026-05-17', BR)).toBe('sunday')
   })
 

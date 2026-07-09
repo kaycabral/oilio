@@ -43,11 +43,6 @@ const unit = (address: Address, agenda: UnitAgendaConfig): Pick<Unit, 'address' 
   agenda,
 })
 
-// Per-unit self-booking publish readiness (PRD Identidade v2, context 3). A
-// public unit needs a COMPLETE address AND usable hours. Hours live in the agenda
-// union; `always_open` is open by definition, a fixed/appointment unit needs at
-// least one open day. Address must be real — the schema tolerates empty strings
-// (the aggregate zero-value), so a blank address must NOT count as ready.
 describe('unitHasAddressAndHours', () => {
   it('is true for always_open with a complete address', () => {
     expect(unitHasAddressAndHours(unit(FULL_ADDRESS, { mode: 'always_open' }))).toBe(true)
@@ -66,9 +61,6 @@ describe('unitHasAddressAndHours', () => {
   })
 
   it('is false for a fixed unit whose week is all-closed (zero-value hours)', () => {
-    // v2: the agenda always carries a businessHours object — the EMPTY all-closed
-    // week is the zero-value a fresh/under-configured unit holds and must NOT
-    // count as "has hours" (defers to isBusinessHoursConfigured).
     expect(
       unitHasAddressAndHours(unit(FULL_ADDRESS, { mode: 'fixed', businessHours: EMPTY })),
     ).toBe(false)
@@ -89,9 +81,6 @@ describe('unitHasAddressAndHours', () => {
   })
 })
 
-// SPIKE (inferred availability): a unit is publicly live with no stored publish
-// flag — appointment mode + complete address + configured hours. Service/pro are
-// feedback only.
 describe('isUnitPubliclyLive', () => {
   it('is true for an appointment unit with a complete address + one open day', () => {
     expect(

@@ -13,17 +13,11 @@ export function applyOrderEvent(state: OrderState, event: OrderEvent, meta: Even
     case 'order.item_attribution_changed':
     case 'order.item_coverage_changed':
     case 'order.meta_updated':
-      // Itens/metadados só mudam enquanto a order está aberta (erro à mostra se
-      // um evento desses chegar fora desse estado — sequência inválida).
       if (state.status !== 'open') {
         throw new Error(`${event._tag} aplicado a order ${state.status} (${state.id})`)
       }
       return { ...state, ...event.changes, _version }
     case 'order.customer_assigned':
-      // Vincular/desvincular/trocar o cliente só enquanto aberta (#1321) — mesma
-      // invariante de sequência dos eventos de item/meta. Projeta o `customerId`
-      // (nullable) num campo que já existe no read-model; a cobertura é reavaliada
-      // no adapter, não aqui (o reducer é puro).
       if (state.status !== 'open') {
         throw new Error(`${event._tag} aplicado a order ${state.status} (${state.id})`)
       }
@@ -49,8 +43,6 @@ export function applyOrderEvent(state: OrderState, event: OrderEvent, meta: Even
         _version,
       }
     case 'order.reopened':
-      // Undo do fechamento: volta a `open`, limpa método de pagamento e closedAt.
-      // Items/total permanecem (a order não perde conteúdo ao reabrir).
       return {
         ...state,
         status: 'open',

@@ -19,7 +19,6 @@ describe('computeNoticeMinutes', () => {
   })
 
   it('survives DST transitions (UTC math is invariant)', () => {
-    // 2026-03-08 02:00 America/New_York skips to 03:00. UTC math doesn't care.
     expect(computeNoticeMinutes('2026-03-08T08:00:00.000Z', '2026-03-08T06:00:00.000Z')).toBe(120)
   })
 })

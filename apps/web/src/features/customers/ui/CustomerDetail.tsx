@@ -2,10 +2,6 @@ import type { Customer } from '@/domain'
 import { formatBrazilPhone } from '@/domain'
 import { formatBirthDate } from '@/domain/types/customer'
 
-// Read-only customer detail (brief 0077, #1279). The establishment only consults
-// a customer — the data belongs to the customer, who edits it themselves on their
-// own account (#1278). So there is no form here: just the materialized identity.
-// Email is intentionally absent (WhatsApp is the customer comms channel).
 export function CustomerDetail({ customer }: { customer: Customer }) {
   return (
     <dl className="divide-border divide-y rounded-md border">

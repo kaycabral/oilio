@@ -4,28 +4,12 @@ import Stripe from 'stripe'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { handleStripeEvent } from './stripe-webhook'
 
-/**
- * Webhook dispatch proof against REAL Postgres (brief 0074, AC-03). Feeds
- * `handleStripeEvent` genuine `Stripe.Event` objects — built by SIGNING a JSON
- * payload with a test secret and round-tripping it through
- * `stripe.webhooks.constructEvent`, so the events are fully typed with zero casts
- * — and asserts the resulting `org_billing` row state via `getOrgBilling`.
- *
- * Covers: checkout.session.completed → activated; subscription.updated → status/
- * period/quantity/cancel; subscription.deleted → back to free; payment_failed →
- * past_due. orgId resolved BOTH via metadata/client_reference_id AND via the
- * non-RLS stripe index fallback.
- */
-
 const WEBHOOK_SECRET = 'whsec_test_secret'
 const PRO_MONTHLY = 'price_pro_monthly_test'
 const ADVANCED_MONTHLY = 'price_advanced_monthly_test'
 
-// A throwaway Stripe instance just to sign/parse payloads — no network. The key
-// is irrelevant for webhook construction (it's offline HMAC).
 const stripe = new Stripe('sk_test_unused', { apiVersion: '2026-06-24.dahlia' })
 
-// Sign a payload and round-trip it into a real, fully-typed Stripe.Event.
 function buildEvent(type: string, object: unknown): Stripe.Event {
   const payload = JSON.stringify({
     id: `evt_${Math.random().toString(36).slice(2)}`,
@@ -89,9 +73,6 @@ async function seedStripeIndex(customerId: string, orgId: string): Promise<void>
   )
 }
 
-// Build a real, fully-typed Stripe.Subscription by round-tripping through a
-// signed event — the discriminated union narrows `data.object` to Subscription,
-// so no cast is needed.
 function buildSubscription(opts: SubscriptionOpts): Stripe.Subscription {
   const event = buildEvent('customer.subscription.updated', subscriptionObject(opts))
   if (event.type !== 'customer.subscription.updated') throw new Error('unreachable')
@@ -207,7 +188,6 @@ describe('Stripe webhook dispatch → org_billing (brief 0074, AC-03)', () => {
 
   it('customer.subscription.deleted drops the plan back to free', async () => {
     await seedOrg('org-del')
-    // First activate, then delete.
     await handleStripeEvent(
       buildEvent(
         'customer.subscription.updated',
@@ -249,7 +229,6 @@ describe('Stripe webhook dispatch → org_billing (brief 0074, AC-03)', () => {
   it('invoice.payment_failed sets past_due, resolving orgId via the non-RLS index', async () => {
     await seedOrg('org-fail')
     await seedStripeIndex('cus_4', 'org-fail')
-    // Seed an active Pro so we can see the status flip without losing the tier.
     await handleStripeEvent(
       buildEvent(
         'customer.subscription.updated',
@@ -290,8 +269,6 @@ describe('Stripe webhook dispatch → org_billing (brief 0074, AC-03)', () => {
       status: 'active',
       periodEnd,
     })
-    // The boleto settled days after checkout — Stripe fires async_payment_succeeded
-    // carrying the same session shape as completed.
     const event = buildEvent('checkout.session.async_payment_succeeded', {
       id: 'cs_boleto',
       object: 'checkout.session',
@@ -314,8 +291,6 @@ describe('Stripe webhook dispatch → org_billing (brief 0074, AC-03)', () => {
 
   it('checkout.session.async_payment_failed sets past_due (boleto expired unpaid, orgId via client_reference_id)', async () => {
     await seedOrg('org-boleto-fail')
-    // The boleto voucher expired without payment — the subscription never
-    // activated. Mark past_due without retrieving a subscription (none is paid).
     const event = buildEvent('checkout.session.async_payment_failed', {
       id: 'cs_boleto_fail',
       object: 'checkout.session',
@@ -329,7 +304,6 @@ describe('Stripe webhook dispatch → org_billing (brief 0074, AC-03)', () => {
 
     const billing = await getOrgBilling('org-boleto-fail')
     expect(billing.status).toBe('past_due')
-    // No paid subscription → org stays off any paid tier.
     expect(billing.tier).toBe('free')
   })
 
@@ -351,7 +325,6 @@ describe('Stripe webhook dispatch → org_billing (brief 0074, AC-03)', () => {
     await handleStripeEvent(event, noRetrieve)
 
     const billing = await getOrgBilling('org-unknown')
-    // Status/quantity still mirror, but tier stays free (price not recognized).
     expect(billing.status).toBe('active')
     expect(billing.tier).toBe('free')
   })

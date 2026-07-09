@@ -11,11 +11,6 @@ import { useState, useTransition } from 'react'
 
 type MemberOption = { id: string; name: string }
 
-// Single-page booking wizard (replaces the single-day #842 stub that trapped the
-// customer on "today"). Date + professional are live filters on ONE screen: pick
-// a day (never in the past), optionally narrow to a professional ("Qualquer um"
-// by default), and the slot grid re-queries via a server action — no navigation
-// per change. Picking a slot goes to the confirm step. Brief 0077 smoke gap.
 export function AvailabilityWizard({
   slug,
   unitSlug,
@@ -32,7 +27,6 @@ export function AvailabilityWizard({
   serviceName: string
   unitName: string
   timezone: string
-  // Today in the unit's tz — the `min` for the date picker (no past days).
   minDate: string
   initial: {
     date: string
@@ -42,11 +36,8 @@ export function AvailabilityWizard({
 }) {
   const router = useRouter()
   const [date, setDate] = useState(initial.date)
-  // null = "Qualquer um" (any professional). The grid aggregates every pro.
   const [memberOperationId, setMemberOperationId] = useState<string | null>(null)
   const [rows, setRows] = useState<AvailabilityRow[]>(initial.rows)
-  // Professionals who serve this service at this unit — for the filter chips.
-  // Seeded from the initial load; refreshed on each query so it tracks the day.
   const [members, setMembers] = useState<MemberOption[]>(initial.memberOperations)
   const [pending, startTransition] = useTransition()
 
@@ -63,8 +54,6 @@ export function AvailabilityWizard({
       })
       if (res.ok) {
         setRows(res.rows)
-        // Keep the full professional list (any-pro view) so the chips don't
-        // collapse to one when a filter is active.
         if (nextMember === null) setMembers(res.memberOperations)
       } else {
         setRows([])
@@ -161,14 +150,9 @@ export function AvailabilityWizard({
                         <button
                           type="button"
                           onClick={() => goToConfirm(s.startAt, s.memberOperationId)}
-                          // Rich label disambiguates the slot button from the
-                          // professional FILTER chip above (same visible name) and
-                          // reads well for screen readers.
                           aria-label={`Agendar com ${proName} às ${r.localHHmm}`}
                           className="border-border hover:bg-muted/40 rounded-md border px-2.5 py-1 text-xs"
                         >
-                          {/* "Qualquer um" view names the pro on each button so the
-                              customer still knows who; a filtered view shows the time. */}
                           {memberOperationId === null ? proName : 'Agendar'}
                         </button>
                       </li>

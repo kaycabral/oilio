@@ -51,9 +51,6 @@ export function SubscriptionForm({
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [planId, setPlanId] = useState<string>(plans[0]?.id ?? '')
-  // Billing cycle follows the selected plan's default (re-derived on plan change)
-  // while staying overridable — the plan Select drove the cycle only on mount
-  // before, so switching to a monthly plan kept the initial plan's annual cycle.
   const [billingCycle, setBillingCycle] = useState<BillingCycle>(
     plans[0]?.billingCycle ?? 'monthly',
   )
@@ -127,8 +124,6 @@ export function SubscriptionForm({
         </Select>
       </div>
 
-      {/* Preço do plano EXIBIDO ao operador (brief 0033 AC-09): o server cobra
-          min(exibido, vigente) no commit transacional, nunca mais que o exibido. */}
       <input type="hidden" name="displayedPriceCents" value={selectedPlan?.priceCents ?? ''} />
 
       <div className="flex flex-col gap-1">

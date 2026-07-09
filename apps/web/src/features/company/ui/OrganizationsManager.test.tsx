@@ -5,16 +5,10 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { OrganizationsManager } from './OrganizationsManager'
 
-// The folder-manager pulls the active-org switcher off useOrg and renders the
-// CompanyForm (folder settings) + NewOrgDialog (create) + the inline unit CRUD
-// (UnitFormDialog + per-row delete) — mock the server actions those reach for so
-// the tree mounts in jsdom.
 const setActiveOrg = vi.fn<(orgId: string) => Promise<void>>()
 const useCapability = vi.fn<(cap: string) => boolean>(() => true)
 vi.mock('@/shared/org/org-context', () => ({
   useOrg: (): Pick<OrgContextValue, 'setActiveOrg'> => ({ setActiveOrg }),
-  // Default to unlocked so the existing tests keep rendering the "+ Nova
-  // unidade" dialog; the tier-gated CTA branch is covered separately below.
   useCapability: (cap: string) => useCapability(cap),
 }))
 vi.mock('@/features/company/adapters/company.actions', () => ({ updateCompany: vi.fn() }))
@@ -96,9 +90,7 @@ describe('OrganizationsManager — Negócios surface (PRD Identidade v2, F5)', (
         canDelete
       />,
     )
-    // The heading is always "Negócios" (no collapsed/expanded variants).
     expect(screen.getByRole('heading', { name: 'Negócios' })).toBeInTheDocument()
-    // With a single Negócio there is no "Outros negócios" section.
     expect(screen.queryByText('Outros negócios')).not.toBeInTheDocument()
   })
 
@@ -178,7 +170,6 @@ describe('OrganizationsManager — Negócios surface (PRD Identidade v2, F5)', (
         canDelete
       />,
     )
-    // Unit creation is now an inline dialog trigger (a button), not a page link.
     expect(screen.getByRole('button', { name: '+ Nova unidade' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Novo negócio' })).toBeInTheDocument()
   })
@@ -197,9 +188,6 @@ describe('OrganizationsManager — Negócios surface (PRD Identidade v2, F5)', (
     expect(screen.queryByRole('button', { name: '+ Novo negócio' })).not.toBeInTheDocument()
   })
 
-  // Tier gate (brief 0082): Free unlocks the 1st unit (gracious floor) but not a
-  // 2nd — so with a unit already present and no `units.unlimited`, offer the
-  // upgrade CTA instead of a "+ Nova unidade" dialog that createUnit rejects.
   it('shows the upgrade CTA (not the unit dialog) when Free already has a unit', () => {
     useCapability.mockReturnValue(false)
     render(

@@ -1,8 +1,3 @@
-// AC-09/AC-10 (brief 0025) — replay reconstrói o doc completo dos cadastros.
-// Para cada aggregate de cadastro: created (snapshot) → updated (changes) →
-// replayAggregate == projeção, campo a campo. Prova que nenhum campo é escrito
-// fora de eventos (event-first).
-
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -61,8 +56,6 @@ async function checkReplay<
 
 describe('Cadastros — replay reconstrói o doc completo (event-first)', () => {
   it('unit', () =>
-    // PII (whatsapp/email) lives in `units_pii`, never in the event payload
-    // (LGPD — #1036). The projection carries only operational fields.
     checkReplay({
       config: UnitConfig,
       tag: 'unit',
@@ -72,10 +65,6 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
         orgId: 't1',
         name: 'Centro',
         slug: 'centro',
-        // address/timezone/agenda are REQUIRED in the v2 schema (PRD Identidade)
-        // — the `unit.created` payload carries a real establishment address,
-        // timezone and agenda union, not the null/absent state of the v1
-        // auto-matriz.
         address: {
           postalCode: '01310-100',
           state: 'SP',
@@ -99,9 +88,6 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
           },
         },
         archivedAt: null,
-        // A unit is born informal — the CNPJ (Unit.fiscal company variant) only
-        // appears via `unit.formalized` (brief 0048). NON-PII, so it rides in
-        // the projection + event payload.
         fiscal: { kind: 'informal' },
         createdAt: '2026-06-01T12:00:00.000Z',
         updatedAt: '2026-06-01T12:00:00.000Z',
@@ -110,9 +96,6 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
     }))
 
   it('member_operation', () =>
-    // PII (name/whatsapp/email/taxIdentity) lives in `member_operations_pii`,
-    // never in the event payload (LGPD — #1036). The projection carries only
-    // operational fields.
     checkReplay({
       config: MemberOperationConfig,
       tag: 'member_operation',
@@ -172,8 +155,6 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
     }))
 
   it('invite', () =>
-    // PII (invitee email) lives in `invites_pii`, never in the event payload
-    // (LGPD — #1036). The projection carries only operational fields.
     checkReplay({
       config: InviteConfig,
       tag: 'invite',
@@ -195,9 +176,6 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
     }))
 
   it('org', () =>
-    // The Org is a pure folder (PRD Identidade v2) — NO fiscal identity (moved
-    // to Unit.fiscal). `name` is the business name (not PII) and stays. The
-    // projection carries only operational fields.
     checkReplay({
       config: OrgConfig,
       tag: 'org',
@@ -215,11 +193,6 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
       changes: { name: 'Barbearia do Zé' },
     }))
 
-  // Self-booking publication is INFERRED, not event-sourced (PRD Identidade v2 /
-  // SPIKE "inferred availability"): there is no publish event. A unit goes public
-  // by switching its agenda to `appointment` via `unit.updated`. Replay must
-  // reconstruct the agenda transition from the stream (created walk-in → updated
-  // to appointment); `isUnitPubliclyLive` then derives the public state on read.
   it('unit — agenda transition to appointment (event-first, per-unit)', async () => {
     const { store, layer } = makeReplayStore()
     const ref = aggregateRef(UnitConfig, 't2', 'u2')
@@ -288,9 +261,6 @@ describe('Cadastros — replay reconstrói o doc completo (event-first)', () => 
   })
 })
 
-// Uniform delete policy (brief 0027, AC-06 — frente D1). The archive flag is
-// event-first: `archived` carries `archivedAt`, the reducer projects it, and
-// `null` restores. Proves the field is never written outside the stream.
 describe('Cadastros — archive flag é event-first (brief 0027)', () => {
   async function checkArchive<
     State extends { readonly _version: number; readonly archivedAt: string | null },
@@ -327,7 +297,6 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
     expect(afterArchive.archivedAt).toBe(archivedAt)
     expect(afterArchive._version).toBe(2)
 
-    // Restore — `archivedAt: null` brings it back to active.
     await Effect.runPromise(
       appendEvent(config, ref, {
         _tag: `${tag}.archived`,
@@ -349,7 +318,6 @@ describe('Cadastros — archive flag é event-first (brief 0027)', () => {
       orgId: 't1',
       name: 'Centro',
       slug: 'centro',
-      // address/timezone/agenda REQUIRED in the v2 schema (PRD Identidade).
       address: {
         postalCode: '01310-100',
         state: 'SP',

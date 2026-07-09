@@ -1,15 +1,3 @@
-// Feature E2E — active-unit operating context (brief 0029, sub-issue #1050).
-//
-// Covers AC-01/AC-02/AC-06/AC-07: a shared active-unit cookie scopes the
-// operational surfaces (Agenda, Comandas, Bloqueios, Dashboard-hoje) while
-// Catálogo (definition) and Relatórios (aggregate) stay cross-unit. Switching
-// the active unit (via the `activeUnitId` cookie) reflects across the
-// operational surfaces.
-//
-// The switcher UI that *writes* the cookie is sub-issue #1051 — here we drive
-// the cookie directly (the server-side resolution + scoping is what #1050
-// owns).
-
 import { expect, test } from '../fixtures'
 import {
   seedOpenOrder as centralSeedOpenOrder,
@@ -20,10 +8,6 @@ import {
   type SeededOrg,
 } from '../helpers/session'
 
-// Seeds an open Order projection via the central typed helper (complete,
-// schema-valid Order). The list + dashboard-pendency reads only need a valid
-// projection; `createdAt` is backdated past the >24h staleness threshold
-// (`selectOpenOrderPendencies`) so it also surfaces as a stale-comanda pendency.
 async function seedOpenOrder(
   org: SeededOrg,
   unitId: string,
@@ -54,13 +38,11 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
       expect(unitA).toBeTruthy()
       expect(unitB).toBeTruthy()
 
-      // One distinct customer + open order per unit.
       const custA = await seedCustomer(org.orgId, { name: 'Cliente Unidade A' })
       const custB = await seedCustomer(org.orgId, { name: 'Cliente Unidade B' })
       await seedOpenOrder(org, unitA!, custA, 11100)
       await seedOpenOrder(org, unitB!, custB, 22200)
 
-      // One distinct recurring block per unit.
       await seedBlock({
         kind: 'recurring',
         orgId: org.orgId,
@@ -80,26 +62,18 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
         reason: 'Almoco Unidade B',
       })
 
-      // Pin the active unit to A. A 2-unit org with no active-unit cookie
-      // is sent to the `/select-unit` interstitial (brief 0029 AC-04), so the
-      // operational scope only resolves once a unit is chosen — mirror that by
-      // setting the cookie before navigating.
       await setActiveUnitCookie(context, unitA!, baseURL ?? undefined)
 
-      // Comandas shows only unit A's customer/order.
       await authedPage.goto('/orders?status=all')
       await expect(authedPage.getByRole('heading', { name: 'Vendas' })).toBeVisible()
       await expect(authedPage.getByText('Cliente Unidade A')).toBeVisible()
       await expect(authedPage.getByText('Cliente Unidade B')).toBeHidden()
 
-      // Dashboard pendências ("hoje") respect the active unit — only unit A's
-      // stale open order surfaces (asserted by its distinct amount, R$ 111,00).
       await authedPage.goto('/dashboard')
       await expect(authedPage.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
       await expect(authedPage.getByText('R$ 111,00')).toBeVisible()
       await expect(authedPage.getByText('R$ 222,00')).toBeHidden()
 
-      // Switch the active unit to B (cookie). Every operational surface flips.
       await setActiveUnitCookie(context, unitB!, baseURL ?? undefined)
 
       await authedPage.goto('/orders?status=all')
@@ -118,20 +92,15 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
       baseURL,
     }) => {
       const [unitA, unitB] = org.unitIds
-      // Two catalog services, each linked to a single distinct unit.
       await seedCatalogItem(org.orgId, { name: 'Servico So Unidade A', unitIds: [unitA!] })
       await seedCatalogItem(org.orgId, { name: 'Servico So Unidade B', unitIds: [unitB!] })
 
-      // Active unit A (cookie set — else the 2-unit org lands on the
-      // `/select-unit` interstitial, 0029 AC-04): catalog still shows BOTH
-      // (definition is cross-unit).
       await setActiveUnitCookie(context, unitA!, baseURL ?? undefined)
       await authedPage.goto('/catalog')
       await expect(authedPage.getByRole('heading', { name: 'Catálogo' })).toBeVisible()
       await expect(authedPage.getByText('Servico So Unidade A')).toBeVisible()
       await expect(authedPage.getByText('Servico So Unidade B')).toBeVisible()
 
-      // Switch to unit B: catalog is unchanged — both still visible.
       await setActiveUnitCookie(context, unitB!, baseURL ?? undefined)
       await authedPage.goto('/catalog')
       await expect(authedPage.getByText('Servico So Unidade A')).toBeVisible()
@@ -141,9 +110,6 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
 
   test.describe('baseline — single-unit org', () => {
     test('enters directly, no per-feature unit picker on the agenda', async ({ authedPage }) => {
-      // Default orgInput → 1 unit. Per-feature unit controls were removed
-      // (brief 0039, AC-01); the top switcher is the only unit context and a
-      // single-unit org renders it as a non-interactive breadcrumb.
       await authedPage.goto('/agenda')
       await expect(authedPage.getByRole('heading', { name: 'Agenda' })).toBeVisible()
       await expect(authedPage.getByRole('combobox', { name: 'Unidade ativa' })).toHaveCount(0)
@@ -160,17 +126,11 @@ test.describe('Active-unit operating context (#1050)', { tag: '@critical' }, () 
     test('owner com 0 unidades acessa as surfaces sem gate de onboarding', async ({
       authedPage,
     }) => {
-      // PRD Identidade v2 / brief 0046: NÃO há gate de first-unit nem de
-      // onboarding/select-unit. Um dono cross-unit com 0 unidades acessa as
-      // surfaces operacionais normalmente: /orders renderiza seu empty-state.
       await authedPage.goto('/orders')
       await expect(authedPage).toHaveURL(/\/orders(\/|\?|$)/)
       await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
       await expect(authedPage).not.toHaveURL(/\/select-unit(\/|$)/)
 
-      // A Agenda é uma capability gated em ter ≥1 unidade em modo appointment
-      // (load-agenda.ts) — com 0 unidades ela redireciona pra /orders. É gating
-      // de capability por superfície, NÃO um gate de onboarding.
       await authedPage.goto('/agenda')
       await expect(authedPage).toHaveURL(/\/orders(\/|\?|$)/)
       await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)

@@ -5,13 +5,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 
-// Shared default so the no-coverage path doesn't allocate a Set per render.
 const EMPTY_COVERED: ReadonlySet<string> = new Set()
 
-// Catalog renderer for the public unit page (#841). Shared between
-// `/{orgSlug}` (single-unit short-circuit) and
-// `/{orgSlug}/{unitSlug}` (explicit unit). Pure presentation — all
-// data loading lives in `getPublicUnitBundle`/`getPublicOrgSummary`.
 export function UnitCatalog({
   org,
   unit,
@@ -28,30 +23,14 @@ export function UnitCatalog({
   slug: string
   catalogServiceItems: PublicCatalogItem[]
   memberOperation: MemberOperation | null
-  // When true (multi-unit orgs), prepend the unit name + "Trocar unidade".
-  // Hidden in single-unit mode where the page is the org landing.
   showUnitHeader: boolean
-  // Whether the visitor already has a session. A logged-in visitor (e.g. one who
-  // just came through the invite → signup) doesn't need the "Cadastrar-se" CTA —
-  // showing it is nonsense. Hide it when logged in.
   isLoggedIn: boolean
-  // Brief 0019 Group D — AC-16. Optional banner rendered between the
-  // unit header and the services list when the visitor has scope-bearing
-  // subscription on this org. The parent decides what to show — keeps
-  // this component pure (no Firestore reads).
   coverageBanner?: ReactNode
-  // Brief 0079 (#1307). Ids of services this signed-in subscriber's plan covers
-  // WITH balance — already resolved server-side (AC-01/AC-02). They earn the "no
-  // seu plano" badge and sort to the top; the raw balance is never passed in, so
-  // no number can leak (AC-02). Empty for avulso/unrestricted visitors — the
-  // catalog renders exactly as before (AC-05).
   coveredItemIds?: ReadonlySet<string>
 }) {
   const { branding } = org
   const hasBanner = branding.bannerUrl !== null
   const covered = coveredItemIds ?? EMPTY_COVERED
-  // Covered services bubble to the top, preserving the loader's order within
-  // each group (stable partition — no reshuffle of the avulso list).
   const sortedServiceItems =
     covered.size === 0
       ? catalogServiceItems

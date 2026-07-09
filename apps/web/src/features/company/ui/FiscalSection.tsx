@@ -20,12 +20,6 @@ const SIZE_LABELS: Record<CompanySize, string> = {
   other: 'Demais',
 }
 
-// Read-only fiscal identity of a FORMALIZED unit (brief 0048 AC-08): razão
-// social / nome fantasia (from the per-unit PII doc, merged at read time) +
-// regime / CNAE / porte (from the StoredUnit fiscal union). No editable taxId,
-// no "optional / CPF-or-CNPJ" affordance — formalization is the only way in, and
-// it's immutable once done. The fiscal identity belongs to the establishment
-// (the Unit), not the Org (PRD Identidade v2).
 export function FiscalSection({
   unit,
   taxIdentity,

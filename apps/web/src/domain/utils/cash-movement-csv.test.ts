@@ -114,7 +114,6 @@ describe('buildCashMovementsCsv', () => {
         createdAt: '2026-05-10T12:00:00.000Z',
       }),
     ])
-    // Aspas internas viram duplas, e o campo inteiro vai entre aspas.
     expect(csv).toContain('"item, com ""aspas"" e\nquebra"')
   })
 

@@ -9,10 +9,6 @@ import {
   type CatalogServiceItem,
 } from './catalog-item'
 
-// Unified catalog helpers (brief 0023, #1004 → 0053/B3): per-unit resolution
-// and the public both-kinds projection. The legacy `Service`/`Product` adapters
-// were removed in B3 (single catalog representation).
-
 function buildServiceItem(overrides: Partial<CatalogServiceItem> = {}): CatalogServiceItem {
   return {
     id: 's1',
@@ -142,7 +138,6 @@ describe('toPublicCatalogItem', () => {
       'u1',
       new Map([['cat-cabelo', 'Cabelo']]),
     )
-    // Never leaks the raw id — the UI drops the label instead.
     expect(pub.categoryName).toBeNull()
   })
 
@@ -184,7 +179,6 @@ describe('normalizeCatalogItemKind', () => {
   })
 
   it("defaults to 'service' for the literal, undefined, null and malformed input", () => {
-    // Legacy/malformed docs must resolve to the bookable default, not crash.
     expect(normalizeCatalogItemKind('service')).toBe('service')
     expect(normalizeCatalogItemKind(undefined)).toBe('service')
     expect(normalizeCatalogItemKind(null)).toBe('service')

@@ -11,9 +11,6 @@ import {
 } from './enums'
 
 describe('enum value lists', () => {
-  // Pin the exact contents: an emptied array (ArrayDeclaration mutant) or a
-  // blanked entry (StringLiteral mutant) would slip past the value-loops in
-  // other suites, which pass vacuously over an empty list.
   it('ROLES holds every role in order', () => {
     expect(ROLES).toEqual(['owner', 'manager', 'member_operator', 'receptionist'])
   })
@@ -40,8 +37,6 @@ describe('isOperational', () => {
 })
 
 describe('canManageOrg / canInviteMembers', () => {
-  // Both gate on owner|manager — pin the full truth table so the `||` operands
-  // and role literals are each load-bearing.
   const expected: Record<Role, boolean> = {
     owner: true,
     manager: true,

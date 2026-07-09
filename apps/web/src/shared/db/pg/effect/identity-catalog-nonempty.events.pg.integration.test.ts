@@ -2,15 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { closeEventStoreDb, getEventStorePool } from '../pool'
 
-/**
- * Proof that the DB rejects the zero-value on identity/catalog required fields
- * (#1283, brief 0078 Group C): a unit with a blank address, a `company` unit
- * with an empty `taxId`, and a catalog item with `unit_ids = []`. Runs against
- * the ephemeral Postgres over the superuser pool (CHECK enforced regardless of
- * RLS). The `unit.created` decode (`CompleteAddress`) is the domain-side layer;
- * this proves the DB layer.
- */
-
 const ORG = 'org-id-cat'
 
 const COMPLETE_ADDRESS = JSON.stringify({
@@ -40,7 +31,6 @@ async function seedOrg(id: string): Promise<void> {
   )
 }
 
-// Insert a units row with the given address + fiscal JSONB.
 function insertUnit(
   id: string,
   address: string,

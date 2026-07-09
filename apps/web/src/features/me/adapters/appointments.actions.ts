@@ -29,10 +29,6 @@ import { Schema } from 'effect'
 
 const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 
-// Read of a single appointment by id within one org (brief 0061 § Grupo C /
-// AC-04). Single-org read keyed on `aggregate_path` under RLS. The unit isn't
-// known before the read, so no `app.current_unit` pin (the org-scoped RLS policy
-// still applies).
 async function loadAppointmentById(
   orgId: string,
   appointmentId: string,
@@ -51,12 +47,6 @@ async function loadAppointmentById(
 
 export type SelfCancelResult = { ok: true } | { ok: false; error: string }
 
-// Read the live cancellation policy from a unit's appointment agenda (typed
-// projection under RLS). Returns `undefined` for a missing unit or a
-// non-appointment agenda (no policy exists there); `normalizeCancellationPolicy`
-// then yields the default. Used only as the legacy fallback when the appointment
-// has no commit-time snapshot. The policy lives on the UNIT's appointment agenda
-// now (PRD Identidade v2 — moved Org→Unit).
 async function readLiveUnitCancellationPolicy(orgId: string, unitId: string): Promise<unknown> {
   const unit = await getUnitById(orgId, unitId)
   if (unit && unit.agenda.mode === 'appointment') {
@@ -65,21 +55,6 @@ async function readLiveUnitCancellationPolicy(orgId: string, unitId: string): Pr
   return undefined
 }
 
-// #845 — Customer self-cancel from `/me/appointments`.
-//
-// Authorization: a customer can only cancel an appointment where
-// `customerUserId === session.uid`. Cross-org access is enforced
-// here because the customer doesn't have a org membership — the
-// User doc is the only identity bridge (see #832).
-//
-// Policy: `Org.cancellationPolicy.minNoticeMinutes`. Pure helper
-// `canCustomerCancelAppointment` makes the decision so the same logic
-// drives the UI (button enabled/disabled) and the server (authorization).
-//
-// Tracking: `cancelledBy = 'customer'`, `cancelledNoticeMinutes` always
-// populated. Audit log lands under the *org* the appointment belongs
-// to so the recepção can see "Cliente X cancelou Y" in the same audit
-// stream as staff actions.
 export async function cancelOwnAppointment(input: {
   orgId: string
   appointmentId: string
@@ -90,14 +65,9 @@ export async function cancelOwnAppointment(input: {
   const appointment = await loadAppointmentById(input.orgId, input.appointmentId)
   if (!appointment) return { ok: false, error: 'Agendamento não encontrado.' }
   if (appointment.customerUserId !== session.uid) {
-    // Treat as 404 — don't leak existence to a non-owner.
     return { ok: false, error: 'Agendamento não encontrado.' }
   }
 
-  // Snapshot-on-use (#1038): a elegibilidade lê a policy congelada no commit,
-  // não a viva — mudar a policy não retroage. Fallback pra policy viva da
-  // agenda da unidade (modo appointment) em agendamentos legados sem snapshot.
-  // A policy é da Unidade agora (PRD Identidade v2 — movida Org→Unit).
   const policy = appointment.cancellationPolicySnapshot
     ? normalizeCancellationPolicy(appointment.cancellationPolicySnapshot)
     : normalizeCancellationPolicy(
@@ -127,8 +97,6 @@ export async function cancelOwnAppointment(input: {
   const cancelledBy: AppointmentActorRole = 'customer'
   const cancelledNoticeMinutes = computeNoticeMinutes(appointment.startAt, now)
 
-  // Event-first: a projeção (status/cancelledAt/By/NoticeMinutes) vem do evento,
-  // sem `apptRef.update()` paralelo.
   const cancelled = await emitEvent(
     AppointmentConfig,
     aggregateRef(AppointmentConfig, input.orgId, input.appointmentId),
@@ -140,8 +108,6 @@ export async function cancelOwnAppointment(input: {
   )
   if (!cancelled.ok) return { ok: false, error: cancelled.error }
 
-  // Auditoria = stream: o `appointment.cancelled` já registra quem/quando/como.
-  // Sem `audit_logs` paralelo (erradicação ES, #1029).
   return { ok: true }
 }
 
@@ -154,18 +120,9 @@ export type OwnRescheduleBusyResult =
   | { ok: true; busy: AppointmentForOverlap[] }
   | { ok: false; error: string }
 
-// #1318 — Feeds the self-service reschedule picker the professional's CROSS-UNIT
-// busy intervals for the chosen day so the dropdown omits starts that would
-// collide on submit (the reschedule keeps the SAME professional). Mirrors the
-// public self-book omission (#1313); the write path stays the integrity backstop.
-//
-// Authorization mirrors `rescheduleOwnAppointment`: the caller must own the
-// appointment (else a 404-shaped error, no existence leak). Returns only the
-// PII-free overlap projection — never customer identity.
 export async function loadOwnRescheduleBusy(input: {
   orgId: string
   appointmentId: string
-  // Target day in the unit's local clock — YYYY-MM-DD.
   date: string
 }): Promise<OwnRescheduleBusyResult> {
   if (!DATE_RE.test(input.date)) return { ok: false, error: 'Data inválida.' }
@@ -175,7 +132,6 @@ export async function loadOwnRescheduleBusy(input: {
 
   const appointment = await loadAppointmentById(input.orgId, input.appointmentId)
   if (!appointment || appointment.customerUserId !== session.uid) {
-    // Treat as 404 — don't leak existence to a non-owner.
     return { ok: false, error: 'Agendamento não encontrado.' }
   }
 
@@ -191,7 +147,6 @@ export async function loadOwnRescheduleBusy(input: {
       endUtc,
     },
   )
-  // Project to the PII-free overlap shape the picker's `filterGridByBusy` needs.
   return {
     ok: true,
     busy: busy.map((a) => ({
@@ -204,23 +159,9 @@ export async function loadOwnRescheduleBusy(input: {
   }
 }
 
-// #1310 (brief 0080, Grupo C) — Customer self-service reschedule from
-// `/me/appointments`. Closes the loop the wizard's `reschedule-required` signal
-// pointed at: instead of re-booking (which would leave the original slot held),
-// the customer MOVES their appointment to a new valid slot.
-//
-// Authorization mirrors `cancelOwnAppointment` (own appointment only). Policy:
-// reschedule is allowed within the SAME window as self-cancel (#846 "reagendar
-// livre" reapplied through the cancel gate) — past the `minNoticeMinutes` it
-// returns the same friendly `outside_window` message. The new slot reenters the
-// FULL validation layer (slot-grid + overlap + subscription scope) — no bypass:
-// the move is `appointment.updated` (new start/end) + `appointment.rescheduled`
-// (rescheduledBy: 'customer'), event-first. The original slot frees because the
-// anti-double-book constraint only counts the appointment's CURRENT start.
 export async function rescheduleOwnAppointment(input: {
   orgId: string
   appointmentId: string
-  // New slot in the unit's local clock — YYYY-MM-DD + HH:mm.
   date: string
   startTime: string
 }): Promise<SelfRescheduleResult> {
@@ -233,13 +174,9 @@ export async function rescheduleOwnAppointment(input: {
   const appointment = await loadAppointmentById(input.orgId, input.appointmentId)
   if (!appointment) return { ok: false, error: 'Agendamento não encontrado.' }
   if (appointment.customerUserId !== session.uid) {
-    // Treat as 404 — don't leak existence to a non-owner.
     return { ok: false, error: 'Agendamento não encontrado.' }
   }
 
-  // Same window as self-cancel: reschedule reuses the cancel gate so a customer
-  // can only move an appointment they could still cancel (brief 0080 §riscos —
-  // reschedule reapplies the policy, not a separate window).
   const policy = appointment.cancellationPolicySnapshot
     ? normalizeCancellationPolicy(appointment.cancellationPolicySnapshot)
     : normalizeCancellationPolicy(
@@ -276,15 +213,10 @@ export async function rescheduleOwnAppointment(input: {
     new Date(newStartAt).getTime() + appointment.serviceDurationMinutesSnapshot * 60_000,
   ).toISOString()
 
-  // The booked service must still be active — a deactivated/deleted service
-  // can't be rebooked (hard-reject, same posture as reception; brief 0080). Its
-  // category drives subscription-scope coverage (brief 0019).
   const item = await loadActiveCatalogService(input.orgId, appointment.serviceId)
   if (typeof item === 'string') return { ok: false, error: item }
   const serviceCategoryId = item.categoryId
 
-  // Reenter the FULL validation layer — slot-grid + overlap + scope — for the
-  // new slot. `excludeAppointmentId` lets the move not conflict with itself.
   const validation = await validateAppointmentWrite({
     orgId: input.orgId,
     unit,
@@ -308,10 +240,6 @@ export async function rescheduleOwnAppointment(input: {
   const now = new Date().toISOString()
   const apptRef = aggregateRef(AppointmentConfig, input.orgId, input.appointmentId)
   const rescheduledBy: AppointmentActorRole = 'customer'
-  // Atomic move: `appointment.updated` (new instant, the projection derives from
-  // it) + `appointment.rescheduled` (audit) commit as ONE transaction. A failure
-  // on either rolls both back, so the appointment never moves without a
-  // reschedule record (same aggregate, ordered under one tx via commitSaga).
   const moved = await commitSaga([
     (tx) =>
       appendEventToTx(

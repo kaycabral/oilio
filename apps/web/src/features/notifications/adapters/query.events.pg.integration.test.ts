@@ -1,20 +1,3 @@
-// Postgres integration test for fetchUnreadNotificationsForUnit (#955, brief
-// 0018 Grupo A — re-substrated to Postgres by the cutover, #1202).
-//
-// Runs against the ephemeral `oilio` Postgres (OILIO_DATABASE_URL):
-//   the event-store globalSetup applies the migrations; this suite seeds the
-//   typed `notifications` projection and exercises the live read path.
-//
-// Contract (unchanged from the Firestore era — only the substrate moved):
-// - unread = read_at NULL AND dispatched_at NULL AND matching unit_id
-// - unreadCount counts ALL unread for the unit (not limited)
-// - items returns top N by createdAt desc
-// - notifications de outras unidades NÃO aparecem (isolamento por unidade)
-//
-// The Postgres equivalent of the Firestore `fetchUnitNotifications` is
-// `fetchUnreadNotificationsForUnit` (in `@/shared/org/notification-read`), the
-// function the live route (`/api/notifications`) calls.
-
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { fetchUnreadNotificationsForUnit } from '@/shared/org/notification-read'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -39,9 +22,6 @@ type SeedOpts = {
   dispatchedAt?: string | null
 }
 
-// Seeds one notification projection row directly over the superuser pool
-// (bypasses RLS — the ephemeral Postgres connects as superuser, the runtime
-// shape proven separately in the RLS isolation suites).
 async function seed(orgId: string, id: string, opts: SeedOpts): Promise<void> {
   await getEventStorePool().query(
     `INSERT INTO notifications (org_id, id, unit_id, last_event_version, type, source, event_key, customer_id, appointment_id, subscription_id, read_at, dispatched_at, valid_until, snoozed_until, payload, dispatch, created_at, updated_at)
@@ -79,7 +59,6 @@ describe('fetchUnreadNotificationsForUnit (Postgres integration)', () => {
 
     expect(result.unreadCount).toBe(3)
     expect(result.items).toHaveLength(2)
-    // mais recentes primeiro
     expect(result.items[0]!.id).toBe('n3')
     expect(result.items[1]!.id).toBe('n2')
   })

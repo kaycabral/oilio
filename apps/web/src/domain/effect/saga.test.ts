@@ -20,18 +20,6 @@ import {
 import type { FirestoreDoc, TransactionContext } from './services'
 import { PersistencePort } from './services'
 
-/**
- * Unit tests for the cross-aggregate saga primitives (brief 0061 § Grupo A —
- * `runSaga`/`appendEventToTx`/`appendDeleteToTx`). An in-memory `PersistencePort`
- * (mirroring the replay tests) models the event store WITHOUT a database: its
- * `runTransaction` runs the whole step list against a buffered store and only
- * commits (flushes) on success — so a step that fails rolls back EVERY aggregate
- * the saga touched, the ACID invariant the Postgres layer enforces for real.
- */
-
-// A transactional store that buffers writes/deletes and only applies them on a
-// clean commit. A throw inside `fn` discards the buffer — modeling ROLLBACK.
-// Keyed by the typed ref (D6) via `docKey`; the event log is a sibling map.
 function makeTxStore() {
   const store = new Map<string, FirestoreDoc>()
   const events = new Map<string, FirestoreDoc[]>()
@@ -73,7 +61,6 @@ function makeTxStore() {
       return fn(tx).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
-            // Commit: flush the buffers into the live store + event log.
             store.clear()
             for (const [k, v] of buffer) store.set(k, v)
             for (const key of deletes) store.delete(key)
@@ -152,7 +139,6 @@ describe('runSaga — cross-aggregate cascade as one transaction', () => {
     ]
     await Effect.runPromise(runSaga(steps).pipe(Effect.provide(layer)))
 
-    // Both projections + their first event landed.
     expect(store.get(docKey(commissionRef))).toMatchObject({ id: 'c1', _version: 1 })
     expect(store.get(docKey(cashRef))).toMatchObject({ id: 'm1', _version: 1 })
     expect(events.get(docKey(commissionRef))?.[0]).toBeDefined()
@@ -173,7 +159,6 @@ describe('runSaga — cross-aggregate cascade as one transaction', () => {
           },
           tx,
         ),
-      // Invalid event — schema reject aborts the tx.
       (tx) =>
         appendEventToTx(
           CashMovementConfig,
@@ -189,7 +174,6 @@ describe('runSaga — cross-aggregate cascade as one transaction', () => {
     const exit = await Effect.runPromiseExit(runSaga(steps).pipe(Effect.provide(layer)))
     expect(exit._tag).toBe('Failure')
 
-    // Step 1 committed NOTHING — the failed step rolled back the commission too.
     expect(store.get(docKey(commissionRef))).toBeUndefined()
     expect(store.get(docKey(cashRef))).toBeUndefined()
   })
@@ -213,7 +197,6 @@ describe('runSaga — cross-aggregate cascade as one transaction', () => {
     expect(exit._tag).toBe('Failure')
     if (exit._tag === 'Failure') {
       const err = exit.cause
-      // The typed failure is an EventValidationError.
       expect(JSON.stringify(err)).toContain(
         new EventValidationError({ aggregateType: 'order', message: '' }).aggregateType,
       )
@@ -224,7 +207,6 @@ describe('runSaga — cross-aggregate cascade as one transaction', () => {
 describe('appendDeleteToTx — event + projection drop in one tx', () => {
   it('appends the .deleted event and removes the projection row', async () => {
     const { store, events, layer } = makeTxStore()
-    // Seed a commission projection.
     await Effect.runPromise(
       runSaga([
         (tx) =>
@@ -242,7 +224,6 @@ describe('appendDeleteToTx — event + projection drop in one tx', () => {
     )
     expect(store.get(docKey(commissionRef))).toBeDefined()
 
-    // Delete it in a saga step.
     await Effect.runPromise(
       runSaga([
         (tx) =>
@@ -259,15 +240,11 @@ describe('appendDeleteToTx — event + projection drop in one tx', () => {
       ]).pipe(Effect.provide(layer)),
     )
 
-    // The projection row is gone; the .deleted event is kept (history).
     expect(store.get(docKey(commissionRef))).toBeUndefined()
     expect(events.get(docKey(commissionRef))?.[1]).toBeDefined()
   })
 
   it('tolerates a tx WITHOUT deleteDoc — appends the event, skips the row drop', async () => {
-    // A bare TransactionContext (getDoc/setDoc/appendEvent only, no deleteDoc) —
-    // the shape the replay-test harnesses build. `appendDeleteToTx` must still
-    // append the event and simply not attempt the (absent) row delete.
     const buffer = new Map<string, FirestoreDoc>()
     const eventLog = new Map<string, FirestoreDoc[]>()
     const bareTx: TransactionContext = {
@@ -284,7 +261,6 @@ describe('appendDeleteToTx — event + projection drop in one tx', () => {
           log.push(envelope)
           eventLog.set(key, log)
         }),
-      // deleteDoc intentionally omitted (it's optional on TransactionContext).
     }
     await Effect.runPromise(
       appendDeleteToTx(
@@ -298,16 +274,11 @@ describe('appendDeleteToTx — event + projection drop in one tx', () => {
         bareTx,
       ),
     )
-    // The .deleted event was appended even without a deleteDoc.
     expect(eventLog.get(docKey(commissionRef))?.[0]).toBeDefined()
   })
 })
 
 describe('appendEventGuardedToTx — guard outcomes inside a shared tx', () => {
-  // A bare in-memory tx (getDoc/setDoc/appendEvent) carrying a seeded
-  // subscription plan the guard reads. The guard resolves a commission payload
-  // (any aggregate works — we only exercise the guarded-append control flow, not
-  // the domain).
   function bareTx(seed: Record<string, FirestoreDoc> = {}): {
     tx: TransactionContext
     store: Map<string, FirestoreDoc>

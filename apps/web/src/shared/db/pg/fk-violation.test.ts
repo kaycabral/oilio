@@ -2,11 +2,6 @@ import * as Cause from 'effect/Cause'
 import { describe, expect, it } from 'vitest'
 import { FOREIGN_KEY_VIOLATION, isForeignKeyViolation } from './fk-violation'
 
-// Pure-predicate coverage for the FK-violation detector (brief 0068 D2 / AC-02):
-// the delete server actions key on it to turn a Postgres `ON DELETE RESTRICT`
-// refusal into a graceful `{ ok: false }` instead of a raw 500. No I/O — every
-// shape the error can take (bare pg error, nested `.cause`, Effect FiberFailure)
-// is exercised here so the unwrap idiom can't silently regress.
 const FIBER_FAILURE_CAUSE = Symbol.for('effect/Runtime/FiberFailure/Cause')
 
 describe('isForeignKeyViolation', () => {
@@ -19,7 +14,6 @@ describe('isForeignKeyViolation', () => {
   })
 
   it('a pg error with a different SQLSTATE is NOT a violation', () => {
-    // 23505 = unique_violation, a different constraint failure.
     expect(isForeignKeyViolation({ code: '23505' })).toBe(false)
   })
 
