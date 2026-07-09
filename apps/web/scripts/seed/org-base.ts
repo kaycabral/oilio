@@ -17,6 +17,9 @@ import {
   type CatalogProductItem,
   type CatalogServiceItem,
   type Category,
+  type Charge,
+  type ChargeStatus,
+  type FixedCost,
   type StoredOrg,
   type StoredUnit,
   type SubscriptionPlan,
@@ -27,7 +30,9 @@ import {
   CashMovementConfig,
   CatalogItemConfig,
   CategoryConfig,
+  ChargeConfig,
   CustomerConfig,
+  FixedCostConfig,
   MembershipConfig,
   OrgBillingConfig,
   OrgConfig,
@@ -318,4 +323,229 @@ export function seedCashMovement(movement: CashMovement, actorId: string): Promi
     actorId,
     payload: { data: movement },
   })
+}
+
+// A recurring fixed cost (Starlink, accounting, cloud…). CRUD aggregate with a
+// versioned vigência: `effectiveFrom`/`effectiveTo` bound the competence months
+// the Razão expands it into (via `readOrgLedger`), so a live cost carries
+// `effectiveTo: null`. `seriesId === id` for a brand-new series; a value change
+// would supersede this version and open a new one under the same `seriesId`.
+// `amountCents` must be >= 1 (rejected in core + by DB CHECK). The unit must
+// already exist (FK `(org_id, unit_id) → units`).
+export function seedFixedCost(cost: FixedCost, actorId: string): Promise<void> {
+  return emitOne(FixedCostConfig, cost.orgId, cost.id, {
+    _tag: 'fixed_cost.created',
+    actorId,
+    payload: { data: cost },
+  })
+}
+
+function buildSeedCharge(args: {
+  id: string
+  orgId: string
+  unitId: string
+  subscriptionId: string
+  customerId: string
+  amountCents: number
+  periodStartAt: string
+  periodEndAt: string
+  dueDate: string
+  status: ChargeStatus
+  paidAt: string | null
+  failedAt: string | null
+  failureReason: string | null
+  attempts: number
+  actorId: string
+  now: string
+}): Charge {
+  return {
+    id: args.id,
+    orgId: args.orgId,
+    unitId: args.unitId,
+    subscriptionId: args.subscriptionId,
+    customerId: args.customerId,
+    amountCents: args.amountCents,
+    periodStartAt: args.periodStartAt,
+    periodEndAt: args.periodEndAt,
+    dueDate: args.dueDate,
+    status: args.status,
+    attempts: args.attempts,
+    paidAt: args.paidAt,
+    failedAt: args.failedAt,
+    failureReason: args.failureReason,
+    refundedAt: null,
+    lastActorUid: args.actorId,
+    createdAt: args.now,
+    updatedAt: args.now,
+  }
+}
+
+// Bill a freshly-created subscription and drive it to its lifecycle state, the
+// SAME way production does — through the `charge` aggregate, event-first. A
+// charge is born `scheduled` (`charge.created`) and is settled by a SEPARATE
+// `charge.succeeded` event (mirror of `buildMarkPaidSteps`). This distinction
+// matters for the Razão: revenue is recognized off `charge.succeeded` at its
+// `periodStartAt` competence (ADR 0016) — a charge that is only `created`
+// (even with status 'paid') is NEVER reconciled as revenue, so the break-even
+// stays "indisponível". The `charge.succeeded` changeset therefore carries
+// `amountCents`/`unitId`/`periodStartAt` (what the ledger reads) plus the paid
+// fields. Every client here PAID on signup; the state then diverges on the NEXT
+// cycle:
+//   • active    → first charge created + succeeded (recognized revenue).
+//   • past_due  → first charge succeeded, then a second charge created +
+//                 failed ('recovering') + `subscription.charge_failed`.
+//   • cancelled → first charge succeeded, then voluntary `subscription.cancelled`.
+export async function seedSubscriptionCharges(args: {
+  orgId: string
+  subscriptionId: string
+  unitId: string
+  customerId: string
+  amountCents: number
+  periodStart: string
+  periodEnd: string
+  nextPeriodEnd: string
+  state: 'active' | 'past_due' | 'cancelled'
+  actorId: string
+  now: string
+}): Promise<void> {
+  const { orgId, subscriptionId, unitId, customerId, amountCents, actorId, now } = args
+
+  const firstChargeId = `${subscriptionId}-charge-1`
+  const scheduledCharge = buildSeedCharge({
+    id: firstChargeId,
+    orgId,
+    unitId,
+    subscriptionId,
+    customerId,
+    amountCents,
+    periodStartAt: args.periodStart,
+    periodEndAt: args.periodEnd,
+    dueDate: args.periodStart,
+    status: 'scheduled',
+    paidAt: null,
+    failedAt: null,
+    failureReason: null,
+    attempts: 0,
+    actorId,
+    now,
+  })
+  const firstChargeCreated: SagaStep = (tx) =>
+    appendEventToTx(
+      ChargeConfig,
+      ref(ChargeConfig, orgId, firstChargeId),
+      { _tag: 'charge.created', actorId, payload: { data: scheduledCharge } },
+      tx,
+    )
+  // The settle event the Razão recognizes as revenue. Its changeset MUST carry
+  // amountCents/unitId/periodStartAt — the ledger reads revenue off this event
+  // and stamps competence at periodStartAt (event-competence.ts).
+  const firstChargeSucceeded: SagaStep = (tx) =>
+    appendEventToTx(
+      ChargeConfig,
+      ref(ChargeConfig, orgId, firstChargeId),
+      {
+        _tag: 'charge.succeeded',
+        actorId,
+        payload: {
+          changes: {
+            status: 'paid',
+            paidAt: now,
+            failedAt: null,
+            failureReason: null,
+            attempts: 1,
+            lastActorUid: actorId,
+            updatedAt: now,
+            periodStartAt: args.periodStart,
+            amountCents,
+            unitId,
+          },
+        },
+      },
+      tx,
+    )
+  const firstSubSettled: SagaStep = (tx) =>
+    appendEventToTx(
+      SubscriptionConfig,
+      ref(SubscriptionConfig, orgId, subscriptionId),
+      { _tag: 'subscription.charge_settled', actorId, payload: {} },
+      tx,
+    )
+  const firstCascade = await commitSaga([firstChargeCreated, firstChargeSucceeded, firstSubSettled])
+  if (!firstCascade.ok) {
+    throw new Error(`seed charge (paid) for ${subscriptionId} failed: ${firstCascade.error}`)
+  }
+
+  if (args.state === 'active') return
+
+  if (args.state === 'cancelled') {
+    await emitOne(SubscriptionConfig, orgId, subscriptionId, {
+      _tag: 'subscription.cancelled',
+      actorId,
+      payload: { cancelledBy: actorId },
+    })
+    return
+  }
+
+  // past_due — the next cycle's charge was attempted and failed.
+  const secondChargeId = `${subscriptionId}-charge-2`
+  const scheduledSecond = buildSeedCharge({
+    id: secondChargeId,
+    orgId,
+    unitId,
+    subscriptionId,
+    customerId,
+    amountCents,
+    periodStartAt: args.periodEnd,
+    periodEndAt: args.nextPeriodEnd,
+    dueDate: args.periodEnd,
+    status: 'scheduled',
+    paidAt: null,
+    failedAt: null,
+    failureReason: null,
+    attempts: 0,
+    actorId,
+    now,
+  })
+  const secondChargeCreated: SagaStep = (tx) =>
+    appendEventToTx(
+      ChargeConfig,
+      ref(ChargeConfig, orgId, secondChargeId),
+      { _tag: 'charge.created', actorId, payload: { data: scheduledSecond } },
+      tx,
+    )
+  const secondChargeFailed: SagaStep = (tx) =>
+    appendEventToTx(
+      ChargeConfig,
+      ref(ChargeConfig, orgId, secondChargeId),
+      {
+        _tag: 'charge.failed',
+        actorId,
+        payload: {
+          changes: {
+            status: 'recovering',
+            failedAt: now,
+            failureReason: 'card_declined',
+            attempts: 1,
+            lastActorUid: actorId,
+            updatedAt: now,
+          },
+        },
+      },
+      tx,
+    )
+  const subPastDue: SagaStep = (tx) =>
+    appendEventToTx(
+      SubscriptionConfig,
+      ref(SubscriptionConfig, orgId, subscriptionId),
+      {
+        _tag: 'subscription.charge_failed',
+        actorId,
+        payload: { reason: 'card_declined', status: 'past_due' },
+      },
+      tx,
+    )
+  const secondCascade = await commitSaga([secondChargeCreated, secondChargeFailed, subPastDue])
+  if (!secondCascade.ok) {
+    throw new Error(`seed charge (failed) for ${subscriptionId} failed: ${secondCascade.error}`)
+  }
 }

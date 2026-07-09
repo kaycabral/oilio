@@ -134,6 +134,8 @@ export async function seedClosedSale(input: SeedClosedSaleInput): Promise<string
           subtotalCents: order.subtotalCents,
           totalCents: order.totalCents,
           paymentMethod: input.paymentMethod,
+          items: order.items,
+          unitId: input.unitId,
         },
       },
       tx,

@@ -22,6 +22,7 @@
 // (`pnpm --filter @oilio/web oilio:db:up`, which `pnpm local` runs for you).
 
 import { seedBarbearia } from './seed/barbearia'
+import { seedCbrl } from './seed/cbrl'
 import { seedFormalizacao } from './seed/formalizacao'
 import { seedComercio, seedPizzaria } from './seed/pizzaria-comercio'
 import { resetEventStore } from './seed/reset'
@@ -45,10 +46,13 @@ async function main(): Promise<void> {
   console.log('▸ seeding formalization orgs (Ana Fiscal)…')
   await seedFormalizacao()
 
+  console.log('▸ seeding cbrl (maker of Oilio — SaaS revenue + fixed costs)…')
+  await seedCbrl()
+
   console.log(
     [
       '',
-      '✓ seed complete — 5 orgs.',
+      '✓ seed complete — 6 orgs.',
       '  Login: "Continuar com Google" → Add new account → use one of the emails',
       '  below (Auth emulator, no password). Each maps to a fixed seeded uid:',
       '    • dev@cbrl.local        — Zé Owner (Barbearia, owner)',
@@ -56,6 +60,7 @@ async function main(): Promise<void> {
       '    • recep@cbrl.local      — Paula (receptionist)',
       '    • cliente@cbrl.local    — Cliente Demo (customer)',
       '    • ana.fiscal@cbrl.local — Ana Fiscal (informal + formalized orgs)',
+      '    • kayron@cbrl.local     — Kayron (cbrl, maker of Oilio)',
     ].join('\n'),
   )
 }
