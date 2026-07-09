@@ -83,6 +83,31 @@ export async function listUnitIds(orgId: string): Promise<string[]> {
   return rows.map((r) => r.id)
 }
 
+export async function listUnitTimezones(
+  orgId: string,
+): Promise<{ id: string; timezone: string }[]> {
+  const rows = await readUnderRls<{ id: string; timezone: string }>(orgId, (client) =>
+    client
+      .query<{
+        id: string
+        timezone: string
+      }>('SELECT id, timezone FROM units WHERE org_id = $1', [orgId])
+      .then((res) => res.rows),
+  )
+  return rows.map((r) => ({ id: r.id, timezone: r.timezone }))
+}
+
+export async function getUnitTimezone(orgId: string, unitId: string): Promise<string | null> {
+  const rows = await readUnderRls<{ timezone: string }>(orgId, (client) =>
+    client
+      .query<{
+        timezone: string
+      }>('SELECT timezone FROM units WHERE org_id = $1 AND id = $2', [orgId, unitId])
+      .then((res) => res.rows),
+  )
+  return rows[0]?.timezone ?? null
+}
+
 export async function writeUnitPii(orgId: string, unitId: string, pii: UnitPii): Promise<void> {
   await upsertUnitsPii(orgId, unitId, pii)
 }

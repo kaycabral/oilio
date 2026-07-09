@@ -235,6 +235,7 @@ export {
   FixedCost,
   FixedCostCategory,
   FixedCostOverride,
+  isFixedCostCategory,
 } from './types/fixed-cost'
 export {
   GOAL_PERIOD_PATTERN,
@@ -310,8 +311,8 @@ export {
   isCashPaymentMethod,
 } from './utils/cash-register'
 export type { CashMovementTotals } from './utils/cash-register'
-export { classifyLedger, recognizedSaleRevenueCents } from './utils/ledger'
-export type { ClosedOrderFact, LedgerFact, OrderReopenedFact } from './utils/ledger'
+export { classifyFixedCost, classifyLedger, recognizedSaleRevenueCents } from './utils/ledger'
+export type { ClosedOrderFact, FixedCostFact, LedgerFact, OrderReopenedFact } from './utils/ledger'
 
 export {
   assertValidTimezone,
