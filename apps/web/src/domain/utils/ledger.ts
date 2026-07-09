@@ -11,6 +11,17 @@ export type LedgerFact =
   | { readonly kind: 'commission'; readonly commission: Commission }
   | { readonly kind: 'charge_succeeded'; readonly charge: Charge }
   | { readonly kind: 'charge_refunded'; readonly charge: Charge }
+  | { readonly kind: 'fixed_cost'; readonly fixedCost: FixedCostFact }
+
+export type FixedCostFact = {
+  readonly orgId: string
+  readonly unitId: string
+  readonly seriesId: string
+  readonly nature: 'expense_commercial' | 'expense_admin' | 'expense_financial'
+  readonly amountCents: number
+  readonly month: string
+  readonly occurredAt: string
+}
 
 export type ClosedOrderFact = {
   readonly id: string
@@ -199,7 +210,29 @@ export function classifyLedger(facts: readonly LedgerFact[]): LedgerEntry[] {
       case 'order_reopened':
         entries.push(...classifyOrderReopened(fact.reopen, fact.reopen.reversedRevenueCents))
         break
+      case 'fixed_cost':
+        entries.push(...classifyFixedCost(fact.fixedCost))
+        break
     }
   }
   return entries
+}
+
+export function classifyFixedCost(fact: FixedCostFact): LedgerEntry[] {
+  if (fact.amountCents <= 0) return []
+  return [
+    entry({
+      orgId: fact.orgId,
+      unitId: fact.unitId,
+      nature: fact.nature,
+      behavior: 'fixed',
+      link: 'unit',
+      amountCents: fact.amountCents,
+      direction: 'out',
+      source: 'manual',
+      sourceId: `${fact.seriesId}:${fact.month}`,
+      itemId: null,
+      occurredAt: fact.occurredAt,
+    }),
+  ]
 }
