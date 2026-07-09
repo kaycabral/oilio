@@ -28,7 +28,9 @@ test.describe('List-surface pattern — three states (#1072)', () => {
     await chooseOptionByIndex(authedPage, 'Cliente', 0)
     await authedPage.getByRole('button', { name: 'Criar assinatura' }).click()
     await expect(authedPage).toHaveURL(/\/subscriptions\/.+/)
-    await expect(authedPage.getByText('Aguardando 1ª cobrança')).toBeVisible({ timeout: 5000 })
+    await expect(authedPage.getByText('Ativa', { exact: true }).first()).toBeVisible({
+      timeout: 5000,
+    })
 
     await authedPage.goto('/subscriptions?status=open')
     await expect(authedPage.getByRole('heading', { name: 'Assinaturas' })).toBeVisible()

@@ -50,7 +50,18 @@ test.describe('Subscriptions — baseline (#17)', { tag: '@critical' }, () => {
     await chooseOptionByIndex(authedPage, 'Cliente', 0)
     await authedPage.getByRole('button', { name: 'Criar assinatura' }).click()
     await expect(authedPage).toHaveURL(/\/subscriptions\/.+/)
-    await expect(authedPage.getByText('Aguardando 1ª cobrança')).toBeVisible({ timeout: 5000 })
+    await expect(authedPage.getByText('Ativa', { exact: true }).first()).toBeVisible({
+      timeout: 5000,
+    })
+    await expect(authedPage.getByText('Aguardando 1ª cobrança')).toBeHidden()
+
+    const subscriptionId = authedPage.url().split('/subscriptions/')[1]!.split(/[/?#]/)[0]!
+    const paidCharges = (await pgListByOrg('charges', org.orgId)).filter(
+      (c) =>
+        stringColumn(c, 'subscription_id') === subscriptionId &&
+        stringColumn(c, 'status') === 'paid',
+    )
+    expect(paidCharges).toHaveLength(1)
 
     await authedPage.goto('/subscriptions')
     await expect(authedPage.getByText(planLabel)).toBeVisible({ timeout: 5000 })
@@ -73,7 +84,9 @@ test.describe('Subscriptions — baseline (#17)', { tag: '@critical' }, () => {
     await chooseOptionByIndex(authedPage, 'Cliente', 0)
     await authedPage.getByRole('button', { name: 'Criar assinatura' }).click()
     await expect(authedPage).toHaveURL(/\/subscriptions\/.+/)
-    await expect(authedPage.getByText('Aguardando 1ª cobrança')).toBeVisible({ timeout: 5000 })
+    await expect(authedPage.getByText('Ativa', { exact: true }).first()).toBeVisible({
+      timeout: 5000,
+    })
 
     const activeUnitId = org.unitIds[0]
     const subscriptionId = authedPage.url().split('/subscriptions/')[1]!.split(/[/?#]/)[0]!
@@ -101,7 +114,9 @@ test.describe('Subscriptions — baseline (#17)', { tag: '@critical' }, () => {
     await chooseOptionByIndex(authedPage, 'Cliente', 0)
     await authedPage.getByRole('button', { name: 'Criar assinatura' }).click()
     await expect(authedPage).toHaveURL(/\/subscriptions\/.+/)
-    await expect(authedPage.getByText('Aguardando 1ª cobrança')).toBeVisible({ timeout: 5000 })
+    await expect(authedPage.getByText('Ativa', { exact: true }).first()).toBeVisible({
+      timeout: 5000,
+    })
 
     await deactivateCustomer(org, customerId)
     await authedPage.goto('/subscriptions')

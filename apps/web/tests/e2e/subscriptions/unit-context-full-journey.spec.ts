@@ -63,7 +63,9 @@ test.describe(
       await chooseOptionByIndex(authedPage, 'Cliente', 0)
       await authedPage.getByRole('button', { name: 'Criar assinatura' }).click()
       await expect(authedPage).toHaveURL(/\/subscriptions\/.+/)
-      await expect(authedPage.getByText('Aguardando 1ª cobrança')).toBeVisible({ timeout: 5000 })
+      await expect(authedPage.getByText('Ativa', { exact: true }).first()).toBeVisible({
+        timeout: 5000,
+      })
 
       const subId = authedPage.url().split('/subscriptions/')[1]!.split(/[/?#]/)[0]!
 
@@ -113,7 +115,9 @@ test.describe(
       await chooseOptionByIndex(authedPage, 'Cliente', 0)
       await authedPage.getByRole('button', { name: 'Criar assinatura' }).click()
       await expect(authedPage).toHaveURL(/\/subscriptions\/.+/)
-      await expect(authedPage.getByText('Aguardando 1ª cobrança')).toBeVisible({ timeout: 5000 })
+      await expect(authedPage.getByText('Ativa', { exact: true }).first()).toBeVisible({
+        timeout: 5000,
+      })
 
       const subId = authedPage.url().split('/subscriptions/')[1]!.split(/[/?#]/)[0]!
 

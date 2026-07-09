@@ -105,6 +105,7 @@ import {
   type SubscriptionPeriod,
   type SubscriptionPlan,
   type SubscriptionPlanSnapshot,
+  type SubscriptionStatus,
   type UnitPii,
   type User,
 } from '@/domain'
@@ -452,7 +453,7 @@ export async function setMembershipRole(membershipId: string, role: string): Pro
 export async function setSubscriptionStatus(
   orgId: string,
   subscriptionId: string,
-  status: 'pending' | 'active' | 'past_due' | 'suspended' | 'cancelled',
+  status: SubscriptionStatus,
 ): Promise<void> {
   const ref = aggregateRef(SubscriptionConfig, orgId, subscriptionId)
   const row = await readProjectionRow<SubscriptionRow>('subscriptions', ref)
@@ -1100,7 +1101,7 @@ export async function seedSubscription(
   opts: {
     planName?: string
     priceCents?: number
-    status?: 'pending' | 'active' | 'past_due' | 'suspended' | 'cancelled'
+    status?: SubscriptionStatus
     unitAllowlist?: string[]
     allowedTimeScope?: {
       daysOfWeek?: number[]
