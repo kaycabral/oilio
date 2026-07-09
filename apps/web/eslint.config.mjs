@@ -41,4 +41,10 @@ export default [
       'no-console': 'off',
     },
   },
+  {
+    files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts'],
+    rules: {
+      'cbrl/no-non-doc-comments': 'error',
+    },
+  },
 ]
