@@ -48,6 +48,7 @@ import {
   seedOrgWithOwner,
   seedPlan,
   seedSubscription,
+  seedSubscriptionCharges,
   seedUnit,
 } from './org-base'
 import { daysFromNow, now } from './runtime'
@@ -415,7 +416,8 @@ export async function seedBarbearia(): Promise<void> {
     })
   }
 
-  // — Active subscription (named customer 1 on the monthly plan) —
+  // — Active subscription (named customer 1 on the monthly plan): created, then
+  // the first charge is settled through the real choreography (born `active`) —
   await seedSubscription({
     id: 'seed-sub-1',
     orgId: ORG_ID,
@@ -427,6 +429,19 @@ export async function seedBarbearia(): Promise<void> {
     periodEnd: daysFromNow(30),
     nextChargeDate: daysFromNow(30),
     actorId: OWNER.uid,
+  })
+  await seedSubscriptionCharges({
+    orgId: ORG_ID,
+    subscriptionId: 'seed-sub-1',
+    unitId: UNIT_CENTRO,
+    customerId: 'seed-cust-1',
+    amountCents: monthlyPlan.priceCents,
+    periodStart: now,
+    periodEnd: daysFromNow(30),
+    nextPeriodEnd: daysFromNow(60),
+    state: 'active',
+    actorId: OWNER.uid,
+    now,
   })
 
   // — Appointments spread across yesterday / today / tomorrow —
