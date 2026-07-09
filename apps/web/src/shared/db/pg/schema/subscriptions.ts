@@ -45,7 +45,7 @@ export const subscriptions = pgTable(
   (table) => [
     check(
       'subscriptions_status_check',
-      sql`${table.status} IN ('pending', 'active', 'past_due', 'suspended', 'cancelled', 'cancelled_for_non_payment')`,
+      sql`${table.status} IN ('active', 'past_due', 'cancelled', 'cancelled_for_non_payment')`,
     ),
     check(
       'subscriptions_billing_cycle_check',

@@ -73,18 +73,19 @@ describe('isActiveSubscription', () => {
       isActiveSubscription(makeSub({ priceCents: 0, billingCycle: 'monthly', status: 'past_due' })),
     ).toBe(true)
   })
-  it('excludes pending, suspended, cancelled', () => {
-    expect(
-      isActiveSubscription(makeSub({ priceCents: 0, billingCycle: 'monthly', status: 'pending' })),
-    ).toBe(false)
+  it('excludes cancelled and cancelled_for_non_payment', () => {
     expect(
       isActiveSubscription(
-        makeSub({ priceCents: 0, billingCycle: 'monthly', status: 'suspended' }),
+        makeSub({ priceCents: 0, billingCycle: 'monthly', status: 'cancelled' }),
       ),
     ).toBe(false)
     expect(
       isActiveSubscription(
-        makeSub({ priceCents: 0, billingCycle: 'monthly', status: 'cancelled' }),
+        makeSub({
+          priceCents: 0,
+          billingCycle: 'monthly',
+          status: 'cancelled_for_non_payment',
+        }),
       ),
     ).toBe(false)
   })

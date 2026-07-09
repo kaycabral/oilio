@@ -34,10 +34,8 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
 const STATUS_CLASS: Record<SubscriptionStatus, string> = {
-  pending: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
   active: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
   past_due: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
-  suspended: 'bg-destructive/10 text-destructive',
   cancelled: 'bg-muted text-muted-foreground',
   cancelled_for_non_payment: 'bg-destructive/10 text-destructive',
 }
