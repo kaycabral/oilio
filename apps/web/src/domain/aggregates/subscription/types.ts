@@ -21,7 +21,7 @@ export const INITIAL_SUBSCRIPTION_STATE: SubscriptionState = {
   customerId: '',
   customerUserId: null,
   plan: INITIAL_PLAN_SNAPSHOT,
-  status: 'pending',
+  status: 'active',
   currentPeriod: { startAt: '', endAt: '', consumed: 0 },
   cancelAtPeriodEnd: false,
   nextChargeDate: null,

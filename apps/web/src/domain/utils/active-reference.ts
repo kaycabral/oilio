@@ -4,10 +4,8 @@ import type { OrderStatus } from '../types/order'
 import type { SubscriptionStatus } from '../types/subscription'
 
 const ACTIVE_SUBSCRIPTION_STATUSES: ReadonlySet<SubscriptionStatus> = new Set([
-  'pending',
   'active',
   'past_due',
-  'suspended',
 ])
 
 export function isActiveSubscriptionStatus(status: SubscriptionStatus): boolean {

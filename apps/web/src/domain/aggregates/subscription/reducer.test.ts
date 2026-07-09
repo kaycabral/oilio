@@ -41,9 +41,9 @@ function created(): SubscriptionState {
 }
 
 describe('Subscription reducer', () => {
-  it('created → pending com snapshot completo (id, plano, período, atores)', () => {
+  it('created → active com snapshot completo (id, plano, período, atores)', () => {
     const s = created()
-    expect(s.status).toBe('pending')
+    expect(s.status).toBe('active')
     expect(s.id).toBe('s1')
     expect(s.unitId).toBe('unit-a')
     expect(s.customerId).toBe('c1')
@@ -90,12 +90,23 @@ describe('Subscription reducer', () => {
       meta(2),
     )
     expect(s1.status).toBe('past_due')
-    const s2 = applySubscriptionEvent(
+    expect(s1.cancelledAt).toBeNull()
+  })
+
+  it('charge_failed → cancelled_for_non_payment carimba cancelledAt e corta nextChargeDate', () => {
+    const s = applySubscriptionEvent(
       created(),
-      { _tag: 'subscription.charge_failed', reason: 'x', status: 'suspended' },
-      meta(2),
+      {
+        _tag: 'subscription.charge_failed',
+        reason: 'threshold',
+        status: 'cancelled_for_non_payment',
+      },
+      meta(2, '2026-06-20T09:00:00.000Z'),
     )
-    expect(s2.status).toBe('suspended')
+    expect(s.status).toBe('cancelled_for_non_payment')
+    expect(s.cancelledAt).toBe('2026-06-20T09:00:00.000Z')
+    expect(s.cancelAtPeriodEnd).toBe(false)
+    expect(s.nextChargeDate).toBeNull()
   })
 
   it('cancel_scheduled marca cancelAtPeriodEnd sem cortar status', () => {

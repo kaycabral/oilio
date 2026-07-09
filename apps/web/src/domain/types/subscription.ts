@@ -4,10 +4,8 @@ import { NonEmptyString, NonNegativeInt } from '@/domain/value-objects'
 import { AllowedTimeScope, BillingCycle, BookingLimits, UsageLimit } from './subscription-plan'
 
 export const SUBSCRIPTION_STATUSES = [
-  'pending',
   'active',
   'past_due',
-  'suspended',
   'cancelled',
   'cancelled_for_non_payment',
 ] as const
@@ -15,10 +13,8 @@ export const SubscriptionStatus = Schema.Literal(...SUBSCRIPTION_STATUSES)
 export type SubscriptionStatus = typeof SubscriptionStatus.Type
 
 export const SUBSCRIPTION_STATUS_LABEL: Record<SubscriptionStatus, string> = {
-  pending: 'Aguardando 1ª cobrança',
   active: 'Ativa',
   past_due: 'Em recuperação',
-  suspended: 'Suspensa',
   cancelled: 'Cancelada',
   cancelled_for_non_payment: 'Cancelada por inadimplência',
 }
