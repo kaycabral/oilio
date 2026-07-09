@@ -224,16 +224,24 @@ const postgresOps: PersistenceOps = {
                   return deleteProjectionRow(client, ref)
                 }),
             }
-            const result = await Effect.runPromise(fn(txCtx))
+            const either = await Effect.runPromise(Effect.either(fn(txCtx)))
+            if (either._tag === 'Left') {
+              await client.query('ROLLBACK')
+              return either
+            }
             await client.query('COMMIT')
-            return result
+            return either
           } catch (err) {
             await client.query('ROLLBACK')
             throw err
           } finally {
             client.release()
           }
-        }),
+        }).pipe(
+          Effect.flatMap((either) =>
+            either._tag === 'Left' ? Effect.fail(either.left) : Effect.succeed(either.right),
+          ),
+        ),
       ),
     ),
 }

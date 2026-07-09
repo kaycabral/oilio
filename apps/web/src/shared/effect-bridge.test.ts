@@ -163,28 +163,30 @@ describe('commitGuardedThenAppend', () => {
         tag: 'commission.created',
         guard: () => Effect.succeed({ _tag: 'ok' as const, payload: { data: commission } }),
       },
-      CashMovementConfig,
-      cashMovementRef,
-      () => ({
-        _tag: 'cash_movement.created',
-        actorId: 'actor',
-        payload: {
-          data: {
-            id: 'm1',
-            orgId: 't1',
-            unitId: 'u1',
-            kind: 'sale',
-            direction: 'in',
-            amountCents: 5000,
-            paymentMethod: 'pix',
-            description: null,
-            orderId: 'o1',
-            expenseCategoryId: null,
-            recordedByUid: 'u1',
-            createdAt: '2026-06-01T12:00:00.000Z',
+      {
+        config: CashMovementConfig,
+        ref: cashMovementRef,
+        buildEvent: () => ({
+          _tag: 'cash_movement.created',
+          actorId: 'actor',
+          payload: {
+            data: {
+              id: 'm1',
+              orgId: 't1',
+              unitId: 'u1',
+              kind: 'sale',
+              direction: 'in',
+              amountCents: 5000,
+              paymentMethod: 'pix',
+              description: null,
+              orderId: 'o1',
+              expenseCategoryId: null,
+              recordedByUid: 'u1',
+              createdAt: '2026-06-01T12:00:00.000Z',
+            },
           },
-        },
-      }),
+        }),
+      },
     )
     expect(result).toEqual({ ok: true })
     expect(store.get(docKey(commissionRef))).toBeDefined()
@@ -200,9 +202,15 @@ describe('commitGuardedThenAppend', () => {
         tag: 'commission.created',
         guard: () => Effect.succeed({ _tag: 'reject' as const, message: 'discontinued' }),
       },
-      CashMovementConfig,
-      cashMovementRef,
-      () => ({ _tag: 'cash_movement.created', actorId: 'actor', payload: { data: commission } }),
+      {
+        config: CashMovementConfig,
+        ref: cashMovementRef,
+        buildEvent: () => ({
+          _tag: 'cash_movement.created',
+          actorId: 'actor',
+          payload: { data: commission },
+        }),
+      },
     )
     expect(result).toEqual({ ok: false, error: 'discontinued' })
     expect(store.get(docKey(commissionRef))).toBeUndefined()
