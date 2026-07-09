@@ -18,7 +18,7 @@ export function canCustomerCancelSubscription(
     return { canCancel: false, reason: 'wrong_owner' }
   }
 
-  const cancellable: SubscriptionStatus[] = ['pending', 'active', 'past_due', 'suspended']
+  const cancellable: SubscriptionStatus[] = ['active', 'past_due']
   if (!cancellable.includes(subscription.status)) {
     return { canCancel: false, reason: 'already_cancelled' }
   }

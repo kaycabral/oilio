@@ -19,8 +19,10 @@ export function nextSubscriptionStatusAfterFailure(
   currentStatus: SubscriptionStatus,
   currentAttempts: number,
 ): SubscriptionStatus {
-  if (currentStatus === 'cancelled') return 'cancelled'
+  if (currentStatus === 'cancelled' || currentStatus === 'cancelled_for_non_payment') {
+    return currentStatus
+  }
   const attempts = currentAttempts + 1
-  if (attempts >= CHARGE_FAILURE_THRESHOLD) return 'suspended'
+  if (attempts >= CHARGE_FAILURE_THRESHOLD) return 'cancelled_for_non_payment'
   return 'past_due'
 }

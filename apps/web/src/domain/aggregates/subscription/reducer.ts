@@ -23,7 +23,7 @@ export function applySubscriptionEvent(
         customerId: event.customerId,
         customerUserId: event.customerUserId,
         plan: event.plan,
-        status: 'pending',
+        status: 'active',
         currentPeriod: { startAt: event.periodStart, endAt: event.periodEnd, consumed: 0 },
         cancelAtPeriodEnd: false,
         nextChargeDate: event.nextChargeDate,
@@ -37,10 +37,25 @@ export function applySubscriptionEvent(
     case 'subscription.charge_settled':
       return state.status === 'cancelled' ? base : { ...base, status: 'active' }
     case 'subscription.charge_failed': {
-      return { ...base, status: event.status ?? 'past_due' }
+      const status = event.status ?? 'past_due'
+      return status === 'cancelled_for_non_payment'
+        ? {
+            ...base,
+            status,
+            cancelAtPeriodEnd: false,
+            cancelledAt: meta.timestamp,
+            nextChargeDate: null,
+          }
+        : { ...base, status }
     }
     case 'subscription.cancelled_for_non_payment':
-      return { ...base, status: 'cancelled_for_non_payment' }
+      return {
+        ...base,
+        status: 'cancelled_for_non_payment',
+        cancelAtPeriodEnd: false,
+        cancelledAt: meta.timestamp,
+        nextChargeDate: null,
+      }
     case 'subscription.cancelled':
       return {
         ...base,

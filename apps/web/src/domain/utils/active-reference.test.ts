@@ -8,10 +8,8 @@ import {
 
 describe('isActiveSubscriptionStatus', () => {
   it('treats live statuses as active references', () => {
-    expect(isActiveSubscriptionStatus('pending')).toBe(true)
     expect(isActiveSubscriptionStatus('active')).toBe(true)
     expect(isActiveSubscriptionStatus('past_due')).toBe(true)
-    expect(isActiveSubscriptionStatus('suspended')).toBe(true)
   })
 
   it('treats terminal statuses as historical (not active)', () => {

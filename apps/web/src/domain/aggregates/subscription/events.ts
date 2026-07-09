@@ -1,13 +1,6 @@
 import { Schema } from 'effect'
 
-const StatusSchema = Schema.Literal(
-  'pending',
-  'active',
-  'past_due',
-  'suspended',
-  'cancelled',
-  'cancelled_for_non_payment',
-)
+const StatusSchema = Schema.Literal('active', 'past_due', 'cancelled', 'cancelled_for_non_payment')
 
 const UsageLimitSchema = Schema.Union(
   Schema.Struct({ kind: Schema.Literal('unlimited') }),

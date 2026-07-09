@@ -36,8 +36,8 @@ describe('nextSubscriptionStatusAfterFailure (#650)', () => {
     expect(nextSubscriptionStatusAfterFailure('active', 1)).toBe('past_due')
   })
 
-  it('recovering → suspended on third failure (threshold)', () => {
-    expect(nextSubscriptionStatusAfterFailure('past_due', 2)).toBe('suspended')
+  it('recovering → cancelled_for_non_payment on third failure (threshold)', () => {
+    expect(nextSubscriptionStatusAfterFailure('past_due', 2)).toBe('cancelled_for_non_payment')
   })
 
   it('already-cancelled subscriptions stay cancelled regardless of attempts', () => {
@@ -45,7 +45,9 @@ describe('nextSubscriptionStatusAfterFailure (#650)', () => {
     expect(nextSubscriptionStatusAfterFailure('cancelled', 5)).toBe('cancelled')
   })
 
-  it('suspended subscription stays suspended on a 4th failure (no resurrection)', () => {
-    expect(nextSubscriptionStatusAfterFailure('suspended', 3)).toBe('suspended')
+  it('a subscription cancelled for non-payment stays terminal (no resurrection)', () => {
+    expect(nextSubscriptionStatusAfterFailure('cancelled_for_non_payment', 3)).toBe(
+      'cancelled_for_non_payment',
+    )
   })
 })

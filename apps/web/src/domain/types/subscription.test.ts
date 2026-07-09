@@ -13,8 +13,8 @@ describe('SUBSCRIPTION_STATUS_LABEL', () => {
   })
 
   it('maps the known statuses to their canonical pt-BR wording', () => {
-    expect(SUBSCRIPTION_STATUS_LABEL.pending).toBe('Aguardando 1ª cobrança')
     expect(SUBSCRIPTION_STATUS_LABEL.active).toBe('Ativa')
+    expect(SUBSCRIPTION_STATUS_LABEL.past_due).toBe('Em recuperação')
     expect(SUBSCRIPTION_STATUS_LABEL.cancelled).toBe('Cancelada')
     expect(SUBSCRIPTION_STATUS_LABEL.cancelled_for_non_payment).toBe('Cancelada por inadimplência')
   })
