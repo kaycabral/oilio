@@ -7,9 +7,10 @@
 
 ## Context
 
-Ao refinar a modelagem de recorrência do Oilio (Feature `0003-cobranca-recorrente`), o fluxo original permitia que uma assinatura (`Subscription`) fosse criada no estado `pending` sem uma cobrança liquidada correspondente, transicionando para `active` somente após um evento posterior de `subscription.charge_settled`. 
+Ao refinar a modelagem de recorrência do Oilio (Feature `0003-cobranca-recorrente`), o fluxo original permitia que uma assinatura (`Subscription`) fosse criada no estado `pending` sem uma cobrança liquidada correspondente, transicionando para `active` somente após um evento posterior de `subscription.charge_settled`.
 
 Esse desenho introduzia complexidade e riscos operacionais significativos:
+
 1. **Brechas de Receita Fantasma**: Possibilidade de cancelamento de uma assinatura ainda não cobrada (`pending` -> `cancelled`), gerando inconsistências no Razão financeiro e DRE (lançamentos de competência órfãos de liquidação real).
 2. **Complexidade no Reducer e Projeções**: Manutenção de estados temporários como `pending` e `suspended` que não possuíam regras claras de negócio ou produtores consistentes (estados fantasmas).
 3. **Desalinhamento com Gateways Modernos**: Gateways de pagamento de referência (como Stripe) tratam a ativação da assinatura como intrinsecamente atrelada ao sucesso da primeira fatura (invoice paid).
