@@ -25,6 +25,7 @@ import {
   ProfilePanel,
 } from '@/features/settings/ui/section-panels'
 import { SettingsModalProvider } from '@/features/settings/ui/settings-modal-context'
+import { isFeatureEnabled } from '@/shared/flags'
 import { useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import {
@@ -38,7 +39,7 @@ import {
   Skeleton,
 } from '@cbrl/design'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 function parseSectionFromHash(hash: string): SettingsSectionKey | null {
   if (!hash.startsWith(SETTINGS_HASH_PREFIX)) return null
@@ -92,21 +93,26 @@ function SectionPanel({ loaded }: { loaded: LoadedSection }) {
 export function SettingsModal() {
   const router = useRouter()
   const { membership } = useOrg()
-  const sections = visibleSettingsSections(membership.role)
+  const sections = visibleSettingsSections(membership.role, {
+    notifications: isFeatureEnabled('notifications'),
+  })
 
   const [section, setSection] = useState<SettingsSectionKey | null>(null)
   const [loaded, setLoaded] = useState<LoadedSection | null>(null)
   const [loading, setLoading] = useState(false)
   const requestId = useRef(0)
 
+  const visibleKeys = useMemo(() => new Set(sections.map((s) => s.key)), [sections])
+
   useEffect(() => {
     function sync() {
-      setSection(parseSectionFromHash(window.location.hash))
+      const parsed = parseSectionFromHash(window.location.hash)
+      setSection(parsed && visibleKeys.has(parsed) ? parsed : null)
     }
     sync()
     window.addEventListener('hashchange', sync)
     return () => window.removeEventListener('hashchange', sync)
-  }, [])
+  }, [visibleKeys])
 
   const load = useCallback(
     async (target: SettingsSectionKey) => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { buildMembership } from '@/shared/fixtures/domain-builders'
 import { getNavSections, type NavOrgSignals } from './nav-items'
@@ -8,6 +8,16 @@ import type { Tier } from '@/domain/billing/tiers'
 
 const NOW = '2026-01-01T00:00:00.000Z'
 const withAgenda: NavOrgSignals = { usesAgenda: true }
+
+const FLAG_VARS = ['NEXT_PUBLIC_FF_FINANCE', 'NEXT_PUBLIC_FF_COPILOT'] as const
+
+beforeEach(() => {
+  for (const v of FLAG_VARS) process.env[v] = 'true'
+})
+
+afterEach(() => {
+  for (const v of FLAG_VARS) delete process.env[v]
+})
 
 function sectionsFor(role: Role, signals: NavOrgSignals = withAgenda, tier: Tier = 'pro') {
   return getNavSections(buildMembership('t1', 'u1', NOW, { role }), signals, tier)
@@ -89,6 +99,36 @@ describe('getNavSections', () => {
       const sections = sectionsFor('owner', withAgenda, 'free')
       const cadastros = sections.find((s) => s.label === 'Cadastros')
       expect(cadastros?.items.map((i) => i.label)).toEqual(['Clientes', 'Catálogo'])
+    })
+  })
+
+  describe('dark-launch flag axis', () => {
+    it('hides Financeiro and Copiloto when their flags are off, even for a Pro owner', () => {
+      delete process.env.NEXT_PUBLIC_FF_FINANCE
+      delete process.env.NEXT_PUBLIC_FF_COPILOT
+      const pro = labels('owner', withAgenda, 'pro')
+      expect(pro).not.toContain('Financeiro')
+      expect(pro).not.toContain('Copiloto')
+      expect(pro).toEqual(expect.arrayContaining(['Vendas', 'Relatórios', 'Planos']))
+    })
+
+    it('hides Financeiro even when flag on but role lacks manageOrg', () => {
+      const receptionist = labels('receptionist', withAgenda, 'pro')
+      expect(receptionist).not.toContain('Financeiro')
+    })
+
+    it('shows Copiloto only when flag AND tier both allow (independent gates)', () => {
+      expect(labels('owner', withAgenda, 'free')).not.toContain('Copiloto')
+      delete process.env.NEXT_PUBLIC_FF_COPILOT
+      expect(labels('owner', withAgenda, 'pro')).not.toContain('Copiloto')
+      process.env.NEXT_PUBLIC_FF_COPILOT = 'true'
+      expect(labels('owner', withAgenda, 'pro')).toContain('Copiloto')
+    })
+
+    it('strips the internal requiresFlag flag from the emitted items', () => {
+      for (const item of sectionsFor('owner').flatMap((s) => s.items)) {
+        expect(item).not.toHaveProperty('requiresFlag')
+      }
     })
   })
 })
