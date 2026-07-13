@@ -4,6 +4,7 @@ import { UserMenu } from '@/components/user-menu'
 import { unitUsesAgenda } from '@/domain'
 import { NotificationBell } from '@/features/notifications/ui/NotificationBell'
 import { SettingsModal, settingsHash } from '@/features/settings/ui/SettingsModal'
+import { isFeatureEnabled } from '@/shared/flags'
 import { useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import {
@@ -45,7 +46,7 @@ export function AppShell({
         </Link>
       )}
       headerStart={<UnitOrgSwitcher />}
-      headerEnd={<NotificationBell />}
+      headerEnd={isFeatureEnabled('notifications') ? <NotificationBell /> : null}
       footer={
         <SidebarUserMenu
           name={user.name}

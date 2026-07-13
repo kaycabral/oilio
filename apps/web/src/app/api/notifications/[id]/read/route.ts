@@ -1,10 +1,14 @@
 import { markNotificationRead } from '@/features/notifications/adapters/mark'
+import { flagNotFound } from '@/shared/api-flags'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { withRequestContext } from '@/shared/lib/request-context'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { NextResponse } from 'next/server'
 
 async function postHandler(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const disabled = flagNotFound('notifications')
+  if (disabled) return disabled
+
   const session = await getSessionUser()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

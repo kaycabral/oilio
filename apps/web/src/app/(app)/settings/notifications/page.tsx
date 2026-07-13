@@ -3,12 +3,15 @@ import { settingsSectionMeta } from '@/features/settings/core/settings-sections'
 import { NotificationTemplatesForm } from '@/features/settings/ui/NotificationTemplatesForm'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isFeatureEnabled } from '@/shared/flags'
 import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { SettingsSection } from '@cbrl/design'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 
 export default async function NotificationSettingsPage() {
+  if (!isFeatureEnabled('notifications')) notFound()
+
   if (!isFirebaseConfigured()) redirect('/')
 
   const session = await getSessionUser()

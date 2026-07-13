@@ -1,4 +1,5 @@
 import { generateHourlyNotifications } from '@/features/notifications/adapters/generate-hourly'
+import { flagNotFound } from '@/shared/api-flags'
 import { PostgresLayerLive } from '@/shared/db/effect'
 import { withRequestContext } from '@/shared/lib/request-context'
 import { Effect } from 'effect'
@@ -12,6 +13,9 @@ function verifyCronSecret(request: Request): boolean {
 }
 
 async function postHandler(request: Request) {
+  const disabled = flagNotFound('notifications')
+  if (disabled) return disabled
+
   if (!verifyCronSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

@@ -58,7 +58,16 @@ export function settingsHash(section: SettingsSectionKey): string {
   return `${SETTINGS_HASH_PREFIX}${section}`
 }
 
-export function visibleSettingsSections(role: Role): SettingsSection[] {
+export type SettingsSectionFlags = { notifications: boolean }
+
+export function visibleSettingsSections(
+  role: Role,
+  flags: SettingsSectionFlags,
+): SettingsSection[] {
   const canManage = canManageOrg(role)
-  return SETTINGS_SECTIONS.filter((section) => !section.requiresManage || canManage)
+  return SETTINGS_SECTIONS.filter((section) => {
+    if (section.requiresManage && !canManage) return false
+    if (section.key === 'notifications' && !flags.notifications) return false
+    return true
+  })
 }

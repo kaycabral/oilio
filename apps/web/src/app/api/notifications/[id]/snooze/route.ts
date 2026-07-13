@@ -1,5 +1,6 @@
 import { snoozeNotification } from '@/features/notifications/adapters/mark'
 import { isSnoozeOption } from '@/features/notifications/core/snooze'
+import { flagNotFound } from '@/shared/api-flags'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { readJson } from '@/shared/http'
 import { withRequestContext } from '@/shared/lib/request-context'
@@ -14,6 +15,9 @@ const SnoozeBodySchema = Schema.Struct({
 })
 
 async function postHandler(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const disabled = flagNotFound('notifications')
+  if (disabled) return disabled
+
   const session = await getSessionUser()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

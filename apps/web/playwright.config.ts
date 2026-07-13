@@ -75,6 +75,18 @@ function webServerEnv(): Record<string, string> {
     FIREBASE_ADMIN_PROJECT_ID: 'scheduling-local',
     // Origin pros invite links (team/actions.ts faz fail-fast se ausente).
     NEXT_PUBLIC_APP_URL: BASE_URL,
+    // Dark-launch flags default ON for the suite so every existing spec keeps
+    // exercising Finance/Copilot/Notifications. `E2E_FLAGS_OFF=1` boots the
+    // server with them absent (= off) so dark-launch.spec.ts proves prod hides
+    // the surfaces. The two modes need separate server boots (NEXT_PUBLIC_* is
+    // baked at build/start), so the OFF run is its own invocation, not a project.
+    ...(process.env.E2E_FLAGS_OFF === '1'
+      ? {}
+      : {
+          NEXT_PUBLIC_FF_FINANCE: 'true',
+          NEXT_PUBLIC_FF_COPILOT: 'true',
+          NEXT_PUBLIC_FF_NOTIFICATIONS: 'true',
+        }),
     // The standalone server reads PORT/HOSTNAME from env (no -p). Harmless for
     // the `next start` paths, which already bind this same port.
     PORT: String(PORT),

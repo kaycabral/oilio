@@ -1,12 +1,16 @@
 import { loadNotificationsPage } from '@/features/notifications/adapters/load-notifications'
 import { NotificationsList } from '@/features/notifications/ui/NotificationsList'
+import { isFeatureEnabled } from '@/shared/flags'
 import { Main } from '@cbrl/design'
+import { notFound } from 'next/navigation'
 
 export default async function NotificationsPage({
   searchParams,
 }: {
   searchParams: Promise<{ type?: string; page?: string }>
 }) {
+  if (!isFeatureEnabled('notifications')) notFound()
+
   const params = await searchParams
   const { notifications, activeType } = await loadNotificationsPage(params)
 

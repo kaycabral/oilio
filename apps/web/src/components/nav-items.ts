@@ -1,6 +1,7 @@
 import { canManageOrg, type Membership } from '@/domain'
-import { type Capability, hasCapability as tierHasCapability } from '@/domain/billing/capabilities'
+import { hasCapability as tierHasCapability, type Capability } from '@/domain/billing/capabilities'
 import { type Tier } from '@/domain/billing/tiers'
+import { isFeatureEnabled, type FeatureFlag } from '@/shared/flags'
 import type { NavItem, NavSection } from '@cbrl/design'
 import {
   BarChart3,
@@ -31,6 +32,7 @@ type GatedNavItem = NavItem & {
   requires?: NavCapability
   requiresOrg?: NavOrgSignal
   requiresTier?: Capability
+  requiresFlag?: FeatureFlag
 }
 type GatedNavSection = Omit<NavSection, 'items'> & { items: readonly GatedNavItem[] }
 
@@ -76,6 +78,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         match: 'prefix',
         requires: 'manageOrg',
         requiresTier: 'copilot.profit_goal',
+        requiresFlag: 'copilot',
       },
       {
         href: '/finance',
@@ -83,6 +86,7 @@ const ALL_NAV_SECTIONS: readonly GatedNavSection[] = [
         icon: Wallet,
         match: 'prefix',
         requires: 'manageOrg',
+        requiresFlag: 'finance',
       },
     ],
   },
@@ -153,6 +157,7 @@ function canSeeItem(
   item: GatedNavItem,
 ): boolean {
   if (item.requiresOrg === 'usesAgenda' && !signals.usesAgenda) return false
+  if (item.requiresFlag !== undefined && !isFeatureEnabled(item.requiresFlag)) return false
   if (item.requiresTier !== undefined && !tierHasCapability(tier, item.requiresTier)) return false
   return item.requires === undefined || hasCapability(membership, item.requires)
 }
@@ -165,7 +170,14 @@ export function getNavSections(
   return ALL_NAV_SECTIONS.flatMap((section) => {
     const items = section.items
       .filter((item) => canSeeItem(membership, signals, tier, item))
-      .map(({ requires: _requires, requiresTier: _requiresTier, ...item }) => item)
+      .map(
+        ({
+          requires: _requires,
+          requiresTier: _requiresTier,
+          requiresFlag: _requiresFlag,
+          ...item
+        }) => item,
+      )
     if (items.length === 0) return []
     return [{ label: section.label, items }]
   })
