@@ -1,17 +1,21 @@
-import { type BillingCycle, BILLING_CYCLES } from '@/domain'
+import { type BillingCycle, BILLING_CYCLES, fromOrgTime } from '@/domain'
 import { formString } from '@/shared/form-data'
 
 export type CreatePayload = {
   customerId: string
   planId: string
   billingCycle: BillingCycle
-  startAt: string
+  startDate: string
 }
 
 export type CreatePayloadWithDisplay = CreatePayload & { displayedPriceCents: number | null }
 
 export function isBillingCycle(value: string): value is BillingCycle {
   return (BILLING_CYCLES as readonly string[]).includes(value)
+}
+
+export function resolveVigenciaStart(startDate: string, timezone: string): string {
+  return fromOrgTime({ date: startDate, hour: 0, minute: 0 }, timezone)
 }
 
 export function parseCreateForm(formData: FormData): CreatePayloadWithDisplay | string {
@@ -25,9 +29,8 @@ export function parseCreateForm(formData: FormData): CreatePayloadWithDisplay | 
   if (!isBillingCycle(billingCycleRaw)) return 'Ciclo de cobrança inválido'
   const billingCycle: BillingCycle = billingCycleRaw
 
-  const startInput = formString(formData, 'startAt').trim()
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startInput)) return 'Data de início inválida'
-  const startAt = new Date(`${startInput}T00:00:00.000Z`).toISOString()
+  const startDate = formString(formData, 'startAt').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return 'Data de início inválida'
 
   const displayedRaw = formString(formData, 'displayedPriceCents').trim()
   let displayedPriceCents: number | null = null
@@ -37,5 +40,5 @@ export function parseCreateForm(formData: FormData): CreatePayloadWithDisplay | 
     displayedPriceCents = n
   }
 
-  return { customerId, planId, billingCycle, startAt, displayedPriceCents }
+  return { customerId, planId, billingCycle, startDate, displayedPriceCents }
 }

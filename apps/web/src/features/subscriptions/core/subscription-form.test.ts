@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseCreateForm } from './subscription-form'
+import { parseCreateForm, resolveVigenciaStart } from './subscription-form'
 
 function form(fields: Record<string, string>): FormData {
   const fd = new FormData()
@@ -15,12 +15,12 @@ const VALID = {
 }
 
 describe('parseCreateForm', () => {
-  it('parses a valid form, normalizing startAt to UTC midnight', () => {
+  it('parses a valid form, keeping startDate as a raw civil date for the caller to anchor in the org timezone', () => {
     expect(parseCreateForm(form(VALID))).toEqual({
       customerId: 'cust-1',
       planId: 'plan-1',
       billingCycle: 'monthly',
-      startAt: '2026-06-15T00:00:00.000Z',
+      startDate: '2026-06-15',
       displayedPriceCents: null,
     })
   })
@@ -40,5 +40,19 @@ describe('parseCreateForm', () => {
     ['displayed price non-integer', { displayedPriceCents: '1.5' }, 'Preço exibido inválido'],
   ])('rejects bad %s', (_label, override, message) => {
     expect(parseCreateForm(form({ ...VALID, ...override }))).toBe(message)
+  })
+})
+
+describe('resolveVigenciaStart', () => {
+  it('anchors the civil start date to midnight in the org timezone, not UTC', () => {
+    expect(resolveVigenciaStart('2026-06-17', 'America/Sao_Paulo')).toBe('2026-06-17T03:00:00.000Z')
+  })
+
+  it('honors a different org timezone', () => {
+    expect(resolveVigenciaStart('2026-06-17', 'America/Manaus')).toBe('2026-06-17T04:00:00.000Z')
+  })
+
+  it('resolves UTC orgs to true midnight', () => {
+    expect(resolveVigenciaStart('2026-06-17', 'UTC')).toBe('2026-06-17T00:00:00.000Z')
   })
 })
