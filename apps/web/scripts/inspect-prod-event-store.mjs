@@ -192,6 +192,56 @@ const CHECKS = {
       params: org ? [org] : [],
     },
   ],
+
+  // #1420: does the subscription creation date (created_at, i.e. the write
+  // timestamp) diverge from the accrual competence (the first charge's
+  // period_start_at, i.e. the chosen "Início da vigência")? A non-zero
+  // `gap_days` on any row proves a retroactive subscription exists in prod and
+  // sizes the backfill. Read-only: joins subscriptions to its earliest charge.
+  'subscription-competence': [
+    {
+      label: 'subscription_dates',
+      sql: `SELECT s.org_id,
+                   s.id,
+                   s.status,
+                   s.created_at,
+                   (s.current_period->>'startAt') AS current_period_start,
+                   fc.first_period_start_at,
+                   fc.charge_count,
+                   round(EXTRACT(EPOCH FROM (
+                     date_trunc('day', s.created_at)
+                     - date_trunc('day', fc.first_period_start_at)
+                   )) / 86400)::int AS gap_days
+            FROM subscriptions s
+            LEFT JOIN LATERAL (
+              SELECT min(c.period_start_at) AS first_period_start_at,
+                     count(*)::int AS charge_count
+              FROM charges c
+              WHERE c.org_id = s.org_id AND c.subscription_id = s.id
+            ) fc ON true
+            ${org ? 'WHERE s.org_id = $1' : ''}
+            ORDER BY s.org_id, s.created_at`,
+      params: org ? [org] : [],
+    },
+    {
+      label: 'retroactive_count',
+      sql: `WITH sub_first AS (
+              SELECT s.org_id, s.id, s.created_at,
+                     (SELECT min(c.period_start_at) FROM charges c
+                      WHERE c.org_id = s.org_id AND c.subscription_id = s.id
+                     ) AS first_period_start_at
+              FROM subscriptions s
+              ${org ? 'WHERE s.org_id = $1' : ''}
+            )
+            SELECT count(*)::int AS total_subscriptions,
+                   count(*) FILTER (
+                     WHERE date_trunc('day', created_at)
+                         <> date_trunc('day', first_period_start_at)
+                   )::int AS retroactive_subscriptions
+            FROM sub_first`,
+      params: org ? [org] : [],
+    },
+  ],
 }
 
 async function run() {

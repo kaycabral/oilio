@@ -1,9 +1,13 @@
-import { shiftDateInOrgTz, toOrgTime, type Order, type Subscription } from '@/domain'
+import { shiftDateInOrgTz, toOrgTime, type Order } from '@/domain'
 
 export type TrendPoint = {
   date: string
   revenueCents: number
   newSubs: number
+}
+
+export type SubscriptionActivation = {
+  activatedAt: string
 }
 
 export function listLocalDays(fromDate: string, toDate: string, tz: string): string[] {
@@ -18,7 +22,7 @@ export function listLocalDays(fromDate: string, toDate: string, tz: string): str
 
 export function bucketByLocalDay(
   orders: Order[],
-  subs: Subscription[],
+  subs: SubscriptionActivation[],
   tz: string,
   dayList: string[],
 ): TrendPoint[] {
@@ -31,7 +35,7 @@ export function bucketByLocalDay(
     if (bucket) bucket.revenueCents += c.totalCents
   }
   for (const s of subs) {
-    const day = toOrgTime(s.createdAt, tz).dateISO
+    const day = toOrgTime(s.activatedAt, tz).dateISO
     const bucket = map.get(day)
     if (bucket) bucket.newSubs += 1
   }
