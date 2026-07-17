@@ -1,6 +1,6 @@
-import type { Order, Subscription } from '@/domain'
+import type { Order } from '@/domain'
 import { describe, expect, it } from 'vitest'
-import { bucketByLocalDay, listLocalDays } from './trend'
+import { type SubscriptionActivation, bucketByLocalDay, listLocalDays } from './trend'
 
 const TZ = 'America/Sao_Paulo'
 
@@ -36,33 +36,8 @@ describe('bucketByLocalDay', () => {
       updatedAt: '',
     }
   }
-  function sub(createdUtc: string): Subscription {
-    return {
-      id: 's',
-      orgId: 't',
-      unitId: 'u',
-      customerId: 'c',
-      customerUserId: null,
-      plan: {
-        planId: 'p',
-        name: 'Plan',
-        priceCents: 0,
-        billingCycle: 'monthly',
-        includedItemIds: [],
-        includedCategoryIds: [],
-        usageLimit: { kind: 'unlimited' },
-      },
-      status: 'active',
-      currentPeriod: { startAt: '', endAt: '', consumed: 0 },
-      cancelAtPeriodEnd: false,
-      nextChargeDate: null,
-      pastDueCycles: 0,
-      pastDueThreshold: 2,
-      cancellationReason: null,
-      cancelledAt: null,
-      createdAt: createdUtc,
-      updatedAt: '',
-    }
+  function sub(activatedUtc: string): SubscriptionActivation {
+    return { activatedAt: activatedUtc }
   }
 
   it('attributes a Brazilian late-night sale to the correct local day', () => {
@@ -89,7 +64,7 @@ describe('bucketByLocalDay', () => {
     expect(result[0]).toEqual({ date: '2026-03-14', revenueCents: 3500, newSubs: 0 })
   })
 
-  it('counts new subs by their createdAt day', () => {
+  it('counts new subs by their activation competence day', () => {
     const days = ['2026-03-14', '2026-03-15']
     const result = bucketByLocalDay(
       [],
@@ -103,6 +78,16 @@ describe('bucketByLocalDay', () => {
     )
     expect(result).toEqual([
       { date: '2026-03-14', revenueCents: 0, newSubs: 3 },
+      { date: '2026-03-15', revenueCents: 0, newSubs: 0 },
+    ])
+  })
+
+  it('attributes a retroactive sub to its competence day, not the write date (#1420)', () => {
+    const days = ['2026-03-13', '2026-03-14', '2026-03-15']
+    const result = bucketByLocalDay([], [sub('2026-03-13T09:00:00.000Z')], TZ, days)
+    expect(result).toEqual([
+      { date: '2026-03-13', revenueCents: 0, newSubs: 1 },
+      { date: '2026-03-14', revenueCents: 0, newSubs: 0 },
       { date: '2026-03-15', revenueCents: 0, newSubs: 0 },
     ])
   })
