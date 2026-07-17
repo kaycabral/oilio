@@ -4,6 +4,7 @@
     "eslint.config.mjs",
     "vitest.stryker.config.ts",
     "scripts/migrate-event-store.mjs",
+    "scripts/inspect-prod-event-store.mjs",
     "drizzle.config.ts"
   ],
   "ignoreDependencies": ["tailwindcss", "eslint-config-next"],
