@@ -36,6 +36,7 @@
     "@cbrl/env": "workspace:*",
     "@cbrl/product": "workspace:*",
     "@google-cloud/cloud-sql-connector": "catalog:",
+    "@sentry/nextjs": "10.66.0",
     "@types/qrcode": "^1.5.6",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
