@@ -7,6 +7,7 @@ import {
   type Charge,
   computeBillingPeriod,
   lawfulPriceCents as computeLawfulPrice,
+  DEFAULT_UNIT_TIMEZONE,
   Subscription,
   SubscriptionPlan,
 } from '@/domain'
@@ -23,7 +24,10 @@ import { commitGuardedThenAppend, emitEvent } from '@/shared/effect-bridge'
 import { Effect, Schema } from 'effect'
 
 import { buildMarkPaidSteps } from '@/features/subscriptions/adapters/subscription-charges-saga'
-import { parseCreateForm } from '@/features/subscriptions/core/subscription-form'
+import {
+  parseCreateForm,
+  resolveVigenciaStart,
+} from '@/features/subscriptions/core/subscription-form'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { getCustomerUserId } from '@/shared/org/customer-read'
 import { requireManagerCtx, requireRecurringManagerCtx } from '@/shared/org/membership'
@@ -76,10 +80,11 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
   const parsed = parseCreateForm(formData)
   if (typeof parsed === 'string') return { ok: false, error: parsed }
 
-  const { activeUnitId } = await resolveActiveUnit(r.ctx.membership)
+  const { units, activeUnitId } = await resolveActiveUnit(r.ctx.membership)
   if (!activeUnitId) {
     return { ok: false, error: 'Nenhuma unidade ativa — crie uma unidade antes de assinar' }
   }
+  const unitTimezone = units.find((u) => u.id === activeUnitId)?.timezone ?? DEFAULT_UNIT_TIMEZONE
 
   const orgId = r.ctx.membership.orgId
 
@@ -99,7 +104,8 @@ export async function createSubscription(formData: FormData): Promise<Subscripti
     return { ok: false, error: 'Cliente já possui assinatura ativa — cancele antes de criar nova' }
   }
 
-  const period = computeBillingPeriod(parsed.startAt, parsed.billingCycle)
+  const startAt = resolveVigenciaStart(parsed.startDate, unitTimezone)
+  const period = computeBillingPeriod(startAt, parsed.billingCycle)
   const now = new Date().toISOString()
 
   const subId = newId()
