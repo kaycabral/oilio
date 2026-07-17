@@ -1,3 +1,4 @@
+import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
 import { hostname, networkInterfaces } from 'node:os'
 
@@ -59,4 +60,12 @@ const nextConfig: NextConfig = {
   // routes manifest.
 }
 
-export default nextConfig
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  tunnelRoute: '/monitoring-tunnel',
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
+  telemetry: false,
+})
