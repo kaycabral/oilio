@@ -1,0 +1,73 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  isFirebaseConfigured: vi.fn(() => true),
+  getSessionUser: vi.fn(),
+  listLinkedOrgIds: vi.fn((): Promise<string[]> => Promise.resolve([])),
+}))
+
+vi.mock('@/shared/firebase/admin', () => ({ getSessionUser: mocks.getSessionUser }))
+vi.mock('@/shared/firebase/config', () => ({ isFirebaseConfigured: mocks.isFirebaseConfigured }))
+vi.mock('@/shared/identity/org-links', () => ({ listLinkedOrgIds: mocks.listLinkedOrgIds }))
+
+vi.mock('@/components/me-shell', () => ({
+  MeShell: ({ children }: { children: React.ReactNode }) => (
+    <main aria-label="me-shell">{children}</main>
+  ),
+}))
+
+vi.mock('next/navigation', () => ({
+  redirect: (path: string) => {
+    throw new Error(`__REDIRECT__:${path}`)
+  },
+}))
+
+import MeLayout from './layout'
+
+function callLayout() {
+  return MeLayout({ children: <div aria-label="children" /> })
+}
+
+async function captureRedirect(): Promise<string> {
+  try {
+    await callLayout()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.startsWith('__REDIRECT__:')) return msg.slice('__REDIRECT__:'.length)
+    throw err
+  }
+  throw new Error('Expected redirect to be thrown, but layout resolved')
+}
+
+beforeEach(() => {
+  mocks.isFirebaseConfigured.mockReset().mockReturnValue(true)
+  mocks.getSessionUser.mockReset()
+  mocks.listLinkedOrgIds.mockReset().mockResolvedValue([])
+})
+
+describe('MeLayout — client-area gate', () => {
+  it('redirects to / when Firebase is not configured', async () => {
+    mocks.isFirebaseConfigured.mockReturnValue(false)
+    expect(await captureRedirect()).toBe('/')
+    expect(mocks.getSessionUser).not.toHaveBeenCalled()
+  })
+
+  it('redirects to /login when there is no session', async () => {
+    mocks.getSessionUser.mockResolvedValue(null)
+    expect(await captureRedirect()).toBe('/login')
+  })
+
+  it('redirects a logged-in user with no org link away from /me', async () => {
+    mocks.getSessionUser.mockResolvedValue({ uid: 'no-link' })
+    mocks.listLinkedOrgIds.mockResolvedValue([])
+    expect(await captureRedirect()).toBe('/')
+  })
+
+  it('renders the shell for a linked client', async () => {
+    mocks.getSessionUser.mockResolvedValue({ uid: 'client-1' })
+    mocks.listLinkedOrgIds.mockResolvedValue(['org-1'])
+    const { render, screen } = await import('@testing-library/react')
+    render(await callLayout())
+    expect(screen.getByLabelText('me-shell')).toBeInTheDocument()
+  })
+})
