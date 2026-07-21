@@ -1,6 +1,7 @@
 'use client'
 
 import { getClientAuth } from '@/shared/firebase/client'
+import { safeNext } from '@/shared/routes'
 import { Button } from '@cbrl/design'
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { useRef, useState } from 'react'
@@ -34,7 +35,7 @@ export function OAuthSignInButtons({
       const auth = getClientAuth()
       const credential = await signInWithPopup(auth, buildProvider())
       await createSession(await credential.user.getIdToken())
-      window.location.replace(next)
+      window.location.replace(safeNext(next))
     } catch {
       started.current = false
       setPending(false)
