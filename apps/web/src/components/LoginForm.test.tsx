@@ -34,10 +34,7 @@ describe('LoginForm', () => {
     expect(screen.getByRole('heading', { name: /entre na sua conta/i })).toBeInTheDocument()
   })
 
-  // Both subtitles ship in the markup and CSS picks one per width, so the narrow
-  // screen is not the wide one truncated. Asserting both are present is what
-  // catches someone "simplifying" this into a single line later.
-  it('ships a short and a full subtitle for the two widths', () => {
+  it('ships a short and a full subtitle so the narrow screen is not the wide one truncated', () => {
     render(<LoginForm />)
     expect(screen.getByText(/sua agenda, assinaturas e caixa num lugar só/i)).toBeInTheDocument()
     expect(screen.getByText(/agenda, assinatura e comissão trabalham juntas/i)).toBeInTheDocument()
