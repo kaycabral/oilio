@@ -47,7 +47,7 @@ export function OAuthSignInButtons({
       <Button
         type="button"
         variant="outline"
-        className="h-10"
+        className="h-11"
         onClick={() => void signIn()}
         disabled={pending}
       >
