@@ -15,15 +15,10 @@ export function LoginForm() {
         <Typography as="h1" variant="h1" className="text-3xl text-balance">
           Entre na sua conta
         </Typography>
-        {/*
-          Two deliberate copies, not one truncated by CSS: the narrow screen gets
-          the short line, the wide screen the full pitch. Both stay in the DOM so
-          the swap costs no JS and cannot flash after hydration.
-        */}
-        <Typography variant="muted" className="md:hidden">
+        <Typography variant="muted" className="md:hidden" data-slot="subtitle-narrow">
           Sua agenda, assinaturas e caixa num lugar só.
         </Typography>
-        <Typography variant="muted" className="hidden md:block">
+        <Typography variant="muted" className="hidden md:block" data-slot="subtitle-wide">
           Agenda, assinatura e comissão trabalham juntas num só lugar. Entre para continuar de onde
           parou.
         </Typography>

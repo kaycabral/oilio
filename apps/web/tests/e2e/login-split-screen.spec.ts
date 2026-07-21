@@ -1,12 +1,5 @@
 import { expect, test } from '@playwright/test'
 
-// Brief 0095 — the login screen is a split: entry column on the left, decorative
-// panel on the right from `md` (768px) up. The direction of that breakpoint is
-// the whole point of these specs. Reading it as "hide the panel on mobile"
-// yields `md:hidden`, which blanks the panel at exactly the width the reference
-// still shows it — and every unit test would stay green, because jsdom cannot
-// evaluate a media query. Only a real viewport catches it.
-
 const MONTAGE_MARKER = 'Assinantes ativos'
 
 test.describe('Login — split-screen responsivo (0095)', { tag: '@critical' }, () => {
@@ -16,28 +9,20 @@ test.describe('Login — split-screen responsivo (0095)', { tag: '@critical' }, 
 
     await expect(page.getByRole('heading', { name: /entre na sua conta/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /continuar com google/i })).toBeVisible()
-
-    // The panel is out of the layout below md.
     await expect(page.getByText(MONTAGE_MARKER)).toBeHidden()
-
-    // Short subtitle here; the full pitch belongs to the wide layout.
     await expect(page.getByText(/sua agenda, assinaturas e caixa num lugar só/i)).toBeVisible()
     await expect(page.getByText(/entre para continuar de onde parou/i)).toBeHidden()
   })
 
-  test('tablet (768px): split ATIVO — o painel aparece nesta largura', async ({ page }) => {
+  test('tablet (768px): split ATIVO — 768px liga o split, não desliga', async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 900 })
     await page.goto('/login')
 
     await expect(page.getByRole('button', { name: /continuar com google/i })).toBeVisible()
-    // 768px is where the split turns ON. This assertion is the guard against the
-    // inverted breakpoint.
     await expect(page.getByText(MONTAGE_MARKER)).toBeVisible()
     await expect(page.getByText(/entre para continuar de onde parou/i)).toBeVisible()
   })
 
-  // Sweep the seam the way pwa-usermenu-tablet.spec.ts does for the sidebar:
-  // one pixel below md the panel must be gone, at md and above it must show.
   for (const width of [320, 767]) {
     test(`limiar md — painel oculto em ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })

@@ -13,20 +13,6 @@ const APPOINTMENTS: readonly AppointmentRow[] = [
   { time: '14:00', customer: 'Bruno L.', initials: 'BL', service: 'Barba' },
 ]
 
-/**
- * Decorative montage for the login screen's visual panel: a day on the agenda, a
- * subscription tile and a takings tile — the three surfaces that carry the
- * product's pitch.
- *
- * Built from design-system components rather than a screenshot on purpose. A
- * captured image would need re-cutting every time one of those screens is
- * redesigned, and it would ship a binary asset; composed markup simply inherits
- * the current tokens. It is also entirely static — no fetch, no server action —
- * because the login route must not wait on data to paint, and the panel is
- * `aria-hidden` (see AuthSplitScreen), so nothing here is announced.
- *
- * The numbers are illustrative, not real tenant data.
- */
 export function LoginVisual() {
   return (
     <div className="flex w-full max-w-md flex-col gap-4 p-8">
