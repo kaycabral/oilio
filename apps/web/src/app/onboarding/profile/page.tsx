@@ -5,9 +5,8 @@ import { CompleteProfileForm } from '@/features/onboarding/ui/CompleteProfileFor
 import { getUserById } from '@/shared/db/pg/users-store'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { toRoute } from '@/shared/routes'
+import { safeNext } from '@/shared/routes'
 import { Typography } from '@cbrl/design'
-import type { Route } from 'next'
 import { redirect } from 'next/navigation'
 
 type SearchParams = Promise<{ next?: string }>
@@ -60,10 +59,4 @@ export default async function CompleteProfilePage({
       <CompleteProfileForm prefill={prefill} next={safeNext(next)} contextQuery={contextQuery} />
     </div>
   )
-}
-
-function safeNext(raw: string | undefined): Route {
-  if (!raw) return '/dashboard'
-  if (!raw.startsWith('/') || raw.startsWith('//')) return '/dashboard'
-  return toRoute(raw)
 }

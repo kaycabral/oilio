@@ -11,8 +11,7 @@ import { withActionContext } from '@/shared/lib/request-context'
 import { ensureSelfSignupCustomer } from '@/shared/org/customer-upsert'
 import { getOrgBySlug } from '@/shared/org/org'
 import { emitClientFunnelEvent } from '@/shared/product'
-import { toRoute } from '@/shared/routes'
-import type { Route } from 'next'
+import { safeNext } from '@/shared/routes'
 import { redirect } from 'next/navigation'
 
 export type CompleteProfileResult = { ok: true } | { ok: false; error: string }
@@ -88,10 +87,4 @@ async function materializeSelfSignupCustomer(formData: FormData, uid: string): P
   } catch (err) {
     logger.error('self-signup customer materialization failed', { scope: 'completeProfile', err })
   }
-}
-
-function safeNext(raw: FormDataEntryValue | null): Route {
-  if (typeof raw !== 'string') return '/dashboard'
-  if (!raw.startsWith('/') || raw.startsWith('//')) return '/dashboard'
-  return toRoute(raw)
 }
