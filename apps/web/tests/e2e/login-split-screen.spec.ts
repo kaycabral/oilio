@@ -9,7 +9,7 @@ test.describe('Login — split-screen responsivo (0095)', { tag: '@critical' }, 
 
     await expect(page.getByRole('heading', { name: /entre na sua conta/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /continuar com google/i })).toBeVisible()
-    await expect(page.getByText(MONTAGE_MARKER)).toBeHidden()
+    await expect(page.getByText(MONTAGE_MARKER).first()).toBeHidden()
     await expect(page.getByText(/sua agenda, assinaturas e caixa num lugar só/i)).toBeVisible()
     await expect(page.getByText(/entre para continuar de onde parou/i)).toBeHidden()
   })
@@ -19,7 +19,7 @@ test.describe('Login — split-screen responsivo (0095)', { tag: '@critical' }, 
     await page.goto('/login')
 
     await expect(page.getByRole('button', { name: /continuar com google/i })).toBeVisible()
-    await expect(page.getByText(MONTAGE_MARKER)).toBeVisible()
+    await expect(page.getByText(MONTAGE_MARKER).first()).toBeVisible()
     await expect(page.getByText(/entre para continuar de onde parou/i)).toBeVisible()
   })
 
@@ -29,7 +29,7 @@ test.describe('Login — split-screen responsivo (0095)', { tag: '@critical' }, 
       await page.goto('/login')
 
       await expect(page.getByRole('button', { name: /continuar com google/i })).toBeVisible()
-      await expect(page.getByText(MONTAGE_MARKER)).toBeHidden()
+      await expect(page.getByText(MONTAGE_MARKER).first()).toBeHidden()
     })
   }
 
@@ -39,7 +39,7 @@ test.describe('Login — split-screen responsivo (0095)', { tag: '@critical' }, 
       await page.goto('/login')
 
       await expect(page.getByRole('button', { name: /continuar com google/i })).toBeVisible()
-      await expect(page.getByText(MONTAGE_MARKER)).toBeVisible()
+      await expect(page.getByText(MONTAGE_MARKER).first()).toBeVisible()
     })
   }
 
