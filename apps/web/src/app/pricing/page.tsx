@@ -6,6 +6,7 @@ import { PricingMultiBusiness } from '@/components/pricing/PricingMultiBusiness'
 import { PricingTiers } from '@/components/pricing/PricingTiers'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { resolvePostAuthDestination } from '@/shared/identity/post-auth-destination'
 import { Typography } from '@cbrl/design'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
 export default async function PricingPage() {
   if (isFirebaseConfigured()) {
     const session = await getSessionUser()
-    if (session) redirect('/dashboard')
+    if (session) redirect(await resolvePostAuthDestination(session.uid))
   }
 
   return (
