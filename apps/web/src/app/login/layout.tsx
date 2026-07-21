@@ -1,5 +1,6 @@
-import { CenteredScreen } from '@/components/centered-screen'
+import { LoginVisual } from '@/components/LoginVisual'
+import { AuthSplitScreen } from '@cbrl/design'
 
 export default function LoginLayout({ children }: { children: React.ReactNode }) {
-  return <CenteredScreen align="start">{children}</CenteredScreen>
+  return <AuthSplitScreen visual={<LoginVisual />}>{children}</AuthSplitScreen>
 }
