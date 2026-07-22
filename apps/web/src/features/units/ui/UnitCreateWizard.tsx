@@ -53,7 +53,7 @@ export function UnitCreateWizard({
 }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [mode, setMode] = useState<UnitHoursMode | null>('fixed')
+  const [mode, setMode] = useState<UnitHoursMode | null>(null)
   const [activeStep, setActiveStep] = useState<WizardStepId>('identity')
   const [dirty, setDirty] = useState(false)
   const [slugState, setSlugState] = useState<SlugState>({ kind: 'idle' })
@@ -75,11 +75,15 @@ export function UnitCreateWizard({
   }
 
   const slugBlocked = slugBlocksSubmit(slugState)
+  const modeBlocked = mode === null
   const current = stepValidity[activeStep]
   const currentValid =
-    (current === null || current.isValid) && !(activeStep === 'identity' && slugBlocked)
+    (current === null || current.isValid) &&
+    !(activeStep === 'identity' && slugBlocked) &&
+    !(activeStep === 'hours' && modeBlocked)
   const allValid =
     !slugBlocked &&
+    !modeBlocked &&
     steps.every((s) => {
       const v = stepValidity[s]
       return v === null || v.isValid
@@ -154,7 +158,7 @@ export function UnitCreateWizard({
           <FieldGroup>
             <BusinessHoursFields
               defaults={defaults?.businessHours ?? null}
-              mode={mode ?? 'fixed'}
+              mode={mode}
               onModeChange={onModeChange}
             />
           </FieldGroup>
@@ -174,11 +178,22 @@ export function UnitCreateWizard({
 
         {error ? <FieldError>{error}</FieldError> : null}
 
-        {!currentValid && current?.firstInvalidLabel ? (
-          <FieldDescription className="text-right">
-            Preencha “{current.firstInvalidLabel}” para continuar.
-          </FieldDescription>
-        ) : null}
+        {(() => {
+          if (currentValid) return null
+          if (activeStep === 'hours' && modeBlocked) {
+            return (
+              <FieldDescription className="text-right">
+                Escolha como a unidade atende pra continuar.
+              </FieldDescription>
+            )
+          }
+          if (!current?.firstInvalidLabel) return null
+          return (
+            <FieldDescription className="text-right">
+              Preencha “{current.firstInvalidLabel}” para continuar.
+            </FieldDescription>
+          )
+        })()}
 
         <div className="flex items-center justify-between">
           <Button type="button" variant="ghost" onClick={goBack} disabled={activeIndex === 0}>

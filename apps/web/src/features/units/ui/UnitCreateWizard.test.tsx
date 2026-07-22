@@ -134,6 +134,10 @@ describe('UnitCreateWizard — single form submit (AC-04)', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'CEP' }), '01310-100')
     await userEvent.type(screen.getByRole('textbox', { name: 'Número' }), '123')
     await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+    expect(screen.getByText('Escolha como a unidade atende pra continuar.')).toBeVisible()
+    await userEvent.click(screen.getByRole('radio', { name: /Ordem de chegada/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     await userEvent.click(screen.getByRole('button', { name: 'Criar unidade' }))
 
@@ -144,6 +148,39 @@ describe('UnitCreateWizard — single form submit (AC-04)', () => {
     expect(formData?.get('hoursMode')).toBe('fixed')
     expect(formData?.get('bh_monday_0_open')).toBe('09:00')
     cepLookup.result.data = null
+  })
+})
+
+describe('UnitCreateWizard — conscious mode choice (AC-06..09, #1401)', () => {
+  it('renders the 3 modes as radio cards with no preselection', () => {
+    render(<UnitCreateWizard />)
+    for (const name of [/Por agendamento/, /Ordem de chegada/, /Sempre aberto/]) {
+      expect(screen.getByRole('radio', { name, hidden: true })).toHaveAttribute(
+        'data-state',
+        'unchecked',
+      )
+    }
+    expect(
+      screen.getByText('Clientes marcam horário. A Agenda aparece no seu menu.'),
+    ).toBeInTheDocument()
+  })
+
+  it('grows the stepper from 4 to 5 steps when appointment mode is chosen, and back', async () => {
+    render(<UnitCreateWizard />)
+    expect(screen.getByText('Passo 1 de 4')).toBeVisible()
+    await userEvent.click(screen.getByRole('radio', { name: /Por agendamento/, hidden: true }))
+    expect(screen.getByText('Passo 1 de 5')).toBeVisible()
+    await userEvent.click(screen.getByRole('radio', { name: /Sempre aberto/, hidden: true }))
+    expect(screen.getByText('Passo 1 de 4')).toBeVisible()
+  })
+
+  it('hides the weekly grid in always_open mode and before any choice', async () => {
+    render(<UnitCreateWizard />)
+    expect(screen.queryByLabelText('Segunda')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('radio', { name: /Sempre aberto/, hidden: true }))
+    expect(screen.queryByLabelText('Segunda')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('radio', { name: /Ordem de chegada/, hidden: true }))
+    expect(screen.getByLabelText('Segunda', { selector: 'button' })).toBeInTheDocument()
   })
 })
 
