@@ -32,8 +32,12 @@ vi.mock('@/hooks/use-cep-lookup', () => ({
   useCepLookup: () => cepLookup.result,
 }))
 
+vi.mock('@/shared/org/org-context', () => ({
+  useOrg: () => ({ org: { slug: 'barbearia-x' } }),
+}))
+
 async function fillIdentity() {
-  await userEvent.type(screen.getByLabelText(/^nome/i), 'Filial Centro')
+  await userEvent.type(screen.getByRole('textbox', { name: 'Nome' }), 'Filial Centro')
   await userEvent.type(screen.getByLabelText(/whatsapp/i), '11988887777')
 }
 
@@ -52,7 +56,7 @@ describe('UnitCreateWizard — shell (AC-01)', () => {
   it('opens on step 1 with the stepper counter and only the identity panel visible', () => {
     render(<UnitCreateWizard />)
     expect(screen.getByText('Passo 1 de 4')).toBeVisible()
-    expect(screen.getByLabelText(/^nome/i)).toBeVisible()
+    expect(screen.getByRole('textbox', { name: 'Nome' })).toBeVisible()
     const cep = screen.getByRole('textbox', { name: 'CEP', hidden: true })
     expect(cep).toBeInTheDocument()
     expect(cep).not.toBeVisible()
@@ -87,7 +91,7 @@ describe('UnitCreateWizard — back navigation preserves state (AC-03)', () => {
     expect(screen.getByText('Passo 2 de 4')).toBeVisible()
 
     await userEvent.click(screen.getByRole('button', { name: 'Voltar' }))
-    expect(screen.getByLabelText(/^nome/i)).toHaveValue('Filial Centro')
+    expect(screen.getByRole('textbox', { name: 'Nome' })).toHaveValue('Filial Centro')
   })
 
   it('navigates back via a done step in the stepper', async () => {
@@ -95,8 +99,8 @@ describe('UnitCreateWizard — back navigation preserves state (AC-03)', () => {
     await fillIdentity()
     await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     await userEvent.click(screen.getByRole('button', { name: /Identidade/ }))
-    expect(screen.getByLabelText(/^nome/i)).toBeVisible()
-    expect(screen.getByLabelText(/^nome/i)).toHaveValue('Filial Centro')
+    expect(screen.getByRole('textbox', { name: 'Nome' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: 'Nome' })).toHaveValue('Filial Centro')
   })
 
   it('keeps future steps disabled in the stepper', () => {
@@ -108,7 +112,7 @@ describe('UnitCreateWizard — back navigation preserves state (AC-03)', () => {
 describe('UnitCreateWizard — single form submit (AC-04)', () => {
   it('keeps hidden panels mounted so every step field stays in the document', () => {
     render(<UnitCreateWizard />)
-    expect(screen.getByRole('textbox', { name: /^nome/i, hidden: true })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Nome', hidden: true })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'CEP', hidden: true })).toBeInTheDocument()
     expect(screen.getByLabelText(/granularidade dos horários/i)).toBeInTheDocument()
   })
@@ -184,12 +188,52 @@ describe('UnitCreateWizard — conscious mode choice (AC-06..09, #1401)', () => 
   })
 })
 
+describe('UnitCreateWizard — @/username field (AC-10..12, #1402)', () => {
+  it('presents the field as Nome de usuário with the @ prefix and no "slug" copy', () => {
+    render(<UnitCreateWizard />)
+    expect(screen.getByRole('textbox', { name: 'Nome de usuário' })).toBeInTheDocument()
+    expect(screen.getByText('@')).toBeInTheDocument()
+    expect(screen.queryByText(/slug/i)).not.toBeInTheDocument()
+  })
+
+  it('previews the real public link in the org→unit hierarchy as the user types the name', async () => {
+    render(<UnitCreateWizard />)
+    expect(screen.getByText(/\/barbearia-x\/sua-unidade$/)).toBeInTheDocument()
+    await userEvent.type(screen.getByRole('textbox', { name: 'Nome' }), 'Filial Centro')
+    expect(screen.getByText(/\/barbearia-x\/filial-centro$/)).toBeInTheDocument()
+  })
+
+  it('auto-derives the @ from the name while untouched (AC-11)', async () => {
+    render(<UnitCreateWizard />)
+    await userEvent.type(screen.getByRole('textbox', { name: 'Nome' }), 'Filial Centro Velho')
+    expect(screen.getByRole('textbox', { name: 'Nome de usuário' })).toHaveValue(
+      'filial-centro-velho',
+    )
+  })
+
+  it('locks Continuar and shows the taken hint when the @ is unavailable (AC-12)', async () => {
+    const { checkUnitSlugAvailability } = await import('@/features/units/adapters/units.actions')
+    vi.mocked(checkUnitSlugAvailability).mockResolvedValue({
+      ok: true,
+      available: false,
+      reason: 'taken',
+    })
+    render(<UnitCreateWizard />)
+    await fillIdentity()
+    expect(
+      await screen.findByText('Este @ já está em uso por outra unidade desta empresa.'),
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+    vi.mocked(checkUnitSlugAvailability).mockResolvedValue({ ok: true, available: true })
+  })
+})
+
 describe('UnitCreateWizard — dirty tracking (AC-05)', () => {
   it('reports dirty once the user types anything', async () => {
     const onDirtyChange = vi.fn()
     render(<UnitCreateWizard onDirtyChange={onDirtyChange} />)
     expect(onDirtyChange).not.toHaveBeenCalled()
-    await userEvent.type(screen.getByLabelText(/^nome/i), 'F')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Nome' }), 'F')
     expect(onDirtyChange).toHaveBeenCalledWith(true)
   })
 })

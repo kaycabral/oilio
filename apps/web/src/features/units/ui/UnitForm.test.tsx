@@ -7,10 +7,15 @@ import { UnitForm } from './UnitForm'
 vi.mock('@/features/units/adapters/units.actions', () => ({
   createUnit: vi.fn(),
   updateUnit: vi.fn(),
+  checkUnitSlugAvailability: vi.fn(() => Promise.resolve({ ok: true, available: true })),
 }))
 
 vi.mock('@/hooks/use-cep-lookup', () => ({
   useCepLookup: () => ({ loading: false, data: null, error: null }),
+}))
+
+vi.mock('@/shared/org/org-context', () => ({
+  useOrg: () => ({ org: { slug: 'barbearia-x' } }),
 }))
 
 function buildUnit(overrides: Partial<Unit> = {}): Unit {
