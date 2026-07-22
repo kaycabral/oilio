@@ -9,6 +9,7 @@ const WEEKDAY_RANGE = { open: '09:00', close: '18:00' }
 vi.mock('@/features/units/adapters/units.actions', () => ({
   createUnit: vi.fn(),
   checkUnitSlugAvailability: vi.fn(() => Promise.resolve({ ok: true, available: true })),
+  getUnitAdditionCostPreview: vi.fn(() => Promise.resolve({ ok: true, cost: { charged: false } })),
 }))
 
 const cepLookup = vi.hoisted(() => {
@@ -225,6 +226,121 @@ describe('UnitCreateWizard — @/username field (AC-10..12, #1402)', () => {
     ).toBeVisible()
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
     vi.mocked(checkUnitSlugAvailability).mockResolvedValue({ ok: true, available: true })
+  })
+})
+
+async function goToReview(modeName: RegExp = /Ordem de chegada/) {
+  cepLookup.result.data = {
+    postalCode: '01310100',
+    state: 'SP',
+    city: 'São Paulo',
+    neighborhood: 'Bela Vista',
+    street: 'Avenida Paulista',
+  }
+  render(
+    <UnitCreateWizard
+      defaults={{ businessHours: { ...EMPTY_BUSINESS_HOURS, monday: [WEEKDAY_RANGE] } }}
+    />,
+  )
+  await fillIdentity()
+  await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+  await userEvent.type(screen.getByRole('textbox', { name: 'CEP' }), '01310-100')
+  await userEvent.type(screen.getByRole('textbox', { name: 'Número' }), '123')
+  await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+  await userEvent.click(screen.getByRole('radio', { name: modeName }))
+  const continueButtons = () => screen.queryAllByRole('button', { name: 'Continuar' })
+  while (continueButtons().length > 0) {
+    const btn = continueButtons()[0]
+    if (!btn || btn.hasAttribute('disabled')) break
+    await userEvent.click(btn)
+  }
+}
+
+describe('UnitCreateWizard — review step (AC-14..19)', () => {
+  it('shows the per-section summary with Editar navigation preserving state (AC-18)', async () => {
+    await goToReview()
+    expect(screen.getByText('Filial Centro')).toBeInTheDocument()
+    expect(screen.getByText(/@filial-centro/)).toBeInTheDocument()
+    expect(screen.getByText(/Avenida Paulista, 123/)).toBeInTheDocument()
+    expect(screen.getByText(/Ordem de chegada \/ balcão · 1 dia/)).toBeInTheDocument()
+
+    const editButtons = screen.getAllByRole('button', { name: 'Editar' })
+    expect(editButtons.length).toBeGreaterThanOrEqual(3)
+    const identityEdit = editButtons[0]
+    if (!identityEdit) throw new Error('missing Editar button')
+    await userEvent.click(identityEdit)
+    expect(screen.getByRole('textbox', { name: 'Nome' })).toHaveValue('Filial Centro')
+  })
+
+  it('shows no cost block and a plain CTA when creation is free (AC-16)', async () => {
+    await goToReview()
+    expect(screen.queryByText('Custo adicional desta unidade')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Criar unidade' })).toBeEnabled()
+  })
+
+  it('locks the CTA behind the cost acknowledgement when charged (AC-14/15)', async () => {
+    const { getUnitAdditionCostPreview } = await import('@/features/units/adapters/units.actions')
+    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
+      ok: true,
+      cost: {
+        charged: true,
+        preview: {
+          prorationCents: 1650,
+          newMonthlyDeltaCents: 2990,
+          newTotalMonthlyCents: 7980,
+          currency: 'brl',
+        },
+      },
+    })
+    await goToReview()
+    expect(screen.getByText('Custo adicional desta unidade')).toBeVisible()
+    expect(screen.getByText(/16,50/)).toBeVisible()
+    expect(screen.getByText(/29,90\/mês/)).toBeVisible()
+    expect(screen.getByText(/79,80\/mês/)).toBeVisible()
+    const cta = screen.getByRole('button', { name: 'Confirmar e criar unidade' })
+    expect(cta).toBeDisabled()
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /Entendi e concordo com a cobrança adicional/ }),
+    )
+    expect(cta).toBeEnabled()
+    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
+      ok: true,
+      cost: { charged: false },
+    })
+  })
+
+  it('degrades to a qualitative warning while keeping the acknowledgement (AC-17)', async () => {
+    const { getUnitAdditionCostPreview } = await import('@/features/units/adapters/units.actions')
+    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
+      ok: true,
+      cost: { charged: true, preview: null },
+    })
+    await goToReview()
+    expect(screen.getByText(/o valor exato aparecerá na fatura/)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Confirmar e criar unidade' })).toBeDisabled()
+    expect(
+      screen.getByRole('checkbox', { name: /Entendi e concordo com a cobrança adicional/ }),
+    ).toBeInTheDocument()
+    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
+      ok: true,
+      cost: { charged: false },
+    })
+  })
+
+  it('re-renders the summary after switching mode via Editar (AC-19)', async () => {
+    await goToReview(/Por agendamento/)
+    expect(screen.getByText(/Slots de \d+ min/)).toBeInTheDocument()
+
+    const sections = screen.getAllByRole('button', { name: 'Editar' })
+    const hoursEdit = sections[2]
+    if (!hoursEdit) throw new Error('missing Editar button')
+    await userEvent.click(hoursEdit)
+    await userEvent.click(screen.getByRole('radio', { name: /Ordem de chegada/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+    expect(screen.queryByText(/Slots de \d+ min/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Ordem de chegada \/ balcão · 1 dia/)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Nome', hidden: true })).toHaveValue('Filial Centro')
   })
 })
 

@@ -1,0 +1,72 @@
+import { getStripe } from '@/shared/billing/stripe-client'
+import { logger } from '@/shared/lib/logger'
+import { getOrgBilling } from '@/shared/org/billing-read'
+import { listUnitsForOrg } from '@/shared/org/unit-read'
+import 'server-only'
+import type Stripe from 'stripe'
+
+export type UnitCostPreview = {
+  prorationCents: number
+  newMonthlyDeltaCents: number
+  newTotalMonthlyCents: number
+  currency: string
+}
+
+export type UnitAdditionCost =
+  | { charged: false }
+  | { charged: true; preview: UnitCostPreview | null }
+
+function isProrationLine(line: Stripe.InvoiceLineItem): boolean {
+  return line.parent?.subscription_item_details?.proration === true
+}
+
+function recurringTotalCents(invoice: Stripe.Response<Stripe.Invoice>): number {
+  return invoice.lines.data
+    .filter((line) => !isProrationLine(line))
+    .reduce((sum, line) => sum + line.amount, 0)
+}
+
+export async function getUnitAdditionCost(orgId: string): Promise<UnitAdditionCost> {
+  const billing = await getOrgBilling(orgId)
+  if (!billing.stripeSubscriptionId) return { charged: false }
+
+  const nextQuantity = (await listUnitsForOrg(orgId)).length + 1
+  if (nextQuantity <= billing.unitQuantity) return { charged: false }
+
+  try {
+    const stripe = getStripe()
+    const subscription = await stripe.subscriptions.retrieve(billing.stripeSubscriptionId)
+    const item = subscription.items.data[0]
+    if (!item) return { charged: true, preview: null }
+
+    const [current, next] = await Promise.all([
+      stripe.invoices.createPreview({ subscription: subscription.id }),
+      stripe.invoices.createPreview({
+        subscription: subscription.id,
+        subscription_details: {
+          items: [{ id: item.id, quantity: nextQuantity }],
+          proration_behavior: 'create_prorations',
+        },
+      }),
+    ])
+
+    const prorationCents = next.lines.data
+      .filter(isProrationLine)
+      .reduce((sum, line) => sum + line.amount, 0)
+    const newTotalMonthlyCents = recurringTotalCents(next)
+    const newMonthlyDeltaCents = newTotalMonthlyCents - recurringTotalCents(current)
+
+    return {
+      charged: true,
+      preview: {
+        prorationCents,
+        newMonthlyDeltaCents,
+        newTotalMonthlyCents,
+        currency: next.currency,
+      },
+    }
+  } catch (err) {
+    logger.error('failed', { scope: 'getUnitAdditionCost', orgId, err })
+    return { charged: true, preview: null }
+  }
+}
