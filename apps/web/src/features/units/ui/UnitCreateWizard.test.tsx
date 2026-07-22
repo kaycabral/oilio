@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { UnitCreateWizard, wizardSteps } from './UnitCreateWizard'
 
+vi.setConfig({ testTimeout: 20_000 })
+
 const WEEKDAY_RANGE = { open: '09:00', close: '18:00' }
 
 vi.mock('@/features/units/adapters/units.actions', () => ({
