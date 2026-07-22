@@ -55,7 +55,7 @@ test.describe('Units — baseline (#17)', () => {
 
     await rowAction(authedPage, new RegExp(ts), 'Editar')
     await expect(authedPage).toHaveURL(/\/units\/.+/)
-    await authedPage.getByRole('textbox', { name: 'Nome' }).fill(edited)
+    await authedPage.getByRole('textbox', { name: /^Nome\*?$/ }).fill(edited)
     await authedPage.getByRole('button', { name: 'Salvar' }).click()
     await dismissUnitInterstitialIfPresent(authedPage)
     await expect(authedPage).toHaveURL(/\/organizations(\/|\?|$)/)

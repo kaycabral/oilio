@@ -23,7 +23,7 @@ test.describe('Agenda — overlay de fora do expediente + editor', () => {
   test('detalhe da unidade renderiza o editor de horários', async ({ org, authedPage }) => {
     await authedPage.goto(`/units/${org.unitIds[0]!}`)
     await expect(
-      authedPage.getByRole('group', { name: 'Horário de funcionamento', exact: true }),
+      authedPage.getByRole('group', { name: 'Como esta unidade atende?', exact: true }),
     ).toBeVisible()
   })
 })

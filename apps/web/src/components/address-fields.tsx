@@ -75,6 +75,7 @@ export function AddressFields({
           })()}
         </Field>
 
+        {simplified && !showRest ? <PendingLookupConstraint /> : null}
         {(() => {
           if (!showRest) return null
           if (simplified) {
@@ -106,6 +107,21 @@ export function AddressFields({
         })()}
       </FieldGroup>
     </FieldSet>
+  )
+}
+
+function PendingLookupConstraint() {
+  return (
+    <Input
+      type="text"
+      className="hidden"
+      name="addressResolved"
+      defaultValue=""
+      required
+      tabIndex={-1}
+      aria-hidden
+      aria-label="CEP"
+    />
   )
 }
 

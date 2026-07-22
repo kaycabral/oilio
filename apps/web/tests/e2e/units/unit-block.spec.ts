@@ -25,7 +25,7 @@ test.describe(
     }) => {
       await authedPage.goto(`/units/${org.unitIds[0]}`)
       await expect(
-        authedPage.getByRole('group', { name: 'Horário de funcionamento', exact: true }),
+        authedPage.getByRole('group', { name: 'Como esta unidade atende?', exact: true }),
       ).toBeVisible()
       await expect(authedPage.getByRole('heading', { name: 'Bloqueios da unidade' })).toHaveCount(0)
       await expect(authedPage.getByRole('switch', { name: 'Segunda' })).toBeChecked()
