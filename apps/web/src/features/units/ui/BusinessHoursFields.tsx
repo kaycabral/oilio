@@ -10,16 +10,12 @@ import {
 import {
   Button,
   Field,
-  FieldDescription,
   FieldLabel,
   FieldLegend,
   FieldSet,
   Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  RadioGroup,
+  RadioGroupItem,
   Switch,
 } from '@cbrl/design'
 import { Plus, Trash2 } from 'lucide-react'
@@ -45,13 +41,21 @@ const ORDERED_WEEKDAYS: readonly Weekday[] = [
   'saturday',
 ]
 
-const MODE_OPTIONS: { value: UnitHoursMode; label: string; hint?: string }[] = [
-  { value: 'fixed', label: 'Aberto em horários definidos' },
-  { value: 'always_open', label: 'Sempre aberto · 24h' },
+const MODE_OPTIONS: { value: UnitHoursMode; label: string; consequence: string }[] = [
   {
     value: 'appointment',
     label: 'Por agendamento',
-    hint: 'Ativa o agendamento online nos horários abaixo.',
+    consequence: 'Clientes marcam horário. A Agenda aparece no seu menu.',
+  },
+  {
+    value: 'fixed',
+    label: 'Ordem de chegada / balcão',
+    consequence: 'Sem horário marcado — você define quando a unidade abre.',
+  },
+  {
+    value: 'always_open',
+    label: 'Sempre aberto · 24h',
+    consequence: 'Funciona o tempo todo, sem grade de horários.',
   },
 ]
 
@@ -89,12 +93,10 @@ export function BusinessHoursFields({
   onModeChange,
 }: {
   defaults: BusinessHours | null
-  mode: UnitHoursMode
+  mode: UnitHoursMode | null
   onModeChange: (mode: UnitHoursMode) => void
 }) {
   const [state, setState] = useState<Record<Weekday, DayState>>(() => initialState(defaults))
-
-  const activeHint = MODE_OPTIONS.find((m) => m.value === mode)?.hint ?? ''
 
   function toggleDay(day: Weekday, enabled: boolean) {
     setState((prev) => {
@@ -185,53 +187,56 @@ export function BusinessHoursFields({
 
   return (
     <FieldSet className="gap-3">
-      <FieldLegend>Horário de funcionamento</FieldLegend>
+      <FieldLegend>Como esta unidade atende?</FieldLegend>
 
-      <Field className="pb-1">
-        <FieldLabel htmlFor="hoursMode">Modo</FieldLabel>
-        <Select
-          name="hoursMode"
-          value={mode}
-          onValueChange={(v) => {
-            if (isUnitHoursMode(v)) onModeChange(v)
-          }}
-        >
-          <SelectTrigger id="hoursMode" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {MODE_OPTIONS.map((m) => (
-              <SelectItem key={m.value} value={m.value}>
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <FieldDescription className="min-h-5">{activeHint}</FieldDescription>
-      </Field>
+      <RadioGroup
+        name="hoursMode"
+        value={mode ?? ''}
+        onValueChange={(v) => {
+          if (isUnitHoursMode(v)) onModeChange(v)
+        }}
+        aria-label="Como esta unidade atende?"
+        required
+      >
+        {MODE_OPTIONS.map((m) => (
+          <FieldLabel
+            key={m.value}
+            htmlFor={`hoursMode-${m.value}`}
+            className="hover:bg-accent/50 has-data-checked:border-primary has-data-checked:bg-primary/5 flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal"
+          >
+            <RadioGroupItem id={`hoursMode-${m.value}`} value={m.value} className="mt-0.5" />
+            <span className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium">{m.label}</span>
+              <span className="text-muted-foreground text-xs">{m.consequence}</span>
+            </span>
+          </FieldLabel>
+        ))}
+      </RadioGroup>
 
-      <div className="divide-border/60 flex flex-col divide-y pt-1">
-        {ORDERED_WEEKDAYS.map((day) => {
-          const st = state[day]
-          const id = `bh_${day}`
-          return (
-            <Field key={day} orientation="horizontal" className="items-start py-2.5">
-              <div className="flex h-9 flex-none items-center gap-2">
-                <Switch
-                  id={id}
-                  name={`${id}_enabled`}
-                  checked={st.enabled}
-                  onCheckedChange={(v) => toggleDay(day, v)}
-                />
-                <FieldLabel htmlFor={id} className="w-[90px]">
-                  {WEEKDAY_LABELS[day]}
-                </FieldLabel>
-              </div>
-              <div className="flex flex-1 justify-end">{renderRanges(day, st)}</div>
-            </Field>
-          )
-        })}
-      </div>
+      {mode !== null && mode !== 'always_open' ? (
+        <div className="divide-border/60 flex flex-col divide-y pt-1">
+          {ORDERED_WEEKDAYS.map((day) => {
+            const st = state[day]
+            const id = `bh_${day}`
+            return (
+              <Field key={day} orientation="horizontal" className="items-start py-2.5">
+                <div className="flex h-9 flex-none items-center gap-2">
+                  <Switch
+                    id={id}
+                    name={`${id}_enabled`}
+                    checked={st.enabled}
+                    onCheckedChange={(v) => toggleDay(day, v)}
+                  />
+                  <FieldLabel htmlFor={id} className="w-[90px]">
+                    {WEEKDAY_LABELS[day]}
+                  </FieldLabel>
+                </div>
+                <div className="flex flex-1 justify-end">{renderRanges(day, st)}</div>
+              </Field>
+            )
+          })}
+        </div>
+      ) : null}
     </FieldSet>
   )
 }

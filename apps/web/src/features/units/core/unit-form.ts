@@ -127,6 +127,10 @@ export function parseBusinessHours(
     saturday: null,
     sunday: null,
   }
+  if (mode === 'always_open') {
+    for (const day of WEEKDAYS) out[day] = [{ open: '00:00', close: '23:59' }]
+    return out
+  }
   let anyEnabled = false
   for (const day of WEEKDAYS) {
     const enabled = formData.get(`bh_${day}_enabled`) !== null
@@ -135,10 +139,6 @@ export function parseBusinessHours(
       continue
     }
     anyEnabled = true
-    if (mode === 'always_open') {
-      out[day] = [{ open: '00:00', close: '23:59' }]
-      continue
-    }
     const ranges: HoursRange[] = []
     for (let i = 0; formData.get(`bh_${day}_${i}_open`) !== null; i++) {
       const open = formString(formData, `bh_${day}_${i}_open`)
@@ -157,9 +157,9 @@ function isUnitHoursMode(value: string): value is UnitHoursMode {
   return (UNIT_HOURS_MODES as readonly string[]).includes(value)
 }
 
-export function parseHoursMode(formData: FormData): UnitHoursMode {
+export function parseHoursMode(formData: FormData): UnitHoursMode | null {
   const raw = formString(formData, 'hoursMode')
-  return isUnitHoursMode(raw) ? raw : 'fixed'
+  return isUnitHoursMode(raw) ? raw : null
 }
 
 export function parseUnitForm(formData: FormData): ParsedUnit | string {
@@ -181,6 +181,7 @@ export function parseUnitForm(formData: FormData): ParsedUnit | string {
   const address = parseAddress(formData)
   if (typeof address === 'string') return address
   const hoursMode = parseHoursMode(formData)
+  if (hoursMode === null) return 'Escolha como a unidade atende'
   const businessHours = parseBusinessHours(formData, hoursMode)
   if (typeof businessHours === 'string') return businessHours
   if (businessHours === null) return 'Informe ao menos um dia de funcionamento'

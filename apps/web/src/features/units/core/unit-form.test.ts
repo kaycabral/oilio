@@ -59,16 +59,16 @@ describe('parseAddress', () => {
 })
 
 describe('parseHoursMode', () => {
-  it('defaults to fixed when absent', () => {
-    expect(parseHoursMode(new FormData())).toBe('fixed')
+  it('returns null when absent — creation requires an explicit choice (#1401)', () => {
+    expect(parseHoursMode(new FormData())).toBeNull()
   })
 
   it('reads a known mode', () => {
     expect(parseHoursMode(fd({ hoursMode: 'always_open' }))).toBe('always_open')
   })
 
-  it('falls back to fixed for an unknown value', () => {
-    expect(parseHoursMode(fd({ hoursMode: 'bogus' }))).toBe('fixed')
+  it('returns null for an unknown value instead of silently defaulting', () => {
+    expect(parseHoursMode(fd({ hoursMode: 'bogus' }))).toBeNull()
   })
 })
 
@@ -85,9 +85,12 @@ describe('parseBusinessHours', () => {
     expect(result).toMatchObject({ monday: [{ open: '09:00', close: '18:00' }], tuesday: null })
   })
 
-  it('treats an enabled day in always_open mode as the whole day', () => {
-    const result = parseBusinessHours(fd({ bh_monday_enabled: 'on' }), 'always_open')
-    expect(result).toMatchObject({ monday: [{ open: '00:00', close: '23:59' }] })
+  it('fills every day in always_open mode regardless of day switches (grid hidden)', () => {
+    const result = parseBusinessHours(new FormData(), 'always_open')
+    expect(result).toMatchObject({
+      monday: [{ open: '00:00', close: '23:59' }],
+      sunday: [{ open: '00:00', close: '23:59' }],
+    })
   })
 
   it('errors when an enabled fixed day has no range', () => {
@@ -107,6 +110,7 @@ const VALID_UNIT: Record<string, string> = {
   ...VALID_ADDRESS,
   name: 'Matriz',
   mobile: '11999998888',
+  hoursMode: 'fixed',
   bh_monday_enabled: 'on',
   bh_monday_0_open: '09:00',
   bh_monday_0_close: '18:00',
@@ -135,6 +139,12 @@ describe('parseUnitForm', () => {
   it('rejects a missing whatsapp', () => {
     const { mobile: _w, ...rest } = VALID_UNIT
     expect(typeof parseUnitForm(fd(rest))).toBe('string')
+  })
+
+  it('rejects a form without an explicit hours mode (#1401)', () => {
+    const { hoursMode: _m, ...rest } = VALID_UNIT
+    const result = parseUnitForm(fd(rest))
+    expect(result).toBe('Escolha como a unidade atende')
   })
 
   it('rejects a landline at the boundary (strict BR mobile, 9th digit)', () => {
