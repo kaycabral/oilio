@@ -30,6 +30,7 @@ import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
 import { classifyError } from '@/shared/errors/classify'
 import { messageForCategory } from '@/shared/errors/messages'
+import { track } from '@/shared/lib/track'
 import { canDeleteUnit } from '@/shared/org/delete-guard'
 import { hasOperationalMemberOperationInUnit } from '@/shared/org/member-operation-read'
 import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
@@ -209,6 +210,32 @@ export async function checkUnitSlugAvailability(
   const existing = await listUnitSlugs(r.ctx.membership.orgId)
   const collides = existing.some((u) => u.slug === candidate && u.id !== selfUnitId)
   return collides ? { ok: true, available: false, reason: 'taken' } : { ok: true, available: true }
+}
+
+export type UnitWizardTelemetry =
+  | { event: 'opened' }
+  | { event: 'step_completed'; step: string; mode: string | null }
+  | { event: 'abandoned'; lastStep: string }
+  | { event: 'cost_acknowledged' }
+
+export async function trackUnitWizardEvent(input: UnitWizardTelemetry): Promise<void> {
+  const r = await requireManagerCtx()
+  if (!r.ok) return
+  const base = { org_id: r.ctx.membership.orgId, user_id: r.ctx.session.uid }
+  switch (input.event) {
+    case 'opened':
+      track('unit_wizard_opened', base)
+      return
+    case 'step_completed':
+      track('unit_wizard_step_completed', { ...base, step: input.step, mode: input.mode })
+      return
+    case 'abandoned':
+      track('unit_wizard_abandoned', { ...base, last_step: input.lastStep })
+      return
+    case 'cost_acknowledged':
+      track('unit_wizard_cost_acknowledged', base)
+      return
+  }
 }
 
 export type UnitAdditionCostResult =

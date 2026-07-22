@@ -2,7 +2,11 @@
 
 import { AddressFields } from '@/components/address-fields'
 import { type BusinessHours, type UnitHoursMode } from '@/domain'
-import { createUnit, getUnitAdditionCostPreview } from '@/features/units/adapters/units.actions'
+import {
+  createUnit,
+  getUnitAdditionCostPreview,
+  trackUnitWizardEvent,
+} from '@/features/units/adapters/units.actions'
 import { BusinessHoursFields } from '@/features/units/ui/BusinessHoursFields'
 import { UnitAgendaConfigFields } from '@/features/units/ui/UnitAgendaConfigFields'
 import {
@@ -69,12 +73,23 @@ export function UnitCreateWizard({
   const [cost, setCost] = useState<UnitAdditionCost | null>(null)
   const [costAccepted, setCostAccepted] = useState(false)
   const formRef = useRef<HTMLFormElement | null>(null)
+  const submittedRef = useRef(false)
+  const lastStepRef = useRef<WizardStepId>('identity')
+  lastStepRef.current = activeStep
+
+  useEffect(() => {
+    return () => {
+      if (submittedRef.current) return
+      void trackUnitWizardEvent({ event: 'abandoned', lastStep: lastStepRef.current })
+    }
+  }, [])
 
   const steps = useMemo(() => wizardSteps(mode), [mode])
   const activeIndex = steps.indexOf(activeStep)
 
   useEffect(() => {
     let cancelled = false
+    void trackUnitWizardEvent({ event: 'opened' })
     void getUnitAdditionCostPreview().then((res) => {
       if (cancelled) return
       setCost(res.ok ? res.cost : { charged: true, preview: null })
@@ -99,7 +114,7 @@ export function UnitCreateWizard({
 
   const slugBlocked = slugBlocksSubmit(slugState)
   const modeBlocked = mode === null
-  const costBlocked = cost?.charged === true && !costAccepted
+  const costBlocked = cost === null || (cost.charged && !costAccepted)
   const current = stepValidity[activeStep]
   const currentValid =
     (current === null || current.isValid) &&
@@ -143,7 +158,9 @@ export function UnitCreateWizard({
   }
 
   function goNext() {
-    if (activeIndex < steps.length - 1) goTo(activeIndex + 1)
+    if (activeIndex >= steps.length - 1) return
+    void trackUnitWizardEvent({ event: 'step_completed', step: activeStep, mode })
+    goTo(activeIndex + 1)
   }
 
   function goBack() {
@@ -157,9 +174,13 @@ export function UnitCreateWizard({
 
   function onSubmit(formData: FormData) {
     setError(null)
+    submittedRef.current = true
     startTransition(async () => {
       const res = await createUnit(formData)
-      if (!res.ok) setError(res.error)
+      if (!res.ok) {
+        submittedRef.current = false
+        setError(res.error)
+      }
     })
   }
 
@@ -208,7 +229,10 @@ export function UnitCreateWizard({
               summary={summary}
               cost={cost}
               costAccepted={costAccepted}
-              onCostAcceptedChange={setCostAccepted}
+              onCostAcceptedChange={(accepted) => {
+                setCostAccepted(accepted)
+                if (accepted) void trackUnitWizardEvent({ event: 'cost_acknowledged' })
+              }}
               onEditStep={goToStepId}
             />
           ) : null}

@@ -1,7 +1,7 @@
 import { membershipDocId } from '@/domain'
 import type { Locator, Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
-import { enableUnitBusinessHours } from '../helpers/forms'
+import { createUnitViaWizard } from '../helpers/forms'
 import { listItem } from '../helpers/list'
 import { oneUnit, twoUnits } from '../helpers/rest-json'
 import {
@@ -187,16 +187,14 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
       const dialog = authedPage.getByRole('dialog')
       await expect(dialog).toBeVisible()
       await dialog.getByRole('textbox', { name: 'Nome' }).fill('Filial Centro Velho')
-      await expect(dialog.getByRole('textbox', { name: 'Slug público' })).toHaveValue(
+      await expect(dialog.getByRole('textbox', { name: 'Nome de usuário' })).toHaveValue(
         'filial-centro-velho',
       )
       await expect(dialog.getByText(/disponível/i)).toBeVisible()
-      await dialog.getByRole('textbox', { name: 'WhatsApp' }).fill('11955554444')
-      await dialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
-      await expect(dialog.getByText(/São Paulo\/SP/)).toBeVisible()
-      await dialog.getByRole('textbox', { name: 'Número' }).fill('200')
-      await enableUnitBusinessHours(dialog)
-      await dialog.getByRole('button', { name: 'Criar' }).click()
+      await createUnitViaWizard(dialog, {
+        name: 'Filial Centro Velho',
+        whatsapp: '11955554444',
+      })
 
       await expect(authedPage).toHaveURL(/\/select-unit$/)
       await expect(authedPage.getByRole('button', { name: 'Filial Centro Velho' })).toBeVisible()

@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures'
-import { enableUnitBusinessHours } from '../helpers/forms'
+import { createUnitViaWizard } from '../helpers/forms'
 import { rowAction } from '../helpers/list'
 import { enterUnitsAfterCreate } from '../helpers/session'
 import { UnitsPage } from '../pages'
@@ -24,14 +24,11 @@ test.describe('Unidades — WhatsApp', () => {
       const units = new UnitsPage(authedPage)
       await units.gotoNew()
       const dialog = authedPage.getByRole('dialog')
-      await dialog.getByRole('textbox', { name: 'Nome' }).fill('Filial Centro')
-      await dialog.getByRole('textbox', { name: 'WhatsApp' }).fill('11955554444')
-      await dialog.getByRole('textbox', { name: 'Email' }).fill('centro@e2e.test')
-      await dialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
-      await expect(dialog.getByText(/São Paulo\/SP/)).toBeVisible()
-      await dialog.getByRole('textbox', { name: 'Número' }).fill('200')
-      await enableUnitBusinessHours(dialog)
-      await dialog.getByRole('button', { name: 'Criar' }).click()
+      await createUnitViaWizard(dialog, {
+        name: 'Filial Centro',
+        whatsapp: '11955554444',
+        email: 'centro@e2e.test',
+      })
 
       await enterUnitsAfterCreate(authedPage)
       await rowAction(authedPage, /Filial Centro/, 'Editar')
@@ -41,21 +38,16 @@ test.describe('Unidades — WhatsApp', () => {
       )
     })
 
-    test('/units/new bloqueia o submit enquanto o WhatsApp não normaliza', async ({
-      authedPage,
-    }) => {
+    test('wizard bloqueia o avanço enquanto o WhatsApp não normaliza', async ({ authedPage }) => {
       const units = new UnitsPage(authedPage)
       await units.gotoNew()
       const dialog = authedPage.getByRole('dialog')
       await dialog.getByRole('textbox', { name: 'Nome' }).fill('Filial Bad WA')
       const whatsapp = dialog.getByRole('textbox', { name: 'WhatsApp' })
       await whatsapp.fill('abc')
-      await dialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
-      await expect(dialog.getByText(/São Paulo\/SP/)).toBeVisible()
-      await dialog.getByRole('textbox', { name: 'Número' }).fill('200')
 
       await expect(whatsapp).toHaveValue('')
-      await expect(dialog.getByRole('button', { name: 'Criar' })).toBeDisabled()
+      await expect(dialog.getByRole('button', { name: 'Continuar' })).toBeDisabled()
       await expect(authedPage.getByRole('dialog')).toBeVisible()
     })
   })
