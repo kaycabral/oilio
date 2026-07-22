@@ -72,7 +72,7 @@ test.describe('Wizard de criação de unidade — DoD (#1438 · 0097)', { tag: '
       await enterUnitsAfterCreate(authedPage)
       await expect(authedPage).toHaveURL(/\/organizations(\/|\?|$)/)
       await expect(listItem(authedPage, new RegExp(ts))).toBeVisible({ timeout: 5000 })
-      await expect(authedPage.getByRole('link', { name: 'Agenda' })).toBeVisible()
+      await expect(authedPage.getByRole('link', { name: 'Agenda', exact: true })).toBeVisible()
     })
   })
 
@@ -133,7 +133,7 @@ test.describe('Wizard de criação de unidade — DoD (#1438 · 0097)', { tag: '
 
       await expect(dialog.getByText(/Passo 4 de 4/)).toBeVisible()
       await expect(dialog.getByText(/Slots de \d+ min/)).toHaveCount(0)
-      await expect(dialog.getByText(/Ordem de chegada \/ balcão/)).toBeVisible()
+      await expect(dialog.getByText(/Ordem de chegada \/ balcão · \d+ dia/)).toBeVisible()
       await expect(dialog.getByText(name)).toBeVisible()
       await expect(dialog.getByText(/Avenida Paulista, 200/)).toBeVisible()
     })

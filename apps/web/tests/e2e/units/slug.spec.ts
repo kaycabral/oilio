@@ -1,5 +1,6 @@
 import { expect, test } from '../fixtures'
 import { createUnitViaWizard } from '../helpers/forms'
+import { fillStable } from '../helpers/hydration'
 import { rowAction } from '../helpers/list'
 import { enterUnitsAfterCreate, setActiveUnitCookie } from '../helpers/session'
 import { UnitsPage } from '../pages'
@@ -73,11 +74,11 @@ test.describe('Unidades — @/nome de usuário', () => {
       const units = new UnitsPage(authedPage)
       await units.gotoById(firstUnitId)
       const usernameInput = authedPage.getByRole('textbox', { name: 'Nome de usuário' })
-      await usernameInput.fill('unidade-2')
+      await fillStable(usernameInput, 'unidade-2')
       await expect(authedPage.getByText(/já está em uso por outra unidade/i)).toBeVisible()
       await expect(authedPage.getByRole('button', { name: 'Salvar' })).toBeDisabled()
 
-      await usernameInput.fill('unidade-renomeada')
+      await fillStable(usernameInput, 'unidade-renomeada')
       await expect(authedPage.getByText(/disponível/i)).toBeVisible()
       await expect(authedPage.getByText(/já está em uso por outra unidade/i)).toHaveCount(0)
     })
