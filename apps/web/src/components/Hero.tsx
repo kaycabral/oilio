@@ -23,7 +23,7 @@ export function Hero() {
       {authEnabled && (
         <div className="mt-2 flex flex-col gap-3 sm:flex-row">
           <Button asChild size="lg">
-            <a href="/login">Começar agora</a>
+            <a href="/signup/business">Começar agora</a>
           </Button>
           <Button asChild size="lg" variant="outline">
             <a href="/pricing">Ver preços</a>

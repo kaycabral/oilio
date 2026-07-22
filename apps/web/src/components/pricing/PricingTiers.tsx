@@ -128,9 +128,8 @@ export function tiersMatchDomain(): boolean {
 }
 
 function ctaHref(tier?: BillingTier): string {
-  if (!tier || tier === 'free') return '/login'
-  const next = encodeURIComponent('/settings/billing')
-  return `/login?next=${next}&intent=${tier}`
+  if (!tier || tier === 'free') return '/signup/business'
+  return `/signup/business?intent=${tier}`
 }
 
 export function PricingTiers() {

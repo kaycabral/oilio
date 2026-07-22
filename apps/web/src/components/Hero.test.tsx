@@ -14,7 +14,10 @@ describe('Hero', () => {
     vi.mocked(isFirebaseConfigured).mockReturnValue(true)
     render(<Hero />)
     expect(screen.getByRole('heading', { name: HEADING })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Começar agora' })).toHaveAttribute('href', '/login')
+    expect(screen.getByRole('link', { name: 'Começar agora' })).toHaveAttribute(
+      'href',
+      '/signup/business',
+    )
   })
 
   it('hides auth CTAs when Firebase is not configured', () => {

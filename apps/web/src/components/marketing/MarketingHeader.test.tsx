@@ -13,7 +13,10 @@ describe('MarketingHeader', () => {
     render(<MarketingHeader />)
     expect(screen.getByRole('link', { name: 'Preços' })).toHaveAttribute('href', '/pricing')
     expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/login')
-    expect(screen.getByRole('link', { name: 'Começar agora' })).toHaveAttribute('href', '/login')
+    expect(screen.getByRole('link', { name: 'Começar agora' })).toHaveAttribute(
+      'href',
+      '/signup/business',
+    )
   })
 
   it('hides auth CTAs when Firebase is not configured', () => {

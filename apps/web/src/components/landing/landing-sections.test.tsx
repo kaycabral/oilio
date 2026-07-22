@@ -37,7 +37,10 @@ describe('landing sections', () => {
   it('ClosingCta converts to login when auth is configured', () => {
     vi.mocked(isFirebaseConfigured).mockReturnValue(true)
     render(<ClosingCta />)
-    expect(screen.getByRole('link', { name: 'Começar agora' })).toHaveAttribute('href', '/login')
+    expect(screen.getByRole('link', { name: 'Começar agora' })).toHaveAttribute(
+      'href',
+      '/signup/business',
+    )
   })
 
   it('ClosingCta renders nothing when Firebase is not configured', () => {

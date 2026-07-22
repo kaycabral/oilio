@@ -10,7 +10,7 @@ test.describe('Landing pública', () => {
     ).toBeVisible()
     await expect(page.getByRole('link', { name: 'Começar agora' }).first()).toHaveAttribute(
       'href',
-      '/login',
+      '/signup/business',
     )
   })
 
@@ -32,7 +32,7 @@ test.describe('Landing pública', () => {
     await expect(tiers.getByText('Escala', { exact: true })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Assinar o Pro' })).toHaveAttribute(
       'href',
-      '/login?next=%2Fsettings%2Fbilling&intent=pro',
+      '/signup/business?intent=pro',
     )
   })
 })
