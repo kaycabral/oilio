@@ -77,25 +77,30 @@ export function UnitCreateWizard({
   const lastStepRef = useRef<WizardStepId>('identity')
   lastStepRef.current = activeStep
 
-  useEffect(() => {
-    return () => {
-      if (submittedRef.current) return
-      void trackUnitWizardEvent({ event: 'abandoned', lastStep: lastStepRef.current })
-    }
-  }, [])
-
   const steps = useMemo(() => wizardSteps(mode), [mode])
   const activeIndex = steps.indexOf(activeStep)
 
   useEffect(() => {
     let cancelled = false
-    void trackUnitWizardEvent({ event: 'opened' })
-    void getUnitAdditionCostPreview().then((res) => {
-      if (cancelled) return
-      setCost(res.ok ? res.cost : { charged: true, preview: null })
-    })
+    let opened = false
+    const openedAt = setTimeout(() => {
+      opened = true
+      void trackUnitWizardEvent({ event: 'opened' })
+    }, 0)
+    void getUnitAdditionCostPreview()
+      .then((res) => {
+        if (cancelled) return
+        setCost(res.ok ? res.cost : { charged: true, preview: null })
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCost({ charged: true, preview: null })
+      })
     return () => {
       cancelled = true
+      clearTimeout(openedAt)
+      if (!opened || submittedRef.current) return
+      void trackUnitWizardEvent({ event: 'abandoned', lastStep: lastStepRef.current })
     }
   }, [])
 
@@ -175,10 +180,12 @@ export function UnitCreateWizard({
   function onSubmit(formData: FormData) {
     setError(null)
     submittedRef.current = true
+    onDirtyChange?.(false)
     startTransition(async () => {
       const res = await createUnit(formData)
       if (!res.ok) {
         submittedRef.current = false
+        onDirtyChange?.(dirty)
         setError(res.error)
       }
     })

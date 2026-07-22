@@ -212,11 +212,25 @@ export async function checkUnitSlugAvailability(
   return collides ? { ok: true, available: false, reason: 'taken' } : { ok: true, available: true }
 }
 
+const WIZARD_STEPS = ['identity', 'address', 'hours', 'agenda', 'review'] as const
+const WIZARD_MODES = ['appointment', 'fixed', 'always_open'] as const
+
+type WizardStep = (typeof WIZARD_STEPS)[number]
+type WizardMode = (typeof WIZARD_MODES)[number]
+
 export type UnitWizardTelemetry =
   | { event: 'opened' }
   | { event: 'step_completed'; step: string; mode: string | null }
   | { event: 'abandoned'; lastStep: string }
   | { event: 'cost_acknowledged' }
+
+function isWizardStep(value: string): value is WizardStep {
+  return (WIZARD_STEPS as readonly string[]).includes(value)
+}
+
+function isWizardMode(value: string): value is WizardMode {
+  return (WIZARD_MODES as readonly string[]).includes(value)
+}
 
 export async function trackUnitWizardEvent(input: UnitWizardTelemetry): Promise<void> {
   const r = await requireManagerCtx()
@@ -226,10 +240,14 @@ export async function trackUnitWizardEvent(input: UnitWizardTelemetry): Promise<
     case 'opened':
       track('unit_wizard_opened', base)
       return
-    case 'step_completed':
-      track('unit_wizard_step_completed', { ...base, step: input.step, mode: input.mode })
+    case 'step_completed': {
+      if (!isWizardStep(input.step)) return
+      const mode = input.mode !== null && isWizardMode(input.mode) ? input.mode : null
+      track('unit_wizard_step_completed', { ...base, step: input.step, mode })
       return
+    }
     case 'abandoned':
+      if (!isWizardStep(input.lastStep)) return
       track('unit_wizard_abandoned', { ...base, last_step: input.lastStep })
       return
     case 'cost_acknowledged':

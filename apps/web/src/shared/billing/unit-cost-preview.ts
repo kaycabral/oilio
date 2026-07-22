@@ -1,4 +1,5 @@
 import { getStripe } from '@/shared/billing/stripe-client'
+import { stripePriceId } from '@/shared/billing/stripe-prices'
 import { logger } from '@/shared/lib/logger'
 import { getOrgBilling } from '@/shared/org/billing-read'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
@@ -31,13 +32,20 @@ export async function getUnitAdditionCost(orgId: string): Promise<UnitAdditionCo
   if (!billing.stripeSubscriptionId) return { charged: false }
 
   const nextQuantity = (await listUnitsForOrg(orgId)).length + 1
-  if (nextQuantity <= billing.unitQuantity) return { charged: false }
+  const projectedCharged = nextQuantity > billing.unitQuantity
 
   try {
     const stripe = getStripe()
     const subscription = await stripe.subscriptions.retrieve(billing.stripeSubscriptionId)
-    const item = subscription.items.data[0]
+    const unitPriceId = billing.billingCycle
+      ? stripePriceId(billing.tier, billing.billingCycle)
+      : null
+    const item =
+      subscription.items.data.find((i) => i.price.id === unitPriceId) ?? subscription.items.data[0]
     if (!item) return { charged: true, preview: null }
+
+    const currentQuantity = item.quantity ?? billing.unitQuantity
+    if (nextQuantity <= currentQuantity) return { charged: false }
 
     const [current, next] = await Promise.all([
       stripe.invoices.createPreview({ subscription: subscription.id }),
@@ -50,9 +58,10 @@ export async function getUnitAdditionCost(orgId: string): Promise<UnitAdditionCo
       }),
     ])
 
-    const prorationCents = next.lines.data
-      .filter(isProrationLine)
-      .reduce((sum, line) => sum + line.amount, 0)
+    const prorationTotal = (invoice: Stripe.Response<Stripe.Invoice>): number =>
+      invoice.lines.data.filter(isProrationLine).reduce((sum, line) => sum + line.amount, 0)
+
+    const prorationCents = prorationTotal(next) - prorationTotal(current)
     const newTotalMonthlyCents = recurringTotalCents(next)
     const newMonthlyDeltaCents = newTotalMonthlyCents - recurringTotalCents(current)
 
@@ -67,6 +76,6 @@ export async function getUnitAdditionCost(orgId: string): Promise<UnitAdditionCo
     }
   } catch (err) {
     logger.error('failed', { scope: 'getUnitAdditionCost', orgId, err })
-    return { charged: true, preview: null }
+    return projectedCharged ? { charged: true, preview: null } : { charged: false }
   }
 }
