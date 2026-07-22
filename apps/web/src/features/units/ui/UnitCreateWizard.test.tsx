@@ -1,17 +1,29 @@
 import { EMPTY_BUSINESS_HOURS } from '@/domain'
+import * as unitsActions from '@/features/units/adapters/units.actions'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { UnitCreateWizard, wizardSteps } from './UnitCreateWizard'
 
 const WEEKDAY_RANGE = { open: '09:00', close: '18:00' }
 
 vi.mock('@/features/units/adapters/units.actions', () => ({
   createUnit: vi.fn(),
-  checkUnitSlugAvailability: vi.fn(() => Promise.resolve({ ok: true, available: true })),
-  getUnitAdditionCostPreview: vi.fn(() => Promise.resolve({ ok: true, cost: { charged: false } })),
-  trackUnitWizardEvent: vi.fn(() => Promise.resolve()),
+  checkUnitSlugAvailability: vi.fn(),
+  getUnitAdditionCostPreview: vi.fn(),
+  trackUnitWizardEvent: vi.fn(),
 }))
+
+beforeEach(() => {
+  vi.mocked(unitsActions.createUnit).mockReset()
+  vi.mocked(unitsActions.checkUnitSlugAvailability)
+    .mockReset()
+    .mockResolvedValue({ ok: true, available: true })
+  vi.mocked(unitsActions.getUnitAdditionCostPreview)
+    .mockReset()
+    .mockResolvedValue({ ok: true, cost: { charged: false } })
+  vi.mocked(unitsActions.trackUnitWizardEvent).mockReset().mockResolvedValue(undefined)
+})
 
 const cepLookup = vi.hoisted(() => {
   type Lookup = {
@@ -127,8 +139,7 @@ describe('UnitCreateWizard — single form submit (AC-04)', () => {
       neighborhood: 'Bela Vista',
       street: 'Avenida Paulista',
     }
-    const { createUnit } = await import('@/features/units/adapters/units.actions')
-    vi.mocked(createUnit).mockResolvedValueOnce({ ok: true })
+    vi.mocked(unitsActions.createUnit).mockResolvedValueOnce({ ok: true })
     render(
       <UnitCreateWizard
         defaults={{ businessHours: { ...EMPTY_BUSINESS_HOURS, monday: [WEEKDAY_RANGE] } }}
@@ -147,8 +158,8 @@ describe('UnitCreateWizard — single form submit (AC-04)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     await userEvent.click(screen.getByRole('button', { name: 'Criar unidade' }))
 
-    expect(createUnit).toHaveBeenCalledTimes(1)
-    const formData = vi.mocked(createUnit).mock.calls[0]?.[0]
+    expect(unitsActions.createUnit).toHaveBeenCalledTimes(1)
+    const formData = vi.mocked(unitsActions.createUnit).mock.calls[0]?.[0]
     expect(formData?.get('name')).toBe('Filial Centro')
     expect(formData?.get('postalCode')).toBe('01310-100')
     expect(formData?.get('hoursMode')).toBe('fixed')
@@ -214,8 +225,7 @@ describe('UnitCreateWizard — @/username field (AC-10..12, #1402)', () => {
   })
 
   it('locks Continuar and shows the taken hint when the @ is unavailable (AC-12)', async () => {
-    const { checkUnitSlugAvailability } = await import('@/features/units/adapters/units.actions')
-    vi.mocked(checkUnitSlugAvailability).mockResolvedValue({
+    vi.mocked(unitsActions.checkUnitSlugAvailability).mockResolvedValue({
       ok: true,
       available: false,
       reason: 'taken',
@@ -226,7 +236,6 @@ describe('UnitCreateWizard — @/username field (AC-10..12, #1402)', () => {
       await screen.findByText('Este @ já está em uso por outra unidade desta empresa.'),
     ).toBeVisible()
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
-    vi.mocked(checkUnitSlugAvailability).mockResolvedValue({ ok: true, available: true })
   })
 })
 
@@ -280,8 +289,7 @@ describe('UnitCreateWizard — review step (AC-14..19)', () => {
   })
 
   it('locks the CTA behind the cost acknowledgement when charged (AC-14/15)', async () => {
-    const { getUnitAdditionCostPreview } = await import('@/features/units/adapters/units.actions')
-    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
+    vi.mocked(unitsActions.getUnitAdditionCostPreview).mockResolvedValue({
       ok: true,
       cost: {
         charged: true,
@@ -304,15 +312,10 @@ describe('UnitCreateWizard — review step (AC-14..19)', () => {
       screen.getByRole('checkbox', { name: /Entendi e concordo com a cobrança adicional/ }),
     )
     expect(cta).toBeEnabled()
-    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
-      ok: true,
-      cost: { charged: false },
-    })
   })
 
   it('degrades to a qualitative warning while keeping the acknowledgement (AC-17)', async () => {
-    const { getUnitAdditionCostPreview } = await import('@/features/units/adapters/units.actions')
-    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
+    vi.mocked(unitsActions.getUnitAdditionCostPreview).mockResolvedValue({
       ok: true,
       cost: { charged: true, preview: null },
     })
@@ -322,10 +325,6 @@ describe('UnitCreateWizard — review step (AC-14..19)', () => {
     expect(
       screen.getByRole('checkbox', { name: /Entendi e concordo com a cobrança adicional/ }),
     ).toBeInTheDocument()
-    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
-      ok: true,
-      cost: { charged: false },
-    })
   })
 
   it('re-renders the summary after switching mode via Editar (AC-19)', async () => {
@@ -347,40 +346,37 @@ describe('UnitCreateWizard — review step (AC-14..19)', () => {
 
 describe('UnitCreateWizard — telemetry (AC-21)', () => {
   it('tracks opened on mount and step_completed on each advance', async () => {
-    const { trackUnitWizardEvent } = await import('@/features/units/adapters/units.actions')
-    vi.mocked(trackUnitWizardEvent).mockClear()
+    vi.mocked(unitsActions.trackUnitWizardEvent).mockClear()
     const { unmount } = render(<UnitCreateWizard />)
-    expect(trackUnitWizardEvent).toHaveBeenCalledWith({ event: 'opened' })
+    expect(unitsActions.trackUnitWizardEvent).toHaveBeenCalledWith({ event: 'opened' })
 
     await fillIdentity()
     await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-    expect(trackUnitWizardEvent).toHaveBeenCalledWith({
+    expect(unitsActions.trackUnitWizardEvent).toHaveBeenCalledWith({
       event: 'step_completed',
       step: 'identity',
       mode: null,
     })
 
     unmount()
-    expect(trackUnitWizardEvent).toHaveBeenCalledWith({
+    expect(unitsActions.trackUnitWizardEvent).toHaveBeenCalledWith({
       event: 'abandoned',
       lastStep: 'address',
     })
   })
 
   it('tracks cost_acknowledged when the acceptance is checked', async () => {
-    const { getUnitAdditionCostPreview, trackUnitWizardEvent } =
-      await import('@/features/units/adapters/units.actions')
-    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
+    vi.mocked(unitsActions.getUnitAdditionCostPreview).mockResolvedValue({
       ok: true,
       cost: { charged: true, preview: null },
     })
     await goToReview()
-    vi.mocked(trackUnitWizardEvent).mockClear()
+    vi.mocked(unitsActions.trackUnitWizardEvent).mockClear()
     await userEvent.click(
       screen.getByRole('checkbox', { name: /Entendi e concordo com a cobrança adicional/ }),
     )
-    expect(trackUnitWizardEvent).toHaveBeenCalledWith({ event: 'cost_acknowledged' })
-    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
+    expect(unitsActions.trackUnitWizardEvent).toHaveBeenCalledWith({ event: 'cost_acknowledged' })
+    vi.mocked(unitsActions.getUnitAdditionCostPreview).mockResolvedValue({
       ok: true,
       cost: { charged: false },
     })
