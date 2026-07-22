@@ -64,4 +64,13 @@ describe('SignupBusinessForm', () => {
     render(<SignupBusinessForm />)
     expect(capturedNext).toBe('/onboarding?intent=pro')
   })
+
+  it('carries the plan intent through the Entrar link when present', () => {
+    searchParams.value = new URLSearchParams('intent=pro')
+    render(<SignupBusinessForm />)
+    expect(screen.getByRole('link', { name: /entrar/i })).toHaveAttribute(
+      'href',
+      '/login?next=%2Fonboarding%3Fintent%3Dpro',
+    )
+  })
 })

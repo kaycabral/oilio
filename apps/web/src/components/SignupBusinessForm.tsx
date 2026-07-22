@@ -9,6 +9,7 @@ export function SignupBusinessForm() {
   const params = useSearchParams()
   const intent = params.get('intent')
   const next = intent ? `/onboarding?intent=${encodeURIComponent(intent)}` : '/onboarding'
+  const loginHref = intent ? `/login?next=${encodeURIComponent(next)}` : '/login'
 
   return (
     <div className="flex flex-col gap-8">
@@ -28,7 +29,7 @@ export function SignupBusinessForm() {
       <OAuthSignInButtons next={next} />
       <Typography variant="muted" className="text-center text-sm">
         Já tem conta?{' '}
-        <Link href="/login" className="text-foreground font-medium underline underline-offset-4">
+        <Link href={loginHref} className="text-foreground font-medium underline underline-offset-4">
           Entrar
         </Link>
       </Typography>
