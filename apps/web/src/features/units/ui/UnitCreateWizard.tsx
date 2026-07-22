@@ -2,7 +2,7 @@
 
 import { AddressFields } from '@/components/address-fields'
 import { type BusinessHours, type UnitHoursMode } from '@/domain'
-import { createUnit } from '@/features/units/adapters/units.actions'
+import { createUnit, getUnitAdditionCostPreview } from '@/features/units/adapters/units.actions'
 import { BusinessHoursFields } from '@/features/units/ui/BusinessHoursFields'
 import { UnitAgendaConfigFields } from '@/features/units/ui/UnitAgendaConfigFields'
 import {
@@ -10,7 +10,14 @@ import {
   UnitIdentityFields,
   type SlugState,
 } from '@/features/units/ui/UnitIdentityFields'
+import {
+  reviewSummaryFromForm,
+  UnitReviewPanel,
+  type ReviewSummary,
+} from '@/features/units/ui/UnitReviewPanel'
 import { useStepValidity } from '@/hooks/use-step-validity'
+import type { UnitAdditionCost } from '@/shared/billing/unit-cost-preview'
+import { useOrg } from '@/shared/org/org-context'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +33,7 @@ import {
   FieldGroup,
   Stepper,
 } from '@cbrl/design'
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 
 export type WizardStepId = 'identity' | 'address' | 'hours' | 'agenda' | 'review'
 
@@ -51,15 +58,31 @@ export function UnitCreateWizard({
   defaults?: { businessHours?: BusinessHours }
   onDirtyChange?: (dirty: boolean) => void
 }) {
+  const { org } = useOrg()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<UnitHoursMode | null>(null)
   const [activeStep, setActiveStep] = useState<WizardStepId>('identity')
   const [dirty, setDirty] = useState(false)
   const [slugState, setSlugState] = useState<SlugState>({ kind: 'idle' })
+  const [summary, setSummary] = useState<ReviewSummary | null>(null)
+  const [cost, setCost] = useState<UnitAdditionCost | null>(null)
+  const [costAccepted, setCostAccepted] = useState(false)
+  const formRef = useRef<HTMLFormElement | null>(null)
 
   const steps = useMemo(() => wizardSteps(mode), [mode])
   const activeIndex = steps.indexOf(activeStep)
+
+  useEffect(() => {
+    let cancelled = false
+    void getUnitAdditionCostPreview().then((res) => {
+      if (cancelled) return
+      setCost(res.ok ? res.cost : { charged: true, preview: null })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const identity = useStepValidity<HTMLDivElement>()
   const address = useStepValidity<HTMLDivElement>()
@@ -76,6 +99,7 @@ export function UnitCreateWizard({
 
   const slugBlocked = slugBlocksSubmit(slugState)
   const modeBlocked = mode === null
+  const costBlocked = cost?.charged === true && !costAccepted
   const current = stepValidity[activeStep]
   const currentValid =
     (current === null || current.isValid) &&
@@ -106,8 +130,16 @@ export function UnitCreateWizard({
   function goTo(index: number) {
     const target = steps[index]
     if (!target) return
+    if (target === 'review' && formRef.current) {
+      setSummary(reviewSummaryFromForm(formRef.current, org.slug, mode))
+    }
     setActiveStep(target)
     refreshAll()
+  }
+
+  function goToStepId(step: WizardStepId) {
+    const index = steps.indexOf(step)
+    if (index >= 0) goTo(index)
   }
 
   function goNext() {
@@ -134,7 +166,7 @@ export function UnitCreateWizard({
   const isFinal = activeStep === 'review'
 
   return (
-    <form action={onSubmit} onInput={onFormInteraction} onChange={onFormInteraction}>
+    <form ref={formRef} action={onSubmit} onInput={onFormInteraction} onChange={onFormInteraction}>
       <div className="flex flex-col gap-6">
         <Stepper
           steps={steps.map((s) => STEP_LABELS[s])}
@@ -171,9 +203,15 @@ export function UnitCreateWizard({
         </div>
 
         <div hidden={activeStep !== 'review'}>
-          <FieldDescription>
-            Revise os dados nos passos anteriores e crie a unidade.
-          </FieldDescription>
+          {summary ? (
+            <UnitReviewPanel
+              summary={summary}
+              cost={cost}
+              costAccepted={costAccepted}
+              onCostAcceptedChange={setCostAccepted}
+              onEditStep={goToStepId}
+            />
+          ) : null}
         </div>
 
         {error ? <FieldError>{error}</FieldError> : null}
@@ -200,8 +238,11 @@ export function UnitCreateWizard({
             Voltar
           </Button>
           {isFinal ? (
-            <Button type="submit" disabled={pending || !allValid}>
-              {pending ? 'Criando…' : 'Criar unidade'}
+            <Button type="submit" disabled={pending || !allValid || costBlocked}>
+              {(() => {
+                if (pending) return 'Criando…'
+                return cost?.charged === true ? 'Confirmar e criar unidade' : 'Criar unidade'
+              })()}
             </Button>
           ) : (
             <Button type="button" onClick={goNext} disabled={!currentValid}>

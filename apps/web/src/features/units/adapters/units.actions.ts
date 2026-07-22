@@ -22,6 +22,7 @@ import {
   parseUnitForm,
 } from '@/features/units/core/unit-form'
 import { syncStripeSubscriptionQuantity } from '@/shared/billing/stripe-sync'
+import { getUnitAdditionCost, type UnitAdditionCost } from '@/shared/billing/unit-cost-preview'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
 import { deletePostgresProjection } from '@/shared/db/pg/effect/postgres-layer'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
@@ -208,6 +209,17 @@ export async function checkUnitSlugAvailability(
   const existing = await listUnitSlugs(r.ctx.membership.orgId)
   const collides = existing.some((u) => u.slug === candidate && u.id !== selfUnitId)
   return collides ? { ok: true, available: false, reason: 'taken' } : { ok: true, available: true }
+}
+
+export type UnitAdditionCostResult =
+  | { ok: true; cost: UnitAdditionCost }
+  | { ok: false; error: string }
+
+export async function getUnitAdditionCostPreview(): Promise<UnitAdditionCostResult> {
+  const r = await requireManagerCtx()
+  if (!r.ok) return r
+  const cost = await getUnitAdditionCost(r.ctx.membership.orgId)
+  return { ok: true, cost }
 }
 
 export async function deleteUnit(unitId: string): Promise<UnitMutationResult> {
