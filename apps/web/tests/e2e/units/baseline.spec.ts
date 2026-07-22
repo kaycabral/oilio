@@ -1,7 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
-import { enableUnitBusinessHours } from '../helpers/forms'
-import { fillStable } from '../helpers/hydration'
+import { createUnitViaWizard } from '../helpers/forms'
 import { listItem, rowAction } from '../helpers/list'
 import { enterUnitsAfterCreate, seedUnit } from '../helpers/session'
 
@@ -43,17 +42,13 @@ test.describe('Units — baseline (#17)', () => {
     await authedPage.goto('/organizations')
     await authedPage.getByRole('button', { name: '+ Nova unidade' }).click()
     const createDialog = authedPage.getByRole('dialog')
-    await fillStable(
-      createDialog.getByRole('textbox', { name: 'Slug público' }),
-      `un-${ts.slice(-9)}`,
-    )
-    await createDialog.getByRole('textbox', { name: 'Nome' }).fill(name)
-    await createDialog.getByRole('textbox', { name: 'WhatsApp' }).fill(`119${ts.slice(-8)}`)
-    await createDialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
-    await expect(createDialog.getByText(/São Paulo\/SP/)).toBeVisible()
-    await createDialog.getByRole('textbox', { name: 'Número' }).fill('123')
-    await enableUnitBusinessHours(createDialog)
-    await createDialog.getByRole('button', { name: 'Criar' }).click()
+    await expect(createDialog.getByText('Passo 1 de 4')).toBeVisible()
+    await createUnitViaWizard(createDialog, {
+      name,
+      username: `un-${ts.slice(-9)}`,
+      whatsapp: `119${ts.slice(-8)}`,
+      number: '123',
+    })
     await dismissUnitInterstitialIfPresent(authedPage)
     await expect(authedPage).toHaveURL(/\/organizations(\/|\?|$)/)
     await expect(authedPage.getByText(name, { exact: true })).toBeVisible({ timeout: 5000 })
@@ -130,17 +125,12 @@ test.describe('Units — baseline (#17)', () => {
     await authedPage.goto('/organizations')
     await authedPage.getByRole('button', { name: '+ Nova unidade' }).click()
     const createDialog = authedPage.getByRole('dialog')
-    await fillStable(
-      createDialog.getByRole('textbox', { name: 'Slug público' }),
-      `liv-${ts.slice(-9)}`,
-    )
-    await createDialog.getByRole('textbox', { name: 'Nome' }).fill(name)
-    await createDialog.getByRole('textbox', { name: 'WhatsApp' }).fill(`119${ts.slice(-8)}`)
-    await createDialog.getByRole('textbox', { name: 'CEP' }).fill('01310-100')
-    await expect(createDialog.getByText(/São Paulo\/SP/)).toBeVisible()
-    await createDialog.getByRole('textbox', { name: 'Número' }).fill('123')
-    await enableUnitBusinessHours(createDialog)
-    await createDialog.getByRole('button', { name: 'Criar' }).click()
+    await createUnitViaWizard(createDialog, {
+      name,
+      username: `liv-${ts.slice(-9)}`,
+      whatsapp: `119${ts.slice(-8)}`,
+      number: '123',
+    })
     await dismissUnitInterstitialIfPresent(authedPage)
     await expect(authedPage).toHaveURL(/\/organizations(\/|\?|$)/)
     await expect(authedPage.getByText(name, { exact: true })).toBeVisible({ timeout: 5000 })

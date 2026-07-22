@@ -10,6 +10,7 @@ vi.mock('@/features/units/adapters/units.actions', () => ({
   createUnit: vi.fn(),
   checkUnitSlugAvailability: vi.fn(() => Promise.resolve({ ok: true, available: true })),
   getUnitAdditionCostPreview: vi.fn(() => Promise.resolve({ ok: true, cost: { charged: false } })),
+  trackUnitWizardEvent: vi.fn(() => Promise.resolve()),
 }))
 
 const cepLookup = vi.hoisted(() => {
@@ -341,6 +342,48 @@ describe('UnitCreateWizard — review step (AC-14..19)', () => {
     expect(screen.queryByText(/Slots de \d+ min/)).not.toBeInTheDocument()
     expect(screen.getByText(/Ordem de chegada \/ balcão · 1 dia/)).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Nome', hidden: true })).toHaveValue('Filial Centro')
+  })
+})
+
+describe('UnitCreateWizard — telemetry (AC-21)', () => {
+  it('tracks opened on mount and step_completed on each advance', async () => {
+    const { trackUnitWizardEvent } = await import('@/features/units/adapters/units.actions')
+    vi.mocked(trackUnitWizardEvent).mockClear()
+    const { unmount } = render(<UnitCreateWizard />)
+    expect(trackUnitWizardEvent).toHaveBeenCalledWith({ event: 'opened' })
+
+    await fillIdentity()
+    await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(trackUnitWizardEvent).toHaveBeenCalledWith({
+      event: 'step_completed',
+      step: 'identity',
+      mode: null,
+    })
+
+    unmount()
+    expect(trackUnitWizardEvent).toHaveBeenCalledWith({
+      event: 'abandoned',
+      lastStep: 'address',
+    })
+  })
+
+  it('tracks cost_acknowledged when the acceptance is checked', async () => {
+    const { getUnitAdditionCostPreview, trackUnitWizardEvent } =
+      await import('@/features/units/adapters/units.actions')
+    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
+      ok: true,
+      cost: { charged: true, preview: null },
+    })
+    await goToReview()
+    vi.mocked(trackUnitWizardEvent).mockClear()
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /Entendi e concordo com a cobrança adicional/ }),
+    )
+    expect(trackUnitWizardEvent).toHaveBeenCalledWith({ event: 'cost_acknowledged' })
+    vi.mocked(getUnitAdditionCostPreview).mockResolvedValue({
+      ok: true,
+      cost: { charged: false },
+    })
   })
 })
 

@@ -52,6 +52,25 @@ type AnalyticsEvents = {
     org_id: string
     user_id: string
   }
+  unit_wizard_opened: {
+    org_id: string
+    user_id: string
+  }
+  unit_wizard_step_completed: {
+    org_id: string
+    user_id: string
+    step: string
+    mode: string | null
+  }
+  unit_wizard_abandoned: {
+    org_id: string
+    user_id: string
+    last_step: string
+  }
+  unit_wizard_cost_acknowledged: {
+    org_id: string
+    user_id: string
+  }
 }
 
 export type AnalyticsEventName = keyof AnalyticsEvents
