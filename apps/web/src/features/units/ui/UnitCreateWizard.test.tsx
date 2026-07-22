@@ -1,6 +1,6 @@
 import { EMPTY_BUSINESS_HOURS } from '@/domain'
 import * as unitsActions from '@/features/units/adapters/units.actions'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { UnitCreateWizard, wizardSteps } from './UnitCreateWizard'
@@ -237,7 +237,7 @@ describe('UnitCreateWizard — @/username field (AC-10..12, #1402)', () => {
     expect(
       await screen.findByText('Este @ já está em uso por outra unidade desta empresa.'),
     ).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled())
   })
 })
 
@@ -350,7 +350,9 @@ describe('UnitCreateWizard — telemetry (AC-21)', () => {
   it('tracks opened on mount and step_completed on each advance', async () => {
     vi.mocked(unitsActions.trackUnitWizardEvent).mockClear()
     const { unmount } = render(<UnitCreateWizard />)
-    expect(unitsActions.trackUnitWizardEvent).toHaveBeenCalledWith({ event: 'opened' })
+    await waitFor(() =>
+      expect(unitsActions.trackUnitWizardEvent).toHaveBeenCalledWith({ event: 'opened' }),
+    )
 
     await fillIdentity()
     await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
