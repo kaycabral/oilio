@@ -45,7 +45,7 @@ test.describe('Wizard de criação de unidade — DoD (#1438 · 0097)', { tag: '
       const dialog = authedPage.getByRole('dialog')
       await expect(dialog.getByText('Passo 1 de 4')).toBeVisible()
 
-      await dialog.getByRole('textbox', { name: 'Nome' }).fill(name)
+      await dialog.getByRole('textbox', { name: /^Nome\*?$/ }).fill(name)
       await expect(dialog.getByText(/disponível/i)).toBeVisible()
       await dialog.getByRole('textbox', { name: 'WhatsApp' }).fill(`119${ts.slice(-8)}`)
       await dialog.getByRole('button', { name: 'Continuar' }).click()
@@ -66,7 +66,7 @@ test.describe('Wizard de criação de unidade — DoD (#1438 · 0097)', { tag: '
       await expect(dialog.getByLabel(/granularidade dos horários/i)).toBeVisible()
       await dialog.getByRole('button', { name: 'Continuar' }).click()
 
-      await expect(dialog.getByText(/Por agendamento/).first()).toBeVisible()
+      await expect(dialog.getByText(/Por agendamento · /)).toBeVisible()
       await dialog.getByRole('button', { name: 'Criar unidade', exact: true }).click()
 
       await enterUnitsAfterCreate(authedPage)
@@ -161,14 +161,14 @@ test.describe('Wizard de criação de unidade — DoD (#1438 · 0097)', { tag: '
   })
 
   test.describe('Cenário 5 — @ indisponível bloqueia o passo Identidade', () => {
-    test.use({ orgInput: { unitCount: 1, tier: 'free' } })
+    test.use({ orgInput: { unitCount: 1 } })
 
     test('hint de indisponível + Continuar travado até um @ livre', async ({ authedPage }) => {
       const ts = Date.now().toString()
       await authedPage.goto('/organizations')
       await authedPage.getByRole('button', { name: '+ Nova unidade' }).click()
       const dialog = authedPage.getByRole('dialog')
-      await dialog.getByRole('textbox', { name: 'Nome' }).fill('Colisao')
+      await dialog.getByRole('textbox', { name: /^Nome\*?$/ }).fill('Colisao')
       await dialog.getByRole('textbox', { name: 'WhatsApp' }).fill(`119${ts.slice(-8)}`)
       const username = dialog.getByRole('textbox', { name: 'Nome de usuário' })
       await username.click()
@@ -195,11 +195,11 @@ test.describe('Wizard de criação de unidade — DoD (#1438 · 0097)', { tag: '
       await authedPage.getByRole('button', { name: '+ Nova unidade' }).click()
       const dialog = authedPage.getByRole('dialog')
 
-      await dialog.getByRole('textbox', { name: 'Nome' }).fill('A')
+      await dialog.getByRole('textbox', { name: /^Nome\*?$/ }).fill('A')
       await dialog.getByRole('textbox', { name: 'WhatsApp' }).fill(`119${ts.slice(-8)}`)
       await expect(dialog.getByRole('button', { name: 'Continuar' })).toBeDisabled()
 
-      await dialog.getByRole('textbox', { name: 'Nome' }).fill('Ab Valida')
+      await dialog.getByRole('textbox', { name: /^Nome\*?$/ }).fill('Ab Valida')
       await expect(dialog.getByText(/disponível/i)).toBeVisible()
       await dialog.getByRole('button', { name: 'Continuar' }).click()
 

@@ -49,7 +49,7 @@ export async function fillUnitWizardUntilReview(
   scope: Page | Locator,
   input: UnitWizardInput,
 ): Promise<void> {
-  await scope.getByRole('textbox', { name: 'Nome' }).fill(input.name)
+  await scope.getByRole('textbox', { name: /^Nome\*?$/ }).fill(input.name)
   if (input.username !== undefined) {
     const username = scope.getByRole('textbox', { name: 'Nome de usuário' })
     await username.click()

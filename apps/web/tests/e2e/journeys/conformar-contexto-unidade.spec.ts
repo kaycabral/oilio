@@ -186,7 +186,7 @@ test.describe('Conformar app ao contexto de unidade — DoD (#1088 · 0039)', ()
       await authedPage.getByRole('button', { name: '+ Nova unidade' }).click()
       const dialog = authedPage.getByRole('dialog')
       await expect(dialog).toBeVisible()
-      await dialog.getByRole('textbox', { name: 'Nome' }).fill('Filial Centro Velho')
+      await dialog.getByRole('textbox', { name: /^Nome\*?$/ }).fill('Filial Centro Velho')
       await expect(dialog.getByRole('textbox', { name: 'Nome de usuário' })).toHaveValue(
         'filial-centro-velho',
       )

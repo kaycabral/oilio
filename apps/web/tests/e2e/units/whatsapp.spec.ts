@@ -42,7 +42,7 @@ test.describe('Unidades — WhatsApp', () => {
       const units = new UnitsPage(authedPage)
       await units.gotoNew()
       const dialog = authedPage.getByRole('dialog')
-      await dialog.getByRole('textbox', { name: 'Nome' }).fill('Filial Bad WA')
+      await dialog.getByRole('textbox', { name: /^Nome\*?$/ }).fill('Filial Bad WA')
       const whatsapp = dialog.getByRole('textbox', { name: 'WhatsApp' })
       await whatsapp.fill('abc')
 

@@ -261,18 +261,17 @@ export function UnitCreateWizard({
           <Button type="button" variant="ghost" onClick={goBack} disabled={activeIndex === 0}>
             Voltar
           </Button>
-          {isFinal ? (
-            <Button type="submit" disabled={pending || !allValid || costBlocked}>
-              {(() => {
-                if (pending) return 'Criando…'
-                return cost?.charged === true ? 'Confirmar e criar unidade' : 'Criar unidade'
-              })()}
-            </Button>
-          ) : (
-            <Button type="button" onClick={goNext} disabled={!currentValid}>
-              Continuar
-            </Button>
-          )}
+          <Button
+            type={isFinal ? 'submit' : 'button'}
+            onClick={isFinal ? undefined : goNext}
+            disabled={isFinal ? pending || !allValid || costBlocked : !currentValid}
+          >
+            {(() => {
+              if (!isFinal) return 'Continuar'
+              if (pending) return 'Criando…'
+              return cost?.charged === true ? 'Confirmar e criar unidade' : 'Criar unidade'
+            })()}
+          </Button>
         </div>
       </div>
     </form>
