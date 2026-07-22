@@ -3,6 +3,7 @@
 import { PhoneInput } from '@/components/PhoneInput'
 import { isValidUnitSlug, SLUG_HTML_PATTERN, slugifyUnitName, type Unit } from '@/domain'
 import { checkUnitSlugAvailability } from '@/features/units/adapters/units.actions'
+import { useOrg } from '@/shared/org/org-context'
 import {
   Field,
   FieldDescription,
@@ -150,13 +151,19 @@ export function UnitSlugField({
   slugState: SlugState
   onSlugChange: (value: string) => void
 }) {
+  const { org } = useOrg()
   const slugHint = slugStateToHint(slugState)
+  const origin = typeof window === 'undefined' ? '' : window.location.origin
+  const previewSlug = slug.trim().toLowerCase() || 'sua-unidade'
   return (
     <Field>
       <FieldLabel htmlFor="unit-slug" required>
-        Slug público
+        Nome de usuário
       </FieldLabel>
       <InputGroup>
+        <InputGroupAddon align="inline-start" aria-hidden>
+          @
+        </InputGroupAddon>
         <InputGroupInput
           id="unit-slug"
           name="slug"
@@ -171,6 +178,9 @@ export function UnitSlugField({
         />
         <InputGroupAddon>{renderSlugIcon(slugState.kind)}</InputGroupAddon>
       </InputGroup>
+      <FieldDescription className="truncate font-mono text-xs">
+        {origin}/{org.slug}/{previewSlug}
+      </FieldDescription>
       {slugState.kind !== 'available' ? (
         <FieldDescription className={slugHint.tone === 'error' ? 'text-destructive' : undefined}>
           {slugHint.text}
@@ -186,7 +196,7 @@ function renderSlugIcon(kind: SlugState['kind']) {
       return (
         <>
           <Check className="text-emerald-600" aria-hidden />
-          <span className="sr-only">Slug disponível</span>
+          <span className="sr-only">Nome de usuário disponível</span>
         </>
       )
     case 'checking':
@@ -204,7 +214,7 @@ function slugStateToHint(state: SlugState): { text: string; tone: 'neutral' | 'o
   switch (state.kind) {
     case 'idle':
       return {
-        text: 'Aparece na URL pública. Use letras minúsculas, números e hífens.',
+        text: 'Como o @ de uma rede social: identifica a unidade no link público.',
         tone: 'neutral',
       }
     case 'checking':
@@ -212,10 +222,10 @@ function slugStateToHint(state: SlugState): { text: string; tone: 'neutral' | 'o
     case 'available':
       return { text: 'Disponível.', tone: 'ok' }
     case 'taken':
-      return { text: 'Já em uso por outra unidade desta empresa.', tone: 'error' }
+      return { text: 'Este @ já está em uso por outra unidade desta empresa.', tone: 'error' }
     case 'invalid':
       return {
-        text: 'Slug inválido — 3–64 caracteres, letras minúsculas, números e hífens. Evite nomes reservados.',
+        text: '@ inválido — 3–64 caracteres, letras minúsculas, números e hífens. Evite nomes reservados.',
         tone: 'error',
       }
     case 'error':
