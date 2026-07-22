@@ -21,7 +21,7 @@ export function MarketingHeader() {
                 <a href="/login">Entrar</a>
               </Button>
               <Button asChild size="sm">
-                <a href="/login">Começar agora</a>
+                <a href="/signup/business">Começar agora</a>
               </Button>
             </>
           )}

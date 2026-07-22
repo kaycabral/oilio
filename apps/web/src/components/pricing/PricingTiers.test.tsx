@@ -14,7 +14,7 @@ describe('PricingTiers', () => {
     expect([...CHARGEABLE_TIER_SLUGS].sort()).toEqual(['advanced', 'free', 'pro'])
   })
 
-  it('renders the three tiers with CTAs to login when auth is configured', () => {
+  it('renders the three tiers with paid CTAs to the owner signup, carrying the plan intent', () => {
     vi.mocked(isFirebaseConfigured).mockReturnValue(true)
     render(<PricingTiers />)
     expect(screen.getByText('Grátis')).toBeInTheDocument()
@@ -23,7 +23,7 @@ describe('PricingTiers', () => {
     expect(screen.getByText('Recomendado')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Assinar o Pro' })).toHaveAttribute(
       'href',
-      '/login?next=%2Fsettings%2Fbilling&intent=pro',
+      '/signup/business?intent=pro',
     )
   })
 

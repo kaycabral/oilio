@@ -14,7 +14,7 @@ export function ClosingCta() {
         próximo cliente entrar.
       </Typography>
       <Button asChild size="lg">
-        <a href="/login">Começar agora</a>
+        <a href="/signup/business">Começar agora</a>
       </Button>
     </section>
   )
