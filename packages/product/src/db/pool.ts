@@ -3,7 +3,9 @@ import {
   getOrCreateManagedPoolSync,
   initManagedPool,
   type ManagedPool,
+  type PoolEnvConfig,
 } from '@cbrl/pg'
+import { cloudSqlIam } from '@cbrl/pg/cloud-sql'
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
 import type { Pool } from 'pg'
 import * as schema from '../schema'
@@ -28,13 +30,15 @@ import * as schema from '../schema'
  * is a true per-process singleton keyed by database name. See `@cbrl/pg`.
  */
 
-const ENV_CONFIG = {
+export const PRODUCT_POOL_CONFIG: PoolEnvConfig = {
   connectionStringEnvVar: 'DATABASE_URL',
-  iamAuthEnvVar: 'PRODUCT_USE_IAM_AUTH',
-  instanceEnvVar: 'PRODUCT_CLOUDSQL_INSTANCE',
-  iamUserEnvVar: 'PRODUCT_IAM_DB_USER',
   database: 'produtos',
-} as const
+  iam: cloudSqlIam({
+    enabledEnvVar: 'PRODUCT_USE_IAM_AUTH',
+    instanceEnvVar: 'PRODUCT_CLOUDSQL_INSTANCE',
+    userEnvVar: 'PRODUCT_IAM_DB_USER',
+  }),
+}
 
 // Drizzle wrappers are stateless views over the pool, cached per pool instance.
 const drizzleByPool = new WeakMap<Pool, NodePgDatabase<typeof schema>>()
@@ -49,15 +53,15 @@ function dbFor(managed: ManagedPool): NodePgDatabase<typeof schema> {
 
 /** Open the product-base pool at boot (required in IAM mode). Idempotent. */
 export async function initProductDb(): Promise<void> {
-  await initManagedPool(ENV_CONFIG)
+  await initManagedPool(PRODUCT_POOL_CONFIG)
 }
 
 /** Drizzle client bound to the product schema. */
 export function getDb(): NodePgDatabase<typeof schema> {
-  return dbFor(getOrCreateManagedPoolSync(ENV_CONFIG))
+  return dbFor(getOrCreateManagedPoolSync(PRODUCT_POOL_CONFIG))
 }
 
 /** Close the pool (tests / graceful shutdown). No-op if never opened. */
 export async function closeDb(): Promise<void> {
-  await closeManagedPool(ENV_CONFIG)
+  await closeManagedPool(PRODUCT_POOL_CONFIG)
 }

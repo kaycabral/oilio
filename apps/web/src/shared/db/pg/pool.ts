@@ -3,18 +3,22 @@ import {
   getOrCreateManagedPoolSync,
   initManagedPool,
   type ManagedPool,
+  type PoolEnvConfig,
 } from '@cbrl/pg'
+import { cloudSqlIam } from '@cbrl/pg/cloud-sql'
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
 import type { Pool } from 'pg'
 import * as schema from './schema'
 
-const ENV_CONFIG = {
+export const EVENT_STORE_POOL_CONFIG: PoolEnvConfig = {
   connectionStringEnvVar: 'OILIO_DATABASE_URL',
-  iamAuthEnvVar: 'OILIO_USE_IAM_AUTH',
-  instanceEnvVar: 'OILIO_CLOUDSQL_INSTANCE',
-  iamUserEnvVar: 'OILIO_IAM_DB_USER',
   database: 'oilio',
-} as const
+  iam: cloudSqlIam({
+    enabledEnvVar: 'OILIO_USE_IAM_AUTH',
+    instanceEnvVar: 'OILIO_CLOUDSQL_INSTANCE',
+    userEnvVar: 'OILIO_IAM_DB_USER',
+  }),
+}
 
 const drizzleByPool = new WeakMap<Pool, NodePgDatabase<typeof schema>>()
 
@@ -27,17 +31,17 @@ function dbFor(managed: ManagedPool): NodePgDatabase<typeof schema> {
 }
 
 export async function initEventStore(): Promise<void> {
-  await initManagedPool(ENV_CONFIG)
+  await initManagedPool(EVENT_STORE_POOL_CONFIG)
 }
 
 export function getEventStorePool(): Pool {
-  return getOrCreateManagedPoolSync(ENV_CONFIG).pool
+  return getOrCreateManagedPoolSync(EVENT_STORE_POOL_CONFIG).pool
 }
 
 export function getEventStoreDb(): NodePgDatabase<typeof schema> {
-  return dbFor(getOrCreateManagedPoolSync(ENV_CONFIG))
+  return dbFor(getOrCreateManagedPoolSync(EVENT_STORE_POOL_CONFIG))
 }
 
 export async function closeEventStoreDb(): Promise<void> {
-  await closeManagedPool(ENV_CONFIG)
+  await closeManagedPool(EVENT_STORE_POOL_CONFIG)
 }

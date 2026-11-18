@@ -153,8 +153,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@cbrl/pg':
-        specifier: ^0.1.0
-        version: 0.1.0(@google-cloud/cloud-sql-connector@1.11.1)(pg@8.22.0)
+        specifier: ^0.2.0
+        version: 0.2.0(@google-cloud/cloud-sql-connector@1.11.1)(pg@8.22.0)
       '@google-cloud/cloud-sql-connector':
         specifier: 'catalog:'
         version: 1.11.1
@@ -289,8 +289,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@cbrl/pg':
-        specifier: ^0.1.0
-        version: 0.1.0(@google-cloud/cloud-sql-connector@1.11.1)(pg@8.22.0)
+        specifier: ^0.2.0
+        version: 0.2.0(@google-cloud/cloud-sql-connector@1.11.1)(pg@8.22.0)
       '@google-cloud/cloud-sql-connector':
         specifier: 'catalog:'
         version: 1.11.1
@@ -618,8 +618,8 @@ packages:
       eslint: ^9.0.0
       typescript: '>=5.0.0 <7'
 
-  '@cbrl/pg@0.1.0':
-    resolution: {integrity: sha512-hkzU97dgH4IeMJRCAVNBQD+jw7c94sR9uih8fo/yPuCgoEPRj+dK4KTTe7lqBgOwKGEsI4j0a+EwnccC7vhYnA==}
+  '@cbrl/pg@0.2.0':
+    resolution: {integrity: sha512-ylocXRzgCtKsUgXtBo1Bu4SdaC7rLCtiQVzxnlk6VbM/1TE26NvRA29eEQu1pGNH30+DavPAxr4c74MbIrYZMA==}
     peerDependencies:
       '@google-cloud/cloud-sql-connector': ^1.11.1
       pg: ^8.13.0
@@ -7926,7 +7926,7 @@ snapshots:
       - eslint-import-resolver-webpack
       - supports-color
 
-  '@cbrl/pg@0.1.0(@google-cloud/cloud-sql-connector@1.11.1)(pg@8.22.0)':
+  '@cbrl/pg@0.2.0(@google-cloud/cloud-sql-connector@1.11.1)(pg@8.22.0)':
     dependencies:
       '@cbrl/env': 0.1.0
       '@types/pg': 8.20.0
