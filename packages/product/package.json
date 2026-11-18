@@ -1,5 +1,5 @@
 {
-  "name": "@cbrl/product",
+  "name": "@oilio/product",
   "version": "0.0.0",
   "private": true,
   "license": "UNLICENSED",
@@ -16,18 +16,20 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "lint": "eslint ."
   },
   "dependencies": {
-    "@cbrl/db": "workspace:*",
-    "@cbrl/env": "workspace:*",
+    "@oilio/db": "workspace:*",
+    "@oilio/env": "workspace:*",
     "drizzle-orm": "catalog:",
     "pg": "catalog:"
   },
   "devDependencies": {
-    "@cbrl/testing": "workspace:*",
-    "@cbrl/tsconfig-base": "workspace:*",
+    "@oilio/testing": "workspace:*",
+    "@oilio/tsconfig": "workspace:*",
     "@types/pg": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "drizzle-kit": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

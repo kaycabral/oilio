@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+dist
+build
+coverage
+playwright-report
+test-results
+package-lock.json
+pnpm-lock.yaml
+**/next-env.d.ts
+supabase/migrations
+.husky/_/**

@@ -34,9 +34,9 @@ function stubSource(): ProductSource & { upserts: NewProduct[] } {
     findByGtin14(): Promise<StoredProduct | null> {
       throw new Error('contribute must not read')
     },
-    async upsert(input: NewProduct): Promise<StoredProduct> {
+    upsert(input: NewProduct): Promise<StoredProduct> {
       upserts.push(input)
-      return storedFrom(input)
+      return Promise.resolve(storedFrom(input))
     },
     searchByName(): Promise<StoredProduct[]> {
       throw new Error('contribute must not search by name')
@@ -62,9 +62,11 @@ describe('autoContribute', () => {
     expect(source.upserts).toHaveLength(1)
     const row = source.upserts[0]!
     expect(row.gtin14).toBe(GTIN14)
-    expect(row.name).toBe('Leite Ninho 400g') // trimmed
+    // trimmed
+    expect(row.name).toBe('Leite Ninho 400g')
     expect(row.brand).toBe('Nestlé')
-    expect(row.ncm).toBeNull() // blank → null
+    // blank → null
+    expect(row.ncm).toBeNull()
     expect(row.source).toBe('org-contributed')
   })
 

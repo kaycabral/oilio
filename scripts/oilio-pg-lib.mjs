@@ -23,7 +23,7 @@ import { Client } from 'pg'
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const repoRoot = path.resolve(here, '..')
 export const composeFile = path.join(repoRoot, 'docker', 'postgres.compose.yaml')
-export const webDir = path.join(repoRoot, 'apps', 'oilio', 'web')
+export const webDir = path.join(repoRoot, 'apps', 'web')
 
 const POSTGRES_USER = 'postgres'
 const POSTGRES_PASSWORD = 'postgres'

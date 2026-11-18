@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardTitle, Typography } from '@cbrl/design'
+import { Card, CardContent, CardDescription, CardTitle, Typography } from '@oilio/design'
 
 const FEATURES = [
   {

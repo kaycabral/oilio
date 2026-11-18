@@ -10,7 +10,7 @@ import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import { formatRelativeDate } from '@/shared/relative-date'
 import { toRoute } from '@/shared/routes'
-import { Button, List } from '@cbrl/design'
+import { Button, List } from '@oilio/design'
 import { CreditCard, RotateCw } from 'lucide-react'
 import Link from 'next/link'
 

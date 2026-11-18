@@ -31,7 +31,7 @@ vi.mock('@/shared/org/billing-read', () => ({ getOrgBilling: mocks.getOrgBilling
 vi.mock('@/shared/org/unit-read', () => ({ listUnitsForOrg: mocks.listUnitsForOrg }))
 vi.mock('@/shared/billing/stripe-prices', () => ({ stripePriceId: mocks.stripePriceId }))
 vi.mock('@/shared/effect-bridge', () => ({ emitEvent: mocks.emitEvent }))
-vi.mock('@cbrl/env', () => ({ requireEnv: mocks.requireEnv }))
+vi.mock('@oilio/env', () => ({ requireEnv: mocks.requireEnv }))
 vi.mock('@/shared/routes', () => ({ toRoute: (u: string) => u }))
 vi.mock('@/shared/billing/stripe-client', () => ({
   getStripe: () => ({

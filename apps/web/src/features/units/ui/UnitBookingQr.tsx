@@ -1,6 +1,6 @@
 import { type BookingContext, buildClientInviteUrl } from '@/shared/invite/client-invite'
 import { resolveBaseUrl } from '@/shared/site-url'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@cbrl/design'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@oilio/design'
 import QRCode from 'qrcode'
 import { CopyPublicUrlButton } from './CopyPublicUrlButton'
 

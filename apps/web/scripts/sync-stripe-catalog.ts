@@ -5,7 +5,7 @@
 // catalog gets replicated to live without hand-creating objects in the
 // dashboard, so test and prod never drift.
 //
-// Canonical prices: apps/oilio/docs/stripe-setup.md (derived from the Wiki PRD
+// Canonical prices: docs/stripe-setup.md (derived from the Wiki PRD
 // `Produto/PRD-Monetizacao-SaaS` §5). Graduated per-unit: 1st unit base price,
 // each extra unit at the marginal price; Stripe computes the total from the
 // checkout `quantity`.
@@ -24,7 +24,7 @@
 // Dry-run prints the plan (create/reuse per object) and writes nothing. --apply
 // performs the creates and prints the resulting price ids ready for the env vars.
 
-import { requireEnv } from '@cbrl/env'
+import { requireEnv } from '@oilio/env'
 import Stripe from 'stripe'
 
 const MANAGED_BY = 'oilio-sync'

@@ -29,13 +29,13 @@ function storedFrom(row: NewProduct): StoredProduct {
 function mapSource(seed: Record<string, StoredProduct> = {}): ProductSource {
   const rows = new Map<string, StoredProduct>(Object.entries(seed))
   return {
-    async findByGtin14(gtin14: string): Promise<StoredProduct | null> {
-      return rows.get(gtin14) ?? null
+    findByGtin14(gtin14: string): Promise<StoredProduct | null> {
+      return Promise.resolve(rows.get(gtin14) ?? null)
     },
-    async upsert(input: NewProduct): Promise<StoredProduct> {
+    upsert(input: NewProduct): Promise<StoredProduct> {
       const stored = storedFrom(input)
       rows.set(input.gtin14, stored)
-      return stored
+      return Promise.resolve(stored)
     },
     searchByName(): Promise<StoredProduct[]> {
       throw new Error('resolve must not search by name')

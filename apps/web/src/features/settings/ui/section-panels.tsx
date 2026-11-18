@@ -11,7 +11,7 @@ import { DeleteMyDataForm } from '@/features/settings/ui/DeleteMyDataForm'
 import { EditProfileForm } from '@/features/settings/ui/EditProfileForm'
 import { EstablishmentErasureList } from '@/features/settings/ui/EstablishmentErasureList'
 import { NotificationTemplatesForm } from '@/features/settings/ui/NotificationTemplatesForm'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@cbrl/design'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@oilio/design'
 
 export function ProfilePanel({ data }: { data: ProfileSectionData }) {
   return (

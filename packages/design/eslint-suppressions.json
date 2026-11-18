@@ -1,0 +1,60 @@
+{
+  "src/components/avatar.test.tsx": {
+    "no-restricted-syntax": {
+      "count": 1
+    }
+  },
+  "src/components/card.test.tsx": {
+    "no-restricted-syntax": {
+      "count": 1
+    }
+  },
+  "src/components/empty-state.test.tsx": {
+    "no-restricted-syntax": {
+      "count": 2
+    }
+  },
+  "src/components/field.test.tsx": {
+    "testing-library/no-node-access": {
+      "count": 1
+    }
+  },
+  "src/components/input-group.test.tsx": {
+    "testing-library/no-node-access": {
+      "count": 1
+    }
+  },
+  "src/components/scroll-area.test.tsx": {
+    "no-restricted-syntax": {
+      "count": 1
+    },
+    "testing-library/no-node-access": {
+      "count": 1
+    }
+  },
+  "src/components/separator.test.tsx": {
+    "no-restricted-syntax": {
+      "count": 2
+    }
+  },
+  "src/components/sheet.test.tsx": {
+    "testing-library/no-node-access": {
+      "count": 1
+    }
+  },
+  "src/components/sidebar-menu.test.tsx": {
+    "no-restricted-syntax": {
+      "count": 1
+    }
+  },
+  "src/components/sidebar.test.tsx": {
+    "no-restricted-syntax": {
+      "count": 1
+    }
+  },
+  "src/components/skeleton.test.tsx": {
+    "no-restricted-syntax": {
+      "count": 1
+    }
+  }
+}

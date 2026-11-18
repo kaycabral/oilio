@@ -17,7 +17,7 @@ import {
   DialogTitle,
   Input,
   Label,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useEffect, useId, useState, useTransition } from 'react'
 
 type FixedCostRowActionsProps = {

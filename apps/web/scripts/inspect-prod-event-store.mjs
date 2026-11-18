@@ -11,7 +11,7 @@
 // Usage (override the migrate image entrypoint):
 //   gcloud run jobs execute oilio-migrate-event-store --region us-east4 \
 //     --update-env-vars INSPECT_CHECK=discover \
-//     --args=apps/oilio/web/scripts/inspect-prod-event-store.mjs --wait
+//     --args=apps/web/scripts/inspect-prod-event-store.mjs --wait
 // Optional: INSPECT_ORG=<org_id> scopes org-specific checks. INSPECT_CHECK=all
 // runs the full catalog.
 

@@ -9,7 +9,7 @@ import { withActionContext } from '@/shared/lib/request-context'
 import { requireManagerCtx } from '@/shared/org/membership'
 import { emitProductEvent } from '@/shared/product/product-events'
 import { getProductSource } from '@/shared/product/product-source'
-import { MIN_SEARCH_TERM_LENGTH, normalizeSearchTerm, searchProductsByName } from '@cbrl/product'
+import { MIN_SEARCH_TERM_LENGTH, normalizeSearchTerm, searchProductsByName } from '@oilio/product'
 
 export const searchProductsByNameForForm = withActionContext(
   async (rawQuery: string): Promise<ProductSuggestion[]> => {

@@ -37,7 +37,7 @@ import {
   DialogTitle,
   ScrollArea,
   Skeleton,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 

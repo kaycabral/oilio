@@ -1,5 +1,5 @@
 {
-  "extends": "@cbrl/tsconfig-base/base.json",
+  "extends": "@oilio/tsconfig/base.json",
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,

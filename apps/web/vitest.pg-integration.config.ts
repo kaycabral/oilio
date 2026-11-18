@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url)
 
 // Postgres-backed integration layer (brief 0050, A2). Distinct from
 // `vitest.integration.config.ts` (Firestore emulator): the sovereign-base gate
-// + reconciliation talk to REAL Postgres (`@cbrl/product`, from A1), NOT the
+// + reconciliation talk to REAL Postgres (`@oilio/product`, from A1), NOT the
 // emulator. These specs read `DATABASE_URL` directly — supplied by the ephemeral
 // Postgres in docker (`scripts/oilio-pg-it.mjs`) locally and by the GitLab CI
 // `services: [postgres]` job. No emulator is booted for this layer.
@@ -16,7 +16,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(here, 'src'),
-      'server-only': require.resolve('@cbrl/testing/vitest/server-only-shim'),
+      'server-only': require.resolve('@oilio/testing/vitest/server-only-shim'),
     },
   },
   test: {
@@ -28,7 +28,7 @@ export default defineConfig({
     // it has its own config (`vitest.events-pg-integration.config.ts`). Exclude it
     // here so the suffix-overlapping glob doesn't run it against `produtos`.
     exclude: ['src/**/*.events.pg.integration.test.ts'],
-    // Applies both the `@cbrl/product` (`produtos`) and event-store (`oilio`)
+    // Applies both the `@oilio/product` (`produtos`) and event-store (`oilio`)
     // schemas once before any file runs, and fails fast with an actionable
     // message when the runner didn't inject DATABASE_URL/OILIO_DATABASE_URL
     // (issue #1358). Mirrors `vitest.events-pg-integration.config.ts`.

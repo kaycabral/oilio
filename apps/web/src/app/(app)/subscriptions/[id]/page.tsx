@@ -1,7 +1,7 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { loadSubscriptionDetail } from '@/features/subscriptions/adapters/load-subscriptions'
 import { SubscriptionDetail } from '@/features/subscriptions/ui/SubscriptionDetail'
-import { Main } from '@cbrl/design'
+import { Main } from '@oilio/design'
 import { notFound } from 'next/navigation'
 
 export default async function SubscriptionDetailPage({

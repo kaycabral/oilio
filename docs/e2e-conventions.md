@@ -1,6 +1,6 @@
 # E2E conventions — scheduling/web
 
-Referenciado de `apps/oilio/web/CLAUDE.md` § Testes. Consulte ao adicionar/calibrar specs Playwright.
+Referenciado de `apps/web/CLAUDE.md` § Testes. Consulte ao adicionar/calibrar specs Playwright.
 
 Convenções universais em `TESTING.md` (raiz do monorepo) § "Playwright — convenções". Este doc cobre o que é específico de `scheduling/web`.
 

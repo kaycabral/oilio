@@ -10,7 +10,7 @@ import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import type { WithCanDelete } from '@/shared/org/delete-guard'
 import { toRoute } from '@/shared/routes'
-import { Button, List } from '@cbrl/design'
+import { Button, List } from '@oilio/design'
 import { Handshake, Package, PackageOpen } from 'lucide-react'
 import Link from 'next/link'
 

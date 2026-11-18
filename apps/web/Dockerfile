@@ -1,7 +1,7 @@
 # Cloud Run image for @oilio/web (Next.js standalone, pnpm monorepo).
 #
 # Built from the REPO ROOT as context (the pruned subtree needs the workspace):
-#   docker build -f apps/oilio/web/Dockerfile -t <img> \
+#   docker build -f apps/web/Dockerfile -t <img> \
 #     --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=... [other NEXT_PUBLIC_* args] .
 #
 # Strategy: `turbo prune --docker` carves the monorepo down to @oilio/web +
@@ -94,10 +94,10 @@ USER nextjs
 # Full resolvable dependency tree (drizzle-orm migrator + pg live here), the
 # migration entrypoint, and the SQL it reads from `../drizzle`.
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/scripts ./apps/oilio/web/scripts
-COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/drizzle ./apps/oilio/web/drizzle
-COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/package.json ./apps/oilio/web/package.json
-ENTRYPOINT ["node", "apps/oilio/web/scripts/migrate-event-store.mjs"]
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/scripts ./apps/web/scripts
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/drizzle ./apps/web/drizzle
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/package.json ./apps/web/package.json
+ENTRYPOINT ["node", "apps/web/scripts/migrate-event-store.mjs"]
 
 # --- Runtime (LAST stage → the default build target is the APP image) ----
 FROM base AS runner
@@ -108,15 +108,15 @@ RUN addgroup --system --gid 1001 nodejs \
 USER nextjs
 
 # Next standalone preserves the workspace path inside the bundle, so server.js
-# and static land under apps/oilio/web/. Next does NOT fold public/ or
+# and static land under apps/web/. Next does NOT fold public/ or
 # .next/static into the standalone output — both are copied explicitly. public/
 # carries the PWA icons (manifest references /icons/*.png); without this COPY the
 # manifest points at 404s and the app is not installable.
-COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/.next/static ./apps/oilio/web/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/apps/oilio/web/public ./apps/oilio/web/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
 # Cloud Run injects $PORT (defaults 8080); Next standalone reads PORT/HOSTNAME.
 ENV HOSTNAME=0.0.0.0
 EXPOSE 8080
-CMD ["node", "apps/oilio/web/server.js"]
+CMD ["node", "apps/web/server.js"]

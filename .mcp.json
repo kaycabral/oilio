@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--browser=chromium"]
+    },
+    "next-oilio": {
+      "type": "http",
+      "url": "http://localhost:3005/_next/mcp"
+    },
+    "shadcn": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "shadcn@latest", "mcp"],
+      "env": {}
+    }
+  }
+}

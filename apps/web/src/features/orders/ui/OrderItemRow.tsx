@@ -11,7 +11,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@cbrl/design'
+} from '@oilio/design'
 
 export function OrderItemRow({
   item,

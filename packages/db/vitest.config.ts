@@ -1,4 +1,4 @@
-import { coverageBase } from '@cbrl/testing/vitest'
+import { coverageBase } from '@oilio/testing/vitest'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({

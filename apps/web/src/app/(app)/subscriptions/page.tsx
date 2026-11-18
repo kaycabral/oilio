@@ -1,6 +1,6 @@
 import { loadSubscriptionsPage } from '@/features/subscriptions/adapters/load-subscriptions'
 import { SubscriptionsList } from '@/features/subscriptions/ui/SubscriptionsList'
-import { Main } from '@cbrl/design'
+import { Main } from '@oilio/design'
 import { notFound } from 'next/navigation'
 
 export default async function SubscriptionsPage({

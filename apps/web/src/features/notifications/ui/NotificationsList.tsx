@@ -1,7 +1,7 @@
 'use client'
 
 import type { NotificationView } from '@/features/notifications/core/notification-list'
-import { Badge, Button } from '@cbrl/design'
+import { Badge, Button } from '@oilio/design'
 import { AlertTriangle, Bell, Cake, Clock, CreditCard, ShoppingCart, UserPlus } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 

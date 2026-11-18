@@ -9,7 +9,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { Building2, Check, ChevronsUpDown, Store } from 'lucide-react'
 import { useState, useTransition } from 'react'
 

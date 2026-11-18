@@ -104,7 +104,7 @@ function webServerCommand(): string {
   if (USE_DEV_SERVER) return 'pnpm run dev'
   // STANDALONE: run the prod artifact's own server (reads PORT/HOSTNAME from env,
   // no -p flag) — identical to what Cloud Run runs.
-  if (STANDALONE_SERVER) return 'node .next/standalone/apps/oilio/web/server.js'
+  if (STANDALONE_SERVER) return 'node .next/standalone/apps/web/server.js'
   // REUSE_BUILD: a CI shard `next start`s the .next the build stage already
   // produced (passed as artifact) instead of rebuilding.
   if (REUSE_BUILD) return `pnpm exec next start -p ${PORT}`

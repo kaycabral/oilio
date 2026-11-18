@@ -1,16 +1,16 @@
-# apps/oilio/web — Frontend (@oilio/web)
+# apps/web — Frontend (@oilio/web)
 
 ## Escopo
 
-Oilio é **um único workspace** (`@oilio/web`) — não existe `@oilio/shared`/`@oilio/lib`/`@oilio/db` nem `packages/oilio/*`. Modifique APENAS arquivos dentro de `apps/oilio/web/`. Código compartilhado do app (domínio, tipos, helpers) vive em `src/` e é consumido via o alias `@/` (ex.: `@/domain`). Só promova pra `packages/` (`@cbrl/*`) quando **2+ produtos** precisarem.
+O app é **um único workspace** (`@oilio/web`). Código do app (domínio, tipos, helpers) vive em `src/` e é consumido via o alias `@/` (ex.: `@/domain`). `packages/*` guarda só infraestrutura (`@oilio/db` pool Postgres, `@oilio/product` base de produtos, `@oilio/design` design system, `@oilio/env`, `@oilio/testing`, tooling) — não promova código de domínio pra lá.
 
 ## Aliases
 
-`@/...` resolve pra `apps/oilio/web/src/` (intra-app). Ex.: `import { User } from '@/domain'`. Cross-product compartilhado: `@cbrl/<pkg>` (ex.: `@cbrl/design`, `@cbrl/testing`).
+`@/...` resolve pra `apps/web/src/` (intra-app). Ex.: `import { User } from '@/domain'`. Entre workspaces: `@oilio/<pkg>` (ex.: `@oilio/design`, `@oilio/testing`).
 
 ## Arquitetura — feature slices
 
-Código de feature vive em `src/features/<slice>/{core,adapters,ui}` (dependência só desce: `ui→adapters→core`; rota em `app/` é casca-fina). core é puro (sem React/I/O), unit-testável; adapters fazem I/O; ui é componente humilde. Convenção canônica + vocabulário de sufixo + enforcement em [`PATTERNS.md` § Feature slices](../../../PATTERNS.md#feature-slices-functional-core--imperative-shell). Parede de lint: `@cbrl/eslint-base/configs/layering.mjs` (violar = pipeline vermelho). Migração em burndown — `agenda` é a fatia de referência.
+Código de feature vive em `src/features/<slice>/{core,adapters,ui}` (dependência só desce: `ui→adapters→core`; rota em `app/` é casca-fina). core é puro (sem React/I/O), unit-testável; adapters fazem I/O; ui é componente humilde. Convenção canônica + vocabulário de sufixo + enforcement em [`PATTERNS.md` § Feature slices](../../PATTERNS.md#feature-slices-functional-core--imperative-shell). Parede de lint: `@oilio/eslint-config/configs/layering.mjs` (violar = pipeline vermelho). Migração em burndown — `agenda` é a fatia de referência.
 
 ## Auth
 
@@ -20,9 +20,9 @@ Firebase Auth + session cookie (Firebase ficou só com Auth pós-cutover #1202).
 
 Toda rota autenticada vive sob `(app)/` e o layout resolve o org via `getActiveOrgContext(uid)`, redirecionando pra `/onboarding` se o usuário ainda não tem org. **Não há gate global de onboarding** (brief 0008): o app é operável desde o signup; o setup acontece just-in-time pelos empty-states acionáveis (#987), e a completude só é exigida ao **publicar o self-booking** (`selfBookingPublished`, #988). O contexto é injetado client-side via `<OrgProvider>` — consuma com `useOrg()`.
 
-**Invariantes não-negociáveis** (ver ADR [`docs/decisions/0004-multi-org-model.md`](../docs/decisions/0004-multi-org-model.md) pra contexto e alternativas).
+**Invariantes não-negociáveis** (ver ADR [`docs/decisions/0004-multi-org-model.md`](../../docs/decisions/0004-multi-org-model.md) pra contexto e alternativas).
 
-O **princípio** de isolamento é estável desde o V0; a **implementação** migrou de Firestore pra Postgres no cutover (#1202, ADRs [`0010`](../docs/decisions/0010-event-sourcing-seletivo.md)/[`0012`](../docs/decisions/0012-relational-event-store-persistence-port.md)). Os dois separados abaixo.
+O **princípio** de isolamento é estável desde o V0; a **implementação** migrou de Firestore pra Postgres no cutover (#1202, ADRs [`0010`](../../docs/decisions/0010-event-sourcing-seletivo.md)/[`0012`](../../docs/decisions/0012-relational-event-store-persistence-port.md)). Os dois separados abaixo.
 
 _Princípio (estável):_
 
@@ -40,7 +40,7 @@ _Implementação (Postgres, pós-#1202):_
 
 ## Event Sourcing — seletivo (núcleo) + CRUD com snapshot-on-use
 
-**ES é seletivo**, não uniforme. Decisão em [`docs/decisions/0010-event-sourcing-seletivo.md`](../docs/decisions/0010-event-sourcing-seletivo.md) (emenda o [`0008`](../docs/decisions/0008-event-sourcing-ddd-effect.md)); conceito canônico na Wiki [[Linguagem Ubíqua]] § "Arquitetura base" + [[Glossário]].
+**ES é seletivo**, não uniforme. Decisão em [`docs/decisions/0010-event-sourcing-seletivo.md`](../../docs/decisions/0010-event-sourcing-seletivo.md) (emenda o [`0008`](../../docs/decisions/0008-event-sourcing-ddd-effect.md)); conceito canônico na Wiki [[Linguagem Ubíqua]] § "Arquitetura base" + [[Glossário]].
 
 - **Núcleo event-sourced** (verdade temporal/contratual/financeira): `order` · `commission` · `charge` · `cash-movement` · `subscription` · `appointment`.
 - **CRUD + snapshot-on-use** (definição/config/identidade): `catalog-item` · `category` · `product` · `service` · `subscription-plan` · `professional` · `unit` · `org` · `customer` · `membership` · `notification` · `agenda-block` · `invite`.
@@ -65,7 +65,7 @@ _Implementação (Postgres, pós-#1202):_
 
 Duas regras fixas pra conformidade de ES não re-levantar decisão a cada aggregate (pré-resolvidas pra `/implement` rodar autônomo):
 
-- **Cascata cross-aggregate = saga ACID única** (Postgres é o backend único pós-cutover #1202; ADR [`0012`](../docs/decisions/0012-relational-event-store-persistence-port.md) §D3, brief [0061](https://gitlab.com/cbrl/cbrl/-/wikis/Produto/Funcionalidades/0061-migracao-postgres-nucleo-financeiro-es)). Quando uma action muda **mais de um aggregate** (ex.: fechar comanda → comissão + agenda + assinatura + caixa; onboarding → org + membership; aceite → invite + membership), a cascata roda como **transação ACID única** via `commitSaga`/`appendEventToTx`/`appendDeleteToTx`/`commitGuardedThenAppend` (em `@/shared/effect-bridge` + `@/domain/effect`) — todos os eventos + projeções na mesma tx; falha de qualquer passo (CHECK/FK/RLS/schema) faz `ROLLBACK` total. **A atomicidade do banco substitui a compensação manual** — não escreva código de desfazer (`compensate*`/`emitUndoCompensation`): a regra antiga de compensação existia _porque_ o Firestore não dava tx cross-aggregate; o cutover removeu o Firestore e a compensação junto. Writes **não-aggregate** (doc global `users`, PII sidecars `*_pii`) **não** entram na tx do event store — ficam pós-commit (idempotentes). Padrão de referência: `orders/adapters/order-saga.ts` (`emitCloseOrderSaga`). O único passo que nunca será ACID puro é I/O externo não-transacionável (gateway de pagamento, deferred) — exigirá outbox. O **lado-cliente** do defect de DB (classificar o SQLSTATE numa mensagem genérica segura, sem vazar constraint/tag) segue o **contrato de erro canônico** (ADR [`0015`](../docs/decisions/0015-canonical-error-contract.md)): `catchSagaDefect` consome `classifyError` (`@/shared/errors/classify`) — nunca reintroduza mensagem por-SQLSTATE ad-hoc.
+- **Cascata cross-aggregate = saga ACID única** (Postgres é o backend único pós-cutover #1202; ADR [`0012`](../../docs/decisions/0012-relational-event-store-persistence-port.md) §D3, brief [0061](https://gitlab.com/cbrl/cbrl/-/wikis/Produto/Funcionalidades/0061-migracao-postgres-nucleo-financeiro-es)). Quando uma action muda **mais de um aggregate** (ex.: fechar comanda → comissão + agenda + assinatura + caixa; onboarding → org + membership; aceite → invite + membership), a cascata roda como **transação ACID única** via `commitSaga`/`appendEventToTx`/`appendDeleteToTx`/`commitGuardedThenAppend` (em `@/shared/effect-bridge` + `@/domain/effect`) — todos os eventos + projeções na mesma tx; falha de qualquer passo (CHECK/FK/RLS/schema) faz `ROLLBACK` total. **A atomicidade do banco substitui a compensação manual** — não escreva código de desfazer (`compensate*`/`emitUndoCompensation`): a regra antiga de compensação existia _porque_ o Firestore não dava tx cross-aggregate; o cutover removeu o Firestore e a compensação junto. Writes **não-aggregate** (doc global `users`, PII sidecars `*_pii`) **não** entram na tx do event store — ficam pós-commit (idempotentes). Padrão de referência: `orders/adapters/order-saga.ts` (`emitCloseOrderSaga`). O único passo que nunca será ACID puro é I/O externo não-transacionável (gateway de pagamento, deferred) — exigirá outbox. O **lado-cliente** do defect de DB (classificar o SQLSTATE numa mensagem genérica segura, sem vazar constraint/tag) segue o **contrato de erro canônico** (ADR [`0015`](../../docs/decisions/0015-canonical-error-contract.md)): `catchSagaDefect` consome `classifyError` (`@/shared/errors/classify`) — nunca reintroduza mensagem por-SQLSTATE ad-hoc.
 - **Aggregate atrás de kill-switch de gateway = converge domínio agora, E2E espera.** Pra aggregates gated por `isPaymentsGatewayEnabled` (charge, split/subconta — parceria em stand-by): modelar eventos + reducer + **teste de replay** + unit normalmente; o **E2E desses fluxos específicos espera a parceria** ligar o gateway. Não bloqueia as outras fatias.
 - **Efeito de fechamento de comanda = fonte pura única + invariante travada (#B4).** Cada efeito da cascata de fechamento (estoque, cota do plano, comissão, receita) é decidido por **uma** função pura no core (`@/domain/utils/order`), derivada **só dos itens** da comanda — nunca do caminho de entrada (balcão vs agendamento) nem duplicada por lado (close vs undo). Regras que são independentes ficam independentes: estoque baixa para **todo produto** (`stockDecrementTargets`, `kind==='product'`, imune a `coverage`); a cota só debita item coberto (`coveredItemQuantity`); a receita só conta `sale` (`computeOrderTotals`). Mudar uma regra = editar **um lugar**, e o close e o undo mudam juntos porque **chamam a mesma função** sobre a comanda imutável — o que baixa é o que devolve, por construção. Isso é travado por `order-closure-invariants.test.ts` (simetria close/undo + consistência cross-entry + coverage-não-afeta-estoque): se um caminho novo divergir ou a regra vazar entre efeitos, o CI fica vermelho. **Não** reintroduza a regra de um efeito acoplada à de outro (o furo B4 foi estoque acoplado a `coverage`), nem escreva uma segunda função pro undo.
 
@@ -82,7 +82,7 @@ Papéis: `owner`, `manager`, `professional`, `receptionist`.
 
 **Storage sempre UTC, display sempre em org timezone.** Helpers canônicos em `@/domain/utils/timezone`. **Nunca use `getUTCHours()`/`getHours()` direto em código de agenda/comanda** — sempre passe pela conversão.
 
-Detalhes (helpers, invariants, limitações) em [`docs/timezone.md`](../docs/timezone.md).
+Detalhes (helpers, invariants, limitações) em [`docs/timezone.md`](../../docs/timezone.md).
 
 ## Invite flow
 
@@ -95,10 +95,10 @@ Canal normalizado para **WhatsApp** (brief 0084) — o convite de membro concede
 
 ## Forms + Server Actions
 
-Toda mutation server-side **deve** ser disparada por `<form action={serverAction}>` com `<button type="submit">`. Pattern canônico + anti-patterns banidos em [`PATTERNS.md` § Forms + Server Actions](../../../PATTERNS.md#forms--server-actions-progressive-enhancement). Refs: incidente #763, refactor #936.
+Toda mutation server-side **deve** ser disparada por `<form action={serverAction}>` com `<button type="submit">`. Pattern canônico + anti-patterns banidos em [`PATTERNS.md` § Forms + Server Actions](../../PATTERNS.md#forms--server-actions-progressive-enhancement). Refs: incidente #763, refactor #936.
 
 ## Testes
 
-Convenções universais em [`TESTING.md`](../../../TESTING.md). Especificidades do scheduling (Playwright layout, emulator, isolation, rules integration) em [`docs/e2e-conventions.md`](../docs/e2e-conventions.md). Como rodar (e o que cada script sobe sozinho) em [`../README.md` § Scripts](../README.md#scripts).
+Convenções universais em [`TESTING.md`](../../TESTING.md). Especificidades do scheduling (Playwright layout, emulator, isolation, rules integration) em [`docs/e2e-conventions.md`](../../docs/e2e-conventions.md). Como rodar (e o que cada script sobe sozinho) em [`README.md` raiz § Scripts](../../README.md#scripts).
 
 **Invariantes de dados são provadas contra Postgres real, não mockadas** — testes de RLS/constraint rodam integration (`*.events.pg.integration.test.ts`) contra um Postgres efêmero (docker local / `services: postgres` no CI), nunca contra um banco mockado. O isolamento cross-org e os CHECK/FK/UNIQUE são recusados pelo **banco**, e o teste prova isso de verdade.

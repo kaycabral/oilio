@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardTitle, cn } from '@cbrl/design'
+import { Card, CardContent, CardDescription, CardTitle, cn } from '@oilio/design'
 
 export type KpiCardProps = {
   label: string

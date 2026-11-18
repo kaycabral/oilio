@@ -44,9 +44,9 @@ function stubSource(
     upsert(_input: NewProduct): Promise<StoredProduct> {
       throw new Error('search must not write')
     },
-    async searchByName(query: string, limit: number): Promise<StoredProduct[]> {
+    searchByName(query: string, limit: number): Promise<StoredProduct[]> {
       calls.push({ query, limit })
-      return rows.slice(0, limit)
+      return Promise.resolve(rows.slice(0, limit))
     },
   }
 }
@@ -70,12 +70,11 @@ describe('searchProductsByName', () => {
     const source = stubSource([storedFrom('07891000100103', 'Leite Ninho 400g')])
     const results = await searchProductsByName(source, 'ninho')
 
-    expect(results).toEqual([
-      {
-        gtin14: '07891000100103',
-        product: expect.objectContaining({ name: 'Leite Ninho 400g' }),
-      },
-    ])
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({
+      gtin14: '07891000100103',
+      product: { name: 'Leite Ninho 400g' },
+    })
     // The normalized term + default cap reach the source.
     expect(source.calls).toEqual([{ query: 'ninho', limit: DEFAULT_SEARCH_LIMIT }])
   })
@@ -92,7 +91,8 @@ describe('searchProductsByName', () => {
     const results = await searchProductsByName(source, 'ni')
 
     expect(results).toEqual([])
-    expect(source.calls).toEqual([]) // base untouched
+    // base untouched
+    expect(source.calls).toEqual([])
   })
 
   it('a term under-length only because of whitespace is rejected without a query', async () => {
@@ -116,7 +116,8 @@ describe('searchProductsByName', () => {
     const results = await searchProductsByName(source, 'inexistente')
 
     expect(results).toEqual([])
-    expect(source.calls).toHaveLength(1) // it DID query — empty is a real miss
+    // it DID query — empty is a real miss
+    expect(source.calls).toHaveLength(1)
   })
 
   it('honors an explicit limit (passed through to the source)', async () => {

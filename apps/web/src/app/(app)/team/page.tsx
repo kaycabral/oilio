@@ -1,7 +1,7 @@
 import { loadTeamPage } from '@/features/team/adapters/load-team'
 import { InviteDialog } from '@/features/team/ui/InviteDialog'
 import { TeamList } from '@/features/team/ui/TeamList'
-import { Main } from '@cbrl/design'
+import { Main } from '@oilio/design'
 
 export default async function TeamPage({
   searchParams,

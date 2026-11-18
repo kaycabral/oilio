@@ -1,4 +1,4 @@
-import { coverageBase } from '@cbrl/testing/vitest'
+import { coverageBase } from '@oilio/testing/vitest'
 import react from '@vitejs/plugin-react'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -13,7 +13,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(here, 'src'),
-      'server-only': require.resolve('@cbrl/testing/vitest/server-only-shim'),
+      'server-only': require.resolve('@oilio/testing/vitest/server-only-shim'),
     },
   },
   test: {

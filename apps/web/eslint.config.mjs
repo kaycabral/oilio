@@ -1,8 +1,8 @@
-import cbrlBase from '@cbrl/eslint-base'
+import baseConfig from '@oilio/eslint-config'
 import checkFile from 'eslint-plugin-check-file'
 
 export default [
-  ...cbrlBase,
+  ...baseConfig,
   // app = shell. `app/` holds only routing shells (page/layout/route + Next
   // special files). Visual lives in features/*/ui or components/; logic in
   // adapters/core. Ban private folders (`_components`, `_lib`, …) under app/ —
@@ -44,7 +44,7 @@ export default [
   {
     files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts'],
     rules: {
-      'cbrl/no-non-doc-comments': 'error',
+      'oilio/no-non-doc-comments': 'error',
     },
   },
 ]

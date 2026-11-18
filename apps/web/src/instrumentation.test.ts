@@ -6,7 +6,7 @@ const initEventStore = vi.fn(() => Promise.resolve())
 const initProductDb = vi.fn(() => Promise.resolve())
 
 vi.mock('@/shared/db/pg', () => ({ initEventStore }))
-vi.mock('@cbrl/product', () => ({ initProductDb }))
+vi.mock('@oilio/product', () => ({ initProductDb }))
 
 describe('instrumentation (boot eager-init) — session-500 regression guard', () => {
   const runtime = process.env.NEXT_RUNTIME

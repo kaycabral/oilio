@@ -3,7 +3,7 @@ import {
   getOrCreateManagedPoolSync,
   initManagedPool,
   type ManagedPool,
-} from '@cbrl/db'
+} from '@oilio/db'
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
 import type { Pool } from 'pg'
 import * as schema from './schema'

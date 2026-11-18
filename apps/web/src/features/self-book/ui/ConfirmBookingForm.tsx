@@ -13,7 +13,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { signOut } from 'firebase/auth'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'

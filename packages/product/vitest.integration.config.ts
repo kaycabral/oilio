@@ -1,4 +1,4 @@
-import { coverageBase } from '@cbrl/testing/vitest'
+import { coverageBase } from '@oilio/testing/vitest'
 import { defineConfig } from 'vitest/config'
 
 // Integration layer: runs against a REAL Postgres (the point of brief 0049 is to

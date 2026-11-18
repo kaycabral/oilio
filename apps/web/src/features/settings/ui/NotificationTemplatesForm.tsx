@@ -16,7 +16,7 @@ import {
   Label,
   Switch,
   Typography,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useMemo, useState } from 'react'
 
 const TYPE_LABELS: Record<string, string> = {

@@ -50,7 +50,7 @@ Três alternativas foram consideradas pra implementar isolamento:
 
 ### Defesa em profundidade — 3 camadas independentes
 
-1. **Server Actions** parametrizam `orgId` explicitamente. Helpers obrigatórios: `requireOrgCtx`, `requireManagerCtx`, `requireOwnerCtx` (válidos no `apps/oilio/web/src/lib/auth/`).
+1. **Server Actions** parametrizam `orgId` explicitamente. Helpers obrigatórios: `requireOrgCtx`, `requireManagerCtx`, `requireOwnerCtx` (válidos no `apps/web/src/lib/auth/`).
 2. **Firestore Rules** guardam o path — `match /orgs/{tid}/{document=**}` valida `request.auth.token.orgId == tid` OU membership existe.
 3. **Audit log** grava **dentro** do org. Eventos importantes ficam em `orgs/{tid}/auditLog/`.
 
@@ -102,7 +102,7 @@ Razões já listadas em "Decisão" + "Consequências positivas".
 
 ## Status de aplicação
 
-- ✅ V0 implementado em [`apps/oilio/web/src/lib/auth/`](https://github.com/cbrl-dev/cbrl/tree/main/apps/oilio/web/src/lib/auth) (helpers + middleware)
+- ✅ V0 implementado em [`apps/web/src/lib/auth/`](https://github.com/cbrl-dev/cbrl/tree/main/apps/web/src/lib/auth) (helpers + middleware)
 - ⛔️ ~~Firestore Rules em `apps/oilio/firestore.rules`~~ — **removidas no cutover #1202**; o isolamento é o RLS do Postgres (ver emenda no topo + ADR 0012).
 - ✅ Briefs 0001 + 0007 referenciam este ADR
 - 🟡 ESLint rule `no-cross-org-query` pendente — vide [audit-rules report 2026-05-20](https://github.com/cbrl-dev/cbrl/blob/main/docs/rules-audit-2026-05-20.md) (proibição #1 do roadmap)

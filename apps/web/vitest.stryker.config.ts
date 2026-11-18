@@ -26,7 +26,7 @@ export default defineConfig({
       // Domain code imports siblings via the `@/` alias; keep it resolvable.
       '@': path.resolve(here, 'src'),
       // Some domain modules transitively touch the `server-only` import marker.
-      'server-only': require.resolve('@cbrl/testing/vitest/server-only-shim'),
+      'server-only': require.resolve('@oilio/testing/vitest/server-only-shim'),
     },
   },
   test: {

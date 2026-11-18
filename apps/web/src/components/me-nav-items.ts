@@ -1,4 +1,4 @@
-import type { NavSection } from '@cbrl/design'
+import type { NavSection } from '@oilio/design'
 import { CalendarDays, CreditCard, UserCog } from 'lucide-react'
 
 export const ME_NAV_SECTIONS: NavSection[] = [

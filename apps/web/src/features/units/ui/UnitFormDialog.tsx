@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useState } from 'react'
 
 export function UnitFormDialog() {

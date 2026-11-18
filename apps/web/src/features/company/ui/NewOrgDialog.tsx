@@ -19,7 +19,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useState, useTransition } from 'react'
 
 const VERTICAL_LABELS: Record<Vertical, string> = {

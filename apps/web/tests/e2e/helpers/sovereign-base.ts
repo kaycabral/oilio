@@ -1,4 +1,4 @@
-import { computeCheckDigit } from '@cbrl/product'
+import { computeCheckDigit } from '@oilio/product'
 
 const KNOWN_PREFIX_10 = '7891000100'
 const UNSEEN_PREFIX_10 = '7893600029'

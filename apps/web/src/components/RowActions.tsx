@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { MoreHorizontal } from 'lucide-react'
 import type { Route } from 'next'
 import Link from 'next/link'

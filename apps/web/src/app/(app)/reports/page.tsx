@@ -1,6 +1,6 @@
 import { loadReportsPage } from '@/features/reports/adapters/load-reports'
 import { ReportsView } from '@/features/reports/ui/ReportsView'
-import { Main } from '@cbrl/design'
+import { Main } from '@oilio/design'
 import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'

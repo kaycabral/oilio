@@ -1,7 +1,7 @@
 'use client'
 
 import { setMemberStatus } from '@/features/team/adapters/team.actions'
-import { Button } from '@cbrl/design'
+import { Button } from '@oilio/design'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 

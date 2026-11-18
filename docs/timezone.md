@@ -1,6 +1,6 @@
 # Agenda timezone — invariant
 
-Referenciado de `apps/oilio/web/CLAUDE.md` § Agenda. Consulte ao mexer em código de agenda, comanda, ou qualquer coisa que envolva instantes de tempo.
+Referenciado de `apps/web/CLAUDE.md` § Agenda. Consulte ao mexer em código de agenda, comanda, ou qualquer coisa que envolva instantes de tempo.
 
 ## Princípio
 

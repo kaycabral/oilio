@@ -8,7 +8,7 @@ import { UnitBookingQr } from '@/features/units/ui/UnitBookingQr'
 import { UnitForm } from '@/features/units/ui/UnitForm'
 import { UnitPublishCard } from '@/features/units/ui/UnitPublishCard'
 import { toRoute } from '@/shared/routes'
-import { Main, Typography } from '@cbrl/design'
+import { Main, Typography } from '@oilio/design'
 
 export default async function EditUnitPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

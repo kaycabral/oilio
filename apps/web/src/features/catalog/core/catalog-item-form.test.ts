@@ -3,7 +3,7 @@ import {
   MIN_SEARCH_TERM_LENGTH as ENGINE_MIN_SEARCH_TERM_LENGTH,
   normalizeSearchTerm as engineNormalizeSearchTerm,
   type NameSearchResult,
-} from '@cbrl/product'
+} from '@oilio/product'
 import { describe, expect, it } from 'vitest'
 import {
   clearedCodeState,
@@ -224,7 +224,7 @@ describe('autofill — codeNotice (sem jargão, AC-04)', () => {
   })
 })
 
-describe('autocomplete por nome — client gate em lockstep com o engine (@cbrl/product)', () => {
+describe('autocomplete por nome — client gate em lockstep com o engine (@oilio/product)', () => {
   it('MIN_SEARCH_TERM_LENGTH iguala a constante do engine', () => {
     expect(MIN_SEARCH_TERM_LENGTH).toBe(ENGINE_MIN_SEARCH_TERM_LENGTH)
   })

@@ -2,7 +2,7 @@
 
 import { readJson } from '@/shared/http'
 import { useOrg } from '@/shared/org/org-context'
-import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from '@cbrl/design'
+import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from '@oilio/design'
 import { Bell } from 'lucide-react'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'

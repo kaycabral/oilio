@@ -6,7 +6,7 @@ import {
   CardContent,
   Separator,
   Typography,
-} from '@cbrl/design'
+} from '@oilio/design'
 
 type MontageTile = { key: string; node: React.ReactNode }
 

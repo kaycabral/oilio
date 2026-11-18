@@ -4,7 +4,7 @@ import type {
   CatalogItemUnitOverride,
   CommissionRule,
 } from '@/domain'
-import type { NameSearchResult, ProductMeasures } from '@cbrl/product'
+import type { NameSearchResult, ProductMeasures } from '@oilio/product'
 
 import { formString } from '@/shared/form-data'
 

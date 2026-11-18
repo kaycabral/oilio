@@ -1,7 +1,7 @@
 'use client'
 
 import { formatBrazilPhone, normalizeBrazilPhone } from '@/domain'
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@cbrl/design'
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@oilio/design'
 
 import { WhatsappIcon } from './icons/whatsapp'
 

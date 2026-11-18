@@ -1,5 +1,5 @@
 import type { DashboardPendencies } from '@/features/dashboard/core/pendencies'
-import { Card, CardContent, CardDescription, CardTitle } from '@cbrl/design'
+import { Card, CardContent, CardDescription, CardTitle } from '@oilio/design'
 import { ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { formatCents } from './KpiCard'

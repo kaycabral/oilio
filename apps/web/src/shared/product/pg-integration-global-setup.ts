@@ -1,5 +1,5 @@
 import { closeEventStoreDb, runEventStoreMigrations } from '@/shared/db/pg'
-import { closeDb, runMigrations } from '@cbrl/product'
+import { closeDb, runMigrations } from '@oilio/product'
 
 export default async function globalSetup(): Promise<void> {
   const missing = (['DATABASE_URL', 'OILIO_DATABASE_URL'] as const).filter(

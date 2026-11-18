@@ -2,7 +2,7 @@
 
 import { getClientAuth } from '@/shared/firebase/client'
 import { safeNext } from '@/shared/routes'
-import { Button } from '@cbrl/design'
+import { Button } from '@oilio/design'
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'

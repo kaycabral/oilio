@@ -1,0 +1,16 @@
+name: Setup Node + install
+description: Set up pnpm + Node 22 with pnpm store cache and install all workspaces.
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+      with:
+        version: 10.33.4
+        run_install: false
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 22.22.3
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash

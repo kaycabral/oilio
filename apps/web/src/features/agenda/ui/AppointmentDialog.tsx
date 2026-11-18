@@ -36,7 +36,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { AppointmentStatusActions, CancelConfirmForm } from './AppointmentStatusActions'

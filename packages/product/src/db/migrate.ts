@@ -10,7 +10,7 @@ import { getDb } from './pool'
  * by the Cloud Run migration Job in prod. NEVER call this at app boot: with N
  * instances the migrator advisory-lock races. NEVER use `drizzle-kit push` in
  * prod — a rename becomes drop+add and loses data. See the ADR in
- * apps/oilio/docs/decisions/.
+ * docs/decisions/.
  */
 export async function runMigrations(): Promise<void> {
   const here = path.dirname(fileURLToPath(import.meta.url))

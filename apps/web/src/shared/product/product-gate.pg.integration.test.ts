@@ -1,4 +1,4 @@
-import { closeDb, getDb, PostgresProductSource, product } from '@cbrl/product'
+import { closeDb, getDb, PostgresProductSource, product } from '@oilio/product'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./product-events', () => ({

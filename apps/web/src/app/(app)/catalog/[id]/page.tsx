@@ -3,7 +3,7 @@ import { isCatalogService } from '@/domain'
 import { loadEditCatalogItemPage } from '@/features/catalog/adapters/load-catalog'
 import { CatalogItemForm } from '@/features/catalog/ui/CatalogItemForm'
 import { ServiceMemberOperationsForm } from '@/features/catalog/ui/ServiceMemberOperationsForm'
-import { Main } from '@cbrl/design'
+import { Main } from '@oilio/design'
 
 export default async function EditCatalogItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
