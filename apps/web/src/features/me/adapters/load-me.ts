@@ -16,6 +16,7 @@ import { describeCancelReason } from '@/features/me/core/cancel-notice'
 import type { AppointmentRowData } from '@/features/me/ui/AppointmentRow'
 import type { SubscriptionRowData } from '@/features/me/ui/SubscriptionRow'
 import { loadClosedOrdersByAppointmentForOrg } from '@/features/orders/adapters/order-financial-read'
+import { getSessionUser } from '@/shared/auth/session'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
 import {
   rowToDoc as appointmentRowToDoc,
@@ -26,7 +27,6 @@ import {
   type SubscriptionRow,
 } from '@/shared/db/pg/effect/subscription-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
-import { getSessionUser } from '@/shared/firebase/admin'
 import { listLinkedOrgIds } from '@/shared/identity/org-links'
 import { listMemberOperationsForOrg } from '@/shared/org/member-operation-read'
 import { getOrg } from '@/shared/org/org'
@@ -190,8 +190,7 @@ export async function loadMyAppointmentsPage(): Promise<MyAppointmentsPageData> 
 }
 
 export type MySubscriptionsPageData =
-  | { empty: true }
-  | { empty: false; rows: SubscriptionRowData[] }
+  { empty: true } | { empty: false; rows: SubscriptionRowData[] }
 
 async function loadSubscriptionsAcrossOrgs(userId: string): Promise<Subscription[]> {
   const orgIds = await listLinkedOrgIds(userId)

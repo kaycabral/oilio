@@ -1,5 +1,5 @@
 import { getPublicOrgBundle } from '@/features/self-book/adapters/public-org'
-import { getSessionUser } from '@/shared/firebase/admin'
+import { getSessionUser } from '@/shared/auth/session'
 import { ensureSelfSignupCustomer } from '@/shared/org/customer-upsert'
 import { getUserDoc } from '@/shared/org/membership'
 import { Button } from '@cbrl/design'

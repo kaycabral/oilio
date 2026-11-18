@@ -2,24 +2,24 @@ import type { ActiveUnitContext } from '@/shared/org/active-unit'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  isFirebaseConfigured: vi.fn(() => true),
+  isAuthConfigured: vi.fn(() => true),
   getSessionUser: vi.fn(),
   getActiveOrgContext: vi.fn(),
   listAccessibleOrgs: vi.fn(() => Promise.resolve([])),
   getOrg: vi.fn(),
   needsUnitSelection: vi.fn((): Promise<boolean> => Promise.resolve(false)),
-  resolveActiveUnit: vi.fn(
-    (): Promise<ActiveUnitContext> => Promise.resolve({ units: [], activeUnitId: null }),
+  resolveActiveUnit: vi.fn((): Promise<ActiveUnitContext> =>
+    Promise.resolve({ units: [], activeUnitId: null }),
   ),
   listLinkedOrgIds: vi.fn((): Promise<string[]> => Promise.resolve([])),
 }))
 
-vi.mock('@/shared/firebase/admin', () => ({
+vi.mock('@/shared/auth/session', () => ({
   getSessionUser: mocks.getSessionUser,
 }))
 
-vi.mock('@/shared/firebase/config', () => ({
-  isFirebaseConfigured: mocks.isFirebaseConfigured,
+vi.mock('@/shared/auth/config', () => ({
+  isAuthConfigured: mocks.isAuthConfigured,
 }))
 
 vi.mock('@/shared/org/membership', () => ({
@@ -87,7 +87,7 @@ async function captureRedirect(): Promise<string> {
 }
 
 beforeEach(() => {
-  mocks.isFirebaseConfigured.mockReset().mockReturnValue(true)
+  mocks.isAuthConfigured.mockReset().mockReturnValue(true)
   mocks.getSessionUser.mockReset()
   mocks.getActiveOrgContext.mockReset()
   mocks.getOrg.mockReset()
@@ -97,8 +97,8 @@ beforeEach(() => {
 })
 
 describe('AppLayout — auth and org gating', () => {
-  it('redirects to / when Firebase is not configured', async () => {
-    mocks.isFirebaseConfigured.mockReturnValue(false)
+  it('redirects to / when auth is not configured', async () => {
+    mocks.isAuthConfigured.mockReturnValue(false)
     await expect(captureRedirect()).resolves.toBe('/')
     expect(mocks.getSessionUser).not.toHaveBeenCalled()
   })
@@ -111,6 +111,7 @@ describe('AppLayout — auth and org gating', () => {
   it('redirects to /onboarding when the user has no active org context', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u1',
+      authUserId: 'u1',
       email: 'a@b.com',
       displayName: null,
       picture: null,
@@ -123,6 +124,7 @@ describe('AppLayout — auth and org gating', () => {
   it('sends a customer (no membership, but linked orgs) to their own area, not onboarding (#1317)', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u1',
+      authUserId: 'u1',
       email: 'a@b.com',
       displayName: null,
       picture: null,
@@ -136,6 +138,7 @@ describe('AppLayout — auth and org gating', () => {
   it('renders the app shell for an owner with no units (no first-unit gate)', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u1',
+      authUserId: 'u1',
       email: 'a@b.com',
       displayName: null,
       picture: null,
@@ -161,6 +164,7 @@ describe('AppLayout — auth and org gating', () => {
   it('renders the app shell for a non-owner (manager) with no units', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u2',
+      authUserId: 'u2',
       email: 'm@b.com',
       displayName: null,
       picture: null,
@@ -186,6 +190,7 @@ describe('AppLayout — auth and org gating', () => {
   it('renders the app shell once the org has at least one unit (#986)', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u1',
+      authUserId: 'u1',
       email: 'a@b.com',
       displayName: null,
       picture: null,
@@ -239,6 +244,7 @@ describe('AppLayout — auth and org gating', () => {
   it('redirects to /onboarding/profile when the user has not completed the post-OAuth step (#838)', async () => {
     mocks.getSessionUser.mockResolvedValue({
       uid: 'u1',
+      authUserId: 'u1',
       email: 'a@b.com',
       displayName: null,
       picture: null,

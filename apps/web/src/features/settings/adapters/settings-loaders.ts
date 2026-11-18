@@ -3,10 +3,10 @@
 import type { MessageTemplate } from '@/domain'
 import type { BillingCycle, Tier } from '@/domain/billing/tiers'
 import { listMessageTemplates } from '@/features/notifications/adapters/message-templates'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import type { InvoiceSummary, PaymentMethodSummary } from '@/shared/billing/billing-details'
 import { getDefaultPaymentMethod, listRecentInvoices } from '@/shared/billing/billing-details'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import type { LinkedEstablishment } from '@/shared/identity/org-links'
 import { listMyCustomerEstablishments } from '@/shared/identity/org-links'
 import { track } from '@/shared/lib/track'
@@ -18,7 +18,7 @@ import { listUnitsForOrg } from '@/shared/org/unit-read'
 export type SettingsLoadResult<T> = { ok: true; data: T } | { ok: false; redirectTo: string }
 
 async function requireMemberContext() {
-  if (!isFirebaseConfigured()) return { ok: false as const, redirectTo: '/' }
+  if (!isAuthConfigured()) return { ok: false as const, redirectTo: '/' }
   const session = await getSessionUser()
   if (!session) return { ok: false as const, redirectTo: '/login' }
   const ctx = await getActiveOrgContext(session.uid)

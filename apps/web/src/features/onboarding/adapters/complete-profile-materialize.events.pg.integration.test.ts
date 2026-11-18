@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 const REDIRECT_MESSAGE = 'NEXT_REDIRECT_TEST_SENTINEL'
 let sessionUid: string | null = null
 
-vi.mock('@/shared/firebase/admin', () => ({
+vi.mock('@/shared/auth/session', () => ({
   getSessionUser: () => (sessionUid ? Promise.resolve({ uid: sessionUid }) : Promise.resolve(null)),
 }))
 

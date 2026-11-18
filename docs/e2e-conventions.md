@@ -10,21 +10,22 @@ Convenções universais em `TESTING.md` (raiz do monorepo) § "Playwright — co
 
 ## Setup
 
-- **Firebase Emulator UI desabilitada** no `firebase.json` — debug via agente/REST direto.
-- **Probe Playwright em Auth** (`:9099/`), não no UI (`:4000`). Auth é o subsystem mais lento do stack — confiável quando ready.
-- **globalSetup** em `tests/e2e/helpers/global-setup.ts`: write→query round-trip Firestore + signup Auth pra evitar cold-start race.
+- **Stack Supabase local obrigatório**: `pnpm --filter @oilio/web db:start` antes do `test:e2e` (API `:55321`, Postgres `:55322`, Studio `:55323`). O runner (`scripts/e2e.ts`) aplica as migrations e sobe o Next (build de produção) conectado como `oilio_app` — o RLS vale no E2E como em prod.
+- **globalSetup** em `tests/e2e/helpers/global-setup.ts`: health do Auth (`/auth/v1/health`) + query no Postgres do event store, pra evitar cold-start race.
+- **Login nos specs**: identidades criadas pela admin API do Supabase (`helpers/session.ts` — `createE2EIdentity` / `signInAndAttachSession`) e sessão via `/api/e2e-signin` (404 sem `ENABLE_TEST_AUTH=true`, setado só pelo `webServer` do Playwright).
+- **Seed nos helpers** roda como `postgres` (dono), não como `oilio_app`. Env do stack em `helpers/app-env.ts`.
 - **Isolation via org único por test** (`orgInput` fixture gera `e2e-org-${timestamp}-${random}`). Multi-org schema garante que workers paralelos nunca colidem.
 
-## Rules integration tests
+## Integração Postgres (RLS, constraints, event store)
 
-`*.integration.test.ts` rodam com Firebase emulator (`@firebase/rules-unit-testing`). Antes de rodar:
+`*.pg.integration.test.ts` rodam contra um Postgres efêmero em docker (`docker/postgres.compose.yaml`); cada suíte cria o próprio banco e role de runtime. Não precisa do stack Supabase:
 
 ```bash
-pnpm --filter @oilio/web db:start          # em outro terminal
-pnpm --filter @oilio/web test:integration
+pnpm --filter @oilio/web test:integration   # event store
+pnpm test:integration                       # @oilio/product
 ```
 
-**Mocks de Firestore são proibidos** — sempre hit emulator pra rules-bound tests (regra do monorepo).
+**Mocks de banco são proibidos** pra testes de RLS/constraint — sempre Postgres real.
 
 ## Inventário canônico de jornadas + matriz de cobertura (brief 0035)
 

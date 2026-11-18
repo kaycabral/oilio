@@ -4,8 +4,8 @@ import { PricingComparison } from '@/components/pricing/PricingComparison'
 import { PricingFaq } from '@/components/pricing/PricingFaq'
 import { PricingMultiBusiness } from '@/components/pricing/PricingMultiBusiness'
 import { PricingTiers } from '@/components/pricing/PricingTiers'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { resolvePostAuthDestination } from '@/shared/identity/post-auth-destination'
 import { Typography } from '@cbrl/design'
 import type { Metadata } from 'next'
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 }
 
 export default async function PricingPage() {
-  if (isFirebaseConfigured()) {
+  if (isAuthConfigured()) {
     const session = await getSessionUser()
     if (session) redirect(await resolvePostAuthDestination(session.uid))
   }

@@ -1,11 +1,11 @@
 import { OnboardingForm } from '@/features/onboarding/ui/OnboardingForm'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { getUserDoc, getUserMemberships } from '@/shared/org/membership'
 import { redirect } from 'next/navigation'
 
 export default async function OnboardingPage() {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

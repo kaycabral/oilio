@@ -4,7 +4,7 @@ import { getPublicOrgSummary, getPublicUnitBundle } from '@/features/self-book/a
 import { PlanCoverageBanner } from '@/features/self-book/ui/PlanCoverageBanner'
 import { UnitCatalog } from '@/features/self-book/ui/UnitCatalog'
 import { UnitPicker } from '@/features/self-book/ui/UnitPicker'
-import { getSessionUser } from '@/shared/firebase/admin'
+import { getSessionUser } from '@/shared/auth/session'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 

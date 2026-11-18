@@ -2,8 +2,8 @@ import {
   filterNotificationsForRole,
   type NotificationView,
 } from '@/features/notifications/core/notification-list'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { listNotificationsForUnit } from '@/shared/org/notification-read'
@@ -19,7 +19,7 @@ export async function loadNotificationsPage(searchParams: {
   type?: string
   page?: string
 }): Promise<NotificationsPageData> {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

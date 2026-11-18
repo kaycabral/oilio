@@ -1,9 +1,9 @@
 'use server'
 
 import { changedProfileFields, parseProfileForm } from '@/features/settings/core/profile-form'
+import { getSessionUser } from '@/shared/auth/session'
 import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/unique-violation'
 import { getUserById, patchUser } from '@/shared/db/pg/users-store'
-import { getSessionUser } from '@/shared/firebase/admin'
 import { emitPiiEvent } from '@/shared/privacy/pii-events'
 
 export type UpdateProfileResult = { ok: true } | { ok: false; error: string }

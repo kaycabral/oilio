@@ -4,9 +4,7 @@ import { logger } from '@/shared/lib/logger'
 import 'server-only'
 
 export type MemberFunnelEventName =
-  | 'member_invite_issued'
-  | 'member_invite_opened'
-  | 'member_invite_accepted'
+  'member_invite_issued' | 'member_invite_opened' | 'member_invite_accepted'
 
 export type MemberInviteIssuedPayload = {
   readonly orgId: string

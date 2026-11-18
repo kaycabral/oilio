@@ -1,14 +1,14 @@
 import { settingsSectionMeta } from '@/features/settings/core/settings-sections'
 import { EditProfileForm } from '@/features/settings/ui/EditProfileForm'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { Card, CardContent, SettingsSection } from '@cbrl/design'
 import { redirect } from 'next/navigation'
 
 export default async function ProfileSettingsPage() {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

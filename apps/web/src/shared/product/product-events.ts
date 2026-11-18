@@ -3,10 +3,7 @@ import { logger } from '@/shared/lib/logger'
 import 'server-only'
 
 export type ProductEventName =
-  | 'product_lookup'
-  | 'product_search'
-  | 'product_autocontributed'
-  | 'product_contribution_deferred'
+  'product_lookup' | 'product_search' | 'product_autocontributed' | 'product_contribution_deferred'
 
 export type ProductLookupPayload = {
   readonly gtin14: string

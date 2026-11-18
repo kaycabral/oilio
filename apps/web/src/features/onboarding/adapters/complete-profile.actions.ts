@@ -2,9 +2,9 @@
 
 import { parseProfileForm } from '@/features/onboarding/core/profile-form'
 import { resolveSignupOrgContext } from '@/features/onboarding/core/signup-context'
+import { getSessionUser } from '@/shared/auth/session'
 import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/unique-violation'
 import { getUserById, patchUser } from '@/shared/db/pg/users-store'
-import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
 import { logger } from '@/shared/lib/logger'
 import { withActionContext } from '@/shared/lib/request-context'

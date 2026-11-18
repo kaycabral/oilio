@@ -6,7 +6,7 @@
 // integration test left, so `@oilio/web run test:integration` routes here.
 //
 // Connection resolution + the docker/`oilio`-DB plumbing live in
-// `oilio-pg-lib.mjs` (shared with the dev `db:up` path). Three modes, by what
+// `oilio-pg-lib.mjs`. Three modes, by what
 // Postgres is already available (see the lib for the URL rules):
 //
 //   • OILIO_DATABASE_URL set (CI `services:`): the `oilio` DB is reachable; just
@@ -15,8 +15,8 @@
 //     the `oilio` URL on the SAME instance, create the DB, run. No docker here.
 //   • Neither set (bare local): bring up the ephemeral Postgres, run, tear down.
 //
-// Each suite applies its own migrations via globalSetup (so this runner does NOT
-// migrate — only the dev `db:up` path does).
+// Each suite applies its own migrations via globalSetup, so this runner does NOT
+// migrate.
 //
 // Usage:  node scripts/oilio-events-it.mjs
 

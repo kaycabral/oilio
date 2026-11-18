@@ -1,9 +1,9 @@
 import { MARKETING_CONTAINER } from '@/components/marketing/container'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
 import { Button, cn } from '@cbrl/design'
 
 export function MarketingHeader() {
-  const authEnabled = isFirebaseConfigured()
+  const authEnabled = isAuthConfigured()
 
   return (
     <header className="border-border/60 bg-background/80 sticky top-0 z-40 w-full border-b backdrop-blur">

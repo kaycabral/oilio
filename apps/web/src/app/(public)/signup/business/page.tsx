@@ -1,5 +1,5 @@
 import { SignupBusinessForm } from '@/components/SignupBusinessForm'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 }
 
 export default function SignupBusinessPage() {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   return (
     <Suspense fallback={null}>

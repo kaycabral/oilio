@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  isFirebaseConfigured: vi.fn(() => true),
+  isAuthConfigured: vi.fn(() => true),
   getSessionUser: vi.fn(),
   listLinkedOrgIds: vi.fn((): Promise<string[]> => Promise.resolve([])),
 }))
 
-vi.mock('@/shared/firebase/admin', () => ({ getSessionUser: mocks.getSessionUser }))
-vi.mock('@/shared/firebase/config', () => ({ isFirebaseConfigured: mocks.isFirebaseConfigured }))
+vi.mock('@/shared/auth/session', () => ({ getSessionUser: mocks.getSessionUser }))
+vi.mock('@/shared/auth/config', () => ({ isAuthConfigured: mocks.isAuthConfigured }))
 vi.mock('@/shared/identity/org-links', () => ({ listLinkedOrgIds: mocks.listLinkedOrgIds }))
 
 vi.mock('@/components/me-shell', () => ({
@@ -40,14 +40,14 @@ async function captureRedirect(): Promise<string> {
 }
 
 beforeEach(() => {
-  mocks.isFirebaseConfigured.mockReset().mockReturnValue(true)
+  mocks.isAuthConfigured.mockReset().mockReturnValue(true)
   mocks.getSessionUser.mockReset()
   mocks.listLinkedOrgIds.mockReset().mockResolvedValue([])
 })
 
 describe('MeLayout — client-area gate', () => {
-  it('redirects to / when Firebase is not configured', async () => {
-    mocks.isFirebaseConfigured.mockReturnValue(false)
+  it('redirects to / when auth is not configured', async () => {
+    mocks.isAuthConfigured.mockReturnValue(false)
     expect(await captureRedirect()).toBe('/')
     expect(mocks.getSessionUser).not.toHaveBeenCalled()
   })

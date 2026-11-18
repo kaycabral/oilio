@@ -48,8 +48,7 @@ export function buildClientInviteMessage(orgName: string, inviteUrl: string): st
 }
 
 export type ClientInviteWhatsappResult =
-  | { ok: true; whatsapp: string; href: string; url: string }
-  | { ok: false; error: string }
+  { ok: true; whatsapp: string; href: string; url: string } | { ok: false; error: string }
 
 export function buildClientInviteWhatsapp(args: {
   rawPhone: string

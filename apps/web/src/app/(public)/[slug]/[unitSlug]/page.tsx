@@ -3,7 +3,7 @@ import { resolveCoveredServiceIds } from '@/features/self-book/adapters/covered-
 import { getPublicUnitBundle } from '@/features/self-book/adapters/public-org'
 import { PlanCoverageBanner } from '@/features/self-book/ui/PlanCoverageBanner'
 import { UnitCatalog } from '@/features/self-book/ui/UnitCatalog'
-import { getSessionUser } from '@/shared/firebase/admin'
+import { getSessionUser } from '@/shared/auth/session'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 

@@ -1,18 +1,21 @@
+import { createIdentity } from '@/shared/auth/identity-provisioning'
 import { expect, type BrowserContext, type Page } from '@playwright/test'
-import { getApps, initializeApp, type App } from 'firebase-admin/app'
-import { getAuth as getAdminAuth } from 'firebase-admin/auth'
-import { execFileSync } from 'node:child_process'
-import { appBaseUrl, AUTH_HOST, PROJECT_ID } from './emulator'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { appBaseUrl, e2eSupabase } from './app-env'
 
-const API_KEY = 'fake-api-key'
+let cachedAdmin: SupabaseClient | undefined
+function authAdmin(): SupabaseClient {
+  if (cachedAdmin) return cachedAdmin
+  const { apiUrl, secretKey } = e2eSupabase()
+  cachedAdmin = createClient(apiUrl, secretKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  return cachedAdmin
+}
 
-let cachedAdminApp: App | undefined
-function adminApp(): App {
-  if (cachedAdminApp) return cachedAdminApp
-  const existing: App | undefined = getApps()[0]
-  const created: App = existing ?? initializeApp({ projectId: PROJECT_ID })
-  cachedAdminApp = created
-  return created
+export async function createE2EIdentity(email: string, password: string): Promise<string> {
+  const { uid } = await createIdentity(authAdmin(), { email, password })
+  return uid
 }
 
 export type SeedOrgInput = {
@@ -33,36 +36,6 @@ export type SeededOrg = {
   orgId: string
   unitIds: string[]
   memberOperationIds: string[]
-}
-
-function curlJson<T>(url: string, body: unknown, decode: (u: unknown) => T): T {
-  const out = execFileSync(
-    'curl',
-    ['-fsS', '-X', 'POST', url, '-H', 'Content-Type: application/json', '-d', JSON.stringify(body)],
-    { encoding: 'utf8' },
-  )
-  return parseJson(out, decode)
-}
-
-function curlSetCookie(url: string, body: unknown): string {
-  const out = execFileSync(
-    'curl',
-    [
-      '-fsS',
-      '-i',
-      '-X',
-      'POST',
-      url,
-      '-H',
-      'Content-Type: application/json',
-      '-d',
-      JSON.stringify(body),
-    ],
-    { encoding: 'utf8' },
-  )
-  const m = out.match(/set-cookie:[^\n]*__session=([^;\r\n]+)/i)
-  if (!m) throw new Error('No __session cookie in response:\n' + out)
-  return m[1]!
 }
 
 import {
@@ -200,12 +173,6 @@ import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builder
 import { buildAddress } from '@/shared/fixtures/seed-domain-builders'
 import { Schema } from 'effect'
 import { createHash, randomBytes } from 'node:crypto'
-import { parseJson } from './rest-json'
-
-const decodeSignUp = Schema.decodeUnknownSync(Schema.Struct({ localId: Schema.String }))
-const decodeIdToken = Schema.decodeUnknownSync(
-  Schema.Struct({ idToken: Schema.optional(Schema.String) }),
-)
 
 function uniqueSuffix() {
   return `${Date.now()}-${randomBytes(4).toString('hex')}`
@@ -259,13 +226,7 @@ export async function seedOrg(input: SeedOrgInput = {}): Promise<SeededOrg> {
   const password = 'E2E12345!'
   const email = `e2e+${uniqueSuffix()}@example.com`
 
-  const signUp = curlJson(
-    `http://${AUTH_HOST}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
-    { email, password, returnSecureToken: true },
-    decodeSignUp,
-  )
-  const uid = signUp.localId
-  await getAdminAuth(adminApp()).updateUser(uid, { emailVerified: true })
+  const uid = await createE2EIdentity(email, password)
 
   const orgId = `e2e-org-${uniqueSuffix()}`
   const now = new Date().toISOString()
@@ -1824,13 +1785,7 @@ export async function seedAuthUser(
 ): Promise<{ uid: string; email: string; password: string }> {
   const password = opts.password ?? 'E2E12345!'
   const email = opts.email ?? `e2e+${uniqueSuffix()}@example.com`
-  const signUp = curlJson(
-    `http://${AUTH_HOST}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
-    { email, password, returnSecureToken: true },
-    decodeSignUp,
-  )
-  const uid = signUp.localId
-  await getAdminAuth(adminApp()).updateUser(uid, { emailVerified: true })
+  const uid = await createE2EIdentity(email, password)
 
   const completionCompleted = opts.completionCompleted ?? true
   const now = new Date().toISOString()
@@ -1942,23 +1897,21 @@ export async function signInAndAttachSession(
   password = 'E2E12345!',
   appUrl: string = appBaseUrl(),
 ): Promise<void> {
-  const tokenJson = curlJson(
-    `http://${AUTH_HOST}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`,
-    { email, password, returnSecureToken: true },
-    decodeIdToken,
+  const res = await fetch(`${appUrl}/api/e2e-signin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!res.ok) throw new Error(`e2e sign-in failed for ${email}: ${res.status} ${await res.text()}`)
+  const cookies = res.headers.getSetCookie().map((header) => {
+    const [pair = ''] = header.split(';')
+    const eq = pair.indexOf('=')
+    return { name: pair.slice(0, eq).trim(), value: pair.slice(eq + 1).trim() }
+  })
+  if (cookies.length === 0) throw new Error(`e2e sign-in for ${email} set no session cookie`)
+  await context.addCookies(
+    cookies.map((c) => ({ ...c, url: appUrl, httpOnly: false, sameSite: 'Lax' as const })),
   )
-  if (!tokenJson.idToken) throw new Error('No idToken from auth emulator')
-  const cookie = curlSetCookie(`${appUrl}/api/session`, { idToken: tokenJson.idToken })
-
-  await context.addCookies([
-    {
-      name: '__session',
-      value: cookie,
-      url: appUrl,
-      httpOnly: true,
-      sameSite: 'Lax',
-    },
-  ])
 }
 
 export const ACTIVE_UNIT_COOKIE = 'activeUnitId'

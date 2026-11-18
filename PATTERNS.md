@@ -22,7 +22,7 @@ Patterns específicos de 1 só app ficam no `CLAUDE.md` daquele app, não aqui.
 app/<rota>/page.tsx  →  features/<slice>/ui  →  adapters  →  core
 ```
 
-- **core/** — decisão pura: parse, regras de negócio, máquina de status, view-models. Zero React/Next/Firestore/I/O. Unit-testável sem emulador → é onde cobertura + mutation têm dente.
+- **core/** — decisão pura: parse, regras de negócio, máquina de status, view-models. Zero React/Next/DB/I/O. Unit-testável sem banco → é onde cobertura + mutation têm dente.
 - **adapters/** — casca de I/O: lê dado, emite evento, delega a decisão ao core. Testado por integration/E2E.
 - **ui/** — componente humilde: consome contrato tipado, mínimo de lógica. Testado por render test + E2E.
 - **app/<rota>/** — casca-fina de roteamento: chama o loader do adapter + renderiza o componente da ui.

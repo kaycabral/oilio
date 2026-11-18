@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 
 let sessionUid: string | null = null
 
-vi.mock('@/shared/firebase/admin', () => ({
+vi.mock('@/shared/auth/session', () => ({
   getSessionUser: () =>
     sessionUid ? Promise.resolve({ uid: sessionUid, emailVerified: true }) : Promise.resolve(null),
 }))

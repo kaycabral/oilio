@@ -46,9 +46,10 @@ export async function findOpenOrderIdForAppointment(
 ): Promise<string | null> {
   const rows = await readUnderRls<Pick<OrderRow, 'id'>>(orgId, (client) =>
     client
-      .query<
-        Pick<OrderRow, 'id'>
-      >("SELECT id FROM orders WHERE org_id = $1 AND appointment_id = $2 AND status = 'open' LIMIT 1", [orgId, appointmentId])
+      .query<Pick<OrderRow, 'id'>>(
+        "SELECT id FROM orders WHERE org_id = $1 AND appointment_id = $2 AND status = 'open' LIMIT 1",
+        [orgId, appointmentId],
+      )
       .then((res) => res.rows),
   )
   return rows[0]?.id ?? null
@@ -126,9 +127,10 @@ export async function loadActiveSubscriptionId(
 ): Promise<string | null> {
   const rows = await readUnderRls<Pick<SubscriptionRow, 'id'>>(orgId, (client) =>
     client
-      .query<
-        Pick<SubscriptionRow, 'id'>
-      >("SELECT id FROM subscriptions WHERE org_id = $1 AND customer_id = $2 AND status = 'active' LIMIT 1", [orgId, customerId])
+      .query<Pick<SubscriptionRow, 'id'>>(
+        "SELECT id FROM subscriptions WHERE org_id = $1 AND customer_id = $2 AND status = 'active' LIMIT 1",
+        [orgId, customerId],
+      )
       .then((res) => res.rows),
   )
   return rows[0]?.id ?? null

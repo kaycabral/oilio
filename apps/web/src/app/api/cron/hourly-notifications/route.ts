@@ -1,22 +1,16 @@
 import { generateHourlyNotifications } from '@/features/notifications/adapters/generate-hourly'
 import { flagNotFound } from '@/shared/api-flags'
+import { isAuthorizedCron } from '@/shared/cron-auth'
 import { PostgresLayerLive } from '@/shared/db/effect'
 import { withRequestContext } from '@/shared/lib/request-context'
 import { Effect } from 'effect'
 import { NextResponse } from 'next/server'
 
-function verifyCronSecret(request: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return false
-  const header = request.headers.get('x-cron-secret')
-  return header === secret
-}
-
 async function postHandler(request: Request) {
   const disabled = flagNotFound('notifications')
   if (disabled) return disabled
 
-  if (!verifyCronSecret(request)) {
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -30,4 +24,5 @@ async function postHandler(request: Request) {
   return NextResponse.json({ ok: true, created })
 }
 
+export const GET = withRequestContext(postHandler)
 export const POST = withRequestContext(postHandler)

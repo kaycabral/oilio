@@ -1,8 +1,8 @@
 import { listMessageTemplates } from '@/features/notifications/adapters/message-templates'
 import { settingsSectionMeta } from '@/features/settings/core/settings-sections'
 import { NotificationTemplatesForm } from '@/features/settings/ui/NotificationTemplatesForm'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { isFeatureEnabled } from '@/shared/flags'
 import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
@@ -12,7 +12,7 @@ import { notFound, redirect } from 'next/navigation'
 export default async function NotificationSettingsPage() {
   if (!isFeatureEnabled('notifications')) notFound()
 
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

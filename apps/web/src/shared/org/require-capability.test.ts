@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   track: vi.fn(),
 }))
 
-vi.mock('@/shared/firebase/admin', () => ({ getSessionUser: mocks.getSessionUser }))
+vi.mock('@/shared/auth/session', () => ({ getSessionUser: mocks.getSessionUser }))
 vi.mock('@/shared/db/pg/users-store', () => ({
   getUserById: mocks.getUserById,
   getUsersByIds: vi.fn(),

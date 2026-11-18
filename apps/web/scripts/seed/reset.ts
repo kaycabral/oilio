@@ -44,7 +44,9 @@ export async function resetEventStore(pool: Pool): Promise<void> {
      WHERE schemaname = 'public' AND tablename <> '__drizzle_migrations'`,
   )
   if (rows.length === 0) {
-    throw new Error('No tables found to reset — did migrations run? (pnpm oilio:db:up)')
+    throw new Error(
+      'No tables found to reset — did migrations run? (pnpm --filter @oilio/web db:start)',
+    )
   }
   const tables = rows.map((r) => `"${r.tablename}"`).join(', ')
   await pool.query(`TRUNCATE ${tables} RESTART IDENTITY CASCADE`)

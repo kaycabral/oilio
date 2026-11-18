@@ -9,10 +9,10 @@ import {
   type TransactionContext,
 } from '@/domain/effect'
 import { verifyInviteToken } from '@/features/invites/adapters/invite-token'
+import { getSessionUser } from '@/shared/auth/session'
 import { newId } from '@/shared/db/pg/new-id'
 import { patchUser } from '@/shared/db/pg/users-store'
 import { commitSaga, emitEvent } from '@/shared/effect-bridge'
-import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
 import { logger } from '@/shared/lib/logger'
 import { getInviteById } from '@/shared/org/invite-read'

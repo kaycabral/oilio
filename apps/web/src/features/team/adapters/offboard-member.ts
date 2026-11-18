@@ -28,8 +28,7 @@ import 'server-only'
 export type OffboardWarning = { kind: 'unit-without-memberOperation'; unitIds: string[] }
 
 export type OffboardResult =
-  | { ok: true; warnings: OffboardWarning[] }
-  | { ok: false; error: string }
+  { ok: true; warnings: OffboardWarning[] } | { ok: false; error: string }
 
 async function findOpenComanda(orgId: string, targetUserId: string): Promise<string | null> {
   const openOrders = await loadOpenOrdersForOrg(orgId)

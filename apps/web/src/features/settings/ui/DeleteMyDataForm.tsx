@@ -1,9 +1,8 @@
 'use client'
 
 import { deleteMyDataAction } from '@/features/settings/adapters/privacy.actions'
-import { getClientAuth } from '@/shared/firebase/client'
+import { signOutClient } from '@/shared/auth/sign-out'
 import { Button, Input, Label } from '@cbrl/design'
-import { signOut } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
@@ -26,8 +25,7 @@ export function DeleteMyDataForm() {
         setError(res.error)
         return
       }
-      await fetch('/api/session', { method: 'DELETE' }).catch(() => {})
-      await signOut(getClientAuth()).catch(() => {})
+      await signOutClient()
       toast.success(
         res.cancelledActiveSubscription
           ? 'Seus dados foram anonimizados e sua assinatura ativa foi cancelada.'

@@ -15,8 +15,6 @@
     "knip": "pnpm --filter @oilio/web exec knip --no-progress",
     "mutation": "pnpm --filter @oilio/web run mutation",
     "type-coverage": "pnpm -r --workspace-concurrency=Infinity --reporter-hide-prefix run type-coverage",
-    "db:up": "docker compose -f docker/postgres.compose.yaml up -d --wait",
-    "db:down": "docker compose -f docker/postgres.compose.yaml down -v",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
     "prepare": "node .husky/install.mjs"
@@ -27,32 +25,37 @@
   "packageManager": "pnpm@10.33.4+sha512.1c67b3b359b2d408119ba1ed289f34b8fc3c6873412bec6fd264fbdc82489e510fcbecb9ce9d22dae7f3b76269d8441046014bdca53b9979cd7a561ad631b800",
   "pnpm": {
     "overrides": {
-      "vite": "^8.0.13"
+      "handlebars@<4.7.10": "^4.7.10",
+      "postcss-selector-parser@<6.1.5": "^6.1.6",
+      "minimatch@>=7.0.0 <11.0.1": "^11.0.9",
+      "@esbuild-kit/core-utils>esbuild": "^0.25.0",
+      "@cbrl/pg>@google-cloud/cloud-sql-connector": "-",
+      "qs@<6.16.1": "^6.16.1",
+      "@sentry/bundler-plugins>glob": "^14.0.2"
     },
     "onlyBuiltDependencies": [
-      "@firebase/util",
       "@parcel/watcher",
       "@swc/core",
       "esbuild",
       "msw",
-      "protobufjs",
       "sharp",
+      "supabase",
       "unrs-resolver"
     ]
   },
   "devDependencies": {
     "@cbrl/commitlint-config": "^0.1.0",
-    "@cbrl/eslint-config": "^0.1.0",
+    "@cbrl/eslint-config": "^0.1.1",
     "@cbrl/prettier-config": "^0.1.0",
     "@commitlint/cli": "^19.8.1",
-    "eslint": "^9.39.4",
+    "eslint": "^9.39.5",
     "husky": "^9.1.7",
-    "knip": "^6.16.1",
-    "lint-staged": "^17.0.5",
+    "knip": "^6.46.0",
+    "lint-staged": "^17.6.1",
     "pg": "catalog:",
-    "prettier": "^3.8.3",
-    "turbo": "^2.9.14",
-    "type-coverage": "^2.29.7"
+    "prettier": "^3.10.1",
+    "turbo": "^2.11.13",
+    "type-coverage": "^2.31.2"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}": [

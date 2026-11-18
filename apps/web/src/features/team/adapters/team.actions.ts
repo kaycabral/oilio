@@ -16,13 +16,13 @@ import { offboardMemberInOrg, type OffboardWarning } from '@/features/team/adapt
 import { assertTeamSeatQuota } from '@/features/team/adapters/team-quota'
 import { buildMemberInviteWhatsapp } from '@/features/team/core/member-invite'
 import { parseMemberOperationForm } from '@/features/team/core/member-operation-form'
+import { getSessionUser } from '@/shared/auth/session'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
 import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { newId } from '@/shared/db/pg/new-id'
 import { emitEvent } from '@/shared/effect-bridge'
 import { classifyError } from '@/shared/errors/classify'
 import { messageForCategory } from '@/shared/errors/messages'
-import { getSessionUser } from '@/shared/firebase/admin'
 import { formString } from '@/shared/form-data'
 import { canDeleteMemberOperation } from '@/shared/org/delete-guard'
 import { type StoredInvite, writeInvitePii } from '@/shared/org/invite-read'
@@ -56,8 +56,7 @@ import {
 } from './member-write-helpers'
 
 export type CreateInviteResult =
-  | { ok: true; inviteLink: string; whatsappHref: string }
-  | { ok: false; error: string }
+  { ok: true; inviteLink: string; whatsappHref: string } | { ok: false; error: string }
 
 function isRole(v: string): v is Role {
   return (ROLES as readonly string[]).includes(v)
@@ -311,8 +310,7 @@ export async function setMemberStatus(
 }
 
 export type RemoveMemberResult =
-  | { ok: true; warnings: OffboardWarning[] }
-  | { ok: false; error: string }
+  { ok: true; warnings: OffboardWarning[] } | { ok: false; error: string }
 
 export async function removeMemberFromTeam(targetUserId: string): Promise<RemoveMemberResult> {
   const r = await requireManagerCtx()

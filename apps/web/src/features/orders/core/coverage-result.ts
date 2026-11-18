@@ -1,13 +1,8 @@
 export type CoverageDenialReason =
-  | 'no_customer'
-  | 'no_subscription'
-  | 'not_in_catalog'
-  | 'not_in_plan'
-  | 'no_balance'
+  'no_customer' | 'no_subscription' | 'not_in_catalog' | 'not_in_plan' | 'no_balance'
 
 export type CoverageResult =
-  | { covered: true; subscriptionId: string }
-  | { covered: false; reason: CoverageDenialReason }
+  { covered: true; subscriptionId: string } | { covered: false; reason: CoverageDenialReason }
 
 export function coverageDenialMessage(reason: CoverageDenialReason): string {
   switch (reason) {

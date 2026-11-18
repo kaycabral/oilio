@@ -21,24 +21,47 @@ function mdnsHost(): string {
   return `${hostname().toLowerCase()}.local`
 }
 
+// Defense in depth (see SECURITY.md). The browser only talks to Supabase Auth
+// (Google sign-in is a full-page redirect: no Google script or frame) and to
+// same-origin routes (Sentry goes through /monitoring-tunnel). Stripe Checkout
+// and the Billing Portal are top-level redirects after a form post. The CSP
+// ships report-only until it has run clean in production.
+const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
+  ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin
+  : 'https://*.supabase.co'
+const cspReportOnly = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https: blob:",
+  "font-src 'self' data:",
+  `connect-src 'self' ${supabaseOrigin}`,
+  "worker-src 'self' blob:",
+  "frame-src 'none'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self' https://checkout.stripe.com https://billing.stripe.com",
+].join('; ')
+
+const securityHeaders = [
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+  },
+  { key: 'Content-Security-Policy-Report-Only', value: cspReportOnly },
+]
+
 const nextConfig: NextConfig = {
   typedRoutes: true,
   // Pin the dev overlay to the bottom-right (default is bottom-left, which
   // overlaps the app's own bottom-left UI in dev).
   devIndicators: { position: 'bottom-right' },
-  // Firebase Auth on a custom domain: signInWithRedirect needs the sign-in
-  // helper (handler + iframe + init.json) served same-origin as the app, or the
-  // browser partitions the authDomain iframe's storage and getRedirectResult
-  // hangs forever. We set authDomain=oilio.com.br (build arg) and reverse-proxy
-  // the helper paths to the project's firebaseapp.com domain — the Firebase-
-  // recommended self-hosting approach for redirect on a custom domain.
-  // Harmless in dev (emulator wiring overrides authDomain, so these are unused).
-  async rewrites() {
-    const firebaseAppDomain = 'https://cbrl-oilio-production.firebaseapp.com'
-    return [
-      { source: '/__/auth/:path*', destination: `${firebaseAppDomain}/__/auth/:path*` },
-      { source: '/__/firebase/:path*', destination: `${firebaseAppDomain}/__/firebase/:path*` },
-    ]
+  async headers() {
+    return [{ source: '/:path*', headers: securityHeaders }]
   },
   // Next dev blocks cross-origin requests to /_next/* by default — when the
   // requesting origin isn't allowlisted, HMR/RSC streams land on the wrong origin
@@ -48,16 +71,6 @@ const nextConfig: NextConfig = {
   // current LAN IPs (phone/tablet testing by IP — resolved live so DHCP changes
   // don't break it). See incident: LAN smoke login "did nothing" (#1273).
   allowedDevOrigins: ['127.0.0.1', mdnsHost(), ...lanIPv4()],
-  // App Hosting copies `.next/standalone` into the Cloud Run image. Set
-  // explicitly so the standalone artifacts always land, regardless of which
-  // builder produced them.
-  output: 'standalone',
-  // No `outputFileTracingRoot` pin: with Turborepo (turbo.json at the repo root),
-  // the App Hosting buildpack switches into its Turborepo runner, which expects
-  // the standalone bundle laid out as `apps/web/.next/standalone/apps/web/.next/...`
-  // (workspace prefix preserved). Letting Next auto-detect the monorepo root from
-  // the lockfile produces exactly that layout, so the adapter can locate the
-  // routes manifest.
 }
 
 export default withSentryConfig(nextConfig, {

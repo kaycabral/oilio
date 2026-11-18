@@ -1,10 +1,10 @@
 import { LoginForm } from '@/components/LoginForm'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 
 export default function LoginPage() {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   return (
     <Suspense fallback={null}>

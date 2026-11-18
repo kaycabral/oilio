@@ -1,9 +1,8 @@
 'use client'
 
-import { getClientAuth } from '@/shared/firebase/client'
+import { getSupabaseBrowserClient } from '@/shared/auth/client'
 import { safeNext } from '@/shared/routes'
 import { Button } from '@cbrl/design'
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -11,12 +10,6 @@ export type OAuthSignInButtonsProps = {
   next: string
   googleLabel?: string
   pendingLabel?: string
-}
-
-function buildProvider(): GoogleAuthProvider {
-  const provider = new GoogleAuthProvider()
-  provider.setCustomParameters({ prompt: 'select_account' })
-  return provider
 }
 
 export function OAuthSignInButtons({
@@ -31,12 +24,14 @@ export function OAuthSignInButtons({
     if (started.current) return
     started.current = true
     setPending(true)
-    try {
-      const auth = getClientAuth()
-      const credential = await signInWithPopup(auth, buildProvider())
-      await createSession(await credential.user.getIdToken())
-      window.location.replace(safeNext(next))
-    } catch {
+    const supabase = getSupabaseBrowserClient()
+    const callback = new URL('/auth/callback', window.location.origin)
+    callback.searchParams.set('next', safeNext(next))
+    const result = await supabase?.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: callback.toString(), queryParams: { prompt: 'select_account' } },
+    })
+    if (!result || result.error) {
       started.current = false
       setPending(false)
       toast.error('Não foi possível entrar. Tente novamente.')
@@ -57,15 +52,6 @@ export function OAuthSignInButtons({
       </Button>
     </div>
   )
-}
-
-async function createSession(idToken: string): Promise<void> {
-  const res = await fetch('/api/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken }),
-  })
-  if (!res.ok) throw new Error(`Session creation failed: ${res.status}`)
 }
 
 function GoogleLogo() {

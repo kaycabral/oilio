@@ -1,12 +1,9 @@
 import { putUser } from '@/shared/db/pg/users-store'
 import { buildUser } from '@/shared/fixtures/domain-builders'
-import { Schema } from 'effect'
-import { execFileSync } from 'node:child_process'
 import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
-import { AUTH_HOST } from '../helpers/emulator'
-import { parseJson } from '../helpers/rest-json'
 import {
+  createE2EIdentity,
   linkMemberOperationToServices,
   seedService,
   signInAndAttachSession,
@@ -14,26 +11,10 @@ import {
 } from '../helpers/session'
 import { MeAppointmentsPage, PublicBookingPage, orgSlug } from '../pages'
 
-const API_KEY = 'fake-api-key'
-
-function curlJson<T>(url: string, body: unknown, decode: (u: unknown) => T): T {
-  const out = execFileSync(
-    'curl',
-    ['-fsS', '-X', 'POST', url, '-H', 'Content-Type: application/json', '-d', JSON.stringify(body)],
-    { encoding: 'utf8' },
-  )
-  return parseJson(out, decode)
-}
-
 async function createCustomerUser() {
   const email = `e2e-customer-${Math.random().toString(36).slice(2, 10)}@example.com`
   const password = 'E2E12345!'
-  const su = curlJson(
-    `http://${AUTH_HOST}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
-    { email, password, returnSecureToken: true },
-    Schema.decodeUnknownSync(Schema.Struct({ localId: Schema.String })),
-  )
-  const uid = su.localId
+  const uid = await createE2EIdentity(email, password)
   const now = new Date().toISOString()
   await putUser(
     buildUser(uid, now, {

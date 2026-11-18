@@ -27,12 +27,12 @@ pnpm test             # vitest por workspace
 pnpm build
 pnpm test:integration # @oilio/product + gate do web contra Postgres efêmero (docker)
 pnpm --filter @oilio/web test:integration   # event store contra Postgres
-pnpm test:e2e         # Playwright + Postgres + Firebase Auth emulator
+pnpm test:e2e         # Playwright contra o stack Supabase local (exige db:start)
 ```
 
 ## Não-óbvio
 
 - **Linker isolado do pnpm** (sem `node-linker=hoisted`): toda dependência importada precisa estar declarada no `package.json` do workspace que a importa.
-- **Deploy**: web na Vercel (Root Directory `apps/web`, build `turbo run build`). O turbo roda em modo estrito: env nova de build/runtime precisa entrar em `apps/web/turbo.json` (`env`/`passThroughEnv`).
-- **Postgres**: `scripts/oilio-pg-lib.mjs` concentra a resolução de conexão; `pnpm db:up`/`db:down` sobem o Postgres efêmero (`docker/postgres.compose.yaml`).
-- **Origem**: extraído do monorepo `cbrl` em 2026-11-17 com histórico (`git filter-repo`). Tooling e infra compartilhados (`@cbrl/{tsconfig,eslint-config,prettier-config,commitlint-config,env,testing,design,pg}`) vêm do npm (fonte: `kaycabral/toolkit`); só `packages/product` é local. Issues, MRs e Wiki seguem no GitLab por enquanto. CI pesado (E2E, release, deploy Cloud Run) ainda não portado — ver README § Origem e pendências.
+- **Deploy**: Vercel (`gru1`, Root Directory `apps/web`, build `turbo run build`) + Supabase (Postgres + Auth, `sa-east-1`). Migrations só pelo CI (job `migrate-production`, gate do deploy) — ninguém migra prod da máquina local. Runbook: [`docs/production.md`](docs/production.md). O turbo roda em modo estrito: env nova de build/runtime precisa entrar em `apps/web/turbo.json` (`env`/`passThroughEnv`).
+- **Postgres**: dev/seed/E2E no stack Supabase local (`pnpm --filter @oilio/web db:start`/`db:stop`, Docker; app conecta como `oilio_app`, então o RLS vale como em prod). As suítes de integração usam um Postgres efêmero próprio (`docker/postgres.compose.yaml`, resolução de conexão em `scripts/oilio-pg-lib.mjs`).
+- **Origem**: extraído do monorepo `cbrl` em 2026-11-17 com histórico (`git filter-repo`). Tooling e infra compartilhados (`@cbrl/{tsconfig,eslint-config,prettier-config,commitlint-config,env,testing,design,pg}`) vêm do npm (fonte: `kaycabral/toolkit`); só `packages/product` é local. Issues e Wiki seguem no GitLab por enquanto. CI no GitHub Actions (`.github/workflows/ci.yml`); gates ainda fora do CI em README § Origem e pendências.

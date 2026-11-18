@@ -59,7 +59,7 @@ test.describe.serial('Notification cron — subscription touches', () => {
       `${baseURL}/api/cron/daily-notifications?now=${encodeURIComponent(now)}`,
       {
         method: 'POST',
-        headers: { 'x-cron-secret': CRON_SECRET },
+        headers: { authorization: `Bearer ${CRON_SECRET}` },
       },
     )
     expect(res.ok).toBe(true)
@@ -88,7 +88,7 @@ test.describe.serial('Notification cron — subscription touches', () => {
       `${baseURL}/api/cron/daily-notifications?now=${encodeURIComponent(now)}`,
       {
         method: 'POST',
-        headers: { 'x-cron-secret': CRON_SECRET },
+        headers: { authorization: `Bearer ${CRON_SECRET}` },
       },
     )
     expect(
@@ -100,7 +100,7 @@ test.describe.serial('Notification cron — subscription touches', () => {
       `${baseURL}/api/cron/daily-notifications?now=${encodeURIComponent(now)}`,
       {
         method: 'POST',
-        headers: { 'x-cron-secret': CRON_SECRET },
+        headers: { authorization: `Bearer ${CRON_SECRET}` },
       },
     )
     expect(

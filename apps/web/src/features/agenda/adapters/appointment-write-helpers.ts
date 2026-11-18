@@ -27,8 +27,7 @@ import { assertCustomerIdNotBlocked } from '@/shared/privacy/assert-customer-not
 import { AuthzError, getMembership } from '@/shared/org/membership'
 
 export type AppointmentMutationResult =
-  | { ok: true; appointmentId: string }
-  | { ok: false; error: string; conflicts?: string[] }
+  { ok: true; appointmentId: string } | { ok: false; error: string; conflicts?: string[] }
 
 export async function guardCustomerNotBlocked(
   orgId: string,

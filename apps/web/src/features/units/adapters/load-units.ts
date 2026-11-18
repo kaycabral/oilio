@@ -1,5 +1,5 @@
 import { operatesCrossUnit, type Org, type TaxIdentity, type Unit } from '@/domain'
-import { getSessionUser } from '@/shared/firebase/admin'
+import { getSessionUser } from '@/shared/auth/session'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
 import { getUnitById, getUnitTaxIdentity } from '@/shared/org/unit-read'

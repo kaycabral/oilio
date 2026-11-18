@@ -1,8 +1,8 @@
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
 import { Button, Typography } from '@cbrl/design'
 
 export function Hero() {
-  const authEnabled = isFirebaseConfigured()
+  const authEnabled = isAuthConfigured()
 
   return (
     <section className="flex flex-col items-center gap-6 py-20 text-center sm:py-28">

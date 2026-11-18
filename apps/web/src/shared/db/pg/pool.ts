@@ -4,8 +4,8 @@ import {
   initManagedPool,
   type ManagedPool,
   type PoolEnvConfig,
+  supabaseSsl,
 } from '@cbrl/pg'
-import { cloudSqlIam } from '@cbrl/pg/cloud-sql'
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
 import type { Pool } from 'pg'
 import * as schema from './schema'
@@ -13,11 +13,7 @@ import * as schema from './schema'
 export const EVENT_STORE_POOL_CONFIG: PoolEnvConfig = {
   connectionStringEnvVar: 'OILIO_DATABASE_URL',
   database: 'oilio',
-  iam: cloudSqlIam({
-    enabledEnvVar: 'OILIO_USE_IAM_AUTH',
-    instanceEnvVar: 'OILIO_CLOUDSQL_INSTANCE',
-    userEnvVar: 'OILIO_IAM_DB_USER',
-  }),
+  passwordModeSsl: supabaseSsl,
 }
 
 const drizzleByPool = new WeakMap<Pool, NodePgDatabase<typeof schema>>()

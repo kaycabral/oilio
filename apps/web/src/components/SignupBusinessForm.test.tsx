@@ -4,20 +4,8 @@ import { SignupBusinessForm } from './SignupBusinessForm'
 
 const searchParams = { value: new URLSearchParams() }
 
-vi.mock('firebase/auth', () => ({
-  GoogleAuthProvider: vi.fn(function MockGoogleAuthProvider(this: {
-    setCustomParameters: () => void
-  }) {
-    this.setCustomParameters = vi.fn()
-  }),
-  OAuthProvider: vi.fn(function MockOAuthProvider(this: { setCustomParameters: () => void }) {
-    this.setCustomParameters = vi.fn()
-  }),
-  signInWithPopup: vi.fn(),
-}))
-
-vi.mock('@/shared/firebase/client', () => ({
-  getClientAuth: vi.fn(),
+vi.mock('@/shared/auth/client', () => ({
+  getSupabaseBrowserClient: vi.fn(() => null),
 }))
 
 vi.mock('next/navigation', () => ({

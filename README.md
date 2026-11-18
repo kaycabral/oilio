@@ -8,22 +8,40 @@ A [Wiki do projeto](https://github.com/cbrl-dev/cbrl/wiki) é a **fonte canônic
 
 Docs técnicos locais:
 
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — stack real (Firebase + Next.js 16), workspaces, fluxo de dados.
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — stack real (Next.js 16 + Supabase/Postgres na Vercel), workspaces, fluxo de dados.
 - [`docs/decisions/`](./docs/decisions/) — ADRs específicos do scheduling.
 - [`TESTING.md`](./TESTING.md) — filosofia de testes canônica.
 - [`PATTERNS.md`](./PATTERNS.md) — padrões de código canônicos.
 
 ## Pré-requisitos
 
-- **Java 11+ (JRE)** — necessário pra rodar os Firebase emulators (Auth + Firestore). Em Ubuntu: `sudo apt-get install default-jre`. macOS: `brew install --cask temurin`. Verifique com `java -version`.
 - **Node** na versão do `.nvmrc` e **pnpm** via Corepack (`corepack enable`). Depois: `pnpm install` na raiz.
+- **Docker** — o stack Supabase local (Postgres + Auth) e as suítes de integração rodam em containers.
+- **Supabase CLI** (`supabase`) no `PATH` — usado pelo `db:start`/`db:stop`.
 
 ## Scripts
 
 Todos rodam da raiz do repositório.
 
 ```bash
-# Next.js dev server (porta 3005)
+# Stack Supabase local (Docker): API 55321, Postgres 55322, Studio 55323.
+# Config em apps/web/supabase/config.toml. Aplica as migrations e dá login
+# local ao role oilio_app (o app conecta como ele, então o RLS vale em dev).
+pnpm --filter @oilio/web run db:start
+
+# Grava URL/chaves do stack local no apps/web/.env.local (cria a partir do
+# .env.example se faltar; preserva as outras linhas).
+pnpm --filter @oilio/web run db:env
+
+# Reaplica as migrations no stack local (event store + @oilio/product).
+pnpm --filter @oilio/web run db:migrate:local
+
+# Derruba o stack.
+pnpm --filter @oilio/web run db:stop
+```
+
+```bash
+# Next.js dev server (porta 3005) — com o stack local no ar
 pnpm --filter @oilio/web run dev
 ```
 
@@ -33,8 +51,8 @@ pnpm --filter @oilio/web run build
 ```
 
 ```bash
-# Typecheck em todos os workspaces do scheduling
-pnpm --filter "@oilio/*" run typecheck
+# Typecheck em todos os workspaces
+pnpm typecheck
 ```
 
 ```bash
@@ -42,51 +60,63 @@ pnpm --filter "@oilio/*" run typecheck
 pnpm --filter @oilio/web run test
 ```
 
-**O `test:e2e` sobe o ambiente sozinho.** Os Firebase emulators (Auth 9099 + Firestore 8080) são iniciados pelo `firebase emulators:exec` — que embrulha o Playwright e injeta os hosts/projeto do emulador no ambiente (`FIRESTORE_EMULATOR_HOST` etc., o padrão canônico do Firebase). O Next é iniciado pelo `webServer` do `playwright.config.ts` (`reuseExistingServer`) e herda esses hosts. Não precisa rodar `db:start` nem subir o dev server manualmente antes. O `test:integration` usa o mesmo `emulators:exec`.
+```bash
+# Integração Postgres (Postgres efêmero em docker, docker/postgres.compose.yaml;
+# cada suíte cria o próprio banco e role de runtime)
+pnpm test:integration                       # @oilio/product
+pnpm --filter @oilio/web run test:integration   # event store
+```
+
+**O `test:e2e` exige o stack local no ar** (`db:start`). O runner (`apps/web/scripts/e2e.ts`) aplica as migrations, builda e sobe o Next em modo produção conectado como `oilio_app` (o RLS vale como em prod) e roda o Playwright. O login nos specs passa pela rota de teste `/api/e2e-signin`, que só existe com `ENABLE_TEST_AUTH=true` — setado apenas pelo `webServer` do Playwright.
 
 ```bash
-# Playwright (E2E) — emulators:exec sobe os Firebase emulators + Playwright
-# sobe o Next. chromium por default; --project=chromium é o único ativo.
+# Playwright (E2E) — chromium é o único projeto ativo.
 pnpm --filter @oilio/web run test:e2e
+pnpm --filter @oilio/web run test:e2e:critical   # só @critical (o que roda em PR)
 ```
 
-```bash
-# Firebase Emulators (Auth + Firestore) — só precisa rodar manualmente se
-# quiser reaproveitar a instância entre vários `test:e2e` (mais rápido).
-pnpm --filter @oilio/web run db:start
-
-# Mata emulator quando a porta 8080 fica presa (quirk do firebase-tools
-# que às vezes não desliga limpo).
-pnpm --filter @oilio/web run db:stop
-```
-
-**Dados de teste prontos pra desenvolvimento manual.** O emulator guarda os
-dados só em memória — ao matá-lo, tudo some. Em vez de recriar tenant, serviços
-e agendamentos na mão toda vez, rode o seed: cria a **Barbearia do Zé**
-(2 unidades, 4 serviços, 3 profissionais, 4 clientes, agendamentos de
-ontem/hoje/amanhã, 1 plano + assinatura). É idempotente e os agendamentos são
-recalculados relativos a _hoje_ a cada execução.
+**Dados de teste prontos pra desenvolvimento manual.** Em vez de recriar
+tenant, serviços e agendamentos na mão toda vez, rode o seed: cria a
+**Barbearia do Zé** (2 unidades, 4 serviços, 3 profissionais, 4 clientes,
+agendamentos de ontem/hoje/amanhã, 1 plano + assinatura) e as demais orgs de
+exemplo. É idempotente e os agendamentos são recalculados relativos a _hoje_ a
+cada execução.
 
 ```bash
-# Pré-requisito: emulator no ar (db:start) e, pra navegar, o dev server.
+# Pré-requisito: stack local no ar (db:start) e .env.local gerado (db:env).
 pnpm --filter @oilio/web run db:seed
 ```
 
-Pra entrar: `/login` → **Continuar com Google** → escolha **Zé Owner**
-(`dev@cbrl.local`) no picker do emulator. Pra testar o cadastro do zero, é só
-criar uma conta nova normalmente — o seed é aditivo e não toca em contas que
+Pra entrar: as personas semeadas (ex.: **Zé Owner**, `dev@cbrl.local`) têm
+identidade no Auth local com senha `oilio-local-dev`. Login por email/senha só
+existe no stack local — produção é só Google. A tela `/login` só oferece Google;
+pra entrar como persona, ponha `ENABLE_TEST_AUTH=true` no `apps/web/.env.local`
+(nunca em Vercel) e, com o app aberto em `http://localhost:3005`, rode no console
+do browser:
+
+```js
+await fetch('/api/e2e-signin', {
+  method: 'POST',
+  body: JSON.stringify({ email: 'dev@cbrl.local', password: 'oilio-local-dev' }),
+})
+```
+
+e recarregue a página. Pra testar o cadastro do zero, é
+só criar uma conta nova normalmente — o seed é aditivo e não toca em contas que
 não criou.
+
+Produção (Vercel + Supabase, migrations só pelo CI): ver [`docs/production.md`](./docs/production.md).
 
 ## Origem e pendências
 
-Extraído do monorepo `cbrl` em 2026-11-17 com histórico (`git filter-repo`): `apps/oilio/web` → `apps/web`, `apps/oilio/docs` → `docs`, `packages/{db,product}` mantidos. As cópias vendorizadas (`@oilio/{tsconfig,eslint-config,env,testing,design,db}`) foram substituídas pelos pacotes publicados no npm `@cbrl/{tsconfig,eslint-config,prettier-config,commitlint-config,env,testing,design,pg}` (fonte: `kaycabral/toolkit`); só `packages/product` segue local. Issues, MRs e a Wiki (briefs, PRDs) continuam no GitLab por enquanto.
+Extraído do monorepo `cbrl` em 2026-11-17 com histórico (`git filter-repo`): `apps/oilio/web` → `apps/web`, `apps/oilio/docs` → `docs`, `packages/product` mantido. As cópias vendorizadas (`@oilio/{tsconfig,eslint-config,env,testing,design,db}`) foram substituídas pelos pacotes publicados no npm `@cbrl/{tsconfig,eslint-config,prettier-config,commitlint-config,env,testing,design,pg}` (fonte: `kaycabral/toolkit`); só `packages/product` segue local.
 
-**TODO — CI/CD pesado, ainda não portado do GitLab** (o GitHub Actions hoje só roda `.github/workflows/ci.yml`: format, lint, typecheck, unit e build):
+Em 2026-11-18 a produção saiu de GCP/Firebase pra Supabase + Vercel ([ADR 0020](./docs/decisions/0020-supabase-vercel.md)), e o CI/CD foi portado pro GitHub Actions (`.github/workflows/ci.yml`): checks (format, lint, typecheck, unit, build), integração Postgres, higiene de migrations e E2E `@critical` em PR/`main`, suíte E2E completa toda noite e `migrate-production` como gate do deploy da Vercel.
 
-- Integração Postgres (`pnpm test:integration`, `apps/web` `test:integration:pg`/`test:integration:events:pg`) e E2E Playwright (`@critical` em PR, suíte completa no release).
-- Release via semantic-release (`apps/web/.releaserc.json` ainda usa `@semantic-release/gitlab`; tags `oilio-v*`).
-- Deploy Cloud Run (`apps/web/Dockerfile`) + job de migração, autenticação keyless via WIF.
-- Gates de qualidade do monorepo: knip, depcruise, type-coverage, mutation (Stryker), catraca de cobertura e badges.
+**Pendências:**
+
+- Gates de qualidade do monorepo ainda fora do CI: knip, depcruise, type-coverage, mutation (Stryker) — os scripts existem (`pnpm knip`, `pnpm type-coverage`, `pnpm mutation`), mas não bloqueiam PR.
+- Issues e a Wiki (briefs, PRDs) continuam no GitLab por enquanto.
 
 ## License
 

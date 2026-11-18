@@ -15,13 +15,13 @@ import { aggregateRef, appendEventToTx } from '@/domain/effect'
 import { loadActiveCatalogService } from '@/features/agenda/adapters/appointment-write-helpers'
 import { validateAppointmentWrite } from '@/features/agenda/adapters/validate-appointment-write'
 import { formatNoticeWindow } from '@/features/me/core/cancel-notice'
+import { getSessionUser } from '@/shared/auth/session'
 import {
   type AppointmentRow,
   rowToDoc as apptRowToDoc,
 } from '@/shared/db/pg/effect/appointment-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { commitSaga, emitEvent } from '@/shared/effect-bridge'
-import { getSessionUser } from '@/shared/firebase/admin'
 import { track } from '@/shared/lib/track'
 import { listMemberOperationAppointmentsInRange } from '@/shared/org/appointment-read'
 import { getUnitById } from '@/shared/org/unit-read'
@@ -117,8 +117,7 @@ const TIME_RE = /^\d{2}:\d{2}$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export type OwnRescheduleBusyResult =
-  | { ok: true; busy: AppointmentForOverlap[] }
-  | { ok: false; error: string }
+  { ok: true; busy: AppointmentForOverlap[] } | { ok: false; error: string }
 
 export async function loadOwnRescheduleBusy(input: {
   orgId: string

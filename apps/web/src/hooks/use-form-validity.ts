@@ -51,13 +51,11 @@ export function useFormValidity<T extends HTMLFormElement = HTMLFormElement>(): 
 
 function firstInvalidFieldLabel(form: HTMLFormElement): string | null {
   for (const el of Array.from(form.elements)) {
-    if (
-      !(
-        el instanceof HTMLInputElement ||
-        el instanceof HTMLSelectElement ||
-        el instanceof HTMLTextAreaElement
-      )
-    ) {
+    if (!(
+      el instanceof HTMLInputElement ||
+      el instanceof HTMLSelectElement ||
+      el instanceof HTMLTextAreaElement
+    )) {
       continue
     }
     if (el.willValidate && !el.checkValidity()) {

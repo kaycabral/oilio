@@ -59,7 +59,13 @@ export function OnboardingForm() {
         <Label htmlFor="onboarding-name" className="text-sm font-medium">
           Nome do negócio
         </Label>
-        <Input id="onboarding-name" name="name" required minLength={2} placeholder="Barbearia do Bairro" />
+        <Input
+          id="onboarding-name"
+          name="name"
+          required
+          minLength={2}
+          placeholder="Barbearia do Bairro"
+        />
       </div>
 
       <div className="flex flex-col gap-1">

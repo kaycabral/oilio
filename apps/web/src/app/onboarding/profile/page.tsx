@@ -2,9 +2,9 @@ import { attributionToSearchParams } from '@/domain'
 import { deriveProfilePrefill } from '@/features/onboarding/core/profile-form'
 import { resolveSignupOrgContext } from '@/features/onboarding/core/signup-context'
 import { CompleteProfileForm } from '@/features/onboarding/ui/CompleteProfileForm'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { getUserById } from '@/shared/db/pg/users-store'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { safeNext } from '@/shared/routes'
 import { Typography } from '@cbrl/design'
 import { redirect } from 'next/navigation'
@@ -16,7 +16,7 @@ export default async function CompleteProfilePage({
 }: {
   searchParams: SearchParams
 }) {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

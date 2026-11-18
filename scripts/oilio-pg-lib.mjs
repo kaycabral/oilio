@@ -1,16 +1,12 @@
 // Shared Postgres-local plumbing for the oilio relational backend (#1202).
 //
-// Two consumers, ONE source of truth for "where is the oilio DB and how do I
-// bring it up":
-//   • scripts/oilio-events-it.mjs  — integration runner (up → migrate-per-suite
-//     via globalSetup → run → tear DOWN).
-//   • scripts/oilio-db-up.mjs      — dev runner (up → migrate → LEAVE running),
-//     the prerequisite for `pnpm db:seed` / `pnpm local`.
+// Used by the integration runners (`oilio-events-it.mjs`, `product-it.mjs`):
+// up → migrate-per-suite via globalSetup → run → tear DOWN. Dev, seed and E2E
+// run on the local Supabase stack instead (`pnpm --filter @oilio/web db:start`).
 //
-// The event store lives in a SEPARATE logical database `oilio` on the same
-// instance as the sovereign base `produtos` (PRD: "1 instância, 2 databases
-// lógicos"). URL resolution mirrors the three modes the integration runner has
-// always supported, so both consumers agree on the connection in every env:
+// The suites isolate the event store in a logical database `oilio` next to
+// `produtos` on one ephemeral Postgres (in production both share one Supabase
+// database). URL resolution supports three modes:
 //   • OILIO_DATABASE_URL set (CI `services:`)            → use it; admin = produtos sibling.
 //   • DATABASE_URL set (capped test-suite container)     → derive oilio from produtos.
 //   • neither (bare local)                               → ephemeral compose container.
@@ -134,17 +130,4 @@ export async function ensureOilioDatabase(adminUrl) {
   } finally {
     await client.end()
   }
-}
-
-// Apply the drizzle migrations against the `oilio` event-store database via the
-// app's CANONICAL standalone entrypoint (`scripts/migrate-event-store.mjs`) —
-// the same `node` script the Cloud Run migration Job runs. It's a plain node
-// entrypoint (no workspace TS resolution), so we just give it OILIO_DATABASE_URL
-// in password mode. Reused by the dev `db:up` path; the integration suites
-// migrate themselves via vitest globalSetup, so the runner does NOT call this.
-const migrateEntrypoint = path.join(webDir, 'scripts', 'migrate-event-store.mjs')
-export function migrateOilio(oilioUrl) {
-  return run('node', [migrateEntrypoint], {
-    env: { ...process.env, OILIO_DATABASE_URL: oilioUrl },
-  })
 }

@@ -7,13 +7,13 @@ import {
 } from '@/domain'
 import { SubscriptionConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
+import { getSessionUser } from '@/shared/auth/session'
 import {
   rowToDoc as subscriptionRowToDoc,
   type SubscriptionRow,
 } from '@/shared/db/pg/effect/subscription-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { emitEvent } from '@/shared/effect-bridge'
-import { getSessionUser } from '@/shared/firebase/admin'
 import { Schema } from 'effect'
 
 export type SelfCancelResult = { ok: true } | { ok: false; error: string }

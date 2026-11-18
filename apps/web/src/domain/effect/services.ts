@@ -23,16 +23,7 @@ export class PersistencePort extends Context.Tag('PersistencePort')<
 >() {}
 
 export type FirestoreWhereOp =
-  | '=='
-  | '!='
-  | '<'
-  | '<='
-  | '>'
-  | '>='
-  | 'in'
-  | 'not-in'
-  | 'array-contains'
-  | 'array-contains-any'
+  '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not-in' | 'array-contains' | 'array-contains-any'
 
 export type QueryConstraint =
   | {
