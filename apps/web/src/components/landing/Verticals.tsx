@@ -1,4 +1,4 @@
-import { Badge, Typography } from '@oilio/design'
+import { Badge, Typography } from '@cbrl/design'
 
 const ACTIVE = [
   { name: 'Barbearia', description: 'Cortes, planos mensais e comissão por barbeiro.' },

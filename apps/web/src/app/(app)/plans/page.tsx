@@ -1,6 +1,6 @@
 import { loadPlansPage } from '@/features/plans/adapters/load-plans'
 import { PlansList } from '@/features/plans/ui/PlansList'
-import { Main } from '@oilio/design'
+import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 
 export default async function PlansPage({

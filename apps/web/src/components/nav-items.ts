@@ -2,7 +2,7 @@ import { canManageOrg, type Membership } from '@/domain'
 import { hasCapability as tierHasCapability, type Capability } from '@/domain/billing/capabilities'
 import { type Tier } from '@/domain/billing/tiers'
 import { isFeatureEnabled, type FeatureFlag } from '@/shared/flags'
-import type { NavItem, NavSection } from '@oilio/design'
+import type { NavItem, NavSection } from '@cbrl/design'
 import {
   BarChart3,
   Building,

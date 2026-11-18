@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Input } from '@oilio/design'
+import { Button, Input } from '@cbrl/design'
 import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 

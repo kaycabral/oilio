@@ -1,6 +1,6 @@
 import { loadMySubscriptionsPage } from '@/features/me/adapters/load-me'
 import { SubscriptionRow } from '@/features/me/ui/SubscriptionRow'
-import { Main } from '@oilio/design'
+import { Main } from '@cbrl/design'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Minhas assinaturas' }

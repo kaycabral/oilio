@@ -7,7 +7,7 @@
     "scripts/inspect-prod-event-store.mjs",
     "drizzle.config.ts"
   ],
-  "ignoreDependencies": ["tailwindcss", "eslint-config-next"],
+  "ignoreDependencies": ["eslint-config-next"],
   "ignoreBinaries": ["pkill", "eslint", "type-coverage"],
   "drizzle": false,
   "rules": {

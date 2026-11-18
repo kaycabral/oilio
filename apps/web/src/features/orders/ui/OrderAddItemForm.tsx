@@ -18,7 +18,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 

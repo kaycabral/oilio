@@ -36,7 +36,7 @@ import {
   FieldError,
   FieldGroup,
   Stepper,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 
 export type WizardStepId = 'identity' | 'address' | 'hours' | 'agenda' | 'review'

@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
   Typography,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 

@@ -6,7 +6,7 @@ import { getOrgBilling } from '@/shared/org/billing-read'
 import { hasMembershipCapability, requireManagerPage } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
-import { SettingsSection } from '@oilio/design'
+import { SettingsSection } from '@cbrl/design'
 
 export default async function BillingPage() {
   const ctx = await requireManagerPage()

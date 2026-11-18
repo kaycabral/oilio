@@ -10,9 +10,9 @@ Cada workspace (`apps/web`, `packages/*`) tem `CLAUDE.md` próprio quando há re
 
 1. **Next.js: leia a doc local antes de codar.** `node_modules/next/dist/docs/` é a fonte de verdade; o conhecimento de treino está defasado.
 2. **pnpm apenas.** Nunca `npm`/`yarn`/`bun`. Versões compartilhadas vivem no `catalog` do `pnpm-workspace.yaml` — bump = 1 linha + `pnpm install`.
-3. **Aliases.** `@/...` dentro do workspace, `@oilio/<pkg>` entre workspaces. Nunca `../../`.
+3. **Aliases.** `@/...` dentro do workspace, `@oilio/<pkg>` entre workspaces, `@cbrl/<pkg>` pros pacotes compartilhados do npm. Nunca `../../`.
 4. **Codebase em inglês.** Identificadores, mensagens de erro, logs, nomes de eventos.
-5. **Zero comentário no código** (ADR 0018): `oilio/no-non-doc-comments` é `error` em `apps/web`.
+5. **Zero comentário no código** (ADR 0018): `cbrl/no-non-doc-comments` é `error` em `apps/web`.
 6. **ESLint: nunca desabilitar.** Sem `eslint-disable*`. Dívida antiga vive no `eslint-suppressions.json` do workspace (catraca: violação nova falha); `apps/web` não aceita suppressions.
 7. **Tipagem sem escape hatch.** Sem `any`, `as any`, `as unknown as X`, `@ts-ignore`.
 8. **Sem merge sem evidência de execução real** (spec E2E, log de `pnpm test` cobrindo o caminho, ou smoke manual descrito no PR). Ver `TESTING.md`.
@@ -35,4 +35,4 @@ pnpm test:e2e         # Playwright + Postgres + Firebase Auth emulator
 - **Linker isolado do pnpm** (sem `node-linker=hoisted`): toda dependência importada precisa estar declarada no `package.json` do workspace que a importa.
 - **Deploy**: web na Vercel (Root Directory `apps/web`, build `turbo run build`). O turbo roda em modo estrito: env nova de build/runtime precisa entrar em `apps/web/turbo.json` (`env`/`passThroughEnv`).
 - **Postgres**: `scripts/oilio-pg-lib.mjs` concentra a resolução de conexão; `pnpm db:up`/`db:down` sobem o Postgres efêmero (`docker/postgres.compose.yaml`).
-- **Origem**: extraído do monorepo `cbrl` em 2026-11-17 com histórico (`git filter-repo`). `@oilio/{tsconfig,eslint-config,env,testing,design}` são cópias vendorizadas dos `@cbrl/*`. Issues, MRs e Wiki seguem no GitLab por enquanto. CI pesado (E2E, release, deploy Cloud Run) ainda não portado — ver README § Origem e pendências.
+- **Origem**: extraído do monorepo `cbrl` em 2026-11-17 com histórico (`git filter-repo`). Tooling e infra compartilhados (`@cbrl/{tsconfig,eslint-config,prettier-config,commitlint-config,env,testing,design,pg}`) vêm do npm (fonte: `kaycabral/toolkit`); só `packages/product` é local. Issues, MRs e Wiki seguem no GitLab por enquanto. CI pesado (E2E, release, deploy Cloud Run) ainda não portado — ver README § Origem e pendências.

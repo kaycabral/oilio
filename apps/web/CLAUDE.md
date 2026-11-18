@@ -2,19 +2,19 @@
 
 ## Escopo
 
-O app é **um único workspace** (`@oilio/web`). Código do app (domínio, tipos, helpers) vive em `src/` e é consumido via o alias `@/` (ex.: `@/domain`). `packages/*` guarda só infraestrutura (`@oilio/db` pool Postgres, `@oilio/product` base de produtos, `@oilio/design` design system, `@oilio/env`, `@oilio/testing`, tooling) — não promova código de domínio pra lá.
+O app é **um único workspace** (`@oilio/web`). Código do app (domínio, tipos, helpers) vive em `src/` e é consumido via o alias `@/` (ex.: `@/domain`). `packages/*` guarda só infraestrutura app-specific (`@oilio/product` base de produtos) — não promova código de domínio pra lá. Infra compartilhada vem do npm (`@cbrl/pg` pool Postgres, `@cbrl/design` design system, `@cbrl/env`, `@cbrl/testing`, `@cbrl/eslint-config`, `@cbrl/tsconfig`).
 
 ## Aliases
 
-`@/...` resolve pra `apps/web/src/` (intra-app). Ex.: `import { User } from '@/domain'`. Entre workspaces: `@oilio/<pkg>` (ex.: `@oilio/design`, `@oilio/testing`).
+`@/...` resolve pra `apps/web/src/` (intra-app). Ex.: `import { User } from '@/domain'`. Entre workspaces: `@oilio/<pkg>` (ex.: `@oilio/product`); pacotes compartilhados do npm: `@cbrl/<pkg>` (ex.: `@cbrl/design`, `@cbrl/testing`).
 
 ## Arquitetura — feature slices
 
-Código de feature vive em `src/features/<slice>/{core,adapters,ui}` (dependência só desce: `ui→adapters→core`; rota em `app/` é casca-fina). core é puro (sem React/I/O), unit-testável; adapters fazem I/O; ui é componente humilde. Convenção canônica + vocabulário de sufixo + enforcement em [`PATTERNS.md` § Feature slices](../../PATTERNS.md#feature-slices-functional-core--imperative-shell). Parede de lint: `@oilio/eslint-config/configs/layering.mjs` (violar = pipeline vermelho). Migração em burndown — `agenda` é a fatia de referência.
+Código de feature vive em `src/features/<slice>/{core,adapters,ui}` (dependência só desce: `ui→adapters→core`; rota em `app/` é casca-fina). core é puro (sem React/I/O), unit-testável; adapters fazem I/O; ui é componente humilde. Convenção canônica + vocabulário de sufixo + enforcement em [`PATTERNS.md` § Feature slices](../../PATTERNS.md#feature-slices-functional-core--imperative-shell). Parede de lint: `@cbrl/eslint-config/configs/layering.mjs` (violar = pipeline vermelho). Migração em burndown — `agenda` é a fatia de referência.
 
 ## Auth
 
-Firebase Auth + session cookie (Firebase ficou só com Auth pós-cutover #1202). Acesso a dados: event store + projeções Postgres em `@/shared/db` — **não há package `@oilio/db`** (ver § Escopo: workspace único, código compartilhado vive em `src/` via `@/`).
+Firebase Auth + session cookie (Firebase ficou só com Auth pós-cutover #1202). Acesso a dados: event store + projeções Postgres em `@/shared/db` — o pool vem de `@cbrl/pg` (npm), sem package de dados próprio (ver § Escopo: workspace único, código compartilhado vive em `src/` via `@/`).
 
 ## Multi-org — invariantes
 

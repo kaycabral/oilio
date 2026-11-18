@@ -1,7 +1,7 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { loadNewCatalogItemPage } from '@/features/catalog/adapters/load-catalog'
 import { CatalogItemForm } from '@/features/catalog/ui/CatalogItemForm'
-import { Main } from '@oilio/design'
+import { Main } from '@cbrl/design'
 
 export default async function NewCatalogItemPage({
   searchParams,

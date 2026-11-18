@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
   SettingsSection,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { redirect } from 'next/navigation'
 
 export default async function PrivacySettingsPage() {

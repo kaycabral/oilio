@@ -17,7 +17,7 @@ import {
   RadioGroup,
   RadioGroupItem,
   Switch,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 

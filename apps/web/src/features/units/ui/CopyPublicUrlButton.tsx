@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from '@oilio/design'
+import { Button } from '@cbrl/design'
 import { useState } from 'react'
 import { toast } from 'sonner'
 

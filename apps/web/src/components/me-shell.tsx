@@ -2,7 +2,7 @@
 
 import { UserMenu } from '@/components/user-menu'
 import { toRoute } from '@/shared/routes'
-import { AppShell as BaseAppShell } from '@oilio/design'
+import { AppShell as BaseAppShell } from '@cbrl/design'
 import { UserCog } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'

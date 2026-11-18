@@ -1,4 +1,4 @@
-import { Badge, Typography } from '@oilio/design'
+import { Badge, Typography } from '@cbrl/design'
 import { KeyRound } from 'lucide-react'
 
 export function PricingMultiBusiness() {

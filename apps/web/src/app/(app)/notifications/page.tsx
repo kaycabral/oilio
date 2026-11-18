@@ -1,7 +1,7 @@
 import { loadNotificationsPage } from '@/features/notifications/adapters/load-notifications'
 import { NotificationsList } from '@/features/notifications/ui/NotificationsList'
 import { isFeatureEnabled } from '@/shared/flags'
-import { Main } from '@oilio/design'
+import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 
 export default async function NotificationsPage({

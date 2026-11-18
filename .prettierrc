@@ -1,8 +1,1 @@
-{
-  "semi": false,
-  "singleQuote": true,
-  "trailingComma": "all",
-  "printWidth": 100,
-  "plugins": ["prettier-plugin-organize-imports", "prettier-plugin-tailwindcss"],
-  "tailwindFunctions": ["cn", "clsx", "cva"]
-}
+"@cbrl/prettier-config/tailwind"

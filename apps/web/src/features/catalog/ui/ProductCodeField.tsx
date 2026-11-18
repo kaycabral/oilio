@@ -5,7 +5,7 @@ import {
   normalizeCodeInput,
   type CodeFormState,
 } from '@/features/catalog/core/catalog-item-form'
-import { Input, Label } from '@oilio/design'
+import { Input, Label } from '@cbrl/design'
 
 export function ProductCodeField({
   defaultValue,

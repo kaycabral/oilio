@@ -2,7 +2,7 @@
 
 import type { CatalogServiceItem, MemberOperation } from '@/domain'
 import { setServiceMemberOperations } from '@/features/catalog/adapters/catalog.actions'
-import { Button, Checkbox } from '@oilio/design'
+import { Button, Checkbox } from '@cbrl/design'
 import { useState, useTransition } from 'react'
 
 export function ServiceMemberOperationsForm({

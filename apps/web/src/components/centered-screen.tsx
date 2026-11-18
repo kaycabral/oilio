@@ -1,4 +1,4 @@
-import { cn } from '@oilio/design'
+import { cn } from '@cbrl/design'
 import type { ReactNode } from 'react'
 
 export function CenteredScreen({

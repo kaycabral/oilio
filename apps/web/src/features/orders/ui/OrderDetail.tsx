@@ -22,7 +22,7 @@ import {
   statusLine,
 } from '@/features/orders/core/order-detail-format'
 import type { OrgMember } from '@/shared/org/membership'
-import { Button, Input } from '@oilio/design'
+import { Button, Input } from '@cbrl/design'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'

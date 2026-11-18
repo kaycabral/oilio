@@ -15,7 +15,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@oilio/design'
+} from '@cbrl/design'
 
 function UnitOverrideRow({
   unit,

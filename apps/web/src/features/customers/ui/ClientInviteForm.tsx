@@ -3,7 +3,7 @@
 import { PhoneInput } from '@/components/PhoneInput'
 import { recordClientInviteIssued } from '@/features/customers/adapters/customers.actions'
 import { buildClientInviteWhatsapp } from '@/shared/invite/client-invite'
-import { Button, Input, Label } from '@oilio/design'
+import { Button, Input, Label } from '@cbrl/design'
 import { Check, Copy } from 'lucide-react'
 import { useMemo, useState, useTransition } from 'react'
 

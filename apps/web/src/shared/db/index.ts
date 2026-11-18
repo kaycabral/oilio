@@ -1,4 +1,4 @@
-import { requireEnvOneOf } from '@oilio/env'
+import { requireEnvOneOf } from '@cbrl/env'
 import { applicationDefault, cert, getApps, initializeApp, type App } from 'firebase-admin/app'
 import { getAuth, type Auth } from 'firebase-admin/auth'
 

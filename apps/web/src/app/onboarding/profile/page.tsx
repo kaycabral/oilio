@@ -6,7 +6,7 @@ import { getUserById } from '@/shared/db/pg/users-store'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { safeNext } from '@/shared/routes'
-import { Typography } from '@oilio/design'
+import { Typography } from '@cbrl/design'
 import { redirect } from 'next/navigation'
 
 type SearchParams = Promise<{ next?: string }>

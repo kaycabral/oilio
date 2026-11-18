@@ -1,4 +1,4 @@
-import { requireEnv } from '@oilio/env'
+import { requireEnv } from '@cbrl/env'
 import { defineConfig } from 'drizzle-kit'
 
 /**

@@ -5,7 +5,7 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from '@oilio/design'
+} from '@cbrl/design'
 import type { Route } from 'next'
 import Link from 'next/link'
 

@@ -3,7 +3,7 @@
 import type { CustomerCancelReason, Subscription } from '@/domain'
 import { CUSTOMER_CANCEL_REASON_MESSAGES, SUBSCRIPTION_STATUS_LABEL } from '@/domain'
 import { cancelOwnSubscription } from '@/features/me/adapters/subscriptions.actions'
-import { Button } from '@oilio/design'
+import { Button } from '@cbrl/design'
 import { useState, useTransition } from 'react'
 
 export type SubscriptionRowData = {

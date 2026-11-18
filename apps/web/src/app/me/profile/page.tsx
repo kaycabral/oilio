@@ -1,7 +1,7 @@
 import { EditProfileForm } from '@/features/settings/ui/EditProfileForm'
 import { getSessionUser } from '@/shared/firebase/admin'
 import { getUserDoc } from '@/shared/org/membership'
-import { Main } from '@oilio/design'
+import { Main } from '@cbrl/design'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 

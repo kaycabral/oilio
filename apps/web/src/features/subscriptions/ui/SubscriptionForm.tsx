@@ -17,7 +17,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 

@@ -11,7 +11,7 @@ import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import type { WithCanDelete } from '@/shared/org/delete-guard'
 import { useCapability } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
-import { Button, List } from '@oilio/design'
+import { Button, List } from '@cbrl/design'
 import { CreditCard } from 'lucide-react'
 import Link from 'next/link'
 

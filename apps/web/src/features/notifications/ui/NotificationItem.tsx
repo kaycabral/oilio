@@ -9,7 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@oilio/design'
+} from '@cbrl/design'
 import {
   AlertTriangle,
   Bell,

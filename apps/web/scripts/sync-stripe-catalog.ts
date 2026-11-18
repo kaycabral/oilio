@@ -24,7 +24,7 @@
 // Dry-run prints the plan (create/reuse per object) and writes nothing. --apply
 // performs the creates and prints the resulting price ids ready for the env vars.
 
-import { requireEnv } from '@oilio/env'
+import { requireEnv } from '@cbrl/env'
 import Stripe from 'stripe'
 
 const MANAGED_BY = 'oilio-sync'

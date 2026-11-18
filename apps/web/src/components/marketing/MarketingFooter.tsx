@@ -1,5 +1,5 @@
 import { MARKETING_CONTAINER } from '@/components/marketing/container'
-import { Typography, cn } from '@oilio/design'
+import { Typography, cn } from '@cbrl/design'
 
 export function MarketingFooter() {
   return (

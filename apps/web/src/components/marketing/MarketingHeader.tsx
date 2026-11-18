@@ -1,6 +1,6 @@
 import { MARKETING_CONTAINER } from '@/components/marketing/container'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { Button, cn } from '@oilio/design'
+import { Button, cn } from '@cbrl/design'
 
 export function MarketingHeader() {
   const authEnabled = isFirebaseConfigured()

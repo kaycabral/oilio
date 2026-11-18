@@ -3,7 +3,7 @@ import { getStripe } from '@/shared/billing/stripe-client'
 import { getEventStorePool } from '@/shared/db/pg/pool'
 import { logger } from '@/shared/lib/logger'
 import { withRequestContext } from '@/shared/lib/request-context'
-import { requireEnv } from '@oilio/env'
+import { requireEnv } from '@cbrl/env'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'

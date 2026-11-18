@@ -9,7 +9,7 @@ import {
   AlertDialogTitle,
   Button,
   Input,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { useEffect, useId, useRef, useState, useTransition } from 'react'
 
 export type MutationResult = { ok: true } | { ok: false; error: string }
