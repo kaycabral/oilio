@@ -57,6 +57,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   typedRoutes: true,
+  poweredByHeader: false,
   // Pin the dev overlay to the bottom-right (default is bottom-left, which
   // overlaps the app's own bottom-left UI in dev).
   devIndicators: { position: 'bottom-right' },
