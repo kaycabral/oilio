@@ -11,13 +11,7 @@ import {
 import { toOrgTime } from './timezone'
 
 export type Weekday =
-  | 'sunday'
-  | 'monday'
-  | 'tuesday'
-  | 'wednesday'
-  | 'thursday'
-  | 'friday'
-  | 'saturday'
+  'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday'
 
 export const WEEKDAYS = [
   'sunday',

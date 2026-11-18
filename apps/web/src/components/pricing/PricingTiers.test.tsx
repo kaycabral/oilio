@@ -1,11 +1,11 @@
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
 import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { CHARGEABLE_TIER_SLUGS, PricingTiers, tiersMatchDomain } from './PricingTiers'
 
-vi.mock('@/shared/firebase/config', () => ({
-  isFirebaseConfigured: vi.fn(),
+vi.mock('@/shared/auth/config', () => ({
+  isAuthConfigured: vi.fn(),
 }))
 
 describe('PricingTiers', () => {
@@ -15,7 +15,7 @@ describe('PricingTiers', () => {
   })
 
   it('renders the three tiers with paid CTAs to the owner signup, carrying the plan intent', () => {
-    vi.mocked(isFirebaseConfigured).mockReturnValue(true)
+    vi.mocked(isAuthConfigured).mockReturnValue(true)
     render(<PricingTiers />)
     expect(screen.getByText('Grátis')).toBeInTheDocument()
     expect(screen.getByText('Pro')).toBeInTheDocument()
@@ -28,7 +28,7 @@ describe('PricingTiers', () => {
   })
 
   it('shows the contact tier with a WhatsApp CTA', () => {
-    vi.mocked(isFirebaseConfigured).mockReturnValue(true)
+    vi.mocked(isAuthConfigured).mockReturnValue(true)
     render(<PricingTiers />)
     expect(screen.getByText('Escala')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Falar com a gente' })).toHaveAttribute(
@@ -37,15 +37,15 @@ describe('PricingTiers', () => {
     )
   })
 
-  it('keeps the contact tier CTA even when Firebase is not configured', () => {
-    vi.mocked(isFirebaseConfigured).mockReturnValue(false)
+  it('keeps the contact tier CTA even when auth is not configured', () => {
+    vi.mocked(isAuthConfigured).mockReturnValue(false)
     render(<PricingTiers />)
     expect(screen.getByRole('link', { name: 'Falar com a gente' })).toBeInTheDocument()
   })
 
   it('defaults to the annual price and switches to monthly via the toggle', async () => {
     const user = userEvent.setup()
-    vi.mocked(isFirebaseConfigured).mockReturnValue(true)
+    vi.mocked(isAuthConfigured).mockReturnValue(true)
     render(<PricingTiers />)
     expect(screen.getByText('R$ 74')).toBeInTheDocument()
     expect(screen.queryByText('R$ 89')).not.toBeInTheDocument()
@@ -54,15 +54,15 @@ describe('PricingTiers', () => {
     expect(screen.getByText('R$ 89')).toBeInTheDocument()
   })
 
-  it('hides plan CTAs when Firebase is not configured', () => {
-    vi.mocked(isFirebaseConfigured).mockReturnValue(false)
+  it('hides plan CTAs when auth is not configured', () => {
+    vi.mocked(isAuthConfigured).mockReturnValue(false)
     render(<PricingTiers />)
     expect(screen.getByText('Grátis')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Assinar o Pro' })).not.toBeInTheDocument()
   })
 
   it('never truncates the annual price note (no line-clamp) so md 2-col keeps it whole', () => {
-    vi.mocked(isFirebaseConfigured).mockReturnValue(true)
+    vi.mocked(isAuthConfigured).mockReturnValue(true)
     render(<PricingTiers />)
     const annualNotes = screen.getAllByText(/Cobrado anualmente/)
     expect(annualNotes.length).toBeGreaterThan(0)

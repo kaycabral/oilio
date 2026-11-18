@@ -23,8 +23,7 @@ export type UpsertCustomerInput = {
 }
 
 export type UpsertCustomerResult =
-  | { ok: true; customerId: string; userId: string }
-  | { ok: false; error: string }
+  { ok: true; customerId: string; userId: string } | { ok: false; error: string }
 
 function buildUserStub(
   userId: string,

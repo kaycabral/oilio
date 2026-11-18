@@ -14,7 +14,7 @@ Código de feature vive em `src/features/<slice>/{core,adapters,ui}` (dependênc
 
 ## Auth
 
-Firebase Auth + session cookie (Firebase ficou só com Auth pós-cutover #1202). Acesso a dados: event store + projeções Postgres em `@/shared/db` — o pool vem de `@cbrl/pg` (npm), sem package de dados próprio (ver § Escopo: workspace único, código compartilhado vive em `src/` via `@/`).
+Supabase Auth, só Google (OAuth PKCE via `@supabase/ssr`; ADR [`0020`](../../docs/decisions/0020-supabase-vercel.md)). Código em `@/shared/auth/`: `getSessionUser` (`session.ts`) confia só em `getClaims()` (JWT verificado) e devolve um `SessionUser` (`session-user.ts`: `uid`, `authUserId`, `email`, `displayName`, `picture`, `emailVerified`). `uid` é a identidade do app (imutável no event store): conta nova usa o id do Supabase; conta migrada do Firebase carrega o uid legado em `app_metadata.oilio_uid` (só service role escreve). Callback OAuth em `src/app/auth/callback/route.ts`; refresh de sessão em `src/proxy.ts`; gate de config em `isAuthConfigured` (`@/shared/auth/config`). Não existe `/api/session`. `/api/e2e-signin` (email/senha) é só de teste: 404 sem `ENABLE_TEST_AUTH=true`, que só o Playwright seta. Acesso a dados: event store + projeções Postgres em `@/shared/db` — o pool vem de `@cbrl/pg` (npm), sem package de dados próprio (ver § Escopo: workspace único, código compartilhado vive em `src/` via `@/`).
 
 ## Multi-org — invariantes
 
@@ -99,6 +99,6 @@ Toda mutation server-side **deve** ser disparada por `<form action={serverAction
 
 ## Testes
 
-Convenções universais em [`TESTING.md`](../../TESTING.md). Especificidades do scheduling (Playwright layout, emulator, isolation, rules integration) em [`docs/e2e-conventions.md`](../../docs/e2e-conventions.md). Como rodar (e o que cada script sobe sozinho) em [`README.md` raiz § Scripts](../../README.md#scripts).
+Convenções universais em [`TESTING.md`](../../TESTING.md). Especificidades do scheduling (Playwright layout, stack Supabase local, isolation, integração Postgres) em [`docs/e2e-conventions.md`](../../docs/e2e-conventions.md). Como rodar (e o que cada script sobe sozinho) em [`README.md` raiz § Scripts](../../README.md#scripts).
 
-**Invariantes de dados são provadas contra Postgres real, não mockadas** — testes de RLS/constraint rodam integration (`*.events.pg.integration.test.ts`) contra um Postgres efêmero (docker local / `services: postgres` no CI), nunca contra um banco mockado. O isolamento cross-org e os CHECK/FK/UNIQUE são recusados pelo **banco**, e o teste prova isso de verdade.
+**Invariantes de dados são provadas contra Postgres real, não mockadas** — testes de RLS/constraint rodam integration (`*.events.pg.integration.test.ts`) contra um Postgres efêmero (`docker/postgres.compose.yaml`, local e no CI), nunca contra um banco mockado. O isolamento cross-org e os CHECK/FK/UNIQUE são recusados pelo **banco**, e o teste prova isso de verdade.

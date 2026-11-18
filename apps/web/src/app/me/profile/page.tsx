@@ -1,5 +1,5 @@
 import { EditProfileForm } from '@/features/settings/ui/EditProfileForm'
-import { getSessionUser } from '@/shared/firebase/admin'
+import { getSessionUser } from '@/shared/auth/session'
 import { getUserDoc } from '@/shared/org/membership'
 import { Main } from '@cbrl/design'
 import type { Metadata } from 'next'

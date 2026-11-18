@@ -4,7 +4,7 @@ O anel mais interno do app: aggregates Event-Sourced, read-model types/schemas, 
 
 ## Regras (enforçadas por lint — `@cbrl/eslint-config` layering)
 
-- **100% puro.** Sem React/Next, sem Firestore/admin/`server-only`, sem `@/shared/*`, sem `@/features/*`, sem `@/app/*`. Dependência só desce até aqui. A parede de layering quebra o build se violar.
+- **100% puro.** Sem React/Next, sem I/O (DB, auth, `server-only`), sem `@/shared/*`, sem `@/features/*`, sem `@/app/*`. Dependência só desce até aqui. A parede de layering quebra o build se violar.
 - **Sem I/O.** Acesso a dado vive em `shared/db` ou em `features/*/adapters`. O domínio só calcula/decide/projeta.
 - **Mutation-tested.** É onde a mutation testing paga (lógica pura, sem emulador) — ver `stryker.conf.json` (mira `src/domain/**`).
 

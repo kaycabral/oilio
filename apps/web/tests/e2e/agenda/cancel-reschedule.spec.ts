@@ -62,10 +62,10 @@ test.describe('Agenda — cancelar + reagendar', { tag: '@critical' }, () => {
 
     await dialog.getByRole('button', { name: 'Cancelar agendamento' }).click()
     await expect(dialog.getByText('Cancelar mesmo?')).toBeVisible()
-    await expect(dialog.getByRole('button', { name: 'Sim' })).toBeVisible()
-    await expect(dialog.getByRole('button', { name: 'Não' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Sim', exact: true })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Não', exact: true })).toBeVisible()
 
-    await dialog.getByRole('button', { name: 'Não' }).click()
+    await dialog.getByRole('button', { name: 'Não', exact: true }).click()
     await expect(dialog.getByText('Cancelar mesmo?')).toHaveCount(0)
     await expect(dialog.getByRole('button', { name: 'Cancelar agendamento' })).toBeVisible()
   })

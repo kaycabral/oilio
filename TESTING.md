@@ -86,9 +86,9 @@ Each test has **one** clearly named responsibility. If the name needs an "and" (
 
 - **Single command.** The unit + integration suite runs from the repo root with `pnpm --filter "@<scope>/*" test` (delegates to each workspace's `test` script). E2E runs with `pnpm --filter @<scope>/web run test:e2e`. Smoke runs post-deploy in CI against real URLs. If a test needs manual setup before it runs, that's a bug in the setup, not a thing to document as a workaround.
 - **Every new function gets a test.** A public function shipped without a test is incomplete. A bug fix shipped without a regression test that reproduces the bug is incomplete — the regression test is the proof the bug stays fixed.
-- **Named fakes, not inline stubs.** When mocking external I/O outside HTTP (DB, filesystem, queues), build a named fake reusable across tests (`FakeFirestore`, `FakeMailer`, `FakeStorage`) instead of scattering ad-hoc `vi.fn()` per test. msw already covers HTTP. Inline stubs duplicate setup and rot independently across tests.
+- **Named fakes, not inline stubs.** When mocking external I/O outside HTTP (DB, filesystem, queues), build a named fake reusable across tests (`FakeMailer`, `FakeStorage`) instead of scattering ad-hoc `vi.fn()` per test. msw already covers HTTP. Inline stubs duplicate setup and rot independently across tests.
 - **F.I.R.S.T.** Fast (unit/integration in milliseconds, not seconds), Independent (no order coupling, no shared mutable fixtures across tests), Repeatable (no flake from clocks, network, or ordering — fix the test, don't retry it), Self-validating (the test asserts; no `console.log` for the human to eyeball), Timely (written with the feature, not bolted on months later).
-- **Integration com DB**: hit Firebase emulators (`pnpm run db:start`), nunca mock o Firestore — mocks divergem do real e mascaram regressões de migration.
+- **Integration com DB**: hit Postgres real (efêmero em docker, `docker/postgres.compose.yaml`; o `test:integration` sobe sozinho), nunca mock o banco — mocks divergem do real e mascaram regressões de migration, constraint e RLS.
 - **Co-localização**: `Foo.tsx` ↔ `Foo.test.tsx` no mesmo diretório (não em `__tests__/`).
 
 ## Playwright — source of truth
@@ -166,9 +166,9 @@ Aplicar tag no `test.describe()` propaga pra todos children. Múltiplas: `{ tag:
 
 ### globalSetup — pre-condições de infra
 
-Toda suíte E2E backed por DB/emulator deve ter `globalSetup` que faz **write→query round-trip** antes do primeiro teste. Por quê: probe de URL (`webServer.url`) só confirma que porta tá bindada, não que index/auth está query-ready. Isso expõe race em testes que fazem seed→action-query rápido.
+Toda suíte E2E backed por DB/Auth deve ter `globalSetup` que faz **write→query round-trip** antes do primeiro teste. Por quê: probe de URL (`webServer.url`) só confirma que porta tá bindada, não que index/auth está query-ready. Isso expõe race em testes que fazem seed→action-query rápido.
 
-Padrão canônico (ver `apps/oilio/web/tests/e2e/helpers/global-setup.ts`):
+Padrão canônico (ver `apps/web/tests/e2e/helpers/global-setup.ts`):
 
 ```ts
 // playwright.config.ts
@@ -177,17 +177,17 @@ globalSetup: './tests/e2e/helpers/global-setup.ts',
 // global-setup.ts (resumo)
 export default async function globalSetup() {
   await Promise.all([
-    waitFor('Firestore', tryWriteThenQueryRoundtrip),  // write doc → query by field → cleanup
-    waitFor('Auth',      tryAuthSignup),                // signup sentinel user
+    waitFor('Auth',       tryAuthHealth),            // /auth/v1/health do Supabase local
+    waitFor('EventStore', tryEventStoreRoundtrip),   // conecta no Postgres + query
   ])
-  // Throw com timeout 30s se emulator unhealthy — falha alto, não vira flake
+  // Throw com timeout 30s se o stack local estiver unhealthy — falha alto, não vira flake
 }
 ```
 
 Princípios:
 
 - Roda **1 vez** após `webServer` ficar pronto, antes do 1º teste.
-- Custo <500ms quando emulator saudável; throw fast se não.
+- Custo <500ms quando o stack está saudável; throw fast se não.
 - **Não é gambiarra** — é a primitiva oficial PW pra pré-condições. Vence `sleep` no teste, retry escondido, ou flake mascarado.
 
 ### Test independence + sem retry
@@ -283,7 +283,7 @@ Tudo isso são gambiarras pra mascarar hydration race. A correção é converter
 
 ## Pre-push
 
-`.husky/pre-push` roda `pnpm run typecheck && pnpm test` (typecheck + Vitest unit/integration). **Não** roda E2E (lento demais — boot de Playwright + emulator). Rode E2E manualmente antes de abrir PR pra fluxos que tocam UI.
+`.husky/pre-push` roda `pnpm run typecheck && pnpm test` (typecheck + Vitest unit/integration). **Não** roda E2E (lento demais — build do Next + boot do Playwright). Rode E2E manualmente antes de abrir PR pra fluxos que tocam UI.
 
 ## Cobertura atual (2026-05-15)
 
@@ -303,15 +303,15 @@ Total: ~848 unit + integration, 32 E2E specs / 78 E2E tests.
 
 ## Pré-requisitos por app pra E2E não falhar
 
-| App            | Setup obrigatório antes do `test:e2e`                                                                                                                                                                                            |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| apps/cbrl.dev  | nada — landing estática                                                                                                                                                                                                          |
-| apps/focusely  | nada — sem backend                                                                                                                                                                                                               |
-| apps/oilio/web | **Nenhum** — `test:e2e` sobe os Firebase emulators (9099 + 8080) **e** o Next automaticamente via `playwright.config.ts` `webServer` (`reuseExistingServer`). `db:start` manual é opcional (mantém o emulator quente entre runs) |
-| apps/imovil    | `pnpm run db:start` (Firebase emulators) + `.env.local`                                                                                                                                                                          |
-| apps/gabar/web | `.env.development.local` (com `NEXT_PUBLIC_FIREBASE_*` ou emulator)                                                                                                                                                              |
+| App              | Setup obrigatório antes do `test:e2e`                                                                                                                |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| apps/cbrl.dev    | nada — landing estática                                                                                                                              |
+| apps/focusely    | nada — sem backend                                                                                                                                   |
+| apps/web (oilio) | Stack Supabase local no ar (`pnpm --filter @oilio/web db:start`). O `test:e2e` aplica as migrations, builda e sobe o Next (como `oilio_app`) sozinho |
+| apps/imovil      | `pnpm run db:start` (Firebase emulators) + `.env.local`                                                                                              |
+| apps/gabar/web   | `.env.development.local` (com `NEXT_PUBLIC_FIREBASE_*` ou emulator)                                                                                  |
 
-Sem o emulator/env, o dev server falha no boot (Firestore connection refused) e o Playwright dá timeout em `config.webServer`. Não é falha do teste — é setup faltando.
+Sem o stack local/env, o `globalSetup` falha ("local Supabase may be down") ou o Playwright dá timeout em `config.webServer`. Não é falha do teste — é setup faltando.
 
 ## Where it plugs in
 

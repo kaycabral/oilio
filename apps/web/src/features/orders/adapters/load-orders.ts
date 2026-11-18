@@ -1,8 +1,8 @@
 import { Order, type Customer } from '@/domain'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { rowToDoc as orderRowToDoc, type OrderRow } from '@/shared/db/pg/effect/order-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { filterBySearch } from '@/shared/list/filter-by-search'
 import { resolveListSurfaceState } from '@/shared/list/list-page-state'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
@@ -34,7 +34,7 @@ export async function loadOrdersPage(searchParams: {
   status?: string
   q?: string
 }): Promise<OrdersPageData> {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

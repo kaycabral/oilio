@@ -1,7 +1,7 @@
 'use server'
 
+import { getSessionUser } from '@/shared/auth/session'
 import { patchUser } from '@/shared/db/pg/users-store'
-import { getSessionUser } from '@/shared/firebase/admin'
 import { ACTIVE_UNIT_COOKIE_NAME } from '@/shared/org/active-unit'
 import { getUserMemberships } from '@/shared/org/membership'
 import { cookies } from 'next/headers'

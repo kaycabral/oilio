@@ -6,12 +6,10 @@ import { defineConfig } from 'vitest/config'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 
-// Postgres-backed integration layer (brief 0050, A2). Distinct from
-// `vitest.integration.config.ts` (Firestore emulator): the sovereign-base gate
-// + reconciliation talk to REAL Postgres (`@oilio/product`, from A1), NOT the
-// emulator. These specs read `DATABASE_URL` directly — supplied by the ephemeral
-// Postgres in docker (`scripts/oilio-pg-it.mjs`) locally and by the GitLab CI
-// `services: [postgres]` job. No emulator is booted for this layer.
+// Postgres-backed integration layer (brief 0050, A2): the sovereign-base gate +
+// reconciliation talk to REAL Postgres (`@oilio/product`, from A1). These specs
+// read `DATABASE_URL` directly — supplied by the ephemeral Postgres in docker
+// (`scripts/product-it.mjs`), locally and in CI.
 export default defineConfig({
   resolve: {
     alias: {

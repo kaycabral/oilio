@@ -1,11 +1,11 @@
 import { MeShell } from '@/components/me-shell'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { listLinkedOrgIds } from '@/shared/identity/org-links'
 import { redirect } from 'next/navigation'
 
 export default async function MeLayout({ children }: { children: React.ReactNode }) {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

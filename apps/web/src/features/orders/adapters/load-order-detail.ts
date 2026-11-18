@@ -4,14 +4,14 @@ import {
   loadOrderById,
 } from '@/features/orders/adapters/order-financial-read'
 import type { OrderDetailProps } from '@/features/orders/ui/OrderDetail'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
 import {
   rowToDoc as subscriptionRowToDoc,
   type SubscriptionRow,
 } from '@/shared/db/pg/effect/subscription-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { getCustomerById, listActiveCustomersForOrg } from '@/shared/org/customer-read'
 import {
   getActiveOrgContext,
@@ -41,7 +41,7 @@ async function loadActiveSubscription(
 }
 
 export async function loadOrderDetailPage(orderId: string): Promise<OrderDetailProps> {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

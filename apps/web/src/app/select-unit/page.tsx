@@ -1,13 +1,13 @@
 import { SelectUnitForm } from '@/features/select-unit/ui/SelectUnitForm'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { listAccessibleUnits } from '@/shared/org/active-unit'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
 import { redirect } from 'next/navigation'
 
 export default async function SelectUnitPage() {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

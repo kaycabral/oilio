@@ -5,11 +5,11 @@ const mocks = vi.hoisted(() => ({
   getSessionUser: vi.fn(),
   getUserById: vi.fn(),
   readUnderRls: vi.fn(),
-  isFirebaseConfigured: vi.fn(() => true),
+  isAuthConfigured: vi.fn(() => true),
 }))
 
-vi.mock('@/shared/firebase/admin', () => ({ getSessionUser: mocks.getSessionUser }))
-vi.mock('@/shared/firebase/config', () => ({ isFirebaseConfigured: mocks.isFirebaseConfigured }))
+vi.mock('@/shared/auth/session', () => ({ getSessionUser: mocks.getSessionUser }))
+vi.mock('@/shared/auth/config', () => ({ isAuthConfigured: mocks.isAuthConfigured }))
 vi.mock('@/shared/db/pg/users-store', () => ({
   getUserById: mocks.getUserById,
   getUsersByIds: vi.fn(),
@@ -53,7 +53,7 @@ function signedInAs(role: Role): void {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.isFirebaseConfigured.mockReturnValue(true)
+  mocks.isAuthConfigured.mockReturnValue(true)
 })
 
 describe('requireManagerPage', () => {
@@ -96,8 +96,8 @@ describe('requireManagerPage', () => {
     await expect(requireManagerPage()).rejects.toThrow('NEXT_REDIRECT:/onboarding')
   })
 
-  it('redirects home when Firebase is not configured', async () => {
-    mocks.isFirebaseConfigured.mockReturnValue(false)
+  it('redirects home when auth is not configured', async () => {
+    mocks.isAuthConfigured.mockReturnValue(false)
     await expect(requireManagerPage()).rejects.toThrow('NEXT_REDIRECT:/')
   })
 })

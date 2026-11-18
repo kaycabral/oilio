@@ -1,6 +1,6 @@
 import { AppShell } from '@/components/app-shell'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { listLinkedOrgIds } from '@/shared/identity/org-links'
 import { needsUnitSelection, resolveActiveUnit } from '@/shared/org/active-unit'
 import { getOrgTier } from '@/shared/org/billing-read'
@@ -10,7 +10,7 @@ import { OrgProvider } from '@/shared/org/org-context'
 import { redirect } from 'next/navigation'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

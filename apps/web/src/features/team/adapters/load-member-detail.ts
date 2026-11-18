@@ -7,8 +7,8 @@ import {
   isCatalogService,
   resolveSubjectName,
 } from '@/domain'
+import { getSessionUser } from '@/shared/auth/session'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
-import { getSessionUser } from '@/shared/firebase/admin'
 import { listAgendaBlocksByMemberOperationId } from '@/shared/org/agenda-block-read'
 import { getMemberOperationByUserId } from '@/shared/org/member-operation-read'
 import { getActiveOrgContext, getMembership, getUserDoc } from '@/shared/org/membership'

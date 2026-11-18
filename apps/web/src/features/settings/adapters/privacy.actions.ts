@@ -1,6 +1,7 @@
 'use server'
 
-import { getSessionUser } from '@/shared/firebase/admin'
+import { deleteAuthUser } from '@/shared/auth/admin'
+import { getSessionUser } from '@/shared/auth/session'
 import { formString } from '@/shared/form-data'
 import { isLinkedToOrg } from '@/shared/identity/org-links'
 import { requireOrgCtx } from '@/shared/org/membership'
@@ -10,12 +11,10 @@ import { hasActiveSubscriptionInOrg } from '@/shared/privacy/erase-customer-casc
 import { emitPiiEvent } from '@/shared/privacy/pii-events'
 
 export type AnonymizeAccountActionResult =
-  | { ok: true; cancelledActiveSubscription: boolean }
-  | { ok: false; error: string }
+  { ok: true; cancelledActiveSubscription: boolean } | { ok: false; error: string }
 
 export type ErasureWarningResult =
-  | { ok: true; hasActiveSubscription: boolean }
-  | { ok: false; error: string }
+  { ok: true; hasActiveSubscription: boolean } | { ok: false; error: string }
 
 export async function deleteMyDataAction(): Promise<AnonymizeAccountActionResult> {
   const session = await getSessionUser()
@@ -29,6 +28,7 @@ export async function deleteMyDataAction(): Promise<AnonymizeAccountActionResult
     requestedBy: session.uid,
   })
   const result = await anonymizeAccount(session.uid)
+  await deleteAuthUser(session.authUserId)
   return { ok: true, cancelledActiveSubscription: result.hadActiveSubscription }
 }
 

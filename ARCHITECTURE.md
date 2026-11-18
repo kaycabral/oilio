@@ -2,42 +2,42 @@
 
 ## Stack
 
-- **Monorepo**: pnpm workspaces no monorepo cbrl (`apps/web`, `packages/oilio/{db,lib,shared}`), catalog em `pnpm-workspace.yaml` do root.
+- **Monorepo**: pnpm workspaces (`apps/web`, `packages/product`); tooling compartilhado vem do npm (`@cbrl/*`).
 - **Frontend**: Next.js 16 (App Router) + React 19 + Tailwind 4 + shadcn (Radix UI).
-- **Auth**: Firebase Auth (Google + Microsoft OAuth) with server-side session cookies signed by `firebase-admin`.
-- **DB**: Firestore with Security Rules.
-- **Deploy**: Firebase App Hosting (web) + Firebase (Auth/Firestore) — single-cloud on GCP, Blaze billing required.
-- **Testing**: Vitest (unit, co-located `*.test.tsx`) + Playwright (E2E, `_e2e/*.spec.ts`).
+- **Auth**: Supabase Auth, só Google (OAuth PKCE via `@supabase/ssr`). O servidor confia só em `getClaims()` (JWT verificado); sessão renovada no `src/proxy.ts`.
+- **DB**: Postgres no Supabase — event store + projeções (`@/shared/db`) e a base de produtos (`@oilio/product`) no mesmo banco, journals de migration separados. App conecta como `oilio_app` (só DML, `NOBYPASSRLS`); isolamento por org via RLS.
+- **Deploy**: Vercel (`gru1`) + Supabase (`sa-east-1`); migrations só pelo CI (GitHub Actions). Runbook: [`docs/production.md`](./docs/production.md); decisão: [ADR 0020](./docs/decisions/0020-supabase-vercel.md).
+- **Testing**: Vitest (unit, co-located `*.test.tsx`; integração contra Postgres efêmero) + Playwright (E2E em `apps/web/tests/e2e/`, contra o stack Supabase local).
 - **Node**: 24+ (see `.nvmrc`).
 
 ## Workspaces
 
-| Workspace               | Purpose                                                                |
-| ----------------------- | ---------------------------------------------------------------------- |
-| `apps/web`              | Next.js frontend (`@oilio/web`). Owns routes, UI, auth wiring.         |
-| `packages/oilio/shared` | Types shared across 2+ workspaces (`@oilio/shared`). Pure TS, no deps. |
-| `packages/oilio/db`     | Firebase Admin SDK accessor (`@oilio/db`). Backend only.               |
-| `packages/oilio/lib`    | Operational utilities (`@oilio/lib`) — logger, env, http helpers.      |
+| Workspace          | Purpose                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------- |
+| `apps/web`         | Next.js app (`@oilio/web`). Routes, UI, auth, event store + projeções, migrations (`drizzle/`). |
+| `packages/product` | Base soberana de produtos (`@oilio/product`) — schema, migrations e acesso próprios.            |
 
 ## Data flow
 
 ```
-browser ──(Web SDK)──► Firebase Auth + Firestore (rules enforced)
+browser ──(OAuth PKCE, Google)──► Supabase Auth
                                          │
-                                         ▼ (ID token)
-apps/web /api/session ──verify──► sets __session cookie
+                                         ▼ (code)
+apps/web /auth/callback ──exchange──► cookies de sessão (@supabase/ssr)
                                          │
-RSC / route handlers ──read cookie──► verifySessionCookie via @oilio/db
+src/proxy.ts ──refresh──► sessão renovada a cada request
+                                         │
+RSC / actions / route handlers ──getClaims()──► SessionUser ──► Postgres como oilio_app (RLS)
 
-server jobs/webhooks ──(service account)──► @oilio/db ──► Firestore (bypasses rules)
+crons (Vercel Cron, Bearer $CRON_SECRET) / webhooks (Stripe) ──► Postgres como oilio_app
 ```
 
 ## Aliases & folder pattern
 
 See [`web/CLAUDE.md`](./apps/web/CLAUDE.md) — canonical for `@/*` vs `@oilio/*`, the full folder-pattern table, and the route-local vs promoted rules.
 
-## When to scale beyond Blaze free tier
+## When to scale
 
-- **Firestore quotas / Cloud Functions**: Blaze free tier covers small projects. Watch reads/writes and storage when traffic grows.
-- **App Hosting**: bump `runConfig.maxInstances` and/or set `minInstances > 0` in `apps/web/apphosting.yaml` when cold starts hurt or peak load saturates a single instance.
-- **Add workspaces** (`apps/oilio/worker`, `apps/oilio/api`) when background jobs need long-running compute — wire them to Cloud Run Jobs or Cloud Tasks via Pulumi.
+- **Vercel Hobby → Pro**: Hobby só agenda cron diário; notificações horárias (hoje atrás de flag desligada) exigem Pro.
+- **Supabase**: acompanhar conexões do transaction pooler (6543), tamanho do banco e backups (point-in-time depende do plano).
+- **Add workspaces** quando jobs em background precisarem de compute de longa duração (fora do limite de execução das funções da Vercel).

@@ -1,19 +1,8 @@
-# Ephemeral Postgres for the sovereign product base (@oilio/product, brief 0049).
-#
-# This is the FIRST Postgres in the monorepo. It backs two flows, both against a
-# real database (the brief's point is to prove NATIVE constraints, never a mock):
-#   • dev    — `pnpm product:db:up` brings it up so you can run migrations / poke
-#              the schema locally.
-#   • integration — `pnpm --filter @oilio/product test:integration:docker` brings
-#              it up, applies migrations, runs the integration suite, tears down.
-#
-# It is ephemeral on purpose: no named volume, so a `down -v` (or just a fresh
-# `up`) starts from an empty database. The product base is pre-prod — recreating
-# `produtos` from migrations is the expected reset, not a data-loss event.
-#
-# CI does NOT use this file — GitLab CI attaches Postgres via `services:` on the
-# job (see .gitlab-ci.yml `integration:product`). This file is the local mirror
-# of that service.
+# Ephemeral Postgres for the integration suites (`pnpm test:integration`,
+# `pnpm --filter @oilio/web test:integration`): native constraints, RLS and the
+# event store proved against a real database, never a mock. No named volume, so
+# every run starts empty. The runners in scripts/ bring it up and tear it down.
+# Dev, seed and E2E use the local Supabase stack instead (apps/web/supabase).
 
 services:
   postgres:

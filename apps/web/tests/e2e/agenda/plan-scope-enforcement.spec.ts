@@ -1,4 +1,5 @@
 import { expect, test } from '../fixtures'
+import { nextWeekday } from '../helpers/date'
 import { chooseOption, chooseOptionByIndex } from '../helpers/select'
 import {
   seedAppointment,
@@ -9,6 +10,8 @@ import {
   type SeededOrg,
 } from '../helpers/session'
 import { AgendaPage } from '../pages'
+
+const DAY = nextWeekday('Wed')
 
 async function seedScopeFixture(org: SeededOrg): Promise<{ customerName: string }> {
   const serviceId = await seedService(org.orgId, {
@@ -29,8 +32,8 @@ async function seedScopeFixture(org: SeededOrg): Promise<{ customerName: string 
     memberOperationId: org.memberOperationIds[0]!,
     customerId,
     serviceId,
-    startAt: '2026-08-12T17:00:00.000Z',
-    endAt: '2026-08-12T17:30:00.000Z',
+    startAt: `${DAY}T17:00:00.000Z`,
+    endAt: `${DAY}T17:30:00.000Z`,
     status: 'scheduled',
   })
   return { customerName }
@@ -56,7 +59,7 @@ test.describe(
     }) => {
       const { customerName } = await seedScopeFixture(org)
       const agenda = new AgendaPage(authedPage)
-      await agenda.goto('2026-08-12')
+      await agenda.goto(DAY)
 
       const dialog = await agenda.openNewAppointmentDialog()
       await expect(dialog).toBeVisible()
@@ -65,7 +68,7 @@ test.describe(
       await chooseOptionByIndex(dialog, 'Profissional', 0)
       await chooseOption(dialog, 'Cliente', new RegExp(customerName))
 
-      await dialog.locator('input[name="date"]').fill('2026-08-12')
+      await dialog.locator('input[name="date"]').fill(DAY)
       await chooseOption(dialog, 'Início', '15:00')
 
       await dialog.getByRole('button', { name: /^Agendar$/ }).click()

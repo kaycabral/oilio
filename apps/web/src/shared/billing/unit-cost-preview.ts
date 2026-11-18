@@ -14,8 +14,7 @@ export type UnitCostPreview = {
 }
 
 export type UnitAdditionCost =
-  | { charged: false }
-  | { charged: true; preview: UnitCostPreview | null }
+  { charged: false } | { charged: true; preview: UnitCostPreview | null }
 
 function isProrationLine(line: Stripe.InvoiceLineItem): boolean {
   return line.parent?.subscription_item_details?.proration === true

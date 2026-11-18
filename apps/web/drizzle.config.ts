@@ -5,12 +5,13 @@ import { defineConfig } from 'drizzle-kit'
  * drizzle-kit config for the oilio relational event store (brief 0057).
  *
  * `generate` produces versioned SQL migrations in `drizzle/` (reviewable in the
- * PR); `migrate` applies them. Migrations run in a dedicated Cloud Run Job,
- * NEVER at boot (ADR 0011 D2 — N instances → advisory-lock race) and NEVER via
- * `push` in prod (D3 — rename becomes drop+add → data loss).
+ * PR); `migrate` applies them. Production migrations run only from the CI job
+ * `migrate-production`, NEVER at boot (ADR 0011 D2 — N instances →
+ * advisory-lock race) and NEVER via `push` (D3 — rename becomes drop+add → data
+ * loss). See docs/production.md.
  *
- * Targets `OILIO_DATABASE_URL` (the `oilio` logical database), distinct from the
- * `@oilio/product` `DATABASE_URL` (the `produtos` database) on the same instance.
+ * Targets `OILIO_DATABASE_URL`. In production it is the Supabase session pooler
+ * as the `postgres` owner role; the app itself connects as `oilio_app`.
  */
 export default defineConfig({
   dialect: 'postgresql',

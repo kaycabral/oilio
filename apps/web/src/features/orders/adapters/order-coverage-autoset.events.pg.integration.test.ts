@@ -2,16 +2,16 @@ import { computeOrderTotals, defaultPermissionsForRole, type Order, type Role } 
 import { OrderConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
 import { loadOrderById } from '@/features/orders/adapters/order-financial-read'
+import type { SessionUser } from '@/shared/auth/session'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
-import type { SessionUser } from '@/shared/firebase/admin'
 import { buildUser } from '@/shared/fixtures/domain-builders'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ getSessionUser: vi.fn<() => Promise<SessionUser | null>>() }))
-vi.mock('@/shared/firebase/admin', () => ({ getSessionUser: mocks.getSessionUser }))
+vi.mock('@/shared/auth/session', () => ({ getSessionUser: mocks.getSessionUser }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { addItemToOrder } from './orders.actions'
@@ -180,6 +180,7 @@ function addProductForm(productId: string) {
 function mockSession(uid: string): void {
   mocks.getSessionUser.mockResolvedValue({
     uid,
+    authUserId: uid,
     email: null,
     displayName: null,
     picture: null,

@@ -4,7 +4,7 @@
 // Writes through the SAME canonical path as production: `emitEvent` /
 // `commitSaga` over the Postgres event store (reducer → projection in one ACID
 // tx), the PII sidecars + the global `users` table off the event payload, and
-// Firebase Auth identities for the personas a tester logs in as. NO raw INSERTs,
+// Supabase Auth identities (local stack) for the personas a tester logs in as. NO raw INSERTs,
 // no dual-writes, no `SecurityContext` bypass — the RLS GUC is derived per-write
 // from each `AggregateRef.orgId`.
 //
@@ -53,8 +53,9 @@ async function main(): Promise<void> {
     [
       '',
       '✓ seed complete — 6 orgs.',
-      '  Login: "Continuar com Google" → Add new account → use one of the emails',
-      '  below (Auth emulator, no password). Each maps to a fixed seeded uid:',
+      '  Login (local stack only, ENABLE_TEST_AUTH=true): POST /api/e2e-signin with one',
+      '  of the emails below and password "oilio-local-dev" (see README § Scripts).',
+      '  Each maps to a fixed seeded uid:',
       '    • dev@cbrl.local        — Zé Owner (Barbearia, owner)',
       '    • ze.pro@cbrl.local     — Zé Barbeiro (member operator)',
       '    • recep@cbrl.local      — Paula (receptionist)',

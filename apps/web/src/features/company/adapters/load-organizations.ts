@@ -1,6 +1,6 @@
 import { operatesCrossUnit, type Org, type Unit } from '@/domain'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import {
   attachCanDelete,
   unitHasActiveReference,
@@ -22,7 +22,7 @@ export type OrganizationsPageData = {
 }
 
 export async function loadOrganizationsPage(): Promise<OrganizationsPageData> {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

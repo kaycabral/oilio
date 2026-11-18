@@ -4,8 +4,8 @@ import { type CashReportRange, resolveCashReportRange } from '@/features/cash/co
 import { loadCommissionsSectionData } from '@/features/reports/adapters/commissions.repo'
 import { type SalesSectionData, loadSalesSectionData } from '@/features/reports/adapters/sales.repo'
 import { type CommissionsSectionData } from '@/features/reports/core/commissions'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { getOrgTier } from '@/shared/org/billing-read'
 import { getActiveOrgContext } from '@/shared/org/membership'
@@ -27,7 +27,7 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
 }
 
 export async function loadReportsPage(params: SearchParams): Promise<ReportsPageProps> {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

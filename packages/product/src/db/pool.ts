@@ -4,8 +4,8 @@ import {
   initManagedPool,
   type ManagedPool,
   type PoolEnvConfig,
+  supabaseSsl,
 } from '@cbrl/pg'
-import { cloudSqlIam } from '@cbrl/pg/cloud-sql'
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
 import type { Pool } from 'pg'
 import * as schema from '../schema'
@@ -13,15 +13,14 @@ import * as schema from '../schema'
 /**
  * Postgres connection for the sovereign product base.
  *
- * Shares the `@cbrl/pg` connection policy with the oilio event store (same Cloud
- * SQL instance, 1 instance / 2 logical DBs): IAM auth in production (passwordless,
- * the connector dials the private IP over the VPC), plain connection string
- * (`DATABASE_URL`) locally/CI/tests.
+ * Shares the `@cbrl/pg` connection policy with the oilio event store: in
+ * production both live in the same Supabase Postgres, reached over the pooler
+ * with a password and TLS verified against the pinned Supabase root CA
+ * (`supabaseSsl`); locally/CI/tests `DATABASE_URL` points at the ephemeral
+ * Postgres and TLS is left to the URL.
  *
- * Two init paths so the IAM connector's async-ness never leaks into callers:
- * production opens the pool once at boot via `initProductDb()` (fail-fast); tests
- * /local lazily build the sync password-mode pool on first use. See the oilio
- * `pool.ts` for the full rationale.
+ * Production opens the pool once at boot via `initProductDb()` (fail-fast);
+ * tests/local lazily build it on first use.
  *
  * Pool state lives in the `@cbrl/pg` process-wide `globalThis` registry, NOT a
  * module-level `let`: the Next standalone build (Turbopack) duplicates this
@@ -33,11 +32,7 @@ import * as schema from '../schema'
 export const PRODUCT_POOL_CONFIG: PoolEnvConfig = {
   connectionStringEnvVar: 'DATABASE_URL',
   database: 'produtos',
-  iam: cloudSqlIam({
-    enabledEnvVar: 'PRODUCT_USE_IAM_AUTH',
-    instanceEnvVar: 'PRODUCT_CLOUDSQL_INSTANCE',
-    userEnvVar: 'PRODUCT_IAM_DB_USER',
-  }),
+  passwordModeSsl: supabaseSsl,
 }
 
 // Drizzle wrappers are stateless views over the pool, cached per pool instance.
@@ -51,7 +46,7 @@ function dbFor(managed: ManagedPool): NodePgDatabase<typeof schema> {
   return built
 }
 
-/** Open the product-base pool at boot (required in IAM mode). Idempotent. */
+/** Open the product-base pool at boot (fail-fast on a bad connection string). Idempotent. */
 export async function initProductDb(): Promise<void> {
   await initManagedPool(PRODUCT_POOL_CONFIG)
 }

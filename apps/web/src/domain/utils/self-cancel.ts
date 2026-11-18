@@ -6,11 +6,7 @@ export type SelfCancelCheck =
   | {
       ok: false
       reason:
-        | 'already_cancelled'
-        | 'already_completed'
-        | 'already_no_show'
-        | 'past'
-        | 'outside_window'
+        'already_cancelled' | 'already_completed' | 'already_no_show' | 'past' | 'outside_window'
       minutesToStart: number
       requiredMinutes?: number
     }

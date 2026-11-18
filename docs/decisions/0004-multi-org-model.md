@@ -10,7 +10,7 @@
 
 ## Contexto
 
-Scheduling V0 precisa servir **múltiplos orgs** (3 unidades do cliente-zero hoje; rede regional em V1; nacional em V2). Cliente-zero (Barbearia do Bairro) opera 3 barbearias sob mesmo CNPJ — mas o produto precisa funcionar igual pra orgs independentes que NÃO podem ver dado um do outro.
+Scheduling V0 precisa servir **múltiplos orgs** (cliente-zero com 3 unidades hoje; rede regional em V1; nacional em V2). O cliente-zero opera 3 barbearias sob o mesmo CNPJ — mas o produto precisa funcionar igual pra orgs independentes que NÃO podem ver dado um do outro.
 
 Três alternativas foram consideradas pra implementar isolamento:
 

@@ -162,6 +162,13 @@
       "when": 1783619839942,
       "tag": "0022_elite_senator_kelly",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795030021934,
+      "tag": "0023_app_role_and_api_lockdown",
+      "breakpoints": true
     }
   ]
 }

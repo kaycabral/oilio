@@ -47,3 +47,14 @@ Regras processuais para não sermos enganados de novo por informação declarati
 - **Positivo:** uma única fonte de verdade sobre o estado do ambiente; premissas stale deixam de se propagar silenciosamente; decisões de imutabilidade (upcaster vs. rewrite, D6) ganham âncora canônica; a regra `verified <DATA>` torna afirmações factuais auto-datadas.
 - **Custo:** comentários factuais sobre infra ficam mais verbosos (data + método). Aceito — o custo de uma premissa stale load-bearing (quase corrompeu o Razão; quase reescreveu event log de prod) é ordens de magnitude maior.
 - **Aberto:** a auditoria #1383 corrigiu os pontos mapeados (comentários das migrations 0007/0019, config de `member_operation`, ADR 0008, seed reset); a estratégia D6 do ADR 0013 continua marcada como premissa a invalidar quando/se o épico for retomado.
+
+## Atualização 2026-11-18 — ambiente migrado para Supabase + Vercel
+
+A evidência da seção 1 (GCP `cbrl-oilio-production`, Cloud Run, Cloud SQL `oilio-db`) é **histórica**: o ambiente GCP foi desligado em 2026-08-07, com dump completo dos bancos. A decisão de plataforma está no [ADR 0020](0020-supabase-vercel.md); o runbook, em [`docs/production.md`](../production.md). A seção 2 (event store imutável) continua valendo integralmente.
+
+Estado atual (verified 2026-11-18 via queries no banco de produção como `postgres` e como `oilio_app`, Supabase CLI e API da Vercel):
+
+- Postgres + Auth: Supabase, projeto `oilio` (`sa-east-1`). Schema aplicado pelas migrations do repo (journal `drizzle.__drizzle_migrations` com 24 entradas, `__drizzle_migrations_product` com 2).
+- Dados: restaurados do dump de 2026-08-07, com contagem conferida tabela a tabela (`orgs`=4, `users`=11, `events`=77, `memberships`=9, `org_billing`=2, `subscriptions`=2). O `events` foi restaurado byte a byte, sem reescrita.
+- Identidade: os 11 usuários legados existem no Supabase Auth com o uid do Firebase em `app_metadata.oilio_uid`.
+- App: Vercel, projeto `oilio`, `www.oilio.com.br`, região `gru1`; o runtime conecta como `oilio_app` (sem `BYPASSRLS`).

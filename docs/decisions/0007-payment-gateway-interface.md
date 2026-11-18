@@ -23,7 +23,7 @@ Este ADR consolida as cláusulas + contrato `PaymentGateway` num único local t�
 
 #### C1 — Troca de gateway sem lock-in (não-negociável)
 
-Origem: **Acordo de Sócios** ([`01-wiki-privada`](https://github.com/cbrl-dev/cbrl/wiki/01-wiki-privada)). Escolha Pagar.me/Stone vinculada às condições comerciais do cliente-zero; se cessarem, troca de gateway sem refatoração estrutural.
+Origem: a escolha do gateway depende de condições comerciais que podem mudar; se mudarem, a troca de gateway acontece sem refatoração estrutural.
 
 **Implicação técnica:**
 
@@ -94,5 +94,4 @@ Briefs do cluster Pagar.me têm `cluster: pagarme` no frontmatter. Filtrável vi
 
 - Brief deprecated: [`08-Features-0006-pagar-me-umbrella`](https://github.com/cbrl-dev/cbrl/wiki/08-Features-0006-pagar-me-umbrella)
 - Princípio canônico harness: [`#15` Cláusulas cross-brief em ADR](https://github.com/cbrl-dev/harness/blob/main/docs/product-planning-principles.md#15) (a criar)
-- Acordo de Sócios: [`01-wiki-privada`](https://github.com/cbrl-dev/cbrl/wiki/01-wiki-privada)
 - Modelo de Receita: [`02-Estrategia-Modelo-Receita`](https://github.com/cbrl-dev/cbrl/wiki/02-Estrategia-Modelo-Receita)

@@ -1,8 +1,7 @@
 import { normalizeBrazilMobile } from '@/domain'
 
 export type MemberInviteWhatsappResult =
-  | { ok: true; whatsapp: string; href: string }
-  | { ok: false; error: string }
+  { ok: true; whatsapp: string; href: string } | { ok: false; error: string }
 
 export function buildMemberInviteMessage(orgName: string, inviteLink: string): string {
   return (

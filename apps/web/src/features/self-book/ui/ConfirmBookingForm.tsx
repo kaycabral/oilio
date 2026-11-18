@@ -3,7 +3,7 @@
 import { buildWhatsappLink, type CancellationPolicy } from '@/domain'
 import { createWizardBooking } from '@/features/self-book/adapters/wizard-book.actions'
 import { formatNoticeWindow } from '@/features/self-book/core/format'
-import { getClientAuth } from '@/shared/firebase/client'
+import { signOutClient } from '@/shared/auth/sign-out'
 import { toRoute } from '@/shared/routes'
 import {
   Button,
@@ -14,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@cbrl/design'
-import { signOut } from 'firebase/auth'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
@@ -71,8 +70,7 @@ export function ConfirmBookingForm({
     setSwitching(true)
     const next = encodeURIComponent(window.location.pathname + window.location.search)
     startTransition(async () => {
-      await fetch('/api/session', { method: 'DELETE' })
-      await signOut(getClientAuth()).catch(() => {})
+      await signOutClient()
       router.push(`/login?next=${next}`)
       router.refresh()
     })

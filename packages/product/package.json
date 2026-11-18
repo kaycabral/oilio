@@ -22,7 +22,6 @@
   "dependencies": {
     "@cbrl/env": "^0.1.0",
     "@cbrl/pg": "^0.2.0",
-    "@google-cloud/cloud-sql-connector": "catalog:",
     "drizzle-orm": "catalog:",
     "pg": "catalog:"
   },
@@ -33,6 +32,7 @@
     "@vitest/coverage-v8": "catalog:",
     "drizzle-kit": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }

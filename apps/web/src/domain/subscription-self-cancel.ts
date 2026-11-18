@@ -1,14 +1,10 @@
 import type { Subscription, SubscriptionStatus } from './types/subscription'
 
 export type CustomerCancelReason =
-  | 'already_cancelled'
-  | 'not_active'
-  | 'wrong_owner'
-  | 'cancel_at_period_end_already_set'
+  'already_cancelled' | 'not_active' | 'wrong_owner' | 'cancel_at_period_end_already_set'
 
 export type CustomerCancelResult =
-  | { canCancel: true }
-  | { canCancel: false; reason: CustomerCancelReason }
+  { canCancel: true } | { canCancel: false; reason: CustomerCancelReason }
 
 export function canCustomerCancelSubscription(
   subscription: Subscription,

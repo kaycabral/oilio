@@ -7,8 +7,7 @@
       "passThroughEnv": [
         "OILIO_DATABASE_URL",
         "DATABASE_URL",
-        "FIREBASE_ADMIN_CLIENT_EMAIL",
-        "FIREBASE_ADMIN_PRIVATE_KEY",
+        "SUPABASE_SECRET_KEY",
         "STRIPE_SECRET_KEY",
         "STRIPE_WEBHOOK_SECRET",
         "STRIPE_PRICE_*",
@@ -16,7 +15,7 @@
         "SENTRY_AUTH_TOKEN",
         "SENTRY_ORG",
         "SENTRY_PROJECT",
-        "GIT_COMMIT_SHA"
+        "VERCEL_GIT_COMMIT_SHA"
       ]
     }
   }

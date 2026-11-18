@@ -1,8 +1,8 @@
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
 import { Button, Typography } from '@cbrl/design'
 
 export function ClosingCta() {
-  if (!isFirebaseConfigured()) return null
+  if (!isAuthConfigured()) return null
 
   return (
     <section className="bg-muted my-16 flex flex-col items-center gap-6 rounded-2xl px-6 py-16 text-center">

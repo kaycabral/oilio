@@ -9,12 +9,12 @@ import {
   type User,
 } from '@/domain'
 import { hasCapability, type Capability } from '@/domain/billing/capabilities'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser, type SessionUser } from '@/shared/auth/session'
 import { rowToDoc, type MembershipRow } from '@/shared/db/pg/effect/membership-projector'
 import { getPublicOrgNamesByIds } from '@/shared/db/pg/public-org-directory'
 import { readAsSubject, readUnderRls } from '@/shared/db/pg/rls-read'
 import { getUserById, getUsersByIds } from '@/shared/db/pg/users-store'
-import { getSessionUser, type SessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { track } from '@/shared/lib/track'
 import { getOrgTier } from '@/shared/org/billing-read'
 import { Schema } from 'effect'
@@ -191,7 +191,7 @@ export async function requireOwnerCtx(): Promise<RequireCtxResult> {
 }
 
 export async function requireManagerPage(notManagerTo: Route = '/agenda'): Promise<RequiredOrgCtx> {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
   const session = await getSessionUser()
   if (!session) redirect('/login')
   const ctx = await getActiveOrgContext(session.uid)
@@ -204,7 +204,7 @@ export async function requireCapabilityPage(
   capability: MembershipCapability,
   notAllowedTo: Route = '/agenda',
 ): Promise<RequiredOrgCtx> {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
   const session = await getSessionUser()
   if (!session) redirect('/login')
   const ctx = await getActiveOrgContext(session.uid)

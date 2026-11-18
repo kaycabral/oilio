@@ -5,7 +5,7 @@ import { ConfirmBookingForm } from './ConfirmBookingForm'
 const createWizardBooking = vi.fn()
 const push = vi.fn()
 const refresh = vi.fn()
-const signOut = vi.fn()
+const signOutClient = vi.fn()
 
 vi.mock('@/features/self-book/adapters/wizard-book.actions', () => ({
   createWizardBooking: (fd: FormData): unknown => createWizardBooking(fd),
@@ -15,12 +15,8 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, refresh }),
 }))
 
-vi.mock('@/shared/firebase/client', () => ({
-  getClientAuth: () => ({}),
-}))
-
-vi.mock('firebase/auth', () => ({
-  signOut: (auth: unknown): unknown => signOut(auth),
+vi.mock('@/shared/auth/sign-out', () => ({
+  signOutClient: (): unknown => signOutClient(),
 }))
 
 const baseProps = {
@@ -50,12 +46,8 @@ describe('ConfirmBookingForm — login gate (brief 0077 #1275)', () => {
     createWizardBooking.mockReset()
     push.mockReset()
     refresh.mockReset()
-    signOut.mockReset()
-    signOut.mockResolvedValue(undefined)
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(new Response(null, { status: 200 }))),
-    )
+    signOutClient.mockReset()
+    signOutClient.mockResolvedValue(undefined)
   })
 
   it('carries NO customer PII inputs — name/whatsapp/email are removed', () => {
@@ -97,8 +89,7 @@ describe('ConfirmBookingForm — login gate (brief 0077 #1275)', () => {
     const link = screen.getByRole('button', { name: /não é você\? trocar de conta/i })
     fireEvent.click(link)
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1))
-    expect(fetch).toHaveBeenCalledWith('/api/session', { method: 'DELETE' })
-    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(signOutClient).toHaveBeenCalledTimes(1)
     expect(push.mock.calls[0]![0]).toMatch(/^\/login\?next=/)
     expect(refresh).toHaveBeenCalledTimes(1)
   })

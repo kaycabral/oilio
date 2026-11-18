@@ -7,12 +7,12 @@ import {
   type BookingLimits,
   type SubscriptionCoverageEntry,
 } from '@/domain'
+import { getSessionUser } from '@/shared/auth/session'
 import {
   rowToDoc as subscriptionRowToDoc,
   type SubscriptionRow,
 } from '@/shared/db/pg/effect/subscription-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
-import { getSessionUser } from '@/shared/firebase/admin'
 import { getOrgBySlug } from '@/shared/org/org'
 import { Schema } from 'effect'
 import 'server-only'

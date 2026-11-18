@@ -1,9 +1,8 @@
 'use client'
 
-import { getClientAuth } from '@/shared/firebase/client'
+import { signOutClient } from '@/shared/auth/sign-out'
 import { toRoute } from '@/shared/routes'
 import { DropdownMenuItem, DropdownMenuSeparator, UserMenu as UserMenuShell } from '@cbrl/design'
-import { signOut } from 'firebase/auth'
 import { CircleHelp, LogOut, type LucideIcon, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -47,8 +46,7 @@ export function UserMenu({
     if (loading) return
     setLoading(true)
     try {
-      await fetch('/api/session', { method: 'DELETE' })
-      await signOut(getClientAuth()).catch(() => {})
+      await signOutClient()
       router.replace('/login')
       router.refresh()
     } catch {

@@ -1,13 +1,13 @@
 import { defaultPermissionsForRole, type Role } from '@/domain'
+import type { SessionUser } from '@/shared/auth/session'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
-import type { SessionUser } from '@/shared/firebase/admin'
 import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
 import { linkCustomerOrg } from '@/shared/identity/org-links'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ getSessionUser: vi.fn<() => Promise<SessionUser | null>>() }))
-vi.mock('@/shared/firebase/admin', () => ({ getSessionUser: mocks.getSessionUser }))
+vi.mock('@/shared/auth/session', () => ({ getSessionUser: mocks.getSessionUser }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { loadMyAppointmentsPage } from './load-me'
@@ -236,6 +236,7 @@ async function seedCompletedWithLinkedState(orgId: string): Promise<string> {
   await linkCustomerOrg(customerUserId, orgId)
   mocks.getSessionUser.mockResolvedValue({
     uid: customerUserId,
+    authUserId: customerUserId,
     email: null,
     displayName: null,
     picture: null,

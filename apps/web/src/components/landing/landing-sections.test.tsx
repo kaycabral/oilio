@@ -1,4 +1,4 @@
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ClosingCta } from './ClosingCta'
@@ -6,8 +6,8 @@ import { Features } from './Features'
 import { HowItWorks } from './HowItWorks'
 import { Verticals } from './Verticals'
 
-vi.mock('@/shared/firebase/config', () => ({
-  isFirebaseConfigured: vi.fn(() => true),
+vi.mock('@/shared/auth/config', () => ({
+  isAuthConfigured: vi.fn(() => true),
 }))
 
 describe('landing sections', () => {
@@ -35,7 +35,7 @@ describe('landing sections', () => {
   })
 
   it('ClosingCta converts to login when auth is configured', () => {
-    vi.mocked(isFirebaseConfigured).mockReturnValue(true)
+    vi.mocked(isAuthConfigured).mockReturnValue(true)
     render(<ClosingCta />)
     expect(screen.getByRole('link', { name: 'Começar agora' })).toHaveAttribute(
       'href',
@@ -43,8 +43,8 @@ describe('landing sections', () => {
     )
   })
 
-  it('ClosingCta renders nothing when Firebase is not configured', () => {
-    vi.mocked(isFirebaseConfigured).mockReturnValue(false)
+  it('ClosingCta renders nothing when auth is not configured', () => {
+    vi.mocked(isAuthConfigured).mockReturnValue(false)
     const { container } = render(<ClosingCta />)
     expect(container).toBeEmptyDOMElement()
   })

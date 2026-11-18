@@ -129,8 +129,7 @@ export async function loadNewPlanPage(): Promise<PlanFormPageData> {
 }
 
 export type EditPlanPageData =
-  | ({ locked: false; plan: SubscriptionPlan } & PlanMasterData)
-  | { locked: true }
+  ({ locked: false; plan: SubscriptionPlan } & PlanMasterData) | { locked: true }
 
 export async function loadEditPlanPage(planId: string): Promise<EditPlanPageData> {
   const ctx = await requireCapabilityPage('canManagePlans')

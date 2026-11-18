@@ -18,9 +18,9 @@ import {
   unitUsesAgenda,
 } from '@/domain'
 import type { AgendaViewProps } from '@/features/agenda/ui/AgendaView'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { listAgendaBlocksForUnit } from '@/shared/org/agenda-block-read'
 import {
@@ -143,7 +143,7 @@ export async function loadAgendaPage(searchParams: {
   date?: string
   showCancelled?: string
 }): Promise<AgendaViewProps> {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

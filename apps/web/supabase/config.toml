@@ -1,0 +1,71 @@
+# Local Supabase stack for dev, integration and E2E (`pnpm --filter @oilio/web db:start`).
+# Ports sit on 553xx so the stack runs side by side with other local stacks.
+# Production is configured in the Supabase dashboard (docs/production.md); this
+# file mirrors it where it matters: no Data API, no Storage, no Realtime, and
+# Google as the only sign-in provider for real users. Email/password exists only
+# here, so E2E can sign seeded users in.
+project_id = "oilio"
+
+[api]
+# oilio talks to Postgres directly as `oilio_app`; the Data API stays off, as in
+# production. Kong still serves Auth.
+enabled = false
+port = 55321
+
+[db]
+port = 55322
+shadow_port = 55320
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[db.migrations]
+enabled = false
+
+[db.seed]
+enabled = false
+
+[realtime]
+enabled = false
+
+[studio]
+enabled = true
+port = 55323
+api_url = "http://127.0.0.1"
+
+[local_smtp]
+enabled = true
+port = 55324
+
+[storage]
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://localhost:3005"
+additional_redirect_urls = ["http://localhost:3005/**", "http://127.0.0.1:3005/**"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+enable_anonymous_sign_ins = false
+enable_manual_linking = false
+minimum_password_length = 8
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+skip_nonce_check = false
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false

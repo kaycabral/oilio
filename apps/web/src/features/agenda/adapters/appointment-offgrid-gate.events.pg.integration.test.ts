@@ -1,12 +1,12 @@
 import { defaultPermissionsForRole, normalizeBrazilPhone, type Role } from '@/domain'
+import type { SessionUser } from '@/shared/auth/session'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
-import type { SessionUser } from '@/shared/firebase/admin'
 import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ getSessionUser: vi.fn<() => Promise<SessionUser | null>>() }))
-vi.mock('@/shared/firebase/admin', () => ({ getSessionUser: mocks.getSessionUser }))
+vi.mock('@/shared/auth/session', () => ({ getSessionUser: mocks.getSessionUser }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { createAppointment, updateAppointment } from './agenda.actions'
@@ -220,6 +220,7 @@ describe('appointment write — slot-grid gate (brief 0080, Grupo A)', () => {
     const proId = await seedOperationalMemberOperation(orgId, UNIT, SERVICE)
     mocks.getSessionUser.mockResolvedValue({
       uid: actorUid,
+      authUserId: actorUid,
       email: null,
       displayName: null,
       picture: null,

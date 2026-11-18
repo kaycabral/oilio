@@ -257,8 +257,7 @@ export async function trackUnitWizardEvent(input: UnitWizardTelemetry): Promise<
 }
 
 export type UnitAdditionCostResult =
-  | { ok: true; cost: UnitAdditionCost }
-  | { ok: false; error: string }
+  { ok: true; cost: UnitAdditionCost } | { ok: false; error: string }
 
 export async function getUnitAdditionCostPreview(): Promise<UnitAdditionCostResult> {
   const r = await requireManagerCtx()

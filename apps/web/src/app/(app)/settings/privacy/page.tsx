@@ -1,8 +1,8 @@
 import { settingsSectionMeta } from '@/features/settings/core/settings-sections'
 import { DeleteMyDataForm } from '@/features/settings/ui/DeleteMyDataForm'
 import { EstablishmentErasureList } from '@/features/settings/ui/EstablishmentErasureList'
-import { getSessionUser } from '@/shared/firebase/admin'
-import { isFirebaseConfigured } from '@/shared/firebase/config'
+import { isAuthConfigured } from '@/shared/auth/config'
+import { getSessionUser } from '@/shared/auth/session'
 import { listMyCustomerEstablishments } from '@/shared/identity/org-links'
 import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
@@ -17,7 +17,7 @@ import {
 import { redirect } from 'next/navigation'
 
 export default async function PrivacySettingsPage() {
-  if (!isFirebaseConfigured()) redirect('/')
+  if (!isAuthConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')
