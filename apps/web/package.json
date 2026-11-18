@@ -33,7 +33,7 @@
   "dependencies": {
     "@cbrl/design": "^0.1.0",
     "@cbrl/env": "^0.1.0",
-    "@cbrl/pg": "^0.1.0",
+    "@cbrl/pg": "^0.2.0",
     "@google-cloud/cloud-sql-connector": "catalog:",
     "@oilio/product": "workspace:*",
     "@sentry/nextjs": "10.66.0",
