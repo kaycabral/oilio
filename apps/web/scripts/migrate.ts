@@ -1,7 +1,7 @@
 import { applyMigrations } from './run-migrations'
 
 /**
- * Production schema rollout, run ONLY by the CI job `migrate-production`
+ * Production schema rollout, run ONLY by the CI job `deploy`
  * (docs/production.md). `POSTGRES_URL_NON_POOLING` is the Supabase session
  * pooler (port 5432) as `postgres`: IPv4-reachable from the runners and it keeps
  * the session the migrator's advisory lock needs (the 6543 transaction pooler

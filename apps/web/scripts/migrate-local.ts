@@ -7,7 +7,7 @@ import { applyMigrations } from './run-migrations'
  * Apply the event-store and product migrations to the LOCAL Supabase stack (run
  * by `db:start`) as the `postgres` owner, then give the `oilio_app` runtime role
  * a local-only login. Production migrations run only from CI
- * (`migrate-production`); this script refuses any non-local host.
+ * (`Deploy (migrate database)`); this script refuses any non-local host.
  */
 async function main(): Promise<void> {
   const local = readLocalSupabase()

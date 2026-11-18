@@ -13,7 +13,7 @@ on:
 
 # Never cancel: a run may be applying production migrations. Queued runs collapse
 # to the newest one, which is fine: migrations are cumulative and Vercel promotes
-# only the commit whose `migrate-production` check passed.
+# only the commit whose `Deploy (migrate database)` check passed.
 concurrency:
   group: main
   cancel-in-progress: false
@@ -72,12 +72,13 @@ jobs:
     permissions:
       contents: read
 
-  # The job name is the GitHub check Vercel's Deployment Checks wait on: keep it.
+  # Its name is the GitHub check Vercel's Deployment Checks wait on before
+  # promoting: renaming it means changing it there too (docs/production.md).
   # `always()` matters: a skipped check counts as passing there, so this job
   # fails explicitly whenever the commit is not proven, turning it into a
   # blocked promotion instead of a silent one.
-  migrate-production:
-    name: migrate-production
+  deploy:
+    name: Deploy (migrate database)
     needs: [provenance, checks]
     if: always()
     runs-on: ubuntu-latest
