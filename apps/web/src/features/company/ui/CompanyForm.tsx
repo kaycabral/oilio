@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
   Textarea,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 

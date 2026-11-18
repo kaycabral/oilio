@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Typography } from '@cbrl/design'
+import { Button, Typography } from '@oilio/design'
 import * as Sentry from '@sentry/nextjs'
 import { useEffect } from 'react'
 

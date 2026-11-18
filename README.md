@@ -1,10 +1,5 @@
 # Oilio
 
-[![pipeline](https://gitlab.com/cbrl/cbrl/badges/main/pipeline.svg)](https://gitlab.com/cbrl/cbrl/-/pipelines)
-[![coverage](https://img.shields.io/endpoint?url=https://cbrl.gitlab.io/cbrl/badges/coverage-scheduling-web.json)](https://gitlab.com/cbrl/cbrl/-/pipelines)
-[![mutation](https://img.shields.io/endpoint?url=https://cbrl.gitlab.io/cbrl/badges/mutation.json)](https://gitlab.com/cbrl/cbrl/-/pipelines)
-[![type-coverage](https://img.shields.io/endpoint?url=https://cbrl.gitlab.io/cbrl/badges/type-coverage.json)](https://gitlab.com/cbrl/cbrl/-/pipelines)
-
 Plataforma **B2B cross-category** pra negócios de serviço recorrente, com **assinatura como capacidade nativa e mais profunda** e **funil Tier 3 → Tier 2 → Tier 1 como produto** — sem excluir quem opera em Tier 2 (recorrência informal) ou Tier 3 (avulso). Multi-tenant, multi-vertical cruzando categorias estruturalmente diferentes (**Barbearia + Estética Automotiva** ativos hoje; arquitetura pronta pra pet, fitness, autocenter). Codinome `scheduling`; nome final do produto será definido antes do lançamento.
 
 ## Documentação
@@ -15,16 +10,17 @@ Docs técnicos locais:
 
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — stack real (Firebase + Next.js 16), workspaces, fluxo de dados.
 - [`docs/decisions/`](./docs/decisions/) — ADRs específicos do scheduling.
-- [`TESTING.md`](../../TESTING.md) — filosofia de testes canônica do monorepo.
+- [`TESTING.md`](./TESTING.md) — filosofia de testes canônica.
+- [`PATTERNS.md`](./PATTERNS.md) — padrões de código canônicos.
 
 ## Pré-requisitos
 
 - **Java 11+ (JRE)** — necessário pra rodar os Firebase emulators (Auth + Firestore). Em Ubuntu: `sudo apt-get install default-jre`. macOS: `brew install --cask temurin`. Verifique com `java -version`.
-- **Pré-requisitos globais do monorepo** (Node, pnpm via Corepack) ficam no [README raiz](../../README.md).
+- **Node** na versão do `.nvmrc` e **pnpm** via Corepack (`corepack enable`). Depois: `pnpm install` na raiz.
 
 ## Scripts
 
-Todos rodam da raiz do monorepo.
+Todos rodam da raiz do repositório.
 
 ```bash
 # Next.js dev server (porta 3005)
@@ -81,6 +77,17 @@ Pra entrar: `/login` → **Continuar com Google** → escolha **Zé Owner**
 criar uma conta nova normalmente — o seed é aditivo e não toca em contas que
 não criou.
 
+## Origem e pendências
+
+Extraído do monorepo `cbrl` em 2026-11-17 com histórico (`git filter-repo`): `apps/oilio/web` → `apps/web`, `apps/oilio/docs` → `docs`, `packages/{db,product}` mantidos. `@oilio/{tsconfig,eslint-config,env,testing,design}` são cópias vendorizadas dos `@cbrl/*` e evoluem aqui de forma independente. Issues, MRs e a Wiki (briefs, PRDs) continuam no GitLab por enquanto.
+
+**TODO — CI/CD pesado, ainda não portado do GitLab** (o GitHub Actions hoje só roda `.github/workflows/ci.yml`: format, lint, typecheck, unit e build):
+
+- Integração Postgres (`pnpm test:integration`, `apps/web` `test:integration:pg`/`test:integration:events:pg`) e E2E Playwright (`@critical` em PR, suíte completa no release).
+- Release via semantic-release (`apps/web/.releaserc.json` ainda usa `@semantic-release/gitlab`; tags `oilio-v*`).
+- Deploy Cloud Run (`apps/web/Dockerfile`) + job de migração, autenticação keyless via WIF.
+- Gates de qualidade do monorepo: knip, depcruise, type-coverage, mutation (Stryker), catraca de cobertura e badges.
+
 ## License
 
-Proprietary. © 2026 cbrl-dev. All rights reserved. Ver [`LICENSE`](../../LICENSE) na raiz do monorepo.
+Proprietary. © 2026 cbrl-dev. All rights reserved. Ver [`LICENSE`](./LICENSE).

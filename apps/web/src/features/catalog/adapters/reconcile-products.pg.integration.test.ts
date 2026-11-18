@@ -13,7 +13,7 @@ import {
   publicOrgDirectoryValues,
 } from '@/shared/db/pg/effect/org-projector'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
-import { closeDb, getDb, PostgresProductSource, product } from '@cbrl/product'
+import { closeDb, getDb, PostgresProductSource, product } from '@oilio/product'
 import { Effect, Layer } from 'effect'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { reconcilePendingProducts } from './reconcile-products'

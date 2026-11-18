@@ -11,7 +11,7 @@ import {
   hhmmToMinutes,
   toOrgTime,
 } from '@/domain'
-import { cn } from '@cbrl/design'
+import { cn } from '@oilio/design'
 import { useMemo } from 'react'
 
 const GRID_START_HOUR = 6

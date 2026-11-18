@@ -1,7 +1,7 @@
 'use client'
 
 import { formatBrazilPhone, maskBrazilPhone } from '@/domain'
-import { Input } from '@cbrl/design'
+import { Input } from '@oilio/design'
 import { useState, type ComponentProps } from 'react'
 
 type PhoneInputProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange' | 'defaultValue'> & {

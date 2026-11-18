@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const DOC_PATH = resolve(process.cwd(), '../docs/e2e-conventions.md')
+const DOC_PATH = resolve(process.cwd(), '../../docs/e2e-conventions.md')
 const doc = readFileSync(DOC_PATH, 'utf8')
 
 describe('Audit de jornada E2E — Feature DoD (brief 0035 · #1074)', () => {

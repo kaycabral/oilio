@@ -4,7 +4,7 @@ import { PhoneInput } from '@/components/PhoneInput'
 import { completeProfile } from '@/features/onboarding/adapters/complete-profile.actions'
 import type { ProfilePrefill } from '@/features/onboarding/core/profile-form'
 import { useFormValidity } from '@/hooks/use-form-validity'
-import { Button, DateField, Field, FieldGroup, FieldLabel, Input } from '@cbrl/design'
+import { Button, DateField, Field, FieldGroup, FieldLabel, Input } from '@oilio/design'
 import { useId, useState, useTransition } from 'react'
 
 export function CompleteProfileForm({

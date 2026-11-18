@@ -1,4 +1,4 @@
-import { Typography } from '@cbrl/design'
+import { Typography } from '@oilio/design'
 import { KeyRound, Layers, Wallet } from 'lucide-react'
 
 const POINTS = [

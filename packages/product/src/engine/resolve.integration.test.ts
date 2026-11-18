@@ -68,7 +68,8 @@ describe('resolveProduct — auto-contribution against real Postgres', () => {
     const result = await resolveProduct(source, EAN13, { name: 'ignored' })
     expect(result.kind).toBe('referenced')
     if (result.kind !== 'referenced') throw new Error('expected referenced')
-    expect(result.product.source).toBe('official') // not downgraded to org-contributed
+    // not downgraded to org-contributed
+    expect(result.product.source).toBe('official')
   })
 
   it('contributes distinct GTINs as separate rows', async () => {

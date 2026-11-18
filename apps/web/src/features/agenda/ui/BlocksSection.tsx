@@ -4,7 +4,7 @@ import type { AgendaBlock, StoredUnit } from '@/domain'
 import { deleteBlock } from '@/features/agenda/adapters/blocks.actions'
 import { oneOffToLocal } from '@/features/agenda/core/block-time'
 import { type BlockOwner, BlockForm } from '@/features/agenda/ui/BlockForm'
-import { Button } from '@cbrl/design'
+import { Button } from '@oilio/design'
 import { useRouter } from 'next/navigation'
 import { useId, useState, useTransition } from 'react'
 

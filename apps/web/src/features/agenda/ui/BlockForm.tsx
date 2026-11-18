@@ -19,7 +19,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useId, useState, useTransition } from 'react'
 
 const WEEKDAY_OPTIONS: { value: Weekday; label: string }[] = [

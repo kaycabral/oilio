@@ -14,7 +14,7 @@ import { PAGINATION_LABELS_PTBR } from '@/shared/list/pagination-labels'
 import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import { toRoute } from '@/shared/routes'
-import { Avatar, AvatarFallback, AvatarImage, List } from '@cbrl/design'
+import { Avatar, AvatarFallback, AvatarImage, List } from '@oilio/design'
 import { Users } from 'lucide-react'
 import { ClientInviteDialog } from './ClientInviteDialog'
 

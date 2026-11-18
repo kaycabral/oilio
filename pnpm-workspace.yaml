@@ -1,0 +1,53 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Single source of truth for shared dependency versions. Bump = edit here +
+# `pnpm install`. Deps used by a single workspace stay inline in its package.json.
+catalog:
+  next: ^16.2.6
+  react: ^19.2.6
+  react-dom: ^19.2.6
+  next-themes: ^0.4.6
+  server-only: ^0.0.1
+  effect: ^3.21.2
+
+  typescript: ^5.9.3
+  '@types/node': ^25.6.2
+  '@types/react': ^19.2.14
+  '@types/react-dom': ^19.2.3
+
+  tailwindcss: ^4.3.0
+  '@tailwindcss/postcss': ^4.3.0
+  class-variance-authority: ^0.7.1
+  clsx: ^2.1.1
+  radix-ui: ^1.4.3
+  lucide-react: ^1.14.0
+  sonner: ^2.0.7
+
+  firebase: ^12.13.0
+  firebase-admin: ^13.9.0
+
+  eslint-config-next: ^16.2.6
+
+  vitest: ^4.1.6
+  '@vitest/coverage-v8': ^4.1.6
+  '@vitejs/plugin-react': ^6.0.2
+  '@playwright/test': ^1.59.1
+  '@testing-library/jest-dom': ^6.9.1
+  '@testing-library/react': ^16.3.2
+  '@testing-library/user-event': ^14.6.1
+  jsdom: ^29.1.1
+  jest-axe: ^10.0.0
+  '@types/jest-axe': ^3.5.9
+
+  tsx: ^4.21.0
+
+  # Drizzle pinned to 0.45.x: the pre-1.0 v1 (RQB-V2, casing API, folders-v3) is
+  # breaking — upgrade is a roadmap item.
+  drizzle-orm: ~0.45.2
+  drizzle-kit: ^0.31.10
+  pg: ^8.22.0
+  '@types/pg': ^8.20.0
+  # Cloud SQL Node connector — passwordless IAM database auth in prod.
+  '@google-cloud/cloud-sql-connector': ^1.11.1

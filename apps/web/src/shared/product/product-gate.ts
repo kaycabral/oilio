@@ -1,5 +1,5 @@
 import { logger } from '@/shared/lib/logger'
-import { resolveProduct, validateGtin } from '@cbrl/product'
+import { resolveProduct, validateGtin } from '@oilio/product'
 import 'server-only'
 import { emitProductEvent } from './product-events'
 import { getProductSource } from './product-source'

@@ -6,7 +6,7 @@ export async function register(): Promise<void> {
 
     const [{ initEventStore }, { initProductDb }] = await Promise.all([
       import('@/shared/db/pg'),
-      import('@cbrl/product'),
+      import('@oilio/product'),
     ])
     await Promise.all([initEventStore(), initProductDb()])
     return

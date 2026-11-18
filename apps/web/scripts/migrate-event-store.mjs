@@ -7,7 +7,7 @@
 // `drizzle-kit push` (D3: a rename becomes drop+add → data loss). Exits non-zero
 // on failure so the deploy gates.
 //
-// Connection policy mirrors the app's `@cbrl/db` factory, but is inlined here:
+// Connection policy mirrors the app's `@oilio/db` factory, but is inlined here:
 // this is a standalone `node` entrypoint in the Cloud Run Job (outside the Next
 // bundle / workspace TS resolution), so it must not depend on importing the
 // workspace package. In prod it uses the Cloud SQL IAM connector (passwordless,

@@ -3,7 +3,7 @@
 import type { UnitHoursMode } from '@/domain'
 import { formatBrl } from '@/features/finance/core/format'
 import type { UnitAdditionCost } from '@/shared/billing/unit-cost-preview'
-import { Button, Checkbox, FieldDescription, FieldLabel, Separator } from '@cbrl/design'
+import { Button, Checkbox, FieldDescription, FieldLabel, Separator } from '@oilio/design'
 import { AlertTriangle } from 'lucide-react'
 
 export type ReviewSummary = {

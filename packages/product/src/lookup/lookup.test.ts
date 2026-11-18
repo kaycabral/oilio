@@ -31,9 +31,9 @@ function stubSource(rows: Record<string, StoredProduct>): ProductSource & { quer
   const queries: string[] = []
   return {
     queries,
-    async findByGtin14(gtin14: string): Promise<StoredProduct | null> {
+    findByGtin14(gtin14: string): Promise<StoredProduct | null> {
       queries.push(gtin14)
-      return rows[gtin14] ?? null
+      return Promise.resolve(rows[gtin14] ?? null)
     },
     upsert(_input: NewProduct): Promise<StoredProduct> {
       throw new Error('lookup must not write')
@@ -45,7 +45,8 @@ function stubSource(rows: Record<string, StoredProduct>): ProductSource & { quer
 }
 
 // Real GTINs (valid GS1 check digit). 13-digit EAN normalizes to 14 (zero-pad).
-const EAN13 = '7891000100103' // valid check digit
+// valid check digit
+const EAN13 = '7891000100103'
 const GTIN14_OF_EAN13 = '07891000100103'
 
 describe('lookupByGtin', () => {
@@ -74,12 +75,14 @@ describe('lookupByGtin', () => {
 
   it('invalid: a rejected GTIN never queries the base', async () => {
     const source = stubSource({})
-    const result = await lookupByGtin(source, '123') // wrong length
+    // wrong length
+    const result = await lookupByGtin(source, '123')
 
     expect(result.kind).toBe('invalid')
     if (result.kind !== 'invalid') throw new Error('expected invalid')
     expect(result.reason).toBe('invalid-length')
-    expect(source.queries).toEqual([]) // base untouched
+    // base untouched
+    expect(source.queries).toEqual([])
   })
 
   it('invalid: an empty GTIN is rejected with reason "empty", no query', async () => {

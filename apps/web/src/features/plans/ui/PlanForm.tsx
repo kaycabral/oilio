@@ -29,7 +29,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useState, useTransition } from 'react'
 
 export function PlanForm({

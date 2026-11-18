@@ -1,4 +1,4 @@
-import { coverageBase } from '@cbrl/testing/vitest'
+import { coverageBase } from '@oilio/testing/vitest'
 import { defineConfig } from 'vitest/config'
 
 // Unit layer: pure logic only (GTIN validator), node environment, no I/O.

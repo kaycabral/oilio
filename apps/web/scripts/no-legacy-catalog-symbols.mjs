@@ -34,7 +34,7 @@
 //
 // Walks the filesystem directly (NOT `git ls-files`): the test container copies
 // the app without `.git`, so a git-based scan would crash there (and in any
-// detached CI checkout). Run from apps/oilio/web (cwd of the lint script).
+// detached CI checkout). Run from apps/web (cwd of the lint script).
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -76,7 +76,7 @@ const BANNED = [
   },
 ]
 
-// Source roots to scan (relative to apps/oilio/web). The app-root config files
+// Source roots to scan (relative to apps/web). The app-root config files
 // (next/vitest/playwright/eslint/postcss) are scanned too (depth-0 walk via '.')
 // so a legacy symbol reintroduced in test/build config — role fixtures, setup
 // files — cannot slip past the gate.

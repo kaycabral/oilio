@@ -8,7 +8,7 @@ import {
   type CommissionKind,
   type TaxKind,
 } from '@/features/team/core/member-form'
-import { Checkbox, Input, Label } from '@cbrl/design'
+import { Checkbox, Input, Label } from '@oilio/design'
 import { useId } from 'react'
 
 export function MemberOperationIdentityFields({

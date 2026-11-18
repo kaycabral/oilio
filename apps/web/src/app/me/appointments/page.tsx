@@ -1,6 +1,6 @@
 import { loadMyAppointmentsPage } from '@/features/me/adapters/load-me'
 import { AppointmentRow } from '@/features/me/ui/AppointmentRow'
-import { Main } from '@cbrl/design'
+import { Main } from '@oilio/design'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Meus agendamentos' }

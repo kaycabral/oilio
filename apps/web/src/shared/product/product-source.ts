@@ -1,5 +1,5 @@
-import type { ProductSource } from '@cbrl/product'
-import { PostgresProductSource } from '@cbrl/product'
+import type { ProductSource } from '@oilio/product'
+import { PostgresProductSource } from '@oilio/product'
 import 'server-only'
 
 let source: ProductSource | undefined

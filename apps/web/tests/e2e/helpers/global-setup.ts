@@ -62,7 +62,7 @@ async function waitFor(label: string, probe: () => Promise<boolean>): Promise<vo
 
 async function applyProductBaseMigrations(): Promise<void> {
   if (!process.env.DATABASE_URL) return
-  const { runMigrations, closeDb } = await import('@cbrl/product')
+  const { runMigrations, closeDb } = await import('@oilio/product')
   try {
     await runMigrations()
     await closeDb()

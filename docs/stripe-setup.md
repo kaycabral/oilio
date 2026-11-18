@@ -66,7 +66,7 @@ faz o mesmo de forma visual; o resultado é idêntico — o que importa é captu
 
 ## Conectar ao app
 
-As chaves e price ids são lidos por `@cbrl/env` (`requireEnv`, fail-fast — sem
+As chaves e price ids são lidos por `@oilio/env` (`requireEnv`, fail-fast — sem
 fallback literal). Preencha no `.env.local` (test mode) e, em produção, no secret
 manager do ambiente:
 

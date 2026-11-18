@@ -5,7 +5,7 @@ import {
   type DashboardPeriod,
   periodLabel,
 } from '@/features/dashboard/core/filters'
-import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cbrl/design'
+import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@oilio/design'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 

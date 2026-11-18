@@ -1,5 +1,5 @@
 import type { BillingCycle, Tier } from '@/domain/billing/tiers'
-import { requireEnv } from '@cbrl/env'
+import { requireEnv } from '@oilio/env'
 import 'server-only'
 
 const PRICE_ENV: Record<Exclude<Tier, 'free'>, Record<BillingCycle, string>> = {

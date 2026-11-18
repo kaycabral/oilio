@@ -20,7 +20,7 @@
 -- named WITHOUT the `.gserviceaccount.com` suffix.
 --
 --   PGPASSWORD=… psql "host=127.0.0.1 user=postgres dbname=oilio" \
---     -v ON_ERROR_STOP=1 -f apps/oilio/web/scripts/sql/bootstrap-prod-grants.sql
+--     -v ON_ERROR_STOP=1 -f apps/web/scripts/sql/bootstrap-prod-grants.sql
 
 \set migrator '"oilio-migrator@cbrl-oilio-production.iam"'
 \set app      '"238073251489-compute@developer"'

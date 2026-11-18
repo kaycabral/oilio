@@ -41,7 +41,7 @@ Mudança de schema não-backward-compatible segue **expand-contract**: (1) expan
 
 ### D6 — Fronteira física: a base soberana é cross-org, sem `orgId`
 
-A base mora num package isolado (`@cbrl/product`), não importa nada do multi-tenant do oilio, e a tabela `Product` **nunca carrega `orgId`** — é infra de produto, cross-org. O invariante zero-cross-org da [ADR 0004](0004-multi-org-model.md) **não se aplica** (é o oposto: a constraint torna impossível vazar org pra base compartilhada). A integridade vem das **constraints do banco**, provada por integration contra Postgres real (não mock).
+A base mora num package isolado (`@oilio/product`), não importa nada do multi-tenant do oilio, e a tabela `Product` **nunca carrega `orgId`** — é infra de produto, cross-org. O invariante zero-cross-org da [ADR 0004](0004-multi-org-model.md) **não se aplica** (é o oposto: a constraint torna impossível vazar org pra base compartilhada). A integridade vem das **constraints do banco**, provada por integration contra Postgres real (não mock).
 
 ## Consequences
 

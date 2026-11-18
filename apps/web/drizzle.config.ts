@@ -1,4 +1,4 @@
-import { requireEnv } from '@cbrl/env'
+import { requireEnv } from '@oilio/env'
 import { defineConfig } from 'drizzle-kit'
 
 /**
@@ -10,7 +10,7 @@ import { defineConfig } from 'drizzle-kit'
  * `push` in prod (D3 — rename becomes drop+add → data loss).
  *
  * Targets `OILIO_DATABASE_URL` (the `oilio` logical database), distinct from the
- * `@cbrl/product` `DATABASE_URL` (the `produtos` database) on the same instance.
+ * `@oilio/product` `DATABASE_URL` (the `produtos` database) on the same instance.
  */
 export default defineConfig({
   dialect: 'postgresql',

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // E2E runner for the oilio web suite WITH the sovereign product base (brief
-// 0054). The autofill specs read `@cbrl/product` (Postgres) live from the form,
+// 0054). The autofill specs read `@oilio/product` (Postgres) live from the form,
 // so the Next server the Playwright `webServer` boots needs a `DATABASE_URL` —
 // the Firestore emulator alone is not enough.
 //
@@ -38,8 +38,8 @@ import { Client } from 'pg'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '..')
 const compose = path.join(root, 'docker', 'postgres.compose.yaml')
-const webDir = path.join(root, 'apps', 'oilio', 'web')
-const oilioDir = path.join(root, 'apps', 'oilio')
+const webDir = path.join(root, 'apps', 'web')
+const oilioDir = root
 
 // CI provides DATABASE_URL (services: postgres) and runs each job in its own
 // isolated network — no host to collide with. Locally, we own everything AND

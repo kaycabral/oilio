@@ -23,7 +23,7 @@ import {
   SelectValue,
   Switch,
   Textarea,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useState } from 'react'
 
 export function UnitAgendaConfigFields({

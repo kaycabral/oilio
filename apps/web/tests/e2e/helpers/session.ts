@@ -2003,7 +2003,7 @@ export async function seedProductBase(opts: {
   brand?: string | null
   source?: 'official' | 'external' | 'org-contributed'
 }): Promise<void> {
-  const { PostgresProductSource } = await import('@cbrl/product')
+  const { PostgresProductSource } = await import('@oilio/product')
   await new PostgresProductSource().upsert({
     gtin14: opts.gtin14,
     name: opts.name ?? 'Produto Semeado',
@@ -2015,14 +2015,14 @@ export async function seedProductBase(opts: {
 export async function readProductBase(
   gtin14: string,
 ): Promise<{ name: string; source: string } | null> {
-  const { PostgresProductSource } = await import('@cbrl/product')
+  const { PostgresProductSource } = await import('@oilio/product')
   const row = await new PostgresProductSource().findByGtin14(gtin14)
   return row === null ? null : { name: row.name, source: row.source }
 }
 
 export async function deleteProductBaseForWorker(gtins: readonly string[]): Promise<void> {
   if (gtins.length === 0) return
-  const { getDb, product } = await import('@cbrl/product')
+  const { getDb, product } = await import('@oilio/product')
   const { inArray } = await import('drizzle-orm')
   await getDb()
     .delete(product)

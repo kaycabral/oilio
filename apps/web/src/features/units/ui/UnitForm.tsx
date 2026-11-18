@@ -24,7 +24,7 @@ import {
   FieldError,
   FieldGroup,
   FieldSeparator,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useState, useTransition } from 'react'
 
 type UnitFormDefaults = {

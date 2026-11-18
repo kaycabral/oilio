@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
   Typography,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { CreditCard, Sparkles, Star } from 'lucide-react'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'

@@ -63,7 +63,7 @@ Histórico de "como preço/plano mudou no tempo" (coorte, retenção, pricing) �
 - **`appointment` snapshot drift vs `order`** (risco financeiro): `appointment.updated` não pode alterar snapshot já consumido por um `order`.
 - **Delete sem guarda** (`subscription-plan`, `unit`): aplicar D5 (arquivar/bloquear).
 
-**Docs a sincronizar (sem drift):** brief `0025`, ADR `0008` (nota de emenda), `Linguagem-Ubíqua § Arquitetura base`, `CLAUDE.md` raiz + `apps/oilio/web/CLAUDE.md` (a frase "event-sourced puro" passa a "ES seletivo no núcleo").
+**Docs a sincronizar (sem drift):** brief `0025`, ADR `0008` (nota de emenda), `Linguagem-Ubíqua § Arquitetura base`, `CLAUDE.md` raiz + `apps/web/CLAUDE.md` (a frase "event-sourced puro" passa a "ES seletivo no núcleo").
 
 ## Alternatives considered
 

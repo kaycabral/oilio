@@ -1,4 +1,4 @@
 {
-  "extends": "@cbrl/tsconfig-base/base.json",
+  "extends": "@oilio/tsconfig/base.json",
   "include": ["src/**/*.ts"]
 }

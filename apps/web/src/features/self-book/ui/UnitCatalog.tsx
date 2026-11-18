@@ -1,6 +1,6 @@
 import type { MemberOperation, Org, PublicCatalogItem, Unit } from '@/domain'
 import { toRoute } from '@/shared/routes'
-import { Button } from '@cbrl/design'
+import { Button } from '@oilio/design'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'

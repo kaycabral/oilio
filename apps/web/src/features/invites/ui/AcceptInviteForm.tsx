@@ -1,7 +1,7 @@
 'use client'
 
 import { acceptInvite } from '@/features/invites/adapters/invites.actions'
-import { Button } from '@cbrl/design'
+import { Button } from '@oilio/design'
 import { useState, useTransition } from 'react'
 
 export function AcceptInviteForm({

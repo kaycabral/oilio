@@ -12,7 +12,7 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { Check, Loader2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 

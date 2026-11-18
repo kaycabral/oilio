@@ -1,5 +1,5 @@
 {
-  "name": "@cbrl/db",
+  "name": "@oilio/db",
   "version": "0.0.0",
   "private": true,
   "license": "UNLICENSED",
@@ -11,17 +11,19 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "vitest run --coverage",
+    "lint": "eslint ."
   },
   "dependencies": {
-    "@cbrl/env": "workspace:*",
+    "@oilio/env": "workspace:*",
     "@google-cloud/cloud-sql-connector": "catalog:",
     "pg": "catalog:"
   },
   "devDependencies": {
-    "@cbrl/testing": "workspace:*",
-    "@cbrl/tsconfig-base": "workspace:*",
+    "@oilio/testing": "workspace:*",
+    "@oilio/tsconfig": "workspace:*",
     "@types/pg": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

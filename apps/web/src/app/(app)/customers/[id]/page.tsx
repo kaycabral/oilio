@@ -1,7 +1,7 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { loadCustomerForView } from '@/features/customers/adapters/load-customers'
 import { CustomerDetail } from '@/features/customers/ui/CustomerDetail'
-import { Main } from '@cbrl/design'
+import { Main } from '@oilio/design'
 import { notFound } from 'next/navigation'
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {

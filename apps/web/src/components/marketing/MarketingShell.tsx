@@ -1,7 +1,7 @@
 import { MARKETING_CONTAINER } from '@/components/marketing/container'
 import { MarketingFooter } from '@/components/marketing/MarketingFooter'
 import { MarketingHeader } from '@/components/marketing/MarketingHeader'
-import { cn } from '@cbrl/design'
+import { cn } from '@oilio/design'
 
 export function MarketingShell({ children }: { children: React.ReactNode }) {
   return (

@@ -1,4 +1,4 @@
-import { requireEnv } from '@cbrl/env'
+import { requireEnv } from '@oilio/env'
 import { defineConfig } from 'drizzle-kit'
 
 /**
@@ -7,7 +7,7 @@ import { defineConfig } from 'drizzle-kit'
  * `generate` produces versioned SQL migrations in `drizzle/` (reviewable in the
  * PR); `migrate` applies them. Migrations run in a dedicated Cloud Run Job, NEVER
  * at boot (N instances → advisory-lock race) and NEVER via `push` in prod (rename
- * becomes drop+add → data loss). See the ADR in apps/oilio/docs/decisions/.
+ * becomes drop+add → data loss). See the ADR in docs/decisions/.
  */
 export default defineConfig({
   dialect: 'postgresql',

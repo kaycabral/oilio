@@ -19,7 +19,7 @@ import { useCatalogUnitScope } from '@/features/catalog/ui/use-catalog-unit-scop
 import { useProductCodeAutofill } from '@/features/catalog/ui/use-product-code-autofill'
 import { useFormValidity } from '@/hooks/use-form-validity'
 import { useOrg } from '@/shared/org/org-context'
-import { Button } from '@cbrl/design'
+import { Button } from '@oilio/design'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 

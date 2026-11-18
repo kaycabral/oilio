@@ -5,7 +5,7 @@ import {
   loadUnitAvailability,
   type WizardAvailabilityResult,
 } from '@/features/self-book/adapters/availability.actions'
-import { Label } from '@cbrl/design'
+import { Label } from '@oilio/design'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 

@@ -1,5 +1,5 @@
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { Button, Typography } from '@cbrl/design'
+import { Button, Typography } from '@oilio/design'
 
 export function ClosingCta() {
   if (!isFirebaseConfigured()) return null

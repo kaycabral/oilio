@@ -1,7 +1,7 @@
 'use client'
 
 import { OAuthSignInButtons } from '@/components/oauth-sign-in-buttons'
-import { Typography } from '@cbrl/design'
+import { Typography } from '@oilio/design'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 

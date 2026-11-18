@@ -9,7 +9,7 @@
 // + the connection string.
 //
 // Suites (both against the same ephemeral Postgres):
-//   • @cbrl/product test:integration   — the base engine (A1 + A2 lookup/contrib).
+//   • @oilio/product test:integration   — the base engine (A1 + A2 lookup/contrib).
 //   • @oilio/web   test:integration:pg — the oilio registration gate (A2, 0050).
 //
 // Usage:  node scripts/product-it.mjs            (run both suites)
@@ -70,8 +70,8 @@ try {
   // Create the `oilio` sibling DB (idempotent) before the oilio gate suite runs.
   await ensureOilioDatabase(DATABASE_URL)
   const suiteEnv = { ...process.env, DATABASE_URL, OILIO_DATABASE_URL }
-  console.log('▸ rodando @cbrl/product integration contra Postgres real…')
-  const productStatus = run('pnpm', ['--filter', '@cbrl/product', 'run', 'test:integration'], {
+  console.log('▸ rodando @oilio/product integration contra Postgres real…')
+  const productStatus = run('pnpm', ['--filter', '@oilio/product', 'run', 'test:integration'], {
     cwd: root,
     env: suiteEnv,
   })

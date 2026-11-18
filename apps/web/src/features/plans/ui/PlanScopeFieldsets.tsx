@@ -2,7 +2,7 @@
 
 import { type AllowedTimeScope, type BookingLimits, WEEKDAYS } from '@/domain'
 import { WEEKDAY_LABELS } from '@/features/plans/core/plan-form-defaults'
-import { Checkbox, Input, Label } from '@cbrl/design'
+import { Checkbox, Input, Label } from '@oilio/design'
 
 export function PlanTimeScopeFieldset({
   restrictDays,

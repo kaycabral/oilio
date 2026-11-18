@@ -6,7 +6,7 @@ import {
   type TaxRegime,
   type Unit,
 } from '@/domain'
-import { Badge, Card, CardContent, CardHeader, CardTitle } from '@cbrl/design'
+import { Badge, Card, CardContent, CardHeader, CardTitle } from '@oilio/design'
 
 const REGIME_LABELS: Record<TaxRegime, string> = {
   mei: 'MEI',

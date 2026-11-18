@@ -1,4 +1,4 @@
-# `@cbrl/product` — base soberana de produtos (primeiro Postgres do monorepo)
+# `@oilio/product` — base soberana de produtos (primeiro Postgres do monorepo)
 
 Bounded context isolado da **base soberana de `Product`** (cross-org, identificada por GTIN). Fronteira física: **não importa nada do multi-tenant do oilio** (sem `orgId`, sem Firestore). Vocação de virar serviço independente. Deriva do [PRD — Base de Produtos] / brief 0049.
 
@@ -6,7 +6,7 @@ Bounded context isolado da **base soberana de `Product`** (cross-org, identifica
 
 - **`src/gtin/`** — validador GTIN puro (sem I/O): check-digit GS1, normalize-to-14, rejeição de prefixos restritos (RCN/coupon), ISBN-13→EAN-13, fallback `brand+MPN`. Unit-testável isolado.
 - **`src/schema/`** — schema Drizzle da tabela `Product` + enum `source`. Sem `orgId`.
-- **`src/db/`** — pool `pg` (lazy, `max: 3–5`) + conexão via `DATABASE_URL` (`@cbrl/env`, fail-fast).
+- **`src/db/`** — pool `pg` (lazy, `max: 3–5`) + conexão via `DATABASE_URL` (`@oilio/env`, fail-fast).
 - **`src/port/`** — interface do Port de fonte de dados (desenho, sem adapter externo — A2 pluga).
 
 ## Regras locais
@@ -16,7 +16,7 @@ Bounded context isolado da **base soberana de `Product`** (cross-org, identifica
 3. **`gtin` ≠ `sku`.** `gtin` é a chave canônica validada (GTIN-14); `sku` é identificador interno livre do `CatalogItem`. Não mapear um no outro.
 4. **Constraints são do banco, não da aplicação.** A integridade (UNIQUE no GTIN-14, NOT NULL, enum) vem do Postgres — provada por integration contra banco real, nunca mock.
 5. **1 GTIN = 1 produto**, normalizado a GTIN-14. Sem agrupamento heurístico (futuro).
-6. **Migrations versionadas.** `drizzle-kit generate` → SQL no repo (revisável em PR). **Nunca `drizzle-kit push` em prod** (rename vira drop+add → perde dado); migration roda em Cloud Run Job dedicado, nunca no boot. Mudança não-backward-compatible = expand-contract. Ver ADR `apps/oilio/docs/decisions/`.
+6. **Migrations versionadas.** `drizzle-kit generate` → SQL no repo (revisável em PR). **Nunca `drizzle-kit push` em prod** (rename vira drop+add → perde dado); migration roda em Cloud Run Job dedicado, nunca no boot. Mudança não-backward-compatible = expand-contract. Ver ADR `docs/decisions/`.
 
 ## Teste
 

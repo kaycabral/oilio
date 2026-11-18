@@ -1,4 +1,4 @@
-import { Input } from '@cbrl/design'
+import { Input } from '@oilio/design'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
 import { describe, expect, it } from 'vitest'

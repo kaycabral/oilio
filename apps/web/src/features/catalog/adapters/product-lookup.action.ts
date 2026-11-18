@@ -6,7 +6,7 @@ import { withActionContext } from '@/shared/lib/request-context'
 import { requireManagerCtx } from '@/shared/org/membership'
 import { emitProductEvent } from '@/shared/product/product-events'
 import { getProductSource } from '@/shared/product/product-source'
-import { lookupByGtin } from '@cbrl/product'
+import { lookupByGtin } from '@oilio/product'
 
 export const lookupProductForForm = withActionContext(
   async (rawCode: string): Promise<CodeLookupOutcome> => {

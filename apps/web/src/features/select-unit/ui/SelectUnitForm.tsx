@@ -1,7 +1,7 @@
 'use client'
 
 import { setActiveUnit } from '@/shared/org/active-unit-actions'
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@cbrl/design'
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@oilio/design'
 import { Store } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'

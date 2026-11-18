@@ -1,5 +1,5 @@
-import { requireEnv } from '@cbrl/env'
 import { AuthTypes, Connector, IpAddressTypes } from '@google-cloud/cloud-sql-connector'
+import { requireEnv } from '@oilio/env'
 import { Pool, type PoolConfig } from 'pg'
 
 /**
@@ -156,7 +156,7 @@ export type ManagedPool = {
  * request sees. This is the canonical fix for the "duplicate module singleton"
  * hazard (the same reason Prisma/pg examples pin their client to globalThis).
  */
-const REGISTRY = Symbol.for('@cbrl/db.managedPools')
+const REGISTRY = Symbol.for('@oilio/db.managedPools')
 
 type PoolRegistry = Map<string, ManagedPool>
 

@@ -24,7 +24,7 @@ Reducers/aggregates/envelope **não mudam** — a porta troca o substrato por ba
 
 ### D2 — Seleção de Layer por feature-flag global; default Firestore
 
-A flag **`OILIO_PERSISTENCE`** (`firestore` | `postgres`, default `firestore` via `@cbrl/env`) escolhe o Layer provido pelo `effect-bridge`. Por enquanto é global; vira por-contexto na feature B. Default Firestore = o oilio de hoje não regride (a fundação é aditiva).
+A flag **`OILIO_PERSISTENCE`** (`firestore` | `postgres`, default `firestore` via `@oilio/env`) escolhe o Layer provido pelo `effect-bridge`. Por enquanto é global; vira por-contexto na feature B. Default Firestore = o oilio de hoje não regride (a fundação é aditiva).
 
 ### D3 — Event store relacional: `events` append-only, `UNIQUE(aggregate_id, version)`, projeção na mesma tx
 
@@ -38,7 +38,7 @@ A tabela `events` é append-only: `aggregate_type`, `aggregate_id`, `version`, `
 
 ### D4 — O código Postgres do event store mora no app, não num package
 
-Diferente do `@cbrl/product` (package porque tem vocação de serviço cross-org), o event store é **do oilio**. Mora em `apps/oilio/web/src/shared/db/pg/` (schema, pool lazy `max:5`, migrate). Convenção local: `apps/oilio/web` é um único workspace — só promove pra `packages/@cbrl/*` com 2º consumidor (não há). Reusa o tooling da ADR 0011 (Drizzle + `pg` + `drizzle-kit`, migration em Cloud Run Job nunca no boot, `push` proibido).
+Diferente do `@oilio/product` (package porque tem vocação de serviço cross-org), o event store é **do oilio**. Mora em `apps/web/src/shared/db/pg/` (schema, pool lazy `max:5`, migrate). Convenção local: `apps/web` é um único workspace — só promove pra `packages/@cbrl/*` com 2º consumidor (não há). Reusa o tooling da ADR 0011 (Drizzle + `pg` + `drizzle-kit`, migration em Cloud Run Job nunca no boot, `push` proibido).
 
 ### D5 — Database lógico `oilio` na instância `oilio-db`; migration em Cloud Run Job
 

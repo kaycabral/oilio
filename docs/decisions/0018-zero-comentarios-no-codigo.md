@@ -26,7 +26,7 @@ Tudo o mais — `//`, `/* */`, `{/* */}` em JSX, e `/** */` solto ou sem tag —
 
 ### Enforcement
 
-Regra ESLint custom **`cbrl/no-non-doc-comments`** (em `@cbrl/eslint-base`), ligada como **`error`** em `apps/oilio/web/src/**` e `tests/**`. O determinismo é do **compilador**: a decisão "isto é TSDoc" consulta `parserServices.program` (o mesmo TS que compila o código anexou o bloco?), não regex de texto — então a regra nunca diverge do que o build entende. É `fixable`: `eslint --fix` remove os comentários proibidos (incluindo o container `{}` de JSX comments).
+Regra ESLint custom **`oilio/no-non-doc-comments`** (em `@oilio/eslint-config`), ligada como **`error`** em `apps/web/src/**` e `tests/**`. O determinismo é do **compilador**: a decisão "isto é TSDoc" consulta `parserServices.program` (o mesmo TS que compila o código anexou o bloco?), não regex de texto — então a regra nunca diverge do que o build entende. É `fixable`: `eslint --fix` remove os comentários proibidos (incluindo o container `{}` de JSX comments).
 
 Escopo: **oilio apenas**. Os outros apps do monorepo não estão sob a regra e mantêm seus comentários até serem trabalhados individualmente — a regra não impacta o CI deles.
 

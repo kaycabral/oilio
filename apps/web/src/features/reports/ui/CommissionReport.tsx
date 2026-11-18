@@ -23,7 +23,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useActionState, useId, useTransition } from 'react'
 

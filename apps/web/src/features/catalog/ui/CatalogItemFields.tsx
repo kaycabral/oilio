@@ -20,7 +20,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@cbrl/design'
+} from '@oilio/design'
 import { useState } from 'react'
 
 import { ProductNameCombobox } from '@/features/catalog/ui/ProductNameCombobox'

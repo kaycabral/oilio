@@ -7,7 +7,7 @@ import {
   deleteCategory,
   getCategoryDeletionImpactAction,
 } from '@/features/categories/adapters/categories.actions'
-import { Button, Input, Label } from '@cbrl/design'
+import { Button, Input, Label } from '@oilio/design'
 import { useState, useTransition } from 'react'
 
 function buildCategoryImpact(categoryId: string): () => Promise<DeletionImpact> {
