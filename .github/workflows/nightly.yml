@@ -1,0 +1,21 @@
+# The full pipeline on an unchanged main: catches what drifts without a commit
+# (date-dependent tests, flakes, a dependency or base image moving underneath).
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  checks:
+    name: Checks
+    uses: ./.github/workflows/checks.yml
+    permissions:
+      contents: read

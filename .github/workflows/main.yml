@@ -1,0 +1,106 @@
+# Push to main: migrate the production schema, then Vercel promotes the deploy.
+#
+# The ruleset makes every change land through a PR that passed `CI passed` with
+# its branch up to date, so main's tree is the exact tree the PR already proved.
+# `provenance` checks that claim through the API instead of re-running ~4 min of
+# checks. When it can't (direct push by an admin bypass, a PR merged while
+# stale), the full pipeline runs before anything touches production.
+name: Main
+
+on:
+  push:
+    branches: [main]
+
+# Never cancel: a run may be applying production migrations. Queued runs collapse
+# to the newest one, which is fine: migrations are cumulative and Vercel promotes
+# only the commit whose `migrate-production` check passed.
+concurrency:
+  group: main
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  provenance:
+    name: Provenance (proven by PR)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    outputs:
+      verified: ${{ steps.verify.outputs.verified }}
+    steps:
+      - id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          verified=false
+          pr=''
+          for _ in 1 2 3 4 5; do
+            pr=$(gh api "repos/$REPO/commits/$SHA/pulls" \
+              --jq '[.[] | select(.merged_at != null and .base.ref == "main")][0] // empty')
+            [ -n "$pr" ] && break
+            sleep 5
+          done
+          if [ -z "$pr" ]; then
+            echo "::notice::No merged PR for $SHA (direct push); running the full pipeline."
+          else
+            number=$(jq -r .number <<<"$pr")
+            head=$(jq -r .head.sha <<<"$pr")
+            main_tree=$(gh api "repos/$REPO/git/commits/$SHA" --jq .tree.sha)
+            head_tree=$(gh api "repos/$REPO/git/commits/$head" --jq .tree.sha)
+            ci=$(gh api "repos/$REPO/commits/$head/check-runs?check_name=CI%20passed&filter=latest" \
+              --jq '[.check_runs[] | select(.app.slug == "github-actions")][0].conclusion // "missing"')
+            echo "PR #$number head $head: tree match=$([ "$main_tree" = "$head_tree" ] && echo yes || echo no), CI passed=$ci"
+            if [ "$main_tree" = "$head_tree" ] && [ "$ci" = "success" ]; then
+              verified=true
+            else
+              echo "::notice::PR #$number does not prove this tree; running the full pipeline."
+            fi
+          fi
+          echo "verified=$verified" >> "$GITHUB_OUTPUT"
+
+  checks:
+    name: Checks
+    needs: provenance
+    if: needs.provenance.outputs.verified != 'true'
+    uses: ./.github/workflows/checks.yml
+    permissions:
+      contents: read
+
+  # The job name is the GitHub check Vercel's Deployment Checks wait on: keep it.
+  # `always()` matters: a skipped check counts as passing there, so this job
+  # fails explicitly whenever the commit is not proven, turning it into a
+  # blocked promotion instead of a silent one.
+  migrate-production:
+    name: migrate-production
+    needs: [provenance, checks]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Commit is proven
+        if: >-
+          needs.provenance.result != 'success' ||
+          (needs.provenance.outputs.verified != 'true' && needs.checks.result != 'success')
+        run: |
+          echo "::error::This commit is not proven by a PR nor by a green pipeline; production is not migrated and the deploy must not be promoted."
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Apply pending migrations
+        env:
+          # Supabase session pooler (port 5432) as `postgres`: IPv4-reachable
+          # from the runners and it keeps the session the migrator's advisory
+          # lock needs (the 6543 transaction pooler does not).
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: pnpm --filter @oilio/web run db:migrate

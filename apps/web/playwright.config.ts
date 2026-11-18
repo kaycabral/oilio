@@ -43,7 +43,7 @@ const USE_DEV_SERVER = process.env.E2E_DEV === '1'
 // CI optimization knobs (read from env so the same config powers every job):
 // - E2E_REUSE_BUILD=1: skip the build in webServer and `next start` the .next
 //   the build stage already produced (passed as artifact) — no rebuild per shard.
-// - PW_GREP: tag filter (e.g. '@smoke' on MR; unset = full suite on tag/nightly).
+// - PW_GREP: tag filter (e.g. '@smoke' locally; unset = full suite, as CI runs it).
 // - PW_SHARD_TOTAL/INDEX: split the suite across N parallel CI jobs.
 const REUSE_BUILD = process.env.E2E_REUSE_BUILD === '1'
 const PW_GREP = process.env.PW_GREP

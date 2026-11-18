@@ -1,0 +1,46 @@
+# Gate for every PR. The ruleset on main requires only `CI passed` (and the
+# branch up to date), so jobs can be renamed or added without touching it.
+# Never `pull_request_target`: PRs from forks run without secrets, and need none.
+name: Pull request
+
+on:
+  pull_request:
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  checks:
+    name: Checks
+    uses: ./.github/workflows/checks.yml
+    permissions:
+      contents: read
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
+        with:
+          fail-on-severity: high
+
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [checks, dependency-review]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Every required job succeeded
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        run: |
+          echo "::error::A required job did not succeed."
+          exit 1
+      - run: echo "All checks passed."

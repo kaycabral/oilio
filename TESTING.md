@@ -27,7 +27,7 @@ Smoke sits outside the pyramid because it answers a different question: **is the
 | --------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------- | -------------------------------------------------------- |
 | **Unit**        | Does this function/hook/component behave correctly in isolation? | Co-located (`Foo.tsx` ↔ `Foo.test.tsx`)                                  | ms            | Watch during dev; every PR                               |
 | **Integration** | Does this component work with its dependencies (RTL + msw)?      | Co-located                                                               | ~100ms        | Every PR                                                 |
-| **E2E**         | Can the user complete this critical real flow?                   | `_e2e/` per route **or** `tests/e2e/<feature>/` centralized (Playwright) | seconds       | Every PR (subset) + nightly (full)                       |
+| **E2E**         | Can the user complete this critical real flow?                   | `_e2e/` per route **or** `tests/e2e/<feature>/` centralized (Playwright) | seconds       | Every PR (full suite, sharded) + nightly                 |
 | **Smoke**       | Is the app alive and responding?                                 | `tests/smoke/` (root) or `apps/<x>/_smoke/`                              | <1s per check | **Post-deploy** against real URLs (preview + production) |
 
 ## When to use each
@@ -147,6 +147,8 @@ tests/e2e/
 ### Tags semantics
 
 Tags servem **eixos ortogonais** que folder structure não expressa (per [doc oficial](https://playwright.dev/docs/test-annotations#tag-tests)). Feature **não** vai em tag — feature mora no path.
+
+O CI roda a suíte completa em todo PR; as tags servem pra recortar localmente.
 
 | Tag         | Significado                                                                              | Quando rodar          |
 | ----------- | ---------------------------------------------------------------------------------------- | --------------------- |
@@ -316,5 +318,5 @@ Sem o stack local/env, o `globalSetup` falha ("local Supabase may be down") ou o
 ## Where it plugs in
 
 - O `CLAUDE.md` de cada app linka este documento (link Markdown comum, **não** `@-import` — logo não fica always-loaded no contexto do agente; é doc de consulta).
-- **CI ainda NÃO existe** (🔴 #939). Hoje o gate é local: `pre-push` roda typecheck + Vitest (unit/integration); **E2E é manual** antes da PR. Até o CI existir, o baseline (acima) é a defesa principal — rode os specs `*/baseline.spec.ts` na área tocada.
-- Alvo (#939): CI rodando unit + integration + E2E (subset) em todo PR, bloqueando merge; smoke post-deploy; E2E full nightly.
+- CI no GitHub Actions bloqueia o merge: unit + integration + suíte E2E completa em todo PR, pipeline completo toda noite (fluxo em [`docs/production.md`](docs/production.md#fluxo-de-uma-mudança)). Smoke post-deploy ainda não existe.
+- Unit: teste que renderiza (componente ou hook) é `.test.tsx` e roda em jsdom; o resto é `.test.ts` e roda em node (projetos `dom`/`node` do `vitest.config.ts`).
