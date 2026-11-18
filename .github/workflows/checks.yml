@@ -97,6 +97,10 @@ jobs:
   # production build, sharded. The app under test connects as `oilio_app` (no
   # BYPASSRLS), exactly as in production. 4 shards x 3 workers keeps a PR at
   # ~10 jobs, inside the account's 20 concurrent jobs with room for a second PR.
+  #
+  # Shards are balanced by duration: `e2e-timings` caches per-spec durations
+  # from main, and each shard takes its slice of the specs, heaviest first, so
+  # the shards finish together. Without timings, Playwright's count-based split.
   e2e:
     name: E2E (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
@@ -109,8 +113,8 @@ jobs:
         shard: [1, 2, 3, 4]
     env:
       PW_WORKERS: '3'
-      PW_SHARD_TOTAL: '4'
-      PW_SHARD_INDEX: ${{ matrix.shard }}
+      SHARD: ${{ matrix.shard }}
+      SHARDS: '4'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -129,10 +133,83 @@ jobs:
         run: pnpm --filter @oilio/web exec playwright install --with-deps chromium
       - if: steps.browsers.outputs.cache-hit == 'true'
         run: pnpm --filter @oilio/web exec playwright install-deps chromium
-      - run: pnpm --filter @oilio/web run test:e2e
+      - name: Restore spec timings
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/e2e-timings.json
+          key: e2e-timings-${{ github.run_id }}
+          restore-keys: e2e-timings-
+      - name: Run shard
+        working-directory: apps/web
+        env:
+          TIMINGS: ${{ runner.temp }}/e2e-timings.json
+          PW_JSON_REPORT: ${{ runner.temp }}/e2e-report.json
+        run: |
+          if specs=$(node scripts/e2e-shards.ts plan "$TIMINGS" "$SHARD" "$SHARDS"); then
+            mapfile -t files <<<"$specs"
+            echo "Duration-balanced shard: ${#files[@]} spec files"
+            pnpm run test:e2e "${files[@]}"
+          else
+            echo "No spec timings yet: count-based sharding"
+            PW_SHARD_TOTAL="$SHARDS" PW_SHARD_INDEX="$SHARD" pnpm run test:e2e
+          fi
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-traces-${{ matrix.shard }}
           path: apps/web/test-results/
           retention-days: 7
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-report-${{ matrix.shard }}
+          path: ${{ runner.temp }}/e2e-report.json
+          if-no-files-found: ignore
+          retention-days: 1
+
+  # Records per-spec durations for the next runs to balance on. Off on PRs: it
+  # would add its runtime to the PR's wall-clock, and a PR's cache is visible
+  # only to that PR, while main's (nightly) is visible to every PR.
+  e2e-timings:
+    name: E2E timings
+    needs: e2e
+    if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .nvmrc
+            apps/web/scripts
+            apps/web/tests/e2e
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: e2e-report-*
+          path: ${{ runner.temp }}/reports
+      - name: Merge spec timings
+        id: merge
+        working-directory: apps/web
+        env:
+          REPORTS: ${{ runner.temp }}/reports
+          TIMINGS: ${{ runner.temp }}/e2e-timings.json
+        run: |
+          shopt -s nullglob
+          reports=("$REPORTS"/*/e2e-report.json)
+          if [ ${#reports[@]} -eq 0 ]; then
+            echo "::warning::No E2E report to learn timings from."
+            exit 0
+          fi
+          node scripts/e2e-shards.ts record "$TIMINGS" "${reports[@]}"
+          echo "recorded=true" >> "$GITHUB_OUTPUT"
+      - if: steps.merge.outputs.recorded == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/e2e-timings.json
+          key: e2e-timings-${{ github.run_id }}
