@@ -3,7 +3,7 @@
 import { formatCnpj, isValidCompanyTaxId, normalizeTaxId } from '@/domain'
 import { formalizeUnit } from '@/features/company/adapters/formalize.actions'
 import { readJson } from '@/shared/http'
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from '@oilio/design'
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from '@cbrl/design'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 

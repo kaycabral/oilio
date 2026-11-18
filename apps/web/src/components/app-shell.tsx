@@ -14,7 +14,7 @@ import {
   AppShell as BaseAppShell,
   SidebarMenuButton,
   userMenuInitials,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { ChevronsUpDown } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'

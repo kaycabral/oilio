@@ -1,7 +1,7 @@
 import { loadCatalogPage } from '@/features/catalog/adapters/load-catalog'
 import { CatalogList } from '@/features/catalog/ui/CatalogList'
 import { CategoryManager } from '@/features/catalog/ui/CategoryManager'
-import { Main } from '@oilio/design'
+import { Main } from '@cbrl/design'
 
 export default async function CatalogPage({
   searchParams,

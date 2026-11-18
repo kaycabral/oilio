@@ -1,7 +1,7 @@
 'use client'
 
 import type { TrendPoint } from '@/features/dashboard/core/trend'
-import { Card, CardContent, CardDescription, CardTitle } from '@oilio/design'
+import { Card, CardContent, CardDescription, CardTitle } from '@cbrl/design'
 import { useMemo, useRef, useState } from 'react'
 import { formatCents, formatCount } from './KpiCard'
 

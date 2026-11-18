@@ -26,7 +26,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { Building2, ChevronDown, Settings2, Store } from 'lucide-react'
 import Link from 'next/link'
 import { useState, useTransition } from 'react'

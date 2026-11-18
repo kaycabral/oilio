@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { ClientInviteForm } from './ClientInviteForm'

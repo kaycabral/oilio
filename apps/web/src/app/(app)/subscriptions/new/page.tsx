@@ -3,7 +3,7 @@ import { isCapabilityLocked } from '@/features/billing/adapters/capability-lock'
 import { loadCustomersAndPlans } from '@/features/subscriptions/adapters/load-subscription-form'
 import { SubscriptionForm } from '@/features/subscriptions/ui/SubscriptionForm'
 import { requireCapabilityPage } from '@/shared/org/membership'
-import { Button, Main } from '@oilio/design'
+import { Button, Main } from '@cbrl/design'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 

@@ -48,7 +48,7 @@ A fronteira não é estética: é o que torna a lógica testável sem harness e 
 
 Não é convenção em prosa — é parede de lint em [`packages/eslint-base/configs/layering.mjs`](packages/eslint-base/configs/layering.mjs), chaveada na pasta `features/*/<ring>/` (no-op em app sem slices):
 
-- **pureza** (`no-restricted-imports`): `core/**` não importa react/next/firebase/`@oilio/db`/`server-only`.
+- **pureza** (`no-restricted-imports`): `core/**` não importa react/next/firebase/`@cbrl/pg`/`server-only`.
 - **direção** (`boundaries/element-types`): `ui→adapters→core`, nunca o contrário.
 
 Violar = pipeline vermelho, não code review.

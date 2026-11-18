@@ -9,7 +9,7 @@ import {
 import type { CashReportPeriod } from '@/features/cash/core/range'
 import { formString } from '@/shared/form-data'
 import { toRoute } from '@/shared/routes'
-import { Button, Input, Label } from '@oilio/design'
+import { Button, Input, Label } from '@cbrl/design'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useId, useMemo, useTransition } from 'react'
 

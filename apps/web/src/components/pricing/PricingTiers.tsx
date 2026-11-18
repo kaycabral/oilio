@@ -2,7 +2,7 @@
 
 import { TIERS as BILLING_TIERS, type Tier as BillingTier } from '@/domain/billing/tiers'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { Badge, Button, Card, Tabs, TabsList, TabsTrigger, Typography, cn } from '@oilio/design'
+import { Badge, Button, Card, Tabs, TabsList, TabsTrigger, Typography, cn } from '@cbrl/design'
 import { Check, Clock } from 'lucide-react'
 import { useState } from 'react'
 

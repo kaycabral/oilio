@@ -24,7 +24,7 @@ Reducers/aggregates/envelope **não mudam** — a porta troca o substrato por ba
 
 ### D2 — Seleção de Layer por feature-flag global; default Firestore
 
-A flag **`OILIO_PERSISTENCE`** (`firestore` | `postgres`, default `firestore` via `@oilio/env`) escolhe o Layer provido pelo `effect-bridge`. Por enquanto é global; vira por-contexto na feature B. Default Firestore = o oilio de hoje não regride (a fundação é aditiva).
+A flag **`OILIO_PERSISTENCE`** (`firestore` | `postgres`, default `firestore` via `@cbrl/env`) escolhe o Layer provido pelo `effect-bridge`. Por enquanto é global; vira por-contexto na feature B. Default Firestore = o oilio de hoje não regride (a fundação é aditiva).
 
 ### D3 — Event store relacional: `events` append-only, `UNIQUE(aggregate_id, version)`, projeção na mesma tx
 

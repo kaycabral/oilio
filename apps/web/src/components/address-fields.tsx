@@ -10,7 +10,7 @@ import {
   FieldLegend,
   FieldSet,
   Input,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { useEffect, useState } from 'react'
 
 function formatCep(value: string): string {

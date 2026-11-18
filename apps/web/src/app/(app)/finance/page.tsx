@@ -1,7 +1,7 @@
 import { loadFinancePage } from '@/features/finance/adapters/load-finance'
 import { FinanceView } from '@/features/finance/ui/FinanceView'
 import { isFeatureEnabled } from '@/shared/flags'
-import { Main } from '@oilio/design'
+import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'

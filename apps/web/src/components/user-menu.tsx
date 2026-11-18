@@ -2,7 +2,7 @@
 
 import { getClientAuth } from '@/shared/firebase/client'
 import { toRoute } from '@/shared/routes'
-import { DropdownMenuItem, DropdownMenuSeparator, UserMenu as UserMenuShell } from '@oilio/design'
+import { DropdownMenuItem, DropdownMenuSeparator, UserMenu as UserMenuShell } from '@cbrl/design'
 import { signOut } from 'firebase/auth'
 import { CircleHelp, LogOut, type LucideIcon, Settings } from 'lucide-react'
 import Link from 'next/link'

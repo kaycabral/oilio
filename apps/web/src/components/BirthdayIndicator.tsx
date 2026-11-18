@@ -1,6 +1,6 @@
 'use client'
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@oilio/design'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cbrl/design'
 import { Cake } from 'lucide-react'
 
 export function BirthdayIndicator() {

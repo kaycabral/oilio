@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 // jsdom não implementa as APIs de layout/observer que os primitivos Radix
 // (Select, Checkbox, Switch…) usam. Polyfill uma vez aqui pra qualquer teste de
 // componente conseguir renderizar e interagir com esses primitivos sem
-// boilerplate por arquivo (mesmo padrão de apps/imovil e packages/design).
+// boilerplate por arquivo (mesmo padrão do @cbrl/design).
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class {
     observe() {}

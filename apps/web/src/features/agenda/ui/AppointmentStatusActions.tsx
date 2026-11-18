@@ -8,7 +8,7 @@ import {
   unmarkAppointmentNoShowFormAction,
 } from '@/features/agenda/adapters/agenda.actions'
 import { startAttendanceFormAction } from '@/features/orders/adapters/orders.actions'
-import { Button } from '@oilio/design'
+import { Button } from '@cbrl/design'
 import { useActionState, useEffect } from 'react'
 import { useFormStatus } from 'react-dom'
 

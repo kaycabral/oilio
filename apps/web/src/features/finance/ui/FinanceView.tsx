@@ -10,7 +10,7 @@ import {
   CardTitle,
   EmptyState,
   Typography,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { FIXED_COST_CATEGORY_LABELS, FixedCostForm } from './FixedCostForm'
 import { FixedCostRowActions } from './FixedCostRowActions'
 

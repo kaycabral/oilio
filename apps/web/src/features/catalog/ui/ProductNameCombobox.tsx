@@ -1,7 +1,7 @@
 'use client'
 
 import type { ProductSuggestion } from '@/features/catalog/core/catalog-item-form'
-import { Input } from '@oilio/design'
+import { Input } from '@cbrl/design'
 import { useEffect, useRef, useState } from 'react'
 
 export function ProductNameCombobox({

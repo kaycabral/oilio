@@ -3,7 +3,7 @@ import {
   getOrCreateManagedPoolSync,
   initManagedPool,
   type ManagedPool,
-} from '@oilio/db'
+} from '@cbrl/pg'
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
 import type { Pool } from 'pg'
 import * as schema from '../schema'
@@ -11,7 +11,7 @@ import * as schema from '../schema'
 /**
  * Postgres connection for the sovereign product base.
  *
- * Shares the `@oilio/db` connection policy with the oilio event store (same Cloud
+ * Shares the `@cbrl/pg` connection policy with the oilio event store (same Cloud
  * SQL instance, 1 instance / 2 logical DBs): IAM auth in production (passwordless,
  * the connector dials the private IP over the VPC), plain connection string
  * (`DATABASE_URL`) locally/CI/tests.
@@ -21,11 +21,11 @@ import * as schema from '../schema'
  * /local lazily build the sync password-mode pool on first use. See the oilio
  * `pool.ts` for the full rationale.
  *
- * Pool state lives in the `@oilio/db` process-wide `globalThis` registry, NOT a
+ * Pool state lives in the `@cbrl/pg` process-wide `globalThis` registry, NOT a
  * module-level `let`: the Next standalone build (Turbopack) duplicates this
  * module across the instrumentation entry and route entries, so a module-level
  * singleton would split — boot opens one, requests see the other. The registry
- * is a true per-process singleton keyed by database name. See `@oilio/db`.
+ * is a true per-process singleton keyed by database name. See `@cbrl/pg`.
  */
 
 const ENV_CONFIG = {

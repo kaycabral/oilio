@@ -79,7 +79,7 @@ não criou.
 
 ## Origem e pendências
 
-Extraído do monorepo `cbrl` em 2026-11-17 com histórico (`git filter-repo`): `apps/oilio/web` → `apps/web`, `apps/oilio/docs` → `docs`, `packages/{db,product}` mantidos. `@oilio/{tsconfig,eslint-config,env,testing,design}` são cópias vendorizadas dos `@cbrl/*` e evoluem aqui de forma independente. Issues, MRs e a Wiki (briefs, PRDs) continuam no GitLab por enquanto.
+Extraído do monorepo `cbrl` em 2026-11-17 com histórico (`git filter-repo`): `apps/oilio/web` → `apps/web`, `apps/oilio/docs` → `docs`, `packages/{db,product}` mantidos. As cópias vendorizadas (`@oilio/{tsconfig,eslint-config,env,testing,design,db}`) foram substituídas pelos pacotes publicados no npm `@cbrl/{tsconfig,eslint-config,prettier-config,commitlint-config,env,testing,design,pg}` (fonte: `kaycabral/toolkit`); só `packages/product` segue local. Issues, MRs e a Wiki (briefs, PRDs) continuam no GitLab por enquanto.
 
 **TODO — CI/CD pesado, ainda não portado do GitLab** (o GitHub Actions hoje só roda `.github/workflows/ci.yml`: format, lint, typecheck, unit e build):
 

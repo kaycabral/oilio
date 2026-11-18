@@ -1,6 +1,6 @@
 import { loadOrdersPage } from '@/features/orders/adapters/load-orders'
 import { OrdersList } from '@/features/orders/ui/OrdersList'
-import { EmptyState, Main } from '@oilio/design'
+import { EmptyState, Main } from '@cbrl/design'
 import { Store } from 'lucide-react'
 import Link from 'next/link'
 

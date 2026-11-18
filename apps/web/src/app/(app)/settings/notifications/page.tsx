@@ -6,7 +6,7 @@ import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { isFeatureEnabled } from '@/shared/flags'
 import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
-import { SettingsSection } from '@oilio/design'
+import { SettingsSection } from '@cbrl/design'
 import { notFound, redirect } from 'next/navigation'
 
 export default async function NotificationSettingsPage() {

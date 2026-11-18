@@ -12,7 +12,7 @@ import {
   getTodayInOrgTz,
   shiftDateInOrgTz,
 } from '@/domain'
-import { Button, EmptyState } from '@oilio/design'
+import { Button, EmptyState } from '@cbrl/design'
 import { CalendarDays } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'

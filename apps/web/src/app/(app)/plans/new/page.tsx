@@ -1,7 +1,7 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { loadNewPlanPage } from '@/features/plans/adapters/load-plans'
 import { PlanForm } from '@/features/plans/ui/PlanForm'
-import { Main } from '@oilio/design'
+import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 
 export default async function NewPlanPage() {

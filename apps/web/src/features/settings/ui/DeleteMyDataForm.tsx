@@ -2,7 +2,7 @@
 
 import { deleteMyDataAction } from '@/features/settings/adapters/privacy.actions'
 import { getClientAuth } from '@/shared/firebase/client'
-import { Button, Input, Label } from '@oilio/design'
+import { Button, Input, Label } from '@cbrl/design'
 import { signOut } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'

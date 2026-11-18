@@ -6,7 +6,7 @@ Bounded context isolado da **base soberana de `Product`** (cross-org, identifica
 
 - **`src/gtin/`** — validador GTIN puro (sem I/O): check-digit GS1, normalize-to-14, rejeição de prefixos restritos (RCN/coupon), ISBN-13→EAN-13, fallback `brand+MPN`. Unit-testável isolado.
 - **`src/schema/`** — schema Drizzle da tabela `Product` + enum `source`. Sem `orgId`.
-- **`src/db/`** — pool `pg` (lazy, `max: 3–5`) + conexão via `DATABASE_URL` (`@oilio/env`, fail-fast).
+- **`src/db/`** — pool `pg` (lazy, `max: 3–5`) + conexão via `DATABASE_URL` (`@cbrl/env`, fail-fast).
 - **`src/port/`** — interface do Port de fonte de dados (desenho, sem adapter externo — A2 pluga).
 
 ## Regras locais

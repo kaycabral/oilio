@@ -1,4 +1,4 @@
-import { Badge, Typography } from '@oilio/design'
+import { Badge, Typography } from '@cbrl/design'
 import { Check, Minus } from 'lucide-react'
 
 const COLUMNS = ['Grátis', 'Pro', 'Avançado', 'Escala'] as const

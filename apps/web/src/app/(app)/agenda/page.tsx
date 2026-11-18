@@ -1,6 +1,6 @@
 import { loadAgendaPage } from '@/features/agenda/adapters/load-agenda'
 import { AgendaView } from '@/features/agenda/ui/AgendaView'
-import { Main } from '@oilio/design'
+import { Main } from '@cbrl/design'
 
 export default async function AgendaPage({
   searchParams,

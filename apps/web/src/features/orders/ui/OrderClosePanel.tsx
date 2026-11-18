@@ -21,7 +21,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { useActionState, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 

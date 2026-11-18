@@ -31,11 +31,11 @@
     "mutation": "stryker run"
   },
   "dependencies": {
-    "@oilio/db": "workspace:*",
-    "@oilio/design": "workspace:*",
-    "@oilio/env": "workspace:*",
-    "@oilio/product": "workspace:*",
+    "@cbrl/design": "^0.1.0",
+    "@cbrl/env": "^0.1.0",
+    "@cbrl/pg": "^0.1.0",
     "@google-cloud/cloud-sql-connector": "catalog:",
+    "@oilio/product": "workspace:*",
     "@sentry/nextjs": "10.66.0",
     "@types/qrcode": "^1.5.6",
     "drizzle-orm": "catalog:",
@@ -54,9 +54,9 @@
     "stripe": "22.3.0"
   },
   "devDependencies": {
-    "@oilio/eslint-config": "workspace:*",
-    "@oilio/testing": "workspace:*",
-    "@oilio/tsconfig": "workspace:*",
+    "@cbrl/eslint-config": "^0.1.0",
+    "@cbrl/testing": "^0.1.0",
+    "@cbrl/tsconfig": "^0.1.0",
     "@playwright/test": "catalog:",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",

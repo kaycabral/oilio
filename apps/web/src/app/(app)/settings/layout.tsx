@@ -1,4 +1,4 @@
-import { Main } from '@oilio/design'
+import { Main } from '@cbrl/design'
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return <Main width="narrow">{children}</Main>

@@ -1,5 +1,5 @@
 {
-  "extends": "@oilio/tsconfig/base.json",
+  "extends": "@cbrl/tsconfig/base.json",
   "include": [
     "src/**/*.ts",
     "drizzle.config.ts",

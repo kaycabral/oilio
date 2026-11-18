@@ -1,4 +1,4 @@
-import baseConfig from '@oilio/eslint-config'
+import baseConfig from '@cbrl/eslint-config'
 import checkFile from 'eslint-plugin-check-file'
 
 export default [
@@ -44,7 +44,7 @@ export default [
   {
     files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts'],
     rules: {
-      'oilio/no-non-doc-comments': 'error',
+      'cbrl/no-non-doc-comments': 'error',
     },
   },
 ]

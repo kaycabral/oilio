@@ -4,7 +4,7 @@ import { getSessionUser } from '@/shared/firebase/admin'
 import { isFirebaseConfigured } from '@/shared/firebase/config'
 import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
-import { Card, CardContent, SettingsSection } from '@oilio/design'
+import { Card, CardContent, SettingsSection } from '@cbrl/design'
 import { redirect } from 'next/navigation'
 
 export default async function ProfileSettingsPage() {

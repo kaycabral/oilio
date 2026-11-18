@@ -1,4 +1,4 @@
-import { Typography } from '@oilio/design'
+import { Typography } from '@cbrl/design'
 
 const FAQ = [
   {

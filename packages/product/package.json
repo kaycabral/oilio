@@ -20,14 +20,15 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@oilio/db": "workspace:*",
-    "@oilio/env": "workspace:*",
+    "@cbrl/env": "^0.1.0",
+    "@cbrl/pg": "^0.1.0",
+    "@google-cloud/cloud-sql-connector": "catalog:",
     "drizzle-orm": "catalog:",
     "pg": "catalog:"
   },
   "devDependencies": {
-    "@oilio/testing": "workspace:*",
-    "@oilio/tsconfig": "workspace:*",
+    "@cbrl/testing": "^0.1.0",
+    "@cbrl/tsconfig": "^0.1.0",
     "@types/pg": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "drizzle-kit": "catalog:",

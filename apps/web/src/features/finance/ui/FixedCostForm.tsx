@@ -13,7 +13,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@oilio/design'
+} from '@cbrl/design'
 import { useId, useState, useTransition } from 'react'
 
 export const FIXED_COST_CATEGORY_LABELS: Record<FixedCostCategory, string> = {

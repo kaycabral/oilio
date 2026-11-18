@@ -1,4 +1,0 @@
-{
-  "extends": "@oilio/tsconfig/base.json",
-  "include": ["src/**/*.ts"]
-}

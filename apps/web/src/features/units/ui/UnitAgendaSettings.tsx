@@ -1,5 +1,5 @@
 import { appointmentAgenda, type Unit } from '@/domain'
-import { Badge, Card, CardContent, CardHeader, CardTitle } from '@oilio/design'
+import { Badge, Card, CardContent, CardHeader, CardTitle } from '@cbrl/design'
 
 export function UnitAgendaSettings({ unit }: { unit: Unit }) {
   const appointment = appointmentAgenda(unit.agenda)

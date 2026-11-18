@@ -10,7 +10,7 @@ import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import { formatRelativeDate } from '@/shared/relative-date'
 import { toRoute } from '@/shared/routes'
-import { EmptyState, List } from '@oilio/design'
+import { EmptyState, List } from '@cbrl/design'
 import { Clock, Receipt } from 'lucide-react'
 import Link from 'next/link'
 

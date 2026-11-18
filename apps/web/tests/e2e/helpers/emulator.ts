@@ -1,4 +1,4 @@
-import { authEmulatorHost, emulatorProjectId } from '@oilio/testing/firebase'
+import { authEmulatorHost, emulatorProjectId } from '@cbrl/testing/firebase'
 
 export const AUTH_HOST = authEmulatorHost()
 export const PROJECT_ID = emulatorProjectId()

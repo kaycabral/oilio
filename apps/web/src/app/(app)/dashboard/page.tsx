@@ -1,6 +1,6 @@
 import { loadDashboardPage } from '@/features/dashboard/adapters/load-dashboard'
 import { DashboardView } from '@/features/dashboard/ui/DashboardView'
-import { Main } from '@oilio/design'
+import { Main } from '@cbrl/design'
 
 export const dynamic = 'force-dynamic'
 

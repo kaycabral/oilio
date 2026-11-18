@@ -3,7 +3,7 @@
 import type { Goal } from '@/domain'
 import { defineGoal, updateGoal } from '@/features/copilot/adapters/copilot.actions'
 import { useFormValidity } from '@/hooks/use-form-validity'
-import { Button, Input, Label } from '@oilio/design'
+import { Button, Input, Label } from '@cbrl/design'
 import { useId, useState, useTransition } from 'react'
 
 type GoalFormProps = {

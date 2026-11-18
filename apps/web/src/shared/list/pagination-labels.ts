@@ -1,4 +1,4 @@
-import type { PaginationProps } from '@oilio/design'
+import type { PaginationProps } from '@cbrl/design'
 
 export const PAGINATION_LABELS_PTBR: PaginationProps['labels'] = {
   root: 'Paginação',

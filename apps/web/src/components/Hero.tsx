@@ -1,5 +1,5 @@
 import { isFirebaseConfigured } from '@/shared/firebase/config'
-import { Button, Typography } from '@oilio/design'
+import { Button, Typography } from '@cbrl/design'
 
 export function Hero() {
   const authEnabled = isFirebaseConfigured()

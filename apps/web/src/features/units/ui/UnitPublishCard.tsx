@@ -1,7 +1,7 @@
 import type { UnitHoursMode } from '@/domain'
 import { getUnitPublishReadiness } from '@/features/units/adapters/units.actions'
 import { UNIT_REQUIREMENTS } from '@/features/units/core/publish-readiness'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@oilio/design'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@cbrl/design'
 import { Check, X } from 'lucide-react'
 
 export async function UnitPublishCard({
