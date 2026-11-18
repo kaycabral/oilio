@@ -1,5 +1,5 @@
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   sync: vi.fn<(orgId: string) => Promise<void>>(() => Promise.resolve(undefined)),
@@ -9,6 +9,10 @@ vi.mock('@/shared/billing/stripe-sync', () => ({
 }))
 
 import { reconcileBillingQuantities } from './reconcile-billing'
+
+const APP_ROLE = 'oilio_reconcile_rls_app'
+const APP_PASSWORD = 'rls_test'
+const ownerUrl = process.env.OILIO_DATABASE_URL
 
 async function seedOrg(id: string): Promise<void> {
   await getEventStorePool().query(
@@ -32,15 +36,44 @@ async function seedBilling(
              '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId, opts.status, opts.subId],
   )
+  await getEventStorePool().query(
+    `INSERT INTO org_billing_stripe_index (stripe_customer_id, org_id) VALUES ('cus_'||$1, $1)`,
+    [orgId],
+  )
+}
+
+async function asRuntimeRole<T>(fn: () => Promise<T>): Promise<T> {
+  if (!ownerUrl) throw new Error('OILIO_DATABASE_URL is required')
+  await closeEventStoreDb()
+  process.env.OILIO_DATABASE_URL = ownerUrl.replace(/\/\/[^@]+@/, `//${APP_ROLE}:${APP_PASSWORD}@`)
+  try {
+    return await fn()
+  } finally {
+    await closeEventStoreDb()
+    process.env.OILIO_DATABASE_URL = ownerUrl
+  }
 }
 
 describe('reconcileBillingQuantities (brief 0074, AC-04)', () => {
+  beforeAll(async () => {
+    const pool = getEventStorePool()
+    await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
+    await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
+    await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
+    await pool.query(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON orgs, org_billing, org_billing_stripe_index TO ${APP_ROLE}`,
+    )
+  })
+
   beforeEach(async () => {
     vi.clearAllMocks()
     await getEventStorePool().query('TRUNCATE org_billing_stripe_index, org_billing, orgs CASCADE')
   })
 
   afterAll(async () => {
+    const pool = getEventStorePool()
+    await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
+    await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await closeEventStoreDb()
   })
 
@@ -59,6 +92,17 @@ describe('reconcileBillingQuantities (brief 0074, AC-04)', () => {
     expect(orgIds).toEqual(['org-active', 'org-pastdue', 'org-trialing'])
   })
 
+  it('still sees every live org as the runtime role (no BYPASSRLS, FORCE RLS on org_billing)', async () => {
+    await seedBilling('org-1', { status: 'active', subId: 'sub_1' })
+    await seedBilling('org-2', { status: 'past_due', subId: 'sub_2' })
+    await seedBilling('org-3', { status: 'canceled', subId: 'sub_3' })
+
+    const swept = await asRuntimeRole(() => reconcileBillingQuantities())
+
+    expect(swept).toBe(2)
+    expect(mocks.sync.mock.calls.map((c) => c[0]).sort()).toEqual(['org-1', 'org-2'])
+  })
+
   it('returns 0 and calls nothing when no org has a subscription', async () => {
     await seedBilling('org-free', { status: 'active', subId: null })
 
@@ -66,15 +110,5 @@ describe('reconcileBillingQuantities (brief 0074, AC-04)', () => {
 
     expect(swept).toBe(0)
     expect(mocks.sync).not.toHaveBeenCalled()
-  })
-
-  it('reconciles every live org in one pass (per-org sync never throws by contract)', async () => {
-    await seedBilling('org-1', { status: 'active', subId: 'sub_1' })
-    await seedBilling('org-2', { status: 'past_due', subId: 'sub_2' })
-
-    const swept = await reconcileBillingQuantities()
-
-    expect(swept).toBe(2)
-    expect(mocks.sync).toHaveBeenCalledTimes(2)
   })
 })
