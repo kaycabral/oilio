@@ -5,7 +5,7 @@ packages:
 # Single source of truth for shared dependency versions. Bump = edit here +
 # `pnpm install`. Deps used by a single workspace stay inline in its package.json.
 catalog:
-  next: ^16.2.6
+  next: ^16.4.5
   react: ^19.2.6
   react-dom: ^19.2.6
   next-themes: ^0.4.6
@@ -28,7 +28,7 @@ catalog:
   firebase: ^12.13.0
   firebase-admin: ^13.9.0
 
-  eslint-config-next: ^16.2.6
+  eslint-config-next: ^16.4.5
 
   vitest: ^4.1.6
   '@vitest/coverage-v8': ^4.1.6
