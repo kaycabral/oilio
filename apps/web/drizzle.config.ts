@@ -6,7 +6,7 @@ import { defineConfig } from 'drizzle-kit'
  *
  * `generate` produces versioned SQL migrations in `drizzle/` (reviewable in the
  * PR); `migrate` applies them. Production migrations run only from the CI job
- * `migrate-production`, NEVER at boot (ADR 0011 D2 — N instances →
+ * `Deploy (migrate database)`, NEVER at boot (ADR 0011 D2 — N instances →
  * advisory-lock race) and NEVER via `push` (D3 — rename becomes drop+add → data
  * loss). See docs/production.md.
  *

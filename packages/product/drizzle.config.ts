@@ -6,7 +6,7 @@ import { defineConfig } from 'drizzle-kit'
  *
  * `generate` produces versioned SQL migrations in `drizzle/` (reviewable in the
  * PR); `migrate` applies them. Production migrations run only from the CI job
- * `migrate-production`, NEVER at boot (N instances → advisory-lock race) and
+ * `Deploy (migrate database)`, NEVER at boot (N instances → advisory-lock race) and
  * NEVER via `push` (rename becomes drop+add → data loss). The journal lives in
  * its own table because product shares the Supabase database with the event
  * store. See docs/production.md.

@@ -72,7 +72,7 @@ pnpm --filter @oilio/web run test:integration   # event store
 ```bash
 # Playwright (E2E) — chromium é o único projeto ativo.
 pnpm --filter @oilio/web run test:e2e
-pnpm --filter @oilio/web run test:e2e:critical   # só @critical (o que roda em PR)
+pnpm --filter @oilio/web run test:e2e:critical   # só @critical (subset local; o CI roda a suíte completa)
 ```
 
 **Dados de teste prontos pra desenvolvimento manual.** Em vez de recriar
@@ -111,7 +111,7 @@ Produção (Vercel + Supabase, migrations só pelo CI): ver [`docs/production.md
 
 Extraído do monorepo `cbrl` em 2026-11-17 com histórico (`git filter-repo`): `apps/oilio/web` → `apps/web`, `apps/oilio/docs` → `docs`, `packages/product` mantido. As cópias vendorizadas (`@oilio/{tsconfig,eslint-config,env,testing,design,db}`) foram substituídas pelos pacotes publicados no npm `@cbrl/{tsconfig,eslint-config,prettier-config,commitlint-config,env,testing,design,pg}` (fonte: `kaycabral/toolkit`); só `packages/product` segue local.
 
-Em 2026-11-18 a produção saiu de GCP/Firebase pra Supabase + Vercel ([ADR 0020](./docs/decisions/0020-supabase-vercel.md)), e o CI/CD foi portado pro GitHub Actions (`.github/workflows/ci.yml`): checks (format, lint, typecheck, unit, build), integração Postgres, higiene de migrations e E2E `@critical` em PR/`main`, suíte E2E completa toda noite e `migrate-production` como gate do deploy da Vercel.
+Em 2026-11-18 a produção saiu de GCP/Firebase pra Supabase + Vercel ([ADR 0020](./docs/decisions/0020-supabase-vercel.md)), e o CI/CD foi portado pro GitHub Actions (`.github/workflows/`): um pipeline reutilizável (`checks.yml`) chamado por PR, `main` e nightly, com `Deploy (migrate database)` como gate do deploy da Vercel. Fluxo em [`docs/production.md`](./docs/production.md#fluxo-de-uma-mudança).
 
 **Pendências:**
 

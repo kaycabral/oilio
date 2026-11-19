@@ -43,11 +43,12 @@ const USE_DEV_SERVER = process.env.E2E_DEV === '1'
 // CI optimization knobs (read from env so the same config powers every job):
 // - E2E_REUSE_BUILD=1: skip the build in webServer and `next start` the .next
 //   the build stage already produced (passed as artifact) — no rebuild per shard.
-// - PW_GREP: tag filter (e.g. '@smoke' on MR; unset = full suite on tag/nightly).
+// - PW_GREP: tag filter (e.g. '@smoke' locally; unset = full suite, as CI runs it).
 // - PW_SHARD_TOTAL/INDEX: split the suite across N parallel CI jobs.
 const REUSE_BUILD = process.env.E2E_REUSE_BUILD === '1'
 const PW_GREP = process.env.PW_GREP
 const PW_SHARD_TOTAL = process.env.PW_SHARD_TOTAL
+const PW_JSON_REPORT = process.env.PW_JSON_REPORT
 
 /**
  * The Next webServer env: the LOCAL Supabase stack the runner (`scripts/e2e.ts`)
@@ -120,7 +121,15 @@ export default defineConfig({
   // principal de flake (hydration race do dev mode).
   retries: 0,
   // CI adds GitHub Actions annotations on failing specs; locally just the list.
-  reporter: process.env.CI ? [['list'], ['github']] : 'list',
+  // PW_JSON_REPORT: per-spec durations the CI feeds back into duration-balanced
+  // sharding (scripts/e2e-shards.ts).
+  reporter: process.env.CI
+    ? [
+        ['list'],
+        ['github'],
+        ...(PW_JSON_REPORT ? [['json', { outputFile: PW_JSON_REPORT }] as const] : []),
+      ]
+    : 'list',
   use: {
     baseURL: BASE_URL,
     // `retain-on-failure` keeps every failing trace (vs `on-first-retry`,

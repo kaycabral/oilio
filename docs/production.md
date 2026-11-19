@@ -12,7 +12,7 @@ Runbook do ambiente de produção do oilio: o que roda onde, como mudança chega
 | Login                  | Só Google (provider Google do Supabase Auth)                                   |
 | Pagamentos             | Stripe Billing (assinatura lojista → oilio), webhook `/api/webhooks/stripe`    |
 | Crons                  | Vercel Cron (`apps/web/vercel.json`), `Authorization: Bearer $CRON_SECRET`     |
-| Migrations             | GitHub Actions, job `migrate-production` do `ci.yml`                           |
+| Migrations             | GitHub Actions, job `deploy` do `main.yml`                                     |
 
 **Ninguém acessa o banco de produção da própria máquina.** Dev, seed e E2E rodam no stack Supabase local (`pnpm --filter @oilio/web db:start`); a URL do banco de prod existe só no secret do GitHub e nas envs da Vercel.
 
@@ -32,10 +32,10 @@ A Data API (PostgREST) fica **desligada** no projeto: o app fala com o Postgres 
 
 ## Fluxo de uma mudança
 
-1. PR → CI: format, lint, typecheck, unit, build; integração Postgres (constraints, RLS, event store); higiene de migrations (journal consistente, schema sem drift, migrations da `main` imutáveis); E2E `@critical` no stack Supabase local.
-2. Merge na `main` → CI roda de novo; com tudo verde, `migrate-production` aplica as migrations pendentes do event store e do `@oilio/product` (no-op quando não há). Se algum job falhar, `migrate-production` **falha** em vez de ser pulado (um check "skipped" passaria no Deployment Check da Vercel).
-3. A Vercel builda o mesmo commit e só promove pra produção depois do check `migrate-production` passar (Deployment Checks). O código novo nunca entra no ar antes do schema que ele usa.
-4. Toda noite o CI roda a suíte E2E completa.
+1. PR → `pull-request.yml` roda o pipeline (`checks.yml`), tudo em paralelo: static (format, lint, typecheck, higiene de migrations: journal consistente, schema sem drift, migrations da `main` imutáveis); unit; integração Postgres (product e event store); **suíte E2E completa** em 4 shards no stack Supabase local; dependency review. O ruleset da `main` exige o check agregador `CI passed` e a branch atualizada antes do merge.
+2. Merge na `main` → `main.yml`: o job `provenance` confirma pela API que a árvore do commit é idêntica à do head de um PR com `CI passed` verde (é o que o ruleset garante). Confirmado, não re-roda nada; não confirmado (push direto via bypass, PR desatualizado), roda o pipeline completo antes. Então `Deploy (migrate database)` aplica as migrations pendentes do event store e do `@oilio/product` (no-op quando não há). Commit não provado → `Deploy (migrate database)` **falha** em vez de ser pulado (um check "skipped" passaria no Deployment Check da Vercel).
+3. A Vercel builda o mesmo commit e só promove pra produção depois do check `Deploy (migrate database)` passar (Deployment Checks). O código novo nunca entra no ar antes do schema que ele usa.
+4. Toda noite `nightly.yml` roda o pipeline completo na `main` sem mudança (pega teste dependente de data, flake e drift de dependência). `scorecard.yml` mede a postura de supply chain (OpenSSF) toda semana.
 
 ## Regras de migration
 
@@ -91,5 +91,5 @@ Envs de Production (todas server-only, exceto `NEXT_PUBLIC_*`):
 
 - **Nunca** `ENABLE_TEST_AUTH` em Production/Preview.
 - Previews não recebem as envs de banco/Stripe de produção.
-- Settings → Deployment Checks: exigir o check `migrate-production` antes de promover pra produção.
+- Settings → Deployment Checks: exigir o check `Deploy (migrate database)` antes de promover pra produção.
 - Deployment Protection (Vercel Authentication) só em Preview; o domínio de produção é público.

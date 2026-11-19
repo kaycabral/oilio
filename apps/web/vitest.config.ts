@@ -17,11 +17,30 @@ export default defineConfig({
     },
   },
   test: {
-    environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
-    include: ['src/**/*.test.{ts,tsx}'],
-    exclude: ['src/**/*.integration.test.ts', 'node_modules/**'],
+    // jsdom costs ~1s of environment startup per file; paying it only where a DOM
+    // is rendered halves the suite. Convention: a test that renders (component or
+    // hook) is `.test.tsx`; everything else is `.test.ts` and runs under node.
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+          exclude: ['src/**/*.integration.test.ts', 'node_modules/**'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'dom',
+          environment: 'jsdom',
+          include: ['src/**/*.test.tsx'],
+        },
+      },
+    ],
     // Unit-coverage gate (piso anti-regressão, PINADO). O número é baixo DE
     // PROPÓSITO: a lógica do web é majoritariamente server-side (server
     // actions/components) e sua rede real são os testes de integration + e2e
