@@ -2,6 +2,13 @@ packages:
   - apps/*
   - packages/*
 
+# Supply-chain quarantine (minutes): resolution never picks a version published
+# less than 3 days ago, the window in which compromised releases get yanked.
+# Same rule as Dependabot's cooldown; our own @cbrl packages are exempt.
+minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+  - '@cbrl/*'
+
 # Single source of truth for shared dependency versions. Bump = edit here +
 # `pnpm install`. Deps used by a single workspace stay inline in its package.json.
 catalog:
