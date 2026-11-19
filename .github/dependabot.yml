@@ -12,19 +12,53 @@ updates:
       time: '06:00'
       timezone: America/Sao_Paulo
     open-pull-requests-limit: 10
+    # Supply-chain quarantine: a compromised release is usually yanked within
+    # hours; never propose a version younger than this. Security updates skip it.
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
+      exclude:
+        - '@cbrl/*'
     commit-message:
       prefix: chore
       include: scope
+    # Groups drive auto-merge (dependabot-auto-merge.yml): `minor-and-patch` and
+    # the `actions` group below merge by themselves. `critical` holds what CI can't fully prove (payments, auth,
+    # database, framework, error reporting) and waits for a human, as do
+    # `cbrl-toolkit`, majors and security updates (ungrouped).
     groups:
       cbrl-toolkit:
         patterns:
           - '@cbrl/*'
+      critical:
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - next
+          - stripe
+          - '@supabase/*'
+          - supabase
+          - drizzle-orm
+          - drizzle-kit
+          - pg
+          - '@sentry/*'
+          - effect
       minor-and-patch:
         update-types:
           - minor
           - patch
         exclude-patterns:
           - '@cbrl/*'
+          - next
+          - stripe
+          - '@supabase/*'
+          - supabase
+          - drizzle-orm
+          - drizzle-kit
+          - pg
+          - '@sentry/*'
+          - effect
 
   - package-ecosystem: github-actions
     directory: /
@@ -33,9 +67,14 @@ updates:
       day: monday
       time: '06:00'
       timezone: America/Sao_Paulo
+    cooldown:
+      default-days: 3
     commit-message:
       prefix: ci
     groups:
       actions:
+        update-types:
+          - minor
+          - patch
         patterns:
           - '*'
