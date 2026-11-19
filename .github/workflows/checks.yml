@@ -121,18 +121,56 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm --filter @oilio/web run db:start
-      - name: Resolve Playwright version
+      - name: Resolve Playwright version and OS release
         id: playwright
-        run: echo "version=$(pnpm --filter @oilio/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(pnpm --filter @oilio/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "os=${ImageOS}" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: browsers
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - if: steps.browsers.outputs.cache-hit != 'true'
-        run: pnpm --filter @oilio/web exec playwright install --with-deps chromium
-      - if: steps.browsers.outputs.cache-hit == 'true'
-        run: pnpm --filter @oilio/web exec playwright install-deps chromium
+        run: pnpm --filter @oilio/web exec playwright install chromium
+      # The browser's system packages, as .deb files: `install-deps` goes through
+      # apt and the Ubuntu mirrors on every shard (once took 6 min on a slow
+      # mirror). Keyed by OS release + Playwright, not by runner image version: the
+      # image rolls out gradually, so shards of one run land on different versions
+      # and a per-version key would miss. A hit installs them offline.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: system-debs
+        with:
+          path: ~/.cache/playwright-debs
+          key: playwright-debs-${{ steps.playwright.outputs.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install browser system packages
+        env:
+          CACHED: ${{ steps.system-debs.outputs.cache-hit }}
+        run: |
+          debs="$HOME/.cache/playwright-debs"
+          if [ "$CACHED" = 'true' ]; then
+            shopt -s nullglob
+            files=("$debs"/*.deb)
+            echo "Installing ${#files[@]} cached packages offline"
+            if ! sudo dpkg -i "${files[@]}"; then
+              echo "::warning::Cached packages did not install; falling back to apt."
+              pnpm --filter @oilio/web exec playwright install-deps chromium
+            fi
+          else
+            echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' | sudo tee /etc/apt/apt.conf.d/99-keep-debs >/dev/null
+            sudo rm -f /etc/apt/apt.conf.d/docker-clean
+            sudo apt-get clean
+            pnpm --filter @oilio/web exec playwright install-deps chromium
+            mkdir -p "$debs"
+            find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp {} "$debs"/ \;
+            count=$(find "$debs" -name '*.deb' | wc -l)
+            if [ "$count" -eq 0 ]; then
+              rm -rf "$debs"
+              echo "::warning::No .deb kept by apt; nothing cached, next runs use apt again."
+            else
+              echo "Cached $count packages for the next runs"
+            fi
+          fi
       - name: Restore spec timings
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
