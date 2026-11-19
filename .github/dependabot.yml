@@ -60,8 +60,12 @@ updates:
           - '@sentry/*'
           - effect
 
+  # `/` only covers .github/workflows; composite actions live under
+  # .github/actions and must be listed or their pins silently drift.
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - /
+      - /.github/actions/*
     schedule:
       interval: weekly
       day: monday
