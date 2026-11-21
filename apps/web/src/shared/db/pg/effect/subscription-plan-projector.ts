@@ -1,5 +1,5 @@
 import { SubscriptionPlanConfig } from '@/domain/aggregates/subscription-plan/config'
-import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, StoredDoc } from '@/domain/effect'
 import { SubscriptionPlan } from '@/domain/types/subscription-plan'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -90,12 +90,12 @@ export function planUnitAllowlistRows(plan: SubscriptionPlan): unknown[][] {
   return plan.unitAllowlist.map((unitId) => [plan.orgId, plan.id, unitId])
 }
 
-function stateVersion(state: FirestoreDoc): number {
+function stateVersion(state: StoredDoc): number {
   const v = state['_version']
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: StoredDoc): Promise<void> {
   const plan = decodeSubscriptionPlan(state)
   await client.query(UPSERT, subscriptionPlanColumnValues(plan, stateVersion(state)))
   await client.query(PLAN_INCLUDED_ITEMS_DELETE, [plan.orgId, plan.id])
@@ -133,7 +133,7 @@ export type SubscriptionPlanRow = {
   updated_at: string
 }
 
-export function rowToDoc(row: SubscriptionPlanRow): FirestoreDoc {
+export function rowToDoc(row: SubscriptionPlanRow): StoredDoc {
   const base = {
     _version: Number(row.last_event_version),
     id: row.id,
@@ -158,7 +158,7 @@ export function rowToDoc(row: SubscriptionPlanRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<StoredDoc | null> {
   const res = await client.query<SubscriptionPlanRow>(
     'SELECT * FROM subscription_plans WHERE org_id = $1 AND id = $2',
     [ref.orgId, ref.id],
@@ -167,7 +167,7 @@ async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc
   return row ? rowToDoc(row) : null
 }
 
-async function readForUpdate(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+async function readForUpdate(client: PoolClient, ref: AggregateRef): Promise<StoredDoc | null> {
   const res = await client.query<SubscriptionPlanRow>(
     'SELECT * FROM subscription_plans WHERE org_id = $1 AND id = $2 FOR UPDATE',
     [ref.orgId, ref.id],

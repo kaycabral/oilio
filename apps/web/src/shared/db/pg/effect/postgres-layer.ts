@@ -1,9 +1,9 @@
 import type {
   AggregateRef,
   CollectionRef,
-  FirestoreDoc,
   PersistenceOps,
   QueryConstraint,
+  StoredDoc,
   TransactionContext,
 } from '@/domain/effect'
 import { PersistencePort, SecurityContext } from '@/domain/effect'
@@ -36,15 +36,12 @@ import './subscription-projector'
 import { typedProjectorFor } from './typed-projections'
 import './unit-projector'
 
-async function getProjectionDoc(
-  client: PoolClient,
-  ref: AggregateRef,
-): Promise<FirestoreDoc | null> {
+async function getProjectionDoc(client: PoolClient, ref: AggregateRef): Promise<StoredDoc | null> {
   const typed = typedProjectorFor(ref.type)
   if (typed) {
     return typed.read(client, ref)
   }
-  const res = await client.query<{ state: FirestoreDoc }>(
+  const res = await client.query<{ state: StoredDoc }>(
     'SELECT state FROM projections WHERE org_id = $1 AND id = $2',
     [ref.orgId, ref.id],
   )
@@ -54,12 +51,12 @@ async function getProjectionDoc(
 async function getProjectionDocForUpdate(
   client: PoolClient,
   ref: AggregateRef,
-): Promise<FirestoreDoc | null> {
+): Promise<StoredDoc | null> {
   const typed = typedProjectorFor(ref.type)
   if (typed?.readForUpdate) {
     return typed.readForUpdate(client, ref)
   }
-  const res = await client.query<{ state: FirestoreDoc }>(
+  const res = await client.query<{ state: StoredDoc }>(
     'SELECT state FROM projections WHERE org_id = $1 AND id = $2 FOR UPDATE',
     [ref.orgId, ref.id],
   )
@@ -69,7 +66,7 @@ async function getProjectionDocForUpdate(
 async function readCollection(
   ref: CollectionRef,
   constraints: readonly QueryConstraint[],
-): Promise<readonly FirestoreDoc[]> {
+): Promise<readonly StoredDoc[]> {
   const projector = typedProjectorFor(ref.type)
   if (!projector?.list) {
     throw new Error(`Unsupported collection read for "${ref.type}" (no typed list projector)`)
@@ -81,8 +78,8 @@ async function readCollection(
 async function readEventStream(
   client: PoolClient,
   ref: AggregateRef,
-): Promise<readonly FirestoreDoc[]> {
-  const res = await client.query<{ envelope: FirestoreDoc }>(
+): Promise<readonly StoredDoc[]> {
+  const res = await client.query<{ envelope: StoredDoc }>(
     `SELECT envelope FROM events
      WHERE aggregate_type = $1 AND org_id = $2 AND aggregate_id = $3
      ORDER BY version ASC`,
@@ -95,7 +92,7 @@ async function writeEvent(
   client: PoolClient,
   ref: AggregateRef,
   version: number,
-  envelope: FirestoreDoc,
+  envelope: StoredDoc,
 ): Promise<void> {
   const rawTag = envelope['_tag']
   const tag = typeof rawTag === 'string' ? rawTag : ''
@@ -114,7 +111,7 @@ async function writeEvent(
 async function upsertProjection(
   client: PoolClient,
   ref: AggregateRef,
-  state: FirestoreDoc,
+  state: StoredDoc,
 ): Promise<void> {
   const typed = typedProjectorFor(ref.type)
   if (typed) {
@@ -165,7 +162,7 @@ const postgresOps: PersistenceOps = {
       }
     }),
 
-  setDoc: (ref: AggregateRef, data: FirestoreDoc) =>
+  setDoc: (ref: AggregateRef, data: StoredDoc) =>
     Effect.promise(async () => {
       const pool = getEventStorePool()
       const client = await pool.connect()
@@ -208,12 +205,12 @@ const postgresOps: PersistenceOps = {
                   await ensureRls(ref.orgId)
                   return getProjectionDocForUpdate(client, ref)
                 }),
-              setDoc: (ref: AggregateRef, d: FirestoreDoc) =>
+              setDoc: (ref: AggregateRef, d: StoredDoc) =>
                 Effect.promise(async () => {
                   await ensureRls(ref.orgId)
                   return upsertProjection(client, ref, d)
                 }),
-              appendEvent: (ref: AggregateRef, version: number, envelope: FirestoreDoc) =>
+              appendEvent: (ref: AggregateRef, version: number, envelope: StoredDoc) =>
                 Effect.promise(async () => {
                   await ensureRls(ref.orgId)
                   return writeEvent(client, ref, version, envelope)

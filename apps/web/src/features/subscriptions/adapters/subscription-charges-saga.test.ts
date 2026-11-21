@@ -1,5 +1,5 @@
 import { ChargeConfig, SubscriptionConfig } from '@/domain/aggregates'
-import { aggregateRef, type FirestoreDoc, runSaga, type SagaStep } from '@/domain/effect'
+import { aggregateRef, runSaga, type SagaStep, type StoredDoc } from '@/domain/effect'
 import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
 import type { Charge } from '@/domain/types/charge'
 import { Effect } from 'effect'
@@ -10,7 +10,7 @@ import {
   buildRenewSteps,
 } from './subscription-charges-saga'
 
-async function runSteps(steps: SagaStep[]): Promise<Map<string, FirestoreDoc>> {
+async function runSteps(steps: SagaStep[]): Promise<Map<string, StoredDoc>> {
   const { store, layer } = makeReplayStore()
   await Effect.runPromise(runSaga(steps).pipe(Effect.provide(layer)))
   return store

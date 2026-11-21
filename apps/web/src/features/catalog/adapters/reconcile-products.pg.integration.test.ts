@@ -2,9 +2,9 @@ import { CatalogItemConfig } from '@/domain/aggregates'
 import type {
   AggregateRef,
   CollectionRef,
-  FirestoreDoc,
   PersistenceOps,
   QueryConstraint,
+  StoredDoc,
 } from '@/domain/effect'
 import { aggregateRef, appendEvent, PersistencePort } from '@/domain/effect'
 import { docKey } from '@/domain/effect/test-layers'
@@ -27,8 +27,8 @@ const ORG = 'org-1'
 const GTIN14 = '07891000100103'
 
 function makeStore() {
-  const store = new Map<string, FirestoreDoc>()
-  const matches = (doc: FirestoreDoc, constraints: readonly QueryConstraint[]): boolean =>
+  const store = new Map<string, StoredDoc>()
+  const matches = (doc: StoredDoc, constraints: readonly QueryConstraint[]): boolean =>
     constraints.every((c) => {
       if (c.kind !== 'where' || c.op !== '==') return true
       return doc[c.field] === c.value
@@ -44,7 +44,7 @@ function makeStore() {
           .filter((doc) => matches(doc, constraints)),
       ),
     getEvents: () => Effect.succeed([]),
-    setDoc: (ref: AggregateRef, data: FirestoreDoc) =>
+    setDoc: (ref: AggregateRef, data: StoredDoc) =>
       Effect.sync(() => {
         const key = docKey(ref)
         store.set(key, { ...store.get(key), ...data })

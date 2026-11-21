@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { StoredDoc } from '@/domain/effect'
 import { getEventStorePool } from './pool'
 
 type PublicOrgRow = {
@@ -13,7 +13,7 @@ type PublicOrgRow = {
   updated_at: string
 }
 
-function rowToOrgDoc(row: PublicOrgRow): FirestoreDoc {
+function rowToOrgDoc(row: PublicOrgRow): StoredDoc {
   return {
     id: row.org_id,
     name: row.name,
@@ -34,7 +34,7 @@ export async function listAllOrgIds(): Promise<string[]> {
   return res.rows.map((r) => r.org_id)
 }
 
-export async function getPublicOrgDocBySlug(slug: string): Promise<FirestoreDoc | null> {
+export async function getPublicOrgDocBySlug(slug: string): Promise<StoredDoc | null> {
   const res = await getEventStorePool().query<PublicOrgRow>(
     'SELECT * FROM public_org_directory WHERE slug = $1 LIMIT 1',
     [slug],

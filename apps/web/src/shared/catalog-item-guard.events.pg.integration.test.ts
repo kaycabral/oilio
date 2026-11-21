@@ -5,8 +5,8 @@ import {
   appendEvent,
   type AggregateConfig,
   type AggregateRef,
-  type FirestoreDoc,
   type GuardReader,
+  type StoredDoc,
 } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { registerTypedProjector } from '@/shared/db/pg/effect/typed-projections'
@@ -48,8 +48,8 @@ const TicketConfig: AggregateConfig<TicketState, TicketEvent> = {
 async function readGenericProjection(
   client: PoolClient,
   ref: AggregateRef,
-): Promise<FirestoreDoc | null> {
-  const res = await client.query<{ state: FirestoreDoc }>(
+): Promise<StoredDoc | null> {
+  const res = await client.query<{ state: StoredDoc }>(
     'SELECT state FROM projections WHERE org_id = $1 AND id = $2',
     [ref.orgId, ref.id],
   )
@@ -60,7 +60,7 @@ function registerGenericTicketProjector(): void {
   registerTypedProjector(TICKET_TYPE, {
     read: readGenericProjection,
     readForUpdate: async (client, ref) => {
-      const res = await client.query<{ state: FirestoreDoc }>(
+      const res = await client.query<{ state: StoredDoc }>(
         'SELECT state FROM projections WHERE org_id = $1 AND id = $2 FOR UPDATE',
         [ref.orgId, ref.id],
       )

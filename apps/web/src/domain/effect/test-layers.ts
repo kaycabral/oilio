@@ -1,9 +1,9 @@
 import type {
   AggregateRef,
   CollectionRef,
-  FirestoreDoc,
   PersistenceOps,
   QueryConstraint,
+  StoredDoc,
 } from '@/domain/effect'
 import { LoggerService, PersistencePort } from '@/domain/effect'
 import { Effect, Layer } from 'effect'
@@ -16,19 +16,19 @@ function collectionKey(ref: CollectionRef): string {
   return `${ref.type}/${ref.orgId}/`
 }
 
-export function makeReplayStore(seed: Record<string, FirestoreDoc> = {}) {
+export function makeReplayStore(seed: Record<string, StoredDoc> = {}) {
   const store = new Map(Object.entries(seed))
-  const events = new Map<string, FirestoreDoc[]>()
+  const events = new Map<string, StoredDoc[]>()
 
   const txCtx = {
     getDoc: (ref: AggregateRef) => Effect.succeed(store.get(docKey(ref)) ?? null),
     getDocForUpdate: (ref: AggregateRef) => Effect.succeed(store.get(docKey(ref)) ?? null),
-    setDoc: (ref: AggregateRef, data: FirestoreDoc) =>
+    setDoc: (ref: AggregateRef, data: StoredDoc) =>
       Effect.sync(() => {
         const key = docKey(ref)
         store.set(key, { ...store.get(key), ...data })
       }),
-    appendEvent: (ref: AggregateRef, _version: number, envelope: FirestoreDoc) =>
+    appendEvent: (ref: AggregateRef, _version: number, envelope: StoredDoc) =>
       Effect.sync(() => {
         const key = docKey(ref)
         const log = events.get(key) ?? []
@@ -55,7 +55,7 @@ export function makeReplayStore(seed: Record<string, FirestoreDoc> = {}) {
           ),
       ),
     getEvents: (ref: AggregateRef) => Effect.succeed([...(events.get(docKey(ref)) ?? [])]),
-    setDoc: (ref: AggregateRef, data: FirestoreDoc) =>
+    setDoc: (ref: AggregateRef, data: StoredDoc) =>
       Effect.sync(() => {
         const key = docKey(ref)
         store.set(key, { ...store.get(key), ...data })
@@ -66,9 +66,9 @@ export function makeReplayStore(seed: Record<string, FirestoreDoc> = {}) {
   return { store, events, layer: Layer.succeed(PersistencePort, ops) }
 }
 
-export function makeTestFirestoreLayer(docs: Record<string, FirestoreDoc>) {
+export function makeTestStoreLayer(docs: Record<string, StoredDoc>) {
   const store = new Map(Object.entries(docs))
-  const events = new Map<string, FirestoreDoc[]>()
+  const events = new Map<string, StoredDoc[]>()
 
   const ops: PersistenceOps = {
     getDoc: (ref: AggregateRef) => Effect.succeed(store.get(docKey(ref)) ?? null),
@@ -82,7 +82,7 @@ export function makeTestFirestoreLayer(docs: Record<string, FirestoreDoc>) {
 
     getEvents: (ref: AggregateRef) => Effect.succeed([...(events.get(docKey(ref)) ?? [])]),
 
-    setDoc: (ref: AggregateRef, data: FirestoreDoc) =>
+    setDoc: (ref: AggregateRef, data: StoredDoc) =>
       Effect.sync(() => {
         const key = docKey(ref)
         store.set(key, { ...store.get(key), ...data })

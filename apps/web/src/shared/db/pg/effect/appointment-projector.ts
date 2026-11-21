@@ -1,4 +1,4 @@
-import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, StoredDoc } from '@/domain/effect'
 import { Appointment } from '@/domain/types/appointment'
 import { buildMemberIdUpsert } from '@/shared/db/pg/effect/member-id-upsert'
 import { Schema } from 'effect'
@@ -81,12 +81,12 @@ export function appointmentColumnValues(
 
 const UPSERT = buildMemberIdUpsert('appointments', APPOINTMENT_COLUMNS)
 
-function stateVersion(state: FirestoreDoc): number {
+function stateVersion(state: StoredDoc): number {
   const v = state['_version']
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: StoredDoc): Promise<void> {
   const a = decodeAppointment(state)
   await client.query(UPSERT, appointmentColumnValues(a, ref, stateVersion(state)))
 }
@@ -125,7 +125,7 @@ function trackingFromRow(blob: unknown): Record<string, unknown> {
   return out
 }
 
-export function rowToDoc(row: AppointmentRow): FirestoreDoc {
+export function rowToDoc(row: AppointmentRow): StoredDoc {
   const tracking = trackingFromRow(row.tracking)
   return {
     _version: Number(row.last_event_version),
@@ -151,7 +151,7 @@ export function rowToDoc(row: AppointmentRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<StoredDoc | null> {
   const res = await client.query<AppointmentRow>(
     'SELECT * FROM appointments WHERE org_id = $1 AND id = $2',
     [ref.orgId, ref.id],

@@ -1,5 +1,5 @@
 import { UnitConfig } from '@/domain/aggregates/unit/config'
-import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
+import type { AggregateRef, CollectionRef, QueryConstraint, StoredDoc } from '@/domain/effect'
 import { StoredUnit } from '@/domain/types/unit'
 import { isUnitPubliclyLive } from '@/domain/utils/business-hours'
 import { Schema } from 'effect'
@@ -58,12 +58,12 @@ const UPSERT = `
   ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
-function stateVersion(state: FirestoreDoc): number {
+function stateVersion(state: StoredDoc): number {
   const v = state['_version']
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: StoredDoc): Promise<void> {
   const unit = decodeUnit(state)
   await client.query(UPSERT, unitColumnValues(unit, stateVersion(state)))
 }
@@ -85,7 +85,7 @@ export type UnitRow = {
   updated_at: string
 }
 
-export function rowToDoc(row: UnitRow): FirestoreDoc {
+export function rowToDoc(row: UnitRow): StoredDoc {
   return {
     _version: Number(row.last_event_version),
     id: row.id,
@@ -102,7 +102,7 @@ export function rowToDoc(row: UnitRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<StoredDoc | null> {
   const res = await client.query<UnitRow>('SELECT * FROM units WHERE org_id = $1 AND id = $2', [
     ref.orgId,
     ref.id,
@@ -119,7 +119,7 @@ async function list(
   client: PoolClient,
   ref: CollectionRef,
   constraints: readonly QueryConstraint[],
-): Promise<FirestoreDoc[]> {
+): Promise<StoredDoc[]> {
   const tail = buildCollectionQueryTail(constraints, UNIT_COLUMNS, 2, true)
   const res = await client.query<UnitRow>(`SELECT * FROM units WHERE org_id = $1${tail.sql}`, [
     ref.orgId,

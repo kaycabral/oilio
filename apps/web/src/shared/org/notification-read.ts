@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { StoredDoc } from '@/domain/effect'
 import { rowToDoc, type NotificationRow } from '@/shared/db/pg/effect/notification-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 
@@ -7,7 +7,7 @@ function isSnoozedAt(snoozedUntil: string | null, now: Date): boolean {
   return new Date(snoozedUntil).getTime() > now.getTime()
 }
 
-export type NotificationDoc = FirestoreDoc & { id: string }
+export type NotificationDoc = StoredDoc & { id: string }
 
 export async function listNotificationsForUnit(
   orgId: string,
