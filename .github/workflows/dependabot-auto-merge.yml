@@ -1,13 +1,5 @@
-# Merges the Dependabot updates the policy trusts CI to prove: the
-# `minor-and-patch` (npm) and `actions` groups, which never hold a major (see
-# dependabot.yml). Everything else waits for a human.
-#
-# Why not `gh pr merge --auto` from the PR's own workflow: a merge made with the
-# GITHUB_TOKEN never triggers other workflows, so main.yml (and the production
-# deploy check Vercel waits on) would silently not run. Instead this runs after
-# the PR's `Pull request` workflow is green, merges (the ruleset still demands
-# `CI passed` on an up-to-date branch), then starts main.yml through
-# workflow_dispatch, the one event the GITHUB_TOKEN is allowed to trigger.
+# Merges the Dependabot groups CI can prove (minor-and-patch, actions) once the
+# PR gate is green, then starts main.yml. See the reusable workflow for why.
 name: Dependabot auto-merge
 
 on:
@@ -19,46 +11,9 @@ permissions: {}
 
 jobs:
   merge:
-    name: Merge trusted Dependabot update
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    name: Merge
+    uses: kaycabral/toolkit/.github/workflows/dependabot-auto-merge.yml@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
     permissions:
       contents: write
       pull-requests: write
       actions: write
-    steps:
-      - name: Merge and deploy
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          OWNER: ${{ github.repository_owner }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          if ! [[ "$BRANCH" =~ ^dependabot/[^/]+/(.+/)?(minor-and-patch|actions)-[0-9a-f]+$ ]]; then
-            echo "::notice::'$BRANCH' is not an auto-merge group; it needs a human review."
-            exit 0
-          fi
-          pr=$(gh api "repos/$REPO/pulls?state=open&head=$OWNER:$BRANCH" --jq '.[0] // empty')
-          if [ -z "$pr" ]; then
-            echo "::notice::No open PR for '$BRANCH'."
-            exit 0
-          fi
-          number=$(jq -r .number <<<"$pr")
-          author=$(jq -r .user.login <<<"$pr")
-          head=$(jq -r .head.sha <<<"$pr")
-          if [ "$author" != 'dependabot[bot]' ] || [ "$head" != "$SHA" ]; then
-            echo "::notice::PR #$number is not the Dependabot head CI just proved; skipping."
-            exit 0
-          fi
-          if ! gh pr merge "$number" -R "$REPO" --squash --match-head-commit "$SHA"; then
-            echo "::warning::PR #$number did not merge (behind main or not mergeable); it needs '@dependabot rebase'."
-            exit 0
-          fi
-          gh workflow run main.yml -R "$REPO" --ref main
-          echo "Merged PR #$number and started main.yml"
