@@ -30,7 +30,7 @@ Todo defect que chega ao boundary é **classificado** por `classifyError(defect)
 | `validation` | `EventValidationError` / schema invalid                  | não        | "os dados enviados são inválidos"                                |
 | `unknown`    | qualquer outro                                           | não        | "não foi possível concluir" (NÃO convida retry)                  |
 
-**Invariante:** nenhuma mensagem ao cliente carrega **SQLSTATE, nome de constraint, stack, ou nome de evento/tag interno**. Só 23505 convida a retry — dizer "tente de novo" para um erro determinístico seria mentira e esconderia bug atrás de uma mensagem com cara de flake (#1320). A classificação desembrulha o `FiberFailure` sob o qual o layer Postgres estaciona o erro de DB (idiom em `shared/db/pg/unwrap-pg-error.ts`, consumido por `unique-violation` e `fk-violation`; `commit-appointment` mantém a própria cópia — sua checagem de double-book casa também o **nome** da constraint — e é dobrada na Onda 2·B).
+**Invariante:** nenhuma mensagem ao cliente carrega **SQLSTATE, nome de constraint, stack, ou nome de evento/tag interno**. Só 23505 convida a retry — dizer "tente de novo" para um erro determinístico seria mentira e esconderia bug atrás de uma mensagem com cara de flake (#1320). A classificação desembrulha o `FiberFailure` sob o qual o layer Postgres estaciona o erro de DB (hoje: `pgErrorOf` do `@cbrl/pg` com um hook `unwrap` local em `shared/db/pg/pg-error.ts`, consumido pela classificação, por `isUniqueViolation`/`isForeignKeyViolation` e pela checagem de double-book do `commit-appointment`, que casa também o **nome** da constraint).
 
 ### 2. Regra log × usuário
 

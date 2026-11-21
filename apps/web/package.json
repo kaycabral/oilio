@@ -32,9 +32,13 @@
     "db:env": "tsx scripts/local-env.ts"
   },
   "dependencies": {
-    "@cbrl/design": "^0.1.0",
-    "@cbrl/env": "^0.1.0",
-    "@cbrl/pg": "^0.2.0",
+    "@cbrl/br": "^0.1.0",
+    "@cbrl/design": "^0.2.0",
+    "@cbrl/env": "^0.1.1",
+    "@cbrl/log": "^0.1.0",
+    "@cbrl/next": "^0.1.0",
+    "@cbrl/pg": "^0.3.0",
+    "@cbrl/supabase": "^0.1.0",
     "@oilio/product": "workspace:*",
     "@sentry/nextjs": "10.78.0",
     "@supabase/ssr": "catalog:",
@@ -54,8 +58,8 @@
     "stripe": "22.3.0"
   },
   "devDependencies": {
-    "@cbrl/eslint-config": "^0.1.1",
-    "@cbrl/testing": "^0.1.0",
+    "@cbrl/eslint-config": "^0.2.0",
+    "@cbrl/testing": "^0.2.0",
     "@cbrl/tsconfig": "^0.1.0",
     "@playwright/test": "catalog:",
     "@stryker-mutator/core": "^9.6.1",

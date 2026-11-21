@@ -1,4 +1,4 @@
-import { type Membership, membershipDocId, normalizeBrazilPhone } from '@/domain'
+import { type Membership, membershipDocId } from '@/domain'
 import {
   AgendaBlockConfig,
   AppointmentConfig,
@@ -23,6 +23,7 @@ import {
   listMemberOperationsForOrg,
 } from '@/shared/org/member-operation-read'
 import { getMembership } from '@/shared/org/membership'
+import { normalizeBrazilPhone } from '@cbrl/br/phone'
 import 'server-only'
 
 export type OffboardWarning = { kind: 'unit-without-memberOperation'; unitIds: string[] }

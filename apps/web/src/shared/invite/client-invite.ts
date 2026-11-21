@@ -1,9 +1,5 @@
-import {
-  type Attribution,
-  type AttributionIntent,
-  attributionToSearchParams,
-  normalizeBrazilMobile,
-} from '@/domain'
+import { type Attribution, type AttributionIntent, attributionToSearchParams } from '@/domain'
+import { normalizeBrazilMobile, whatsappUrl } from '@cbrl/br/phone'
 
 export type BookingContext = {
   unitSlug: string
@@ -60,6 +56,7 @@ export function buildClientInviteWhatsapp(args: {
   if (!whatsapp) return { ok: false, error: 'Celular inválido' }
   const url = buildClientInviteUrl(args.baseUrl, args.invite)
   const message = buildClientInviteMessage(args.orgName, url)
-  const href = `https://wa.me/${whatsapp}?text=${encodeURIComponent(message)}`
+  const href = whatsappUrl(whatsapp, message)
+  if (!href) return { ok: false, error: 'Celular inválido' }
   return { ok: true, whatsapp, href, url }
 }

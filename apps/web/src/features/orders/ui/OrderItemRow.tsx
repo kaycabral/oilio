@@ -1,8 +1,9 @@
 'use client'
 
 import { type OrderCoverage, type OrderItem, ORDER_COVERAGES, coverageOf } from '@/domain'
-import { attributionLabel, formatBRL } from '@/features/orders/core/order-detail-format'
+import { attributionLabel } from '@/features/orders/core/order-detail-format'
 import type { OrgMember } from '@/shared/org/membership'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import {
   Button,
   Label,
@@ -56,13 +57,13 @@ export function OrderItemRow({
           ) : null}
         </div>
         <div className="text-muted-foreground mt-0.5 text-xs">
-          {item.quantity} × {formatBRL(item.unitPriceCents)}
+          {item.quantity} × {formatBRLFromCents(item.unitPriceCents)}
           {item.commission && !covered ? (
             <>
               {' · comissão '}
               {item.commission.kind === 'percentage'
                 ? `${item.commission.value}%`
-                : formatBRL(item.commission.value)}
+                : formatBRLFromCents(item.commission.value)}
             </>
           ) : null}
         </div>
@@ -121,7 +122,7 @@ export function OrderItemRow({
           {covered ? (
             <span className="text-muted-foreground text-xs">Plano</span>
           ) : (
-            formatBRL(lineTotal)
+            formatBRLFromCents(lineTotal)
           )}
         </span>
         {editable ? (

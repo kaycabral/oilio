@@ -2,12 +2,12 @@ import { CenteredScreen } from '@/components/centered-screen'
 import { roleLabel } from '@/domain'
 import { verifyInviteToken } from '@/features/invites/adapters/invite-token'
 import { AcceptInviteForm } from '@/features/invites/ui/AcceptInviteForm'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { getSessionUser } from '@/shared/auth/session'
 import { getInviteById } from '@/shared/org/invite-read'
 import { getUserDoc } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
 import { emitMemberFunnelEvent } from '@/shared/product/member-funnel-events'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 
 type Params = Promise<{ orgId: string; inviteId: string }>
@@ -20,7 +20,7 @@ export default async function AcceptInvitePage({
   params: Params
   searchParams: SearchParams
 }) {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   const { orgId, inviteId } = await params
   const { token } = await searchParams

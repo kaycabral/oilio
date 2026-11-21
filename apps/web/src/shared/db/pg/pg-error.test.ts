@@ -1,14 +1,10 @@
 import * as Cause from 'effect/Cause'
 import { describe, expect, it } from 'vitest'
-import { FOREIGN_KEY_VIOLATION, isForeignKeyViolation } from './fk-violation'
+import { isForeignKeyViolation, isUniqueViolation, USERS_MOBILE_UNIQUE } from './pg-error'
 
 const FIBER_FAILURE_CAUSE = Symbol.for('effect/Runtime/FiberFailure/Cause')
 
 describe('isForeignKeyViolation', () => {
-  it('the SQLSTATE constant is the canonical pg foreign-key-violation code', () => {
-    expect(FOREIGN_KEY_VIOLATION).toBe('23503')
-  })
-
   it('a bare pg DatabaseError with code 23503 is a violation', () => {
     expect(isForeignKeyViolation({ code: '23503' })).toBe(true)
   })
@@ -52,5 +48,22 @@ describe('isForeignKeyViolation', () => {
     const cyclic: { code?: string; cause?: unknown } = { code: 'XXXXX' }
     cyclic.cause = cyclic
     expect(isForeignKeyViolation(cyclic)).toBe(false)
+  })
+})
+
+describe('isUniqueViolation', () => {
+  it('matches a unique violation on the named constraint, even parked in a FiberFailure', () => {
+    const pgError = { code: '23505', constraint: USERS_MOBILE_UNIQUE }
+    expect(isUniqueViolation(pgError, USERS_MOBILE_UNIQUE)).toBe(true)
+    expect(
+      isUniqueViolation({ [FIBER_FAILURE_CAUSE]: Cause.die(pgError) }, USERS_MOBILE_UNIQUE),
+    ).toBe(true)
+  })
+
+  it('rejects another constraint or SQLSTATE', () => {
+    expect(isUniqueViolation({ code: '23505', constraint: 'other' }, USERS_MOBILE_UNIQUE)).toBe(
+      false,
+    )
+    expect(isUniqueViolation({ code: '23503' })).toBe(false)
   })
 })

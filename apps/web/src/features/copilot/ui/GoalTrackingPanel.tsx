@@ -1,8 +1,5 @@
 import { PARTIAL_LABEL_TEXT, type GoalTracking } from '@/features/copilot/core/tracking'
-
-function formatCents(cents: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100)
-}
+import { formatBRLFromCents } from '@cbrl/br/money'
 
 function formatPct(pct: number): string {
   return `${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
@@ -26,14 +23,14 @@ export function GoalTrackingPanel({
       <div className="grid grid-cols-2 gap-4">
         <div role="group" aria-label={TARGET_LABEL}>
           <p className="text-muted-foreground text-sm">{TARGET_LABEL}</p>
-          <p className="text-2xl font-semibold">{formatCents(tracking.targetCents)}</p>
+          <p className="text-2xl font-semibold">{formatBRLFromCents(tracking.targetCents)}</p>
         </div>
         <div className="space-y-1">
           <div role="group" aria-label={REALIZED_LABEL}>
             <p className="text-muted-foreground text-sm">
               {REALIZED_LABEL} ({formatPct(tracking.pacePct)})
             </p>
-            <p className="text-2xl font-semibold">{formatCents(tracking.realizedCents)}</p>
+            <p className="text-2xl font-semibold">{formatBRLFromCents(tracking.realizedCents)}</p>
           </div>
           <div role="group" aria-label={PARTIAL_LABEL}>
             <p className="text-muted-foreground text-xs">
@@ -49,7 +46,7 @@ export function GoalTrackingPanel({
           <p className="text-lg font-medium">n/d — sem vendas ainda</p>
         ) : (
           <p className="text-lg font-medium">
-            {formatCents(tracking.projectionCents)}
+            {formatBRLFromCents(tracking.projectionCents)}
             {tracking.projectionPct !== null ? (
               <span className="text-muted-foreground text-sm">
                 {' '}
@@ -64,7 +61,7 @@ export function GoalTrackingPanel({
         <div className="border-t pt-3" role="group" aria-label={MRR_LABEL}>
           <p className="text-muted-foreground text-sm">{MRR_LABEL}</p>
           <p className="text-lg font-medium">
-            {formatCents(mrrCents)}
+            {formatBRLFromCents(mrrCents)}
             <span className="text-muted-foreground text-sm"> /mês recorrente</span>
           </p>
         </div>

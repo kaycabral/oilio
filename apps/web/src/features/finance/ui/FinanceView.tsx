@@ -1,6 +1,6 @@
 import type { FinancePageProps } from '@/features/finance/adapters/load-finance'
 import type { BreakEven } from '@/features/finance/core/cuts'
-import { formatBrl } from '@/features/finance/core/format'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import {
   Badge,
   Card,
@@ -59,10 +59,10 @@ function BreakEvenCard({ breakEven }: { breakEven: BreakEven }) {
         {breakEven.computable ? (
           <div className="flex flex-col gap-1">
             <Typography variant="large">
-              Pra se pagar, venda {formatBrl(breakEven.breakEvenRevenueCents)}/mês
+              Pra se pagar, venda {formatBRLFromCents(breakEven.breakEvenRevenueCents)}/mês
             </Typography>
             <Typography variant="muted">
-              Custo fixo {formatBrl(breakEven.fixedCostCents)} ÷ margem{' '}
+              Custo fixo {formatBRLFromCents(breakEven.fixedCostCents)} ÷ margem{' '}
               {Math.round(breakEven.marginRatio * 100)}%
             </Typography>
           </div>
@@ -72,7 +72,7 @@ function BreakEvenCard({ breakEven }: { breakEven: BreakEven }) {
               Indisponível — cadastre e venda para calcular a margem.
             </Typography>
             <Typography variant="muted">
-              Custo fixo cadastrado: {formatBrl(breakEven.fixedCostCents)}.
+              Custo fixo cadastrado: {formatBRLFromCents(breakEven.fixedCostCents)}.
             </Typography>
           </div>
         )}
@@ -109,7 +109,7 @@ function FixedCostList({
                   </Badge>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="tabular-nums">{formatBrl(cost.amountCents)}</span>
+                  <span className="tabular-nums">{formatBRLFromCents(cost.amountCents)}</span>
                   <FixedCostRowActions cost={cost} />
                 </div>
               </li>

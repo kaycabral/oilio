@@ -13,7 +13,7 @@ import {
   AvatarImage,
   AppShell as BaseAppShell,
   SidebarMenuButton,
-  userMenuInitials,
+  initials,
 } from '@cbrl/design'
 import { ChevronsUpDown } from 'lucide-react'
 import Link from 'next/link'
@@ -97,9 +97,7 @@ function SidebarUserMenu({
         >
           <Avatar size="default" className="rounded-md">
             {avatarUrl ? <AvatarImage src={avatarUrl} alt={name ?? secondary ?? ''} /> : null}
-            <AvatarFallback className="rounded-md">
-              {userMenuInitials(name, secondary)}
-            </AvatarFallback>
+            <AvatarFallback className="rounded-md">{initials(name, secondary)}</AvatarFallback>
           </Avatar>
           <div className="flex min-w-0 flex-1 flex-col text-left">
             <span className="truncate text-sm font-medium">{name ?? 'Conta'}</span>

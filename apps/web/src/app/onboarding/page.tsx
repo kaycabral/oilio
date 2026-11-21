@@ -1,11 +1,11 @@
 import { OnboardingForm } from '@/features/onboarding/ui/OnboardingForm'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { getSessionUser } from '@/shared/auth/session'
 import { getUserDoc, getUserMemberships } from '@/shared/org/membership'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 
 export default async function OnboardingPage() {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

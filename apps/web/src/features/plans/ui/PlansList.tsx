@@ -11,6 +11,7 @@ import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import type { WithCanDelete } from '@/shared/org/delete-guard'
 import { useCapability } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import { Button, List } from '@cbrl/design'
 import { CreditCard } from 'lucide-react'
 import Link from 'next/link'
@@ -20,10 +21,6 @@ const CYCLE_LABELS: Record<BillingCycle, string> = {
   quarterly: 'Trimestral',
   semiannual: 'Semestral',
   annual: 'Anual',
-}
-
-function formatPrice(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function formatUsage(plan: SubscriptionPlan): string {
@@ -136,7 +133,7 @@ export function PlansList({
             </StatusBadge>
           ),
           description: `${CYCLE_LABELS[p.billingCycle]} · ${formatUsage(p)}`,
-          trailing: formatPrice(p.priceCents),
+          trailing: formatBRLFromCents(p.priceCents),
           actions: <RowActions actions={actions} label={`Ações do plano ${p.name}`} />,
         }
       }}

@@ -1,9 +1,9 @@
 import { MARKETING_CONTAINER } from '@/components/marketing/container'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { Button, cn } from '@cbrl/design'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 
 export function MarketingHeader() {
-  const authEnabled = isAuthConfigured()
+  const authEnabled = isSupabaseConfigured()
 
   return (
     <header className="border-border/60 bg-background/80 sticky top-0 z-40 w-full border-b backdrop-blur">

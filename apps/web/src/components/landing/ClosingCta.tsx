@@ -1,8 +1,8 @@
-import { isAuthConfigured } from '@/shared/auth/config'
 import { Button, Typography } from '@cbrl/design'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 
 export function ClosingCta() {
-  if (!isAuthConfigured()) return null
+  if (!isSupabaseConfigured()) return null
 
   return (
     <section className="bg-muted my-16 flex flex-col items-center gap-6 rounded-2xl px-6 py-16 text-center">

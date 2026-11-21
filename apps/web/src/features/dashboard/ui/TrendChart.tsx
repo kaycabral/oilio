@@ -1,9 +1,10 @@
 'use client'
 
 import type { TrendPoint } from '@/features/dashboard/core/trend'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import { Card, CardContent, CardDescription, CardTitle } from '@cbrl/design'
 import { useMemo, useRef, useState } from 'react'
-import { formatCents, formatCount } from './KpiCard'
+import { formatCount } from './KpiCard'
 
 export type TrendChartProps = {
   points: TrendPoint[]
@@ -102,7 +103,10 @@ export function TrendChart({ points }: TrendChartProps) {
             <CardTitle className="mt-1 text-lg">Faturamento × novos assinantes</CardTitle>
           </div>
           <div className="flex gap-4 text-xs">
-            <Legend swatch="bg-emerald-500" label={`Faturamento (${formatCents(totalRevenue)})`} />
+            <Legend
+              swatch="bg-emerald-500"
+              label={`Faturamento (${formatBRLFromCents(totalRevenue)})`}
+            />
             <Legend swatch="bg-sky-500" label={`Novos assinantes (${formatCount(totalSubs)})`} />
           </div>
         </div>
@@ -272,7 +276,7 @@ function TrendTooltip({ point, xRatio }: { point: TrendPoint; xRatio: number }) 
       <div className="text-muted-foreground mb-1">{formatFullDate(point.date)}</div>
       <div className="flex items-center gap-2">
         <span className="block h-2 w-2 rounded-full bg-emerald-500" />
-        <span>Faturamento: {formatCents(point.revenueCents)}</span>
+        <span>Faturamento: {formatBRLFromCents(point.revenueCents)}</span>
       </div>
       <div className="mt-1 flex items-center gap-2">
         <span className="block h-2 w-2 rounded-full bg-sky-500" />

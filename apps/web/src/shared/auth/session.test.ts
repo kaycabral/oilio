@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('server-only', () => ({}))
-vi.mock('./server', () => ({
+vi.mock('@cbrl/supabase/server', () => ({
   createSupabaseServerClient: () =>
     Promise.resolve(mocks.configured ? { auth: { getClaims: mocks.getClaims } } : null),
 }))

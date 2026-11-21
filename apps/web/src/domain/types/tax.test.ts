@@ -8,14 +8,11 @@ import {
   cnpjRaiz,
   deriveCompanySize,
   deriveTaxRegime,
-  formatCnpj,
   groupUnitsByRaiz,
   isActiveRegistrationStatus,
   isCompany,
   isCompanyUnitFiscal,
   isMatrizCnpj,
-  isValidCompanyTaxId,
-  isValidIndividualTaxId,
   normalizeTaxId,
   type TaxIdentity,
 } from './tax'
@@ -36,34 +33,6 @@ describe('normalizeTaxId', () => {
     expect(normalizeTaxId(' a1b2c3 ')).toBe('123')
     expect(normalizeTaxId('abc')).toBe('')
     expect(normalizeTaxId('')).toBe('')
-  })
-})
-
-describe('isValidIndividualTaxId (CPF — 11 digits)', () => {
-  it('accepts exactly 11 digits (formatted or raw)', () => {
-    expect(isValidIndividualTaxId('123.456.789-00')).toBe(true)
-    expect(isValidIndividualTaxId('12345678900')).toBe(true)
-  })
-  it('rejects 10 or 12 digits (length boundary)', () => {
-    expect(isValidIndividualTaxId('1234567890')).toBe(false)
-    expect(isValidIndividualTaxId('123456789012')).toBe(false)
-  })
-  it('rejects a value with no digits', () => {
-    expect(isValidIndividualTaxId('not-a-number')).toBe(false)
-  })
-})
-
-describe('isValidCompanyTaxId (CNPJ — 14 digits)', () => {
-  it('accepts exactly 14 digits (formatted or raw)', () => {
-    expect(isValidCompanyTaxId('12.345.678/0001-99')).toBe(true)
-    expect(isValidCompanyTaxId('12345678000199')).toBe(true)
-  })
-  it('rejects 13 or 15 digits (length boundary)', () => {
-    expect(isValidCompanyTaxId('1234567800019')).toBe(false)
-    expect(isValidCompanyTaxId('123456780001999')).toBe(false)
-  })
-  it('rejects an 11-digit CPF', () => {
-    expect(isValidCompanyTaxId('12345678900')).toBe(false)
   })
 })
 
@@ -143,27 +112,6 @@ describe('CompanyProfile (decode)', () => {
         activityStartedAt: '2020-01-01',
       }),
     ).toThrow()
-  })
-})
-
-describe('formatCnpj (brief 0048 AC-07)', () => {
-  it('masks a full CNPJ to 00.000.000/0000-00', () => {
-    expect(formatCnpj('40148980000199')).toBe('40.148.980/0001-99')
-  })
-
-  it('strips non-digits and caps at 14 digits', () => {
-    expect(formatCnpj('40.148.980/0001-99extra')).toBe('40.148.980/0001-99')
-  })
-
-  it('masks progressively for partial input', () => {
-    expect(formatCnpj('40')).toBe('40')
-    expect(formatCnpj('401')).toBe('40.1')
-    expect(formatCnpj('40148980')).toBe('40.148.980')
-    expect(formatCnpj('401489800001')).toBe('40.148.980/0001')
-  })
-
-  it('returns empty for empty input', () => {
-    expect(formatCnpj('')).toBe('')
   })
 })
 

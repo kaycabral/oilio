@@ -1,6 +1,6 @@
 'use client'
 
-import { formatBrazilPhone, maskBrazilPhone } from '@/domain'
+import { formatBrazilPhone, maskBrazilPhone } from '@cbrl/br/phone'
 import { Input } from '@cbrl/design'
 import { useState, type ComponentProps } from 'react'
 

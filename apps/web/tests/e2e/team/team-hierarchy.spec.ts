@@ -1,4 +1,5 @@
-import { formatBrazilPhone, roleDescription } from '@/domain'
+import { roleDescription } from '@/domain'
+import { formatBrazilPhone } from '@cbrl/br/phone'
 import { expect, test } from '../fixtures'
 import { listItem } from '../helpers/list'
 import { chooseOption } from '../helpers/select'

@@ -1,5 +1,3 @@
-import { normalizeBrazilPhone } from './phone'
-
 export const DEFAULT_WHATSAPP_TEMPLATES = {
   confirmation:
     'Olá {customerName}! Confirmando seu agendamento em {businessName}: {serviceName} com {memberOperationName} em {date} às {time}. Qualquer dúvida, é só responder por aqui.',
@@ -29,13 +27,6 @@ export type WhatsappTemplateVars = {
 export function renderWhatsappTemplate(template: string, vars: WhatsappTemplateVars): string {
   const lookup = new Map(Object.entries(vars))
   return template.replace(/\{(\w+)\}/g, (_, key: string) => lookup.get(key) ?? '')
-}
-
-export function buildWhatsappLink(rawPhone: string, message: string): string | null {
-  const phone = normalizeBrazilPhone(rawPhone)
-  if (!phone) return null
-  const text = encodeURIComponent(message)
-  return `https://wa.me/${phone}?text=${text}`
 }
 
 export function resolveWhatsappTemplates(

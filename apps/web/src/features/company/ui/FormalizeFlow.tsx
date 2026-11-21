@@ -1,8 +1,9 @@
 'use client'
 
-import { formatCnpj, isValidCompanyTaxId, normalizeTaxId } from '@/domain'
+import { normalizeTaxId } from '@/domain'
 import { formalizeUnit } from '@/features/company/adapters/formalize.actions'
 import { readJson } from '@/shared/http'
+import { formatCnpj, isValidCnpj, maskCnpj } from '@cbrl/br/tax-id'
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from '@cbrl/design'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
@@ -102,7 +103,7 @@ export function FormalizeFlow({ unitId }: { unitId: string }) {
   const [confirming, startConfirm] = useTransition()
 
   const digits = normalizeTaxId(cnpj)
-  const canLookup = isValidCompanyTaxId(digits)
+  const canLookup = isValidCnpj(digits)
 
   async function onLookup() {
     setError(null)
@@ -215,7 +216,7 @@ export function FormalizeFlow({ unitId }: { unitId: string }) {
             inputMode="numeric"
             placeholder="00.000.000/0000-00"
             value={cnpj}
-            onChange={(e) => setCnpj(formatCnpj(e.target.value))}
+            onChange={(e) => setCnpj(maskCnpj(e.target.value))}
           />
         </div>
         {error ? <p className="text-destructive text-sm">{error}</p> : null}

@@ -5,10 +5,10 @@ import {
   attributionLabel,
   clampQuantity,
   filterCatalog,
-  formatBRL,
   type CatalogOption,
 } from '@/features/orders/core/order-detail-format'
 import type { OrgMember } from '@/shared/org/membership'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import {
   Button,
   Input,
@@ -119,7 +119,7 @@ export function OrderAddItemForm({
               <SelectItem key={`${c.kind}:${c.id}`} value={`${c.kind}:${c.id}`}>
                 {c.name}
                 {c.code ? ` · ${c.code}` : ''} · {c.kind === 'service' ? 'serviço' : 'produto'} ·{' '}
-                {formatBRL(c.priceCents)}
+                {formatBRLFromCents(c.priceCents)}
               </SelectItem>
             ))}
           </SelectContent>

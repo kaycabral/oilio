@@ -1,5 +1,5 @@
 import { SignupBusinessForm } from '@/components/SignupBusinessForm'
-import { isAuthConfigured } from '@/shared/auth/config'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 }
 
 export default function SignupBusinessPage() {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   return (
     <Suspense fallback={null}>

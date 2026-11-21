@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { runMigrations } from '../db/migrate'
-import { closeDb, getDb } from '../db/pool'
+import { closeDb, getDb, runMigrations } from '../db/pool'
 import { PostgresProductSource } from '../db/repository'
 import { product } from '../schema'
 import { resolveProduct } from './resolve'

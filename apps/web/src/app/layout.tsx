@@ -1,6 +1,5 @@
 import { DebugErrorOverlay } from '@/components/debug-error-overlay'
-import { ThemeProvider } from '@/components/theme-provider'
-import { Toaster } from '@cbrl/design'
+import { ThemeProvider, Toaster } from '@cbrl/design'
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'

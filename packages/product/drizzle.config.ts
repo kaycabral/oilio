@@ -1,4 +1,4 @@
-import { requireEnv } from '@cbrl/env'
+import { drizzleKitCredentials } from '@cbrl/pg/drizzle'
 import { defineConfig } from 'drizzle-kit'
 
 /**
@@ -16,7 +16,7 @@ export default defineConfig({
   schema: './src/schema/index.ts',
   out: './drizzle',
   migrations: { table: '__drizzle_migrations_product', schema: 'drizzle' },
-  dbCredentials: { url: requireEnv('DATABASE_URL') },
+  dbCredentials: drizzleKitCredentials('DATABASE_URL'),
   strict: true,
   verbose: true,
 })

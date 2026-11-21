@@ -1,11 +1,16 @@
 import type { Appointment } from '@/domain'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
-import { logger } from '@/shared/lib'
 import { getAppointmentById } from '@/shared/org/appointment-read'
+import type * as Log from '@cbrl/log'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { commitAppointmentBooking } from './commit-appointment'
 
-const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+const warnSpy = vi.hoisted(() => vi.fn())
+
+vi.mock('@cbrl/log', async (importOriginal) => ({
+  ...(await importOriginal<typeof Log>()),
+  logger: { debug: vi.fn(), info: vi.fn(), warn: warnSpy, error: vi.fn() },
+}))
 
 function uniqueOrgId(label: string) {
   return `t-${label}-${Math.random().toString(36).slice(2, 8)}`

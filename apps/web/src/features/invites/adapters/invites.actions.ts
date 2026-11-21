@@ -14,13 +14,13 @@ import { newId } from '@/shared/db/pg/new-id'
 import { patchUser } from '@/shared/db/pg/users-store'
 import { commitSaga, emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
-import { logger } from '@/shared/lib/logger'
 import { getInviteById } from '@/shared/org/invite-read'
 import {
   type StoredMemberOperation,
   writeMemberOperationPii,
 } from '@/shared/org/member-operation-read'
 import { emitMemberFunnelEvent } from '@/shared/product/member-funnel-events'
+import { logger } from '@cbrl/log'
 import { redirect } from 'next/navigation'
 
 export type AcceptInviteResult = { ok: true; orgId: string } | { ok: false; error: string }

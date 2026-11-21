@@ -1,4 +1,4 @@
-import { defaultPermissionsForRole, normalizeBrazilPhone, type Role } from '@/domain'
+import { defaultPermissionsForRole, type Role } from '@/domain'
 import type { SessionUser } from '@/shared/auth/session'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { putUser } from '@/shared/db/pg/users-store'
@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({ getSessionUser: vi.fn<() => Promise<SessionUse
 vi.mock('@/shared/auth/session', () => ({ getSessionUser: mocks.getSessionUser }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
+import { normalizeBrazilPhone } from '@cbrl/br/phone'
 import { createAppointment, updateAppointment } from './agenda.actions'
 
 const TS = '2026-06-01T12:00:00.000Z'

@@ -1,4 +1,4 @@
-import { logger } from '@/shared/lib/logger'
+import { logger } from '@cbrl/log'
 import { resolveProduct, validateGtin } from '@oilio/product'
 import 'server-only'
 import { emitProductEvent } from './product-events'

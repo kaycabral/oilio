@@ -50,15 +50,6 @@ export function KpiCard({
   )
 }
 
-const BRL_FMT = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-})
-
-export function formatCents(cents: number): string {
-  return BRL_FMT.format(cents / 100)
-}
-
 export function formatCount(n: number): string {
   return n.toLocaleString('pt-BR')
 }

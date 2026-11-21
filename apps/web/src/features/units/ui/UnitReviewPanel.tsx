@@ -1,8 +1,8 @@
 'use client'
 
 import type { UnitHoursMode } from '@/domain'
-import { formatBrl } from '@/features/finance/core/format'
 import type { UnitAdditionCost } from '@/shared/billing/unit-cost-preview'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import { Button, Checkbox, FieldDescription, FieldLabel, Separator } from '@cbrl/design'
 import { AlertTriangle } from 'lucide-react'
 
@@ -176,15 +176,17 @@ function CostBlock({
         <dl className="flex flex-col gap-1 text-xs">
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Cobrado hoje (proporcional)</dt>
-            <dd className="font-medium">{formatBrl(preview.prorationCents)}</dd>
+            <dd className="font-medium">{formatBRLFromCents(preview.prorationCents)}</dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-muted-foreground">A partir do próximo ciclo</dt>
-            <dd className="font-medium">+ {formatBrl(preview.newMonthlyDeltaCents)}/mês</dd>
+            <dd className="font-medium">
+              + {formatBRLFromCents(preview.newMonthlyDeltaCents)}/mês
+            </dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Nova mensalidade total</dt>
-            <dd className="font-medium">{formatBrl(preview.newTotalMonthlyCents)}/mês</dd>
+            <dd className="font-medium">{formatBRLFromCents(preview.newTotalMonthlyCents)}/mês</dd>
           </div>
         </dl>
       ) : (

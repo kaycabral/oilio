@@ -1,3 +1,6 @@
+import type { SessionUser as SupabaseSessionUser } from '@cbrl/supabase'
+import { sessionUserFromAuthUser, type AuthUserFields } from '@cbrl/supabase'
+
 export type SessionUser = {
   uid: string
   authUserId: string
@@ -7,30 +10,20 @@ export type SessionUser = {
   emailVerified: boolean
 }
 
-type Metadata = Record<string, unknown> | undefined
-
 export const LEGACY_UID_CLAIM = 'oilio_uid'
 
-function text(metadata: Metadata, ...keys: string[]): string | null {
-  for (const key of keys) {
-    const value = metadata?.[key]
-    if (typeof value === 'string' && value.length > 0) return value
+export function toSessionUser(user: SupabaseSessionUser): SessionUser {
+  const legacyUid = user.appMetadata[LEGACY_UID_CLAIM]
+  return {
+    uid: typeof legacyUid === 'string' && legacyUid.length > 0 ? legacyUid : user.id,
+    authUserId: user.id,
+    email: user.email,
+    displayName: user.name,
+    picture: user.avatarUrl,
+    emailVerified: user.emailVerified,
   }
-  return null
 }
 
-export function toSessionUser(source: {
-  id: string
-  email?: string | null
-  appMetadata: Metadata
-  userMetadata: Metadata
-}): SessionUser {
-  return {
-    uid: text(source.appMetadata, LEGACY_UID_CLAIM) ?? source.id,
-    authUserId: source.id,
-    email: source.email ?? null,
-    displayName: text(source.userMetadata, 'full_name', 'name'),
-    picture: text(source.userMetadata, 'avatar_url', 'picture'),
-    emailVerified: source.userMetadata?.email_verified === true,
-  }
+export function sessionUserFromSupabaseUser(user: AuthUserFields): SessionUser {
+  return toSessionUser(sessionUserFromAuthUser(user))
 }

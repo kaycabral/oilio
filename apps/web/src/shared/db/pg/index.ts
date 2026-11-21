@@ -1,3 +1,2 @@
-export { runEventStoreMigrations } from './migrate'
-export { closeEventStoreDb, getEventStoreDb, initEventStore } from './pool'
+export { closeEventStoreDb, getEventStoreDb, initEventStore, runEventStoreMigrations } from './pool'
 export * as eventStoreSchema from './schema'

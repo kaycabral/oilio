@@ -2,7 +2,6 @@
 
 import { PhoneInput } from '@/components/PhoneInput'
 import {
-  formatBrazilPhone,
   getBusinessHoursForDay,
   resolveCatalogItemForUnit,
   type Appointment,
@@ -21,6 +20,7 @@ import {
   resolveStartTimePicker,
 } from '@/features/agenda/core/appointment-dialog'
 import { useFormValidity } from '@/hooks/use-form-validity'
+import { formatBrazilPhone } from '@cbrl/br/phone'
 import {
   Button,
   Dialog,

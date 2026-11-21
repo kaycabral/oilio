@@ -1,10 +1,10 @@
 'use server'
 
 import { getStripe } from '@/shared/billing/stripe-client'
-import { logger } from '@/shared/lib/logger'
 import { track } from '@/shared/lib/track'
 import { getOrgBilling } from '@/shared/org/billing-read'
 import { guardCapability } from '@/shared/org/membership'
+import { logger } from '@cbrl/log'
 
 export type CancelResult = { ok: true } | { ok: false; error: string }
 

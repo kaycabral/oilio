@@ -29,7 +29,7 @@ import { resetEventStore } from './seed/reset'
 import { bootSeed, shutdownSeed } from './seed/runtime'
 
 async function main(): Promise<void> {
-  const pool = await bootSeed()
+  const pool = bootSeed()
 
   console.log('▸ resetting local oilio event store…')
   await resetEventStore(pool)

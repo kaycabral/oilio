@@ -10,6 +10,7 @@ import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import { formatRelativeDate } from '@/shared/relative-date'
 import { toRoute } from '@/shared/routes'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import { Button, List } from '@cbrl/design'
 import { CreditCard, RotateCw } from 'lucide-react'
 import Link from 'next/link'
@@ -26,10 +27,6 @@ const CYCLE_LABEL: Record<BillingCycle, string> = {
   quarterly: 'Trimestral',
   semiannual: 'Semestral',
   annual: 'Anual',
-}
-
-function formatBRL(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function formatDate(iso: string | null): string {
@@ -133,7 +130,7 @@ export function SubscriptionsList({
               {formatRelativeDate(s.nextChargeDate)}
             </span>
           ) : undefined,
-          trailing: formatBRL(s.plan.priceCents),
+          trailing: formatBRLFromCents(s.plan.priceCents),
           actions: (
             <RowActions
               label={`Ações da assinatura de ${customerLabel}`}

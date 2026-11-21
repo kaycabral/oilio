@@ -1,9 +1,9 @@
 import { allowedNotificationTypesForRole } from '@/domain'
 import { flagNotFound } from '@/shared/api-flags'
 import { getSessionUser } from '@/shared/auth/session'
-import { withRequestContext } from '@/shared/lib/request-context'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { fetchUnreadNotificationsForUnit } from '@/shared/org/notification-read'
+import { withRequestContext } from '@cbrl/log'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 

@@ -1,11 +1,11 @@
 import {
-  formatCnpj,
   isCompanyUnitFiscal,
   type CompanySize,
   type TaxIdentity,
   type TaxRegime,
   type Unit,
 } from '@/domain'
+import { formatCnpj } from '@cbrl/br/tax-id'
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@cbrl/design'
 
 const REGIME_LABELS: Record<TaxRegime, string> = {

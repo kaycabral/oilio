@@ -22,6 +22,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    // Same as vitest.config.ts: let Vite resolve the `next/*` imports of @cbrl/*.
+    server: { deps: { inline: [/@cbrl\//] } },
     include: ['src/**/*.events.pg.integration.test.ts'],
     globalSetup: './src/shared/db/pg/test/global-setup.ts',
     testTimeout: 30_000,

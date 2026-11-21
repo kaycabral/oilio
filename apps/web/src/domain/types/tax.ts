@@ -17,20 +17,8 @@ export function isCompany(t: TaxIdentity): t is Extract<TaxIdentity, { kind: 'co
   return t.kind === 'company'
 }
 
-const DIGITS_ONLY = /^\d+$/
-
 export function normalizeTaxId(raw: string): string {
   return raw.replace(/\D/g, '')
-}
-
-export function isValidIndividualTaxId(raw: string): boolean {
-  const v = normalizeTaxId(raw)
-  return v.length === 11 && DIGITS_ONLY.test(v)
-}
-
-export function isValidCompanyTaxId(raw: string): boolean {
-  const v = normalizeTaxId(raw)
-  return v.length === 14 && DIGITS_ONLY.test(v)
 }
 
 export const TaxRegime = Schema.Literal('mei', 'simples_nacional', 'other')
@@ -121,15 +109,4 @@ export const ACTIVE_REGISTRATION_STATUS = 'ATIVA'
 
 export function isActiveRegistrationStatus(status: string): boolean {
   return status.trim().toUpperCase() === ACTIVE_REGISTRATION_STATUS
-}
-
-export function formatCnpj(raw: string): string {
-  const d = raw.replace(/\D/g, '').slice(0, 14)
-  const parts = [d.slice(0, 2), d.slice(2, 5), d.slice(5, 8), d.slice(8, 12), d.slice(12, 14)]
-  let out = parts[0] ?? ''
-  if (d.length > 2) out += `.${parts[1]}`
-  if (d.length > 5) out += `.${parts[2]}`
-  if (d.length > 8) out += `/${parts[3]}`
-  if (d.length > 12) out += `-${parts[4]}`
-  return out
 }

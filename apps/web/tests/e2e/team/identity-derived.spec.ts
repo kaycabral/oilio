@@ -1,7 +1,7 @@
 // global `users/{userId}` doc — a reference, not a stored copy. The operational
 
-import { formatBrazilPhone } from '@/domain/utils/phone'
 import { patchUser } from '@/shared/db/pg/users-store'
+import { formatBrazilPhone } from '@cbrl/br/phone'
 import { expect, test } from '../fixtures'
 import { uniqueWhatsapp } from '../helpers/session'
 import { MemberOperationsPage } from '../pages'

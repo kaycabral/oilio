@@ -8,7 +8,8 @@ export async function register(): Promise<void> {
       import('@/shared/db/pg'),
       import('@oilio/product'),
     ])
-    await Promise.all([initEventStore(), initProductDb()])
+    initEventStore()
+    initProductDb()
     return
   }
 

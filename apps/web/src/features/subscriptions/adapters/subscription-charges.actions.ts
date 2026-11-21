@@ -22,8 +22,8 @@ import {
   type SubscriptionRow,
   rowToDoc as subscriptionRowToDoc,
 } from '@/shared/db/pg/effect/subscription-projector'
-import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { newId } from '@/shared/db/pg/new-id'
+import { isForeignKeyViolation } from '@/shared/db/pg/pg-error'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { commitSaga, emitEvent } from '@/shared/effect-bridge'
 import { classifyError } from '@/shared/errors/classify'

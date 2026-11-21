@@ -70,6 +70,6 @@ describe('parseMemberOperationForm', () => {
   it('propagates a tax-identity error', () => {
     expect(
       parseMemberOperationForm(form({ unitIds: ['u1'], taxKind: 'individual', taxId: '123' })),
-    ).toBe('CPF deve ter 11 dígitos')
+    ).toBe('CPF inválido')
   })
 })

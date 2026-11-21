@@ -1,10 +1,11 @@
 'use client'
 
-import { buildWhatsappLink, type CancellationPolicy } from '@/domain'
+import { type CancellationPolicy } from '@/domain'
 import { createWizardBooking } from '@/features/self-book/adapters/wizard-book.actions'
 import { formatNoticeWindow } from '@/features/self-book/core/format'
 import { signOutClient } from '@/shared/auth/sign-out'
 import { toRoute } from '@/shared/routes'
+import { whatsappUrl } from '@cbrl/br/phone'
 import {
   Button,
   Dialog,
@@ -57,7 +58,7 @@ export function ConfirmBookingForm({
     existingStartAt: string
   } | null>(null)
 
-  const whatsappHref = buildWhatsappLink(
+  const whatsappHref = whatsappUrl(
     unitMobile,
     `Oi! Sou cliente assinante e gostaria de agendar em ${unitName} fora do meu plano. Pode me ajudar?`,
   )

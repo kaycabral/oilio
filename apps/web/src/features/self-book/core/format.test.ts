@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatBRL, formatDuration, formatNoticeWindow } from './format'
-
-describe('formatBRL', () => {
-  it('formats cents as BRL currency', () => {
-    expect(formatBRL(5000)).toMatch(/50,00/)
-    expect(formatBRL(0)).toMatch(/0,00/)
-  })
-})
+import { formatDuration, formatNoticeWindow } from './format'
 
 describe('formatDuration', () => {
   it('keeps sub-hour in minutes', () => {

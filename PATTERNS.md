@@ -46,9 +46,9 @@ A fronteira não é estética: é o que torna a lógica testável sem harness e 
 
 ### Enforcement
 
-Não é convenção em prosa — é parede de lint em [`packages/eslint-base/configs/layering.mjs`](packages/eslint-base/configs/layering.mjs), chaveada na pasta `features/*/<ring>/` (no-op em app sem slices):
+Não é convenção em prosa — é parede de lint em `@cbrl/eslint-config/configs/layering.mjs`, chaveada na pasta `features/*/<ring>/` (no-op em app sem slices):
 
-- **pureza** (`no-restricted-imports`): `core/**` não importa react/next/firebase/`@cbrl/pg`/`server-only`.
+- **pureza** (`no-restricted-imports`): `core/**` (e `domain/**`) não importa react/next/`pg`/`drizzle-orm`/`@supabase/*`/`stripe`/`@cbrl/pg`/`@cbrl/supabase`/`server-only`.
 - **direção** (`boundaries/element-types`): `ui→adapters→core`, nunca o contrário.
 
 Violar = pipeline vermelho, não code review.

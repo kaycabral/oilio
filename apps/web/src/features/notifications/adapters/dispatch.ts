@@ -1,13 +1,10 @@
-import {
-  buildWhatsappLink,
-  renderNotificationTemplate,
-  type NotificationTemplateVars,
-} from '@/domain'
+import { renderNotificationTemplate, type NotificationTemplateVars } from '@/domain'
 import { NotificationConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
 import { emitEvent } from '@/shared/effect-bridge'
 import { getCustomerById } from '@/shared/org/customer-read'
 import { getNotificationById } from '@/shared/org/notification-read'
+import { whatsappUrl } from '@cbrl/br/phone'
 import { isDispatchableType, resolveTemplateBody } from './message-templates'
 
 export type DispatchResult = { ok: true; link: string } | { ok: false; error: string }
@@ -49,7 +46,7 @@ export async function dispatchNotificationWhatsapp(
   }
 
   const rendered = renderNotificationTemplate(body, vars)
-  const link = buildWhatsappLink(customer.mobile, rendered)
+  const link = whatsappUrl(customer.mobile, rendered)
   if (!link) return { ok: false, error: 'WhatsApp do cliente é inválido' }
 
   const result = await emitEvent(

@@ -21,10 +21,6 @@ export const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   pix: 'PIX',
 }
 
-export function formatBRL(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
 export function attributionLabel(kind: OrderItemKind): string {
   return kind === 'service' ? 'Executor' : 'Vendedor'
 }

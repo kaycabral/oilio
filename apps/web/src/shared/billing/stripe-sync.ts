@@ -1,7 +1,7 @@
 import { getStripe } from '@/shared/billing/stripe-client'
-import { logger } from '@/shared/lib/logger'
 import { getOrgBilling } from '@/shared/org/billing-read'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
+import { logger } from '@cbrl/log'
 import 'server-only'
 
 export async function syncStripeSubscriptionQuantity(orgId: string): Promise<void> {

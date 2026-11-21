@@ -3,15 +3,15 @@
 import { parseProfileForm } from '@/features/onboarding/core/profile-form'
 import { resolveSignupOrgContext } from '@/features/onboarding/core/signup-context'
 import { getSessionUser } from '@/shared/auth/session'
-import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/unique-violation'
+import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/pg-error'
 import { getUserById, patchUser } from '@/shared/db/pg/users-store'
 import { formString } from '@/shared/form-data'
-import { logger } from '@/shared/lib/logger'
-import { withActionContext } from '@/shared/lib/request-context'
 import { ensureSelfSignupCustomer } from '@/shared/org/customer-upsert'
 import { getOrgBySlug } from '@/shared/org/org'
 import { emitClientFunnelEvent } from '@/shared/product'
-import { safeNext } from '@/shared/routes'
+import { toRoute } from '@/shared/routes'
+import { logger, withActionContext } from '@cbrl/log'
+import { safeNext } from '@cbrl/next'
 import { redirect } from 'next/navigation'
 
 export type CompleteProfileResult = { ok: true } | { ok: false; error: string }
@@ -24,7 +24,7 @@ export const completeProfile = withActionContext(
     const user = await getUserById(session.uid)
     if (!user) return { ok: false, error: 'Usuário não encontrado' }
     if (user.completionCompleted) {
-      redirect(safeNext(formData.get('next')))
+      redirect(toRoute(safeNext(formData.get('next'), '/dashboard')))
     }
 
     const parsed = parseProfileForm(formData)
@@ -57,7 +57,7 @@ export const completeProfile = withActionContext(
 
     await materializeSelfSignupCustomer(formData, session.uid)
 
-    redirect(safeNext(formData.get('next')))
+    redirect(toRoute(safeNext(formData.get('next'), '/dashboard')))
   },
 )
 

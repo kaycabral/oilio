@@ -1,4 +1,4 @@
-import { isAuthConfigured } from '@/shared/auth/config'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ClosingCta } from './ClosingCta'
@@ -6,8 +6,8 @@ import { Features } from './Features'
 import { HowItWorks } from './HowItWorks'
 import { Verticals } from './Verticals'
 
-vi.mock('@/shared/auth/config', () => ({
-  isAuthConfigured: vi.fn(() => true),
+vi.mock('@cbrl/supabase', () => ({
+  isSupabaseConfigured: vi.fn(() => true),
 }))
 
 describe('landing sections', () => {
@@ -35,7 +35,7 @@ describe('landing sections', () => {
   })
 
   it('ClosingCta converts to login when auth is configured', () => {
-    vi.mocked(isAuthConfigured).mockReturnValue(true)
+    vi.mocked(isSupabaseConfigured).mockReturnValue(true)
     render(<ClosingCta />)
     expect(screen.getByRole('link', { name: 'Começar agora' })).toHaveAttribute(
       'href',
@@ -44,7 +44,7 @@ describe('landing sections', () => {
   })
 
   it('ClosingCta renders nothing when auth is not configured', () => {
-    vi.mocked(isAuthConfigured).mockReturnValue(false)
+    vi.mocked(isSupabaseConfigured).mockReturnValue(false)
     const { container } = render(<ClosingCta />)
     expect(container).toBeEmptyDOMElement()
   })

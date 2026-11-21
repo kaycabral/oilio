@@ -1,11 +1,12 @@
-import { normalizeBrazilMobile, type Attribution, type StoredCustomer, type User } from '@/domain'
+import { type Attribution, type StoredCustomer, type User } from '@/domain'
 import { CustomerConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
+import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/pg-error'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
-import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/unique-violation'
 import { putUser } from '@/shared/db/pg/users-store'
 import { emitEvent } from '@/shared/effect-bridge'
 import { linkCustomerOrg } from '@/shared/identity/org-links'
+import { normalizeBrazilMobile } from '@cbrl/br/phone'
 import { randomUUID } from 'node:crypto'
 
 const WHATSAPP_IN_USE_ERROR =

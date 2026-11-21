@@ -4,7 +4,7 @@ import { BirthdayIndicator } from '@/components/BirthdayIndicator'
 import { RowActions, type RowAction } from '@/components/RowActions'
 import { WhatsappAction } from '@/components/WhatsappAction'
 import type { DeletionImpact } from '@/components/destructive/DeleteAction'
-import { formatBrazilPhone, type Customer } from '@/domain'
+import { type Customer } from '@/domain'
 import {
   deleteCustomer,
   getCustomerDeletionImpactAction,
@@ -14,6 +14,7 @@ import { PAGINATION_LABELS_PTBR } from '@/shared/list/pagination-labels'
 import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import { toRoute } from '@/shared/routes'
+import { formatBrazilPhone } from '@cbrl/br/phone'
 import { Avatar, AvatarFallback, AvatarImage, List } from '@cbrl/design'
 import { Users } from 'lucide-react'
 import { ClientInviteDialog } from './ClientInviteDialog'

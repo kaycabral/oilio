@@ -1,8 +1,8 @@
 'use client'
 
 import { type Commission, type LiquidationStatus, liquidationStatusOf } from '@/domain'
-import { formatBRL } from '@/features/orders/core/order-detail-format'
 import type { OrgMember } from '@/shared/org/membership'
+import { formatBRLFromCents } from '@cbrl/br/money'
 
 const LIQUIDATION_LABEL: Record<LiquidationStatus, string> = {
   pendente: 'Pendente',
@@ -34,7 +34,7 @@ export function OrderCommissionsTable({
             </div>
             <div className="text-muted-foreground text-xs">
               {c.commissionKind === 'percentage'
-                ? `${c.commissionValue}% de ${formatBRL(c.itemTotalCents)}`
+                ? `${c.commissionValue}% de ${formatBRLFromCents(c.itemTotalCents)}`
                 : 'valor fixo'}
             </div>
             <span
@@ -43,13 +43,13 @@ export function OrderCommissionsTable({
               {LIQUIDATION_LABEL[liquidationStatusOf(c)]}
             </span>
             <span className="ml-3 w-24 text-right font-medium tabular-nums">
-              {formatBRL(c.amountCents)}
+              {formatBRLFromCents(c.amountCents)}
             </span>
           </li>
         ))}
         <li className="bg-muted/40 flex items-center justify-between px-4 py-2 font-semibold">
           <span>Total</span>
-          <span className="tabular-nums">{formatBRL(totalCommission)}</span>
+          <span className="tabular-nums">{formatBRLFromCents(totalCommission)}</span>
         </li>
       </ul>
     </section>

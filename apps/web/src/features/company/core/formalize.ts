@@ -2,10 +2,10 @@ import {
   type CompanyProfile,
   CompanyProfile as CompanyProfileSchema,
   isActiveRegistrationStatus,
-  isValidCompanyTaxId,
   normalizeTaxId,
 } from '@/domain'
 import { formString } from '@/shared/form-data'
+import { isValidCnpj } from '@cbrl/br/tax-id'
 import { Schema } from 'effect'
 
 export type FormalizationInput = {
@@ -19,7 +19,7 @@ const decodeCompanyProfile = Schema.decodeUnknownEither(CompanyProfileSchema)
 
 export function parseFormalizationFromForm(formData: FormData): FormalizationInput | string {
   const taxId = normalizeTaxId(formString(formData, 'taxId').trim())
-  if (!isValidCompanyTaxId(taxId)) return 'CNPJ deve ter 14 dígitos'
+  if (!isValidCnpj(taxId)) return 'CNPJ inválido'
 
   const profileRaw = formString(formData, 'profile').trim()
   if (profileRaw.length === 0) return 'Consulte o CNPJ antes de confirmar'
