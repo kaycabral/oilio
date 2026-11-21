@@ -23,9 +23,9 @@ export {
   LoggerService,
   PersistencePort,
   SecurityContext,
-  type FirestoreDoc,
   type PersistenceOps,
   type QueryConstraint,
+  type StoredDoc,
   type TransactionContext,
 } from './services'
 

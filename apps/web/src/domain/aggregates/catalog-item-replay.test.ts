@@ -4,14 +4,14 @@ import { describe, expect, it } from 'vitest'
 import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
 import { aggregateRef } from '../effect/aggregate-ref'
 import { appendEvent, replayAggregate } from '../effect/event-store'
-import type { FirestoreDoc } from '../effect/services'
+import type { StoredDoc } from '../effect/services'
 import { CatalogItemConfig } from './catalog-item/config'
 
 async function checkReplay(
   id: string,
   data: Record<string, unknown>,
   changes: Record<string, unknown>,
-): Promise<FirestoreDoc> {
+): Promise<StoredDoc> {
   const { store, layer } = makeReplayStore()
   const ref = aggregateRef(CatalogItemConfig, 't1', id)
 

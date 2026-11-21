@@ -4,7 +4,7 @@ import {
   CommissionConfig,
   OrderConfig,
 } from '@/domain/aggregates'
-import type { FirestoreDoc, SagaStep, TransactionContext } from '@/domain/effect'
+import type { SagaStep, StoredDoc, TransactionContext } from '@/domain/effect'
 import { aggregateRef } from '@/domain/effect'
 import { docKey } from '@/domain/effect/test-layers'
 import type { CashMovement } from '@/domain/types/cash-movement'
@@ -15,8 +15,8 @@ import { describe, expect, it } from 'vitest'
 import { buildCloseOrderSteps } from './order-saga'
 import { buildUndoCloseSteps } from './order-undo-saga'
 
-async function runSteps(steps: SagaStep[]): Promise<Map<string, FirestoreDoc>> {
-  const store = new Map<string, FirestoreDoc>()
+async function runSteps(steps: SagaStep[]): Promise<Map<string, StoredDoc>> {
+  const store = new Map<string, StoredDoc>()
   const tx: TransactionContext = {
     getDoc: (ref) => Effect.succeed(store.get(docKey(ref)) ?? null),
     setDoc: (ref, data) =>

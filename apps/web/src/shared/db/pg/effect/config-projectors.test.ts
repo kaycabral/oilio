@@ -3,7 +3,7 @@ import { GoalConfig } from '@/domain/aggregates/goal/config'
 import { InviteConfig } from '@/domain/aggregates/invite/config'
 import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import type { NotificationState } from '@/domain/aggregates/notification/types'
-import { aggregateRef, type FirestoreDoc } from '@/domain/effect'
+import { aggregateRef, type StoredDoc } from '@/domain/effect'
 import type { AgendaBlock } from '@/domain/types/agenda-block'
 import type { Category } from '@/domain/types/category'
 import type { Customer } from '@/domain/types/customer'
@@ -564,7 +564,7 @@ describe('notification projector — pure mapping', () => {
     _version: 1,
   }
 
-  const asDoc = (n: NotificationState): FirestoreDoc => ({ ...n })
+  const asDoc = (n: NotificationState): StoredDoc => ({ ...n })
 
   function notificationRow(n: NotificationState): NotificationRow {
     const v = notificationColumnValues(

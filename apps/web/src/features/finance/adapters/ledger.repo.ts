@@ -4,7 +4,7 @@ import { classifyLedger, DEFAULT_UNIT_TIMEZONE, type LedgerEntry, type LedgerFac
 import { ChargeConfig } from '@/domain/aggregates/charge/config'
 import { CommissionConfig } from '@/domain/aggregates/commission/config'
 import { OrderConfig } from '@/domain/aggregates/order/config'
-import type { FirestoreDoc } from '@/domain/effect'
+import type { StoredDoc } from '@/domain/effect'
 import { decodeStreamEvent } from '@/domain/effect'
 import {
   readActiveFixedCosts,
@@ -111,7 +111,7 @@ function buildChargeFact(
     : { kind: 'charge_refunded', charge }
 }
 
-function readTag(envelope: FirestoreDoc): string {
+function readTag(envelope: StoredDoc): string {
   const tag = envelope['_tag']
   return typeof tag === 'string' ? tag : ''
 }

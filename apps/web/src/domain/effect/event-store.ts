@@ -1,7 +1,7 @@
 import { Data, Effect, Schema } from 'effect'
 
 import type { AggregateRef, AggregateType } from './aggregate-ref'
-import type { FirestoreDoc, TransactionContext } from './services'
+import type { StoredDoc, TransactionContext } from './services'
 import { PersistencePort } from './services'
 
 export class EventValidationError extends Data.TaggedError('EventValidationError')<{
@@ -57,7 +57,7 @@ export type AggregateConfig<
   readonly upcasters?: Readonly<Record<number, (raw: EventEnvelope) => EventEnvelope>>
 }
 
-function projectionVersion(doc: FirestoreDoc | null): number {
+function projectionVersion(doc: StoredDoc | null): number {
   const v = doc?.['_version']
   return typeof v === 'number' ? v : 0
 }
@@ -71,7 +71,7 @@ const EnvelopeSchema = Schema.Struct({
   payload: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
 })
 
-function decodeEnvelope(doc: FirestoreDoc): EventEnvelope {
+function decodeEnvelope(doc: StoredDoc): EventEnvelope {
   return Schema.decodeUnknownSync(EnvelopeSchema)(doc)
 }
 
@@ -100,13 +100,13 @@ export function decodeStreamEvent<
   State extends { readonly _version: number },
   Event extends { readonly _tag: string },
   Encoded = Event,
->(config: AggregateConfig<State, Event, Encoded>, doc: FirestoreDoc): Event {
+>(config: AggregateConfig<State, Event, Encoded>, doc: StoredDoc): Event {
   return decodeEvent(config.schema, upcastEnvelope(config, decodeEnvelope(doc)))
 }
 
 function rehydrateState<State extends { readonly _version: number }>(
   initialState: State,
-  doc: FirestoreDoc | null,
+  doc: StoredDoc | null,
 ): State {
   return doc ? Object.assign({ ...initialState }, doc) : initialState
 }

@@ -1,6 +1,6 @@
 import { NotificationConfig } from '@/domain/aggregates/notification/config'
 import { NotificationState } from '@/domain/aggregates/notification/types'
-import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
+import type { AggregateRef, CollectionRef, QueryConstraint, StoredDoc } from '@/domain/effect'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
 import { buildCollectionQueryTail } from './collection-query'
@@ -29,12 +29,12 @@ export const NOTIFICATION_COLUMNS = [
   'updated_at',
 ] as const
 
-function asState(state: FirestoreDoc): NotificationState {
+function asState(state: StoredDoc): NotificationState {
   return decodeNotificationState(state)
 }
 
 export function notificationColumnValues(
-  state: FirestoreDoc,
+  state: StoredDoc,
   ref: AggregateRef,
   version: number,
 ): unknown[] {
@@ -75,12 +75,12 @@ const UPSERT = `
   ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
-function stateVersion(state: FirestoreDoc): number {
+function stateVersion(state: StoredDoc): number {
   const v = state['_version']
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: StoredDoc): Promise<void> {
   await client.query(UPSERT, notificationColumnValues(state, ref, stateVersion(state)))
 }
 
@@ -105,7 +105,7 @@ export type NotificationRow = {
   updated_at: string | null
 }
 
-export function rowToDoc(row: NotificationRow): FirestoreDoc {
+export function rowToDoc(row: NotificationRow): StoredDoc {
   return {
     _version: Number(row.last_event_version),
     id: row.id,
@@ -128,7 +128,7 @@ export function rowToDoc(row: NotificationRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<StoredDoc | null> {
   const res = await client.query<NotificationRow>(
     'SELECT * FROM notifications WHERE org_id = $1 AND id = $2',
     [ref.orgId, ref.id],
@@ -145,7 +145,7 @@ async function list(
   client: PoolClient,
   ref: CollectionRef,
   constraints: readonly QueryConstraint[],
-): Promise<FirestoreDoc[]> {
+): Promise<StoredDoc[]> {
   const tail = buildCollectionQueryTail(constraints, NOTIFICATION_COLUMNS, 2, true)
   const res = await client.query<NotificationRow>(
     `SELECT * FROM notifications WHERE org_id = $1${tail.sql}`,

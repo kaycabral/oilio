@@ -1,5 +1,5 @@
 import { OrgConfig } from '@/domain/aggregates/org/config'
-import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, StoredDoc } from '@/domain/effect'
 import { StoredOrg } from '@/domain/types/org'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -47,7 +47,7 @@ const UPSERT = `
   ON CONFLICT (org_id) DO UPDATE SET ${CONFLICT_SET}
 `
 
-function stateVersion(state: FirestoreDoc): number {
+function stateVersion(state: StoredDoc): number {
   const v = state['_version']
   return typeof v === 'number' ? v : 0
 }
@@ -80,7 +80,7 @@ export function publicOrgDirectoryValues(org: StoredOrg): unknown[] {
   ]
 }
 
-async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: StoredDoc): Promise<void> {
   const org = decodeOrg(state)
   await client.query(UPSERT, orgColumnValues(org, stateVersion(state)))
   await client.query(PUBLIC_DIRECTORY_UPSERT, publicOrgDirectoryValues(org))
@@ -100,7 +100,7 @@ export type OrgRow = {
   updated_at: string
 }
 
-export function rowToDoc(row: OrgRow): FirestoreDoc {
+export function rowToDoc(row: OrgRow): StoredDoc {
   return {
     _version: Number(row.last_event_version),
     id: row.id,
@@ -115,7 +115,7 @@ export function rowToDoc(row: OrgRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<StoredDoc | null> {
   const res = await client.query<OrgRow>('SELECT * FROM orgs WHERE org_id = $1 AND id = $2', [
     ref.orgId,
     ref.id,

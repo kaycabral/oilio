@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { type AggregateRef, type CollectionRef } from '@/domain/effect/aggregate-ref'
 import type { EventEnvelope } from '@/domain/effect/event-store'
-import type { FirestoreDoc, PersistenceOps, QueryConstraint } from '@/domain/effect/services'
+import type { PersistenceOps, QueryConstraint, StoredDoc } from '@/domain/effect/services'
 import { PersistencePort } from '@/domain/effect/services'
 import { docKey } from '@/domain/effect/test-layers'
 import { buildReactor } from '../_shared/reactions'
@@ -13,9 +13,9 @@ function collectionKey(ref: CollectionRef): string {
   return `${ref.type}/${ref.orgId}/`
 }
 
-function makeStore(initial: Record<string, FirestoreDoc> = {}) {
+function makeStore(initial: Record<string, StoredDoc> = {}) {
   const store = new Map(Object.entries(initial))
-  const events = new Map<string, FirestoreDoc[]>()
+  const events = new Map<string, StoredDoc[]>()
   const ops: PersistenceOps = {
     getDoc: (ref: AggregateRef) => Effect.succeed(store.get(docKey(ref)) ?? null),
     getDocs: (ref: CollectionRef, constraints?: readonly QueryConstraint[]) => {
@@ -43,7 +43,7 @@ function makeStore(initial: Record<string, FirestoreDoc> = {}) {
       return Effect.succeed(filtered)
     },
     getEvents: (ref: AggregateRef) => Effect.succeed([...(events.get(docKey(ref)) ?? [])]),
-    setDoc: (ref: AggregateRef, data: FirestoreDoc) =>
+    setDoc: (ref: AggregateRef, data: StoredDoc) =>
       Effect.sync(() => {
         const key = docKey(ref)
         store.set(key, { ...store.get(key), ...data })

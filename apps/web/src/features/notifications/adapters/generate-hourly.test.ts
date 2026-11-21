@@ -1,4 +1,4 @@
-import { type FirestoreDoc } from '@/domain/effect'
+import { type StoredDoc } from '@/domain/effect'
 import { makeReplayStore } from '@/domain/effect/test-layers'
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
@@ -8,7 +8,7 @@ vi.mock('@/shared/db/pg/public-org-directory', () => ({ listAllOrgIds: mocks.lis
 
 import { generateHourlyNotifications } from './generate-hourly'
 
-function makeStore(initial: Record<string, FirestoreDoc> = {}) {
+function makeStore(initial: Record<string, StoredDoc> = {}) {
   return makeReplayStore(initial)
 }
 

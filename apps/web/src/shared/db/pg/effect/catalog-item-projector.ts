@@ -1,5 +1,5 @@
 import { CatalogItemConfig } from '@/domain/aggregates/catalog-item/config'
-import type { AggregateRef, CollectionRef, FirestoreDoc, QueryConstraint } from '@/domain/effect'
+import type { AggregateRef, CollectionRef, QueryConstraint, StoredDoc } from '@/domain/effect'
 import { CatalogItem, isCatalogProduct } from '@/domain/types/catalog-item'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -82,12 +82,12 @@ export function catalogItemUnitRows(item: CatalogItem): unknown[][] {
   return item.unitIds.map((unitId) => [item.orgId, item.id, unitId])
 }
 
-function stateVersion(state: FirestoreDoc): number {
+function stateVersion(state: StoredDoc): number {
   const v = state['_version']
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(client: PoolClient, _ref: AggregateRef, state: FirestoreDoc): Promise<void> {
+async function upsert(client: PoolClient, _ref: AggregateRef, state: StoredDoc): Promise<void> {
   const item = decodeCatalogItem(state)
   await client.query(UPSERT, catalogItemColumnValues(item, stateVersion(state)))
   await client.query(CATALOG_ITEM_UNITS_DELETE, [item.orgId, item.id])
@@ -122,7 +122,7 @@ export type CatalogItemRow = {
   updated_at: string
 }
 
-export function rowToDoc(row: CatalogItemRow): FirestoreDoc {
+export function rowToDoc(row: CatalogItemRow): StoredDoc {
   const base = {
     _version: Number(row.last_event_version),
     id: row.id,
@@ -164,7 +164,7 @@ export function rowToDoc(row: CatalogItemRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<StoredDoc | null> {
   const res = await client.query<CatalogItemRow>(
     'SELECT * FROM catalog_items WHERE org_id = $1 AND id = $2',
     [ref.orgId, ref.id],
@@ -173,7 +173,7 @@ async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc
   return row ? rowToDoc(row) : null
 }
 
-async function readForUpdate(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+async function readForUpdate(client: PoolClient, ref: AggregateRef): Promise<StoredDoc | null> {
   const res = await client.query<CatalogItemRow>(
     'SELECT * FROM catalog_items WHERE org_id = $1 AND id = $2 FOR UPDATE',
     [ref.orgId, ref.id],
@@ -191,7 +191,7 @@ async function list(
   client: PoolClient,
   ref: CollectionRef,
   constraints: readonly QueryConstraint[],
-): Promise<FirestoreDoc[]> {
+): Promise<StoredDoc[]> {
   const tail = buildCollectionQueryTail(constraints, CATALOG_ITEM_COLUMNS, 2, true)
   const res = await client.query<CatalogItemRow>(
     `SELECT * FROM catalog_items WHERE org_id = $1${tail.sql}`,

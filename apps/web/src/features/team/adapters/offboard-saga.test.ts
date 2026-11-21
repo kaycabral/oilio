@@ -4,15 +4,15 @@ import {
   InviteConfig,
   MembershipConfig,
 } from '@/domain/aggregates'
-import { aggregateRef, type FirestoreDoc, runSaga, type SagaStep } from '@/domain/effect'
+import { aggregateRef, runSaga, type SagaStep, type StoredDoc } from '@/domain/effect'
 import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { buildOffboardSteps, type ResolvedOffboard } from './offboard-member'
 
 async function runSteps(steps: SagaStep[]): Promise<{
-  store: Map<string, FirestoreDoc>
-  events: Map<string, FirestoreDoc[]>
+  store: Map<string, StoredDoc>
+  events: Map<string, StoredDoc[]>
 }> {
   const { store, events, layer } = makeReplayStore()
   await Effect.runPromise(runSaga(steps).pipe(Effect.provide(layer)))
