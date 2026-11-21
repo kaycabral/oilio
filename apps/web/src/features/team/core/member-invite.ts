@@ -1,4 +1,4 @@
-import { normalizeBrazilMobile } from '@/domain'
+import { normalizeBrazilMobile, whatsappUrl } from '@cbrl/br/phone'
 
 export type MemberInviteWhatsappResult =
   { ok: true; whatsapp: string; href: string } | { ok: false; error: string }
@@ -18,6 +18,7 @@ export function buildMemberInviteWhatsapp(args: {
   const whatsapp = normalizeBrazilMobile(args.rawPhone)
   if (!whatsapp) return { ok: false, error: 'WhatsApp inválido' }
   const message = buildMemberInviteMessage(args.orgName, args.inviteLink)
-  const href = `https://wa.me/${whatsapp}?text=${encodeURIComponent(message)}`
+  const href = whatsappUrl(whatsapp, message)
+  if (!href) return { ok: false, error: 'WhatsApp inválido' }
   return { ok: true, whatsapp, href }
 }

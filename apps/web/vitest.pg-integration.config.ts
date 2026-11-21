@@ -20,6 +20,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    // Same as vitest.config.ts: let Vite resolve the `next/*` imports of @cbrl/*.
+    server: { deps: { inline: [/@cbrl\//] } },
     include: ['src/**/*.pg.integration.test.ts'],
     // The event-store layer (`*.events.pg.integration.test.ts`) targets a SEPARATE
     // logical database (`oilio` via OILIO_DATABASE_URL) with its own migrations —

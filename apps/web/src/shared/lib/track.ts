@@ -1,4 +1,4 @@
-import { logger } from './logger'
+import { logger } from '@cbrl/log'
 
 type AnalyticsEvents = {
   order_item_coverage_autoset: {

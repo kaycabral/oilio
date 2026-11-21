@@ -14,6 +14,7 @@ import {
 } from '@/features/reports/adapters/reports.actions'
 import { formString } from '@/shared/form-data'
 import { toRoute } from '@/shared/routes'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import {
   Button,
   Input,
@@ -26,10 +27,6 @@ import {
 } from '@cbrl/design'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useActionState, useId, useTransition } from 'react'
-
-function formatBRL(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR')
@@ -175,7 +172,7 @@ export function CommissionReport({
           <div key={s} className="border-border rounded-md border p-3">
             <div className="text-muted-foreground text-xs">{STATUS_LABEL[s]}</div>
             <div className="font-medium tabular-nums">
-              {formatBRL(summary.byStatus[s].totalCents)}
+              {formatBRLFromCents(summary.byStatus[s].totalCents)}
             </div>
             <div className="text-muted-foreground text-xs">
               {summary.byStatus[s].count} comissão(ões)
@@ -184,7 +181,7 @@ export function CommissionReport({
         ))}
         <div className="bg-muted/40 rounded-md p-3">
           <div className="text-muted-foreground text-xs">Total</div>
-          <div className="font-semibold tabular-nums">{formatBRL(summary.totalCents)}</div>
+          <div className="font-semibold tabular-nums">{formatBRLFromCents(summary.totalCents)}</div>
           <div className="text-muted-foreground text-xs">{summary.count} comissão(ões)</div>
         </div>
       </section>
@@ -206,13 +203,13 @@ export function CommissionReport({
                 <tr key={row.attributedUserId} className="border-border">
                   <td className="font-medium">{memberNameByUserId[row.attributedUserId] ?? '—'}</td>
                   <td className="text-right tabular-nums">
-                    {formatBRL(row.byStatus.pendente.totalCents)}
+                    {formatBRLFromCents(row.byStatus.pendente.totalCents)}
                   </td>
                   <td className="text-right tabular-nums">
-                    {formatBRL(row.byStatus.pago.totalCents)}
+                    {formatBRLFromCents(row.byStatus.pago.totalCents)}
                   </td>
                   <td className="text-right font-medium tabular-nums">
-                    {formatBRL(row.totalCents)}
+                    {formatBRLFromCents(row.totalCents)}
                   </td>
                 </tr>
               ))}
@@ -245,7 +242,9 @@ export function CommissionReport({
                     {memberNameByUserId[row.memberOperationId] ?? '—'}
                   </td>
                   <td className="text-right tabular-nums">{row.count}</td>
-                  <td className="text-right tabular-nums">{formatBRL(row.catalogValueCents)}</td>
+                  <td className="text-right tabular-nums">
+                    {formatBRLFromCents(row.catalogValueCents)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -311,7 +310,7 @@ export function CommissionReport({
                   {STATUS_LABEL[liquidationStatusOf(c)]}
                 </span>
                 <span className="w-24 text-right font-medium tabular-nums">
-                  {formatBRL(c.amountCents)}
+                  {formatBRLFromCents(c.amountCents)}
                 </span>
               </li>
             ))}

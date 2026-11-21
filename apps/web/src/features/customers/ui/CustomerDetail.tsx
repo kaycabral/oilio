@@ -1,6 +1,6 @@
 import type { Customer } from '@/domain'
-import { formatBrazilPhone } from '@/domain'
 import { formatBirthDate } from '@/domain/types/customer'
+import { formatBrazilPhone } from '@cbrl/br/phone'
 
 export function CustomerDetail({ customer }: { customer: Customer }) {
   return (

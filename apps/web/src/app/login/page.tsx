@@ -1,10 +1,10 @@
 import { LoginForm } from '@/components/LoginForm'
-import { isAuthConfigured } from '@/shared/auth/config'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 
 export default function LoginPage() {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   return (
     <Suspense fallback={null}>

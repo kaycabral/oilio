@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   upsertUser: vi.fn(),
 }))
 
-vi.mock('@/shared/auth/server', () => ({
+vi.mock('@cbrl/supabase/server', () => ({
   createSupabaseServerClient: () =>
     Promise.resolve({ auth: { signInWithPassword: mocks.signInWithPassword } }),
 }))
@@ -53,7 +53,7 @@ describe('POST /api/e2e-signin', () => {
     })
     const res = await POST(post({ email: 'a@b.c', password: 'pw' }))
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ uid: 'auth-1' })
+    expect(await res.json()).toEqual({ uid: 'auth-1', userId: 'auth-1' })
     expect(mocks.upsertUser).toHaveBeenCalledWith(expect.objectContaining({ uid: 'auth-1' }))
   })
 

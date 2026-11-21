@@ -1,14 +1,15 @@
-import {
-  closeManagedPool,
-  getOrCreateManagedPoolSync,
-  initManagedPool,
-  type ManagedPool,
-  type PoolEnvConfig,
-  supabaseSsl,
-} from '@cbrl/pg'
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
-import type { Pool } from 'pg'
+import { supabaseSsl } from '@cbrl/pg'
+import { createDrizzleDatabase } from '@cbrl/pg/drizzle'
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import * as schema from '../schema'
+
+/**
+ * Journal table for the product migrations. Product and the oilio event store
+ * share one Supabase database, so each keeps its own journal under `drizzle`.
+ */
+export const PRODUCT_MIGRATIONS_TABLE = '__drizzle_migrations_product'
 
 /**
  * Postgres connection for the sovereign product base.
@@ -19,44 +20,44 @@ import * as schema from '../schema'
  * (`supabaseSsl`); locally/CI/tests `DATABASE_URL` points at the ephemeral
  * Postgres and TLS is left to the URL.
  *
- * Production opens the pool once at boot via `initProductDb()` (fail-fast);
- * tests/local lazily build it on first use.
- *
  * Pool state lives in the `@cbrl/pg` process-wide `globalThis` registry, NOT a
  * module-level `let`: the Next standalone build (Turbopack) duplicates this
  * module across the instrumentation entry and route entries, so a module-level
- * singleton would split — boot opens one, requests see the other. The registry
- * is a true per-process singleton keyed by database name. See `@cbrl/pg`.
+ * singleton would split — boot opens one, requests see the other.
  */
-
-export const PRODUCT_POOL_CONFIG: PoolEnvConfig = {
+export const productDb = createDrizzleDatabase({
   connectionStringEnvVar: 'DATABASE_URL',
   database: 'produtos',
-  passwordModeSsl: supabaseSsl,
-}
+  ssl: supabaseSsl,
+  schema,
+  migrationsFolder: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../drizzle'),
+  migrationsTable: PRODUCT_MIGRATIONS_TABLE,
+})
 
-// Drizzle wrappers are stateless views over the pool, cached per pool instance.
-const drizzleByPool = new WeakMap<Pool, NodePgDatabase<typeof schema>>()
-
-function dbFor(managed: ManagedPool): NodePgDatabase<typeof schema> {
-  const cached = drizzleByPool.get(managed.pool)
-  if (cached) return cached
-  const built = drizzle(managed.pool, { schema })
-  drizzleByPool.set(managed.pool, built)
-  return built
-}
-
-/** Open the product-base pool at boot (fail-fast on a bad connection string). Idempotent. */
-export async function initProductDb(): Promise<void> {
-  await initManagedPool(PRODUCT_POOL_CONFIG)
+/** Open the product-base pool at boot (fail-fast on a missing connection string). Idempotent. */
+export function initProductDb(): void {
+  productDb.pool()
 }
 
 /** Drizzle client bound to the product schema. */
 export function getDb(): NodePgDatabase<typeof schema> {
-  return dbFor(getOrCreateManagedPoolSync(PRODUCT_POOL_CONFIG))
+  return productDb.db()
 }
 
 /** Close the pool (tests / graceful shutdown). No-op if never opened. */
 export async function closeDb(): Promise<void> {
-  await closeManagedPool(PRODUCT_POOL_CONFIG)
+  await productDb.close()
+}
+
+/**
+ * Apply all versioned migrations in `drizzle/`, on `connectionString` (a
+ * dedicated pool, closed afterwards) or on the registered pool.
+ *
+ * Used by the integration suite and by the production migration job in CI.
+ * NEVER call this at app boot: with N instances the migrator advisory-lock
+ * races. NEVER use `drizzle-kit push` in prod — a rename becomes drop+add and
+ * loses data. See the ADR in docs/decisions/.
+ */
+export async function runMigrations(connectionString?: string): Promise<void> {
+  await productDb.migrate(connectionString === undefined ? {} : { connectionString })
 }

@@ -10,13 +10,10 @@ import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import type { WithCanDelete } from '@/shared/org/delete-guard'
 import { toRoute } from '@/shared/routes'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import { Button, List } from '@cbrl/design'
 import { Handshake, Package, PackageOpen } from 'lucide-react'
 import Link from 'next/link'
-
-function formatPrice(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
 
 const ALL_CATEGORIES = 'all'
 
@@ -133,7 +130,7 @@ export function CatalogList({
           title: it.name,
           badge: it.active ? undefined : <StatusBadge tone="neutral">Inativo</StatusBadge>,
           description: categoryLabel === '—' ? detail : `${categoryLabel} · ${detail}`,
-          trailing: formatPrice(it.priceCents),
+          trailing: formatBRLFromCents(it.priceCents),
           actions: <RowActions actions={actions} label={`Ações de ${it.name}`} />,
         }
       }}

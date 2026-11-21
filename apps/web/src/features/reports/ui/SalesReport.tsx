@@ -9,13 +9,10 @@ import {
 import type { CashReportPeriod } from '@/features/cash/core/range'
 import { formString } from '@/shared/form-data'
 import { toRoute } from '@/shared/routes'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import { Button, Input, Label } from '@cbrl/design'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useId, useMemo, useTransition } from 'react'
-
-function formatBRL(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
@@ -175,8 +172,8 @@ export function SalesReport({
       </form>
 
       <section className="border-border grid gap-3 rounded-md border p-4 text-sm sm:grid-cols-3">
-        <Stat label="Total de vendas" value={formatBRL(totals.totalInCents)} />
-        <Stat label="Estornos" value={formatBRL(totals.totalOutCents)} />
+        <Stat label="Total de vendas" value={formatBRLFromCents(totals.totalInCents)} />
+        <Stat label="Estornos" value={formatBRLFromCents(totals.totalOutCents)} />
         <Stat label="Movimentos" value={String(totals.count)} />
       </section>
 
@@ -189,7 +186,7 @@ export function SalesReport({
             {salesByMethodEntries.map(([pm, v]) => (
               <li key={pm} className="flex justify-between gap-2">
                 <span className="text-muted-foreground">{PAYMENT_LABEL[pm]}</span>
-                <span className="font-medium tabular-nums">{formatBRL(v)}</span>
+                <span className="font-medium tabular-nums">{formatBRLFromCents(v)}</span>
               </li>
             ))}
           </ul>
@@ -226,7 +223,7 @@ export function SalesReport({
                             : 'text-destructive'
                         }`}
                       >
-                        {m.direction === 'in' ? '+' : '−'} {formatBRL(m.amountCents)}
+                        {m.direction === 'in' ? '+' : '−'} {formatBRLFromCents(m.amountCents)}
                       </td>
                     </tr>
                   )

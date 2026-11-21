@@ -1,4 +1,5 @@
-import { formatBrazilPhone, type Org, type Unit } from '@/domain'
+import { type Org, type Unit } from '@/domain'
+import { formatBrazilPhone } from '@cbrl/br/phone'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'

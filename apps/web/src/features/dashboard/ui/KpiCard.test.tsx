@@ -1,12 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { KpiCard, deltaPctFor, formatCents, formatCount, formatPercent } from './KpiCard'
+import { KpiCard, deltaPctFor, formatCount, formatPercent } from './KpiCard'
 
 describe('formatters', () => {
-  it('formatCents renders BRL with cents precision', () => {
-    expect(formatCents(123456)).toMatch(/R\$\s?1\.234,56/)
-    expect(formatCents(0)).toMatch(/R\$\s?0,00/)
-  })
   it('formatCount uses pt-BR thousands separator', () => {
     expect(formatCount(1234567)).toBe('1.234.567')
   })

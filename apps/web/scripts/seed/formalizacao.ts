@@ -69,7 +69,7 @@ export async function seedFormalizacao(): Promise<void> {
       name: 'Matriz',
       slug: UNIT_FORMAL,
       address: buildAddress({ neighborhood: 'Itaim Bibi', street: 'Rua Joaquim Floriano' }),
-      fiscal: companyFiscal('12345678000190', now),
+      fiscal: companyFiscal('11444777000161', now),
     }),
     ANA.uid,
   )
@@ -81,7 +81,7 @@ export async function seedFormalizacao(): Promise<void> {
   })
   const companyTaxIdentity: TaxIdentity = {
     kind: 'company',
-    taxId: '12345678000190',
+    taxId: '11444777000161',
     legalName: 'Ana Fiscal Serviços de Beleza ME',
     tradeName: 'Ana Fiscal',
   }

@@ -6,7 +6,6 @@ import {
   INVITE_TTL_MS,
   type Membership,
   membershipDocId,
-  normalizeBrazilMobile,
   type Role,
   ROLES,
 } from '@/domain'
@@ -18,8 +17,8 @@ import { buildMemberInviteWhatsapp } from '@/features/team/core/member-invite'
 import { parseMemberOperationForm } from '@/features/team/core/member-operation-form'
 import { getSessionUser } from '@/shared/auth/session'
 import { deleteOrgProjectionDoc } from '@/shared/db/effect/delete-projection'
-import { isForeignKeyViolation } from '@/shared/db/pg/fk-violation'
 import { newId } from '@/shared/db/pg/new-id'
+import { isForeignKeyViolation } from '@/shared/db/pg/pg-error'
 import { emitEvent } from '@/shared/effect-bridge'
 import { classifyError } from '@/shared/errors/classify'
 import { messageForCategory } from '@/shared/errors/messages'
@@ -50,6 +49,7 @@ import {
 } from '@/domain/effect'
 import { commitSaga } from '@/shared/effect-bridge'
 
+import { normalizeBrazilMobile } from '@cbrl/br/phone'
 import {
   resolveMemberOperatorRoleStep,
   validateServiceUnitIntersection,

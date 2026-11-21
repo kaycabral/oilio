@@ -1,5 +1,5 @@
 import { getEventStorePool } from '@/shared/db/pg/pool'
-import { logger } from '@/shared/lib/logger'
+import { logger } from '@cbrl/log'
 import 'server-only'
 
 export type ProductEventName =

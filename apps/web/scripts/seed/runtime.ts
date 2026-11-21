@@ -39,9 +39,9 @@ export function daysFromNow(days: number, hour = 12): string {
 // Open the event-store pool (idempotent). In local/CI password mode the pool is
 // lazy, but calling `initEventStore` fails fast on a missing/bad URL here rather
 // than on the first emit deep inside a saga.
-export async function bootSeed(): Promise<Pool> {
+export function bootSeed(): Pool {
   process.env.OILIO_DATABASE_URL = readLocalSupabase().ownerDbUrl
-  await initEventStore()
+  initEventStore()
   return getEventStorePool()
 }
 

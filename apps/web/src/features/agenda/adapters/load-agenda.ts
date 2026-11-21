@@ -18,7 +18,6 @@ import {
   unitUsesAgenda,
 } from '@/domain'
 import type { AgendaViewProps } from '@/features/agenda/ui/AgendaView'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { getSessionUser } from '@/shared/auth/session'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
@@ -35,6 +34,7 @@ import {
 } from '@/shared/org/member-operation-read'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -143,7 +143,7 @@ export async function loadAgendaPage(searchParams: {
   date?: string
   showCancelled?: string
 }): Promise<AgendaViewProps> {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

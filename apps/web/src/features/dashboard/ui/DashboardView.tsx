@@ -1,6 +1,7 @@
 import type { DashboardPageProps } from '@/features/dashboard/adapters/load-dashboard'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import { DashboardFilters } from './DashboardFilters'
-import { KpiCard, deltaPctFor, formatCents, formatCount, formatPercent } from './KpiCard'
+import { KpiCard, deltaPctFor, formatCount, formatPercent } from './KpiCard'
 import { PendenciesPanel } from './PendenciesPanel'
 import { TrendChart } from './TrendChart'
 
@@ -28,12 +29,12 @@ export function DashboardView({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <KpiCard
           label="MRR"
-          formattedValue={formatCents(kpis.mrrCents.value)}
+          formattedValue={formatBRLFromCents(kpis.mrrCents.value)}
           previousFormatted={null}
         />
         <KpiCard
           label="ARR"
-          formattedValue={formatCents(kpis.arrCents.value)}
+          formattedValue={formatBRLFromCents(kpis.arrCents.value)}
           previousFormatted={null}
         />
         <KpiCard
@@ -43,10 +44,10 @@ export function DashboardView({
         />
         <KpiCard
           label="Faturamento"
-          formattedValue={formatCents(kpis.revenueCents.value)}
+          formattedValue={formatBRLFromCents(kpis.revenueCents.value)}
           previousFormatted={
             kpis.revenueCents.previousValue !== null
-              ? formatCents(kpis.revenueCents.previousValue)
+              ? formatBRLFromCents(kpis.revenueCents.previousValue)
               : null
           }
           deltaPct={deltaPctFor(kpis.revenueCents.value, kpis.revenueCents.previousValue)}
@@ -63,10 +64,10 @@ export function DashboardView({
         />
         <KpiCard
           label="Ticket médio"
-          formattedValue={formatCents(kpis.averageTicketCents.value)}
+          formattedValue={formatBRLFromCents(kpis.averageTicketCents.value)}
           previousFormatted={
             kpis.averageTicketCents.previousValue !== null
-              ? formatCents(kpis.averageTicketCents.previousValue)
+              ? formatBRLFromCents(kpis.averageTicketCents.previousValue)
               : null
           }
           deltaPct={deltaPctFor(

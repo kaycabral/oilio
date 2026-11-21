@@ -1,3 +1,2 @@
-export { runMigrations } from './migrate'
-export { closeDb, getDb, initProductDb } from './pool'
+export { closeDb, getDb, initProductDb, runMigrations } from './pool'
 export { PostgresProductSource } from './repository'

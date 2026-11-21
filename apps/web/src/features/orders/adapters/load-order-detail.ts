@@ -4,7 +4,6 @@ import {
   loadOrderById,
 } from '@/features/orders/adapters/order-financial-read'
 import type { OrderDetailProps } from '@/features/orders/ui/OrderDetail'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { getSessionUser } from '@/shared/auth/session'
 import { listCatalogItems } from '@/shared/db/effect/catalog-item-read'
 import {
@@ -18,6 +17,7 @@ import {
   hasMembershipCapability,
   listOrgMembers,
 } from '@/shared/org/membership'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { Schema } from 'effect'
 import { notFound, redirect } from 'next/navigation'
 import 'server-only'
@@ -41,7 +41,7 @@ async function loadActiveSubscription(
 }
 
 export async function loadOrderDetailPage(orderId: string): Promise<OrderDetailProps> {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

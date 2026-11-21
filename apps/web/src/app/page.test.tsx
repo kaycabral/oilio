@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  isAuthConfigured: vi.fn(() => true),
+  isSupabaseConfigured: vi.fn(() => true),
   getSessionUser: vi.fn(),
   resolvePostAuthDestination: vi.fn(),
 }))
 
 vi.mock('@/shared/auth/session', () => ({ getSessionUser: mocks.getSessionUser }))
-vi.mock('@/shared/auth/config', () => ({ isAuthConfigured: mocks.isAuthConfigured }))
+vi.mock('@cbrl/supabase', () => ({ isSupabaseConfigured: mocks.isSupabaseConfigured }))
 vi.mock('@/shared/identity/post-auth-destination', () => ({
   resolvePostAuthDestination: mocks.resolvePostAuthDestination,
 }))
@@ -42,7 +42,7 @@ async function captureRedirect(): Promise<string | null> {
 }
 
 beforeEach(() => {
-  mocks.isAuthConfigured.mockReset().mockReturnValue(true)
+  mocks.isSupabaseConfigured.mockReset().mockReturnValue(true)
   mocks.getSessionUser.mockReset()
   mocks.resolvePostAuthDestination.mockReset()
 })

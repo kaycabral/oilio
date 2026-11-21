@@ -1,8 +1,8 @@
 import 'server-only'
 
 import { requireEnv } from '@cbrl/env'
+import { supabasePublicConfig } from '@cbrl/supabase'
 import { createClient } from '@supabase/supabase-js'
-import { supabasePublicConfig } from './config'
 
 function adminClient() {
   const config = supabasePublicConfig()

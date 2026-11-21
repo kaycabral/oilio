@@ -1,8 +1,8 @@
-import { isAuthConfigured } from '@/shared/auth/config'
 import { Button, Typography } from '@cbrl/design'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 
 export function Hero() {
-  const authEnabled = isAuthConfigured()
+  const authEnabled = isSupabaseConfigured()
 
   return (
     <section className="flex flex-col items-center gap-6 py-20 text-center sm:py-28">

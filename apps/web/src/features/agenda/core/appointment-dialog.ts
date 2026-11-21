@@ -5,7 +5,6 @@ import {
   type Customer,
   type HoursRange,
   type MemberOperation,
-  buildWhatsappLink,
   fromOrgTime,
   hhmmToMinutes,
   intervalsOverlap,
@@ -13,6 +12,7 @@ import {
   renderWhatsappTemplate,
   toOrgTime,
 } from '@/domain'
+import { whatsappUrl } from '@cbrl/br/phone'
 
 function hhmm(t: { hour: number; minute: number }): string {
   return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`
@@ -45,7 +45,7 @@ export function buildAppointmentWhatsappLink(args: {
     date: t.dateISO.split('-').reverse().join('/'),
     time: hhmm(t),
   })
-  return buildWhatsappLink(customer.mobile, message)
+  return whatsappUrl(customer.mobile, message)
 }
 
 export function resolveInitialDateTime(

@@ -1,11 +1,7 @@
-import {
-  defaultPermissionsForRole,
-  formatBrazilPhone,
-  membershipDocId,
-  roleDescription,
-} from '@/domain'
+import { defaultPermissionsForRole, membershipDocId, roleDescription } from '@/domain'
 import { MembershipConfig } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
+import { formatBrazilPhone } from '@cbrl/br/phone'
 import { expect, test } from '../fixtures'
 import { listItem, rowAction } from '../helpers/list'
 import { chooseOption } from '../helpers/select'

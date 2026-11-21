@@ -1,7 +1,6 @@
 import { settingsSectionMeta } from '@/features/settings/core/settings-sections'
 import { DeleteMyDataForm } from '@/features/settings/ui/DeleteMyDataForm'
 import { EstablishmentErasureList } from '@/features/settings/ui/EstablishmentErasureList'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { getSessionUser } from '@/shared/auth/session'
 import { listMyCustomerEstablishments } from '@/shared/identity/org-links'
 import { track } from '@/shared/lib/track'
@@ -14,10 +13,11 @@ import {
   CardTitle,
   SettingsSection,
 } from '@cbrl/design'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 
 export default async function PrivacySettingsPage() {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

@@ -5,8 +5,9 @@ import {
   closeOrderFormAction,
   undoCloseOrderFormAction,
 } from '@/features/orders/adapters/close.actions'
-import { formatBRL, PAYMENT_LABEL } from '@/features/orders/core/order-detail-format'
+import { PAYMENT_LABEL } from '@/features/orders/core/order-detail-format'
 import type { OrgMember } from '@/shared/org/membership'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import {
   Button,
   Dialog,
@@ -115,7 +116,7 @@ export function OrderClosePanel({
                   </span>
                 </div>
                 <span className="tabular-nums">
-                  {item.quantity} × {formatBRL(item.unitPriceCents)}
+                  {item.quantity} × {formatBRLFromCents(item.unitPriceCents)}
                 </span>
               </li>
             ))}
@@ -127,7 +128,7 @@ export function OrderClosePanel({
           </div>
           <div className="flex justify-between text-base font-semibold">
             <span>Total</span>
-            <span className="tabular-nums">{formatBRL(order.totalCents)}</span>
+            <span className="tabular-nums">{formatBRLFromCents(order.totalCents)}</span>
           </div>
 
           {state.error ? (

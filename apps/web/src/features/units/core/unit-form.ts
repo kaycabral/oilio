@@ -10,7 +10,6 @@ import {
   isValidCancellationNoticeMinutes,
   isValidSlotMinutes,
   isValidUnitSlug,
-  normalizeBrazilMobile,
   resolveWhatsappTemplates,
   type SlotMinutes,
   UNIT_HOURS_MODES,
@@ -21,6 +20,7 @@ import {
   WEEKDAYS,
 } from '@/domain'
 import { formString } from '@/shared/form-data'
+import { normalizeBrazilMobile } from '@cbrl/br/phone'
 
 export type AppointmentConfigInput = {
   slotMinutes: SlotMinutes

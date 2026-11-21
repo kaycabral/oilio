@@ -16,7 +16,7 @@ import {
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { classifyError } from '@/shared/errors/classify'
 import { messageForCategory } from '@/shared/errors/messages'
-import { logger } from '@/shared/lib/logger'
+import { logger } from '@cbrl/log'
 import { Effect, Layer } from 'effect'
 
 export type WriteSecurity = {

@@ -8,12 +8,12 @@ import { getStripe } from '@/shared/billing/stripe-client'
 import { stripePriceId } from '@/shared/billing/stripe-prices'
 import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
-import { logger } from '@/shared/lib/logger'
 import { getOrgBilling } from '@/shared/org/billing-read'
 import { guardCapability } from '@/shared/org/membership'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { toRoute } from '@/shared/routes'
 import { requireEnv } from '@cbrl/env'
+import { logger } from '@cbrl/log'
 import { redirect } from 'next/navigation'
 
 export type CheckoutResult = { ok: false; error: string }

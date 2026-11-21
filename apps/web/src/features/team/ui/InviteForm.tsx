@@ -2,8 +2,9 @@
 
 import { InviteLinkActions } from '@/components/InviteLinkActions'
 import { PhoneInput } from '@/components/PhoneInput'
-import { normalizeBrazilMobile, type Role, roleDescription, roleLabel } from '@/domain'
+import { type Role, roleDescription, roleLabel } from '@/domain'
 import { createInvite } from '@/features/team/adapters/team.actions'
+import { normalizeBrazilMobile } from '@cbrl/br/phone'
 import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cbrl/design'
 import { useMemo, useRef, useState } from 'react'
 

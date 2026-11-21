@@ -1,11 +1,11 @@
 import { MeShell } from '@/components/me-shell'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { getSessionUser } from '@/shared/auth/session'
 import { listLinkedOrgIds } from '@/shared/identity/org-links'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 
 export default async function MeLayout({ children }: { children: React.ReactNode }) {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

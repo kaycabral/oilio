@@ -2,7 +2,7 @@ import { generateHourlyNotifications } from '@/features/notifications/adapters/g
 import { flagNotFound } from '@/shared/api-flags'
 import { isAuthorizedCron } from '@/shared/cron-auth'
 import { PostgresLayerLive } from '@/shared/db/effect'
-import { withRequestContext } from '@/shared/lib/request-context'
+import { withRequestContext } from '@cbrl/log'
 import { Effect } from 'effect'
 import { NextResponse } from 'next/server'
 

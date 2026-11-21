@@ -5,11 +5,11 @@ const mocks = vi.hoisted(() => ({
   getSessionUser: vi.fn(),
   getUserById: vi.fn(),
   readUnderRls: vi.fn(),
-  isAuthConfigured: vi.fn(() => true),
+  isSupabaseConfigured: vi.fn(() => true),
 }))
 
 vi.mock('@/shared/auth/session', () => ({ getSessionUser: mocks.getSessionUser }))
-vi.mock('@/shared/auth/config', () => ({ isAuthConfigured: mocks.isAuthConfigured }))
+vi.mock('@cbrl/supabase', () => ({ isSupabaseConfigured: mocks.isSupabaseConfigured }))
 vi.mock('@/shared/db/pg/users-store', () => ({
   getUserById: mocks.getUserById,
   getUsersByIds: vi.fn(),
@@ -53,7 +53,7 @@ function signedInAs(role: Role): void {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.isAuthConfigured.mockReturnValue(true)
+  mocks.isSupabaseConfigured.mockReturnValue(true)
 })
 
 describe('requireManagerPage', () => {
@@ -97,7 +97,7 @@ describe('requireManagerPage', () => {
   })
 
   it('redirects home when auth is not configured', async () => {
-    mocks.isAuthConfigured.mockReturnValue(false)
+    mocks.isSupabaseConfigured.mockReturnValue(false)
     await expect(requireManagerPage()).rejects.toThrow('NEXT_REDIRECT:/')
   })
 })

@@ -49,7 +49,7 @@ describe('parseFormalizationFromForm (brief 0048)', () => {
   })
 
   it('rejects an invalid CNPJ (not 14 digits)', () => {
-    expect(parseFormalizationFromForm(formFor({ taxId: '123' }))).toBe('CNPJ deve ter 14 dígitos')
+    expect(parseFormalizationFromForm(formFor({ taxId: '123' }))).toBe('CNPJ inválido')
   })
 
   it('rejects when the profile field is missing', () => {

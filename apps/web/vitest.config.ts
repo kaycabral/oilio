@@ -19,6 +19,10 @@ export default defineConfig({
   test: {
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
+    // Inline the shared @cbrl/* packages so Vite resolves their `next/*` imports
+    // (Next.js has no `exports` map for Node ESM) and `vi.mock` reaches their
+    // internal modules (e.g. `@cbrl/supabase/server` behind the route factories).
+    server: { deps: { inline: [/@cbrl\//] } },
     // jsdom costs ~1s of environment startup per file; paying it only where a DOM
     // is rendered halves the suite. Convention: a test that renders (component or
     // hook) is `.test.tsx`; everything else is `.test.ts` and runs under node.

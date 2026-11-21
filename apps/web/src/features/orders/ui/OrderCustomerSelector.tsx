@@ -1,8 +1,9 @@
 'use client'
 
 import { PhoneInput } from '@/components/PhoneInput'
-import { formatBrazilPhone, type Customer } from '@/domain'
+import { type Customer } from '@/domain'
 import { assignCustomerToOrder } from '@/features/orders/adapters/orders.actions'
+import { formatBrazilPhone } from '@cbrl/br/phone'
 import {
   Button,
   Input,

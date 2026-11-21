@@ -1,5 +1,5 @@
 import { getStripe } from '@/shared/billing/stripe-client'
-import { logger } from '@/shared/lib/logger'
+import { logger } from '@cbrl/log'
 import 'server-only'
 
 export type PaymentMethodSummary = {

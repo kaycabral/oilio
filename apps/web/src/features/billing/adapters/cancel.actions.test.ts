@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/shared/org/membership', () => ({ guardCapability: mocks.guardCapability }))
 vi.mock('@/shared/org/billing-read', () => ({ getOrgBilling: mocks.getOrgBilling }))
 vi.mock('@/shared/lib/track', () => ({ track: mocks.track }))
-vi.mock('@/shared/lib/logger', () => ({ logger: { error: vi.fn() } }))
+vi.mock('@cbrl/log', () => ({ logger: { error: vi.fn() } }))
 vi.mock('@/shared/billing/stripe-client', () => ({
   getStripe: () => ({
     subscriptions: { update: mocks.subscriptionsUpdate },

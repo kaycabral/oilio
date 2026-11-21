@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   upsertUser: vi.fn(),
 }))
 
-vi.mock('@/shared/auth/server', () => ({
+vi.mock('@cbrl/supabase/server', () => ({
   createSupabaseServerClient: () =>
     Promise.resolve({ auth: { exchangeCodeForSession: mocks.exchangeCodeForSession } }),
 }))

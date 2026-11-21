@@ -15,6 +15,7 @@ import { Clock, Receipt } from 'lucide-react'
 import Link from 'next/link'
 
 import type { OrdersFilter } from '@/features/orders/adapters/load-orders'
+import { formatBRLFromCents } from '@cbrl/br/money'
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
   open: 'Aberta',
@@ -26,10 +27,6 @@ const STATUS_TONE: Record<OrderStatus, StatusTone> = {
   open: 'success',
   closed: 'neutral',
   cancelled: 'danger',
-}
-
-function formatBRL(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function formatDateTime(iso: string): string {
@@ -139,8 +136,9 @@ export function OrdersList({
               {formatRelativeDate(dateIso)}
             </span>
           ),
-          trailing: formatBRL(o.totalCents),
-          trailingHint: o.discountCents > 0 ? `desc. ${formatBRL(o.discountCents)}` : undefined,
+          trailing: formatBRLFromCents(o.totalCents),
+          trailingHint:
+            o.discountCents > 0 ? `desc. ${formatBRLFromCents(o.discountCents)}` : undefined,
           actions: (
             <RowActions
               label={`Ações da venda de ${customerLabel}`}

@@ -2,7 +2,7 @@ import type { ActiveUnitContext } from '@/shared/org/active-unit'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  isAuthConfigured: vi.fn(() => true),
+  isSupabaseConfigured: vi.fn(() => true),
   getSessionUser: vi.fn(),
   getActiveOrgContext: vi.fn(),
   listAccessibleOrgs: vi.fn(() => Promise.resolve([])),
@@ -18,8 +18,8 @@ vi.mock('@/shared/auth/session', () => ({
   getSessionUser: mocks.getSessionUser,
 }))
 
-vi.mock('@/shared/auth/config', () => ({
-  isAuthConfigured: mocks.isAuthConfigured,
+vi.mock('@cbrl/supabase', () => ({
+  isSupabaseConfigured: mocks.isSupabaseConfigured,
 }))
 
 vi.mock('@/shared/org/membership', () => ({
@@ -87,7 +87,7 @@ async function captureRedirect(): Promise<string> {
 }
 
 beforeEach(() => {
-  mocks.isAuthConfigured.mockReset().mockReturnValue(true)
+  mocks.isSupabaseConfigured.mockReset().mockReturnValue(true)
   mocks.getSessionUser.mockReset()
   mocks.getActiveOrgContext.mockReset()
   mocks.getOrg.mockReset()
@@ -98,7 +98,7 @@ beforeEach(() => {
 
 describe('AppLayout — auth and org gating', () => {
   it('redirects to / when auth is not configured', async () => {
-    mocks.isAuthConfigured.mockReturnValue(false)
+    mocks.isSupabaseConfigured.mockReturnValue(false)
     await expect(captureRedirect()).resolves.toBe('/')
     expect(mocks.getSessionUser).not.toHaveBeenCalled()
   })

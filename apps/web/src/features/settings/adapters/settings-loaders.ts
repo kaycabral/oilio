@@ -3,7 +3,6 @@
 import type { MessageTemplate } from '@/domain'
 import type { BillingCycle, Tier } from '@/domain/billing/tiers'
 import { listMessageTemplates } from '@/features/notifications/adapters/message-templates'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { getSessionUser } from '@/shared/auth/session'
 import type { InvoiceSummary, PaymentMethodSummary } from '@/shared/billing/billing-details'
 import { getDefaultPaymentMethod, listRecentInvoices } from '@/shared/billing/billing-details'
@@ -14,11 +13,12 @@ import { getOrgBilling } from '@/shared/org/billing-read'
 import { getActiveOrgContext, hasMembershipCapability } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 
 export type SettingsLoadResult<T> = { ok: true; data: T } | { ok: false; redirectTo: string }
 
 async function requireMemberContext() {
-  if (!isAuthConfigured()) return { ok: false as const, redirectTo: '/' }
+  if (!isSupabaseConfigured()) return { ok: false as const, redirectTo: '/' }
   const session = await getSessionUser()
   if (!session) return { ok: false as const, redirectTo: '/login' }
   const ctx = await getActiveOrgContext(session.uid)

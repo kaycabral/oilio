@@ -4,19 +4,14 @@ import { BirthdayIndicator } from '@/components/BirthdayIndicator'
 import { RowActions, type RowAction } from '@/components/RowActions'
 import { IncompleteProfileBadge, StatusBadge, type StatusTone } from '@/components/StatusBadge'
 import { WhatsappAction } from '@/components/WhatsappAction'
-import {
-  formatBrazilPhone,
-  isOperational,
-  roleLabel,
-  type MembershipStatus,
-  type OperationalStatus,
-} from '@/domain'
+import { isOperational, roleLabel, type MembershipStatus, type OperationalStatus } from '@/domain'
 import type { TeamEntry, TeamViewFilter } from '@/features/team/adapters/load-team'
 import { isBirthdayToday } from '@/shared/birthday'
 import { PAGINATION_LABELS_PTBR } from '@/shared/list/pagination-labels'
 import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import { toRoute } from '@/shared/routes'
+import { formatBrazilPhone } from '@cbrl/br/phone'
 import { Avatar, AvatarFallback, List, type ListItemDescriptor } from '@cbrl/design'
 import { MessageCircle } from 'lucide-react'
 import type { ReactNode } from 'react'

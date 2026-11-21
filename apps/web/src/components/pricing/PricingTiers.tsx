@@ -1,8 +1,8 @@
 'use client'
 
 import { TIERS as BILLING_TIERS, type Tier as BillingTier } from '@/domain/billing/tiers'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { Badge, Button, Card, Tabs, TabsList, TabsTrigger, Typography, cn } from '@cbrl/design'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { Check, Clock } from 'lucide-react'
 import { useState } from 'react'
 
@@ -133,7 +133,7 @@ function ctaHref(tier?: BillingTier): string {
 }
 
 export function PricingTiers() {
-  const authEnabled = isAuthConfigured()
+  const authEnabled = isSupabaseConfigured()
   const [cycle, setCycle] = useState<BillingCycle>('annual')
 
   return (

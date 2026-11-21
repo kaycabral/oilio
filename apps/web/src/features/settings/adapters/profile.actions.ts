@@ -2,7 +2,7 @@
 
 import { changedProfileFields, parseProfileForm } from '@/features/settings/core/profile-form'
 import { getSessionUser } from '@/shared/auth/session'
-import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/unique-violation'
+import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/pg-error'
 import { getUserById, patchUser } from '@/shared/db/pg/users-store'
 import { emitPiiEvent } from '@/shared/privacy/pii-events'
 

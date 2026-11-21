@@ -1,5 +1,5 @@
+import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/pg-error'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
-import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/unique-violation'
 import { getUserById, patchUser, putUser } from '@/shared/db/pg/users-store'
 import { buildUser } from '@/shared/fixtures/domain-builders'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'

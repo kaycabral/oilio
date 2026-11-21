@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_WHATSAPP_TEMPLATES,
-  buildWhatsappLink,
   renderWhatsappTemplate,
   resolveWhatsappTemplates,
 } from './whatsapp'
@@ -29,23 +28,6 @@ describe('renderWhatsappTemplate', () => {
 
   it('leaves unknown placeholder shape (no braces) untouched', () => {
     expect(renderWhatsappTemplate('No braces here', {})).toBe('No braces here')
-  })
-})
-
-describe('buildWhatsappLink', () => {
-  it('builds a wa.me link with URL-encoded message', () => {
-    const link = buildWhatsappLink('(11) 91234-5678', 'Oi! Tudo bem?')
-    expect(link).toBe('https://wa.me/5511912345678?text=Oi!%20Tudo%20bem%3F')
-  })
-
-  it('returns null when phone is invalid', () => {
-    expect(buildWhatsappLink('', 'Oi')).toBeNull()
-    expect(buildWhatsappLink('abc', 'Oi')).toBeNull()
-  })
-
-  it('preserves newlines via encoding', () => {
-    const link = buildWhatsappLink('11912345678', 'Linha 1\nLinha 2')
-    expect(link).toContain('Linha%201%0ALinha%202')
   })
 })
 

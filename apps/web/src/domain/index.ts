@@ -35,14 +35,11 @@ export {
   cnpjRaiz,
   deriveCompanySize,
   deriveTaxRegime,
-  formatCnpj,
   groupUnitsByRaiz,
   isActiveRegistrationStatus,
   isCompany,
   isCompanyUnitFiscal,
   isMatrizCnpj,
-  isValidCompanyTaxId,
-  isValidIndividualTaxId,
   normalizeTaxId,
 } from './types/tax'
 
@@ -385,15 +382,7 @@ export {
 } from './utils/subscription-coverage'
 
 export {
-  BRAZIL_MOBILE_E164_REGEX,
-  formatBrazilPhone,
-  maskBrazilPhone,
-  normalizeBrazilMobile,
-  normalizeBrazilPhone,
-} from './utils/phone'
-export {
   DEFAULT_WHATSAPP_TEMPLATES,
-  buildWhatsappLink,
   renderWhatsappTemplate,
   resolveWhatsappTemplates,
 } from './utils/whatsapp'

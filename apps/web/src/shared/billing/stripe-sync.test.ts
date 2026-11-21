@@ -1,3 +1,4 @@
+import type * as Log from '@cbrl/log'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -5,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   listUnitsForOrg: vi.fn(),
   retrieve: vi.fn(),
   update: vi.fn(),
+  logError: vi.fn<Log.Logger['error']>(),
 }))
 
 vi.mock('@/shared/billing/stripe-client', () => ({
@@ -14,8 +16,11 @@ vi.mock('@/shared/billing/stripe-client', () => ({
 }))
 vi.mock('@/shared/org/billing-read', () => ({ getOrgBilling: mocks.getOrgBilling }))
 vi.mock('@/shared/org/unit-read', () => ({ listUnitsForOrg: mocks.listUnitsForOrg }))
+vi.mock('@cbrl/log', async (importOriginal) => ({
+  ...(await importOriginal<typeof Log>()),
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: mocks.logError },
+}))
 
-import { logger } from '@/shared/lib/logger'
 import { syncStripeSubscriptionQuantity } from './stripe-sync'
 
 function billing(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -116,7 +121,7 @@ describe('syncStripeSubscriptionQuantity', () => {
     mocks.getOrgBilling.mockResolvedValue(billing({ unitQuantity: 1 }))
     mocks.listUnitsForOrg.mockResolvedValue(units(3))
     mocks.retrieve.mockRejectedValue(new Error('stripe down'))
-    const errSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const errSpy = mocks.logError
 
     await expect(syncStripeSubscriptionQuantity('org-1')).resolves.toBeUndefined()
     expect(errSpy).toHaveBeenCalledWith(
@@ -125,8 +130,6 @@ describe('syncStripeSubscriptionQuantity', () => {
     )
     const meta = errSpy.mock.calls[0]?.[1]
     expect(meta?.err).toBeInstanceOf(Error)
-
-    errSpy.mockRestore()
   })
 
   it('does not throw when the subscription has no items', async () => {

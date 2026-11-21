@@ -1,10 +1,11 @@
-import { formatBrazilPhone, membershipDocId } from '@/domain'
+import { membershipDocId } from '@/domain'
 import {
   deriveOperationalStatus,
   MemberOperationConfig,
   MembershipConfig,
 } from '@/domain/aggregates'
 import { aggregateRef } from '@/domain/effect'
+import { formatBrazilPhone } from '@cbrl/br/phone'
 import type { BrowserContext, Page } from '@playwright/test'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'

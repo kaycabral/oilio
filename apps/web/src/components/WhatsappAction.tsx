@@ -1,13 +1,13 @@
 'use client'
 
-import { formatBrazilPhone, normalizeBrazilPhone } from '@/domain'
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@cbrl/design'
 
-import { WhatsappIcon } from './icons/whatsapp'
+import { formatBrazilPhone, whatsappUrl } from '@cbrl/br/phone'
+import { WhatsappIcon } from '@cbrl/design'
 
 export function WhatsappAction({ phone, label }: { phone: string; label?: string }) {
-  const normalized = normalizeBrazilPhone(phone)
-  if (!normalized) return null
+  const href = whatsappUrl(phone)
+  if (!href) return null
   const display = formatBrazilPhone(phone)
   return (
     <Tooltip>
@@ -19,7 +19,7 @@ export function WhatsappAction({ phone, label }: { phone: string; label?: string
           size="icon-sm"
           aria-label={label ?? `Abrir WhatsApp ${display}`}
         >
-          <a href={`https://wa.me/${normalized}`} target="_blank" rel="noreferrer">
+          <a href={href} target="_blank" rel="noreferrer">
             <WhatsappIcon className="size-4" />
           </a>
         </Button>

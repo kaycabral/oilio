@@ -1,5 +1,4 @@
 import { Order, type Customer } from '@/domain'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { getSessionUser } from '@/shared/auth/session'
 import { rowToDoc as orderRowToDoc, type OrderRow } from '@/shared/db/pg/effect/order-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
@@ -9,6 +8,7 @@ import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { listCustomersForOrg } from '@/shared/org/customer-read'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { Schema } from 'effect'
 import { redirect } from 'next/navigation'
 import 'server-only'
@@ -34,7 +34,7 @@ export async function loadOrdersPage(searchParams: {
   status?: string
   q?: string
 }): Promise<OrdersPageData> {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

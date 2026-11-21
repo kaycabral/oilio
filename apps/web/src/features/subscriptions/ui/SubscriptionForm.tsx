@@ -8,6 +8,7 @@ import type {
 import { createSubscription } from '@/features/subscriptions/adapters/subscriptions.actions'
 import { isBillingCycle } from '@/features/subscriptions/core/subscription-form'
 import { useFormValidity } from '@/hooks/use-form-validity'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import {
   Button,
   Input,
@@ -34,10 +35,6 @@ function todayIso(): string {
   const mm = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
   return `${yyyy}-${mm}-${dd}`
-}
-
-function formatBRL(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 export function SubscriptionForm({
@@ -117,7 +114,7 @@ export function SubscriptionForm({
           <SelectContent>
             {plans.map((p) => (
               <SelectItem key={p.id} value={p.id}>
-                {p.name} — {formatBRL(p.priceCents)}
+                {p.name} — {formatBRLFromCents(p.priceCents)}
               </SelectItem>
             ))}
           </SelectContent>

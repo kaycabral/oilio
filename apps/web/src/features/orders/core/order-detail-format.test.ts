@@ -4,19 +4,10 @@ import {
   buildCatalogOptions,
   clampQuantity,
   filterCatalog,
-  formatBRL,
   normalizeSearch,
   statusLine,
   type CatalogOption,
 } from './order-detail-format'
-
-describe('formatBRL', () => {
-  it('formats cents as BRL currency', () => {
-    expect(formatBRL(8000)).toBe('R$ 80,00')
-    expect(formatBRL(0)).toBe('R$ 0,00')
-    expect(formatBRL(1)).toBe('R$ 0,01')
-  })
-})
 
 describe('attributionLabel', () => {
   it('labels a service line "Executor" and a product line "Vendedor"', () => {

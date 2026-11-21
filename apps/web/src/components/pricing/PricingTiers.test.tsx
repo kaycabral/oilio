@@ -1,11 +1,11 @@
-import { isAuthConfigured } from '@/shared/auth/config'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { CHARGEABLE_TIER_SLUGS, PricingTiers, tiersMatchDomain } from './PricingTiers'
 
-vi.mock('@/shared/auth/config', () => ({
-  isAuthConfigured: vi.fn(),
+vi.mock('@cbrl/supabase', () => ({
+  isSupabaseConfigured: vi.fn(),
 }))
 
 describe('PricingTiers', () => {
@@ -15,7 +15,7 @@ describe('PricingTiers', () => {
   })
 
   it('renders the three tiers with paid CTAs to the owner signup, carrying the plan intent', () => {
-    vi.mocked(isAuthConfigured).mockReturnValue(true)
+    vi.mocked(isSupabaseConfigured).mockReturnValue(true)
     render(<PricingTiers />)
     expect(screen.getByText('Grátis')).toBeInTheDocument()
     expect(screen.getByText('Pro')).toBeInTheDocument()
@@ -28,7 +28,7 @@ describe('PricingTiers', () => {
   })
 
   it('shows the contact tier with a WhatsApp CTA', () => {
-    vi.mocked(isAuthConfigured).mockReturnValue(true)
+    vi.mocked(isSupabaseConfigured).mockReturnValue(true)
     render(<PricingTiers />)
     expect(screen.getByText('Escala')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Falar com a gente' })).toHaveAttribute(
@@ -38,14 +38,14 @@ describe('PricingTiers', () => {
   })
 
   it('keeps the contact tier CTA even when auth is not configured', () => {
-    vi.mocked(isAuthConfigured).mockReturnValue(false)
+    vi.mocked(isSupabaseConfigured).mockReturnValue(false)
     render(<PricingTiers />)
     expect(screen.getByRole('link', { name: 'Falar com a gente' })).toBeInTheDocument()
   })
 
   it('defaults to the annual price and switches to monthly via the toggle', async () => {
     const user = userEvent.setup()
-    vi.mocked(isAuthConfigured).mockReturnValue(true)
+    vi.mocked(isSupabaseConfigured).mockReturnValue(true)
     render(<PricingTiers />)
     expect(screen.getByText('R$ 74')).toBeInTheDocument()
     expect(screen.queryByText('R$ 89')).not.toBeInTheDocument()
@@ -55,14 +55,14 @@ describe('PricingTiers', () => {
   })
 
   it('hides plan CTAs when auth is not configured', () => {
-    vi.mocked(isAuthConfigured).mockReturnValue(false)
+    vi.mocked(isSupabaseConfigured).mockReturnValue(false)
     render(<PricingTiers />)
     expect(screen.getByText('Grátis')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Assinar o Pro' })).not.toBeInTheDocument()
   })
 
   it('never truncates the annual price note (no line-clamp) so md 2-col keeps it whole', () => {
-    vi.mocked(isAuthConfigured).mockReturnValue(true)
+    vi.mocked(isSupabaseConfigured).mockReturnValue(true)
     render(<PricingTiers />)
     const annualNotes = screen.getAllByText(/Cobrado anualmente/)
     expect(annualNotes.length).toBeGreaterThan(0)

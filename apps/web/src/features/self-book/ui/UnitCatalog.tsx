@@ -1,5 +1,6 @@
 import type { MemberOperation, Org, PublicCatalogItem, Unit } from '@/domain'
 import { toRoute } from '@/shared/routes'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import { Button } from '@cbrl/design'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -185,7 +186,7 @@ export function UnitCatalog({
 
 function formatPrice(cents: number | null): string {
   if (cents === null) return 'Sob consulta'
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  return formatBRLFromCents(cents)
 }
 
 function formatDuration(minutes: number): string {

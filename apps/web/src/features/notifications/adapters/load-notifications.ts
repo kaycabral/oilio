@@ -2,11 +2,11 @@ import {
   filterNotificationsForRole,
   type NotificationView,
 } from '@/features/notifications/core/notification-list'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { getSessionUser } from '@/shared/auth/session'
 import { resolveActiveUnit } from '@/shared/org/active-unit'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { listNotificationsForUnit } from '@/shared/org/notification-read'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -19,7 +19,7 @@ export async function loadNotificationsPage(searchParams: {
   type?: string
   page?: string
 }): Promise<NotificationsPageData> {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

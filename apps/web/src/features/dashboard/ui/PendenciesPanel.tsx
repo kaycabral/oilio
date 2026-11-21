@@ -1,8 +1,8 @@
 import type { DashboardPendencies } from '@/features/dashboard/core/pendencies'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import { Card, CardContent, CardDescription, CardTitle } from '@cbrl/design'
 import { ArrowRight } from 'lucide-react'
 import Link from 'next/link'
-import { formatCents } from './KpiCard'
 
 export type PendenciesPanelProps = {
   pendencies: DashboardPendencies
@@ -68,7 +68,7 @@ export function PendenciesPanel({ pendencies, unitsById, customersById }: Penden
                           </div>
                           <div className="text-muted-foreground text-xs">
                             {unitsById[c.unitId] ?? '—'} · {formatHoursOpen(c.hoursOpen)} ·{' '}
-                            {formatCents(c.totalCents)}
+                            {formatBRLFromCents(c.totalCents)}
                           </div>
                         </div>
                         <ArrowRight

@@ -21,6 +21,7 @@ import {
   changeSubscriptionPlan,
   reactivateSubscription,
 } from '@/features/subscriptions/adapters/subscriptions.actions'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import {
   Button,
   Label,
@@ -63,10 +64,6 @@ const CHARGE_CLASS: Record<ChargeStatus, string> = {
   recovering: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
   refunded: 'bg-muted text-muted-foreground',
   cancelled: 'bg-muted text-muted-foreground',
-}
-
-function formatBRL(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function formatDate(iso: string | null): string {
@@ -165,7 +162,7 @@ function SubscriptionActions({
                   <SelectContent>
                     {switchablePlans.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.name} · {formatBRL(p.priceCents)}
+                        {p.name} · {formatBRLFromCents(p.priceCents)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -228,7 +225,7 @@ export function SubscriptionDetail({
           <h1 className="text-2xl font-semibold">{customer?.name ?? 'Cliente removido'}</h1>
           <div role="group" aria-label="Plano atual" className="text-muted-foreground mt-1 text-sm">
             {subscription.plan.name} · {CYCLE_LABEL[subscription.plan.billingCycle]} ·{' '}
-            {formatBRL(subscription.plan.priceCents)}
+            {formatBRLFromCents(subscription.plan.priceCents)}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -286,7 +283,9 @@ export function SubscriptionDetail({
               <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium tabular-nums">{formatBRL(c.amountCents)}</span>
+                    <span className="font-medium tabular-nums">
+                      {formatBRLFromCents(c.amountCents)}
+                    </span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${CHARGE_CLASS[c.status]}`}
                     >

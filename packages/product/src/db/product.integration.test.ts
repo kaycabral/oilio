@@ -1,8 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { product } from '../schema'
-import { runMigrations } from './migrate'
-import { closeDb, getDb } from './pool'
+import { closeDb, getDb, runMigrations } from './pool'
 import { PostgresProductSource } from './repository'
 
 // Integration: proves the NATIVE Postgres constraints (UNIQUE / NOT NULL / CHECK

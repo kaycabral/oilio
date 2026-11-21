@@ -1,7 +1,8 @@
-import { isValidCompanyTaxId, normalizeTaxId } from '@/domain'
+import { normalizeTaxId } from '@/domain'
 import { BrasilApiCnpjResponse, normalizeCompanyLookup } from '@/shared/company/company-lookup'
 import { readJson } from '@/shared/http'
-import { withRequestContext } from '@/shared/lib/request-context'
+import { isValidCnpj } from '@cbrl/br/tax-id'
+import { withRequestContext } from '@cbrl/log'
 import { Schema } from 'effect'
 import { NextResponse } from 'next/server'
 
@@ -10,7 +11,7 @@ export const revalidate = 86400
 async function getHandler(_req: Request, { params }: { params: Promise<{ taxId: string }> }) {
   const { taxId: rawParam } = await params
   const taxId = normalizeTaxId(rawParam)
-  if (!isValidCompanyTaxId(taxId)) {
+  if (!isValidCnpj(taxId)) {
     return NextResponse.json({ error: 'CNPJ inválido.' }, { status: 400 })
   }
 

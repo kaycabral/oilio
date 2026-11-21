@@ -1,4 +1,4 @@
-import { requireEnv } from '@cbrl/env'
+import { drizzleKitCredentials } from '@cbrl/pg/drizzle'
 import { defineConfig } from 'drizzle-kit'
 
 /**
@@ -17,7 +17,7 @@ export default defineConfig({
   dialect: 'postgresql',
   schema: './src/shared/db/pg/schema/index.ts',
   out: './drizzle',
-  dbCredentials: { url: requireEnv('OILIO_DATABASE_URL') },
+  dbCredentials: drizzleKitCredentials('OILIO_DATABASE_URL'),
   strict: true,
   verbose: true,
 })

@@ -105,7 +105,6 @@ overrides:
   postcss-selector-parser@<6.1.5: ^6.1.6
   minimatch@>=7.0.0 <11.0.1: ^11.0.9
   '@esbuild-kit/core-utils>esbuild': ^0.25.0
-  '@cbrl/pg>@google-cloud/cloud-sql-connector': '-'
   qs@<6.16.1: ^6.16.1
   '@sentry/bundler-plugins>glob': ^14.0.2
 
@@ -117,8 +116,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0(@commitlint/cli@19.8.1(@types/node@26.6.6)(typescript@5.9.3))
       '@cbrl/eslint-config':
-        specifier: ^0.1.1
-        version: 0.1.1(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+        specifier: ^0.2.0
+        version: 0.2.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
       '@cbrl/prettier-config':
         specifier: ^0.1.0
         version: 0.1.0(prettier@3.10.1)(typescript@5.9.3)
@@ -152,15 +151,27 @@ importers:
 
   apps/web:
     dependencies:
-      '@cbrl/design':
-        specifier: ^0.1.0
-        version: 0.1.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(next-themes@0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.5)
-      '@cbrl/env':
+      '@cbrl/br':
         specifier: ^0.1.0
         version: 0.1.0
-      '@cbrl/pg':
+      '@cbrl/design':
         specifier: ^0.2.0
-        version: 0.2.0(pg@8.23.1)
+        version: 0.2.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(next-themes@0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.5)
+      '@cbrl/env':
+        specifier: ^0.1.1
+        version: 0.1.1
+      '@cbrl/log':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@cbrl/next':
+        specifier: ^0.1.0
+        version: 0.1.0(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@25.9.9)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
+      '@cbrl/pg':
+        specifier: ^0.3.0
+        version: 0.3.0(drizzle-orm@0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1))(pg@8.23.1)
+      '@cbrl/supabase':
+        specifier: ^0.1.0
+        version: 0.1.0(@supabase/ssr@0.12.7(@supabase/supabase-js@2.119.1(@opentelemetry/api@1.9.1)))(@supabase/supabase-js@2.119.1(@opentelemetry/api@1.9.1))(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@25.9.9)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       '@oilio/product':
         specifier: workspace:*
         version: link:../../packages/product
@@ -214,11 +225,11 @@ importers:
         version: 22.3.0(@types/node@25.9.9)
     devDependencies:
       '@cbrl/eslint-config':
-        specifier: ^0.1.1
-        version: 0.1.1(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+        specifier: ^0.2.0
+        version: 0.2.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
       '@cbrl/testing':
-        specifier: ^0.1.0
-        version: 0.1.0(vitest@4.1.12)
+        specifier: ^0.2.0
+        version: 0.2.0(@playwright/test@1.65.1)(vitest@4.1.12)
       '@cbrl/tsconfig':
         specifier: ^0.1.0
         version: 0.1.0
@@ -295,11 +306,11 @@ importers:
   packages/product:
     dependencies:
       '@cbrl/env':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       '@cbrl/pg':
-        specifier: ^0.2.0
-        version: 0.2.0(pg@8.23.1)
+        specifier: ^0.3.0
+        version: 0.3.0(drizzle-orm@0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1))(pg@8.23.1)
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)
@@ -308,8 +319,8 @@ importers:
         version: 8.23.1
     devDependencies:
       '@cbrl/testing':
-        specifier: ^0.1.0
-        version: 0.1.0(vitest@4.1.12)
+        specifier: ^0.2.0
+        version: 0.2.0(@playwright/test@1.65.1)(vitest@4.1.12)
       '@cbrl/tsconfig':
         specifier: ^0.1.0
         version: 0.1.0
@@ -525,35 +536,46 @@ packages:
     resolution: {integrity: sha512-0GEz8qJWokkUVYQYRukmkSHIFNoBH8QTreeHrAFbvz1XFYc3Y+puhMs8PQ5x8GNugiC2l5jvDBXKLbBIByeSBw==}
     hasBin: true
 
+  '@cbrl/br@0.1.0':
+    resolution: {integrity: sha512-EO5FnapK/nG0eQzvlkg8tTx1spGzPo+e8zFAzhomlqW4xuUWnu4qDqdSm1q4jbzWe4vYwpzXhHjU1fL6uxiqkg==}
+
   '@cbrl/commitlint-config@0.1.0':
     resolution: {integrity: sha512-Yic2GvCjD1HH1cWzyJRrHCO9dA1RWM1k57Kr4V89o6G0kzpjlwqXj8rZFdO5iY0R/NHvsNdhuKE2vLKgRQpNaA==}
     peerDependencies:
       '@commitlint/cli': '>=19'
 
-  '@cbrl/design@0.1.0':
-    resolution: {integrity: sha512-5Hi/AEolhyKLPRiEtGDqC67/j9Sc6ffShKhkaHI5CpU0HDNfxwCHYqd3nkEszyJ9ySxXh2sM4GSGJflscAvn1g==}
+  '@cbrl/design@0.2.0':
+    resolution: {integrity: sha512-SRDKqDrQlqISKOyGr7WcgNRf+OzPY51+3DCq0i3NRRbZA2gtiAya6oAkJMzoqzlT5aY3RlKPZDir0L2JnziHTw==}
     peerDependencies:
       next-themes: ^0.4.0
       react: ^19.0.0
       react-dom: ^19.0.0
       tailwindcss: ^4.0.0
 
-  '@cbrl/env@0.1.0':
-    resolution: {integrity: sha512-pLkf4/2IopvzHBFEay4u//Xj6X53d5IZMg8J8j/7oiWmwysMI97yueKfGIQioYXBHbWisr35sdtSwUFI5880Cw==}
+  '@cbrl/env@0.1.1':
+    resolution: {integrity: sha512-Xx/Nq044pBFgiZJRx8nlFNX+PiHUSkuMW5moQs8hfv1VbTnJUiv2dSPdGNVtm1iXQkATDxonSVXcg/VzxImoHg==}
 
-  '@cbrl/eslint-config@0.1.1':
-    resolution: {integrity: sha512-pU9jzc8fLKFkVH4Yzz5wvZTAh6t3PqrjFRZBhYxaLhBHlJMyyOjOkIH96J8WlytT2U++dcjS53eDFoieKhfyrg==}
+  '@cbrl/eslint-config@0.2.0':
+    resolution: {integrity: sha512-KG/RhV/UrWYUP6ePYVlps4JyVlDPSHWfmcabxMHs2fZKIqBnsWNTaE9Xlg2CZ/9CxTTQhaCk4FEExquVmkAhjg==}
     peerDependencies:
       eslint: ^9.0.0
       typescript: '>=5.0.0 <7'
 
-  '@cbrl/pg@0.2.0':
-    resolution: {integrity: sha512-ylocXRzgCtKsUgXtBo1Bu4SdaC7rLCtiQVzxnlk6VbM/1TE26NvRA29eEQu1pGNH30+DavPAxr4c74MbIrYZMA==}
+  '@cbrl/log@0.1.0':
+    resolution: {integrity: sha512-pAjbG2+lKHGW7C4EFXCrJA5be/xveqH8pl1OKp7vVwgG0J0aezrE+O/VIJ/nE5LGJUm73OXwE9AtcVKlFb5+lQ==}
+
+  '@cbrl/next@0.1.0':
+    resolution: {integrity: sha512-gRPtgloKGr1R8C8oLxnKrhVBLRTv0p1NYegiZMCZCvnzo8bXvBvDX8hEHeZdQQwBQDst0fNJkNke00jJnhLpDg==}
     peerDependencies:
-      '@google-cloud/cloud-sql-connector': '*'
+      next: ^16.0.0
+
+  '@cbrl/pg@0.3.0':
+    resolution: {integrity: sha512-lKyRAzjspak74wAk72U+mkXapn/HokrC+ZMxQr47fOCjtHO1GVSQ3kX60mtw99YtLlf4F2vapie4KbLdXyg29g==}
+    peerDependencies:
+      drizzle-orm: '>=0.44.0 <1'
       pg: ^8.13.0
     peerDependenciesMeta:
-      '@google-cloud/cloud-sql-connector':
+      drizzle-orm:
         optional: true
 
   '@cbrl/prettier-config@0.1.0':
@@ -562,10 +584,24 @@ packages:
       prettier: ^3.0.0
       typescript: '>=5.0.0 <7'
 
-  '@cbrl/testing@0.1.0':
-    resolution: {integrity: sha512-qlhFr4oVok1l+N9OsXJwsLQuxVf8j2Lao2pWLnZKy8/Vxm4QsHneI6UGMHHv91kD/UtDQg8p+t6H300HsubuTA==}
+  '@cbrl/supabase@0.1.0':
+    resolution: {integrity: sha512-MZ28n1/2/wr+MuV5vvmDnbUqps2koeXx3+Ci+nOvZ6mEVqypez5LzeoXk79s/wVJM0ccOZXbZnZxr0D6KaQdTA==}
     peerDependencies:
+      '@supabase/ssr': ^0.12.0
+      '@supabase/supabase-js': ^2.119.0
+      next: ^16.0.0
+      react: ^19.0.0
+
+  '@cbrl/testing@0.2.0':
+    resolution: {integrity: sha512-7ki/N3MQlzY5hBcrs5FMJcpq+ttLVuFomaj1pslUcP/LLxQCnuEVL9F1D+iAvxubQNqCl7QFdM6z79wEAYdQNw==}
+    peerDependencies:
+      '@playwright/test': '>=1.50'
       vitest: '>=3'
+    peerDependenciesMeta:
+      '@playwright/test':
+        optional: true
+      vitest:
+        optional: true
 
   '@cbrl/tsconfig@0.1.0':
     resolution: {integrity: sha512-PTsQRbHRWd2QYCT1vpehb4UmllCJ9QLyPRZ3+mrmAYVXYr1B7l7IhF0Bx3ySUqvf73CB57CLw2BYq76b8/8R9w==}
@@ -6802,12 +6838,14 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
 
+  '@cbrl/br@0.1.0': {}
+
   '@cbrl/commitlint-config@0.1.0(@commitlint/cli@19.8.1(@types/node@26.6.6)(typescript@5.9.3))':
     dependencies:
       '@commitlint/cli': 19.8.1(@types/node@26.6.6)(typescript@5.9.3)
       '@commitlint/config-conventional': 19.8.1
 
-  '@cbrl/design@0.1.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(next-themes@0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.5)':
+  '@cbrl/design@0.2.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(next-themes@0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.5)':
     dependencies:
       class-variance-authority: 0.7.1
       clsx: 2.1.1
@@ -6825,9 +6863,9 @@ snapshots:
       - '@types/react'
       - '@types/react-dom'
 
-  '@cbrl/env@0.1.0': {}
+  '@cbrl/env@0.1.1': {}
 
-  '@cbrl/eslint-config@0.1.1(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)':
+  '@cbrl/eslint-config@0.2.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)':
     dependencies:
       '@eslint/js': 9.39.5
       eslint: 9.39.5(jiti@2.7.0)
@@ -6846,11 +6884,19 @@ snapshots:
       - eslint-import-resolver-webpack
       - supports-color
 
-  '@cbrl/pg@0.2.0(pg@8.23.1)':
+  '@cbrl/log@0.1.0': {}
+
+  '@cbrl/next@0.1.0(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@25.9.9)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))':
     dependencies:
-      '@cbrl/env': 0.1.0
+      next: 16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@25.9.9)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+
+  '@cbrl/pg@0.3.0(drizzle-orm@0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1))(pg@8.23.1)':
+    dependencies:
+      '@cbrl/env': 0.1.1
       '@types/pg': 8.23.1
       pg: 8.23.1
+    optionalDependencies:
+      drizzle-orm: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)
 
   '@cbrl/prettier-config@0.1.0(prettier@3.10.1)(typescript@5.9.3)':
     dependencies:
@@ -6876,11 +6922,21 @@ snapshots:
       - prettier-plugin-svelte
       - vue-tsc
 
-  '@cbrl/testing@0.1.0(vitest@4.1.12)':
+  '@cbrl/supabase@0.1.0(@supabase/ssr@0.12.7(@supabase/supabase-js@2.119.1(@opentelemetry/api@1.9.1)))(@supabase/supabase-js@2.119.1(@opentelemetry/api@1.9.1))(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@25.9.9)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@cbrl/env': 0.1.0
+      '@supabase/ssr': 0.12.7(@supabase/supabase-js@2.119.1(@opentelemetry/api@1.9.1))
+      '@supabase/supabase-js': 2.119.1(@opentelemetry/api@1.9.1)
+      next: 16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@25.9.9)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      react: 19.3.1
+      server-only: 0.0.1
+
+  '@cbrl/testing@0.2.0(@playwright/test@1.65.1)(vitest@4.1.12)':
+    dependencies:
+      '@cbrl/env': 0.1.1
       jest-axe: 10.0.0
-      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@25.9.9)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.14.5(@types/node@25.9.9)(typescript@5.9.3))(vite@8.3.8(@types/node@25.9.9)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+    optionalDependencies:
+      '@playwright/test': 1.65.1
+      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.14.5(@types/node@26.6.6)(typescript@5.9.3))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   '@cbrl/tsconfig@0.1.0': {}
 
@@ -9448,7 +9504,7 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@25.9.9)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.14.5(@types/node@25.9.9)(typescript@5.9.3))(vite@8.3.8(@types/node@25.9.9)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.14.5(@types/node@26.6.6)(typescript@5.9.3))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   '@vitest/expect@4.1.12':
     dependencies:

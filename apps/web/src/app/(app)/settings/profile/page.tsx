@@ -1,14 +1,14 @@
 import { settingsSectionMeta } from '@/features/settings/core/settings-sections'
 import { EditProfileForm } from '@/features/settings/ui/EditProfileForm'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { getSessionUser } from '@/shared/auth/session'
 import { track } from '@/shared/lib/track'
 import { getActiveOrgContext } from '@/shared/org/membership'
 import { Card, CardContent, SettingsSection } from '@cbrl/design'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 
 export default async function ProfileSettingsPage() {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

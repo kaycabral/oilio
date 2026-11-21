@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { LoginForm } from './LoginForm'
 
-vi.mock('@/shared/auth/client', () => ({
+vi.mock('@cbrl/supabase/client', () => ({
   getSupabaseBrowserClient: vi.fn(() => null),
 }))
 

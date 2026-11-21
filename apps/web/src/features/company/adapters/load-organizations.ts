@@ -1,5 +1,4 @@
 import { operatesCrossUnit, type Org, type Unit } from '@/domain'
-import { isAuthConfigured } from '@/shared/auth/config'
 import { getSessionUser } from '@/shared/auth/session'
 import {
   attachCanDelete,
@@ -10,6 +9,7 @@ import { getActiveOrgContext, listAccessibleOrgs } from '@/shared/org/membership
 import { getOrg } from '@/shared/org/org'
 import type { OrgOption } from '@/shared/org/org-context'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
+import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 import 'server-only'
 
@@ -22,7 +22,7 @@ export type OrganizationsPageData = {
 }
 
 export async function loadOrganizationsPage(): Promise<OrganizationsPageData> {
-  if (!isAuthConfigured()) redirect('/')
+  if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()
   if (!session) redirect('/login')

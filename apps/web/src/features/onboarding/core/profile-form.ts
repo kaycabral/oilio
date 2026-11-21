@@ -1,5 +1,6 @@
-import { normalizeBrazilMobile, parseBirthDate } from '@/domain'
+import { parseBirthDate } from '@/domain'
 import { formString } from '@/shared/form-data'
+import { normalizeBrazilMobile } from '@cbrl/br/phone'
 
 export const MIN_AGE_YEARS = 13
 

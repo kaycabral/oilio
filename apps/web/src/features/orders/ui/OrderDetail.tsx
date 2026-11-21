@@ -16,12 +16,9 @@ import {
   updateItemCoverage,
   updateOrderMeta,
 } from '@/features/orders/adapters/orders.actions'
-import {
-  buildCatalogOptions,
-  formatBRL,
-  statusLine,
-} from '@/features/orders/core/order-detail-format'
+import { buildCatalogOptions, statusLine } from '@/features/orders/core/order-detail-format'
 import type { OrgMember } from '@/shared/org/membership'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import { Button, Input } from '@cbrl/design'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -282,7 +279,9 @@ function ReadonlyMeta({ order }: { order: Order }) {
       {order.discountCents > 0 ? (
         <div>
           <span className="text-muted-foreground">Desconto aplicado: </span>
-          <span className="font-medium tabular-nums">{formatBRL(order.discountCents)}</span>
+          <span className="font-medium tabular-nums">
+            {formatBRLFromCents(order.discountCents)}
+          </span>
         </div>
       ) : null}
     </div>
@@ -294,17 +293,19 @@ function TotalsCard({ order }: { order: Order }) {
     <div className="border-border grid gap-1 rounded-md border p-4 text-sm">
       <div className="flex justify-between">
         <span className="text-muted-foreground">Subtotal</span>
-        <span className="tabular-nums">{formatBRL(order.subtotalCents)}</span>
+        <span className="tabular-nums">{formatBRLFromCents(order.subtotalCents)}</span>
       </div>
       {order.discountCents > 0 ? (
         <div className="flex justify-between">
           <span className="text-muted-foreground">Desconto</span>
-          <span className="text-destructive tabular-nums">- {formatBRL(order.discountCents)}</span>
+          <span className="text-destructive tabular-nums">
+            - {formatBRLFromCents(order.discountCents)}
+          </span>
         </div>
       ) : null}
       <div className="border-border mt-1 flex justify-between border-t pt-2 text-base font-semibold">
         <span>Total</span>
-        <span className="tabular-nums">{formatBRL(order.totalCents)}</span>
+        <span className="tabular-nums">{formatBRLFromCents(order.totalCents)}</span>
       </div>
     </div>
   )

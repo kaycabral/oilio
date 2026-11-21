@@ -1,5 +1,5 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
-import { formatBrazilPhone, roleLabel, type Membership, type Role } from '@/domain'
+import { roleLabel, type Membership, type Role } from '@/domain'
 import { BlocksSection } from '@/features/agenda/ui/BlocksSection'
 import {
   loadMemberDetailPage,
@@ -8,6 +8,7 @@ import {
 import { MemberDetailForm } from '@/features/team/ui/MemberDetailForm'
 import { MemberStatusToggle } from '@/features/team/ui/MemberStatusToggle'
 import { RemoveMemberButton } from '@/features/team/ui/RemoveMemberButton'
+import { formatBrazilPhone } from '@cbrl/br/phone'
 import { Main } from '@cbrl/design'
 
 const STATUS_LABELS: Record<Membership['status'], string> = {

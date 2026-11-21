@@ -4,7 +4,7 @@ import { SignupBusinessForm } from './SignupBusinessForm'
 
 const searchParams = { value: new URLSearchParams() }
 
-vi.mock('@/shared/auth/client', () => ({
+vi.mock('@cbrl/supabase/client', () => ({
   getSupabaseBrowserClient: vi.fn(() => null),
 }))
 
