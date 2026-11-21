@@ -5,7 +5,7 @@ import { AgendaBlockConfig } from '@/domain/aggregates/agenda-block/config'
 import { AppointmentConfig } from '@/domain/aggregates/appointment/config'
 import { MemberOperationConfig } from '@/domain/aggregates/member-operation/config'
 import { aggregateRef } from '@/domain/effect/aggregate-ref'
-import { docKey, makeTestFirestoreLayer } from '@/domain/effect/test-layers'
+import { docKey, makeTestStoreLayer } from '@/domain/effect/test-layers'
 
 import { checkAppointmentAvailability } from './check-appointment-availability'
 
@@ -27,7 +27,7 @@ const BASE_INPUT = {
 
 describe('checkAppointmentAvailability', () => {
   it('AC-06: resolves via PersistencePort layer — no direct singleton import', async () => {
-    const layer = makeTestFirestoreLayer({
+    const layer = makeTestStoreLayer({
       [memberOperationKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
     })
 
@@ -39,7 +39,7 @@ describe('checkAppointmentAvailability', () => {
   })
 
   it('AC-05: returns AppointmentConflictError when slot is occupied', async () => {
-    const layer = makeTestFirestoreLayer({
+    const layer = makeTestStoreLayer({
       [memberOperationKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
       [appointmentKey('t1', 'apt-99')]: {
         id: 'apt-99',
@@ -72,7 +72,7 @@ describe('checkAppointmentAvailability', () => {
   })
 
   it('AC-05: returns EntityNotFoundError when memberOperation does not exist', async () => {
-    const layer = makeTestFirestoreLayer({})
+    const layer = makeTestStoreLayer({})
 
     const result = await Effect.runPromise(
       checkAppointmentAvailability(BASE_INPUT).pipe(
@@ -91,11 +91,11 @@ describe('checkAppointmentAvailability', () => {
   })
 
   it('AC-07: same production code works with different test layer data', async () => {
-    const emptyLayer = makeTestFirestoreLayer({
+    const emptyLayer = makeTestStoreLayer({
       [memberOperationKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
     })
 
-    const busyLayer = makeTestFirestoreLayer({
+    const busyLayer = makeTestStoreLayer({
       [memberOperationKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
       [appointmentKey('t1', 'apt-1')]: {
         id: 'apt-1',
@@ -121,7 +121,7 @@ describe('checkAppointmentAvailability', () => {
   })
 
   it('AC-05: a one-off agenda block over the slot makes it unavailable', async () => {
-    const layer = makeTestFirestoreLayer({
+    const layer = makeTestStoreLayer({
       [memberOperationKey('t1', 'prof-1')]: { id: 'prof-1', name: 'João' },
       [agendaBlockKey('t1', 'blk-1')]: {
         id: 'blk-1',

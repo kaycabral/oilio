@@ -17,17 +17,17 @@ import {
   type GuardReader,
   type SagaStep,
 } from './event-store'
-import type { FirestoreDoc, TransactionContext } from './services'
+import type { StoredDoc, TransactionContext } from './services'
 import { PersistencePort } from './services'
 
 function makeTxStore() {
-  const store = new Map<string, FirestoreDoc>()
-  const events = new Map<string, FirestoreDoc[]>()
+  const store = new Map<string, StoredDoc>()
+  const events = new Map<string, StoredDoc[]>()
   const layer = Layer.succeed(PersistencePort, {
     getDoc: (ref: AggregateRef) => Effect.succeed(store.get(docKey(ref)) ?? null),
     getDocs: () => Effect.succeed([]),
     getEvents: (ref: AggregateRef) => Effect.succeed([...(events.get(docKey(ref)) ?? [])]),
-    setDoc: (ref: AggregateRef, data: FirestoreDoc) =>
+    setDoc: (ref: AggregateRef, data: StoredDoc) =>
       Effect.sync(() => {
         const key = docKey(ref)
         store.set(key, { ...store.get(key), ...data })
@@ -245,8 +245,8 @@ describe('appendDeleteToTx — event + projection drop in one tx', () => {
   })
 
   it('tolerates a tx WITHOUT deleteDoc — appends the event, skips the row drop', async () => {
-    const buffer = new Map<string, FirestoreDoc>()
-    const eventLog = new Map<string, FirestoreDoc[]>()
+    const buffer = new Map<string, StoredDoc>()
+    const eventLog = new Map<string, StoredDoc[]>()
     const bareTx: TransactionContext = {
       getDoc: (ref) => Effect.succeed(buffer.get(docKey(ref)) ?? null),
       setDoc: (ref, data) =>
@@ -279,11 +279,11 @@ describe('appendDeleteToTx — event + projection drop in one tx', () => {
 })
 
 describe('appendEventGuardedToTx — guard outcomes inside a shared tx', () => {
-  function bareTx(seed: Record<string, FirestoreDoc> = {}): {
+  function bareTx(seed: Record<string, StoredDoc> = {}): {
     tx: TransactionContext
-    store: Map<string, FirestoreDoc>
+    store: Map<string, StoredDoc>
   } {
-    const store = new Map<string, FirestoreDoc>(Object.entries(seed))
+    const store = new Map<string, StoredDoc>(Object.entries(seed))
     const tx: TransactionContext = {
       getDoc: (ref) => Effect.succeed(store.get(docKey(ref)) ?? null),
       setDoc: (ref, data) =>

@@ -21,7 +21,7 @@ function mdnsHost(): string {
   return `${hostname().toLowerCase()}.local`
 }
 
-// Defense in depth (see SECURITY.md). The browser only talks to Supabase Auth
+// Defense in depth. The browser only talks to Supabase Auth
 // (Google sign-in is a full-page redirect: no Google script or frame) and to
 // same-origin routes (Sentry goes through /monitoring-tunnel). Stripe Checkout
 // and the Billing Portal are top-level redirects after a form post. The CSP

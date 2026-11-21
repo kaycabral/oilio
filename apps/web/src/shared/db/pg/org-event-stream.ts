@@ -1,4 +1,4 @@
-import type { FirestoreDoc } from '@/domain/effect'
+import type { StoredDoc } from '@/domain/effect'
 import { getEventStorePool } from './pool'
 
 export type OrgEventStreamWindow = {
@@ -12,7 +12,7 @@ export type OrgEventRow = {
   readonly aggregateType: string
   readonly aggregateId: string
   readonly occurredAt: string
-  readonly envelope: FirestoreDoc
+  readonly envelope: StoredDoc
 }
 
 type RawRow = {
@@ -20,7 +20,7 @@ type RawRow = {
   aggregate_type: string
   aggregate_id: string
   occurred_at: string
-  envelope: FirestoreDoc
+  envelope: StoredDoc
 }
 
 export async function readOrgEventStream(

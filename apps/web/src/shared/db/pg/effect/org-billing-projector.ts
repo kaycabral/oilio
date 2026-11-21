@@ -1,5 +1,5 @@
 import { OrgBillingConfig } from '@/domain/aggregates/org-billing/config'
-import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, StoredDoc } from '@/domain/effect'
 import { StoredOrgBilling } from '@/domain/types/org-billing'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -57,12 +57,12 @@ const STRIPE_INDEX_UPSERT = `
   ON CONFLICT (stripe_customer_id) DO UPDATE SET org_id = EXCLUDED.org_id
 `
 
-function stateVersion(state: FirestoreDoc): number {
+function stateVersion(state: StoredDoc): number {
   const v = state['_version']
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: StoredDoc): Promise<void> {
   const billing: StoredOrgBilling = {
     ...decodeOrgBilling(state),
     orgId: ref.orgId,
@@ -90,7 +90,7 @@ export type OrgBillingRow = {
   updated_at: string
 }
 
-export function rowToDoc(row: OrgBillingRow): FirestoreDoc {
+export function rowToDoc(row: OrgBillingRow): StoredDoc {
   return {
     _version: Number(row.last_event_version),
     id: row.id,
@@ -109,7 +109,7 @@ export function rowToDoc(row: OrgBillingRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<StoredDoc | null> {
   const res = await client.query<OrgBillingRow>('SELECT * FROM org_billing WHERE org_id = $1', [
     ref.orgId,
   ])

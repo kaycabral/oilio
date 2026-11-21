@@ -1,4 +1,4 @@
-import { type FirestoreDoc } from '@/domain/effect'
+import { type StoredDoc } from '@/domain/effect'
 import { makeReplayStore } from '@/domain/effect/test-layers'
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
@@ -14,7 +14,7 @@ vi.mock('@/shared/db/pg/users-store', () => ({
 
 import { generateDailyNotifications } from './generate-daily'
 
-function makeStore(initial: Record<string, FirestoreDoc> = {}) {
+function makeStore(initial: Record<string, StoredDoc> = {}) {
   const { store, layer } = makeReplayStore(initial)
   mocks.usersByUid.clear()
   for (const [key, doc] of store) {

@@ -1,4 +1,4 @@
-import type { AggregateRef, FirestoreDoc } from '@/domain/effect'
+import type { AggregateRef, StoredDoc } from '@/domain/effect'
 import { Goal } from '@/domain/types/goal'
 import { Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -42,12 +42,12 @@ const UPSERT = `
   ON CONFLICT (org_id, id) DO UPDATE SET ${CONFLICT_SET}
 `
 
-function stateVersion(state: FirestoreDoc): number {
+function stateVersion(state: StoredDoc): number {
   const v = state['_version']
   return typeof v === 'number' ? v : 0
 }
 
-async function upsert(client: PoolClient, ref: AggregateRef, state: FirestoreDoc): Promise<void> {
+async function upsert(client: PoolClient, ref: AggregateRef, state: StoredDoc): Promise<void> {
   const goal = decodeGoal(state)
   await client.query(UPSERT, goalColumnValues(goal, ref, stateVersion(state)))
 }
@@ -64,7 +64,7 @@ export type GoalRow = {
   updated_at: string
 }
 
-export function rowToDoc(row: GoalRow): FirestoreDoc {
+export function rowToDoc(row: GoalRow): StoredDoc {
   return {
     _version: Number(row.last_event_version),
     id: row.id,
@@ -78,7 +78,7 @@ export function rowToDoc(row: GoalRow): FirestoreDoc {
   }
 }
 
-async function read(client: PoolClient, ref: AggregateRef): Promise<FirestoreDoc | null> {
+async function read(client: PoolClient, ref: AggregateRef): Promise<StoredDoc | null> {
   const res = await client.query<GoalRow>('SELECT * FROM goals WHERE org_id = $1 AND id = $2', [
     ref.orgId,
     ref.id,
