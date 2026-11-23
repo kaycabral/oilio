@@ -25,8 +25,8 @@
     "pg": "catalog:"
   },
   "devDependencies": {
-    "@cbrl/testing": "^0.2.0",
-    "@cbrl/tsconfig": "^0.1.0",
+    "@cbrl/testing": "^0.3.0",
+    "@cbrl/tsconfig": "^0.1.1",
     "@types/pg": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "drizzle-kit": "catalog:",
