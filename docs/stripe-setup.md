@@ -100,6 +100,13 @@ stripe trigger checkout.session.completed
 stripe trigger customer.subscription.updated
 ```
 
+## Testes automatizados
+
+O E2E não fala com o Stripe de verdade: roda contra o `stripe-mock` oficial,
+que valida os requests contra o OpenAPI do Stripe e devolve fixtures. Detalhes
+em [`docs/e2e-conventions.md`](e2e-conventions.md) § Setup. A env
+`STRIPE_API_BASE` é exclusiva do E2E — não configure em nenhum ambiente real.
+
 ## Smoke do fluxo completo
 
 1. Suba o dev server na 3005 e o `stripe listen` (acima).

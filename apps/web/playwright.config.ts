@@ -1,6 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
 
-import { CRON_SECRET } from './tests/e2e/helpers/secrets'
+import {
+  CRON_SECRET,
+  STRIPE_PRICES,
+  STRIPE_SECRET_KEY,
+  STRIPE_WEBHOOK_SECRET,
+} from './tests/e2e/helpers/secrets'
 
 // oilio/web runs on port 3005 (see CLAUDE.md "MCPs e portas dev" mapa).
 // `webServer` starts the Next server only — the local Supabase stack is owned
@@ -52,11 +57,15 @@ const PW_SHARD_TOTAL = process.env.PW_SHARD_TOTAL
 /**
  * The Next webServer env: the LOCAL Supabase stack the runner (`scripts/e2e.ts`)
  * resolved, the test-only sign-in route, and the app database URL as the
- * `oilio_app` role so RLS binds as in production.
+ * `oilio_app` role so RLS binds as in production. Stripe calls go to the
+ * runner's stripe-mock (`STRIPE_API_BASE`) with a test key and E2E price ids.
  */
 function webServerEnv(): Record<string, string> {
   const env: Record<string, string> = {
     CRON_SECRET,
+    STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET,
+    ...STRIPE_PRICES,
     ENABLE_TEST_AUTH: 'true',
     NEXT_PUBLIC_SITE_URL: BASE_URL,
     ...(process.env.E2E_FLAGS_OFF === '1'
@@ -73,6 +82,7 @@ function webServerEnv(): Record<string, string> {
     'NEXT_PUBLIC_SUPABASE_URL',
     'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
     'SUPABASE_SECRET_KEY',
+    'STRIPE_API_BASE',
   ]) {
     const value = process.env[key]
     if (value) env[key] = value
