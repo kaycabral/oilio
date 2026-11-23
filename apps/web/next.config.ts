@@ -1,5 +1,5 @@
 import { cspDirectives, devOrigins, withSecurityHeaders } from '@cbrl/next/config'
-import { withSentryConfig } from '@sentry/nextjs'
+import { withSentryConfig } from '@sentry/nextjs/config'
 import type { NextConfig } from 'next'
 
 // Defense in depth. The browser only talks to Supabase Auth
