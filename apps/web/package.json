@@ -56,7 +56,7 @@
     "react-dom": "catalog:",
     "server-only": "catalog:",
     "sonner": "catalog:",
-    "stripe": "23.1.0"
+    "stripe": "23.2.0"
   },
   "devDependencies": {
     "@cbrl/eslint-config": "^0.2.1",
