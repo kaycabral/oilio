@@ -39,7 +39,7 @@
     "@cbrl/log": "^0.1.0",
     "@cbrl/next": "^0.1.1",
     "@cbrl/pg": "^0.3.0",
-    "@cbrl/supabase": "^0.1.1",
+    "@cbrl/supabase": "^0.2.0",
     "@oilio/product": "workspace:*",
     "@sentry/nextjs": "11.15.0",
     "@supabase/ssr": "catalog:",
