@@ -221,8 +221,8 @@ importers:
         specifier: 'catalog:'
         version: 2.0.8(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       stripe:
-        specifier: 22.3.0
-        version: 22.3.0(@types/node@26.6.6)
+        specifier: 22.6.2
+        version: 22.6.2(@types/node@26.6.6)
     devDependencies:
       '@cbrl/eslint-config':
         specifier: ^0.2.1
@@ -6053,8 +6053,8 @@ packages:
     resolution: {integrity: sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw==}
     engines: {node: '>=14.16'}
 
-  stripe@22.3.0:
-    resolution: {integrity: sha512-ypO6xjVrMWs9SmIMeHr8naCx3dAQ0clxMdUTxn7Ejd7hmY9meBGfE+N4pVHkf9sUNebAHp6uJo6mV3GxDIc2cA==}
+  stripe@22.6.2:
+    resolution: {integrity: sha512-PwRE2scocvXqDKPiskMa5vRJEAEkq46W69XyUYmAwrNSLr675lQnfqLwnsndAWizwgihOWw/irLmoFRo3ez7ew==}
     engines: {node: '>=18'}
     peerDependencies:
       '@types/node': '>=18'
@@ -12237,7 +12237,7 @@ snapshots:
 
   strip-json-comments@5.0.3: {}
 
-  stripe@22.3.0(@types/node@26.6.6):
+  stripe@22.6.2(@types/node@26.6.6):
     optionalDependencies:
       '@types/node': 26.6.6
 

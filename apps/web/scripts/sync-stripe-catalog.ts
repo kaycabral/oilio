@@ -29,7 +29,7 @@ import Stripe from 'stripe'
 
 const MANAGED_BY = 'oilio-sync'
 // Pinned, matches stripe-client.ts.
-const API_VERSION = '2026-06-24.dahlia'
+const API_VERSION = '2026-08-26.dahlia'
 
 type Cycle = 'monthly' | 'annual'
 
