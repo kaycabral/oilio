@@ -44,7 +44,7 @@ test.describe('Financeiro — captura de custo fixo (brief 0092)', () => {
       await authedPage.getByLabel('Valor mensal (R$)').fill('2000')
       await authedPage.getByRole('button', { name: 'Adicionar custo fixo' }).click()
 
-      await expect(authedPage.getByText('Aluguel')).toBeVisible()
+      await expect(authedPage.getByRole('listitem').filter({ hasText: 'Aluguel' })).toBeVisible()
       await expect(authedPage.getByText(/R\$\s*2\.000,00/).first()).toBeVisible()
 
       const breakEven = authedPage.getByText(/Pra se pagar, venda/)
@@ -58,7 +58,7 @@ test.describe('Financeiro — captura de custo fixo (brief 0092)', () => {
       await authedPage.getByLabel('Valor mensal (R$)').fill('2000')
       await authedPage.getByRole('button', { name: 'Adicionar custo fixo' }).click()
 
-      await expect(authedPage.getByText('Aluguel')).toBeVisible()
+      await expect(authedPage.getByRole('listitem').filter({ hasText: 'Aluguel' })).toBeVisible()
       await expect(authedPage.getByText(/Indisponível/)).toBeVisible()
       await expect(authedPage.getByText(/Pra se pagar, venda/)).toHaveCount(0)
     })
@@ -87,7 +87,7 @@ test.describe('Financeiro — captura de custo fixo (brief 0092)', () => {
       await authedPage.getByLabel('Nome').fill('Aluguel')
       await authedPage.getByLabel('Valor mensal (R$)').fill('2000')
       await authedPage.getByRole('button', { name: 'Adicionar custo fixo' }).click()
-      await expect(authedPage.getByText('Aluguel')).toBeVisible()
+      await expect(authedPage.getByRole('listitem').filter({ hasText: 'Aluguel' })).toBeVisible()
 
       const breakEven = authedPage.getByText(/Pra se pagar, venda/)
       await expect(breakEven).toContainText(/R\$\s*2\.000,00/)
@@ -149,17 +149,23 @@ test.describe('Financeiro — captura de custo fixo (brief 0092)', () => {
       await authedPage.getByLabel('Nome').fill('Aluguel Centro')
       await authedPage.getByLabel('Valor mensal (R$)').fill('2000')
       await authedPage.getByRole('button', { name: 'Adicionar custo fixo' }).click()
-      await expect(authedPage.getByText('Aluguel Centro')).toBeVisible()
+      await expect(
+        authedPage.getByRole('listitem').filter({ hasText: 'Aluguel Centro' }),
+      ).toBeVisible()
 
       await setActiveUnitCookie(authedPage.context(), unitB)
       await authedPage.goto('/finance')
-      await expect(authedPage.getByText('Aluguel Centro')).toHaveCount(0)
+      await expect(
+        authedPage.getByRole('listitem').filter({ hasText: 'Aluguel Centro' }),
+      ).toHaveCount(0)
       await expect(authedPage.getByText('Nenhum custo fixo')).toBeVisible()
 
       await authedPage.getByLabel('Nome').fill('Aluguel Bairro')
       await authedPage.getByLabel('Valor mensal (R$)').fill('1000')
       await authedPage.getByRole('button', { name: 'Adicionar custo fixo' }).click()
-      await expect(authedPage.getByText('Aluguel Bairro')).toBeVisible()
+      await expect(
+        authedPage.getByRole('listitem').filter({ hasText: 'Aluguel Bairro' }),
+      ).toBeVisible()
 
       const breakEvenB = authedPage.getByText(/Pra se pagar, venda/)
       await expect(breakEvenB).toBeVisible()
