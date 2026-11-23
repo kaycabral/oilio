@@ -53,7 +53,6 @@ const USE_DEV_SERVER = process.env.E2E_DEV === '1'
 const REUSE_BUILD = process.env.E2E_REUSE_BUILD === '1'
 const PW_GREP = process.env.PW_GREP
 const PW_SHARD_TOTAL = process.env.PW_SHARD_TOTAL
-const PW_JSON_REPORT = process.env.PW_JSON_REPORT
 
 /**
  * The Next webServer env: the LOCAL Supabase stack the runner (`scripts/e2e.ts`)
@@ -131,15 +130,7 @@ export default defineConfig({
   // principal de flake (hydration race do dev mode).
   retries: 0,
   // CI adds GitHub Actions annotations on failing specs; locally just the list.
-  // PW_JSON_REPORT: per-spec durations the CI feeds back into duration-balanced
-  // sharding (scripts/e2e-shards.ts).
-  reporter: process.env.CI
-    ? [
-        ['list'],
-        ['github'],
-        ...(PW_JSON_REPORT ? [['json', { outputFile: PW_JSON_REPORT }] as const] : []),
-      ]
-    : 'list',
+  reporter: process.env.CI ? [['list'], ['github']] : 'list',
   use: {
     baseURL: BASE_URL,
     // `retain-on-failure` keeps every failing trace (vs `on-first-retry`,
