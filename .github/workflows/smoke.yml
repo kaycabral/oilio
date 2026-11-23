@@ -1,0 +1,132 @@
+# Smoke test of a production deployment before Vercel promotes it.
+#
+# Vercel sends `repository_dispatch` `vercel.deployment.ready` once a deployment
+# is built and is waiting on its Deployment Checks (the project has GitHub
+# Deployments off, so there is no `deployment_status`). The job runs the smoke
+# suite against that deployment's own URL, not the production alias, and
+# reports the commit status `Smoke (production)` on the deployed commit. That
+# status, not this job's check run, is what Vercel's Deployment Checks require
+# (docs/production.md). Preview deployments also dispatch; they are skipped.
+#
+# `workflow_dispatch` runs the same suite against any deployment by hand. It
+# never writes the status, so a manual run cannot promote anything.
+name: Smoke
+
+on:
+  repository_dispatch:
+    types: [vercel.deployment.ready]
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Deployment URL (https://oilio-<id>-cbrl-dev.vercel.app) or https://www.oilio.com.br
+        required: true
+      commit:
+        description: Full commit SHA the deployment must report on /api/health
+        required: true
+
+run-name: >-
+  Smoke ${{ github.event.client_payload.environment || 'manual' }}
+  ${{ github.event.client_payload.git.shortSha || inputs.commit }}
+
+concurrency:
+  group: smoke-${{ github.event.client_payload.id || inputs.url }}
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  # Public: the production project's URL already ships in the CSP header.
+  SMOKE_SUPABASE_URL: https://dpjnbomhozrldkbvwzvo.supabase.co
+
+jobs:
+  # Keep the job name distinct from the status name: a check run with the same
+  # name would land on the default branch head and could satisfy the check.
+  smoke:
+    name: Smoke
+    if: github.event_name == 'workflow_dispatch' || github.event.client_payload.environment == 'production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      statuses: write
+    steps:
+      # Sets `pending` now and the final state in its post step, on the
+      # deployed commit from the payload. Skips itself on workflow_dispatch.
+      - name: Report status to Vercel
+        uses: vercel/repository-dispatch/actions/status@30f760c6640485cd92f8c785ef361382555fb712 # v1
+        with:
+          name: Smoke (production)
+
+      - name: Resolve the deployment
+        id: target
+        env:
+          RAW_URL: ${{ github.event.client_payload.url || inputs.url }}
+          SHA: ${{ github.event.client_payload.git.sha || inputs.commit }}
+        run: |
+          url="${RAW_URL%/}"
+          case "$url" in https://*) ;; *) url="https://$url" ;; esac
+          if ! [[ "$url" =~ ^https://(oilio-[a-z0-9]+-cbrl-dev\.vercel\.app|www\.oilio\.com\.br)$ ]]; then
+            echo "::error::Not an oilio deployment URL: $url"
+            exit 1
+          fi
+          if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Not a full commit SHA: $SHA"
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Smoke testing $url at $SHA" >> "$GITHUB_STEP_SUMMARY"
+
+      # The deployment goes live only after both checks pass, but it is already
+      # serving: wait until its migrations ran so the smoke never tests new code
+      # against the old schema.
+      - name: Wait for Deploy (migrate database)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          deadline=$((SECONDS + 600))
+          while true; do
+            state=$(gh api -X GET "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs" \
+              -f check_name='Deploy (migrate database)' -f filter=latest \
+              --jq '.check_runs | sort_by(.started_at) | last | if . == null then "missing" elif .status != "completed" then "running" else .conclusion end')
+            case "$state" in
+              success) echo "Migrations applied."; exit 0 ;;
+              missing | running) ;;
+              *) echo "::error::Deploy (migrate database) ended as '$state'; the deployment must not be promoted."; exit 1 ;;
+            esac
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::Deploy (migrate database) did not finish within 10 minutes (last state: $state)."
+              exit 1
+            fi
+            sleep 10
+          done
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.target.outputs.sha }}
+          persist-credentials: false
+      - uses: kaycabral/toolkit/.github/actions/setup@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
+      - uses: kaycabral/toolkit/.github/actions/playwright@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
+        with:
+          working-directory: apps/web
+
+      - name: Run the smoke suite
+        working-directory: apps/web
+        env:
+          SMOKE_BASE_URL: ${{ steps.target.outputs.url }}
+          SMOKE_EXPECTED_COMMIT: ${{ steps.target.outputs.sha }}
+          # Optional until the owner creates it; without it a deployment URL
+          # behind Vercel Authentication fails in the global setup, by name.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: pnpm run test:smoke
+
+      - name: Keep the traces
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smoke-traces
+          path: apps/web/test-results/
+          retention-days: 7

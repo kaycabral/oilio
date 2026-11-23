@@ -17,6 +17,7 @@
     "test:integration:events:pg": "vitest run --config vitest.events-pg-integration.config.ts",
     "test:e2e": "tsx scripts/e2e.ts",
     "test:e2e:smoke": "tsx scripts/e2e.ts --grep @smoke",
+    "test:smoke": "playwright test --config playwright.smoke.config.ts",
     "test:e2e:critical": "tsx scripts/e2e.ts --grep @critical",
     "test:e2e:catalog": "tsx scripts/e2e.ts tests/e2e/catalog --workers=1",
     "test:e2e:identity": "tsx scripts/e2e.ts tests/e2e/units tests/e2e/company tests/e2e/team tests/e2e/invites tests/e2e/company-booking-qr.spec.ts tests/e2e/onboarding/app-usable-without-setup.spec.ts tests/e2e/onboarding/profile-completion.spec.ts tests/e2e/onboarding/publish-self-booking-blocked.spec.ts --workers=1",
