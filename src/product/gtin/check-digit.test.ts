@@ -2,9 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { computeCheckDigit, hasValidCheckDigit } from './check-digit'
 
 describe('computeCheckDigit (GS1 mod-10, right-anchored ×3,1)', () => {
-  // Each row: [data digits without check, expected GS1 mod-10 check digit].
-  // 400638133393 EAN-13 (GS1-verified); 4001513 EAN-8; 03600029145 UPC-A
-  // (Coca-Cola); 1040123456789 GTIN-14; 978316148410 ISBN-13 (Bookland).
   it.each([
     ['400638133393', 1],
     ['4001513', 2],
@@ -16,7 +13,6 @@ describe('computeCheckDigit (GS1 mod-10, right-anchored ×3,1)', () => {
   })
 
   it('returns 0 when the weighted sum is a multiple of 10', () => {
-    // Construct data whose weighted sum ends in 0 → check digit 0.
     expect(computeCheckDigit('978316148410')).toBe(0)
   })
 })
@@ -38,7 +34,6 @@ describe('hasValidCheckDigit', () => {
   })
 
   it('is invariant to left zero-padding (the normalize-to-14 guarantee)', () => {
-    // Leading zeros contribute 0 to the weighted sum → check digit unchanged.
     expect(hasValidCheckDigit('4006381333931')).toBe(true)
     expect(hasValidCheckDigit('00004006381333931'.slice(-14))).toBe(
       hasValidCheckDigit('4006381333931'.padStart(14, '0')),

@@ -25,15 +25,11 @@ describe('validateGtin — accept + normalize to GTIN-14', () => {
   it('preserves the check digit under padding (never recomputes)', () => {
     const result = validateGtin('4006381333931')
     expect(result).toEqual({ kind: 'valid', gtin14: '04006381333931' })
-    // last digit (check) is the original 1, not recomputed
     if (result.kind === 'valid') expect(result.gtin14.endsWith('1')).toBe(true)
   })
 })
 
 describe('validateGtin — rejections with typed reason', () => {
-  // 12345 = 5 digits; 123456789012345 = 15 digits (both invalid-length).
-  // 4006381333932 = tampered check digit. 20015138 = EAN-8 RCN;
-  // 0401234567893 = company RCN. 9811234567891 = coupon; 9801234567892 = receipt.
   it.each([
     ['', 'empty'],
     ['   ', 'empty'],

@@ -3,10 +3,6 @@ import type { ProductSource } from '../port/source'
 import type { NewProduct, StoredProduct } from '../schema'
 import { resolveProduct } from './resolve'
 
-// Pure unit: the facade folds lookup + auto-contribution. Stub source backed by
-// an in-memory map so a contributed row becomes findable (proving the miss→
-// contribute→referenceable flow without a DB).
-
 function storedFrom(row: NewProduct): StoredProduct {
   const now = new Date()
   return {
@@ -67,7 +63,6 @@ describe('resolveProduct', () => {
     expect(result.product.source).toBe('org-contributed')
     expect(result.product.name).toBe('Leite Ninho')
 
-    // Idempotent: resolving again now references the contributed row.
     const again = await resolveProduct(source, EAN13, { name: 'Leite Ninho' })
     expect(again.kind).toBe('referenced')
   })

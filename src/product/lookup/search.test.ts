@@ -8,11 +8,6 @@ import {
   searchProductsByName,
 } from './search'
 
-// Pure unit test: the search composes a normalization/min-length gate with a
-// ProductSource. We stub the source in-memory (no DB) and COUNT its calls so we
-// can prove an under-length term never reaches the base (AC-05). The real
-// pg_trgm similarity path is covered by the integration suite.
-
 function storedFrom(gtin14: string, name: string): StoredProduct {
   const now = new Date()
   return {
@@ -75,7 +70,6 @@ describe('searchProductsByName', () => {
       gtin14: '07891000100103',
       product: { name: 'Leite Ninho 400g' },
     })
-    // The normalized term + default cap reach the source.
     expect(source.calls).toEqual([{ query: 'ninho', limit: DEFAULT_SEARCH_LIMIT }])
   })
 
@@ -91,7 +85,6 @@ describe('searchProductsByName', () => {
     const results = await searchProductsByName(source, 'ni')
 
     expect(results).toEqual([])
-    // base untouched
     expect(source.calls).toEqual([])
   })
 
@@ -116,7 +109,6 @@ describe('searchProductsByName', () => {
     const results = await searchProductsByName(source, 'inexistente')
 
     expect(results).toEqual([])
-    // it DID query — empty is a real miss
     expect(source.calls).toHaveLength(1)
   })
 

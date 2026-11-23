@@ -4,10 +4,6 @@ import { PostgresProductSource } from '../db/repository'
 import { product } from '../schema'
 import { resolveProduct } from './resolve'
 
-// Integration: the auto-contribution flow against REAL Postgres — idempotency
-// comes from the native UNIQUE GTIN-14 (A1), not application code. Proves AC-03
-// (idempotent), AC-04 (invalid never enters) end-to-end.
-
 const EAN13 = '7891000100103'
 const GTIN14 = '07891000100103'
 const OTHER_EAN13 = '7894900011517'
@@ -45,7 +41,6 @@ describe('resolveProduct — auto-contribution against real Postgres', () => {
     await resolveProduct(source, EAN13, { name: 'Leite Ninho 400g' })
     const second = await resolveProduct(source, EAN13, { name: 'Leite Ninho 400g' })
 
-    // Second resolve finds the row → references it, never a duplicate insert.
     expect(second.kind).toBe('referenced')
     const rows = await getDb().select().from(product)
     expect(rows).toHaveLength(1)
@@ -67,7 +62,6 @@ describe('resolveProduct — auto-contribution against real Postgres', () => {
     const result = await resolveProduct(source, EAN13, { name: 'ignored' })
     expect(result.kind).toBe('referenced')
     if (result.kind !== 'referenced') throw new Error('expected referenced')
-    // not downgraded to org-contributed
     expect(result.product.source).toBe('official')
   })
 

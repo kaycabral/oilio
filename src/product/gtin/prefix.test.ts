@@ -41,8 +41,6 @@ describe('classifyPrefix', () => {
   })
 
   it('does NOT confuse Bookland 978/979 with the 98x coupon band (3-digit match)', () => {
-    // The classic trap: a 2-digit "98" match would wrongly kill ISBN. Matching on
-    // 3 digits keeps 977/978/979 accepted while 980/981–984/990–999 are rejected.
     expect(classifyPrefix('9783161484100')).toBe('accept')
     expect(classifyPrefix('9791012345678')).toBe('accept')
     expect(classifyPrefix('9801234567892')).toBe('coupon-or-receipt')

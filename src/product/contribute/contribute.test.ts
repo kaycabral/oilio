@@ -3,11 +3,6 @@ import type { ProductSource } from '../port/source'
 import type { NewProduct, StoredProduct } from '../schema'
 import { autoContribute } from './contribute'
 
-// Pure unit: auto-contribution gates on validation and delegates the write to
-// the injected source. We stub the source in-memory and CAPTURE the upserted
-// row so we can assert the gate, the placeholder name, and provenance. The
-// real idempotency (UNIQUE GTIN-14) is proven by the integration suite.
-
 function storedFrom(row: NewProduct): StoredProduct {
   const now = new Date()
   return {
@@ -62,10 +57,8 @@ describe('autoContribute', () => {
     expect(source.upserts).toHaveLength(1)
     const row = source.upserts[0]!
     expect(row.gtin14).toBe(GTIN14)
-    // trimmed
     expect(row.name).toBe('Leite Ninho 400g')
     expect(row.brand).toBe('Nestlé')
-    // blank → null
     expect(row.ncm).toBeNull()
     expect(row.source).toBe('org-contributed')
   })

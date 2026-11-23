@@ -4,10 +4,6 @@ import { PostgresProductSource } from '../db/repository'
 import { product } from '../schema'
 import { lookupByGtin } from './lookup'
 
-// Integration: the lookup composes the validator with the REAL Postgres adapter.
-// Proves hit/miss against an actual database (the point of the brief — real
-// constraints, not a mock). fileParallelism is off so this owns the table.
-
 const EAN13 = '7891000100103'
 const GTIN14 = '07891000100103'
 

@@ -3,11 +3,6 @@ import type { ProductSource } from '../port/source'
 import type { NewProduct, StoredProduct } from '../schema'
 import { lookupByGtin } from './lookup'
 
-// Pure unit test: the lookup composes the validator + a ProductSource. We stub
-// the source in-memory (no DB) — the real Postgres path is covered by the
-// integration suite. The stub also COUNTS queries so we can prove an invalid
-// GTIN never reaches the base (AC-01).
-
 function storedFrom(gtin14: string, name: string): StoredProduct {
   const now = new Date()
   return {
@@ -44,8 +39,6 @@ function stubSource(rows: Record<string, StoredProduct>): ProductSource & { quer
   }
 }
 
-// Real GTINs (valid GS1 check digit). 13-digit EAN normalizes to 14 (zero-pad).
-// valid check digit
 const EAN13 = '7891000100103'
 const GTIN14_OF_EAN13 = '07891000100103'
 
@@ -69,19 +62,16 @@ describe('lookupByGtin', () => {
     expect(result.kind).toBe('miss')
     if (result.kind !== 'miss') throw new Error('expected miss')
     expect(result.gtin14).toBe(GTIN14_OF_EAN13)
-    // The normalized key is queried so callers can stash + reconcile it.
     expect(source.queries).toEqual([GTIN14_OF_EAN13])
   })
 
   it('invalid: a rejected GTIN never queries the base', async () => {
     const source = stubSource({})
-    // wrong length
     const result = await lookupByGtin(source, '123')
 
     expect(result.kind).toBe('invalid')
     if (result.kind !== 'invalid') throw new Error('expected invalid')
     expect(result.reason).toBe('invalid-length')
-    // base untouched
     expect(source.queries).toEqual([])
   })
 

@@ -4,14 +4,6 @@ import { PostgresProductSource } from '../db/repository'
 import { product } from '../schema'
 import { searchProductsByName } from './search'
 
-// Integration: the name search composes the normalization gate with the REAL
-// Postgres adapter (pg_trgm similarity + the GIN index from migration 0001).
-// Proves typo tolerance, ranking, the top-N cap and zero-match against an actual
-// database — the point of the brief (real similarity, not a mock). fileParallelism
-// is off so this owns the table.
-
-// GTIN-14 keys must be exactly 14 digits (the table CHECK). These are arbitrary
-// valid-shape keys — the search is by NAME, so the check digit is irrelevant here.
 const NINHO_400 = '10000000000017'
 const NINHO_800 = '10000000000024'
 const CAFE = '10000000000031'
@@ -46,7 +38,6 @@ describe('searchProductsByName — against real Postgres (pg_trgm)', () => {
     const source = new PostgresProductSource()
     await seed(NINHO_400, 'Leite Ninho 400g')
 
-    // "ninnho" (doubled n) and "leit ninho" (missing e) — pg_trgm still matches.
     const typo = await searchProductsByName(source, 'leit ninho')
     expect(typo.map((r) => r.product.name)).toContain('Leite Ninho 400g')
   })

@@ -4,11 +4,6 @@ import { product } from '../schema'
 import { closeDb, getDb, runMigrations } from './pool'
 import { PostgresProductSource } from './repository'
 
-// Integration: proves the NATIVE Postgres constraints (UNIQUE / NOT NULL / CHECK
-// / enum) reject invalid data — not application-level validation. Runs against a
-// real database (DATABASE_URL), the point of brief 0049. fileParallelism is off
-// (vitest.integration.config.ts) so this owns the table for its turn.
-
 const VALID_GTIN14 = '04006381333931'
 const OTHER_GTIN14 = '00036000291452'
 
@@ -16,9 +11,6 @@ function baseProduct(gtin14: string) {
   return { gtin14, name: 'Café torrado 500g', source: 'official' as const }
 }
 
-// Postgres SQLSTATE error codes (the driver wraps the query error; the real
-// SQLSTATE + constraint name live on `.cause`). 23505 unique_violation,
-// 23502 not_null_violation, 23514 check_violation, 22P02 invalid_text_repr (enum).
 function readStringProp(value: unknown, key: string): string | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   if (!(key in value)) return undefined
@@ -26,7 +18,6 @@ function readStringProp(value: unknown, key: string): string | undefined {
   return typeof prop === 'string' ? prop : undefined
 }
 
-/** Drill into the driver wrapper to the underlying pg error (on `.cause`). */
 function pgCause(error: unknown): unknown {
   if (typeof error === 'object' && error !== null && 'cause' in error) {
     return Reflect.get(error, 'cause')
@@ -34,7 +25,6 @@ function pgCause(error: unknown): unknown {
   return error
 }
 
-/** Assert that `run` rejects with a Postgres error of `code` (and optional constraint). */
 async function expectPgViolation(
   run: () => Promise<unknown>,
   code: string,
@@ -93,9 +83,6 @@ describe('Product table — native constraints reject invalid data', () => {
     )
   })
 
-  // The sovereign minimum is GTIN + name (brief 0054, AC-07). The base must
-  // refuse a half-record by ANY write path — so a row with a GTIN but no name is
-  // rejected by the database itself, not by application code.
   it('NOT NULL: a row without a name is refused by the database', async () => {
     await expectPgViolation(
       () =>
