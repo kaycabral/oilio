@@ -16,7 +16,7 @@
 import type { BillingCycle, Tier } from '@/domain/billing/tiers'
 import Stripe from 'stripe'
 
-const API_VERSION = '2026-08-26.dahlia'
+const API_VERSION = '2026-10-28.endive'
 
 // The env var holding each chargeable tier+cycle's Stripe Price id. Mirrors
 // `PRICE_ENV` in shared/billing/stripe-prices.ts — kept inline because that
