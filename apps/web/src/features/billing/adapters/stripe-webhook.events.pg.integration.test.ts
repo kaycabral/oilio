@@ -8,7 +8,7 @@ const WEBHOOK_SECRET = 'whsec_test_secret'
 const PRO_MONTHLY = 'price_pro_monthly_test'
 const ADVANCED_MONTHLY = 'price_advanced_monthly_test'
 
-const stripe = new Stripe('sk_test_unused', { apiVersion: '2026-06-24.dahlia' })
+const stripe = new Stripe('sk_test_unused', { apiVersion: '2026-08-26.dahlia' })
 
 function buildEvent(type: string, object: unknown): Stripe.Event {
   const payload = JSON.stringify({
@@ -16,7 +16,7 @@ function buildEvent(type: string, object: unknown): Stripe.Event {
     object: 'event',
     type,
     data: { object },
-    api_version: '2026-06-24.dahlia',
+    api_version: '2026-08-26.dahlia',
   })
   const header = stripe.webhooks.generateTestHeaderString({ payload, secret: WEBHOOK_SECRET })
   return stripe.webhooks.constructEvent(payload, header, WEBHOOK_SECRET)
