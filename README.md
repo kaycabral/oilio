@@ -67,7 +67,7 @@ pnpm test:integration                       # @oilio/product
 pnpm --filter @oilio/web run test:integration   # event store
 ```
 
-**O `test:e2e` exige o stack local no ar** (`db:start`). O runner (`apps/web/scripts/e2e.ts`) aplica as migrations, builda e sobe o Next em modo produção conectado como `oilio_app` (o RLS vale como em prod) e roda o Playwright. O login nos specs passa pela rota de teste `/api/e2e-signin`, que só existe com `ENABLE_TEST_AUTH=true` — setado apenas pelo `webServer` do Playwright.
+**O `test:e2e` exige o stack local no ar** (`db:start`). O runner (`apps/web/scripts/e2e.ts`) aplica as migrations, sobe um `stripe-mock` efêmero (Docker; o billing fala com ele no lugar do Stripe), builda e sobe o Next em modo produção conectado como `oilio_app` (o RLS vale como em prod) e roda o Playwright. O login nos specs passa pela rota de teste `/api/e2e-signin`, que só existe com `ENABLE_TEST_AUTH=true` — setado apenas pelo `webServer` do Playwright.
 
 ```bash
 # Playwright (E2E) — chromium é o único projeto ativo.

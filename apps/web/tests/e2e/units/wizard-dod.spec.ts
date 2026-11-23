@@ -92,6 +92,9 @@ test.describe('Wizard de criação de unidade — DoD (#1438 · 0097)', { tag: '
       })
 
       await expect(dialog.getByText('Custo adicional desta unidade')).toBeVisible()
+      await expect(dialog.getByText('Cobrado hoje (proporcional)')).toBeVisible()
+      await expect(dialog.getByText('Nova mensalidade total')).toBeVisible()
+      await expect(dialog.getByText(/o valor exato aparecerá na fatura/)).toHaveCount(0)
       const cta = dialog.getByRole('button', { name: 'Confirmar e criar unidade' })
       await expect(cta).toBeDisabled()
 

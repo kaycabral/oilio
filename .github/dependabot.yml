@@ -98,3 +98,18 @@ updates:
           - patch
         patterns:
           - '*'
+
+  # Test infrastructure images (stripe-mock, the integration Postgres). Ungrouped,
+  # so each bump waits for a human; the E2E and integration jobs prove it.
+  - package-ecosystem: docker-compose
+    directory: /docker
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Sao_Paulo
+    cooldown:
+      default-days: 3
+    commit-message:
+      prefix: chore
+      include: scope

@@ -1,4 +1,6 @@
 import { e2eSupabase } from './app-env'
+import { STRIPE_SECRET_KEY } from './secrets'
+import { stripeApiBase } from './stripe-mock'
 
 const TIMEOUT_MS = 30_000
 const INTERVAL_MS = 200
@@ -28,6 +30,17 @@ async function tryAuthHealth(): Promise<boolean> {
   }
 }
 
+async function tryStripeMock(): Promise<boolean> {
+  try {
+    const res = await fetch(`${stripeApiBase()}/v1/balance`, {
+      headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 async function waitFor(label: string, probe: () => Promise<boolean>): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < TIMEOUT_MS) {
@@ -36,9 +49,16 @@ async function waitFor(label: string, probe: () => Promise<boolean>): Promise<vo
     }
     await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS))
   }
-  throw new Error(`[e2e] ${label} warmup failed after ${TIMEOUT_MS}ms — local Supabase may be down`)
+  throw new Error(
+    `[e2e] ${label} warmup failed after ${TIMEOUT_MS}ms — local Supabase or stripe-mock may be down`,
+  )
 }
 
 export default async function globalSetup(): Promise<void> {
-  await Promise.all([waitFor('Auth', tryAuthHealth), waitFor('EventStore', tryEventStoreRoundtrip)])
+  stripeApiBase()
+  await Promise.all([
+    waitFor('Auth', tryAuthHealth),
+    waitFor('EventStore', tryEventStoreRoundtrip),
+    waitFor('StripeMock', tryStripeMock),
+  ])
 }

@@ -1,0 +1,13 @@
+# stripe-mock for the E2E suite (`pnpm --filter @oilio/web test:e2e`): the app's
+# Stripe client is pointed at it through STRIPE_API_BASE, so every billing call
+# runs against Stripe's OpenAPI spec (request shapes validated, fixture data
+# returned). Stateless: nothing a test writes is read back. The runner
+# (apps/web/scripts/e2e.ts) picks a free host port and a per-run project name,
+# brings it up and tears it down. Pinned by version and digest; bump both.
+
+services:
+  stripe-mock:
+    image: stripe/stripe-mock:v0.206.0@sha256:aeb96b83e87a893d2ac005e363ac01ffa6e59a5ad85b49c155dfc9129de02e78
+    ports:
+      - '127.0.0.1:${STRIPE_MOCK_PORT:?STRIPE_MOCK_PORT is required}:12111'
+    mem_limit: 256m
