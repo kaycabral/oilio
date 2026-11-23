@@ -69,7 +69,7 @@
     "@cbrl/next": "^0.1.1",
     "@cbrl/pg": "^0.3.0",
     "@cbrl/supabase": "^0.2.0",
-    "@sentry/nextjs": "11.15.0",
+    "@sentry/nextjs": "11.16.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.2",
     "@types/qrcode": "^1.5.6",
@@ -85,7 +85,7 @@
     "react-dom": "^19.3.1",
     "server-only": "^0.0.1",
     "sonner": "^2.0.8",
-    "stripe": "23.1.0"
+    "stripe": "23.2.0"
   },
   "devDependencies": {
     "@cbrl/commitlint-config": "^0.2.0",

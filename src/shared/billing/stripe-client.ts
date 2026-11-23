@@ -1,6 +1,7 @@
 import { requireEnv } from '@cbrl/env'
 import 'server-only'
 import Stripe from 'stripe'
+import { STRIPE_API_VERSION } from './stripe-api-version'
 
 type StripeEndpoint = Pick<Stripe.StripeConfig, 'host' | 'port' | 'protocol'>
 
@@ -29,7 +30,7 @@ export function getStripe(): Stripe {
   if (cached) return cached
   const secretKey = requireEnv('STRIPE_SECRET_KEY')
   cached = new Stripe(secretKey, {
-    apiVersion: '2026-10-28.endive',
+    apiVersion: STRIPE_API_VERSION,
     ...stripeEndpoint(secretKey, process.env.STRIPE_API_BASE),
   })
   return cached

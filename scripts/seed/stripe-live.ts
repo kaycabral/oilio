@@ -14,9 +14,8 @@
 // webhook could resolve this org by customer.
 
 import type { BillingCycle, Tier } from '@/domain/billing/tiers'
+import { STRIPE_API_VERSION } from '@/shared/billing/stripe-api-version'
 import Stripe from 'stripe'
-
-const API_VERSION = '2026-10-28.endive'
 
 // The env var holding each chargeable tier+cycle's Stripe Price id. Mirrors
 // `PRICE_ENV` in shared/billing/stripe-prices.ts — kept inline because that
@@ -108,7 +107,7 @@ export async function activateBillingViaStripe(args: {
 
   const secret = stripeTestKey()
   if (!secret) throw new Error('activateBillingViaStripe called without a Stripe TEST key')
-  const stripe = new Stripe(secret, { apiVersion: API_VERSION })
+  const stripe = new Stripe(secret, { apiVersion: STRIPE_API_VERSION })
 
   await purgePriorCustomers(stripe, orgId)
 
