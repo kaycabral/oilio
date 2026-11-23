@@ -4,11 +4,11 @@ import { AuthApiError, type User } from '@supabase/supabase-js'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ upsertUser: vi.fn(), warn: vi.fn() }))
+const mocks = vi.hoisted(() => ({ upsertUser: vi.fn(), warn: vi.fn(), error: vi.fn() }))
 
 vi.mock('@cbrl/log', async (importOriginal) => ({
   ...(await importOriginal<typeof Log>()),
-  logger: { debug: vi.fn(), info: vi.fn(), warn: mocks.warn, error: vi.fn() },
+  logger: { debug: vi.fn(), info: vi.fn(), warn: mocks.warn, error: mocks.error },
 }))
 
 vi.mock('@supabase/ssr', () => import('@/shared/auth/fake-supabase-ssr'))
@@ -61,6 +61,7 @@ beforeEach(() => {
   fakeCookieStore.reset()
   mocks.upsertUser.mockReset().mockResolvedValue(undefined)
   mocks.warn.mockClear()
+  mocks.error.mockClear()
 })
 
 afterEach(() => {
@@ -131,11 +132,60 @@ describe('GET /auth/callback — successful Google sign-in', () => {
     const res = await GET(callback({ code: CODE }))
     expect(location(res)).toBe(`${ORIGIN}/dashboard`)
   })
+})
 
-  it('surfaces a failing user upsert instead of redirecting into the app', async () => {
+describe('GET /auth/callback — failing user upsert', () => {
+  it('sends the user back to login instead of into the app', async () => {
     mocks.upsertUser.mockRejectedValue(new Error('db down'))
     fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
-    await expect(GET(callback({ code: CODE }))).rejects.toThrow('db down')
+    const res = await GET(callback({ code: CODE, next: '/agenda' }))
+    expect(res.status).toBe(307)
+    expect(location(res)).toBe(`${ORIGIN}/login?error=auth`)
+  })
+
+  it('signs the fresh session out, clearing its cookie', async () => {
+    mocks.upsertUser.mockRejectedValue(new Error('db down'))
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    await GET(callback({ code: CODE }))
+    expect(fakeSupabaseAuth.signOutScopes).toEqual(['local'])
+    expect(fakeCookieStore.get(SESSION_COOKIE.name)).toMatchObject({
+      value: '',
+      options: { maxAge: 0 },
+    })
+  })
+
+  it('logs the error name and code only, never its message', async () => {
+    const failure = Object.assign(new Error('duplicate key: ana@example.com (Ana Souza)'), {
+      code: '23505',
+    })
+    mocks.upsertUser.mockRejectedValue(failure)
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    await GET(callback({ code: CODE }))
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith('user upsert failed', {
+      scope: 'auth',
+      error: 'Error:23505',
+    })
+    expect(JSON.stringify(mocks.error.mock.calls)).not.toMatch(/ana@example\.com|Ana Souza/)
+  })
+
+  it('logs the error name when there is no code', async () => {
+    mocks.upsertUser.mockRejectedValue(new TypeError('fetch failed'))
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    await GET(callback({ code: CODE }))
+    expect(mocks.error).toHaveBeenCalledWith('user upsert failed', {
+      scope: 'auth',
+      error: 'TypeError',
+    })
+  })
+
+  it('logs a non-Error throw as unknown', async () => {
+    mocks.upsertUser.mockRejectedValue('ana@example.com')
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    await GET(callback({ code: CODE }))
+    expect(mocks.error).toHaveBeenCalledWith('user upsert failed', {
+      scope: 'auth',
+      error: 'unknown',
+    })
   })
 })
 
