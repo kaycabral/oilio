@@ -80,7 +80,7 @@ STRIPE_PRICE_ADVANCED_ANNUAL=price_...
 ```
 
 > Não tem conta? `stripe sandbox create` gera chaves de teste funcionais sem
-> cadastro. Use sempre a última versão da API/SDK; o app fixa `2026-06-24.dahlia`
+> cadastro. Use sempre a última versão da API/SDK; o app fixa `2026-08-26.dahlia`
 > em `src/shared/billing/stripe-client.ts`.
 
 ## Webhook local
