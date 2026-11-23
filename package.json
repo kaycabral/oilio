@@ -25,7 +25,6 @@
   "packageManager": "pnpm@10.33.4+sha512.1c67b3b359b2d408119ba1ed289f34b8fc3c6873412bec6fd264fbdc82489e510fcbecb9ce9d22dae7f3b76269d8441046014bdca53b9979cd7a561ad631b800",
   "pnpm": {
     "overrides": {
-      "handlebars@<4.7.10": "^4.7.10",
       "postcss-selector-parser@<6.1.5": "^6.1.6",
       "minimatch@>=7.0.0 <11.0.1": "^11.0.9",
       "@esbuild-kit/core-utils>esbuild": "^0.25.0",
@@ -43,7 +42,7 @@
   },
   "devDependencies": {
     "@cbrl/commitlint-config": "^0.2.0",
-    "@cbrl/eslint-config": "^0.2.1",
+    "@cbrl/eslint-config": "^0.3.0",
     "@cbrl/prettier-config": "^0.1.0",
     "@commitlint/cli": "^21.2.4",
     "eslint": "^9.39.5",
