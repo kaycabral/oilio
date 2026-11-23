@@ -41,7 +41,7 @@
     "@cbrl/pg": "^0.3.0",
     "@cbrl/supabase": "^0.2.0",
     "@oilio/product": "workspace:*",
-    "@sentry/nextjs": "11.15.0",
+    "@sentry/nextjs": "11.16.0",
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@types/qrcode": "^1.5.6",
@@ -57,7 +57,7 @@
     "react-dom": "catalog:",
     "server-only": "catalog:",
     "sonner": "catalog:",
-    "stripe": "23.1.0"
+    "stripe": "23.2.0"
   },
   "devDependencies": {
     "@cbrl/eslint-config": "^0.3.0",
