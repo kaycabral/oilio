@@ -33,7 +33,7 @@ catalog:
   # Drizzle pinned to 0.45.x: the pre-1.0 v1 (RQB-V2, casing API, folders-v3) is
   # breaking — upgrade is a roadmap item.
   drizzle-orm: ~0.45.4
-  effect: ^3.22.4
+  effect: ^4.1.4
 
   eslint-config-next: ^16.4.6
   jsdom: ^31.0.1
