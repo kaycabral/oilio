@@ -31,13 +31,9 @@ jobs:
       - run: pnpm typecheck
       - uses: kaycabral/toolkit/.github/actions/drizzle-migrations@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
         with:
-          folders: apps/web/drizzle packages/product/drizzle
-          check: |
-            pnpm --filter @oilio/web exec drizzle-kit check
-            pnpm --filter @oilio/product exec drizzle-kit check
-          generate: |
-            pnpm --filter @oilio/web run db:generate
-            pnpm --filter @oilio/product exec drizzle-kit generate
+          folders: drizzle drizzle/product
+          check: pnpm db:check
+          generate: pnpm db:generate
 
   unit:
     name: Unit
@@ -67,7 +63,7 @@ jobs:
           - name: product
             run: pnpm test:integration
           - name: event store
-            run: pnpm --filter @oilio/web run test:integration
+            run: pnpm test:integration:events
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -114,20 +110,17 @@ jobs:
       # shards at once. Tear the stack down and start once more before failing.
       - name: Start the local Supabase stack
         run: |
-          if ! pnpm --filter @oilio/web run db:start; then
+          if ! pnpm db:start; then
             echo "::warning::supabase start failed; tearing the stack down and retrying once."
-            pnpm --filter @oilio/web exec supabase stop --no-backup --workdir .
-            pnpm --filter @oilio/web run db:start
+            pnpm exec supabase stop --no-backup --workdir .
+            pnpm db:start
           fi
       - uses: kaycabral/toolkit/.github/actions/playwright@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
-        with:
-          working-directory: apps/web
       - name: Run shard
-        working-directory: apps/web
-        run: pnpm run test:e2e
+        run: pnpm test:e2e
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-traces-${{ matrix.shard }}
-          path: apps/web/test-results/
+          path: test-results/
           retention-days: 7

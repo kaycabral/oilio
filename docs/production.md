@@ -4,17 +4,17 @@ Runbook do ambiente de produção do oilio: o que roda onde, como mudança chega
 
 ## Topologia
 
-| Peça                   | Onde                                                                           |
-| ---------------------- | ------------------------------------------------------------------------------ |
-| App (Next.js)          | Vercel, projeto `oilio`, Root Directory `apps/web`, domínio `www.oilio.com.br` |
-| Funções (SSR, actions) | Vercel `gru1` (São Paulo), fixado em `apps/web/vercel.json`                    |
-| Postgres + Auth        | Supabase, projeto `oilio` (`sa-east-1`, São Paulo)                             |
-| Login                  | Só Google (provider Google do Supabase Auth)                                   |
-| Pagamentos             | Stripe Billing (assinatura lojista → oilio), webhook `/api/webhooks/stripe`    |
-| Crons                  | Vercel Cron (`apps/web/vercel.json`), `Authorization: Bearer $CRON_SECRET`     |
-| Migrations             | GitHub Actions, job `deploy` do `main.yml`                                     |
+| Peça                   | Onde                                                                        |
+| ---------------------- | --------------------------------------------------------------------------- |
+| App (Next.js)          | Vercel, projeto `oilio`, Root Directory = raiz, domínio `www.oilio.com.br`  |
+| Funções (SSR, actions) | Vercel `gru1` (São Paulo), fixado em `vercel.json`                          |
+| Postgres + Auth        | Supabase, projeto `oilio` (`sa-east-1`, São Paulo)                          |
+| Login                  | Só Google (provider Google do Supabase Auth)                                |
+| Pagamentos             | Stripe Billing (assinatura lojista → oilio), webhook `/api/webhooks/stripe` |
+| Crons                  | Vercel Cron (`vercel.json`), `Authorization: Bearer $CRON_SECRET`           |
+| Migrations             | GitHub Actions, job `deploy` do `main.yml`                                  |
 
-**Ninguém acessa o banco de produção da própria máquina.** Dev, seed e E2E rodam no stack Supabase local (`pnpm --filter @oilio/web db:start`); a URL do banco de prod existe só no secret do GitHub e nas envs da Vercel.
+**Ninguém acessa o banco de produção da própria máquina.** Dev, seed e E2E rodam no stack Supabase local (`pnpm db:start`); a URL do banco de prod existe só no secret do GitHub e nas envs da Vercel.
 
 ### Roles do Postgres
 
@@ -28,12 +28,12 @@ A Data API (PostgREST) fica **desligada** no projeto: o app fala com o Postgres 
 
 ### Identidade
 
-`users.uid` é a identidade do app e é referenciada por todas as tabelas e pelo event store (imutável). Contas criadas no Supabase usam o próprio id do Auth como uid. Contas anteriores à migração (uid do Firebase) têm o uid antigo em `app_metadata.oilio_uid` — só o service role escreve ali, e o valor vem assinado no JWT. Ver `apps/web/src/shared/auth/session-user.ts`.
+`users.uid` é a identidade do app e é referenciada por todas as tabelas e pelo event store (imutável). Contas criadas no Supabase usam o próprio id do Auth como uid. Contas anteriores à migração (uid do Firebase) têm o uid antigo em `app_metadata.oilio_uid` — só o service role escreve ali, e o valor vem assinado no JWT. Ver `src/shared/auth/session-user.ts`.
 
 ## Fluxo de uma mudança
 
 1. PR → `pull-request.yml` roda o pipeline (`checks.yml`), tudo em paralelo: static (format, lint, typecheck, higiene de migrations: journal consistente, schema sem drift, migrations da `main` imutáveis); unit; integração Postgres (product e event store); **suíte E2E completa** em 4 shards no stack Supabase local; dependency review. O ruleset da `main` exige o check agregador `CI passed` e a branch atualizada antes do merge.
-2. Merge na `main` → `main.yml`: o job `provenance` confirma pela API que a árvore do commit é idêntica à do head de um PR com `CI passed` verde (é o que o ruleset garante). Confirmado, não re-roda nada; não confirmado (push direto via bypass, PR desatualizado), roda o pipeline completo antes. Então `Deploy (migrate database)` aplica as migrations pendentes do event store e do `@oilio/product` (no-op quando não há). Commit não provado → `Deploy (migrate database)` **falha** em vez de ser pulado (um check "skipped" passaria no Deployment Check da Vercel).
+2. Merge na `main` → `main.yml`: o job `provenance` confirma pela API que a árvore do commit é idêntica à do head de um PR com `CI passed` verde (é o que o ruleset garante). Confirmado, não re-roda nada; não confirmado (push direto via bypass, PR desatualizado), roda o pipeline completo antes. Então `Deploy (migrate database)` aplica as migrations pendentes do event store e da base de produtos (`pnpm db:migrate`, os dois journals; no-op quando não há). Commit não provado → `Deploy (migrate database)` **falha** em vez de ser pulado (um check "skipped" passaria no Deployment Check da Vercel).
 3. A Vercel builda o mesmo commit e só promove pra produção depois de dois Deployment Checks passarem: `Deploy (migrate database)` (o código novo nunca entra no ar antes do schema que ele usa) e `Smoke (production)` (o deploy real responde antes de receber o domínio; ver [Smoke de produção](#smoke-de-produção)).
 4. Toda noite `nightly.yml` roda o pipeline completo na `main` sem mudança (pega teste dependente de data, flake e drift de dependência). `scorecard.yml` mede a postura de supply chain (OpenSSF) toda semana.
 5. Dependências: o Dependabot só propõe versões com 3+ dias de publicadas (`cooldown`; o pnpm aplica a mesma quarentena via `minimumReleaseAge`). Os grupos `minor-and-patch` (npm, sem as críticas) e `actions` são mergeados sozinhos por `dependabot-auto-merge.yml` quando o PR fica verde, que em seguida dispara o `main.yml` (merge feito com `GITHUB_TOKEN` não dispara `push`). Ficam para revisão humana: o grupo `critical` (`next`, `stripe`, `@supabase/*`, `supabase`, `drizzle-*`, `pg`, `@sentry/*`, `effect`: o que o CI não prova por inteiro), `@cbrl/*`, majors e updates de segurança.
@@ -44,7 +44,7 @@ A Data API (PostgREST) fica **desligada** no projeto: o app fala com o Postgres 
 
 - **Gatilho**: a Vercel manda `repository_dispatch` `vercel.deployment.ready` quando o build termina e o deploy fica esperando os Deployment Checks. O projeto tem os GitHub Deployments desligados (`createDeployments: disabled`), então não existe `deployment_status`; o `repository_dispatch` é o caminho que a Vercel documenta pra Deployment Checks. Deploys de Preview também disparam e o job é pulado.
 - **Ordem**: o job espera o `Deploy (migrate database)` do mesmo commit terminar verde (até 10 min) antes de testar, pra nunca testar código novo contra schema antigo.
-- **O que confere** (`apps/web/tests/smoke/`, preset `defineSmokeConfig`/`smokeSuite` do `@cbrl/testing`): `/api/health` 200 com `status: ok`, `database: ok` (round-trip no Postgres como `oilio_app`) e o `commit` do deploy; `/` e `/login` renderizam com CSP report-only + `Reporting-Endpoints`, HSTS, `nosniff` e `X-Frame-Options`; o botão "Continuar com Google" do `/login` leva ao `authorize` do projeto Supabase de produção, que redireciona pro Google com o `redirect_uri` do callback do Supabase. A navegação pro Google é abortada: o OAuth nunca é completado (o Supabase só registra um `flow_state` PKCE que ele mesmo expira).
+- **O que confere** (`tests/smoke/`, preset `defineSmokeConfig`/`smokeSuite` do `@cbrl/testing`): `/api/health` 200 com `status: ok`, `database: ok` (round-trip no Postgres como `oilio_app`) e o `commit` do deploy; `/` e `/login` renderizam com CSP report-only + `Reporting-Endpoints`, HSTS, `nosniff` e `X-Frame-Options`; o botão "Continuar com Google" do `/login` leva ao `authorize` do projeto Supabase de produção, que redireciona pro Google com o `redirect_uri` do callback do Supabase. A navegação pro Google é abortada: o OAuth nunca é completado (o Supabase só registra um `flow_state` PKCE que ele mesmo expira).
 - **Resultado**: o job grava o commit status `Smoke (production)` no commit deployado (action oficial `vercel/repository-dispatch/actions/status`). É esse status, não o check run do job (`Smoke`), que a Vercel exige.
 - **Deployment Protection**: a URL do deploy fica atrás da Vercel Authentication. O job passa o secret `VERCEL_AUTOMATION_BYPASS_SECRET` (Protection Bypass for Automation) só no primeiro request; a Vercel responde com um cookie do host do deploy, então o secret não vai pro Supabase nem pro Google. Sem o secret, o job falha dizendo isso.
 - **Rodar à mão**: Actions → Smoke → _Run workflow_ com a URL do deploy (ou `https://www.oilio.com.br`) e o SHA completo que ele deve reportar. Execução manual nunca grava o status, então não promove nada.
@@ -53,7 +53,7 @@ A Data API (PostgREST) fica **desligada** no projeto: o app fala com o Postgres 
 
 ## Regras de migration
 
-- **Gerar, nunca escrever à mão o diff de schema**: `pnpm --filter @oilio/web db:generate` (event store) / `pnpm --filter @oilio/product db:generate`. SQL fora do Drizzle (roles, grants, RLS) via `drizzle-kit generate --custom`.
+- **Gerar, nunca escrever à mão o diff de schema**: `pnpm db:generate` (gera os dois: event store em `drizzle/`, base de produtos em `drizzle/product/`). SQL fora do Drizzle (roles, grants, RLS) via `drizzle-kit generate --custom`.
 - **Imutáveis depois do merge.** Errou? Nova migration corrigindo (fix forward). O CI bloqueia edição/rename/remoção.
 - **Expand → contract.** Durante o deploy, a versão anterior do app roda contra o schema novo:
   - adicionar coluna: nullable ou com default;

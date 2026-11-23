@@ -73,4 +73,4 @@ jobs:
           # from the runners and it keeps the session the migrator's advisory
           # lock needs (the 6543 transaction pooler does not).
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
-        run: pnpm --filter @oilio/web run db:migrate
+        run: pnpm db:migrate

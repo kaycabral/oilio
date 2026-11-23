@@ -1,8 +1,8 @@
 # Ephemeral Postgres for the integration suites (`pnpm test:integration`,
-# `pnpm --filter @oilio/web test:integration`): native constraints, RLS and the
+# `pnpm test:integration:events`): native constraints, RLS and the
 # event store proved against a real database, never a mock. No named volume, so
 # every run starts empty. The runners in scripts/ bring it up and tear it down.
-# Dev, seed and E2E use the local Supabase stack instead (apps/web/supabase).
+# Dev, seed and E2E use the local Supabase stack instead (supabase/).
 
 services:
   postgres:

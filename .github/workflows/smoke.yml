@@ -110,23 +110,20 @@ jobs:
           persist-credentials: false
       - uses: kaycabral/toolkit/.github/actions/setup@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
       - uses: kaycabral/toolkit/.github/actions/playwright@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
-        with:
-          working-directory: apps/web
 
       - name: Run the smoke suite
-        working-directory: apps/web
         env:
           SMOKE_BASE_URL: ${{ steps.target.outputs.url }}
           SMOKE_EXPECTED_COMMIT: ${{ steps.target.outputs.sha }}
           # Optional until the owner creates it; without it a deployment URL
           # behind Vercel Authentication fails in the global setup, by name.
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-        run: pnpm run test:smoke
+        run: pnpm test:smoke
 
       - name: Keep the traces
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: smoke-traces
-          path: apps/web/test-results/
+          path: test-results/
           retention-days: 7

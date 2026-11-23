@@ -84,7 +84,7 @@ Each test has **one** clearly named responsibility. If the name needs an "and" (
 
 ## Test discipline
 
-- **Single command.** The unit + integration suite runs from the repo root with `pnpm --filter "@<scope>/*" test` (delegates to each workspace's `test` script). E2E runs with `pnpm --filter @<scope>/web run test:e2e`. Smoke runs post-deploy in CI against real URLs. If a test needs manual setup before it runs, that's a bug in the setup, not a thing to document as a workaround.
+- **Single command.** The unit suite runs from the repo root with `pnpm test`; the integration suites with `pnpm test:integration` / `pnpm test:integration:events`. E2E runs with `pnpm test:e2e`. Smoke runs post-deploy in CI against real URLs. If a test needs manual setup before it runs, that's a bug in the setup, not a thing to document as a workaround.
 - **Every new function gets a test.** A public function shipped without a test is incomplete. A bug fix shipped without a regression test that reproduces the bug is incomplete — the regression test is the proof the bug stays fixed.
 - **Named fakes, not inline stubs.** When mocking external I/O outside HTTP (DB, filesystem, queues), build a named fake reusable across tests (`FakeMailer`, `FakeStorage`) instead of scattering ad-hoc `vi.fn()` per test. msw already covers HTTP. Inline stubs duplicate setup and rot independently across tests.
 - **F.I.R.S.T.** Fast (unit/integration in milliseconds, not seconds), Independent (no order coupling, no shared mutable fixtures across tests), Repeatable (no flake from clocks, network, or ordering — fix the test, don't retry it), Self-validating (the test asserts; no `console.log` for the human to eyeball), Timely (written with the feature, not bolted on months later).
@@ -170,7 +170,7 @@ Aplicar tag no `test.describe()` propaga pra todos children. Múltiplas: `{ tag:
 
 Toda suíte E2E backed por DB/Auth deve ter `globalSetup` que faz **write→query round-trip** antes do primeiro teste. Por quê: probe de URL (`webServer.url`) só confirma que porta tá bindada, não que index/auth está query-ready. Isso expõe race em testes que fazem seed→action-query rápido.
 
-Padrão canônico (ver `apps/web/tests/e2e/helpers/global-setup.ts`):
+Padrão canônico (ver `tests/e2e/helpers/global-setup.ts`):
 
 ```ts
 // playwright.config.ts
@@ -205,46 +205,26 @@ Test isolation via namespacing (UUID/timestamp prefix em todo ID gerado por seed
 ## Comandos
 
 ```bash
-# Raiz do monorepo
-pnpm test                                                # Vitest em todos workspaces (unit + integration)
-pnpm run test:e2e                                        # Playwright em todos workspaces que têm
-pnpm run test:smoke                                      # Smoke configs (post-deploy)
-
-# Per-workspace
-pnpm --filter ./apps/<x> test
-pnpm --filter ./apps/<x> run test:e2e
-pnpm --filter ./apps/<x> run test:e2e:ui                 # UI mode interativo (quando disponível)
-pnpm --filter ./apps/<x> run test:smoke -- --base-url=https://staging.example.com
+# Tudo roda da raiz do repo (um app só, sem workspaces)
+pnpm test                       # Vitest unit (projetos node + dom), com catraca de cobertura
+pnpm test:integration           # base de produtos + gate do app contra Postgres efêmero
+pnpm test:integration:events    # event store + gate do app contra Postgres efêmero
+pnpm test:e2e                   # Playwright (exige `pnpm db:start`)
+pnpm test:smoke                 # smoke pós-deploy (SMOKE_BASE_URL)
 ```
-
-`pnpm -r run` pula workspaces que não declaram o script — rodar `test:e2e` na raiz não falha em apps sem Playwright.
 
 ## E2E local
 
 ```bash
-npx playwright install                                   # Setup uma vez. Browsers em ~/.cache/ms-playwright/
+pnpm exec playwright install chromium                    # Setup uma vez. Browsers em ~/.cache/ms-playwright/
 
-pnpm --filter ./apps/<x> run test:e2e
-# Playwright spawna o servidor automaticamente via `webServer` config.
-# Se já tiver o servidor rodando, `reuseExistingServer` reaproveita.
+pnpm test:e2e
+# O runner (scripts/e2e.ts) sobe stripe-mock e o Next (build de produção) via `webServer`.
 ```
 
-Cada app escolhe **um** de dois layouts (consistente dentro do app):
+Layout: **centralizado por feature** — `tests/e2e/<feature>/<scenario>.spec.ts`, com `journeys/` pros specs cross-cutting sem rota única.
 
-- **Co-localizado com a rota** — `apps/<x>/src/.../_e2e/<feature>.spec.ts`. Default histórico do monorepo. Mantém spec perto da rota que testa; bom quando o número de specs por rota é pequeno e a cobertura cresce junto com o produto. Adotado em `focusely`, `cbrl.dev`, `gabar`, `imovil`.
-- **Centralizado por feature** — `apps/<x>/tests/e2e/<feature>/<scenario>.spec.ts`. Boa quando o número de specs cresce a ponto de a co-localização gerar pastas `_e2e/` por todo lado e/ou specs cross-cutting (`journeys/`) não terem rota única. Adotado em `scheduling`.
-
-Listar todos os specs E2E do monorepo:
-
-```bash
-find apps \( -path "*/_e2e/*.spec.ts" -o -path "*/tests/e2e/*.spec.ts" \) -not -path "*/node_modules/*"
-```
-
-Smoke configs (`playwright.smoke.config.ts`) **não** spawnam dev server — testam contra URL real:
-
-```bash
-pnpm --filter ./apps/focusely run test:smoke -- --base-url=https://focusely.web.app
-```
+Smoke config (`playwright.smoke.config.ts`) **não** spawna dev server — testa contra URL real (`SMOKE_BASE_URL`), rodado pelo `smoke.yml` antes da promoção do deploy.
 
 ## Production build pro E2E (Next.js apps)
 
@@ -305,13 +285,13 @@ Total: ~848 unit + integration, 32 E2E specs / 78 E2E tests.
 
 ## Pré-requisitos por app pra E2E não falhar
 
-| App              | Setup obrigatório antes do `test:e2e`                                                                                                                |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| apps/cbrl.dev    | nada — landing estática                                                                                                                              |
-| apps/focusely    | nada — sem backend                                                                                                                                   |
-| apps/web (oilio) | Stack Supabase local no ar (`pnpm --filter @oilio/web db:start`). O `test:e2e` aplica as migrations, builda e sobe o Next (como `oilio_app`) sozinho |
-| apps/imovil      | `pnpm run db:start` (Firebase emulators) + `.env.local`                                                                                              |
-| apps/gabar/web   | `.env.development.local` (com `NEXT_PUBLIC_FIREBASE_*` ou emulator)                                                                                  |
+| App            | Setup obrigatório antes do `test:e2e`                                                                                            |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| apps/cbrl.dev  | nada — landing estática                                                                                                          |
+| apps/focusely  | nada — sem backend                                                                                                               |
+| oilio (raiz)   | Stack Supabase local no ar (`pnpm db:start`). O `test:e2e` aplica as migrations, builda e sobe o Next (como `oilio_app`) sozinho |
+| apps/imovil    | `pnpm run db:start` (Firebase emulators) + `.env.local`                                                                          |
+| apps/gabar/web | `.env.development.local` (com `NEXT_PUBLIC_FIREBASE_*` ou emulator)                                                              |
 
 Sem o stack local/env, o `globalSetup` falha ("local Supabase may be down") ou o Playwright dá timeout em `config.webServer`. Não é falha do teste — é setup faltando.
 

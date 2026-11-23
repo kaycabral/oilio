@@ -3,7 +3,7 @@
 // integration layer post-cutover (#1202): the event-store suite
 // (`*.events.pg.integration.test.ts`) AND the product-gate suite
 // (`*.pg.integration.test.ts`). After the cutover there is no Firestore-emulator
-// integration test left, so `@oilio/web run test:integration` routes here.
+// integration test left, so `pnpm test:integration:events` routes here.
 //
 // Connection resolution + the docker/`oilio`-DB plumbing live in
 // `oilio-pg-lib.mjs`. Three modes, by what
@@ -26,7 +26,6 @@ import {
   ensureOilioDatabase,
   resolveConnection,
   run,
-  webDir,
 } from './oilio-pg-lib.mjs'
 
 const { oilioUrl, adminUrl, dbAttached } = resolveConnection()
@@ -54,13 +53,8 @@ try {
   const suiteEnv = { ...process.env, OILIO_DATABASE_URL: oilioUrl, DATABASE_URL: adminUrl }
   // The full Postgres integration layer: event-store suite + product-gate suite.
   // Run both and OR the statuses so one report surfaces every failure.
-  const eventsStatus = run(
-    'pnpm',
-    ['--filter', '@oilio/web', 'run', 'test:integration:events:pg'],
-    { cwd: webDir, env: suiteEnv },
-  )
-  const pgStatus = run('pnpm', ['--filter', '@oilio/web', 'run', 'test:integration:pg'], {
-    cwd: webDir,
+  const eventsStatus = run('pnpm', ['run', 'test:integration:events:pg'], { env: suiteEnv })
+  const pgStatus = run('pnpm', ['run', 'test:integration:pg'], {
     env: suiteEnv,
   })
   testStatus = eventsStatus === 0 && pgStatus === 0 ? 0 : 1
