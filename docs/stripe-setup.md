@@ -80,12 +80,19 @@ STRIPE_PRICE_ADVANCED_ANNUAL=price_...
 ```
 
 > Não tem conta? `stripe sandbox create` gera chaves de teste funcionais sem
-> cadastro. Use sempre a última versão da API/SDK; o app fixa `2026-10-28.endive`
-> em `src/shared/billing/stripe-client.ts`.
+> cadastro. Use sempre a última versão da API/SDK.
+>
+> A versão da API é fixada **num único lugar**: a constante `STRIPE_API_VERSION`
+> em `apps/web/src/shared/billing/stripe-api-version.ts`. Client do app, scripts
+> (`sync-stripe-catalog`, seed) e testes importam dela. A constante é tipada
+> contra o SDK (`satisfies Stripe.LatestApiVersion`): ao subir o pacote `stripe`
+> para uma versão que pina outra API, o typecheck falha só nessa linha — trocar
+> o literal ali é a mudança revisada de upgrade (leia o changelog da API entre
+> as duas versões antes).
 >
 > Os eventos do webhook chegam na versão de API do **endpoint** cadastrado no
-> Stripe, não na do SDK. Ao trocar a release da API (ex.: `dahlia` → `endive`),
-> alinhe a versão do endpoint de produção à fixada no app.
+> Stripe, não na do SDK. A cada troca de `STRIPE_API_VERSION`, crie/atualize o
+> endpoint de webhook de produção (e o de teste) para a mesma versão (#2).
 
 ## Webhook local
 

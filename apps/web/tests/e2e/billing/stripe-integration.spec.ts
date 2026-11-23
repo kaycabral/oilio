@@ -1,3 +1,4 @@
+import { STRIPE_API_VERSION } from '@/shared/billing/stripe-api-version'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import {
@@ -91,7 +92,7 @@ test.describe('Cobrança — integração Stripe (stripe-mock)', { tag: '@critic
         id: `evt_e2e_${org.orgId}`,
         object: 'event',
         type: 'checkout.session.completed',
-        api_version: '2026-10-28.endive',
+        api_version: STRIPE_API_VERSION,
         created: Math.floor(Date.now() / 1000),
         livemode: false,
         pending_webhooks: 1,

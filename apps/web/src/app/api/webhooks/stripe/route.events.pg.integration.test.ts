@@ -1,3 +1,4 @@
+import { STRIPE_API_VERSION } from '@/shared/billing/stripe-api-version'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import Stripe from 'stripe'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -5,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const WEBHOOK_SECRET = 'whsec_test_secret'
 const PRO_MONTHLY = 'price_pro_monthly_test'
 
-const stripe = new Stripe('sk_test_unused', { apiVersion: '2026-10-28.endive' })
+const stripe = new Stripe('sk_test_unused', { apiVersion: STRIPE_API_VERSION })
 
 const mocks = vi.hoisted(() => ({
   retrieve: vi.fn<(id: string) => Promise<Stripe.Subscription>>(),
@@ -28,7 +29,7 @@ function checkoutPayload(orgId: string, subId: string): string {
     id: `evt_${Math.random().toString(36).slice(2)}`,
     object: 'event',
     type: 'checkout.session.completed',
-    api_version: '2026-10-28.endive',
+    api_version: STRIPE_API_VERSION,
     data: {
       object: {
         id: 'cs_1',
@@ -83,7 +84,7 @@ function buildSubscription(subId: string, orgId: string): Stripe.Subscription {
     id: 'evt_sub',
     object: 'event',
     type: 'customer.subscription.updated',
-    api_version: '2026-10-28.endive',
+    api_version: STRIPE_API_VERSION,
     data: { object: subscriptionObject(subId, orgId) },
   })
   const header = stripe.webhooks.generateTestHeaderString({ payload, secret: WEBHOOK_SECRET })
