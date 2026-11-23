@@ -8,7 +8,7 @@
 - **DB**: Postgres no Supabase — event store + projeções (`@/shared/db`) e a base de produtos (`@oilio/product`) no mesmo banco, journals de migration separados. App conecta como `oilio_app` (só DML, `NOBYPASSRLS`); isolamento por org via RLS.
 - **Deploy**: Vercel (`gru1`) + Supabase (`sa-east-1`); migrations só pelo CI (GitHub Actions). Runbook: [`docs/production.md`](./docs/production.md); decisão: [ADR 0020](./docs/decisions/0020-supabase-vercel.md).
 - **Testing**: Vitest (unit, co-located `*.test.tsx`; integração contra Postgres efêmero) + Playwright (E2E em `apps/web/tests/e2e/`, contra o stack Supabase local).
-- **Node**: 24+ (see `.nvmrc`).
+- **Node**: 26 LTS (see `.nvmrc`; `engines.node` is `26.x`).
 
 ## Workspaces
 

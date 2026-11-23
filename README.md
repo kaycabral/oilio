@@ -15,7 +15,7 @@ Docs técnicos locais:
 
 ## Pré-requisitos
 
-- **Node** na versão do `.nvmrc` e **pnpm** via Corepack (`corepack enable`). Depois: `pnpm install` na raiz.
+- **Node** na versão do `.nvmrc` (26 LTS) e **pnpm** na versão do `packageManager` (o Node 26 não traz Corepack: instale o pnpm à parte). Depois: `pnpm install` na raiz.
 - **Docker** — o stack Supabase local (Postgres + Auth) e as suítes de integração rodam em containers.
 - **Supabase CLI** (`supabase`) no `PATH` — usado pelo `db:start`/`db:stop`.
 
