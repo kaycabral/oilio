@@ -80,8 +80,12 @@ STRIPE_PRICE_ADVANCED_ANNUAL=price_...
 ```
 
 > Não tem conta? `stripe sandbox create` gera chaves de teste funcionais sem
-> cadastro. Use sempre a última versão da API/SDK; o app fixa `2026-08-26.dahlia`
+> cadastro. Use sempre a última versão da API/SDK; o app fixa `2026-10-28.endive`
 > em `src/shared/billing/stripe-client.ts`.
+>
+> Os eventos do webhook chegam na versão de API do **endpoint** cadastrado no
+> Stripe, não na do SDK. Ao trocar a release da API (ex.: `dahlia` → `endive`),
+> alinhe a versão do endpoint de produção à fixada no app.
 
 ## Webhook local
 

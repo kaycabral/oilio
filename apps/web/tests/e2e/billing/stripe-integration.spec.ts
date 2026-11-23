@@ -91,7 +91,7 @@ test.describe('Cobrança — integração Stripe (stripe-mock)', { tag: '@critic
         id: `evt_e2e_${org.orgId}`,
         object: 'event',
         type: 'checkout.session.completed',
-        api_version: '2026-08-26.dahlia',
+        api_version: '2026-10-28.endive',
         created: Math.floor(Date.now() / 1000),
         livemode: false,
         pending_webhooks: 1,
