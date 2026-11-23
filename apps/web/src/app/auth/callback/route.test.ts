@@ -1,64 +1,197 @@
+import { fakeCookieStore, fakeSupabaseAuth } from '@/shared/auth/fake-supabase-ssr'
+import type * as Log from '@cbrl/log'
+import { AuthApiError, type User } from '@supabase/supabase-js'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  exchangeCodeForSession: vi.fn(),
-  upsertUser: vi.fn(),
+const mocks = vi.hoisted(() => ({ upsertUser: vi.fn(), warn: vi.fn() }))
+
+vi.mock('@cbrl/log', async (importOriginal) => ({
+  ...(await importOriginal<typeof Log>()),
+  logger: { debug: vi.fn(), info: vi.fn(), warn: mocks.warn, error: vi.fn() },
 }))
 
-vi.mock('@cbrl/supabase/server', () => ({
-  createSupabaseServerClient: () =>
-    Promise.resolve({ auth: { exchangeCodeForSession: mocks.exchangeCodeForSession } }),
-}))
+vi.mock('@supabase/ssr', () => import('@/shared/auth/fake-supabase-ssr'))
+vi.mock('next/headers', async () => {
+  const { fakeCookieStore: store } = await import('@/shared/auth/fake-supabase-ssr')
+  return { cookies: () => Promise.resolve(store) }
+})
 vi.mock('@/shared/auth/upsert-user', () => ({ upsertUser: mocks.upsertUser }))
 
 import { GET } from './route'
 
-function callback(query: string): NextRequest {
-  return new NextRequest(`https://oilio.test/auth/callback${query}`)
+const ORIGIN = 'https://oilio.test'
+const CODE = 'pkce-code-123'
+const SESSION_COOKIE = {
+  name: 'sb-oilio-auth-token',
+  value: 'base64-session',
+  options: { path: '/', sameSite: 'lax' as const, httpOnly: false, maxAge: 34_560_000 },
 }
 
-const USER = {
-  id: 'auth-1',
-  email: 'ana@example.com',
-  app_metadata: { oilio_uid: 'legacy-uid' },
-  user_metadata: { full_name: 'Ana', email_verified: true },
+function googleUser(overrides: Partial<User> = {}): User {
+  return {
+    id: 'auth-1',
+    aud: 'authenticated',
+    email: 'ana@example.com',
+    created_at: '2026-01-01T00:00:00Z',
+    app_metadata: { provider: 'google' },
+    user_metadata: {
+      full_name: 'Ana Souza',
+      avatar_url: 'https://lh3.googleusercontent.com/a/ana',
+      email_verified: true,
+    },
+    ...overrides,
+  }
+}
+
+function callback(query: Record<string, string>): NextRequest {
+  const url = new URL('/auth/callback', ORIGIN)
+  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
+  return new NextRequest(url)
+}
+
+function location(res: Response): string | null {
+  return res.headers.get('location')
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://project.supabase.co')
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test')
+  fakeSupabaseAuth.reset()
+  fakeCookieStore.reset()
+  mocks.upsertUser.mockReset().mockResolvedValue(undefined)
+  mocks.warn.mockClear()
 })
 
-describe('GET /auth/callback', () => {
-  it('exchanges the code, records the user and lands on the safe `next`', async () => {
-    mocks.exchangeCodeForSession.mockResolvedValue({ data: { user: USER }, error: null })
-    const res = await GET(callback('?code=abc&next=%2Fagenda'))
-    expect(mocks.exchangeCodeForSession).toHaveBeenCalledWith('abc')
-    expect(mocks.upsertUser).toHaveBeenCalledWith(
-      expect.objectContaining({ uid: 'legacy-uid', authUserId: 'auth-1', emailVerified: true }),
-    )
-    expect(res.headers.get('location')).toBe('https://oilio.test/agenda')
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
+describe('GET /auth/callback — successful Google sign-in', () => {
+  it('exchanges the code with the configured Supabase project', async () => {
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    await GET(callback({ code: CODE }))
+    expect(fakeSupabaseAuth.clients).toEqual([
+      { url: 'https://project.supabase.co', key: 'sb_publishable_test' },
+    ])
+    expect(fakeSupabaseAuth.exchangedCodes).toEqual([CODE])
   })
 
-  it('never redirects off-site after sign-in', async () => {
-    mocks.exchangeCodeForSession.mockResolvedValue({ data: { user: USER }, error: null })
-    const res = await GET(callback('?code=abc&next=%2F%2Fevil.example'))
-    expect(new URL(res.headers.get('location') ?? '').origin).toBe('https://oilio.test')
+  it('writes the session cookie to the request cookie store', async () => {
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    await GET(callback({ code: CODE }))
+    expect(fakeCookieStore.get(SESSION_COOKIE.name)).toEqual(SESSION_COOKIE)
   })
 
-  it('sends a failed exchange back to login without recording anyone', async () => {
-    mocks.exchangeCodeForSession.mockResolvedValue({
-      data: { user: null },
-      error: { code: 'bad_code_verifier', name: 'AuthApiError' },
+  it('records a new account under its Supabase id', async () => {
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    await GET(callback({ code: CODE }))
+    expect(mocks.upsertUser).toHaveBeenCalledExactlyOnceWith({
+      uid: 'auth-1',
+      authUserId: 'auth-1',
+      email: 'ana@example.com',
+      displayName: 'Ana Souza',
+      picture: 'https://lh3.googleusercontent.com/a/ana',
+      emailVerified: true,
     })
-    const res = await GET(callback('?code=abc'))
+  })
+
+  it('records a migrated account under its legacy Firebase uid', async () => {
+    fakeSupabaseAuth.signsIn(
+      googleUser({ app_metadata: { provider: 'google', oilio_uid: 'firebase-uid-9' } }),
+      [SESSION_COOKIE],
+    )
+    await GET(callback({ code: CODE }))
+    expect(mocks.upsertUser).toHaveBeenCalledWith(
+      expect.objectContaining({ uid: 'firebase-uid-9', authUserId: 'auth-1' }),
+    )
+  })
+
+  it('records the user before redirecting into the app', async () => {
+    const order: string[] = []
+    mocks.upsertUser.mockImplementation(() => {
+      order.push('upsert')
+      return Promise.resolve()
+    })
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    const res = await GET(callback({ code: CODE }))
+    order.push('redirect')
+    expect(order).toEqual(['upsert', 'redirect'])
+    expect(res.status).toBe(307)
+  })
+
+  it('lands on the requested same-origin `next`, keeping its query', async () => {
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    const res = await GET(callback({ code: CODE, next: '/agenda?day=2026-11-23' }))
+    expect(location(res)).toBe(`${ORIGIN}/agenda?day=2026-11-23`)
+  })
+
+  it('lands on the dashboard when no `next` is given', async () => {
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    const res = await GET(callback({ code: CODE }))
+    expect(location(res)).toBe(`${ORIGIN}/dashboard`)
+  })
+
+  it('surfaces a failing user upsert instead of redirecting into the app', async () => {
+    mocks.upsertUser.mockRejectedValue(new Error('db down'))
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    await expect(GET(callback({ code: CODE }))).rejects.toThrow('db down')
+  })
+})
+
+describe('GET /auth/callback — open redirect in `next`', () => {
+  it.each([
+    ['protocol-relative', '//evil.example/phish'],
+    ['backslash host', '/\\evil.example'],
+    ['tab-smuggled host', '/\t/evil.example'],
+    ['absolute https URL', 'https://evil.example/phish'],
+    ['javascript URL', 'javascript:alert(1)'],
+    ['relative path', 'dashboard'],
+  ])('falls back to the dashboard for a %s', async (_label, next) => {
+    fakeSupabaseAuth.signsIn(googleUser(), [SESSION_COOKIE])
+    const res = await GET(callback({ code: CODE, next }))
+    expect(location(res)).toBe(`${ORIGIN}/dashboard`)
+  })
+})
+
+describe('GET /auth/callback — failed sign-in', () => {
+  it('sends a rejected code back to login without recording anyone', async () => {
+    fakeSupabaseAuth.rejectsCode(new AuthApiError('invalid flow state', 400, 'bad_code_verifier'))
+    const res = await GET(callback({ code: CODE, next: '/agenda' }))
+    expect(location(res)).toBe(`${ORIGIN}/login?error=auth`)
     expect(mocks.upsertUser).not.toHaveBeenCalled()
-    expect(res.headers.get('location')).toBe('https://oilio.test/login?error=auth')
+    expect(fakeCookieStore.getAll()).toEqual([])
+  })
+
+  it('logs the failure by error code only', async () => {
+    fakeSupabaseAuth.rejectsCode(new AuthApiError('invalid flow state', 400, 'bad_code_verifier'))
+    await GET(callback({ code: CODE }))
+    expect(mocks.warn).toHaveBeenCalledExactlyOnceWith('code exchange failed', {
+      scope: 'auth',
+      error: 'bad_code_verifier',
+    })
+  })
+
+  it('logs the error name when Supabase sends no code', async () => {
+    fakeSupabaseAuth.rejectsCode(new AuthApiError('upstream', 502, undefined))
+    await GET(callback({ code: CODE }))
+    expect(mocks.warn).toHaveBeenCalledWith('code exchange failed', {
+      scope: 'auth',
+      error: 'AuthApiError',
+    })
   })
 
   it('sends a request without a code back to login', async () => {
-    const res = await GET(callback(''))
-    expect(mocks.exchangeCodeForSession).not.toHaveBeenCalled()
-    expect(res.headers.get('location')).toBe('https://oilio.test/login?error=auth')
+    const res = await GET(callback({ next: '/agenda' }))
+    expect(location(res)).toBe(`${ORIGIN}/login?error=auth`)
+    expect(fakeSupabaseAuth.exchangedCodes).toEqual([])
+    expect(mocks.upsertUser).not.toHaveBeenCalled()
+  })
+
+  it('sends the user back to login when Supabase is not configured', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', '')
+    const res = await GET(callback({ code: CODE }))
+    expect(location(res)).toBe(`${ORIGIN}/login?error=auth`)
+    expect(fakeSupabaseAuth.clients).toEqual([])
   })
 })
