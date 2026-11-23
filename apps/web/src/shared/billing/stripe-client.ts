@@ -29,7 +29,7 @@ export function getStripe(): Stripe {
   if (cached) return cached
   const secretKey = requireEnv('STRIPE_SECRET_KEY')
   cached = new Stripe(secretKey, {
-    apiVersion: '2026-08-26.dahlia',
+    apiVersion: '2026-10-28.endive',
     ...stripeEndpoint(secretKey, process.env.STRIPE_API_BASE),
   })
   return cached
