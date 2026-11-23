@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto'
+
 import { expect, test } from '../fixtures'
 import { listItem, rowAction } from '../helpers/list'
 import { seedCustomer, seedCustomerShadowForUser, uniqueWhatsapp } from '../helpers/session'
 
 async function seedDegenerateCustomer(orgId: string): Promise<string> {
-  const missingUserId = `e2e-missing-user-${Math.random().toString(36).slice(2)}`
+  const missingUserId = `e2e-missing-user-${randomUUID()}`
   return await seedCustomerShadowForUser(orgId, missingUserId)
 }
 

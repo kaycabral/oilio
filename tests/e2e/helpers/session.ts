@@ -172,7 +172,7 @@ import { getUserById, putUser } from '@/shared/db/pg/users-store'
 import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
 import { buildAddress } from '@/shared/fixtures/seed-domain-builders'
 import { Schema } from 'effect'
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, randomInt } from 'node:crypto'
 
 function uniqueSuffix() {
   return `${Date.now()}-${randomBytes(4).toString('hex')}`
@@ -181,9 +181,9 @@ function uniqueSuffix() {
 let whatsappCounter = 0
 export function uniqueWhatsapp(): string {
   whatsappCounter += 1
-  const rand = randomBytes(4).readUInt32BE(0)
-  const subscriber = (rand + whatsappCounter) % 100_000_000
-  return `55119${String(subscriber).padStart(8, '0')}`
+  const random = String(randomInt(1_000_000)).padStart(6, '0')
+  const sequence = String(whatsappCounter % 100).padStart(2, '0')
+  return `55119${random}${sequence}`
 }
 
 export function uniqueNationalWhatsapp(): string {
