@@ -109,7 +109,16 @@ jobs:
         with:
           persist-credentials: false
       - uses: kaycabral/toolkit/.github/actions/setup@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
-      - run: pnpm --filter @oilio/web run db:start
+      # `supabase start` intermittently restarts the db container and then fails
+      # to bind its host port ("address already in use"), occasionally on several
+      # shards at once. Tear the stack down and start once more before failing.
+      - name: Start the local Supabase stack
+        run: |
+          if ! pnpm --filter @oilio/web run db:start; then
+            echo "::warning::supabase start failed; tearing the stack down and retrying once."
+            pnpm --filter @oilio/web exec supabase stop --no-backup --workdir .
+            pnpm --filter @oilio/web run db:start
+          fi
       - uses: kaycabral/toolkit/.github/actions/playwright@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
         with:
           working-directory: apps/web
