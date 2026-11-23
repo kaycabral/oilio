@@ -45,6 +45,7 @@
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@types/qrcode": "^1.5.6",
+    "@vercel/analytics": "^2.0.1",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "lucide-react": "catalog:",

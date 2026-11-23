@@ -1,4 +1,5 @@
 import { DebugErrorOverlay } from '@/components/debug-error-overlay'
+import { WebAnalytics } from '@/components/web-analytics'
 import { ThemeProvider, Toaster } from '@cbrl/design'
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Toaster />
           <DebugErrorOverlay />
         </ThemeProvider>
+        {process.env.VERCEL_ENV === 'production' ? <WebAnalytics /> : null}
       </body>
     </html>
   )
