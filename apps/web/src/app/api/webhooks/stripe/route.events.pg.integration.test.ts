@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const WEBHOOK_SECRET = 'whsec_test_secret'
 const PRO_MONTHLY = 'price_pro_monthly_test'
 
-const stripe = new Stripe('sk_test_unused', { apiVersion: '2026-06-24.dahlia' })
+const stripe = new Stripe('sk_test_unused', { apiVersion: '2026-08-26.dahlia' })
 
 const mocks = vi.hoisted(() => ({
   retrieve: vi.fn<(id: string) => Promise<Stripe.Subscription>>(),
@@ -28,7 +28,7 @@ function checkoutPayload(orgId: string, subId: string): string {
     id: `evt_${Math.random().toString(36).slice(2)}`,
     object: 'event',
     type: 'checkout.session.completed',
-    api_version: '2026-06-24.dahlia',
+    api_version: '2026-08-26.dahlia',
     data: {
       object: {
         id: 'cs_1',
@@ -83,7 +83,7 @@ function buildSubscription(subId: string, orgId: string): Stripe.Subscription {
     id: 'evt_sub',
     object: 'event',
     type: 'customer.subscription.updated',
-    api_version: '2026-06-24.dahlia',
+    api_version: '2026-08-26.dahlia',
     data: { object: subscriptionObject(subId, orgId) },
   })
   const header = stripe.webhooks.generateTestHeaderString({ payload, secret: WEBHOOK_SECRET })

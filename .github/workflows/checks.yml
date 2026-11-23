@@ -98,11 +98,27 @@ jobs:
       SHARD: ${{ matrix.shard }}
       SHARDS: '4'
     steps:
+      # The local Supabase stack binds fixed host ports inside Linux's default
+      # ephemeral range (32768-60999). Outbound connections (checkout, installs,
+      # image pulls) can take one as a source port, also while in TIME_WAIT, and
+      # Docker then fails with "address already in use". Move the ephemeral
+      # range above them before the job opens any connection.
+      - name: Keep ephemeral ports clear of the local Supabase stack
+        run: sudo sysctl -w net.ipv4.ip_local_port_range="61000 65535"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: kaycabral/toolkit/.github/actions/setup@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
-      - run: pnpm --filter @oilio/web run db:start
+      # `supabase start` intermittently restarts the db container and then fails
+      # to bind its host port ("address already in use"), occasionally on several
+      # shards at once. Tear the stack down and start once more before failing.
+      - name: Start the local Supabase stack
+        run: |
+          if ! pnpm --filter @oilio/web run db:start; then
+            echo "::warning::supabase start failed; tearing the stack down and retrying once."
+            pnpm --filter @oilio/web exec supabase stop --no-backup --workdir .
+            pnpm --filter @oilio/web run db:start
+          fi
       - uses: kaycabral/toolkit/.github/actions/playwright@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
         with:
           working-directory: apps/web

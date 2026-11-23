@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 
 import {
   scrubEvent,
+  SENTRY_DATA_COLLECTION,
   SENTRY_DSN,
   SENTRY_ENABLED,
   SENTRY_ENVIRONMENT,
@@ -11,7 +12,7 @@ Sentry.init({
   dsn: SENTRY_DSN ?? undefined,
   enabled: SENTRY_ENABLED,
   environment: SENTRY_ENVIRONMENT,
-  sendDefaultPii: false,
+  dataCollection: SENTRY_DATA_COLLECTION,
   tracesSampleRate: 0.1,
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 0,
