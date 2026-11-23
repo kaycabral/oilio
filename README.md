@@ -111,7 +111,7 @@ Produção (Vercel + Supabase, migrations só pelo CI): ver [`docs/production.md
 
 Extraído do monorepo `cbrl` em 2026-11-17 com histórico (`git filter-repo`): `apps/oilio/web` → `apps/web`, `apps/oilio/docs` → `docs`, `packages/product` mantido. As cópias vendorizadas (`@oilio/{tsconfig,eslint-config,env,testing,design,db}`) foram substituídas pelos pacotes publicados no npm `@cbrl/{tsconfig,eslint-config,prettier-config,commitlint-config,env,testing,design,pg}` (fonte: `kaycabral/toolkit`); só `packages/product` segue local. Depois, as cópias de auth Supabase, headers/CSP, logger, utilitários BR e helpers de Postgres também foram trocadas por `@cbrl/{supabase,next,log,br}` e `@cbrl/pg/drizzle`.
 
-Em 2026-11-18 a produção saiu de GCP/Firebase pra Supabase + Vercel ([ADR 0020](./docs/decisions/0020-supabase-vercel.md)), e o CI/CD foi portado pro GitHub Actions (`.github/workflows/`): um pipeline reutilizável (`checks.yml`) chamado por PR, `main` e nightly, com `Deploy (migrate database)` como gate do deploy da Vercel. Fluxo em [`docs/production.md`](./docs/production.md#fluxo-de-uma-mudança).
+Em 2026-11-18 a produção saiu de GCP/Firebase pra Supabase + Vercel ([ADR 0020](./docs/decisions/0020-supabase-vercel.md)), e o CI/CD foi portado pro GitHub Actions (`.github/workflows/`): um pipeline reutilizável (`checks.yml`) chamado por PR, `main` e nightly, com `Deploy (migrate database)` e o smoke pós-deploy (`smoke.yml`, `Smoke (production)`) como gates do deploy da Vercel. Fluxo em [`docs/production.md`](./docs/production.md#fluxo-de-uma-mudança).
 
 **Pendências:**
 
