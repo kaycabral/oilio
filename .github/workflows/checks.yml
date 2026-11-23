@@ -98,6 +98,13 @@ jobs:
       SHARD: ${{ matrix.shard }}
       SHARDS: '4'
     steps:
+      # The local Supabase stack binds fixed host ports inside Linux's default
+      # ephemeral range (32768-60999). Outbound connections (checkout, installs,
+      # image pulls) can take one as a source port, also while in TIME_WAIT, and
+      # Docker then fails with "address already in use". Move the ephemeral
+      # range above them before the job opens any connection.
+      - name: Keep ephemeral ports clear of the local Supabase stack
+        run: sudo sysctl -w net.ipv4.ip_local_port_range="61000 65535"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
