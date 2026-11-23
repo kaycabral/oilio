@@ -59,8 +59,8 @@
     "stripe": "22.6.2"
   },
   "devDependencies": {
-    "@cbrl/eslint-config": "^0.2.1",
-    "@cbrl/testing": "^0.3.0",
+    "@cbrl/eslint-config": "^0.3.0",
+    "@cbrl/testing": "^0.4.0",
     "@cbrl/tsconfig": "^0.1.1",
     "@playwright/test": "catalog:",
     "@stryker-mutator/core": "^10.1.1",
