@@ -40,7 +40,7 @@
     "@cbrl/pg": "^0.3.0",
     "@cbrl/supabase": "^0.1.1",
     "@oilio/product": "workspace:*",
-    "@sentry/nextjs": "10.78.0",
+    "@sentry/nextjs": "11.12.0",
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@types/qrcode": "^1.5.6",
