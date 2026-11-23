@@ -24,12 +24,11 @@
 // Dry-run prints the plan (create/reuse per object) and writes nothing. --apply
 // performs the creates and prints the resulting price ids ready for the env vars.
 
+import { STRIPE_API_VERSION } from '@/shared/billing/stripe-api-version'
 import { requireEnv } from '@cbrl/env'
 import Stripe from 'stripe'
 
 const MANAGED_BY = 'oilio-sync'
-// Pinned, matches stripe-client.ts.
-const API_VERSION = '2026-10-28.endive'
 
 type Cycle = 'monthly' | 'annual'
 
@@ -216,7 +215,7 @@ async function ensurePrice(
 
 async function main(): Promise<void> {
   const secret = requireEnv('STRIPE_SECRET_KEY')
-  const stripe = new Stripe(secret, { apiVersion: API_VERSION })
+  const stripe = new Stripe(secret, { apiVersion: STRIPE_API_VERSION })
   const mode = apply ? 'APPLY' : 'DRY-RUN'
   // Surface which environment we're pointed at (test vs live) from the key
   // prefix — a guard against accidentally applying to the wrong account.

@@ -1,3 +1,4 @@
+import { STRIPE_API_VERSION } from '@/shared/billing/stripe-api-version'
 import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
 import { getOrgBilling } from '@/shared/org/billing-read'
 import Stripe from 'stripe'
@@ -8,7 +9,7 @@ const WEBHOOK_SECRET = 'whsec_test_secret'
 const PRO_MONTHLY = 'price_pro_monthly_test'
 const ADVANCED_MONTHLY = 'price_advanced_monthly_test'
 
-const stripe = new Stripe('sk_test_unused', { apiVersion: '2026-10-28.endive' })
+const stripe = new Stripe('sk_test_unused', { apiVersion: STRIPE_API_VERSION })
 
 function buildEvent(type: string, object: unknown): Stripe.Event {
   const payload = JSON.stringify({
@@ -16,7 +17,7 @@ function buildEvent(type: string, object: unknown): Stripe.Event {
     object: 'event',
     type,
     data: { object },
-    api_version: '2026-10-28.endive',
+    api_version: STRIPE_API_VERSION,
   })
   const header = stripe.webhooks.generateTestHeaderString({ payload, secret: WEBHOOK_SECRET })
   return stripe.webhooks.constructEvent(payload, header, WEBHOOK_SECRET)

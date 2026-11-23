@@ -1,3 +1,4 @@
+import { STRIPE_API_VERSION } from '@/shared/billing/stripe-api-version'
 import Stripe from 'stripe'
 
 import { STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET } from './secrets'
@@ -13,6 +14,7 @@ export function stripeApiBase(): string {
 export function stripeMock(): Stripe {
   const url = new URL(stripeApiBase())
   return new Stripe(STRIPE_SECRET_KEY, {
+    apiVersion: STRIPE_API_VERSION,
     host: url.hostname,
     port: Number(url.port),
     protocol: 'http',
