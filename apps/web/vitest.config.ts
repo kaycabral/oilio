@@ -42,6 +42,25 @@ export default defineConfig({
           name: 'dom',
           environment: 'jsdom',
           include: ['src/**/*.test.tsx'],
+          // Each isolated file used to re-import @cbrl/design natively: its
+          // `radix-ui` umbrella and `lucide-react` (~4.8k icon modules) cost
+          // ~7.7s of import per file. Pre-bundling them once per run (Vite's
+          // optimizer) turns that graph into a handful of modules.
+          deps: {
+            optimizer: {
+              client: {
+                enabled: true,
+                include: [
+                  '@cbrl/design',
+                  'lucide-react',
+                  'react',
+                  'react-dom',
+                  '@testing-library/react',
+                  '@testing-library/user-event',
+                ],
+              },
+            },
+          },
         },
       },
     ],
