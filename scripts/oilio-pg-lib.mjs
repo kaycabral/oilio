@@ -2,7 +2,7 @@
 //
 // Used by the integration runners (`oilio-events-it.mjs`, `product-it.mjs`):
 // up → migrate-per-suite via globalSetup → run → tear DOWN. Dev, seed and E2E
-// run on the local Supabase stack instead (`pnpm --filter @oilio/web db:start`).
+// run on the local Supabase stack instead (`pnpm db:start`).
 //
 // The suites isolate the event store in a logical database `oilio` next to
 // `produtos` on one ephemeral Postgres (in production both share one Supabase
@@ -19,7 +19,6 @@ import { Client } from 'pg'
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const repoRoot = path.resolve(here, '..')
 export const composeFile = path.join(repoRoot, 'docker', 'postgres.compose.yaml')
-export const webDir = path.join(repoRoot, 'apps', 'web')
 
 const POSTGRES_USER = 'postgres'
 const POSTGRES_PASSWORD = 'postgres'

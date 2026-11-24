@@ -1,8 +1,8 @@
 # E2E conventions — scheduling/web
 
-Referenciado de `apps/web/CLAUDE.md` § Testes. Consulte ao adicionar/calibrar specs Playwright.
+Referenciado de `CLAUDE.md` § Testes. Consulte ao adicionar/calibrar specs Playwright.
 
-Convenções universais em `TESTING.md` (raiz do monorepo) § "Playwright — convenções". Este doc cobre o que é específico de `scheduling/web`.
+Convenções universais em `TESTING.md` § "Playwright — convenções". Este doc cobre o que é específico de `scheduling/web`.
 
 ## Layout
 
@@ -10,7 +10,7 @@ Convenções universais em `TESTING.md` (raiz do monorepo) § "Playwright — co
 
 ## Setup
 
-- **Stack Supabase local obrigatório**: `pnpm --filter @oilio/web db:start` antes do `test:e2e` (API `:55321`, Postgres `:55322`, Studio `:55323`). O runner (`scripts/e2e.ts`) aplica as migrations e sobe o Next (build de produção) conectado como `oilio_app` — o RLS vale no E2E como em prod.
+- **Stack Supabase local obrigatório**: `pnpm db:start` antes do `test:e2e` (API `:55321`, Postgres `:55322`, Studio `:55323`). O runner (`scripts/e2e.ts`) aplica as migrations e sobe o Next (build de produção) conectado como `oilio_app` — o RLS vale no E2E como em prod.
 - **globalSetup** em `tests/e2e/helpers/global-setup.ts`: health do Auth (`/auth/v1/health`) + query no Postgres do event store + resposta do stripe-mock, pra evitar cold-start race.
 - **Stripe no E2E = `stripe-mock`** (`docker/stripe-mock.compose.yaml`, imagem pinada por versão + digest). O runner sobe um container por execução (porta livre, projeto compose próprio — suítes paralelas não colidem), aponta o client do app pra ele via `STRIPE_API_BASE` (só E2E; produção nunca seta, e o client recusa override com chave que não seja `*_test_*`) e derruba no fim. O mock valida cada request contra o OpenAPI do Stripe e devolve fixtures: um bump do SDK ou mudança no billing que quebre a API quebra o E2E. É stateless — nada escrito volta numa leitura; os specs (`tests/e2e/billing/stripe-integration.spec.ts`) asseveram o que o app renderiza/persiste a partir das fixtures (cartão Visa 4242, fatura, URLs de Checkout/portal, webhook assinado com o `STRIPE_WEBHOOK_SECRET` de `helpers/secrets.ts`).
 - **Erro de billing no servidor = run vermelho.** O runner varre a saída do `webServer` e falha a execução se aparecer log `error` com escopo de billing (`billing-details`, `getUnitAdditionCost`, `syncStripeSubscriptionQuantity`, `startCheckout`, `cancelSubscription`, `stripe-webhook`) — esses caminhos degradam a UI em silêncio, então o spec sozinho não pegaria.
@@ -23,8 +23,8 @@ Convenções universais em `TESTING.md` (raiz do monorepo) § "Playwright — co
 `*.pg.integration.test.ts` rodam contra um Postgres efêmero em docker (`docker/postgres.compose.yaml`); cada suíte cria o próprio banco e role de runtime. Não precisa do stack Supabase:
 
 ```bash
-pnpm --filter @oilio/web test:integration   # event store
-pnpm test:integration                       # @oilio/product
+pnpm test:integration:events   # event store
+pnpm test:integration          # base de produtos
 ```
 
 **Mocks de banco são proibidos** pra testes de RLS/constraint — sempre Postgres real.

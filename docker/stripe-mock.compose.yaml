@@ -1,8 +1,8 @@
-# stripe-mock for the E2E suite (`pnpm --filter @oilio/web test:e2e`): the app's
+# stripe-mock for the E2E suite (`pnpm test:e2e`): the app's
 # Stripe client is pointed at it through STRIPE_API_BASE, so every billing call
 # runs against Stripe's OpenAPI spec (request shapes validated, fixture data
 # returned). Stateless: nothing a test writes is read back. The runner
-# (apps/web/scripts/e2e.ts) picks a free host port and a per-run project name,
+# (scripts/e2e.ts) picks a free host port and a per-run project name,
 # brings it up and tears it down. Pinned by version and digest; bump both.
 
 services:

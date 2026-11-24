@@ -1,10 +1,7 @@
-packages:
-  - apps/*
-  - packages/*
-
-# pnpm settings live here, not in .npmrc: npm 11 (Node 26) warns about pnpm-only
-# keys in .npmrc every time `npx` runs (husky hooks, preinstall). The default
-# isolated linker stays (no nodeLinker override).
+# Single-package repo: this file exists only for pnpm settings (no workspaces,
+# no catalog). They live here, not in .npmrc: npm 11 (Node 26) warns about
+# pnpm-only keys in .npmrc every time `npx` runs (husky hooks, preinstall). The
+# default isolated linker stays (no nodeLinker override).
 strictPeerDependencies: false
 autoInstallPeers: true
 
@@ -14,50 +11,3 @@ autoInstallPeers: true
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - '@cbrl/*'
-
-# Single source of truth for shared dependency versions. Bump = edit here +
-# `pnpm install`. Deps used by a single workspace stay inline in its package.json.
-catalog:
-  '@playwright/test': ^1.65.1
-
-  '@supabase/ssr': ^0.12.7
-  '@supabase/supabase-js': ^2.119.2
-  '@tailwindcss/postcss': ^4.3.5
-  '@testing-library/jest-dom': ^7.0.1
-  '@testing-library/react': ^16.3.3
-  '@testing-library/user-event': ^14.6.13
-  '@types/node': ^26.6.6
-  '@types/pg': ^8.23.1
-  '@types/react': ^19.3.0
-  '@types/react-dom': ^19.3.0
-  '@vitejs/plugin-react': ^6.3.0
-  '@vitest/coverage-v8': ^5.1.1
-  class-variance-authority: ^0.7.1
-  clsx: ^2.1.1
-  drizzle-kit: ^0.31.11
-
-  # Drizzle pinned to 0.45.x: the pre-1.0 v1 (RQB-V2, casing API, folders-v3) is
-  # breaking — upgrade is a roadmap item.
-  drizzle-orm: ~0.45.4
-  effect: ^3.22.5
-
-  eslint-config-next: ^16.4.6
-  jsdom: ^31.0.1
-  lucide-react: ^1.77.0
-  next: ^16.4.6
-  next-themes: ^0.4.6
-  pg: ^8.23.1
-  radix-ui: ^1.4.3
-  react: ^19.3.1
-  react-dom: ^19.3.1
-  server-only: ^0.0.1
-  sonner: ^2.0.8
-
-  tailwindcss: ^4.3.5
-
-  tsx: ^4.23.15
-
-  typescript: ~6.0.3
-
-  vitest: ^5.1.1
-  vite: ^8.1.6

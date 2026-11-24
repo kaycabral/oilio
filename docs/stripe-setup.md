@@ -83,7 +83,7 @@ STRIPE_PRICE_ADVANCED_ANNUAL=price_...
 > cadastro. Use sempre a última versão da API/SDK.
 >
 > A versão da API é fixada **num único lugar**: a constante `STRIPE_API_VERSION`
-> em `apps/web/src/shared/billing/stripe-api-version.ts`. Client do app, scripts
+> em `src/shared/billing/stripe-api-version.ts`. Client do app, scripts
 > (`sync-stripe-catalog`, seed) e testes importam dela. A constante é tipada
 > contra o SDK (`satisfies Stripe.LatestApiVersion`): ao subir o pacote `stripe`
 > para uma versão que pina outra API, o typecheck falha só nessa linha — trocar
