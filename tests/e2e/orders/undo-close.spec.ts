@@ -108,7 +108,7 @@ test.describe('Order — undo pós-fechamento', { tag: '@critical' }, () => {
       authedPage
         .getByRole('row')
         .filter({ hasText: 'Estorno de venda' })
-        .filter({ hasText: /−\s*R\$\s*50,00/ }),
+        .filter({ hasText: /-R\$\s*50,00/ }),
     ).toBeVisible()
   })
 })

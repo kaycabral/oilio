@@ -5,7 +5,7 @@ import {
   loadUnitAvailability,
   type WizardAvailabilityResult,
 } from '@/features/self-book/adapters/availability.actions'
-import { Label } from '@cbrl/design'
+import { Input, Label } from '@cbrl/design'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
@@ -95,13 +95,13 @@ export function AvailabilityWizard({
           <Label htmlFor="booking-date" className="text-sm font-medium">
             Data
           </Label>
-          <input
+          <Input
             id="booking-date"
             type="date"
             value={date}
             min={minDate}
             onChange={(e) => onDateChange(e.target.value)}
-            className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+            className="h-9"
           />
           <span className="text-muted-foreground text-xs capitalize">{dateLabel}</span>
         </div>

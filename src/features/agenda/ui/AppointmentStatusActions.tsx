@@ -8,7 +8,7 @@ import {
   unmarkAppointmentNoShowFormAction,
 } from '@/features/agenda/adapters/agenda.actions'
 import { startAttendanceFormAction } from '@/features/orders/adapters/orders.actions'
-import { Button } from '@cbrl/design'
+import { Button, buttonVariants } from '@cbrl/design'
 import { useActionState, useEffect } from 'react'
 import { useFormStatus } from 'react-dom'
 
@@ -32,7 +32,7 @@ export function AppointmentStatusActions({
           href={whatsappLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="border-input bg-background hover:bg-accent inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition"
+          className={buttonVariants({ variant: 'outline' })}
         >
           📱 Enviar confirmação por WhatsApp
         </a>

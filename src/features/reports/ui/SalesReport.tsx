@@ -9,7 +9,7 @@ import {
 import type { CashReportPeriod } from '@/features/cash/core/range'
 import { formString } from '@/shared/form-data'
 import { toRoute } from '@/shared/routes'
-import { formatBRLFromCents } from '@cbrl/br/money'
+import { formatBRLFromCents, formatSignedBRLFromCents } from '@cbrl/br/money'
 import { Button, Input, Label } from '@cbrl/design'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useId, useMemo, useTransition } from 'react'
@@ -223,7 +223,9 @@ export function SalesReport({
                             : 'text-destructive'
                         }`}
                       >
-                        {m.direction === 'in' ? '+' : '−'} {formatBRLFromCents(m.amountCents)}
+                        {formatSignedBRLFromCents(
+                          m.direction === 'in' ? m.amountCents : -m.amountCents,
+                        )}
                       </td>
                     </tr>
                   )

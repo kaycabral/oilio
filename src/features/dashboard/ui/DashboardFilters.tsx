@@ -5,7 +5,15 @@ import {
   type DashboardPeriod,
   periodLabel,
 } from '@/features/dashboard/core/filters'
-import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cbrl/design'
+import {
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@cbrl/design'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
@@ -62,9 +70,10 @@ export function DashboardFilters({ selectedPeriod, fromDate, toDate }: Dashboard
 
       {selectedPeriod === 'custom' ? (
         <>
-          <label className="flex flex-col gap-1 text-xs">
+          <label htmlFor="dashboard-filter-from" className="flex flex-col gap-1 text-xs">
             <span className="text-muted-foreground">De</span>
-            <input
+            <Input
+              id="dashboard-filter-from"
               type="date"
               aria-label="Data inicial"
               value={customFrom}
@@ -73,12 +82,13 @@ export function DashboardFilters({ selectedPeriod, fromDate, toDate }: Dashboard
                 setCustomFrom(e.target.value)
                 if (e.target.value && customTo) navigate({ from: e.target.value, to: customTo })
               }}
-              className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+              className="h-9 w-auto"
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs">
+          <label htmlFor="dashboard-filter-to" className="flex flex-col gap-1 text-xs">
             <span className="text-muted-foreground">Até</span>
-            <input
+            <Input
+              id="dashboard-filter-to"
               type="date"
               aria-label="Data final"
               value={customTo}
@@ -87,7 +97,7 @@ export function DashboardFilters({ selectedPeriod, fromDate, toDate }: Dashboard
                 setCustomTo(e.target.value)
                 if (customFrom && e.target.value) navigate({ from: customFrom, to: e.target.value })
               }}
-              className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+              className="h-9 w-auto"
             />
           </label>
         </>

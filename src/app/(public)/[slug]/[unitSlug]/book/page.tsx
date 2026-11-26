@@ -13,6 +13,7 @@ import { getSessionUser } from '@/shared/auth/session'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { getMemberOperationById } from '@/shared/org/member-operation-read'
 import { getUserDoc } from '@/shared/org/membership'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
@@ -121,10 +122,7 @@ export default async function WizardBookPage({ params, searchParams }: PageProps
   const priceLabel =
     publicService.priceCents === null
       ? 'Sob consulta'
-      : (publicService.priceCents / 100).toLocaleString('pt-BR', {
-          style: 'currency',
-          currency: 'BRL',
-        })
+      : formatBRLFromCents(publicService.priceCents)
   const durationLabel =
     publicService.durationMinutes !== null
       ? `${formatDuration(publicService.durationMinutes)} · `

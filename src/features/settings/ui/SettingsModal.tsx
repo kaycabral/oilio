@@ -13,8 +13,6 @@ import {
 import {
   SETTINGS_HASH_PREFIX,
   settingsHash,
-  settingsSectionMeta,
-  toSettingsSectionKey,
   visibleSettingsSections,
   type SettingsSectionKey,
 } from '@/features/settings/core/settings-sections'
@@ -28,23 +26,11 @@ import { SettingsModalProvider } from '@/features/settings/ui/settings-modal-con
 import { isFeatureEnabled } from '@/shared/flags'
 import { useOrg } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
-import {
-  cn,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  ScrollArea,
-  Skeleton,
-} from '@cbrl/design'
+import { SettingsDialog, Skeleton, useHashSection } from '@cbrl/design'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-function parseSectionFromHash(hash: string): SettingsSectionKey | null {
-  if (!hash.startsWith(SETTINGS_HASH_PREFIX)) return null
-  return toSettingsSectionKey(hash.slice(SETTINGS_HASH_PREFIX.length))
-}
+const HASH_SECTION_PREFIX = SETTINGS_HASH_PREFIX.slice(1, -1)
 
 export { settingsHash }
 
@@ -93,26 +79,19 @@ function SectionPanel({ loaded }: { loaded: LoadedSection }) {
 export function SettingsModal() {
   const router = useRouter()
   const { membership } = useOrg()
-  const sections = visibleSettingsSections(membership.role, {
-    notifications: isFeatureEnabled('notifications'),
-  })
+  const sections = useMemo(
+    () =>
+      visibleSettingsSections(membership.role, {
+        notifications: isFeatureEnabled('notifications'),
+      }),
+    [membership.role],
+  )
+  const visibleKeys = useMemo(() => sections.map((s) => s.key), [sections])
+  const { section, open, close } = useHashSection(HASH_SECTION_PREFIX, visibleKeys)
 
-  const [section, setSection] = useState<SettingsSectionKey | null>(null)
   const [loaded, setLoaded] = useState<LoadedSection | null>(null)
   const [loading, setLoading] = useState(false)
   const requestId = useRef(0)
-
-  const visibleKeys = useMemo(() => new Set(sections.map((s) => s.key)), [sections])
-
-  useEffect(() => {
-    function sync() {
-      const parsed = parseSectionFromHash(window.location.hash)
-      setSection(parsed && visibleKeys.has(parsed) ? parsed : null)
-    }
-    sync()
-    window.addEventListener('hashchange', sync)
-    return () => window.removeEventListener('hashchange', sync)
-  }, [visibleKeys])
 
   const load = useCallback(
     async (target: SettingsSectionKey) => {
@@ -121,14 +100,14 @@ export function SettingsModal() {
       const result = await loadSection(target)
       if (id !== requestId.current) return
       if (!result.ok) {
-        window.location.hash = ''
+        close()
         router.push(toRoute(result.redirectTo))
         return
       }
       setLoaded(result.loaded)
       setLoading(false)
     },
-    [router],
+    [router, close],
   )
 
   useEffect(() => {
@@ -144,69 +123,29 @@ export function SettingsModal() {
     if (section) void load(section)
   }, [section, load])
 
-  function selectSection(next: SettingsSectionKey) {
-    window.history.replaceState(null, '', settingsHash(next))
-    setSection(next)
-  }
-
-  function onOpenChange(open: boolean) {
-    if (open) return
-    window.history.replaceState(null, '', window.location.pathname + window.location.search)
-    setSection(null)
+  function onOpenChange(next: boolean) {
+    if (!next) close()
   }
 
   if (!section) return null
 
-  const meta = settingsSectionMeta(section)
-
   return (
-    <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent
-        className="grid h-[min(80vh,40rem)] max-w-3xl grid-cols-[12rem_1fr] gap-0 overflow-hidden p-0 sm:max-w-3xl"
-        onOpenAutoFocus={(event) => event.preventDefault()}
-      >
-        <nav
-          aria-label="Seções de configuração"
-          className="bg-muted/40 flex flex-col gap-0.5 border-r p-2"
-        >
-          {sections.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => selectSection(item.key)}
-              aria-current={item.key === section ? 'page' : undefined}
-              className={cn(
-                'cursor-pointer rounded-md px-3 py-2 text-left text-sm transition-colors',
-                item.key === section
-                  ? 'bg-background font-medium'
-                  : 'text-muted-foreground hover:bg-background/60',
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="flex min-h-0 flex-col">
-          <DialogHeader className="gap-1 border-b p-6 pr-14">
-            <DialogTitle>{meta.label}</DialogTitle>
-            <DialogDescription>{meta.description}</DialogDescription>
-          </DialogHeader>
-
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="p-6">
-              {loading || loaded === null || loaded.section !== section ? (
-                <SectionSkeleton />
-              ) : (
-                <SettingsModalProvider value={{ reload }}>
-                  <SectionPanel loaded={loaded} />
-                </SettingsModalProvider>
-              )}
-            </div>
-          </ScrollArea>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <SettingsDialog
+      open
+      onOpenChange={onOpenChange}
+      sections={sections}
+      value={section}
+      onValueChange={open}
+      navLabel="Seções de configuração"
+    >
+      {loading || loaded === null || loaded.section !== section ? (
+        <SectionSkeleton />
+      ) : (
+        <SettingsModalProvider value={{ reload }}>
+          <SectionPanel loaded={loaded} />
+        </SettingsModalProvider>
+      )}
+    </SettingsDialog>
   )
 }
 

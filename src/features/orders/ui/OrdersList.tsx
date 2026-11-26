@@ -1,7 +1,6 @@
 'use client'
 
 import { RowActions } from '@/components/RowActions'
-import { StatusBadge, type StatusTone } from '@/components/StatusBadge'
 import type { Customer, Order, OrderStatus } from '@/domain'
 import { createOrderFormAction } from '@/features/orders/adapters/orders.actions'
 import { NewSaleButton } from '@/features/orders/ui/NewSaleButton'
@@ -10,9 +9,10 @@ import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import { formatRelativeDate } from '@/shared/relative-date'
 import { toRoute } from '@/shared/routes'
-import { EmptyState, List } from '@cbrl/design'
+import { Badge, EmptyState, List } from '@cbrl/design'
 import { Clock, Receipt } from 'lucide-react'
 import Link from 'next/link'
+import type { ComponentProps } from 'react'
 
 import type { OrdersFilter } from '@/features/orders/adapters/load-orders'
 import { formatBRLFromCents } from '@cbrl/br/money'
@@ -23,10 +23,12 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   cancelled: 'Cancelada',
 }
 
-const STATUS_TONE: Record<OrderStatus, StatusTone> = {
+type BadgeVariant = NonNullable<ComponentProps<typeof Badge>['variant']>
+
+const STATUS_TONE: Record<OrderStatus, BadgeVariant> = {
   open: 'success',
-  closed: 'neutral',
-  cancelled: 'danger',
+  closed: 'secondary',
+  cancelled: 'destructive',
 }
 
 function formatDateTime(iso: string): string {
@@ -124,7 +126,7 @@ export function OrdersList({
         return {
           icon: <Receipt />,
           title: customerLabel,
-          badge: <StatusBadge tone={STATUS_TONE[o.status]}>{STATUS_LABEL[o.status]}</StatusBadge>,
+          badge: <Badge variant={STATUS_TONE[o.status]}>{STATUS_LABEL[o.status]}</Badge>,
           description: `${itemCount} ${itemCount === 1 ? 'item' : 'itens'}`,
           meta: (
             <span

@@ -1,5 +1,6 @@
 import type { FixedCostCategory } from '@/domain'
 import { FIXED_COST_NAME_MAX, FIXED_COST_NAME_MIN, isFixedCostCategory } from '@/domain'
+import { parseSignedBRLInput } from '@cbrl/br/money'
 
 import { formString } from '@/shared/form-data'
 
@@ -21,7 +22,7 @@ export function parseFixedCostForm(
   const category = formString(formData, 'category').trim()
   if (!isFixedCostCategory(category)) return 'Categoria inválida'
 
-  const amountCents = parseAmountToCents(formString(formData, 'amount'))
+  const amountCents = parseSignedBRLInput(formString(formData, 'amount'))
   if (amountCents === null) return 'Valor inválido'
   if (amountCents < 1) return 'Valor deve ser maior que zero'
 
@@ -29,15 +30,6 @@ export function parseFixedCostForm(
   if (effectiveFromMonth === null) return 'Vigência inválida'
 
   return { name, category, amountCents, effectiveFromMonth }
-}
-
-export function parseAmountToCents(raw: string): number | null {
-  const trimmed = raw.trim()
-  if (trimmed === '') return null
-  const normalized = trimmed.replace(/\./g, '').replace(',', '.')
-  const value = Number(normalized)
-  if (!Number.isFinite(value)) return null
-  return Math.round(value * 100)
 }
 
 export function parseEffectiveFromMonth(raw: string, now: Date = new Date()): string | null {

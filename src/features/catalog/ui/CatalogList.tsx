@@ -1,7 +1,6 @@
 'use client'
 
 import { RowActions, type RowAction } from '@/components/RowActions'
-import { StatusBadge } from '@/components/StatusBadge'
 import type { CatalogItem, CatalogItemKind, Category } from '@/domain'
 import { isCatalogService } from '@/domain'
 import { deleteCatalogItem } from '@/features/catalog/adapters/catalog.actions'
@@ -11,7 +10,7 @@ import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import type { WithCanDelete } from '@/shared/org/delete-guard'
 import { toRoute } from '@/shared/routes'
 import { formatBRLFromCents } from '@cbrl/br/money'
-import { Button, List } from '@cbrl/design'
+import { Badge, Button, List } from '@cbrl/design'
 import { Handshake, Package, PackageOpen } from 'lucide-react'
 import Link from 'next/link'
 
@@ -128,7 +127,7 @@ export function CatalogList({
         return {
           icon: isService ? <Handshake /> : <Package />,
           title: it.name,
-          badge: it.active ? undefined : <StatusBadge tone="neutral">Inativo</StatusBadge>,
+          badge: it.active ? undefined : <Badge variant="secondary">Inativo</Badge>,
           description: categoryLabel === '—' ? detail : `${categoryLabel} · ${detail}`,
           trailing: formatBRLFromCents(it.priceCents),
           actions: <RowActions actions={actions} label={`Ações de ${it.name}`} />,

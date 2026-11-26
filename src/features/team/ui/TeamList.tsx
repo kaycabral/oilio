@@ -2,7 +2,6 @@
 
 import { BirthdayIndicator } from '@/components/BirthdayIndicator'
 import { RowActions, type RowAction } from '@/components/RowActions'
-import { IncompleteProfileBadge, StatusBadge, type StatusTone } from '@/components/StatusBadge'
 import { WhatsappAction } from '@/components/WhatsappAction'
 import { isOperational, roleLabel, type MembershipStatus, type OperationalStatus } from '@/domain'
 import type { TeamEntry, TeamViewFilter } from '@/features/team/adapters/load-team'
@@ -12,9 +11,9 @@ import { useClientPagination } from '@/shared/list/use-client-pagination'
 import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import { toRoute } from '@/shared/routes'
 import { formatBrazilPhone } from '@cbrl/br/phone'
-import { Avatar, AvatarFallback, List, type ListItemDescriptor } from '@cbrl/design'
+import { Avatar, AvatarFallback, Badge, List, type ListItemDescriptor } from '@cbrl/design'
 import { MessageCircle } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 
 const STATUS_LABEL: Record<MembershipStatus, string> = {
   active: 'Ativo',
@@ -23,11 +22,13 @@ const STATUS_LABEL: Record<MembershipStatus, string> = {
   revoked: 'Revogado',
 }
 
-const STATUS_TONE: Record<MembershipStatus, StatusTone> = {
+type BadgeVariant = NonNullable<ComponentProps<typeof Badge>['variant']>
+
+const STATUS_TONE: Record<MembershipStatus, BadgeVariant> = {
   active: 'success',
   invited: 'info',
   suspended: 'warning',
-  revoked: 'danger',
+  revoked: 'destructive',
 }
 
 function initials(name: string): string {
@@ -48,10 +49,8 @@ function memberBadges(
   if (!showStatus && !incompleteProfile) return undefined
   return (
     <span className="flex items-center gap-1.5">
-      {showStatus ? (
-        <StatusBadge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</StatusBadge>
-      ) : null}
-      {incompleteProfile ? <IncompleteProfileBadge /> : null}
+      {showStatus ? <Badge variant={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge> : null}
+      {incompleteProfile ? <Badge variant="warning">Cadastro incompleto</Badge> : null}
     </span>
   )
 }
@@ -133,7 +132,7 @@ export function TeamList({
           return {
             icon: <MessageCircle />,
             title: formatBrazilPhone(invite.mobile),
-            badge: <StatusBadge tone="info">Pendente</StatusBadge>,
+            badge: <Badge variant="info">Pendente</Badge>,
             description: `${roleLabel(invite.role)} · expira em ${new Date(
               invite.expiresAt,
             ).toLocaleDateString('pt-BR')}`,
