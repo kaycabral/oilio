@@ -1,3 +1,4 @@
+import { BrandMark } from '@/components/brand-mark'
 import { MARKETING_CONTAINER } from '@/components/marketing/container'
 import { Typography, cn } from '@cbrl/design'
 
@@ -10,7 +11,10 @@ export function MarketingFooter() {
           'text-muted-foreground flex flex-col items-center justify-between gap-4 py-10 text-sm sm:flex-row',
         )}
       >
-        <span className="text-foreground font-semibold">Oilio</span>
+        <span className="text-foreground flex items-center gap-2 font-semibold">
+          <BrandMark className="size-5" />
+          Oilio
+        </span>
         <nav className="flex items-center gap-6">
           <a href="/pricing" className="hover:text-foreground transition-colors">
             Preços
