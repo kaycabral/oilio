@@ -1,5 +1,6 @@
 'use client'
 
+import { BrandMark } from '@/components/brand-mark'
 import { OAuthSignInButtons } from '@/components/oauth-sign-in-buttons'
 import { Typography } from '@cbrl/design'
 import Link from 'next/link'
@@ -13,7 +14,10 @@ export function SignupBusinessForm() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-3 text-center">
-        <span className="text-lg font-semibold tracking-tight">Oilio</span>
+        <span className="flex flex-col items-center gap-2 text-lg font-semibold tracking-tight">
+          <BrandMark className="size-12" />
+          Oilio
+        </span>
         <Typography as="h1" variant="h1" className="text-3xl text-balance">
           Crie seu negócio no Oilio
         </Typography>

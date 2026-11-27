@@ -1,3 +1,4 @@
+import { BrandMark } from '@/components/brand-mark'
 import { MARKETING_CONTAINER } from '@/components/marketing/container'
 import { Button, cn } from '@cbrl/design'
 import { isSupabaseConfigured } from '@cbrl/supabase'
@@ -8,7 +9,8 @@ export function MarketingHeader() {
   return (
     <header className="border-border/60 bg-background/80 sticky top-0 z-40 w-full border-b backdrop-blur">
       <div className={cn(MARKETING_CONTAINER, 'flex h-14 items-center justify-between')}>
-        <a href="/" className="text-lg font-semibold tracking-tight">
+        <a href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+          <BrandMark className="size-7" />
           Oilio
         </a>
         <nav className="flex items-center gap-1 sm:gap-2">
