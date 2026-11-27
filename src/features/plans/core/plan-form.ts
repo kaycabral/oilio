@@ -7,7 +7,7 @@ import {
   type UsageLimit,
 } from '@/domain'
 
-import { formString } from '@/shared/form-data'
+import { formCents, formString } from '@/shared/form-data'
 
 export type PlanPayload = {
   name: string
@@ -33,9 +33,8 @@ export function parsePlanForm(formData: FormData): PlanPayload | string {
 
   const description = formString(formData, 'description').trim() || null
 
-  const priceStr = formString(formData, 'priceCents').trim()
-  const priceCents = Math.round(Number(priceStr.replace(',', '.')) * 100)
-  if (!Number.isFinite(priceCents) || priceCents < 0) return 'Preço inválido'
+  const priceCents = formCents(formData, 'priceCents')
+  if (priceCents === null) return 'Preço inválido'
 
   const billingCycleRaw = formString(formData, 'billingCycle')
   if (!isBillingCycle(billingCycleRaw)) return 'Ciclo de cobrança inválido'

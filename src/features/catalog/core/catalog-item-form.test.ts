@@ -64,6 +64,24 @@ describe('parseCommissionFromForm', () => {
       value: 1250,
     })
   })
+
+  it('fixed aceita separador de milhar e vazio vira zero', () => {
+    expect(parseCommissionFromForm('k', 'v', makeForm({ k: 'fixed', v: '1.234,56' }))).toEqual({
+      kind: 'fixed',
+      value: 123456,
+    })
+    expect(parseCommissionFromForm('k', 'v', makeForm({ k: 'fixed', v: '1.234' }))).toEqual({
+      kind: 'fixed',
+      value: 123400,
+    })
+    expect(parseCommissionFromForm('k', 'v', makeForm({ k: 'fixed', v: '' }))).toEqual({
+      kind: 'fixed',
+      value: 0,
+    })
+    expect(parseCommissionFromForm('k', 'v', makeForm({ k: 'fixed', v: 'abc' }))).toBe(
+      'Valor de comissão inválido',
+    )
+  })
 })
 
 describe('parseUnitOverrides', () => {
@@ -74,6 +92,11 @@ describe('parseUnitOverrides', () => {
   it('coleta o override de preço de uma unidade', () => {
     const result = parseUnitOverrides(makeForm({ override_u1__priceCents: '30,00' }), ['u1', 'u2'])
     expect(result).toEqual({ u1: { priceCents: 3000 } })
+  })
+
+  it('override de preço aceita separador de milhar', () => {
+    const result = parseUnitOverrides(makeForm({ override_u1__priceCents: '1.200,00' }), ['u1'])
+    expect(result).toEqual({ u1: { priceCents: 120000 } })
   })
 
   it('propaga erro de duração inválida com o id da unidade', () => {

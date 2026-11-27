@@ -8,6 +8,7 @@ import { emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
 import { getOrgTier } from '@/shared/org/billing-read'
 import { requireManagerCtx } from '@/shared/org/membership'
+import { parseBRLInput } from '@cbrl/br/money'
 import { revalidatePath } from 'next/cache'
 
 export type GoalMutationResult = { ok: true } | { ok: false; error: string }
@@ -34,8 +35,8 @@ function parseGoalForm(formData: FormData): GoalFormPayload | string {
 
   const raw = formString(formData, 'target').trim()
   if (raw.length === 0) return 'Informe a meta de lucro'
-  const targetCents = Math.round(Number(raw.replace(',', '.')) * 100)
-  if (!Number.isFinite(targetCents) || targetCents < GOAL_TARGET_MIN_CENTS) {
+  const targetCents = parseBRLInput(raw)
+  if (targetCents === null || targetCents < GOAL_TARGET_MIN_CENTS) {
     return 'Informe uma meta de lucro maior que zero'
   }
 

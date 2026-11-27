@@ -3,6 +3,7 @@
 import type { Goal } from '@/domain'
 import { defineGoal, updateGoal } from '@/features/copilot/adapters/copilot.actions'
 import { useFormValidity } from '@/hooks/use-form-validity'
+import { formatAmountFromCents } from '@cbrl/br/money'
 import { Button, Input, Label } from '@cbrl/design'
 import { useId, useState, useTransition } from 'react'
 
@@ -44,11 +45,8 @@ export function GoalForm({ unitId, period, goal }: GoalFormProps) {
         <Input
           id={targetId}
           name="target"
-          type="number"
           inputMode="decimal"
-          step="0.01"
-          min="0.01"
-          defaultValue={goal ? (goal.targetCents / 100).toFixed(2) : ''}
+          defaultValue={goal ? formatAmountFromCents(goal.targetCents) : ''}
           placeholder="0,00"
           required
         />

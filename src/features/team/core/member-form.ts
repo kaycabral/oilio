@@ -1,4 +1,5 @@
 import type { MemberOperation, Role } from '@/domain'
+import { formatAmountFromCents } from '@cbrl/br/money'
 
 export type TaxKind = 'none' | 'individual' | 'company'
 export type CommissionKind = 'none' | 'percentage' | 'fixed'
@@ -29,7 +30,7 @@ export const COMMISSION_KIND_LABELS: Record<CommissionKind, string> = {
 export function memberCommissionValue(
   commission: MemberOperation['defaultCommission'] | undefined,
 ): string {
-  if (commission?.kind === 'fixed') return (commission.value / 100).toFixed(2).replace('.', ',')
+  if (commission?.kind === 'fixed') return formatAmountFromCents(commission.value)
   if (commission?.kind === 'percentage') return String(commission.value)
   return ''
 }
