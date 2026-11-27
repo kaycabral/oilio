@@ -19,7 +19,7 @@ import {
 } from '@/features/orders/core/order-helpers'
 import { getCatalogItemById } from '@/shared/db/effect/catalog-item-read'
 import { newId } from '@/shared/db/pg/new-id'
-import { formString } from '@/shared/form-data'
+import { formCents } from '@/shared/form-data'
 import { track } from '@/shared/lib/track'
 import { Effect } from 'effect'
 import { revalidatePath } from 'next/cache'
@@ -470,9 +470,8 @@ export async function updateOrderMeta(
   const r = await requireOrgCtx()
   if (!r.ok) return { ok: false, error: r.error }
 
-  const discountStr = formString(formData, 'discount').trim()
-  const discountCents = Math.round(Number(discountStr.replace(',', '.')) * 100)
-  if (!Number.isFinite(discountCents) || discountCents < 0) {
+  const discountCents = formCents(formData, 'discount')
+  if (discountCents === null) {
     return { ok: false, error: 'Desconto inválido' }
   }
   const orgId = r.ctx.membership.orgId

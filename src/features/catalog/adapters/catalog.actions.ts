@@ -22,7 +22,7 @@ import { isForeignKeyViolation } from '@/shared/db/pg/pg-error'
 import { emitEvent } from '@/shared/effect-bridge'
 import { classifyError } from '@/shared/errors/classify'
 import { messageForCategory } from '@/shared/errors/messages'
-import { formString } from '@/shared/form-data'
+import { formCents, formString } from '@/shared/form-data'
 import { getCategoryById } from '@/shared/org/category-read'
 import { canDeleteCatalogItem } from '@/shared/org/delete-guard'
 import {
@@ -65,9 +65,8 @@ async function parseCatalogItemForm(
     return 'Categoria inválida ou inexistente'
   }
 
-  const priceStr = formString(formData, 'priceCents').trim()
-  const priceCents = Math.round(Number(priceStr.replace(',', '.')) * 100)
-  if (!Number.isFinite(priceCents) || priceCents < 0) return 'Preço inválido'
+  const priceCents = formCents(formData, 'priceCents')
+  if (priceCents === null) return 'Preço inválido'
 
   const commission = parseCommissionFromForm('commissionKind', 'commissionValue', formData)
   if (typeof commission === 'string') return commission

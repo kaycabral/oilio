@@ -18,7 +18,7 @@ import {
 } from '@/features/orders/adapters/orders.actions'
 import { buildCatalogOptions, statusLine } from '@/features/orders/core/order-detail-format'
 import type { OrgMember } from '@/shared/org/membership'
-import { formatBRLFromCents } from '@cbrl/br/money'
+import { formatAmountFromCents, formatBRLFromCents } from '@cbrl/br/money'
 import { Button, Input } from '@cbrl/design'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -258,10 +258,9 @@ function MetaForm({
         <Input
           id="order-discount"
           name="discount"
-          type="number"
-          min={0}
-          step="0.01"
-          defaultValue={(discountCents / 100).toFixed(2)}
+          inputMode="decimal"
+          placeholder="0,00"
+          defaultValue={formatAmountFromCents(discountCents)}
         />
       </label>
       <Button type="submit" variant="outline" className="self-end" disabled={pending}>

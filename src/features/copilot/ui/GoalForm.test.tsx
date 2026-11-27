@@ -41,7 +41,7 @@ describe('GoalForm', () => {
   it('edits an existing goal: target prefilled in reais, "Salvar meta" CTA', () => {
     render(<GoalForm unitId="unit-a" period="2026-06" goal={goal} />)
     const target = screen.getByLabelText(/meta de lucro do mês/i)
-    expect(target).toHaveDisplayValue('5000.00')
+    expect(target).toHaveDisplayValue('5.000,00')
     expect(screen.getByRole('button', { name: 'Salvar meta' })).toBeInTheDocument()
   })
 })

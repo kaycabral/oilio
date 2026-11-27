@@ -31,7 +31,7 @@ function unit(over: Partial<Unit> = {}): Unit {
 
 describe('formatCents', () => {
   it('formats cents as pt-BR decimal with a comma', () => {
-    expect(formatCents(123456)).toBe('1234,56')
+    expect(formatCents(123456)).toBe('1.234,56')
     expect(formatCents(8000)).toBe('80,00')
     expect(formatCents(0)).toBe('0,00')
   })

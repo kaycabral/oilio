@@ -1,4 +1,5 @@
 import type { CatalogItemUnitOverride, CommissionRule, StoredUnit } from '@/domain'
+import { formatAmountFromCents } from '@cbrl/br/money'
 
 export type CommissionKind = 'none' | 'percentage' | 'fixed'
 export type OverrideCommissionKind = 'inherit' | 'none' | 'percentage' | 'fixed'
@@ -11,12 +12,12 @@ export const COMMISSION_KIND_LABELS: Record<CommissionKind, string> = {
 
 export function formatCents(cents: number | undefined): string {
   if (cents === undefined) return ''
-  return (cents / 100).toFixed(2).replace('.', ',')
+  return formatAmountFromCents(cents)
 }
 
 export function formatCommissionInput(c: CommissionRule | null | undefined): string {
   if (!c) return ''
-  return c.kind === 'fixed' ? (c.value / 100).toFixed(2).replace('.', ',') : String(c.value)
+  return c.kind === 'fixed' ? formatAmountFromCents(c.value) : String(c.value)
 }
 
 export function commissionKindFor(c: CommissionRule | null | undefined): CommissionKind {

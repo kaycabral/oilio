@@ -7,6 +7,7 @@ import {
   isOverrideCommissionKind,
   overrideCommissionKindFor,
 } from '@/features/catalog/core/catalog-item-format'
+import { parseBRLInput } from '@cbrl/br/money'
 import {
   Input,
   Label,
@@ -47,8 +48,7 @@ function UnitOverrideRow({
             defaultValue={formatCents(o.priceCents)}
             onChange={(e) => {
               const raw = e.target.value.trim()
-              const v =
-                raw.length === 0 ? undefined : Math.round(Number(raw.replace(',', '.')) * 100)
+              const v = raw.length === 0 ? undefined : (parseBRLInput(raw) ?? undefined)
               setOverride(unit.id, { ...o, priceCents: v })
             }}
           />

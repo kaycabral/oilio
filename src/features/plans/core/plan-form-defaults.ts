@@ -1,4 +1,5 @@
 import { type BillingCycle, type SubscriptionPlan, type WEEKDAYS } from '@/domain'
+import { formatAmountFromCents } from '@cbrl/br/money'
 
 export const CYCLE_LABELS: Record<BillingCycle, string> = {
   monthly: 'Mensal',
@@ -37,7 +38,7 @@ export function derivePlanFormDefaults(plan?: SubscriptionPlan) {
         limits.requireCompleteBeforeNext === true),
     initialItemIds: new Set(plan?.includedItemIds ?? []),
     initialCategoryIds: new Set(plan?.includedCategoryIds ?? []),
-    initialPrice: plan != null ? (plan.priceCents / 100).toFixed(2).replace('.', ',') : '',
+    initialPrice: plan != null ? formatAmountFromCents(plan.priceCents) : '',
     initialQuantity: plan?.usageLimit.kind === 'count' ? String(plan.usageLimit.quantity) : '',
   }
 }

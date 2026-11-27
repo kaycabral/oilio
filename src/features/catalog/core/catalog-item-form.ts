@@ -6,7 +6,7 @@ import type {
 } from '@/domain'
 import type { NameSearchResult, ProductMeasures } from '@/product'
 
-import { formString } from '@/shared/form-data'
+import { formCents, formString, parseCentsInput } from '@/shared/form-data'
 
 export function parseCommissionFromForm(
   kindField: string,
@@ -16,9 +16,14 @@ export function parseCommissionFromForm(
   const kind = formString(formData, kindField)
   if (kind === '' || kind === 'none') return null
   if (kind !== 'percentage' && kind !== 'fixed') return 'Tipo de comissão inválido'
+  if (kind === 'fixed') {
+    const cents = formCents(formData, valueField)
+    if (cents === null) return 'Valor de comissão inválido'
+    return { kind, value: cents }
+  }
   const raw = Number(formString(formData, valueField).replace(',', '.'))
   if (!Number.isFinite(raw) || raw < 0) return 'Valor de comissão inválido'
-  return { kind, value: kind === 'fixed' ? Math.round(raw * 100) : raw }
+  return { kind, value: raw }
 }
 
 export function parseSingleUnitOverride(
@@ -28,8 +33,8 @@ export function parseSingleUnitOverride(
   const o: CatalogItemUnitOverride = {}
   const priceRaw = formString(formData, `override_${unitId}__priceCents`).trim()
   if (priceRaw.length > 0) {
-    const v = Math.round(Number(priceRaw.replace(',', '.')) * 100)
-    if (!Number.isFinite(v) || v < 0) return `Preço da exceção inválido (unit ${unitId})`
+    const v = parseCentsInput(priceRaw)
+    if (v === null) return `Preço da exceção inválido (unit ${unitId})`
     o.priceCents = v
   }
   const durRaw = formString(formData, `override_${unitId}__durationMinutes`).trim()

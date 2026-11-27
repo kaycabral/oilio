@@ -1,5 +1,5 @@
 import { type CommissionRule, type TaxIdentity } from '@/domain'
-import { formString } from '@/shared/form-data'
+import { formCents, formString } from '@/shared/form-data'
 import { parseTaxIdentityFromForm } from '@/shared/org/tax-identity'
 
 export type MemberOperationPayload = {
@@ -16,11 +16,14 @@ export function parseMemberOperationForm(formData: FormData): MemberOperationPay
   const commissionKind = formString(formData, 'commissionKind')
   let defaultCommission: CommissionRule | null = null
   if (commissionKind === 'percentage' || commissionKind === 'fixed') {
-    const raw = Number(formString(formData, 'commissionValue').replace(',', '.'))
-    if (!Number.isFinite(raw) || raw < 0) return 'Valor de comissão inválido'
-    defaultCommission = {
-      kind: commissionKind,
-      value: commissionKind === 'fixed' ? Math.round(raw * 100) : raw,
+    if (commissionKind === 'fixed') {
+      const cents = formCents(formData, 'commissionValue')
+      if (cents === null) return 'Valor de comissão inválido'
+      defaultCommission = { kind: commissionKind, value: cents }
+    } else {
+      const raw = Number(formString(formData, 'commissionValue').replace(',', '.'))
+      if (!Number.isFinite(raw) || raw < 0) return 'Valor de comissão inválido'
+      defaultCommission = { kind: commissionKind, value: raw }
     }
   }
 
