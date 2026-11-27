@@ -24,6 +24,7 @@ import {
 import { formatBRLFromCents } from '@cbrl/br/money'
 import {
   Button,
+  Input,
   Label,
   Select,
   SelectContent,
@@ -129,15 +130,16 @@ function SubscriptionActions({
             )}
           </div>
           {!subscription.cancelAtPeriodEnd ? (
-            <label className="flex flex-col gap-1 pt-1">
+            <label htmlFor="subscription-cancel-reason" className="flex flex-col gap-1 pt-1">
               <span className="text-muted-foreground text-xs">
                 Motivo (opcional, apenas para histórico)
               </span>
-              <input
+              <Input
+                id="subscription-cancel-reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Ex.: cliente mudou de cidade"
-                className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+                className="h-9"
               />
             </label>
           ) : null}

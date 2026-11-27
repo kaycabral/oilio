@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseAmountToCents, parseEffectiveFromMonth, parseFixedCostForm } from './fixed-cost-form'
+import { parseEffectiveFromMonth, parseFixedCostForm } from './fixed-cost-form'
 
 function form(fields: Record<string, string>): FormData {
   const fd = new FormData()
@@ -48,17 +48,24 @@ describe('parseFixedCostForm', () => {
   })
 })
 
-describe('parseAmountToCents', () => {
+describe('parseFixedCostForm amount', () => {
+  const amountCents = (amount: string) => {
+    const parsed = parseFixedCostForm(form({ name: 'Aluguel', category: 'expense_admin', amount }))
+    return typeof parsed === 'string' ? parsed : parsed.amountCents
+  }
+
   it('parses BR-formatted amounts to integer cents', () => {
-    expect(parseAmountToCents('2.000,00')).toBe(200000)
-    expect(parseAmountToCents('2000')).toBe(200000)
-    expect(parseAmountToCents('2000,50')).toBe(200050)
-    expect(parseAmountToCents('1.234,56')).toBe(123456)
+    expect(amountCents('2.000,00')).toBe(200000)
+    expect(amountCents('2000')).toBe(200000)
+    expect(amountCents('2000,50')).toBe(200050)
+    expect(amountCents('1.234,56')).toBe(123456)
+    expect(amountCents('R$ 1.234,56')).toBe(123456)
+    expect(amountCents('1234.56')).toBe(123456)
   })
 
-  it('returns null for non-numeric / empty', () => {
-    expect(parseAmountToCents('')).toBeNull()
-    expect(parseAmountToCents('abc')).toBeNull()
+  it('rejects non-numeric / empty', () => {
+    expect(amountCents('')).toBe('Valor inválido')
+    expect(amountCents('abc')).toBe('Valor inválido')
   })
 })
 

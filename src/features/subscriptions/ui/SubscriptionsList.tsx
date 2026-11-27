@@ -1,7 +1,6 @@
 'use client'
 
 import { RowActions } from '@/components/RowActions'
-import { StatusBadge, type StatusTone } from '@/components/StatusBadge'
 import type { BillingCycle, Customer, Subscription, SubscriptionStatus } from '@/domain'
 import { SUBSCRIPTION_STATUS_LABEL } from '@/domain'
 import type { SubscriptionsFilter } from '@/features/subscriptions/adapters/load-subscriptions'
@@ -11,15 +10,18 @@ import { useListUrlControls } from '@/shared/list/use-list-url-controls'
 import { formatRelativeDate } from '@/shared/relative-date'
 import { toRoute } from '@/shared/routes'
 import { formatBRLFromCents } from '@cbrl/br/money'
-import { Button, List } from '@cbrl/design'
+import { Badge, Button, List } from '@cbrl/design'
 import { CreditCard, RotateCw } from 'lucide-react'
 import Link from 'next/link'
+import type { ComponentProps } from 'react'
 
-const STATUS_TONE: Record<SubscriptionStatus, StatusTone> = {
+type BadgeVariant = NonNullable<ComponentProps<typeof Badge>['variant']>
+
+const STATUS_TONE: Record<SubscriptionStatus, BadgeVariant> = {
   active: 'success',
   past_due: 'warning',
-  cancelled: 'neutral',
-  cancelled_for_non_payment: 'danger',
+  cancelled: 'secondary',
+  cancelled_for_non_payment: 'destructive',
 }
 
 const CYCLE_LABEL: Record<BillingCycle, string> = {
@@ -41,9 +43,9 @@ function formatDate(iso: string | null): string {
 function StatusBadges({ s }: { s: Subscription }) {
   return (
     <span className="flex items-center gap-1.5">
-      <StatusBadge tone={STATUS_TONE[s.status]}>{SUBSCRIPTION_STATUS_LABEL[s.status]}</StatusBadge>
+      <Badge variant={STATUS_TONE[s.status]}>{SUBSCRIPTION_STATUS_LABEL[s.status]}</Badge>
       {s.cancelAtPeriodEnd && s.status !== 'cancelled' ? (
-        <StatusBadge tone="neutral">Cancela ao fim do ciclo</StatusBadge>
+        <Badge variant="secondary">Cancela ao fim do ciclo</Badge>
       ) : null}
     </span>
   )

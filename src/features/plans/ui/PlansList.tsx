@@ -1,7 +1,6 @@
 'use client'
 
 import { RowActions, type RowAction } from '@/components/RowActions'
-import { StatusBadge } from '@/components/StatusBadge'
 import { type BillingCycle, type SubscriptionPlan } from '@/domain'
 import type { PlanStatusFilter } from '@/features/plans/adapters/load-plans'
 import { deletePlan } from '@/features/plans/adapters/plans.actions'
@@ -12,7 +11,7 @@ import type { WithCanDelete } from '@/shared/org/delete-guard'
 import { useCapability } from '@/shared/org/org-context'
 import { toRoute } from '@/shared/routes'
 import { formatBRLFromCents } from '@cbrl/br/money'
-import { Button, List } from '@cbrl/design'
+import { Badge, Button, List } from '@cbrl/design'
 import { CreditCard } from 'lucide-react'
 import Link from 'next/link'
 
@@ -128,9 +127,9 @@ export function PlansList({
           icon: <CreditCard />,
           title: p.name,
           badge: (
-            <StatusBadge tone={p.active ? 'success' : 'neutral'}>
+            <Badge variant={p.active ? 'success' : 'secondary'}>
               {p.active ? 'Ativo' : 'Inativo'}
-            </StatusBadge>
+            </Badge>
           ),
           description: `${CYCLE_LABELS[p.billingCycle]} · ${formatUsage(p)}`,
           trailing: formatBRLFromCents(p.priceCents),

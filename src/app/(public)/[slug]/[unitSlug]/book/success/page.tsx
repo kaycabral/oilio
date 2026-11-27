@@ -7,6 +7,7 @@ import {
 } from '@/shared/db/pg/effect/appointment-projector'
 import { readUnderRls } from '@/shared/db/pg/rls-read'
 import { getMemberOperationById } from '@/shared/org/member-operation-read'
+import { formatBRLFromCents } from '@cbrl/br/money'
 import { Schema } from 'effect'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -67,10 +68,7 @@ export default async function WizardSuccessPage({ params, searchParams }: PagePr
     minute: '2-digit',
   })
   const startLabel = fmt.format(new Date(appointment.startAt))
-  const priceLabel = (appointment.servicePriceCentsSnapshot / 100).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  })
+  const priceLabel = formatBRLFromCents(appointment.servicePriceCentsSnapshot)
 
   return (
     <main className="mx-auto max-w-md space-y-5 px-4 py-10">

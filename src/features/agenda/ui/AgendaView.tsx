@@ -12,7 +12,7 @@ import {
   getTodayInOrgTz,
   shiftDateInOrgTz,
 } from '@/domain'
-import { Button, EmptyState } from '@cbrl/design'
+import { Button, EmptyState, Input } from '@cbrl/design'
 import { CalendarDays } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -160,11 +160,11 @@ export function AgendaView({
           >
             →
           </Button>
-          <input
+          <Input
             type="date"
             value={date}
             onChange={(e) => navigate({ date: e.target.value })}
-            className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+            className="h-9 w-auto"
           />
         </div>
       </header>

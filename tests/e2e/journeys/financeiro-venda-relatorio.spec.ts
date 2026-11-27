@@ -156,7 +156,7 @@ test.describe('Financeiro venda + relatório — DoD (#1059 · 0031)', { tag: '@
         salesRow(authedPage, 'Venda').filter({ hasText: /\+\s*R\$\s*50,00/ }),
       ).toBeVisible()
       await expect(
-        salesRow(authedPage, 'Estorno de venda').filter({ hasText: /−\s*R\$\s*50,00/ }),
+        salesRow(authedPage, 'Estorno de venda').filter({ hasText: /-R\$\s*50,00/ }),
       ).toBeVisible()
     })
   })

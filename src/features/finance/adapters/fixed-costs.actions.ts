@@ -21,7 +21,6 @@ import {
   getFixedCostOverride,
 } from '@/features/finance/adapters/fixed-costs.repo'
 import {
-  parseAmountToCents,
   parseEffectiveFromMonth,
   parseFixedCostForm,
 } from '@/features/finance/core/fixed-cost-form'
@@ -30,6 +29,7 @@ import { commitSaga, emitEvent } from '@/shared/effect-bridge'
 import { formString } from '@/shared/form-data'
 import { requireManagerCtx, requireOwnerCtx } from '@/shared/org/membership'
 import { getUnitTimezone } from '@/shared/org/unit-read'
+import { parseSignedBRLInput } from '@cbrl/br/money'
 import { revalidatePath } from 'next/cache'
 
 export type FixedCostMutationResult = { ok: true } | { ok: false; error: string }
@@ -88,7 +88,7 @@ export async function updateFixedCostValue(
     return { ok: false, error: 'Só a vigência corrente pode ser alterada' }
   }
 
-  const amountCents = parseAmountToCents(formString(formData, 'amount'))
+  const amountCents = parseSignedBRLInput(formString(formData, 'amount'))
   if (amountCents === null || amountCents < 1) return { ok: false, error: 'Valor inválido' }
 
   const changeMonth = parseEffectiveFromMonth(formString(formData, 'effectiveFrom'))
@@ -211,7 +211,7 @@ export async function setFixedCostOverride(
   const current = await getFixedCostById(orgId, fixedCostId)
   if (!current) return { ok: false, error: 'Custo fixo não encontrado' }
 
-  const amountCents = parseAmountToCents(formString(formData, 'amount'))
+  const amountCents = parseSignedBRLInput(formString(formData, 'amount'))
   if (amountCents === null || amountCents < 1) return { ok: false, error: 'Valor inválido' }
 
   const existing = await getFixedCostOverride(orgId, current.seriesId, month)

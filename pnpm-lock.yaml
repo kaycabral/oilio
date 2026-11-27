@@ -15,11 +15,11 @@ importers:
   .:
     dependencies:
       '@cbrl/br':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.2.0
+        version: 0.2.0
       '@cbrl/design':
-        specifier: ^0.3.0
-        version: 0.3.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(next-themes@0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.5)
+        specifier: ^0.6.2
+        version: 0.6.2(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(next-themes@0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.5)
       '@cbrl/env':
         specifier: ^0.1.1
         version: 0.1.1
@@ -27,8 +27,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@cbrl/next':
-        specifier: ^0.1.1
-        version: 0.1.1(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.10.0)(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
+        specifier: ^0.2.0
+        version: 0.2.0(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.10.0)(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
       '@cbrl/pg':
         specifier: ^0.3.0
         version: 0.3.0(drizzle-orm@0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(pg@8.23.1))(pg@8.23.1)
@@ -487,16 +487,16 @@ packages:
     resolution: {integrity: sha512-0PzaCmNaJQjJ9Sypdn3GXdIZ05qKedYiIglt+g3XAzFYa0ngcz59YxMgyxY4Z+Cn+Hn/MCAFCAJ5o8iOcn52yw==}
     engines: {node: '>=18.18'}
 
-  '@cbrl/br@0.1.0':
-    resolution: {integrity: sha512-EO5FnapK/nG0eQzvlkg8tTx1spGzPo+e8zFAzhomlqW4xuUWnu4qDqdSm1q4jbzWe4vYwpzXhHjU1fL6uxiqkg==}
+  '@cbrl/br@0.2.0':
+    resolution: {integrity: sha512-xOKKFSMNIUjuY1QZl0DPwyW0NtJGgUNtfeQlnE+GLX6fGe7eFkbYmLBft/CTMiRIG9qHxRshDGGY/D7/kHWglw==}
 
   '@cbrl/commitlint-config@0.2.0':
     resolution: {integrity: sha512-r/HNw8U+8gzdS9q2P6DtcVNJwRAg8UsZ/zg7RBmFkpNvTcWHDCamMdhXpyjVHwXoQPd5hLS+TalwuI7Zz02LYw==}
     peerDependencies:
       '@commitlint/cli': '>=20'
 
-  '@cbrl/design@0.3.0':
-    resolution: {integrity: sha512-Mwlz/5uCZtDYZ8kB+YV/idxMRi1g9Qr6uwwe7I65/oFUxwYMms/LL4VwD+x9jEjPAICoz8APg0e6n9xWJvtAFg==}
+  '@cbrl/design@0.6.2':
+    resolution: {integrity: sha512-W1N8jxW7QCsTBTzjqboetSTU9gq7QrX98CPMBnQ54P8M5gnpH1l24Ul8Cvby61O51tUxUbzpe49uZrAte4NuZw==}
     peerDependencies:
       next-themes: ^0.4.0
       react: ^19.0.0
@@ -515,8 +515,8 @@ packages:
   '@cbrl/log@0.1.0':
     resolution: {integrity: sha512-pAjbG2+lKHGW7C4EFXCrJA5be/xveqH8pl1OKp7vVwgG0J0aezrE+O/VIJ/nE5LGJUm73OXwE9AtcVKlFb5+lQ==}
 
-  '@cbrl/next@0.1.1':
-    resolution: {integrity: sha512-gM0UiCwOGxP7iBA1B8owT5cr/xTjVdlWkvBMPV0cP2OpJNHIdXE5FSnUntQ4aBJYmp2BV2JnqQWhdMwh/NqRtg==}
+  '@cbrl/next@0.2.0':
+    resolution: {integrity: sha512-uuAF3F+SiFJz75EPYSFL1Iv8742sq+qVaPUtoom50HgR6h82PKyu2Wj+w8aNEQk12CHYDGI8QqEYf80nltiUPQ==}
     peerDependencies:
       next: ^16.0.0
 
@@ -5940,8 +5940,8 @@ packages:
     resolution: {integrity: sha512-yEFYrVhod+hdNyx7g5Bnkkb0G6si8HJurOoOEgC8B/O0uXLHlaey/65KRv6cuWBNhBgHKAROVpc7QyYqE5gFng==}
     engines: {node: '>=20'}
 
-  tailwind-merge@3.7.0:
-    resolution: {integrity: sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA==}
+  tailwind-merge@3.7.1:
+    resolution: {integrity: sha512-v7y4BV4FUlO8exj/4M5UXKeoowDiuugVUg3tkMNIyOUCOHy5xp8+5aWQeXCtZ2491sUV1YPsVeM9EveZ6/xuZQ==}
 
   tailwindcss@4.3.5:
     resolution: {integrity: sha512-FcQk9BuffmEHJP2G0XmB2SplU1aLTI7j07Kunk+U74Ny+XiWOtzXz9aujFZ/avntw1e2cOv/3PkgzflQ7gX2vQ==}
@@ -6771,14 +6771,14 @@ snapshots:
       '@boundaries/elements': 3.3.4
       handlebars: 4.7.10
 
-  '@cbrl/br@0.1.0': {}
+  '@cbrl/br@0.2.0': {}
 
   '@cbrl/commitlint-config@0.2.0(@commitlint/cli@21.2.4(conventional-commits-parser@7.1.4)(typescript@6.0.3))':
     dependencies:
       '@commitlint/cli': 21.2.4(conventional-commits-parser@7.1.4)(typescript@6.0.3)
       '@commitlint/config-conventional': 21.2.4
 
-  '@cbrl/design@0.3.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(next-themes@0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.5)':
+  '@cbrl/design@0.6.2(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(next-themes@0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.5)':
     dependencies:
       class-variance-authority: 0.7.1
       clsx: 2.1.1
@@ -6789,7 +6789,7 @@ snapshots:
       react-day-picker: 10.0.2(@types/react@19.3.0)(react@19.3.1)
       react-dom: 19.3.1(react@19.3.1)
       sonner: 2.0.8(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      tailwind-merge: 3.7.0
+      tailwind-merge: 3.7.1
       tailwindcss: 4.3.5
       tw-animate-css: 1.4.0
     transitivePeerDependencies:
@@ -6819,8 +6819,9 @@ snapshots:
 
   '@cbrl/log@0.1.0': {}
 
-  '@cbrl/next@0.1.1(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.10.0)(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))':
+  '@cbrl/next@0.2.0(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.10.0)(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))':
     dependencies:
+      '@cbrl/log': 0.1.0
       next: 16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.10.0)(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
 
   '@cbrl/pg@0.3.0(drizzle-orm@0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(pg@8.23.1))(pg@8.23.1)':
@@ -10099,7 +10100,7 @@ snapshots:
       eslint: 9.39.5(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint@9.39.5(jiti@2.7.0)))(eslint@9.39.5(jiti@2.7.0))
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint@9.39.5(jiti@2.7.0)))(eslint@9.39.5(jiti@2.7.0)))(eslint@9.39.5(jiti@2.7.0))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.5(jiti@2.7.0))
       eslint-plugin-react: 7.37.5(eslint@9.39.5(jiti@2.7.0))
       eslint-plugin-react-hooks: 7.1.1(eslint@9.39.5(jiti@2.7.0))
@@ -10141,7 +10142,7 @@ snapshots:
       tinyglobby: 0.2.17
       unrs-resolver: 1.13.0
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint@9.39.5(jiti@2.7.0)))(eslint@9.39.5(jiti@2.7.0)))(eslint@9.39.5(jiti@2.7.0))
     transitivePeerDependencies:
       - supports-color
 
@@ -10187,7 +10188,7 @@ snapshots:
       is-glob: 4.0.3
       micromatch: 4.0.8
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0)):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint@9.39.5(jiti@2.7.0)))(eslint@9.39.5(jiti@2.7.0)))(eslint@9.39.5(jiti@2.7.0)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.2.0
@@ -12078,7 +12079,7 @@ snapshots:
   tagged-tag@1.0.0:
     optional: true
 
-  tailwind-merge@3.7.0: {}
+  tailwind-merge@3.7.1: {}
 
   tailwindcss@4.3.5: {}
 
