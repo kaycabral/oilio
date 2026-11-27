@@ -10,6 +10,8 @@ import { getPublicOrgBundle } from '@/features/self-book/adapters/public-org'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 
+export const instant = false
+
 type PageProps = { searchParams: Promise<Record<string, string | undefined>> }
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {

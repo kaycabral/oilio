@@ -2,6 +2,8 @@ import { loadCustomersPage } from '@/features/customers/adapters/load-customers'
 import { CustomersList } from '@/features/customers/ui/CustomersList'
 import { Main } from '@cbrl/design'
 
+export const instant = false
+
 export default async function CustomersPage({
   searchParams,
 }: {

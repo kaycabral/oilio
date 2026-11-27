@@ -11,6 +11,8 @@ import { RemoveMemberButton } from '@/features/team/ui/RemoveMemberButton'
 import { formatBrazilPhone } from '@cbrl/br/phone'
 import { Main } from '@cbrl/design'
 
+export const instant = false
+
 const STATUS_LABELS: Record<Membership['status'], string> = {
   active: 'Ativo',
   invited: 'Convidado',

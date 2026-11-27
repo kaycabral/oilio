@@ -8,6 +8,8 @@ import { getOrg } from '@/shared/org/org'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { SettingsSection } from '@cbrl/design'
 
+export const instant = false
+
 export default async function BillingPage() {
   const ctx = await requireManagerPage()
 

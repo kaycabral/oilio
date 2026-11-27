@@ -3,6 +3,8 @@ import { SubscriptionRow } from '@/features/me/ui/SubscriptionRow'
 import { Main } from '@cbrl/design'
 import type { Metadata } from 'next'
 
+export const instant = false
+
 export const metadata: Metadata = { title: 'Minhas assinaturas' }
 
 export default async function MySubscriptionsPage() {

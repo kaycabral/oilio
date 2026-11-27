@@ -4,6 +4,8 @@ import { PlanForm } from '@/features/plans/ui/PlanForm'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 
+export const instant = false
+
 export default async function NewPlanPage() {
   const { units, catalogItems, categories, locked } = await loadNewPlanPage()
 

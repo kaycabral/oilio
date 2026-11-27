@@ -4,6 +4,8 @@ import { EmptyState, Main } from '@cbrl/design'
 import { Store } from 'lucide-react'
 import Link from 'next/link'
 
+export const instant = false
+
 export default async function OrdersPage({
   searchParams,
 }: {

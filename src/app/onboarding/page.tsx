@@ -4,6 +4,8 @@ import { getUserDoc, getUserMemberships } from '@/shared/org/membership'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 
+export const instant = false
+
 export default async function OnboardingPage() {
   if (!isSupabaseConfigured()) redirect('/')
 

@@ -2,7 +2,7 @@ import { loadDashboardPage } from '@/features/dashboard/adapters/load-dashboard'
 import { DashboardView } from '@/features/dashboard/ui/DashboardView'
 import { Main } from '@cbrl/design'
 
-export const dynamic = 'force-dynamic'
+export const instant = false
 
 type SearchParams = Record<string, string | string[] | undefined>
 

@@ -13,6 +13,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+export const instant = false
+
 const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 
 async function getAppointmentById(orgId: string, apptId: string): Promise<Appointment | null> {

@@ -3,6 +3,8 @@ import { AppointmentRow } from '@/features/me/ui/AppointmentRow'
 import { Main } from '@cbrl/design'
 import type { Metadata } from 'next'
 
+export const instant = false
+
 export const metadata: Metadata = { title: 'Meus agendamentos' }
 
 export default async function MyAppointmentsPage() {

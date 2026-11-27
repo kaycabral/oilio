@@ -9,6 +9,8 @@ import { SettingsSection } from '@cbrl/design'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { notFound, redirect } from 'next/navigation'
 
+export const instant = false
+
 export default async function NotificationSettingsPage() {
   if (!isFeatureEnabled('notifications')) notFound()
 

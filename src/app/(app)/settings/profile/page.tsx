@@ -7,6 +7,8 @@ import { Card, CardContent, SettingsSection } from '@cbrl/design'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 
+export const instant = false
+
 export default async function ProfileSettingsPage() {
   if (!isSupabaseConfigured()) redirect('/')
 

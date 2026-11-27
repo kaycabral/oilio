@@ -3,9 +3,6 @@ import { isAuthorizedCron } from '@/shared/cron-auth'
 import { withRequestContext } from '@cbrl/log'
 import { NextResponse } from 'next/server'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
-
 async function postHandler(request: Request): Promise<Response> {
   if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

@@ -4,6 +4,8 @@ import { isFeatureEnabled } from '@/shared/flags'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 
+export const instant = false
+
 export default async function NotificationsPage({
   searchParams,
 }: {

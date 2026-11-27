@@ -4,6 +4,8 @@ import { CustomerDetail } from '@/features/customers/ui/CustomerDetail'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 
+export const instant = false
+
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const customer = await loadCustomerForView(id)

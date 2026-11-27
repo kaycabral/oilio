@@ -10,6 +10,8 @@ import { safeNext } from '@cbrl/next'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 
+export const instant = false
+
 type SearchParams = Promise<{ next?: string }>
 
 export default async function CompleteProfilePage({

@@ -5,6 +5,8 @@ import { CatalogItemForm } from '@/features/catalog/ui/CatalogItemForm'
 import { ServiceMemberOperationsForm } from '@/features/catalog/ui/ServiceMemberOperationsForm'
 import { Main } from '@cbrl/design'
 
+export const instant = false
+
 export default async function EditCatalogItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { item, units, categories, memberOperations } = await loadEditCatalogItemPage(id)

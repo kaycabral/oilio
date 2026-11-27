@@ -4,6 +4,8 @@ import { PlanForm } from '@/features/plans/ui/PlanForm'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 
+export const instant = false
+
 export default async function EditPlanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const data = await loadEditPlanPage(id)

@@ -4,6 +4,8 @@ import { SubscriptionDetail } from '@/features/subscriptions/ui/SubscriptionDeta
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 
+export const instant = false
+
 export default async function SubscriptionDetailPage({
   params,
 }: {

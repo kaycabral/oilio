@@ -12,6 +12,8 @@ vi.mock('@/shared/identity/post-auth-destination', () => ({
   resolvePostAuthDestination: mocks.resolvePostAuthDestination,
 }))
 
+vi.mock('next/server', () => ({ connection: vi.fn(async () => {}) }))
+
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
     throw new Error(`__REDIRECT__:${path}`)

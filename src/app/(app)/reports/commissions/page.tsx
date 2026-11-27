@@ -1,6 +1,6 @@
 import { permanentRedirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
+export const instant = false
 
 type SearchParams = Record<string, string | string[] | undefined>
 

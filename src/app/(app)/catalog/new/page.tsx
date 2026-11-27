@@ -3,6 +3,8 @@ import { loadNewCatalogItemPage } from '@/features/catalog/adapters/load-catalog
 import { CatalogItemForm } from '@/features/catalog/ui/CatalogItemForm'
 import { Main } from '@cbrl/design'
 
+export const instant = false
+
 export default async function NewCatalogItemPage({
   searchParams,
 }: {

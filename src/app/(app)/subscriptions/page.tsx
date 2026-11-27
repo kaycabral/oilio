@@ -3,6 +3,8 @@ import { SubscriptionsList } from '@/features/subscriptions/ui/SubscriptionsList
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 
+export const instant = false
+
 export default async function SubscriptionsPage({
   searchParams,
 }: {

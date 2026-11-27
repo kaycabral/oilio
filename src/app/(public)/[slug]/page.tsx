@@ -8,7 +8,7 @@ import { getSessionUser } from '@/shared/auth/session'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
-export const revalidate = 60
+export const instant = false
 
 type PageProps = {
   params: Promise<{ slug: string }>

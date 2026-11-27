@@ -3,7 +3,7 @@ import { ReportsView } from '@/features/reports/ui/ReportsView'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
+export const instant = false
 
 type SearchParams = Record<string, string | string[] | undefined>
 

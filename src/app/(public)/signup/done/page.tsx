@@ -8,6 +8,8 @@ import type { Metadata, Route } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
+export const instant = false
+
 type PageProps = { searchParams: Promise<{ from?: string }> }
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {

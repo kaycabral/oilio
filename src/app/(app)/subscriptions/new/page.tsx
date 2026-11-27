@@ -7,6 +7,8 @@ import { Button, Main } from '@cbrl/design'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+export const instant = false
+
 export default async function NewSubscriptionPage() {
   const ctx = await requireCapabilityPage('canManageSubscriptions', '/subscriptions')
 

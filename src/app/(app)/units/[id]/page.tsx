@@ -10,6 +10,8 @@ import { UnitPublishCard } from '@/features/units/ui/UnitPublishCard'
 import { toRoute } from '@/shared/routes'
 import { Main, Typography } from '@cbrl/design'
 
+export const instant = false
+
 export default async function EditUnitPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { orgId, unit, org, unitTaxIdentity, canFormalize } = await loadUnitForEdit(id)

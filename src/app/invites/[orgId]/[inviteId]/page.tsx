@@ -10,6 +10,8 @@ import { emitMemberFunnelEvent } from '@/shared/product/member-funnel-events'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 
+export const instant = false
+
 type Params = Promise<{ orgId: string; inviteId: string }>
 type SearchParams = Promise<{ token?: string }>
 

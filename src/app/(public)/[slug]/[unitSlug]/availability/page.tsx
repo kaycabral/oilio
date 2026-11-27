@@ -14,7 +14,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
+export const instant = false
 
 type PageProps = {
   params: Promise<{ slug: string; unitSlug: string }>

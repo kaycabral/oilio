@@ -2,6 +2,8 @@ import { loadOrganizationsPage } from '@/features/company/adapters/load-organiza
 import { OrganizationsManager } from '@/features/company/ui/OrganizationsManager'
 import { Main } from '@cbrl/design'
 
+export const instant = false
+
 export default async function OrganizationsPage() {
   const { org, units, orgs, canManage, canDelete } = await loadOrganizationsPage()
 

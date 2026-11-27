@@ -3,6 +3,8 @@ import { CatalogList } from '@/features/catalog/ui/CatalogList'
 import { CategoryManager } from '@/features/catalog/ui/CategoryManager'
 import { Main } from '@cbrl/design'
 
+export const instant = false
+
 export default async function CatalogPage({
   searchParams,
 }: {
