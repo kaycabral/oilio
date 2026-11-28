@@ -8,8 +8,7 @@ import type { Metadata, Route } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
-
-export const instant = false
+import { Suspense } from 'react'
 
 type PageProps = { searchParams: Promise<{ from?: string }> }
 
@@ -22,7 +21,15 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   return { title: 'Cadastro registrado — Oilio' }
 }
 
-export default async function SignupDonePage({ searchParams }: PageProps) {
+export default function SignupDonePage(props: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <SignupDonePageContent {...props} />
+    </Suspense>
+  )
+}
+
+async function SignupDonePageContent({ searchParams }: PageProps) {
   await connection()
   const { from } = await searchParams
 

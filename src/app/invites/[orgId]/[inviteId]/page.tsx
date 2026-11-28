@@ -10,13 +10,20 @@ import { emitMemberFunnelEvent } from '@/shared/product/member-funnel-events'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
-
-export const instant = false
+import { Suspense } from 'react'
 
 type Params = Promise<{ orgId: string; inviteId: string }>
 type SearchParams = Promise<{ token?: string }>
 
-export default async function AcceptInvitePage({
+export default function AcceptInvitePage(props: Parameters<typeof AcceptInvitePageContent>[0]) {
+  return (
+    <Suspense fallback={null}>
+      <AcceptInvitePageContent {...props} />
+    </Suspense>
+  )
+}
+
+async function AcceptInvitePageContent({
   params,
   searchParams,
 }: {

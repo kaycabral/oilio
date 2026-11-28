@@ -13,8 +13,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { connection } from 'next/server'
-
-export const instant = false
+import { Suspense } from 'react'
 
 const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 
@@ -41,7 +40,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return { title: `Agendamento confirmado — ${slug}` }
 }
 
-export default async function WizardSuccessPage({ params, searchParams }: PageProps) {
+export default function WizardSuccessPage(props: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <WizardSuccessPageContent {...props} />
+    </Suspense>
+  )
+}
+
+async function WizardSuccessPageContent({ params, searchParams }: PageProps) {
   await connection()
   const { slug, unitSlug } = await params
   const sp = await searchParams

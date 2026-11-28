@@ -7,8 +7,7 @@ import { getSessionUser } from '@/shared/auth/session'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { connection } from 'next/server'
-
-export const instant = false
+import { Suspense } from 'react'
 
 type PageProps = {
   params: Promise<{ slug: string; unitSlug: string }>
@@ -38,7 +37,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
-export default async function PublicUnitCatalogPage({ params, searchParams }: PageProps) {
+export default function PublicUnitCatalogPage(props: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <PublicUnitCatalogPageContent {...props} />
+    </Suspense>
+  )
+}
+
+async function PublicUnitCatalogPageContent({ params, searchParams }: PageProps) {
   await connection()
   const { slug, unitSlug } = await params
   const sp = await searchParams
