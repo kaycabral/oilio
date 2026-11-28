@@ -4,10 +4,17 @@ import { listLinkedOrgIds } from '@/shared/identity/org-links'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
+import { Suspense } from 'react'
 
-export const instant = false
+export default function MeLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <SignedInMe>{children}</SignedInMe>
+    </Suspense>
+  )
+}
 
-export default async function MeLayout({ children }: { children: React.ReactNode }) {
+async function SignedInMe({ children }: { children: React.ReactNode }) {
   await connection()
   if (!isSupabaseConfigured()) redirect('/')
 

@@ -6,8 +6,6 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export const metadata: Metadata = { title: 'Meu perfil' }
 
 export default async function MeProfilePage() {

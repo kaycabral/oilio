@@ -10,16 +10,21 @@ import { safeNext } from '@cbrl/next'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
-
-export const instant = false
+import { Suspense } from 'react'
 
 type SearchParams = Promise<{ next?: string }>
 
-export default async function CompleteProfilePage({
-  searchParams,
-}: {
-  searchParams: SearchParams
-}) {
+export default function CompleteProfilePage(
+  props: Parameters<typeof CompleteProfilePageContent>[0],
+) {
+  return (
+    <Suspense fallback={null}>
+      <CompleteProfilePageContent {...props} />
+    </Suspense>
+  )
+}
+
+async function CompleteProfilePageContent({ searchParams }: { searchParams: SearchParams }) {
   await connection()
   if (!isSupabaseConfigured()) redirect('/')
 

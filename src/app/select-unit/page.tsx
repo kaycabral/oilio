@@ -6,10 +6,17 @@ import { getOrg } from '@/shared/org/org'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
+import { Suspense } from 'react'
 
-export const instant = false
+export default function SelectUnitPage() {
+  return (
+    <Suspense fallback={null}>
+      <SelectUnitPageContent />
+    </Suspense>
+  )
+}
 
-export default async function SelectUnitPage() {
+async function SelectUnitPageContent() {
   await connection()
   if (!isSupabaseConfigured()) redirect('/')
 

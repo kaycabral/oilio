@@ -26,8 +26,17 @@ vi.mock('next/navigation', () => ({
 
 import MeLayout from './layout'
 
-function callLayout() {
-  return MeLayout({ children: <div aria-label="children" /> })
+type Gate = React.ReactElement<
+  { children: React.ReactNode },
+  (props: { children: React.ReactNode }) => Promise<React.ReactElement>
+>
+
+function callLayout(): Promise<React.ReactElement> {
+  const boundary = MeLayout({ children: <div aria-label="children" /> }) as React.ReactElement<{
+    children: Gate
+  }>
+  const gate = boundary.props.children
+  return gate.type(gate.props)
 }
 
 async function captureRedirect(): Promise<string> {
