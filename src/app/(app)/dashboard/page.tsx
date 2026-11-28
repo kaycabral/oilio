@@ -1,8 +1,9 @@
 import { loadDashboardPage } from '@/features/dashboard/adapters/load-dashboard'
 import { DashboardView } from '@/features/dashboard/ui/DashboardView'
 import { Main } from '@cbrl/design'
+import { connection } from 'next/server'
 
-export const dynamic = 'force-dynamic'
+export const instant = false
 
 type SearchParams = Record<string, string | string[] | undefined>
 
@@ -11,6 +12,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
+  await connection()
   const props = await loadDashboardPage(await searchParams)
   return (
     <Main width="default">

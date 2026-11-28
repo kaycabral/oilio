@@ -13,6 +13,8 @@ const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
   : 'https://*.supabase.co'
 
 const nextConfig: NextConfig = {
+  cacheComponents: true,
+  partialPrefetching: true,
   typedRoutes: true,
   turbopack: {
     rules: {

@@ -1,4 +1,5 @@
 import { expect, test } from '../fixtures'
+import { expectNotFound } from '../helpers/not-found'
 
 const GATED_ROUTES = [
   '/plans',
@@ -17,8 +18,7 @@ test.describe('Billing — tier gating (brief 0088)', { tag: '@critical' }, () =
 
     for (const route of GATED_ROUTES) {
       test(`${route} responde 404 no acesso direto (B1)`, async ({ authedPage }) => {
-        const res = await authedPage.goto(route)
-        expect(res?.status()).toBe(404)
+        await expectNotFound(authedPage, route)
         await expect(authedPage.getByRole('link', { name: 'Fazer upgrade' })).toHaveCount(0)
       })
     }

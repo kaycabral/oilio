@@ -4,6 +4,8 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 
+export const instant = false
+
 export const metadata: Metadata = {
   title: 'Criar negócio — Oilio',
   description:

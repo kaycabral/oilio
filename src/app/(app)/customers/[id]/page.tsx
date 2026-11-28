@@ -3,8 +3,12 @@ import { loadCustomerForView } from '@/features/customers/adapters/load-customer
 import { CustomerDetail } from '@/features/customers/ui/CustomerDetail'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
+
+export const instant = false
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await connection()
   const { id } = await params
   const customer = await loadCustomerForView(id)
   if (!customer) notFound()

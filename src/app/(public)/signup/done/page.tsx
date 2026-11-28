@@ -7,6 +7,9 @@ import { Check } from 'lucide-react'
 import type { Metadata, Route } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
+
+export const instant = false
 
 type PageProps = { searchParams: Promise<{ from?: string }> }
 
@@ -20,6 +23,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
 }
 
 export default async function SignupDonePage({ searchParams }: PageProps) {
+  await connection()
   const { from } = await searchParams
 
   const session = await getSessionUser()

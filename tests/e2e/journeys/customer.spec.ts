@@ -72,7 +72,7 @@ test.describe('Jornada do cliente — caminho feliz', { tag: ['@journey', '@crit
     await booking.confirmButton().click()
     await expect(page).toHaveURL(new RegExp(`/${slug}/unidade-1/book/success\\?appt=`))
     await expect(booking.successHeading()).toBeVisible()
-    await expect(page.getByText(/Golden Path Corte/)).toBeVisible()
+    await expect(page.getByText(/Golden Path Corte/).filter({ visible: true })).toBeVisible()
 
     const me = new MeAppointmentsPage(page)
     await me.goto()

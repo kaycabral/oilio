@@ -7,8 +7,12 @@ import { hasMembershipCapability, requireManagerPage } from '@/shared/org/member
 import { getOrg } from '@/shared/org/org'
 import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { SettingsSection } from '@cbrl/design'
+import { connection } from 'next/server'
+
+export const instant = false
 
 export default async function BillingPage() {
+  await connection()
   const ctx = await requireManagerPage()
 
   track('settings_section_viewed', {

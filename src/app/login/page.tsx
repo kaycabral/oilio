@@ -3,6 +3,8 @@ import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 
+export const instant = false
+
 export default function LoginPage() {
   if (!isSupabaseConfigured()) redirect('/')
 

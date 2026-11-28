@@ -10,8 +10,9 @@ import { Typography } from '@cbrl/design'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
 
-export const dynamic = 'force-dynamic'
+export const instant = false
 
 export const metadata: Metadata = {
   title: 'Preços — Oilio',
@@ -20,6 +21,7 @@ export const metadata: Metadata = {
 }
 
 export default async function PricingPage() {
+  await connection()
   if (isSupabaseConfigured()) {
     const session = await getSessionUser()
     if (session) redirect(await resolvePostAuthDestination(session.uid))

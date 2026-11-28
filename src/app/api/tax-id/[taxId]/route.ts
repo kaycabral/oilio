@@ -6,8 +6,6 @@ import { withRequestContext } from '@cbrl/log'
 import { Schema } from 'effect'
 import { NextResponse } from 'next/server'
 
-export const revalidate = 86400
-
 async function getHandler(_req: Request, { params }: { params: Promise<{ taxId: string }> }) {
   const { taxId: rawParam } = await params
   const taxId = normalizeTaxId(rawParam)

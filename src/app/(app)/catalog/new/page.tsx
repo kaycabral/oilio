@@ -2,12 +2,16 @@ import { Breadcrumbs } from '@/components/breadcrumbs'
 import { loadNewCatalogItemPage } from '@/features/catalog/adapters/load-catalog'
 import { CatalogItemForm } from '@/features/catalog/ui/CatalogItemForm'
 import { Main } from '@cbrl/design'
+import { connection } from 'next/server'
+
+export const instant = false
 
 export default async function NewCatalogItemPage({
   searchParams,
 }: {
   searchParams: Promise<{ kind?: string }>
 }) {
+  await connection()
   const params = await searchParams
   const { kind, units, categories } = await loadNewCatalogItemPage(params)
 

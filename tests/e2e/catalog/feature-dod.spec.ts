@@ -3,6 +3,7 @@ import { aggregateRef } from '@/domain/effect'
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { fillCatalogName } from '../helpers/forms'
+import { expectNotFound } from '../helpers/not-found'
 import { addCatalogItemToOrder } from '../helpers/orders'
 import { chooseOption, choosePaymentMethod } from '../helpers/select'
 import {
@@ -72,8 +73,8 @@ test.describe('Feature 0023 — Definition of Done (catálogo unificado)', () =>
     await expect(authedPage.getByText(svc, { exact: true })).toBeVisible({ timeout: 5000 })
     await expect(authedPage.getByText(prod, { exact: true })).toBeVisible()
 
-    expect((await authedPage.goto('/services'))?.status()).toBe(404)
-    expect((await authedPage.goto('/products'))?.status()).toBe(404)
+    await expectNotFound(authedPage, '/services')
+    await expectNotFound(authedPage, '/products')
   })
 
   test('Cenário 2: categoria como entidade + escopo de plano por FK', async ({

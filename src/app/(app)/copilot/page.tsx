@@ -3,10 +3,12 @@ import { CopilotView } from '@/features/copilot/ui/CopilotView'
 import { isFeatureEnabled } from '@/shared/flags'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
 
-export const dynamic = 'force-dynamic'
+export const instant = false
 
 export default async function CopilotPage() {
+  await connection()
   if (!isFeatureEnabled('copilot')) notFound()
 
   const props = await loadCopilotPage()

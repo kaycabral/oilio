@@ -43,4 +43,20 @@ export default [
       'cbrl/no-non-doc-comments': 'error',
     },
   },
+  {
+    files: ['tests/e2e/**/*.spec.ts'],
+    rules: {
+      'playwright/expect-expect': [
+        'error',
+        {
+          assertFunctionNames: [
+            'assertOk',
+            'assertNoCrash',
+            'expectNotFound',
+            'expectHttpNotFound',
+          ],
+        },
+      ],
+    },
+  },
 ]

@@ -3,8 +3,12 @@ import { loadEditPlanPage } from '@/features/plans/adapters/load-plans'
 import { PlanForm } from '@/features/plans/ui/PlanForm'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
+
+export const instant = false
 
 export default async function EditPlanPage({ params }: { params: Promise<{ id: string }> }) {
+  await connection()
   const { id } = await params
   const data = await loadEditPlanPage(id)
 
@@ -21,7 +25,13 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
         ]}
       />
       <h1 className="text-2xl font-semibold">Editar plano</h1>
-      <PlanForm plan={plan} units={units} catalogItems={catalogItems} categories={categories} />
+      <PlanForm
+        key={plan.updatedAt}
+        plan={plan}
+        units={units}
+        catalogItems={catalogItems}
+        categories={categories}
+      />
     </Main>
   )
 }

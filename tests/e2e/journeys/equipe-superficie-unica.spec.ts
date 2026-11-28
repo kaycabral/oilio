@@ -4,6 +4,7 @@ import { aggregateRef } from '@/domain/effect'
 import { formatBrazilPhone } from '@cbrl/br/phone'
 import { expect, test } from '../fixtures'
 import { listItem, rowAction } from '../helpers/list'
+import { expectNotFound } from '../helpers/not-found'
 import { chooseOption } from '../helpers/select'
 import {
   pgReadProjection,
@@ -62,8 +63,7 @@ test.describe('Equipe como superfície única — DoD (#1084 · 0037)', () => {
       await pros.gotoByUserId(proUid)
       await expect(authedPage.locator('input[name="commissionValue"]')).toHaveValue('35')
 
-      const res = await authedPage.goto(`/memberOperations/${org.memberOperationIds[0]!}`)
-      expect(res?.status()).toBe(404)
+      await expectNotFound(authedPage, `/memberOperations/${org.memberOperationIds[0]!}`)
     })
   })
 

@@ -6,8 +6,12 @@ import { getActiveOrgContext } from '@/shared/org/membership'
 import { Card, CardContent, SettingsSection } from '@cbrl/design'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
+
+export const instant = false
 
 export default async function ProfileSettingsPage() {
+  await connection()
   if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()

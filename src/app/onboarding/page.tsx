@@ -3,8 +3,12 @@ import { getSessionUser } from '@/shared/auth/session'
 import { getUserDoc, getUserMemberships } from '@/shared/org/membership'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
+
+export const instant = false
 
 export default async function OnboardingPage() {
+  await connection()
   if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()

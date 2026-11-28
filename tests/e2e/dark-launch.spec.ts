@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures'
+import { expectNotFound } from './helpers/not-found'
 
 const FLAGS_OFF = process.env.E2E_FLAGS_OFF === '1'
 
@@ -12,9 +13,7 @@ if (FLAGS_OFF) {
 
     for (const route of GATED_ROUTES) {
       test(`${route} responde 404 com as flags off`, async ({ authedPage }) => {
-        const res = await authedPage.goto(route)
-        expect(res?.status(), `${route} deve ser 404 em dark-launch`).toBe(404)
-        await expect(authedPage.getByText(/404|não encontrad|not found/i).first()).toBeVisible()
+        await expectNotFound(authedPage, route)
       })
     }
 

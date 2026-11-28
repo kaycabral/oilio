@@ -6,8 +6,9 @@ import { UnitCatalog } from '@/features/self-book/ui/UnitCatalog'
 import { getSessionUser } from '@/shared/auth/session'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
 
-export const revalidate = 60
+export const instant = false
 
 type PageProps = {
   params: Promise<{ slug: string; unitSlug: string }>
@@ -38,6 +39,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function PublicUnitCatalogPage({ params, searchParams }: PageProps) {
+  await connection()
   const { slug, unitSlug } = await params
   const sp = await searchParams
   const memberOperationId = readMemberOperationQuery(sp)

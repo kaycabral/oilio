@@ -1,5 +1,6 @@
 import { expect, test } from '../fixtures'
 import { checkStable, fillStable } from '../helpers/hydration'
+import { expectHttpNotFound } from '../helpers/not-found'
 import { linkMemberOperationToServices, seedService } from '../helpers/session'
 import { PublicBookingPage, orgSlug } from '../pages'
 
@@ -76,8 +77,7 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
 
       await authedPage.goto('/catalog')
       await expect(authedPage).not.toHaveURL(/\/onboarding(\/|$)/)
-      const res = await page.goto(`/${orgSlug(org.orgId)}`)
-      expect(res?.status()).toBe(404)
+      await expectHttpNotFound(page, `/${orgSlug(org.orgId)}`)
     })
   })
 
@@ -107,8 +107,7 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
       })
       await linkMemberOperationToServices(org.orgId, org.memberOperationIds[0]!, [serviceId])
 
-      const before = await page.goto(`/${slug}/unidade-1`)
-      expect(before?.status()).toBe(404)
+      await expectHttpNotFound(page, `/${slug}/unidade-1`)
 
       await authedPage.route('**/api/postal-code/**', (route) =>
         route.fulfill({
