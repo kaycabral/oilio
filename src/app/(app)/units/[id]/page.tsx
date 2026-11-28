@@ -35,7 +35,7 @@ export default async function EditUnitPage({ params }: { params: Promise<{ id: s
         ]}
       />
       <Typography variant="pageTitle">Editar unidade</Typography>
-      <UnitForm unit={unit} />
+      <UnitForm key={unit.updatedAt} unit={unit} />
 
       <UnitAgendaSettings unit={unit} />
 

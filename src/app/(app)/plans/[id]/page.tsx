@@ -25,7 +25,13 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
         ]}
       />
       <h1 className="text-2xl font-semibold">Editar plano</h1>
-      <PlanForm plan={plan} units={units} catalogItems={catalogItems} categories={categories} />
+      <PlanForm
+        key={plan.updatedAt}
+        plan={plan}
+        units={units}
+        catalogItems={catalogItems}
+        categories={categories}
+      />
     </Main>
   )
 }

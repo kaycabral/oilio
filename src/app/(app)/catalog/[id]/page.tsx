@@ -22,7 +22,13 @@ export default async function EditCatalogItemPage({ params }: { params: Promise<
         ]}
       />
       <h1 className="text-2xl font-semibold">Editar item</h1>
-      <CatalogItemForm kind={item.kind} item={item} units={units} categories={categories} />
+      <CatalogItemForm
+        key={item.updatedAt}
+        kind={item.kind}
+        item={item}
+        units={units}
+        categories={categories}
+      />
 
       {isCatalogService(item) ? (
         <section className="space-y-2">
@@ -31,7 +37,11 @@ export default async function EditCatalogItemPage({ params }: { params: Promise<
             Quem aparece no calendário público pra este serviço — mesmo dado também editável em{' '}
             <strong>Profissionais</strong>.
           </p>
-          <ServiceMemberOperationsForm service={item} memberOperations={memberOperations} />
+          <ServiceMemberOperationsForm
+            key={item.updatedAt}
+            service={item}
+            memberOperations={memberOperations}
+          />
         </section>
       ) : null}
     </Main>
