@@ -22,12 +22,14 @@ export const APP_TOP_LEVEL_SEGMENTS: ReadonlySet<string> = new Set([
   'organizations',
   'plans',
   'pricing',
+  'privacy',
   'reports',
   'select-unit',
   'settings',
   'signup',
   'subscriptions',
   'team',
+  'terms',
   'units',
 ])
 

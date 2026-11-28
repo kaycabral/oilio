@@ -7,5 +7,7 @@ describe('MarketingFooter', () => {
     render(<MarketingFooter />)
     expect(screen.getByRole('link', { name: 'Preços' })).toHaveAttribute('href', '/pricing')
     expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/login')
+    expect(screen.getByRole('link', { name: 'Termos' })).toHaveAttribute('href', '/terms')
+    expect(screen.getByRole('link', { name: 'Privacidade' })).toHaveAttribute('href', '/privacy')
   })
 })
