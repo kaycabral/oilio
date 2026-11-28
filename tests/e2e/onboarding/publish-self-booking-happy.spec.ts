@@ -54,7 +54,7 @@ test.describe('Publish self-booking — happy path (#988)', { tag: '@critical' }
     await fillStable(authedPage.locator('input[name="postalCode"]'), '01310100')
     await fillStable(authedPage.locator('input[name="number"]'), '123')
 
-    await checkStable(authedPage.locator('#bh_monday'))
+    await checkStable(authedPage.getByRole('switch', { name: 'Segunda', exact: true }))
     await authedPage.getByRole('button', { name: 'Salvar' }).click()
     await expect(authedPage.getByRole('button', { name: 'Salvando…' })).toHaveCount(0, {
       timeout: 10_000,

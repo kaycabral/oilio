@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
-import { fillUnitWizardUntilReview } from '../helpers/forms'
+import { enableUnitBusinessHours, fillUnitWizardUntilReview } from '../helpers/forms'
 import { checkStable } from '../helpers/hydration'
 import { listItem } from '../helpers/list'
 import { enterUnitsAfterCreate } from '../helpers/session'
@@ -60,7 +60,7 @@ test.describe('Wizard de criação de unidade — DoD (#1438 · 0097)', { tag: '
 
       await dialog.getByRole('radio', { name: /Por agendamento/ }).click()
       await expect(dialog.getByText(/Passo 3 de 5/)).toBeVisible()
-      await checkStable(dialog.locator('#bh_monday'))
+      await enableUnitBusinessHours(dialog)
       await dialog.getByRole('button', { name: 'Continuar' }).click()
 
       await expect(dialog.getByLabel(/granularidade dos horários/i)).toBeVisible()

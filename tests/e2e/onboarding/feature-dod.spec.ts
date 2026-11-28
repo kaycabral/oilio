@@ -126,7 +126,7 @@ test.describe('Feature 0008 — Definition of Done (onboarding just-in-time)', (
       await authedPage.goto(`/units/${unitId}`)
       await fillStable(authedPage.locator('input[name="postalCode"]'), '01310100')
       await authedPage.locator('input[name="number"]').fill('123')
-      await checkStable(authedPage.locator('#bh_monday'))
+      await checkStable(authedPage.getByRole('switch', { name: 'Segunda', exact: true }))
       await authedPage.getByRole('button', { name: 'Salvar' }).click()
       await authedPage.waitForURL('**/organizations')
 
