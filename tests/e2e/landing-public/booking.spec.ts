@@ -10,6 +10,7 @@ import {
 import { Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { nextWeekday } from '../helpers/date'
+import { expectHttpNotFound } from '../helpers/not-found'
 import { linkMemberOperationToServices, seedService } from '../helpers/session'
 import { orgSlug, PublicBookingPage } from '../pages'
 
@@ -131,7 +132,6 @@ test.describe('Landing pública — branding + catálogo + agendamento', () => {
   })
 
   test('slug inexistente retorna 404', async ({ page }) => {
-    const res = await page.goto('/nao-existe-este-org-xyz-123')
-    expect(res?.status()).toBe(404)
+    await expectHttpNotFound(page, '/nao-existe-este-org-xyz-123')
   })
 })

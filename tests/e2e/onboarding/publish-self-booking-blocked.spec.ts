@@ -1,4 +1,5 @@
 import { expect, test } from '../fixtures'
+import { expectHttpNotFound } from '../helpers/not-found'
 import { orgSlug } from '../pages'
 
 test.describe(
@@ -36,11 +37,8 @@ test.describe(
     }) => {
       const slug = orgSlug(org.orgId)
 
-      const landing = await page.goto(`/${slug}`)
-      expect(landing?.status()).toBe(404)
-
-      const unit = await page.goto(`/${slug}/unidade-1`)
-      expect(unit?.status()).toBe(404)
+      await expectHttpNotFound(page, `/${slug}`)
+      await expectHttpNotFound(page, `/${slug}/unidade-1`)
     })
   },
 )

@@ -1,6 +1,7 @@
 import { expect, test } from '../fixtures'
 import { fillCatalogName } from '../helpers/forms'
 import { listItem, rowAction, rowActionsTrigger } from '../helpers/list'
+import { expectNotFound } from '../helpers/not-found'
 import { chooseOption } from '../helpers/select'
 import { seedCatalogItem, seedCategory } from '../helpers/session'
 
@@ -101,8 +102,7 @@ test.describe('Catálogo unificado — UI (#1005)', () => {
     authedPage,
   }) => {
     for (const path of ['/services', '/products', '/services/new', '/products/new']) {
-      const res = await authedPage.goto(path)
-      expect(res?.status(), `${path} deve responder 404`).toBe(404)
+      await expectNotFound(authedPage, path)
       await expect(authedPage).toHaveURL(new RegExp(`${path}$`))
     }
   })

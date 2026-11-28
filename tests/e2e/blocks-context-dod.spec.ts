@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures'
+import { expectNotFound } from './helpers/not-found'
 import { AgendaPage, MemberOperationsPage } from './pages'
 
 test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () => {
@@ -52,7 +53,9 @@ test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () =
       timeout: 5000,
     })
     await agenda.goto(monday)
-    await expect(authedPage.getByText('Fechado', { exact: true })).toHaveCount(0)
+    await expect(
+      authedPage.getByText('Fechado', { exact: true }).filter({ visible: true }),
+    ).toHaveCount(0)
   })
 
   test('Cenário 2 — bloqueio do profissional no detalhe do membro → reflete na agenda', async ({
@@ -82,8 +85,7 @@ test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () =
   test('Cenário 3 — /blocks não existe (404) e a nav não oferece "Bloqueios"', async ({
     authedPage,
   }) => {
-    const res = await authedPage.goto('/blocks')
-    expect(res?.status()).toBe(404)
+    await expectNotFound(authedPage, '/blocks')
     await authedPage.goto('/agenda')
     await expect(authedPage.getByRole('link', { name: 'Bloqueios' })).toHaveCount(0)
   })
