@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures'
+import { checkStable, uncheckStable } from './helpers/hydration'
 import { expectNotFound } from './helpers/not-found'
 import { AgendaPage, MemberOperationsPage } from './pages'
 
@@ -32,8 +33,7 @@ test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () =
     await authedPage.goto(`/units/${org.unitIds[0]}`)
     const toggle = authedPage.getByRole('switch', { name: 'Segunda' })
     await expect(toggle).toBeChecked()
-    await toggle.click()
-    await expect(toggle).not.toBeChecked()
+    await uncheckStable(toggle)
     await authedPage.getByRole('button', { name: 'Salvar' }).click()
     await expect(authedPage.getByRole('button', { name: 'Salvando…' })).toHaveCount(0, {
       timeout: 5000,
@@ -47,7 +47,7 @@ test.describe('Bloqueio no contexto — Feature DoD (brief 0036 · #1080)', () =
     await authedPage.goto(`/units/${org.unitIds[0]}`)
     const toggleAgain = authedPage.getByRole('switch', { name: 'Segunda' })
     await expect(toggleAgain).not.toBeChecked()
-    await toggleAgain.click()
+    await checkStable(toggleAgain)
     await authedPage.getByRole('button', { name: 'Salvar' }).click()
     await expect(authedPage.getByRole('button', { name: 'Salvando…' })).toHaveCount(0, {
       timeout: 5000,
