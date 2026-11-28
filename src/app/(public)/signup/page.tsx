@@ -1,3 +1,4 @@
+import { PRIVACY_PATH, TERMS_PATH } from '@/components/legal/paths'
 import { OAuthSignInButtons } from '@/components/oauth-sign-in-buttons'
 import {
   attributionFromParams,
@@ -56,7 +57,15 @@ export default async function PublicSignupPage({ searchParams }: PageProps) {
       </header>
       <OAuthSignInButtons next={next} />
       <p className="text-muted-foreground text-center text-xs">
-        Ao continuar, você concorda com nossos Termos e a Política de Privacidade.
+        Ao continuar, você concorda com nossos{' '}
+        <a href={TERMS_PATH} className="hover:text-foreground underline underline-offset-2">
+          Termos
+        </a>{' '}
+        e a{' '}
+        <a href={PRIVACY_PATH} className="hover:text-foreground underline underline-offset-2">
+          Política de Privacidade
+        </a>
+        .
       </p>
     </main>
   )

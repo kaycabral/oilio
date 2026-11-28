@@ -1,4 +1,5 @@
 import { BrandMark } from '@/components/brand-mark'
+import { PRIVACY_PATH, TERMS_PATH } from '@/components/legal/paths'
 import { MARKETING_CONTAINER } from '@/components/marketing/container'
 import { Typography, cn } from '@cbrl/design'
 
@@ -21,6 +22,12 @@ export function MarketingFooter() {
           </a>
           <a href="/login" className="hover:text-foreground transition-colors">
             Entrar
+          </a>
+          <a href={TERMS_PATH} className="hover:text-foreground transition-colors">
+            Termos
+          </a>
+          <a href={PRIVACY_PATH} className="hover:text-foreground transition-colors">
+            Privacidade
           </a>
         </nav>
         <Typography variant="muted" className="text-xs">
