@@ -17,6 +17,7 @@ import { formatBRLFromCents } from '@cbrl/br/money'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
+import { connection } from 'next/server'
 
 export const instant = false
 
@@ -70,6 +71,7 @@ async function loadWizardPageEntities(
 }
 
 export default async function WizardBookPage({ params, searchParams }: PageProps) {
+  await connection()
   const { slug, unitSlug } = await params
   const sp = await searchParams
   const serviceQ = readQuery(sp, 'service')

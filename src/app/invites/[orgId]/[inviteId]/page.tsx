@@ -9,6 +9,7 @@ import { getOrg } from '@/shared/org/org'
 import { emitMemberFunnelEvent } from '@/shared/product/member-funnel-events'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
 
 export const instant = false
 
@@ -22,6 +23,7 @@ export default async function AcceptInvitePage({
   params: Params
   searchParams: SearchParams
 }) {
+  await connection()
   if (!isSupabaseConfigured()) redirect('/')
 
   const { orgId, inviteId } = await params

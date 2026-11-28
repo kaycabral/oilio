@@ -60,6 +60,8 @@ vi.mock('next/headers', () => ({
   cookies: () => Promise.resolve({ get: () => undefined }),
 }))
 
+vi.mock('next/server', () => ({ connection: vi.fn(async () => {}) }))
+
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
     const err: RedirectError = Object.assign(new Error(`__REDIRECT__:${path}`), {

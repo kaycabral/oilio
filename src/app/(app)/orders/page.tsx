@@ -3,6 +3,7 @@ import { OrdersList } from '@/features/orders/ui/OrdersList'
 import { EmptyState, Main } from '@cbrl/design'
 import { Store } from 'lucide-react'
 import Link from 'next/link'
+import { connection } from 'next/server'
 
 export const instant = false
 
@@ -11,6 +12,7 @@ export default async function OrdersPage({
 }: {
   searchParams: Promise<{ status?: string; q?: string }>
 }) {
+  await connection()
   const data = await loadOrdersPage(await searchParams)
 
   if (data.kind === 'no-unit') {

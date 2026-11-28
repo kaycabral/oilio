@@ -9,6 +9,7 @@ import { Typography } from '@cbrl/design'
 import { safeNext } from '@cbrl/next'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
 
 export const instant = false
 
@@ -19,6 +20,7 @@ export default async function CompleteProfilePage({
 }: {
   searchParams: SearchParams
 }) {
+  await connection()
   if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()

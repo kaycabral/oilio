@@ -2,12 +2,14 @@ import { loadMyAppointmentsPage } from '@/features/me/adapters/load-me'
 import { AppointmentRow } from '@/features/me/ui/AppointmentRow'
 import { Main } from '@cbrl/design'
 import type { Metadata } from 'next'
+import { connection } from 'next/server'
 
 export const instant = false
 
 export const metadata: Metadata = { title: 'Meus agendamentos' }
 
 export default async function MyAppointmentsPage() {
+  await connection()
   const { upcoming, past } = await loadMyAppointmentsPage()
 
   return (

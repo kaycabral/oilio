@@ -7,6 +7,7 @@ import { UnitPicker } from '@/features/self-book/ui/UnitPicker'
 import { getSessionUser } from '@/shared/auth/session'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
 
 export const instant = false
 
@@ -26,6 +27,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function PublicOrgPage({ params }: PageProps) {
+  await connection()
   const { slug } = await params
 
   const summary = await getPublicOrgSummary(slug)

@@ -8,10 +8,12 @@ import { getOrg } from '@/shared/org/org'
 import { OrgProvider } from '@/shared/org/org-context'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
 
 export const instant = false
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  await connection()
   if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()

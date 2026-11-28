@@ -3,6 +3,7 @@ import { NotificationsList } from '@/features/notifications/ui/NotificationsList
 import { isFeatureEnabled } from '@/shared/flags'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
 
 export const instant = false
 
@@ -11,6 +12,7 @@ export default async function NotificationsPage({
 }: {
   searchParams: Promise<{ type?: string; page?: string }>
 }) {
+  await connection()
   if (!isFeatureEnabled('notifications')) notFound()
 
   const params = await searchParams

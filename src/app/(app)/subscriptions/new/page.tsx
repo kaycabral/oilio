@@ -6,10 +6,12 @@ import { requireCapabilityPage } from '@/shared/org/membership'
 import { Button, Main } from '@cbrl/design'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
 
 export const instant = false
 
 export default async function NewSubscriptionPage() {
+  await connection()
   const ctx = await requireCapabilityPage('canManageSubscriptions', '/subscriptions')
 
   if (await isCapabilityLocked(ctx.membership.orgId, 'plans.recurring')) notFound()

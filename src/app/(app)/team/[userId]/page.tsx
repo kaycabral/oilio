@@ -10,6 +10,7 @@ import { MemberStatusToggle } from '@/features/team/ui/MemberStatusToggle'
 import { RemoveMemberButton } from '@/features/team/ui/RemoveMemberButton'
 import { formatBrazilPhone } from '@cbrl/br/phone'
 import { Main } from '@cbrl/design'
+import { connection } from 'next/server'
 
 export const instant = false
 
@@ -25,6 +26,7 @@ export default async function MemberDetailPage({
 }: {
   params: Promise<{ userId: string }>
 }) {
+  await connection()
   const { userId } = await params
   const {
     member,

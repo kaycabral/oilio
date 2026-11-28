@@ -4,10 +4,12 @@ import { loadEditCatalogItemPage } from '@/features/catalog/adapters/load-catalo
 import { CatalogItemForm } from '@/features/catalog/ui/CatalogItemForm'
 import { ServiceMemberOperationsForm } from '@/features/catalog/ui/ServiceMemberOperationsForm'
 import { Main } from '@cbrl/design'
+import { connection } from 'next/server'
 
 export const instant = false
 
 export default async function EditCatalogItemPage({ params }: { params: Promise<{ id: string }> }) {
+  await connection()
   const { id } = await params
   const { item, units, categories, memberOperations } = await loadEditCatalogItemPage(id)
 

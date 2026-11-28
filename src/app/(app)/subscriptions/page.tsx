@@ -2,6 +2,7 @@ import { loadSubscriptionsPage } from '@/features/subscriptions/adapters/load-su
 import { SubscriptionsList } from '@/features/subscriptions/ui/SubscriptionsList'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
 
 export const instant = false
 
@@ -10,6 +11,7 @@ export default async function SubscriptionsPage({
 }: {
   searchParams: Promise<{ status?: string; q?: string }>
 }) {
+  await connection()
   const { subscriptions, customers, canManage, filter, searchQuery, state, locked } =
     await loadSubscriptionsPage(await searchParams)
 

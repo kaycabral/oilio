@@ -1,6 +1,7 @@
 import { loadDashboardPage } from '@/features/dashboard/adapters/load-dashboard'
 import { DashboardView } from '@/features/dashboard/ui/DashboardView'
 import { Main } from '@cbrl/design'
+import { connection } from 'next/server'
 
 export const instant = false
 
@@ -11,6 +12,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
+  await connection()
   const props = await loadDashboardPage(await searchParams)
   return (
     <Main width="default">

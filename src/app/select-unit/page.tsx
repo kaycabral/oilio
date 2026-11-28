@@ -5,10 +5,12 @@ import { getActiveOrgContext } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
 
 export const instant = false
 
 export default async function SelectUnitPage() {
+  await connection()
   if (!isSupabaseConfigured()) redirect('/')
 
   const session = await getSessionUser()

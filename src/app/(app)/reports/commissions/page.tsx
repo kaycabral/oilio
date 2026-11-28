@@ -1,4 +1,5 @@
 import { permanentRedirect } from 'next/navigation'
+import { connection } from 'next/server'
 
 export const instant = false
 
@@ -9,6 +10,7 @@ export default async function CommissionReportRedirect({
 }: {
   searchParams: Promise<SearchParams>
 }) {
+  await connection()
   const params = await searchParams
   const qs = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
