@@ -19,7 +19,7 @@ import {
   Switch,
 } from '@cbrl/design'
 import { Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 const WEEKDAY_LABELS: Record<Weekday, string> = {
   monday: 'Segunda',
@@ -96,6 +96,7 @@ export function BusinessHoursFields({
   mode: UnitHoursMode | null
   onModeChange: (mode: UnitHoursMode) => void
 }) {
+  const idPrefix = useId()
   const [state, setState] = useState<Record<Weekday, DayState>>(() => initialState(defaults))
 
   function toggleDay(day: Weekday, enabled: boolean) {
@@ -201,10 +202,14 @@ export function BusinessHoursFields({
         {MODE_OPTIONS.map((m) => (
           <FieldLabel
             key={m.value}
-            htmlFor={`hoursMode-${m.value}`}
+            htmlFor={`${idPrefix}-hoursMode-${m.value}`}
             className="hover:bg-accent/50 has-data-checked:border-primary has-data-checked:bg-primary/5 flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal"
           >
-            <RadioGroupItem id={`hoursMode-${m.value}`} value={m.value} className="mt-0.5" />
+            <RadioGroupItem
+              id={`${idPrefix}-hoursMode-${m.value}`}
+              value={m.value}
+              className="mt-0.5"
+            />
             <span className="flex flex-col gap-0.5">
               <span className="text-sm font-medium">{m.label}</span>
               <span className="text-muted-foreground text-xs">{m.consequence}</span>
@@ -217,13 +222,13 @@ export function BusinessHoursFields({
         <div className="divide-border/60 flex flex-col divide-y pt-1">
           {ORDERED_WEEKDAYS.map((day) => {
             const st = state[day]
-            const id = `bh_${day}`
+            const id = `${idPrefix}-${day}`
             return (
               <Field key={day} orientation="horizontal" className="items-start py-2.5">
                 <div className="flex h-9 flex-none items-center gap-2">
                   <Switch
                     id={id}
-                    name={`${id}_enabled`}
+                    name={`bh_${day}_enabled`}
                     checked={st.enabled}
                     onCheckedChange={(v) => toggleDay(day, v)}
                   />

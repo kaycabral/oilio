@@ -4,17 +4,17 @@
 # file mirrors it where it matters: no Data API, no Storage, no Realtime, and
 # Google as the only sign-in provider for real users. Email/password exists only
 # here, so E2E can sign seeded users in.
-project_id = "oilio"
+project_id = "oilio-i85"
 
 [api]
 # oilio talks to Postgres directly as `oilio_app`; the Data API stays off, as in
 # production. Kong still serves Auth.
 enabled = false
-port = 55321
+port = 56521
 
 [db]
-port = 55322
-shadow_port = 55320
+port = 56522
+shadow_port = 56520
 major_version = 17
 
 [db.pooler]
@@ -31,12 +31,12 @@ enabled = false
 
 [studio]
 enabled = true
-port = 55323
+port = 56523
 api_url = "http://127.0.0.1"
 
 [local_smtp]
 enabled = true
-port = 55324
+port = 56524
 
 [storage]
 enabled = false

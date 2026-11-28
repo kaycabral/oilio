@@ -24,9 +24,9 @@ export async function fillCatalogName(page: Page, value: string): Promise<void> 
 
 export async function enableUnitBusinessHours(
   scope: Page | Locator,
-  day = 'monday',
+  day = 'Segunda',
 ): Promise<void> {
-  await checkStable(scope.locator(`#bh_${day}`))
+  await checkStable(scope.getByRole('switch', { name: day, exact: true }))
 }
 
 export type UnitWizardInput = {
