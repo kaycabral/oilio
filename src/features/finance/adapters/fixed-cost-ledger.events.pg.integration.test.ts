@@ -1,4 +1,5 @@
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { readOrgLedger } from './ledger.repo'
 
@@ -6,7 +7,7 @@ const ORG = 'org-fc-ledger'
 const UNIT = 'unit-fc-ledger'
 
 function pool() {
-  return getEventStorePool()
+  return ownerPool()
 }
 
 async function seedParents(): Promise<void> {

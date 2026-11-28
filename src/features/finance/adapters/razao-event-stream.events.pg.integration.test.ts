@@ -3,7 +3,8 @@ import { CommissionConfig } from '@/domain/aggregates/commission/config'
 import { OrderConfig } from '@/domain/aggregates/order/config'
 import { aggregateRef, appendEvent, type PersistencePort } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { getPartialContributionMargin } from './contribution-margin.repo'
@@ -13,7 +14,7 @@ const ORG = 'org-razao'
 const UNIT = 'unit-razao'
 
 function pool() {
-  return getEventStorePool()
+  return ownerPool()
 }
 
 async function seedParents(): Promise<void> {

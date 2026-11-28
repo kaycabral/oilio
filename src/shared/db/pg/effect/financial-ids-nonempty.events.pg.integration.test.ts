@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 
 const ORG = 'org-fin-ne'
 const UNIT = 'unit-fin'
@@ -16,7 +17,7 @@ const COMPLETE_ADDRESS = JSON.stringify({
 })
 
 async function seedOrgAndUnit(): Promise<void> {
-  const pool = getEventStorePool()
+  const pool = ownerPool()
   await pool.query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
@@ -40,7 +41,7 @@ function insertCommission(
   attributedUserId: string,
   itemName: string,
 ): Promise<unknown> {
-  return getEventStorePool().query(
+  return ownerPool().query(
     `INSERT INTO commissions
        (org_id, id, last_event_version, order_id, order_item_id, attributed_user_id,
         attributed_member_name, item_kind, item_name, item_total_cents, commission_kind,
@@ -52,7 +53,7 @@ function insertCommission(
 }
 
 function insertCashMovement(id: string, recordedByUid: string): Promise<unknown> {
-  return getEventStorePool().query(
+  return ownerPool().query(
     `INSERT INTO cash_movements
        (org_id, id, last_event_version, unit_id, kind, direction, amount_cents, recorded_by_uid, created_at)
      VALUES ($1,$2,1,$3,'suprimento','in',500,$4,'2026-01-01T00:00:00Z')`,
@@ -66,7 +67,7 @@ beforeAll(async () => {
 })
 
 async function cleanup(): Promise<void> {
-  const pool = getEventStorePool()
+  const pool = ownerPool()
   await pool.query(`DELETE FROM commissions WHERE org_id = $1`, [ORG])
   await pool.query(`DELETE FROM cash_movements WHERE org_id = $1`, [ORG])
   await pool.query(`DELETE FROM charges WHERE org_id = $1`, [ORG])
@@ -76,8 +77,8 @@ async function cleanup(): Promise<void> {
 }
 
 beforeEach(async () => {
-  await getEventStorePool().query(`DELETE FROM commissions WHERE org_id = $1`, [ORG])
-  await getEventStorePool().query(`DELETE FROM cash_movements WHERE org_id = $1`, [ORG])
+  await ownerPool().query(`DELETE FROM commissions WHERE org_id = $1`, [ORG])
+  await ownerPool().query(`DELETE FROM cash_movements WHERE org_id = $1`, [ORG])
 })
 
 afterAll(async () => {

@@ -13,7 +13,8 @@ import {
   PUBLIC_DIRECTORY_UPSERT,
   publicOrgDirectoryValues,
 } from '@/shared/db/pg/effect/org-projector'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Effect, Layer } from 'effect'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { reconcilePendingProducts } from './reconcile-products'
@@ -68,7 +69,7 @@ function makeStore() {
 
 async function seedOrg(orgId: string): Promise<void> {
   const now = NOW.toISOString()
-  await getEventStorePool().query(
+  await ownerPool().query(
     PUBLIC_DIRECTORY_UPSERT,
     publicOrgDirectoryValues({
       id: orgId,
@@ -127,7 +128,7 @@ afterAll(async () => {
 })
 beforeEach(async () => {
   await getDb().delete(product)
-  await getEventStorePool().query('DELETE FROM public_org_directory')
+  await ownerPool().query('DELETE FROM public_org_directory')
 })
 
 describe('reconcilePendingProducts — against real Postgres', () => {

@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from './pool'
+import { closeEventStoreDb } from './pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 
 const UNIQUE_VIOLATION = '23505'
 const CONSTRAINT = 'users_mobile_unique'
@@ -16,7 +17,7 @@ function uniqueWa(): string {
 }
 
 async function insertUser(uid: string, mobile: string | null): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO users
        (uid, email_verified, completion_completed, mobile, created_at, updated_at)
      VALUES ($1, false, false, $2, $3, $3)`,
@@ -26,7 +27,7 @@ async function insertUser(uid: string, mobile: string | null): Promise<void> {
 
 describe('users_mobile_unique (global one-owner-per-number)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query("DELETE FROM users WHERE uid LIKE 'u-wa-%'")
+    await ownerPool().query("DELETE FROM users WHERE uid LIKE 'u-wa-%'")
   })
 
   afterAll(async () => {
@@ -48,7 +49,7 @@ describe('users_mobile_unique (global one-owner-per-number)', () => {
     const otherUid = uniqueUid('claimant')
     await insertUser(otherUid, uniqueWa())
     await expect(
-      getEventStorePool().query('UPDATE users SET mobile = $1 WHERE uid = $2', [wa, otherUid]),
+      ownerPool().query('UPDATE users SET mobile = $1 WHERE uid = $2', [wa, otherUid]),
     ).rejects.toMatchObject({ code: UNIQUE_VIOLATION, constraint: CONSTRAINT })
   })
 

@@ -1,4 +1,5 @@
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -13,7 +14,7 @@ const UNIT_A2 = 'unit-a2'
 let appUrl: string
 
 async function seedOrg(id: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id) DO NOTHING`,
@@ -22,7 +23,7 @@ async function seedOrg(id: string): Promise<void> {
 }
 
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
      VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -32,7 +33,7 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
 
 async function seedFixedCost(orgId: string, id: string, unitId: string): Promise<void> {
   await seedUnit(orgId, unitId)
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO fixed_costs (org_id, id, unit_id, series_id, last_event_version, name, category, amount_cents, effective_from, effective_to, archived_at, created_at, updated_at)
      VALUES ($1,$2,$3,$2,1,'Aluguel','expense_admin',200000,'2026-01-01T00:00:00Z',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId, id, unitId],
@@ -49,7 +50,7 @@ async function appClient(orgId: string, unitId = ''): Promise<Client> {
 
 describe('Postgres RLS + CHECK — fixed_costs (brief 0092, Grupo A)', () => {
   beforeAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
@@ -62,13 +63,13 @@ describe('Postgres RLS + CHECK — fixed_costs (brief 0092, Grupo A)', () => {
   })
 
   beforeEach(async () => {
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE fixed_costs, fixed_cost_overrides, units, orgs CASCADE',
     )
   })
 
   afterAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await closeEventStoreDb()

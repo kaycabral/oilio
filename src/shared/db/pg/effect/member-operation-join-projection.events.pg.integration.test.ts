@@ -4,7 +4,8 @@ import type { StoredMemberOperation } from '@/domain/types/member-operation'
 import { Effect } from 'effect'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { PostgresPersistenceLayer } from './postgres-layer'
 
 const ORG = 'org-pj'
@@ -35,7 +36,7 @@ function memberOperation(overrides: Partial<StoredMemberOperation> = {}): Stored
 }
 
 function pool() {
-  return getEventStorePool()
+  return ownerPool()
 }
 
 async function seedOrg(): Promise<void> {

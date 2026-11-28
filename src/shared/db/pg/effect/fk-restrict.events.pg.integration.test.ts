@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 
 const FK_VIOLATION = '23503'
 const ORG = 'fk-org'
@@ -10,7 +11,7 @@ const SERVICE = 'fk-svc'
 const SUBSCRIPTION = 'fk-sub'
 
 function pool() {
-  return getEventStorePool()
+  return ownerPool()
 }
 
 async function seedOrg(): Promise<void> {

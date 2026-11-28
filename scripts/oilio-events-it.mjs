@@ -26,6 +26,7 @@ import {
   ensureOilioDatabase,
   resolveConnection,
   run,
+  runtimeSuiteEnv,
 } from './oilio-pg-lib.mjs'
 
 const { oilioUrl, adminUrl, dbAttached } = resolveConnection()
@@ -44,15 +45,11 @@ let testStatus = 1
 try {
   await ensureOilioDatabase(adminUrl)
 
-  // Both suites need their URL: the event-store suite reads OILIO_DATABASE_URL,
-  // the product-gate/reconcile suite reads DATABASE_URL (the `produtos` base).
-  // `adminUrl` IS the produtos connection in every branch, so inject it as
-  // DATABASE_URL — otherwise the bare-local path (no env URLs → ephemeral
-  // container) runs the product suite with DATABASE_URL unset and it dies on
-  // `requireEnv`.
-  const suiteEnv = { ...process.env, OILIO_DATABASE_URL: oilioUrl, DATABASE_URL: adminUrl }
-  // The full Postgres integration layer: event-store suite + product-gate suite.
-  // Run both and OR the statuses so one report surfaces every failure.
+  // Both suites run the app as the `oilio_app` runtime role (OILIO_DATABASE_URL
+  // for the event store, DATABASE_URL for the `produtos` base) and migrate/seed
+  // as the owner (`OILIO_OWNER_DATABASE_URL`, `PRODUCT_OWNER_DATABASE_URL`).
+  // `adminUrl` IS the produtos owner connection in every branch.
+  const suiteEnv = runtimeSuiteEnv({ oilioUrl, productUrl: adminUrl })
   const eventsStatus = run('pnpm', ['run', 'test:integration:events:pg'], { env: suiteEnv })
   const pgStatus = run('pnpm', ['run', 'test:integration:pg'], {
     env: suiteEnv,

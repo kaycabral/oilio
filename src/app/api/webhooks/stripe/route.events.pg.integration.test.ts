@@ -1,5 +1,6 @@
 import { STRIPE_API_VERSION } from '@/shared/billing/stripe-api-version'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import Stripe from 'stripe'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -94,7 +95,7 @@ function buildSubscription(subId: string, orgId: string): Stripe.Subscription {
 }
 
 async function seedOrg(id: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id) DO NOTHING`,
@@ -113,7 +114,7 @@ async function bodyOf(res: Response): Promise<Record<string, unknown>> {
 }
 
 async function eventCount(): Promise<number> {
-  const res = await getEventStorePool().query<{ n: string }>(
+  const res = await ownerPool().query<{ n: string }>(
     'SELECT count(*)::text AS n FROM stripe_webhook_events',
   )
   return Number(res.rows[0]?.n ?? 0)
@@ -133,7 +134,7 @@ describe('Stripe webhook route (brief 0074, AC-01/AC-02)', () => {
     mocks.retrieve.mockImplementation((id: string) =>
       Promise.resolve(buildSubscription(id, 'org-1')),
     )
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE stripe_webhook_events, org_billing_stripe_index, org_billing, orgs, events CASCADE',
     )
     await seedOrg('org-1')

@@ -1,4 +1,5 @@
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -15,7 +16,7 @@ const APP_PASSWORD = 'rls_test'
 const ownerUrl = process.env.OILIO_DATABASE_URL
 
 async function seedOrg(id: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id) DO NOTHING`,
@@ -28,7 +29,7 @@ async function seedBilling(
   opts: { status: string; subId: string | null },
 ): Promise<void> {
   await seedOrg(orgId)
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO org_billing
        (org_id, id, last_event_version, tier, status, billing_cycle, unit_quantity,
         stripe_customer_id, stripe_subscription_id, cancel_at_period_end, created_at, updated_at)
@@ -36,7 +37,7 @@ async function seedBilling(
              '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId, opts.status, opts.subId],
   )
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO org_billing_stripe_index (stripe_customer_id, org_id) VALUES ('cus_'||$1, $1)`,
     [orgId],
   )
@@ -56,7 +57,7 @@ async function asRuntimeRole<T>(fn: () => Promise<T>): Promise<T> {
 
 describe('reconcileBillingQuantities (brief 0074, AC-04)', () => {
   beforeAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
@@ -67,11 +68,11 @@ describe('reconcileBillingQuantities (brief 0074, AC-04)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    await getEventStorePool().query('TRUNCATE org_billing_stripe_index, org_billing, orgs CASCADE')
+    await ownerPool().query('TRUNCATE org_billing_stripe_index, org_billing, orgs CASCADE')
   })
 
   afterAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await closeEventStoreDb()

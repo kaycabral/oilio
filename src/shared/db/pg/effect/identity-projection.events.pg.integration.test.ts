@@ -7,7 +7,8 @@ import { DEFAULT_ORG_BRANDING, type StoredOrg } from '@/domain/types/org'
 import { EMPTY_ADDRESS, type StoredUnit } from '@/domain/types/unit'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { deletePostgresProjection, PostgresPersistenceLayer } from './postgres-layer'
 
 const ORG = 'org-id'
@@ -113,7 +114,7 @@ const createMembership = (data: Membership) =>
   )
 
 async function rowCount(table: string, orgId: string, id: string): Promise<number> {
-  const res = await getEventStorePool().query<{ n: number }>(
+  const res = await ownerPool().query<{ n: number }>(
     `SELECT count(*)::int AS n FROM ${table} WHERE org_id = $1 AND id = $2`,
     [orgId, id],
   )
@@ -126,7 +127,7 @@ async function genericCount(orgId: string, id: string): Promise<number> {
 
 describe('Postgres typed projections — identity (brief 0059)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE events, projections, catalog_items, units, memberships, orgs CASCADE',
     )
   })
@@ -205,7 +206,7 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
 
   it('AC-01: the DATABASE refuses an invalid vertical (enum CHECK), rolling back event + projection', async () => {
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
          VALUES ($1,$1,1,'X','x','telepathy','u','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         ['bad'],
@@ -215,7 +216,7 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
 
   it('AC-01: the DATABASE refuses a membership with an invalid role (enum CHECK)', async () => {
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
          VALUES ($1,'bad','u',1,'wizard','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')`,
         [ORG],
@@ -225,7 +226,7 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
 
   it('AC-01: the DATABASE refuses a unit whose org_id has no org (FK)', async () => {
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
          VALUES ('ghost-org','u',1,'C','c','America/Sao_Paulo','fixed','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
       ),
@@ -246,7 +247,7 @@ describe('Postgres typed projections — identity (brief 0059)', () => {
     await deletePostgresProjection(orgRef(ORG))
 
     expect(await rowCount('orgs', ORG, ORG)).toBe(0)
-    const events = await getEventStorePool().query<{ n: number }>(
+    const events = await ownerPool().query<{ n: number }>(
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
       [ORG],
     )

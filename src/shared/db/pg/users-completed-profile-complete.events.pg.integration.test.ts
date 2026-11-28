@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from './pool'
+import { closeEventStoreDb } from './pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 
 const CHECK_VIOLATION = '23514'
 const CONSTRAINT = 'users_completed_profile_complete'
@@ -19,7 +20,7 @@ async function insertUser(overrides: {
   claimedAt?: string | null
   anonymizedAt?: string | null
 }): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO users
        (uid, email_verified, completion_completed, mobile, birth_date,
         claimed_at, anonymized_at, created_at, updated_at)
@@ -38,7 +39,7 @@ async function insertUser(overrides: {
 
 describe('users_completed_profile_complete CHECK (brief 0077 AC-02)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query("DELETE FROM users WHERE uid LIKE 'u-%'")
+    await ownerPool().query("DELETE FROM users WHERE uid LIKE 'u-%'")
   })
 
   afterAll(async () => {
@@ -147,7 +148,7 @@ describe('users_completed_profile_complete CHECK (brief 0077 AC-02)', () => {
       birthDate: '1990-01-01',
     })
     await expect(
-      getEventStorePool().query('UPDATE users SET mobile = NULL WHERE uid = $1', [uid]),
+      ownerPool().query('UPDATE users SET mobile = NULL WHERE uid = $1', [uid]),
     ).rejects.toMatchObject({ code: CHECK_VIOLATION, constraint: CONSTRAINT })
   })
 })

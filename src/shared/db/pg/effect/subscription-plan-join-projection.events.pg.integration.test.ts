@@ -4,7 +4,8 @@ import type { SubscriptionPlan } from '@/domain/types/subscription-plan'
 import { Effect } from 'effect'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { PostgresPersistenceLayer } from './postgres-layer'
 
 const ORG = 'org-spj'
@@ -43,7 +44,7 @@ function plan(overrides: Partial<SubscriptionPlan> = {}): SubscriptionPlan {
 }
 
 function pool() {
-  return getEventStorePool()
+  return ownerPool()
 }
 
 async function seedOrg(): Promise<void> {

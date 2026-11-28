@@ -4,7 +4,8 @@ import type { CatalogServiceItem } from '@/domain/types/catalog-item'
 import { Effect } from 'effect'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { PostgresPersistenceLayer } from './postgres-layer'
 
 const ORG = 'org-ciu'
@@ -43,7 +44,7 @@ function item(overrides: Partial<CatalogServiceItem> = {}): CatalogServiceItem {
 }
 
 function pool() {
-  return getEventStorePool()
+  return ownerPool()
 }
 
 async function seedOrg(): Promise<void> {

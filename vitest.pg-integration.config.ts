@@ -33,6 +33,7 @@ export default defineConfig({
     // message when the runner didn't inject DATABASE_URL/OILIO_DATABASE_URL
     // (issue #1358). Mirrors `vitest.events-pg-integration.config.ts`.
     globalSetup: './src/shared/product/pg-integration-global-setup.ts',
+    setupFiles: ['./src/shared/db/pg/test/owner-pool-setup.ts'],
     testTimeout: 30_000,
     hookTimeout: 30_000,
     // One shared Postgres database; specs truncate the table between tests.

@@ -1,12 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 
 const FK_VIOLATION = '23503'
 const ORG = 'memops-org'
 const USER = 'memops-user'
 
 function pool() {
-  return getEventStorePool()
+  return ownerPool()
 }
 
 function memberId(org: string, user: string): string {

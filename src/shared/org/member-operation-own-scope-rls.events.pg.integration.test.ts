@@ -1,6 +1,7 @@
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../db/pg/pool'
+import { closeEventStoreDb } from '../db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 
 const APP_ROLE = 'oilio_prof_app'
 const APP_PASSWORD = 'rls_test'
@@ -14,7 +15,7 @@ const CUSTOMER = 'cust-1'
 let appUrl: string
 
 async function seedOrg(): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id) DO NOTHING`,
@@ -23,7 +24,7 @@ async function seedOrg(): Promise<void> {
 }
 
 async function seedUnit(): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
      VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','appointment','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -32,13 +33,13 @@ async function seedUnit(): Promise<void> {
 }
 
 async function seedMemberOperation(id: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
      VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'member_operator','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, id],
   )
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -47,7 +48,7 @@ async function seedMemberOperation(id: string): Promise<void> {
 }
 
 async function seedCustomer(): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
      VALUES ($1,$2,1,'user-'||$2,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -56,7 +57,7 @@ async function seedCustomer(): Promise<void> {
 }
 
 async function seedService(): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
      VALUES ($1,'svc-1',1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'["unit-seed"]'::jsonb,NULL,NULL,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -65,7 +66,7 @@ async function seedService(): Promise<void> {
 }
 
 async function seedAppointment(id: string, memberOperationId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO appointments (
        org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id,
        customer_user_id, member_operator_user_id, start_at, end_at, status,
@@ -80,7 +81,7 @@ async function seedAppointment(id: string, memberOperationId: string): Promise<v
 }
 
 async function seedBlock(id: string, memberOperationId: string | null): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, member_operation_id, block, created_at, updated_at, member_id)
      VALUES ($1,$2,$3,1,'recurring',$4,'{"reason":"r"}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = $1 AND mo.id = $4))`,
     [ORG, id, UNIT, memberOperationId],
@@ -101,7 +102,7 @@ async function appClient(memberOperationId = ''): Promise<Client> {
 
 describe('Postgres RLS — memberOperation own-scope on appointments/agenda_blocks (brief 0075)', () => {
   beforeAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
@@ -114,7 +115,7 @@ describe('Postgres RLS — memberOperation own-scope on appointments/agenda_bloc
   })
 
   beforeEach(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query('TRUNCATE orgs, units, member_operations, customers, catalog_items CASCADE')
     await seedOrg()
     await seedUnit()
@@ -125,7 +126,7 @@ describe('Postgres RLS — memberOperation own-scope on appointments/agenda_bloc
   })
 
   afterAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await closeEventStoreDb()

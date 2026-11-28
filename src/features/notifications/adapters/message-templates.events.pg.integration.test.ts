@@ -2,7 +2,8 @@ import { DEFAULT_NOTIFICATION_TEMPLATES } from '@/domain'
 import { NotificationConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import { buildUser } from '@/shared/fixtures/domain-builders'
 import { Effect } from 'effect'
@@ -15,7 +16,7 @@ function uniqueOrgId(label: string): string {
 }
 
 async function seedOrg(orgId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId],
@@ -24,7 +25,7 @@ async function seedOrg(orgId: string): Promise<void> {
 
 describe('MessageTemplate config-doc (AC-12) — Postgres', () => {
   beforeEach(async () => {
-    await getEventStorePool().query('TRUNCATE message_templates, orgs CASCADE')
+    await ownerPool().query('TRUNCATE message_templates, orgs CASCADE')
   })
 
   afterAll(async () => {
@@ -85,7 +86,7 @@ describe('MessageTemplate config-doc (AC-12) — Postgres', () => {
 
 describe('dispatchNotificationWhatsapp (AC-14) — Postgres', () => {
   beforeEach(async () => {
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE events, projections, notifications, customers, users, orgs CASCADE',
     )
   })
@@ -102,7 +103,7 @@ describe('dispatchNotificationWhatsapp (AC-14) — Postgres', () => {
     await putUser(
       buildUser(uid, '2026-06-01T10:00:00Z', { displayName: 'Maria', mobile: '5511999998888' }),
     )
-    await getEventStorePool().query(
+    await ownerPool().query(
       `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
        VALUES ($1,$2,1,$3,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
       [orgId, customerId, uid],
@@ -140,7 +141,7 @@ describe('dispatchNotificationWhatsapp (AC-14) — Postgres', () => {
     expect(result.link).toContain('https://wa.me/5511999998888')
     expect(result.link).toContain('Maria')
 
-    const res = await getEventStorePool().query<{
+    const res = await ownerPool().query<{
       dispatched_at: string | null
       dispatch: { dispatchedChannel: string | null; dispatchedBody: string | null } | null
     }>('SELECT dispatched_at, dispatch FROM notifications WHERE org_id = $1 AND id = $2', [

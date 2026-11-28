@@ -7,7 +7,8 @@ import type {
 } from '@/domain/types/catalog-item'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { PostgresPersistenceLayer, deletePostgresProjection } from './postgres-layer'
 
 const ORG = 'org-cat'
@@ -61,7 +62,7 @@ function product(id: string, overrides: Partial<CatalogProductItem> = {}): Catal
 }
 
 async function seedOrg(orgId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id) DO NOTHING`,
@@ -70,7 +71,7 @@ async function seedOrg(orgId: string): Promise<void> {
 }
 
 async function seedCategory(orgId: string, categoryId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO categories (org_id, id, last_event_version, name, icon, color, active, archived_at, created_at, updated_at)
      VALUES ($1,$2,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -79,7 +80,7 @@ async function seedCategory(orgId: string, categoryId: string): Promise<void> {
 }
 
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
      VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -125,7 +126,7 @@ type TypedRow = {
 }
 
 async function typedRow(id: string): Promise<TypedRow | undefined> {
-  const pool = getEventStorePool()
+  const pool = ownerPool()
   const res = await pool.query<TypedRow>(
     'SELECT * FROM catalog_items WHERE org_id = $1 AND id = $2',
     [ORG, id],
@@ -134,7 +135,7 @@ async function typedRow(id: string): Promise<TypedRow | undefined> {
 }
 
 async function genericProjectionCount(id: string): Promise<number> {
-  const pool = getEventStorePool()
+  const pool = ownerPool()
   const res = await pool.query<{ n: number }>(
     'SELECT count(*)::int AS n FROM projections WHERE org_id = $1 AND id = $2',
     [ORG, id],
@@ -144,7 +145,7 @@ async function genericProjectionCount(id: string): Promise<number> {
 
 describe('Postgres typed projection — catalog_items (brief 0058)', () => {
   beforeEach(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query('TRUNCATE events, projections, catalog_items CASCADE')
   })
 
@@ -165,7 +166,7 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
 
     expect(await genericProjectionCount('svc1')).toBe(0)
 
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     const events = await pool.query<{ n: number }>(
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
       ['svc1'],
@@ -196,7 +197,7 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
     await expect(create(service('svc-blank', { name: '   ' }))).rejects.toThrow()
 
     expect(await typedRow('svc-blank')).toBeUndefined()
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     const events = await pool.query<{ n: number }>(
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
       ['svc-blank'],
@@ -210,7 +211,7 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
   })
 
   it('AC-01: the DATABASE refuses the wrong kind-shape (service carrying stock)', async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await expect(
       pool.query(
         `INSERT INTO catalog_items
@@ -236,7 +237,7 @@ describe('Postgres typed projection — catalog_items (brief 0058)', () => {
     await deletePostgresProjection(refOf('svc-del'))
 
     expect(await typedRow('svc-del')).toBeUndefined()
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     const events = await pool.query<{ n: number }>(
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1',
       ['svc-del'],

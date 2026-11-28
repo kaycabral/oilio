@@ -1,5 +1,6 @@
 import { isItemCoveredWithBalance, type SubscriptionPlanSnapshot } from '@/domain'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { enforceSubscriptionScope } from './enforce-subscription-scope'
 import { resolveCustomerSubscriptionScope } from './subscription-scope.repo'
@@ -27,7 +28,7 @@ function buildPlanSnapshot(
 }
 
 async function seedOrg(orgId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId],
@@ -35,7 +36,7 @@ async function seedOrg(orgId: string): Promise<void> {
 }
 
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
      VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -44,13 +45,13 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
 }
 
 async function seedMemberOperation(orgId: string, memberOperationId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
      VALUES ($1,$1||'_'||('user-'||$2),'user-'||$2,1,'member_operator','active','2026-01-01T00:00:00Z','{}'::jsonb,'2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [orgId, memberOperationId],
   )
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, default_commission, unit_ids, catalog_service_ids, created_at, updated_at)
      VALUES ($1,$2,1,'user-'||$2,$1||'_'||('user-'||$2),NULL,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -59,7 +60,7 @@ async function seedMemberOperation(orgId: string, memberOperationId: string): Pr
 }
 
 async function seedService(orgId: string, serviceId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO catalog_items (org_id, id, last_event_version, kind, name, category_id, price_cents, price_visibility, active, archived_at, duration_minutes, sku, stock, gtin14, reconciliation_pending, reconciliation_last_attempt, commission, unit_ids, unit_overrides, required_resources, public_visible, created_at, updated_at)
      VALUES ($1,$2,1,'service','Service',NULL,5000,'visible',true,NULL,30,NULL,NULL,NULL,NULL,NULL,NULL,'["unit-seed"]'::jsonb,NULL,NULL,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -68,7 +69,7 @@ async function seedService(orgId: string, serviceId: string): Promise<void> {
 }
 
 async function seedCustomer(orgId: string, customerId: string, userId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
      VALUES ($1,$2,1,$3,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId, customerId, userId],
@@ -99,7 +100,7 @@ async function seedSubscriptionRow(args: {
     endAt: '2099-01-01T00:00:00.000Z',
     consumed: args.consumed ?? 0,
   }
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO subscriptions (org_id, id, unit_id, last_event_version, customer_id, customer_user_id, status, billing_cycle, cancel_at_period_end, next_charge_date, past_due_cycles, past_due_threshold, cancellation_reason, cancelled_at, plan, current_period, created_at, updated_at)
      VALUES ($1,$2,'unit-a',1,$3,$4,$9,$5,false,NULL,0,2,NULL,NULL,$6::jsonb,$7::jsonb,$8,$8)`,
     [
@@ -123,7 +124,7 @@ async function seedAppointment(
   const now = new Date().toISOString()
   const startMs = new Date(appt.startAt).getTime()
   const endAt = new Date(startMs + 30 * 60_000).toISOString()
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO appointments (org_id, id, unit_id, last_event_version, member_operation_id, customer_id, service_id, customer_user_id, member_operator_user_id, start_at, end_at, status, service_price_cents_snapshot, service_duration_minutes_snapshot, commission_snapshot, cancellation_policy_snapshot, tracking, created_at, updated_at, member_id)
      VALUES ($1,$2,'u1',1,'p1',$3,'s1',$4,NULL,$5,$6,'scheduled',5000,30,NULL,NULL,NULL,$7,$7,(SELECT mo.member_id FROM member_operations mo WHERE mo.org_id = $1 AND mo.id = 'p1'))`,
     [orgId, appt.id, appt.customerId, CUSTOMER_USER_ID, appt.startAt, endAt, now],
@@ -134,7 +135,7 @@ describe('enforceSubscriptionScope — Postgres', () => {
   let orgId: string
 
   beforeEach(async () => {
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE appointments, subscriptions, customers, catalog_items, member_operations, units, orgs CASCADE',
     )
     orgId = uniqueOrgId('scope')
@@ -251,7 +252,7 @@ describe('resolveCustomerSubscriptionScope — coverage (brief 0079)', () => {
   let orgId: string
 
   beforeEach(async () => {
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE appointments, subscriptions, customers, catalog_items, member_operations, units, orgs CASCADE',
     )
     orgId = uniqueOrgId('cov')

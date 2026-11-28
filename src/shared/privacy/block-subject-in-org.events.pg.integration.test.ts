@@ -1,4 +1,5 @@
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { blockSubjectInOrg } from './block-subject-in-org'
 
@@ -11,7 +12,7 @@ function uniqueId(prefix: string): string {
 }
 
 async function seedOrg(orgId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId],
@@ -20,7 +21,7 @@ async function seedOrg(orgId: string): Promise<void> {
 
 async function seedCustomerShadow(orgId: string, userId: string): Promise<string> {
   const id = uniqueId('cust')
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
      VALUES ($1,$2,1,$3,NULL,NULL,$4,$4)`,
     [orgId, id, userId, TS],
@@ -29,7 +30,7 @@ async function seedCustomerShadow(orgId: string, userId: string): Promise<string
 }
 
 async function archivedAtOf(orgId: string, customerId: string): Promise<string | null | undefined> {
-  const res = await getEventStorePool().query<{ archived_at: Date | string | null }>(
+  const res = await ownerPool().query<{ archived_at: Date | string | null }>(
     'SELECT archived_at FROM customers WHERE org_id = $1 AND id = $2',
     [orgId, customerId],
   )
@@ -39,7 +40,7 @@ async function archivedAtOf(orgId: string, customerId: string): Promise<string |
 
 describe('blockSubjectInOrg (customer-scoped, Postgres)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query('TRUNCATE events, projections, customers, orgs CASCADE')
+    await ownerPool().query('TRUNCATE events, projections, customers, orgs CASCADE')
   })
   afterAll(async () => {
     await closeEventStoreDb()
