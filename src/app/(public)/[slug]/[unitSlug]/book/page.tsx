@@ -18,8 +18,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { connection } from 'next/server'
-
-export const instant = false
+import { Suspense } from 'react'
 
 type PageProps = {
   params: Promise<{ slug: string; unitSlug: string }>
@@ -70,7 +69,15 @@ async function loadWizardPageEntities(
   return { bundle, publicService, memberOperation, rawService }
 }
 
-export default async function WizardBookPage({ params, searchParams }: PageProps) {
+export default function WizardBookPage(props: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <WizardBookPageContent {...props} />
+    </Suspense>
+  )
+}
+
+async function WizardBookPageContent({ params, searchParams }: PageProps) {
   await connection()
   const { slug, unitSlug } = await params
   const sp = await searchParams

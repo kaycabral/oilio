@@ -14,8 +14,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { connection } from 'next/server'
-
-export const instant = false
+import { Suspense } from 'react'
 
 type PageProps = {
   params: Promise<{ slug: string; unitSlug: string }>
@@ -45,7 +44,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return { title: `Agendar — ${unitSlug} — ${slug}` }
 }
 
-export default async function PublicAvailabilityPage({ params, searchParams }: PageProps) {
+export default function PublicAvailabilityPage(props: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <PublicAvailabilityPageContent {...props} />
+    </Suspense>
+  )
+}
+
+async function PublicAvailabilityPageContent({ params, searchParams }: PageProps) {
   await connection()
   const { slug, unitSlug } = await params
   const sp = await searchParams

@@ -8,8 +8,7 @@ import { getSessionUser } from '@/shared/auth/session'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { connection } from 'next/server'
-
-export const instant = false
+import { Suspense } from 'react'
 
 type PageProps = {
   params: Promise<{ slug: string }>
@@ -26,7 +25,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
-export default async function PublicOrgPage({ params }: PageProps) {
+export default function PublicOrgPage(props: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <PublicOrgPageContent {...props} />
+    </Suspense>
+  )
+}
+
+async function PublicOrgPageContent({ params }: PageProps) {
   await connection()
   const { slug } = await params
 
