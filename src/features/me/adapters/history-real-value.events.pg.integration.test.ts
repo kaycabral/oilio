@@ -1,6 +1,7 @@
 import { defaultPermissionsForRole, type Role } from '@/domain'
 import type { SessionUser } from '@/shared/auth/session'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
 import { linkCustomerOrg } from '@/shared/identity/org-links'
@@ -16,7 +17,7 @@ const TS = '2026-06-01T12:00:00.000Z'
 const START = '2026-05-01T13:00:00.000Z'
 const END = '2026-05-01T13:30:00.000Z'
 
-const pool = () => getEventStorePool()
+const pool = () => ownerPool()
 const TABLES =
   'events, projections, member_operation_units, member_operation_services, member_operations, appointments, orders, customers, catalog_items, memberships, units, orgs, users, org_links'
 

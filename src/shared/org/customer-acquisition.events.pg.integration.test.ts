@@ -1,5 +1,6 @@
 import type { Attribution } from '@/domain'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { getCustomerById } from '@/shared/org/customer-read'
 import { ensureSelfSignupCustomer, upsertCustomerWithUser } from '@/shared/org/customer-upsert'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -11,7 +12,7 @@ function uniq(prefix: string): string {
 }
 
 async function seedOrg(orgId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs
        (org_id, id, last_event_version, name, slug, vertical, branding, owner_user_id,
         created_at, updated_at)
@@ -33,8 +34,8 @@ const QR_ACQUISITION: Attribution = {
 
 describe('customer acquisition write-once (brief 0077 AC-10/AC-11)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query("DELETE FROM customers WHERE org_id LIKE 'org-acq-%'")
-    await getEventStorePool().query("DELETE FROM orgs WHERE org_id LIKE 'org-acq-%'")
+    await ownerPool().query("DELETE FROM customers WHERE org_id LIKE 'org-acq-%'")
+    await ownerPool().query("DELETE FROM orgs WHERE org_id LIKE 'org-acq-%'")
   })
 
   function uniqueMobileRaw(): string {

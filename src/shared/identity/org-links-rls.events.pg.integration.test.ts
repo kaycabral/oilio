@@ -1,7 +1,8 @@
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { isLinkedToOrg, linkCustomerOrg, listLinkedOrgIds } from '@/shared/identity/org-links'
 import { Client } from 'pg'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../db/pg/pool'
+import { closeEventStoreDb } from '../db/pg/pool'
 
 const APP_ROLE = 'oilio_links_app'
 const APP_PASSWORD = 'rls_test'
@@ -15,7 +16,7 @@ const ORG_B1 = 'org-b1'
 let appUrl: string
 
 async function seedLink(userId: string, orgId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO org_links (user_id, org_id, linked_at) VALUES ($1, $2, $3)
      ON CONFLICT (user_id, org_id) DO NOTHING`,
     [userId, orgId, '2026-06-01T12:00:00.000Z'],
@@ -31,7 +32,7 @@ async function subjectClient(userId: string): Promise<Client> {
 
 describe('Postgres RLS isolation — org_links per-subject (brief 0062)', () => {
   beforeAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
@@ -42,11 +43,11 @@ describe('Postgres RLS isolation — org_links per-subject (brief 0062)', () => 
   })
 
   beforeEach(async () => {
-    await getEventStorePool().query('TRUNCATE org_links')
+    await ownerPool().query('TRUNCATE org_links')
   })
 
   afterAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await closeEventStoreDb()
@@ -96,7 +97,7 @@ describe('Postgres RLS isolation — org_links per-subject (brief 0062)', () => 
 
 describe('org-links helpers — idempotency + per-subject reads', () => {
   afterEach(async () => {
-    await getEventStorePool().query('TRUNCATE org_links')
+    await ownerPool().query('TRUNCATE org_links')
   })
   afterAll(async () => {
     await closeEventStoreDb()
@@ -104,7 +105,7 @@ describe('org-links helpers — idempotency + per-subject reads', () => {
 
   it('linkCustomerOrg writes one row and is idempotent (never duplicates / rewrites linked_at)', async () => {
     await linkCustomerOrg(USER_A, ORG_A1)
-    const first = await getEventStorePool().query<{ linked_at: string }>(
+    const first = await ownerPool().query<{ linked_at: string }>(
       'SELECT linked_at FROM org_links WHERE user_id = $1 AND org_id = $2',
       [USER_A, ORG_A1],
     )
@@ -113,7 +114,7 @@ describe('org-links helpers — idempotency + per-subject reads', () => {
     expect(firstLinkedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
 
     await linkCustomerOrg(USER_A, ORG_A1)
-    const second = await getEventStorePool().query<{ linked_at: string }>(
+    const second = await ownerPool().query<{ linked_at: string }>(
       'SELECT linked_at FROM org_links WHERE user_id = $1',
       [USER_A],
     )
@@ -126,7 +127,7 @@ describe('org-links helpers — idempotency + per-subject reads', () => {
   it('linkCustomerOrg is a no-op for an empty userId / orgId', async () => {
     await linkCustomerOrg('', ORG_A1)
     await linkCustomerOrg(USER_A, '')
-    const res = await getEventStorePool().query('SELECT 1 FROM org_links')
+    const res = await ownerPool().query('SELECT 1 FROM org_links')
     expect(res.rowCount).toBe(0)
   })
 

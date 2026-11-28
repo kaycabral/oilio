@@ -1,7 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { defaultPermissionsForRole, type Membership, type Role } from '@/domain'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import {
   NO_MEMBER_OPERATION_SCOPE,
   resolveMemberOperationScope,
@@ -15,7 +16,7 @@ function uid(): string {
 }
 
 function pool() {
-  return getEventStorePool()
+  return ownerPool()
 }
 
 async function seedOrg(): Promise<void> {

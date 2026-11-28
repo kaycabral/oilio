@@ -10,7 +10,8 @@ import {
 } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
 import { registerTypedProjector } from '@/shared/db/pg/effect/typed-projections'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { emitEventGuarded } from '@/shared/effect-bridge'
 import { Effect, Schema } from 'effect'
 import type { PoolClient } from 'pg'
@@ -87,7 +88,7 @@ function registerGenericTicketProjector(): void {
 const run = <A, E>(eff: Effect.Effect<A, E, never>) => Effect.runPromise(eff)
 
 async function seedOrgAndUnit(): Promise<void> {
-  const pool = getEventStorePool()
+  const pool = ownerPool()
   await pool.query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug','barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
@@ -184,7 +185,7 @@ function runGuard(defId: string, ticketId: string, displayed: number | null) {
 }
 
 async function ticketPrice(ticketId: string): Promise<number | null> {
-  const res = await getEventStorePool().query<{ state: { priceCents: number } }>(
+  const res = await ownerPool().query<{ state: { priceCents: number } }>(
     'SELECT state FROM projections WHERE org_id = $1 AND id = $2',
     [ORG, ticketId],
   )
@@ -197,7 +198,7 @@ describe('emitEventGuarded — atomic discontinuation + lawful price on Postgres
   })
 
   beforeEach(async () => {
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE events, projections, catalog_item_units, catalog_items, units, orgs CASCADE',
     )
     await seedOrgAndUnit()

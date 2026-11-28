@@ -1,4 +1,5 @@
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import { buildUser } from '@/shared/fixtures/domain-builders'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,7 +30,7 @@ function orgForm(name: string): FormData {
 }
 
 async function ownerMembershipCount(userId: string): Promise<number> {
-  const pool = getEventStorePool()
+  const pool = ownerPool()
   const res = await pool.query<{ n: string }>(
     "SELECT count(*)::text AS n FROM memberships WHERE user_id = $1 AND role = 'owner'",
     [userId],
@@ -39,7 +40,7 @@ async function ownerMembershipCount(userId: string): Promise<number> {
 
 describe('createOrg — 2º Negócio Free via corrida (brief 0088 H2)', () => {
   beforeEach(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query("DELETE FROM memberships WHERE user_id LIKE 'u-race-%'")
     await pool.query("DELETE FROM public_org_directory WHERE owner_user_id LIKE 'u-race-%'")
     await pool.query("DELETE FROM orgs WHERE owner_user_id LIKE 'u-race-%'")

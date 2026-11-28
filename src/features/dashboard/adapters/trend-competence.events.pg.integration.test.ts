@@ -3,7 +3,8 @@ import { aggregateRef } from '@/domain/effect'
 import { loadDashboardTrend } from '@/features/dashboard/adapters/trend.repo'
 import { resolveDashboardFilters } from '@/features/dashboard/core/filters'
 import { buildMarkPaidSteps } from '@/features/subscriptions/adapters/subscription-charges-saga'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { commitGuardedThenAppend } from '@/shared/effect-bridge'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -23,20 +24,20 @@ const PLAN = {
 }
 
 async function seedParents(): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id) DO NOTHING`,
     [ORG],
   )
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
      VALUES ($1,'u1',1,'Unit','unit-u1',$2,'always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
     [ORG, TZ],
   )
   for (const c of ['c1', 'c2', 'c3']) {
-    await getEventStorePool().query(
+    await ownerPool().query(
       `INSERT INTO customers (org_id, id, last_event_version, user_id, archived_at, deactivated_at, created_at, updated_at)
        VALUES ($1,$2,1,'user-'||$2,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
        ON CONFLICT (org_id, id) DO NOTHING`,
@@ -138,7 +139,7 @@ const WRITTEN_NOW = '2026-07-17T18:00:00.000Z'
 
 describe('dashboard trend — subscription competence (Postgres) (#1420)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE events, projections, subscriptions, charges, customers, units, orgs CASCADE',
     )
     await seedParents()

@@ -1,7 +1,8 @@
 import { NotificationConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { fetchUnreadNotificationsForUnit } from '@/shared/org/notification-read'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -14,7 +15,7 @@ function uniqueOrgId(label: string): string {
 }
 
 async function seedOrg(orgId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId],
@@ -47,7 +48,7 @@ async function readNotifColumn(
   id: string,
   column: 'read_at' | 'snoozed_until',
 ): Promise<string | null> {
-  const res = await getEventStorePool().query<{ value: Date | string | null }>(
+  const res = await ownerPool().query<{ value: Date | string | null }>(
     `SELECT ${column} AS value FROM notifications WHERE org_id = $1 AND id = $2`,
     [orgId, id],
   )
@@ -57,7 +58,7 @@ async function readNotifColumn(
 
 describe('markNotificationRead (AC-16) — Postgres', () => {
   beforeEach(async () => {
-    await getEventStorePool().query('TRUNCATE events, projections, notifications, orgs CASCADE')
+    await ownerPool().query('TRUNCATE events, projections, notifications, orgs CASCADE')
   })
 
   afterAll(async () => {
@@ -84,7 +85,7 @@ describe('markNotificationRead (AC-16) — Postgres', () => {
 
 describe('snoozeNotification (AC-17) — Postgres', () => {
   beforeEach(async () => {
-    await getEventStorePool().query('TRUNCATE events, projections, notifications, orgs CASCADE')
+    await ownerPool().query('TRUNCATE events, projections, notifications, orgs CASCADE')
   })
 
   afterAll(async () => {

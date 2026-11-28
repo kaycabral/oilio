@@ -1,5 +1,6 @@
 import { STRIPE_API_VERSION } from '@/shared/billing/stripe-api-version'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { getOrgBilling } from '@/shared/org/billing-read'
 import Stripe from 'stripe'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -59,7 +60,7 @@ function subscriptionObject(opts: SubscriptionOpts): unknown {
 }
 
 async function seedOrg(id: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id) DO NOTHING`,
@@ -68,7 +69,7 @@ async function seedOrg(id: string): Promise<void> {
 }
 
 async function seedStripeIndex(customerId: string, orgId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     'INSERT INTO org_billing_stripe_index (stripe_customer_id, org_id) VALUES ($1, $2) ON CONFLICT (stripe_customer_id) DO UPDATE SET org_id = EXCLUDED.org_id',
     [customerId, orgId],
   )
@@ -94,7 +95,7 @@ describe('Stripe webhook dispatch → org_billing (brief 0074, AC-03)', () => {
   })
 
   beforeEach(async () => {
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE stripe_webhook_events, org_billing_stripe_index, org_billing, orgs, events CASCADE',
     )
   })

@@ -18,7 +18,7 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ensureOilioDatabase } from './oilio-pg-lib.mjs'
+import { ensureOilioDatabase, runtimeSuiteEnv } from './oilio-pg-lib.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '..')
@@ -78,7 +78,7 @@ try {
   console.log('▸ rodando o gate do app (test:integration:pg) contra Postgres real…')
   const oilioStatus = run('pnpm', ['run', 'test:integration:pg'], {
     cwd: root,
-    env: suiteEnv,
+    env: runtimeSuiteEnv({ oilioUrl: OILIO_DATABASE_URL, productUrl: DATABASE_URL }),
   })
   // Non-zero if either suite failed; both run so a failure in one still reports
   // the other's result.

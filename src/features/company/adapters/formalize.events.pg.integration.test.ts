@@ -9,7 +9,8 @@ import {
 import { UnitConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent, replayAggregate } from '@/domain/effect'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { getUnitTaxIdentity, writeUnitTaxIdentity } from '@/shared/org/unit-read'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -35,7 +36,7 @@ const profile: CompanyProfile = {
 const run = <A, E>(eff: Effect.Effect<A, E, never>) => Effect.runPromise(eff)
 
 async function seedOrg(): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug','barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [ORG],
@@ -103,9 +104,7 @@ async function formalize(): Promise<{ ok: true } | { ok: false; error: string }>
 
 describe('formalizeUnit — Postgres (brief 0048 / 0062 cutover)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query(
-      'TRUNCATE events, projections, units, unit_tax_identity, orgs CASCADE',
-    )
+    await ownerPool().query('TRUNCATE events, projections, units, unit_tax_identity, orgs CASCADE')
     await seedOrg()
     await createInformalUnit()
   })
@@ -129,7 +128,7 @@ describe('formalizeUnit — Postgres (brief 0048 / 0062 cutover)', () => {
     expect(isMatrizCnpj(replayed.fiscal.taxId)).toBe(true)
     expect(cnpjRaiz(replayed.fiscal.taxId)).toBe('40148980')
 
-    const row = await getEventStorePool().query<{ fiscal_kind: string; fiscal: { kind: string } }>(
+    const row = await ownerPool().query<{ fiscal_kind: string; fiscal: { kind: string } }>(
       'SELECT fiscal_kind, fiscal FROM units WHERE org_id = $1 AND id = $2',
       [ORG, UNIT],
     )
@@ -145,7 +144,7 @@ describe('formalizeUnit — Postgres (brief 0048 / 0062 cutover)', () => {
 
   it('the unit.formalized event carries NO razão social / nome fantasia (ADR 0010)', async () => {
     await formalize()
-    const events = await getEventStorePool().query<{ envelope: unknown }>(
+    const events = await ownerPool().query<{ envelope: unknown }>(
       `SELECT envelope FROM events WHERE aggregate_id = $1 AND org_id = $2 AND envelope->>'_tag' = 'unit.formalized'`,
       [UNIT, ORG],
     )
@@ -163,7 +162,7 @@ describe('formalizeUnit — Postgres (brief 0048 / 0062 cutover)', () => {
       replayAggregate(UnitConfig, unitRef).pipe(Effect.provide(PostgresPersistenceLayer)),
     )
     expect(current.fiscal.kind).toBe('company')
-    const beforeCount = await getEventStorePool().query<{ n: number }>(
+    const beforeCount = await ownerPool().query<{ n: number }>(
       'SELECT count(*)::int AS n FROM events WHERE aggregate_id = $1 AND org_id = $2',
       [UNIT, ORG],
     )

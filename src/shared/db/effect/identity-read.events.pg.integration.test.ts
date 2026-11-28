@@ -4,7 +4,8 @@ import { aggregateRef, appendEvent } from '@/domain/effect'
 import { defaultPermissionsForRole, type Membership } from '@/domain/types/membership'
 import { DEFAULT_ORG_BRANDING, type StoredOrg } from '@/domain/types/org'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { getMembership } from '@/shared/org/membership'
 import { getOrg } from '@/shared/org/org'
 import { Effect } from 'effect'
@@ -48,7 +49,7 @@ function membership(
 }
 
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
      VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -76,15 +77,11 @@ const createMembership = (data: Membership) =>
 
 describe('Identity reads — Postgres (brief 0059, AC-04)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query(
-      'TRUNCATE events, projections, units, memberships, orgs CASCADE',
-    )
+    await ownerPool().query('TRUNCATE events, projections, units, memberships, orgs CASCADE')
   })
 
   afterEach(async () => {
-    await getEventStorePool().query(
-      'TRUNCATE events, projections, units, memberships, orgs CASCADE',
-    )
+    await ownerPool().query('TRUNCATE events, projections, units, memberships, orgs CASCADE')
   })
 
   afterAll(async () => {

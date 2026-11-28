@@ -1,5 +1,6 @@
 import { isUniqueViolation, USERS_MOBILE_UNIQUE } from '@/shared/db/pg/pg-error'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { getUserById, patchUser, putUser } from '@/shared/db/pg/users-store'
 import { buildUser } from '@/shared/fixtures/domain-builders'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -15,7 +16,7 @@ function uniqueUid(label: string): string {
 
 describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query("DELETE FROM users WHERE uid LIKE 'u-%'")
+    await ownerPool().query("DELETE FROM users WHERE uid LIKE 'u-%'")
   })
 
   afterAll(async () => {
@@ -73,7 +74,7 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
     expect(claimer?.completionCompleted).toBe(false)
     expect(claimer?.mobile).toBeNull()
 
-    const owners = await getEventStorePool().query<{ uid: string }>(
+    const owners = await ownerPool().query<{ uid: string }>(
       'SELECT uid FROM users WHERE mobile = $1',
       [SHARED_MOBILE],
     )
@@ -91,7 +92,7 @@ describe('no stub merge by WhatsApp on profile completion (brief 0077, #1276)', 
     }
     expect(refused).toBe(true)
 
-    const rows = await getEventStorePool().query('SELECT uid FROM users WHERE uid = $1', [uid])
+    const rows = await ownerPool().query('SELECT uid FROM users WHERE uid = $1', [uid])
     expect(rows.rowCount).toBe(0)
   })
 })

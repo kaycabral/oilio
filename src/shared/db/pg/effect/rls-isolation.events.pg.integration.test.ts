@@ -1,6 +1,7 @@
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
 
 const APP_ROLE = 'oilio_rls_app'
 const APP_PASSWORD = 'rls_test'
@@ -13,7 +14,7 @@ const UNIT_A2 = 'unit-a2'
 let appUrl: string
 
 async function seedOrg(id: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [id],
@@ -21,7 +22,7 @@ async function seedOrg(id: string): Promise<void> {
 }
 
 async function seedUnit(orgId: string, id: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
      VALUES ($1,$2,1,'U','slug-'||$2,'America/Sao_Paulo','fixed','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId, id],
@@ -38,7 +39,7 @@ async function appClient(orgId: string, unitId = ''): Promise<Client> {
 
 describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
   beforeAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
@@ -51,11 +52,11 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
   })
 
   beforeEach(async () => {
-    await getEventStorePool().query('TRUNCATE units, memberships, orgs, catalog_items CASCADE')
+    await ownerPool().query('TRUNCATE units, memberships, orgs, catalog_items CASCADE')
   })
 
   afterAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await closeEventStoreDb()
@@ -143,7 +144,7 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
     } finally {
       await noCtx.end()
     }
-    expect((await getEventStorePool().query('SELECT 1 FROM units')).rowCount).toBe(1)
+    expect((await ownerPool().query('SELECT 1 FROM units')).rowCount).toBe(1)
 
     const a = await appClient(ORG_A)
     try {
@@ -157,7 +158,7 @@ describe('Postgres RLS isolation — identity (brief 0059, AC-03)', () => {
   it('catalog_items (feature B) is under RLS too — org A does not see org B items', async () => {
     await seedOrg(ORG_A)
     await seedOrg(ORG_B)
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     for (const [org, id] of [
       [ORG_A, 'svc-a'],
       [ORG_B, 'svc-b'],
