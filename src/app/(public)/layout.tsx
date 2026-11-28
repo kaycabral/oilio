@@ -1,5 +1,3 @@
-export const instant = false
-
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return <div className="bg-background text-foreground min-h-screen">{children}</div>
 }
