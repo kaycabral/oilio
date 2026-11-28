@@ -24,4 +24,16 @@ test.describe('Páginas legais (#58)', () => {
       '/privacy',
     )
   })
+
+  test('as páginas legais identificam o controlador e o e-mail de contato', async ({ page }) => {
+    for (const path of ['/privacy', '/terms']) {
+      await page.goto(path)
+      await expect(page.getByRole('link', { name: 'contato@cbrl.dev' }).first()).toHaveAttribute(
+        'href',
+        'mailto:contato@cbrl.dev',
+      )
+      await expect(page.getByText(/CABRAL TECNOLOGIA LTDA.*40\.148\.980\/0001-99/)).toBeVisible()
+      await expect(page.getByText('A DEFINIR')).toHaveCount(0)
+    }
+  })
 })

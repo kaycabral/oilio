@@ -5,11 +5,9 @@ export const LEGAL_LAST_UPDATED = '27 de novembro de 2026'
 
 export { PRIVACY_PATH, TERMS_PATH } from '@/components/legal/paths'
 
-export const CONTROLLER_NAME = '[A DEFINIR: razão social]'
-export const CONTROLLER_TAX_ID = '[A DEFINIR: CNPJ]'
-export const CONTROLLER_ADDRESS = '[A DEFINIR: endereço]'
-export const PRIVACY_CONTACT_EMAIL = '[A DEFINIR: e-mail do encarregado]'
-export const JURISDICTION = '[A DEFINIR: cidade/UF]'
+export const CONTROLLER_NAME = 'CABRAL TECNOLOGIA LTDA'
+export const CONTROLLER_TAX_ID = '40.148.980/0001-99'
+export const CONTACT_EMAIL = 'contato@cbrl.dev'
 
 export function LegalDocument({ title, children }: { title: string; children: React.ReactNode }) {
   return (

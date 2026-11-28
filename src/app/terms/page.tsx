@@ -1,9 +1,8 @@
 import {
+  CONTACT_EMAIL,
   CONTROLLER_NAME,
   CONTROLLER_TAX_ID,
-  JURISDICTION,
   LegalDocument,
-  PRIVACY_CONTACT_EMAIL,
   PRIVACY_PATH,
 } from '@/components/legal/LegalDocument'
 import type { Metadata } from 'next'
@@ -18,8 +17,9 @@ export default function TermsPage() {
     <LegalDocument title="Termos de Uso">
       <p>
         Estes termos regem o uso do Oilio, plataforma de gestão para negócios de serviço recorrente
-        operada por {CONTROLLER_NAME} (CNPJ {CONTROLLER_TAX_ID}). Ao criar uma conta ou usar o
-        serviço, você concorda com eles e com a <a href={PRIVACY_PATH}>Política de Privacidade</a>.
+        operada por {CONTROLLER_NAME} (CNPJ {CONTROLLER_TAX_ID}) (&ldquo;nós&rdquo;). Ao criar uma
+        conta ou usar o serviço, você concorda com eles e com a{' '}
+        <a href={PRIVACY_PATH}>Política de Privacidade</a>.
       </p>
 
       <h2>1. O serviço</h2>
@@ -89,12 +89,14 @@ export default function TermsPage() {
 
       <h2>10. Lei e foro</h2>
       <p>
-        Estes termos seguem a lei brasileira. Fica eleito o foro da comarca de {JURISDICTION},
-        ressalvado o foro do domicílio do consumidor.
+        Estes termos seguem a lei brasileira. Eventuais disputas serão resolvidas no foro do
+        domicílio do consumidor, nos termos do art. 101, I, do Código de Defesa do Consumidor.
       </p>
 
       <h2>11. Contato</h2>
-      <p>Dúvidas sobre estes termos: {PRIVACY_CONTACT_EMAIL}.</p>
+      <p>
+        Dúvidas sobre estes termos: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+      </p>
     </LegalDocument>
   )
 }

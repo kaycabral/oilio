@@ -1,9 +1,8 @@
 import {
-  CONTROLLER_ADDRESS,
+  CONTACT_EMAIL,
   CONTROLLER_NAME,
   CONTROLLER_TAX_ID,
   LegalDocument,
-  PRIVACY_CONTACT_EMAIL,
   TERMS_PATH,
 } from '@/components/legal/LegalDocument'
 import type { Metadata } from 'next'
@@ -24,8 +23,9 @@ export default function PrivacyPage() {
 
       <h2>1. Quem somos e qual o nosso papel</h2>
       <p>
-        O Oilio é operado por {CONTROLLER_NAME}, inscrita no CNPJ {CONTROLLER_TAX_ID}, com sede em{' '}
-        {CONTROLLER_ADDRESS}.
+        O Oilio é operado por {CONTROLLER_NAME}, inscrita no CNPJ {CONTROLLER_TAX_ID}
+        (&ldquo;nós&rdquo;). Para qualquer assunto sobre dados pessoais, fale com a gente em{' '}
+        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
       </p>
       <ul>
         <li>
@@ -132,7 +132,7 @@ export default function PrivacyPage() {
       </ul>
       <p>
         Parte desses pedidos pode ser feita direto no app, em Configurações › Privacidade. Para os
-        demais, ou se o pedido envolver dados de um estabelecimento, fale com o nosso encarregado.
+        demais, ou se o pedido envolver dados de um estabelecimento, escreva para {CONTACT_EMAIL}.
         Você também pode apresentar reclamação à Autoridade Nacional de Proteção de Dados (ANPD).
       </p>
 
@@ -147,7 +147,11 @@ export default function PrivacyPage() {
       <p>O Oilio não é destinado a menores de 18 anos.</p>
 
       <h2>10. Encarregado e contato</h2>
-      <p>Encarregado pelo tratamento de dados pessoais: {PRIVACY_CONTACT_EMAIL}.</p>
+      <p>
+        O canal do encarregado pelo tratamento de dados pessoais, inclusive para o exercício dos
+        direitos previstos no art. 18 da LGPD, é{' '}
+        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+      </p>
 
       <h2>11. Alterações</h2>
       <p>
