@@ -1,4 +1,5 @@
 import { expect, test } from '../fixtures'
+import { checkStable, uncheckStable } from '../helpers/hydration'
 import { AgendaPage } from '../pages'
 
 const MONDAY = '2026-08-10'
@@ -43,8 +44,7 @@ test.describe(
       await authedPage.goto(`/units/${org.unitIds[0]}`)
       const monday = authedPage.getByRole('switch', { name: 'Segunda' })
       await expect(monday).toBeChecked()
-      await monday.click()
-      await expect(monday).not.toBeChecked()
+      await uncheckStable(monday)
       await authedPage.getByRole('button', { name: 'Salvar' }).click()
       await expect(authedPage.getByRole('button', { name: 'Salvando…' })).toHaveCount(0, {
         timeout: 5000,
@@ -58,7 +58,7 @@ test.describe(
       await authedPage.goto(`/units/${org.unitIds[0]}`)
       const mondayAgain = authedPage.getByRole('switch', { name: 'Segunda' })
       await expect(mondayAgain).not.toBeChecked()
-      await mondayAgain.click()
+      await checkStable(mondayAgain)
       await expect(mondayAgain).toBeChecked()
       await authedPage.getByRole('button', { name: 'Salvar' }).click()
       await expect(authedPage.getByRole('button', { name: 'Salvando…' })).toHaveCount(0, {

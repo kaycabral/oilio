@@ -5,8 +5,6 @@ import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export default async function FinancePage() {
   await connection()
   if (!isFeatureEnabled('finance')) notFound()

@@ -11,8 +11,6 @@ import { toRoute } from '@/shared/routes'
 import { Main, Typography } from '@cbrl/design'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export default async function EditUnitPage({ params }: { params: Promise<{ id: string }> }) {
   await connection()
   const { id } = await params

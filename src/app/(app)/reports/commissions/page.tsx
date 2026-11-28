@@ -1,8 +1,6 @@
 import { permanentRedirect } from 'next/navigation'
 import { connection } from 'next/server'
 
-export const instant = false
-
 type SearchParams = Record<string, string | string[] | undefined>
 
 export default async function CommissionReportRedirect({

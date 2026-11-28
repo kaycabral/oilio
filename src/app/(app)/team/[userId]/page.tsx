@@ -12,8 +12,6 @@ import { formatBrazilPhone } from '@cbrl/br/phone'
 import { Main } from '@cbrl/design'
 import { connection } from 'next/server'
 
-export const instant = false
-
 const STATUS_LABELS: Record<Membership['status'], string> = {
   active: 'Ativo',
   invited: 'Convidado',

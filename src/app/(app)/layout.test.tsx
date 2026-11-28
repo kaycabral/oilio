@@ -64,8 +64,17 @@ import { GateRedirect } from '@/components/gate-redirect'
 import { isValidElement } from 'react'
 import AppLayout from './layout'
 
-function callLayout() {
-  return AppLayout({ children: <div aria-label="children" /> })
+type Gate = React.ReactElement<
+  { children: React.ReactNode },
+  (props: { children: React.ReactNode }) => Promise<React.ReactElement>
+>
+
+function callLayout(): Promise<React.ReactElement> {
+  const boundary = AppLayout({ children: <div aria-label="children" /> }) as React.ReactElement<{
+    children: Gate
+  }>
+  const gate = boundary.props.children
+  return gate.type(gate.props)
 }
 
 async function captureRedirect(): Promise<string> {

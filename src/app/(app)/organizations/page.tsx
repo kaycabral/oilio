@@ -3,8 +3,6 @@ import { OrganizationsManager } from '@/features/company/ui/OrganizationsManager
 import { Main } from '@cbrl/design'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export default async function OrganizationsPage() {
   await connection()
   const { org, units, orgs, canManage, canDelete } = await loadOrganizationsPage()

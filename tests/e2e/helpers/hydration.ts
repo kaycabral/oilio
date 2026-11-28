@@ -19,3 +19,10 @@ export async function checkStable(locator: Locator): Promise<void> {
     await expect(locator).toBeChecked({ timeout: 1000 })
   }).toPass({ timeout: 10_000 })
 }
+
+export async function uncheckStable(locator: Locator): Promise<void> {
+  await expect(async () => {
+    if (await locator.isChecked()) await locator.click()
+    await expect(locator).not.toBeChecked({ timeout: 1000 })
+  }).toPass({ timeout: 10_000 })
+}

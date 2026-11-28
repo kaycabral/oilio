@@ -9,10 +9,17 @@ import { getOrg } from '@/shared/org/org'
 import { OrgProvider } from '@/shared/org/org-context'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { connection } from 'next/server'
+import { Suspense } from 'react'
 
-export const instant = false
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <SignedInApp>{children}</SignedInApp>
+    </Suspense>
+  )
+}
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+async function SignedInApp({ children }: { children: React.ReactNode }) {
   await connection()
   if (!isSupabaseConfigured()) return <GateRedirect to="/" />
 

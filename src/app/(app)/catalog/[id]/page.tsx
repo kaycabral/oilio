@@ -6,8 +6,6 @@ import { ServiceMemberOperationsForm } from '@/features/catalog/ui/ServiceMember
 import { Main } from '@cbrl/design'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export default async function EditCatalogItemPage({ params }: { params: Promise<{ id: string }> }) {
   await connection()
   const { id } = await params
