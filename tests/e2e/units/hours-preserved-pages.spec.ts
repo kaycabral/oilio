@@ -9,6 +9,9 @@ test.describe('Unidade — horários com páginas mantidas (#85)', () => {
     authedPage,
   }) => {
     await authedPage.goto('/organizations')
+    await expect(authedPage).toHaveURL(/\/select-unit$/)
+    await authedPage.getByRole('button', { name: 'Unidade 1' }).click()
+    await expect(authedPage).toHaveURL(/\/organizations$/)
     await rowAction(authedPage, 'Unidade 1', 'Editar')
     await expect(authedPage).toHaveURL(new RegExp(`/units/${org.unitIds[0]}`))
     await expect(authedPage.getByRole('switch', { name: 'Segunda', exact: true })).toBeChecked()
