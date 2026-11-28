@@ -51,6 +51,7 @@ export function BlockForm({
   orgTimezone: string
   onDone?: () => void
 }) {
+  const uid = useId()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [kind, setKind] = useState<AgendaBlockKind>(block?.kind ?? 'recurring')
@@ -98,7 +99,7 @@ export function BlockForm({
           <input type="hidden" name="memberOperationId" value={owner.memberOperationId} />
           {owner.units.length > 1 ? (
             <div className="flex flex-col gap-1">
-              <Label htmlFor="block-unit" className="text-sm font-medium">
+              <Label htmlFor={`${uid}-block-unit`} className="text-sm font-medium">
                 Unidade
               </Label>
               <Select
@@ -106,7 +107,7 @@ export function BlockForm({
                 defaultValue={block?.unitId ?? owner.units[0]?.id ?? ''}
                 required
               >
-                <SelectTrigger id="block-unit">
+                <SelectTrigger id={`${uid}-block-unit`}>
                   <SelectValue placeholder="Selecione…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -125,7 +126,7 @@ export function BlockForm({
       )}
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="block-kind" className="text-sm font-medium">
+        <Label htmlFor={`${uid}-block-kind`} className="text-sm font-medium">
           Tipo
         </Label>
         <Select
@@ -136,7 +137,7 @@ export function BlockForm({
           }}
           required
         >
-          <SelectTrigger id="block-kind">
+          <SelectTrigger id={`${uid}-block-kind`}>
             <SelectValue placeholder="Selecione…" />
           </SelectTrigger>
           <SelectContent>
@@ -164,7 +165,7 @@ export function BlockForm({
       {kind === 'recurring' ? (
         <div className="grid grid-cols-3 gap-3">
           <div className="flex flex-col gap-1">
-            <Label htmlFor="block-weekday" className="text-sm font-medium">
+            <Label htmlFor={`${uid}-block-weekday`} className="text-sm font-medium">
               Dia da semana
             </Label>
             <Select
@@ -172,7 +173,7 @@ export function BlockForm({
               defaultValue={block?.kind === 'recurring' ? block.weekday : 'monday'}
               required
             >
-              <SelectTrigger id="block-weekday">
+              <SelectTrigger id={`${uid}-block-weekday`}>
                 <SelectValue placeholder="Selecione…" />
               </SelectTrigger>
               <SelectContent>

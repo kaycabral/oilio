@@ -1,4 +1,5 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
+import { RemountOnReturn } from '@/components/reset-after-submit'
 import { roleLabel, type Membership, type Role } from '@/domain'
 import { BlocksSection } from '@/features/agenda/ui/BlocksSection'
 import {
@@ -81,14 +82,16 @@ export default async function MemberDetailPage({
         </section>
       ) : null}
 
-      {renderEditableSurface({
-        isReadOnly,
-        isMemberOperator,
-        memberOperationEdit,
-        targetUserId: member.userId,
-        currentRole: member.role,
-        statusLabel: STATUS_LABELS[member.status],
-      })}
+      <RemountOnReturn>
+        {renderEditableSurface({
+          isReadOnly,
+          isMemberOperator,
+          memberOperationEdit,
+          targetUserId: member.userId,
+          currentRole: member.role,
+          statusLabel: STATUS_LABELS[member.status],
+        })}
+      </RemountOnReturn>
 
       {isMemberOperator && memberOperationEdit && memberOperationUnits.length > 0 ? (
         <BlocksSection

@@ -14,7 +14,7 @@ import {
   InputGroupInput,
 } from '@cbrl/design'
 import { Check, Loader2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 
 export type SlugState =
   | { kind: 'idle' }
@@ -97,6 +97,7 @@ export function UnitIdentityFields({
   defaultName?: string
   onSlugStateChange?: (state: SlugState) => void
 }) {
+  const uid = useId()
   const [name, setName] = useState(unit?.name ?? defaultName ?? '')
   const { slug, slugState, onSlugChange } = useUnitSlugField(unit, name)
 
@@ -107,11 +108,11 @@ export function UnitIdentityFields({
   return (
     <>
       <Field>
-        <FieldLabel htmlFor="unit-name" required>
+        <FieldLabel htmlFor={`${uid}-unit-name`} required>
           Nome
         </FieldLabel>
         <Input
-          id="unit-name"
+          id={`${uid}-unit-name`}
           name="name"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -122,15 +123,20 @@ export function UnitIdentityFields({
       <UnitSlugField slug={slug} slugState={slugState} onSlugChange={onSlugChange} />
       <div className="grid grid-cols-2 gap-4">
         <Field>
-          <FieldLabel htmlFor="unit-mobile" required>
+          <FieldLabel htmlFor={`${uid}-unit-mobile`} required>
             WhatsApp
           </FieldLabel>
-          <PhoneInput id="unit-mobile" name="mobile" defaultValue={unit?.mobile ?? ''} required />
+          <PhoneInput
+            id={`${uid}-unit-mobile`}
+            name="mobile"
+            defaultValue={unit?.mobile ?? ''}
+            required
+          />
         </Field>
         <Field>
-          <FieldLabel htmlFor="unit-email">Email</FieldLabel>
+          <FieldLabel htmlFor={`${uid}-unit-email`}>Email</FieldLabel>
           <Input
-            id="unit-email"
+            id={`${uid}-unit-email`}
             name="email"
             type="email"
             defaultValue={unit?.email ?? ''}
@@ -151,13 +157,14 @@ export function UnitSlugField({
   slugState: SlugState
   onSlugChange: (value: string) => void
 }) {
+  const uid = useId()
   const { org } = useOrg()
   const slugHint = slugStateToHint(slugState)
   const origin = typeof window === 'undefined' ? '' : window.location.origin
   const previewSlug = slug.trim().toLowerCase() || 'sua-unidade'
   return (
     <Field>
-      <FieldLabel htmlFor="unit-slug" required>
+      <FieldLabel htmlFor={`${uid}-unit-slug`} required>
         Nome de usuário
       </FieldLabel>
       <InputGroup>
@@ -165,7 +172,7 @@ export function UnitSlugField({
           @
         </InputGroupAddon>
         <InputGroupInput
-          id="unit-slug"
+          id={`${uid}-unit-slug`}
           name="slug"
           value={slug}
           onChange={(e) => onSlugChange(e.target.value)}

@@ -1,4 +1,5 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
+import { ResetAfterSubmit } from '@/components/reset-after-submit'
 import { loadNewCatalogItemPage } from '@/features/catalog/adapters/load-catalog'
 import { CatalogItemForm } from '@/features/catalog/ui/CatalogItemForm'
 import { Main } from '@cbrl/design'
@@ -22,7 +23,9 @@ export default async function NewCatalogItemPage({
         ]}
       />
       <h1 className="text-2xl font-semibold">Novo item</h1>
-      <CatalogItemForm kind={kind} units={units} categories={categories} />
+      <ResetAfterSubmit>
+        <CatalogItemForm kind={kind} units={units} categories={categories} />
+      </ResetAfterSubmit>
     </Main>
   )
 }

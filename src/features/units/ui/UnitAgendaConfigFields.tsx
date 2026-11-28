@@ -24,7 +24,7 @@ import {
   Switch,
   Textarea,
 } from '@cbrl/design'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 export function UnitAgendaConfigFields({
   slotMinutes,
@@ -35,6 +35,7 @@ export function UnitAgendaConfigFields({
   cancellationPolicy?: CancellationPolicy
   confirmationTemplates?: ConfirmationTemplates
 }) {
+  const uid = useId()
   const policy = cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY
   const templates = resolveWhatsappTemplates(confirmationTemplates)
   const [cancellationEnabled, setCancellationEnabled] = useState(policy.enabled)
@@ -45,9 +46,9 @@ export function UnitAgendaConfigFields({
       <FieldDescription>Estas opções valem só para o modo por agendamento.</FieldDescription>
 
       <Field>
-        <FieldLabel htmlFor="slotMinutes">Granularidade dos horários</FieldLabel>
+        <FieldLabel htmlFor={`${uid}-slotMinutes`}>Granularidade dos horários</FieldLabel>
         <Select name="slotMinutes" defaultValue={String(slotMinutes ?? DEFAULT_SLOT_MINUTES)}>
-          <SelectTrigger id="slotMinutes" className="w-full">
+          <SelectTrigger id={`${uid}-slotMinutes`} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -63,11 +64,11 @@ export function UnitAgendaConfigFields({
 
       <Field orientation="horizontal" className="items-center justify-between">
         <div className="flex flex-col gap-1">
-          <FieldLabel htmlFor="cancellationEnabled">Cancelamento pelo cliente</FieldLabel>
+          <FieldLabel htmlFor={`${uid}-cancellationEnabled`}>Cancelamento pelo cliente</FieldLabel>
           <FieldDescription>Permite que o cliente cancele pela página pública.</FieldDescription>
         </div>
         <Switch
-          id="cancellationEnabled"
+          id={`${uid}-cancellationEnabled`}
           name="cancellationEnabled"
           checked={cancellationEnabled}
           onCheckedChange={setCancellationEnabled}
@@ -76,9 +77,11 @@ export function UnitAgendaConfigFields({
 
       {cancellationEnabled ? (
         <Field>
-          <FieldLabel htmlFor="cancellationMinNotice">Antecedência mínima (minutos)</FieldLabel>
+          <FieldLabel htmlFor={`${uid}-cancellationMinNotice`}>
+            Antecedência mínima (minutos)
+          </FieldLabel>
           <Input
-            id="cancellationMinNotice"
+            id={`${uid}-cancellationMinNotice`}
             name="cancellationMinNotice"
             type="number"
             min={0}
@@ -95,27 +98,27 @@ export function UnitAgendaConfigFields({
       <FieldSet className="gap-3">
         <FieldLegend className="text-sm">Mensagens automáticas</FieldLegend>
         <Field>
-          <FieldLabel htmlFor="templateConfirmation">Confirmação</FieldLabel>
+          <FieldLabel htmlFor={`${uid}-templateConfirmation`}>Confirmação</FieldLabel>
           <Textarea
-            id="templateConfirmation"
+            id={`${uid}-templateConfirmation`}
             name="templateConfirmation"
             rows={3}
             defaultValue={templates.confirmation}
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="templateReminder">Lembrete</FieldLabel>
+          <FieldLabel htmlFor={`${uid}-templateReminder`}>Lembrete</FieldLabel>
           <Textarea
-            id="templateReminder"
+            id={`${uid}-templateReminder`}
             name="templateReminder"
             rows={3}
             defaultValue={templates.reminder}
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="templateCancellation">Cancelamento</FieldLabel>
+          <FieldLabel htmlFor={`${uid}-templateCancellation`}>Cancelamento</FieldLabel>
           <Textarea
-            id="templateCancellation"
+            id={`${uid}-templateCancellation`}
             name="templateCancellation"
             rows={3}
             defaultValue={templates.cancellation}

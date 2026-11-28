@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@cbrl/design'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 import { ProductNameCombobox } from '@/features/catalog/ui/ProductNameCombobox'
 
@@ -34,15 +34,16 @@ export function CategoryPicker({
   categories: Category[]
   initialCategoryId: string | null
 }) {
+  const uid = useId()
   const [value, setValue] = useState<string>(initialCategoryId ?? NO_CATEGORY)
   return (
     <div className="flex flex-col gap-1">
-      <Label htmlFor="catalog-category" className="text-sm font-medium">
+      <Label htmlFor={`${uid}-catalog-category`} className="text-sm font-medium">
         Categoria
       </Label>
       <input type="hidden" name="categoryId" value={value === NO_CATEGORY ? '' : value} />
       <Select value={value} onValueChange={setValue}>
-        <SelectTrigger id="catalog-category">
+        <SelectTrigger id={`${uid}-catalog-category`}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -119,6 +120,7 @@ export function VisibilityFieldset({
   publicVisibleDefault: boolean
   priceOnRequestDefault: boolean
 }) {
+  const uid = useId()
   return (
     <>
       <label className="flex items-center gap-2 text-sm">
@@ -133,12 +135,12 @@ export function VisibilityFieldset({
 
       <div className="flex items-center gap-2 text-sm">
         <Checkbox
-          id="catalog-priceVisibility"
+          id={`${uid}-catalog-priceVisibility`}
           name="priceVisibility"
           value="on_request"
           defaultChecked={priceOnRequestDefault}
         />
-        <Label htmlFor="catalog-priceVisibility" className="font-normal">
+        <Label htmlFor={`${uid}-catalog-priceVisibility`} className="font-normal">
           Preço "sob consulta" no catálogo público
         </Label>
       </div>
@@ -147,6 +149,7 @@ export function VisibilityFieldset({
 }
 
 export function CommissionFieldset({ commission }: { commission: CommissionRule | null }) {
+  const uid = useId()
   const [commissionKind, setCommissionKind] = useState<CommissionKind>(
     commissionKindFor(commission),
   )
@@ -169,11 +172,11 @@ export function CommissionFieldset({ commission }: { commission: CommissionRule 
       </div>
       {commissionKind !== 'none' ? (
         <div className="flex flex-col gap-1 pt-1">
-          <Label htmlFor="catalog-commissionValue" className="text-sm font-medium">
+          <Label htmlFor={`${uid}-catalog-commissionValue`} className="text-sm font-medium">
             {commissionKind === 'percentage' ? 'Percentual (%)' : 'Valor (R$)'}
           </Label>
           <Input
-            id="catalog-commissionValue"
+            id={`${uid}-catalog-commissionValue`}
             name="commissionValue"
             type="text"
             inputMode="decimal"
@@ -210,10 +213,11 @@ export function CatalogNameField({
   }
   onClearFill?: () => void
 }) {
+  const uid = useId()
   const useCombobox = search != null && !readOnly
   return (
     <div className="flex flex-col gap-1">
-      <Label htmlFor="catalog-name" className="text-sm font-medium">
+      <Label htmlFor={`${uid}-catalog-name`} className="text-sm font-medium">
         Nome
       </Label>
       {useCombobox ? (
@@ -230,13 +234,13 @@ export function CatalogNameField({
       ) : (
         <Input
           key={lockedValue ?? 'editable-name'}
-          id="catalog-name"
+          id={`${uid}-catalog-name`}
           name="name"
           defaultValue={lockedValue ?? defaultName}
           readOnly={readOnly}
           required={required}
           minLength={2}
-          aria-describedby={isContribution ? 'catalog-name-hint' : undefined}
+          aria-describedby={isContribution ? `${uid}-catalog-name-hint` : undefined}
         />
       )}
       {readOnly && onClearFill ? (
@@ -249,7 +253,7 @@ export function CatalogNameField({
         </button>
       ) : null}
       {isContribution ? (
-        <span id="catalog-name-hint" className="text-muted-foreground text-xs">
+        <span id={`${uid}-catalog-name-hint`} className="text-muted-foreground text-xs">
           Dê um nome a este produto para cadastrá-lo.
         </span>
       ) : null}
@@ -317,13 +321,14 @@ export function PriceAndKindFields({
   stockDefault: number
   initialPrice: string
 }) {
+  const uid = useId()
   const priceLabel = (
     <div className="flex flex-col gap-1">
-      <Label htmlFor="catalog-priceCents" className="text-sm font-medium">
+      <Label htmlFor={`${uid}-catalog-priceCents`} className="text-sm font-medium">
         Preço (R$)
       </Label>
       <Input
-        id="catalog-priceCents"
+        id={`${uid}-catalog-priceCents`}
         name="priceCents"
         type="text"
         inputMode="decimal"
@@ -337,11 +342,11 @@ export function PriceAndKindFields({
     return (
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
-          <Label htmlFor="catalog-durationMinutes" className="text-sm font-medium">
+          <Label htmlFor={`${uid}-catalog-durationMinutes`} className="text-sm font-medium">
             Duração (min)
           </Label>
           <Input
-            id="catalog-durationMinutes"
+            id={`${uid}-catalog-durationMinutes`}
             name="durationMinutes"
             type="number"
             min={1}
@@ -358,11 +363,11 @@ export function PriceAndKindFields({
     <div className="grid grid-cols-2 gap-3">
       {priceLabel}
       <div className="flex flex-col gap-1">
-        <Label htmlFor="catalog-stock" className="text-sm font-medium">
+        <Label htmlFor={`${uid}-catalog-stock`} className="text-sm font-medium">
           Estoque atual
         </Label>
         <Input
-          id="catalog-stock"
+          id={`${uid}-catalog-stock`}
           name="stock"
           type="number"
           min={0}
@@ -383,14 +388,15 @@ export function ResourcesOrSkuField({
   requiredResourcesDefault: string
   skuDefault: string
 }) {
+  const uid = useId()
   if (isService) {
     return (
       <div className="flex flex-col gap-1">
-        <Label htmlFor="catalog-requiredResources" className="text-sm font-medium">
+        <Label htmlFor={`${uid}-catalog-requiredResources`} className="text-sm font-medium">
           Recursos necessários
         </Label>
         <Input
-          id="catalog-requiredResources"
+          id={`${uid}-catalog-requiredResources`}
           name="requiredResources"
           defaultValue={requiredResourcesDefault}
           placeholder="Separados por vírgula (cadeira-01, secador, …)"
@@ -400,10 +406,15 @@ export function ResourcesOrSkuField({
   }
   return (
     <div className="flex flex-col gap-1">
-      <Label htmlFor="catalog-sku" className="text-sm font-medium">
+      <Label htmlFor={`${uid}-catalog-sku`} className="text-sm font-medium">
         SKU
       </Label>
-      <Input id="catalog-sku" name="sku" defaultValue={skuDefault} placeholder="Opcional" />
+      <Input
+        id={`${uid}-catalog-sku`}
+        name="sku"
+        defaultValue={skuDefault}
+        placeholder="Opcional"
+      />
     </div>
   )
 }

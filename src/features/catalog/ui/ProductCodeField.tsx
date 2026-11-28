@@ -6,6 +6,7 @@ import {
   type CodeFormState,
 } from '@/features/catalog/core/catalog-item-form'
 import { Input, Label } from '@cbrl/design'
+import { useId } from 'react'
 
 export function ProductCodeField({
   defaultValue,
@@ -20,6 +21,7 @@ export function ProductCodeField({
   onLookup: (code: string) => void
   onCleared: () => void
 }) {
+  const uid = useId()
   const nameFilled = state.kind === 'filled' && state.source === 'name'
   function commit(raw: string): void {
     const code = normalizeCodeInput(raw)
@@ -34,11 +36,11 @@ export function ProductCodeField({
 
   return (
     <div className="flex flex-col gap-1">
-      <Label htmlFor="catalog-code" className="text-sm font-medium">
+      <Label htmlFor={`${uid}-catalog-code`} className="text-sm font-medium">
         Código do produto
       </Label>
       <Input
-        id="catalog-code"
+        id={`${uid}-catalog-code`}
         name="gtin"
         defaultValue={defaultValue}
         inputMode="numeric"

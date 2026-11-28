@@ -3,6 +3,7 @@
 import { type AllowedTimeScope, type BookingLimits, WEEKDAYS } from '@/domain'
 import { WEEKDAY_LABELS } from '@/features/plans/core/plan-form-defaults'
 import { Checkbox, Input, Label } from '@cbrl/design'
+import { useId } from 'react'
 
 export function PlanTimeScopeFieldset({
   restrictDays,
@@ -23,6 +24,7 @@ export function PlanTimeScopeFieldset({
   initialDays: Set<number>
   initialScope: AllowedTimeScope | undefined
 }) {
+  const uid = useId()
   return (
     <fieldset className="border-border rounded-md border p-3">
       <legend className="px-1 text-sm font-medium">Horários do plano</legend>
@@ -32,12 +34,12 @@ export function PlanTimeScopeFieldset({
 
       <div className="flex items-center gap-2 py-2 text-sm">
         <Checkbox
-          id="plan-restrictDaysOfWeek"
+          id={`${uid}-plan-restrictDaysOfWeek`}
           name="restrictDaysOfWeek"
           checked={restrictDays}
           onCheckedChange={(checked) => setRestrictDays(checked === true)}
         />
-        <Label htmlFor="plan-restrictDaysOfWeek" className="font-normal">
+        <Label htmlFor={`${uid}-plan-restrictDaysOfWeek`} className="font-normal">
           Restringir dias da semana
         </Label>
       </div>
@@ -58,23 +60,23 @@ export function PlanTimeScopeFieldset({
 
       <div className="flex items-center gap-2 py-2 text-sm">
         <Checkbox
-          id="plan-restrictHourRange"
+          id={`${uid}-plan-restrictHourRange`}
           name="restrictHourRange"
           checked={restrictHours}
           onCheckedChange={(checked) => setRestrictHours(checked === true)}
         />
-        <Label htmlFor="plan-restrictHourRange" className="font-normal">
+        <Label htmlFor={`${uid}-plan-restrictHourRange`} className="font-normal">
           Restringir faixa horária
         </Label>
       </div>
       {restrictHours ? (
         <div className="grid grid-cols-2 gap-3 pb-2">
           <div className="flex flex-col gap-1">
-            <Label htmlFor="plan-hourRangeStart" className="text-xs font-medium">
+            <Label htmlFor={`${uid}-plan-hourRangeStart`} className="text-xs font-medium">
               Início
             </Label>
             <Input
-              id="plan-hourRangeStart"
+              id={`${uid}-plan-hourRangeStart`}
               name="hourRangeStart"
               type="time"
               defaultValue={initialScope?.hourRange?.start ?? '08:00'}
@@ -82,11 +84,11 @@ export function PlanTimeScopeFieldset({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="plan-hourRangeEnd" className="text-xs font-medium">
+            <Label htmlFor={`${uid}-plan-hourRangeEnd`} className="text-xs font-medium">
               Fim
             </Label>
             <Input
-              id="plan-hourRangeEnd"
+              id={`${uid}-plan-hourRangeEnd`}
               name="hourRangeEnd"
               type="time"
               defaultValue={initialScope?.hourRange?.end ?? '18:00'}
@@ -98,22 +100,22 @@ export function PlanTimeScopeFieldset({
 
       <div className="flex items-center gap-2 py-2 text-sm">
         <Checkbox
-          id="plan-restrictAdvance"
+          id={`${uid}-plan-restrictAdvance`}
           name="restrictAdvance"
           checked={restrictAdvance}
           onCheckedChange={(checked) => setRestrictAdvance(checked === true)}
         />
-        <Label htmlFor="plan-restrictAdvance" className="font-normal">
+        <Label htmlFor={`${uid}-plan-restrictAdvance`} className="font-normal">
           Restringir janela de antecedência
         </Label>
       </div>
       {restrictAdvance ? (
         <div className="flex flex-col gap-1 pb-1">
-          <Label htmlFor="plan-advanceBookingDays" className="text-xs font-medium">
+          <Label htmlFor={`${uid}-plan-advanceBookingDays`} className="text-xs font-medium">
             Dias máximos antecipados
           </Label>
           <Input
-            id="plan-advanceBookingDays"
+            id={`${uid}-plan-advanceBookingDays`}
             name="advanceBookingDays"
             type="number"
             min={1}
@@ -139,6 +141,7 @@ export function PlanBookingLimitsFieldset({
   setRestrictBookingLimits: (v: boolean) => void
   initialLimits: BookingLimits | undefined
 }) {
+  const uid = useId()
   return (
     <fieldset className="border-border rounded-md border p-3">
       <legend className="px-1 text-sm font-medium">Limites de agendamento</legend>
@@ -148,12 +151,12 @@ export function PlanBookingLimitsFieldset({
 
       <div className="flex items-center gap-2 py-2 text-sm">
         <Checkbox
-          id="plan-restrictBookingLimits"
+          id={`${uid}-plan-restrictBookingLimits`}
           name="restrictBookingLimits"
           checked={restrictBookingLimits}
           onCheckedChange={(checked) => setRestrictBookingLimits(checked === true)}
         />
-        <Label htmlFor="plan-restrictBookingLimits" className="font-normal">
+        <Label htmlFor={`${uid}-plan-restrictBookingLimits`} className="font-normal">
           Restringir agendamentos do assinante
         </Label>
       </div>
@@ -161,11 +164,11 @@ export function PlanBookingLimitsFieldset({
       {restrictBookingLimits ? (
         <div className="flex flex-col gap-3 pt-1">
           <div className="flex flex-col gap-1">
-            <Label htmlFor="plan-maxPerDay" className="text-xs font-medium">
+            <Label htmlFor={`${uid}-plan-maxPerDay`} className="text-xs font-medium">
               Máximo por dia
             </Label>
             <Input
-              id="plan-maxPerDay"
+              id={`${uid}-plan-maxPerDay`}
               name="maxPerDay"
               type="number"
               min={1}
@@ -179,11 +182,11 @@ export function PlanBookingLimitsFieldset({
             </span>
           </div>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="plan-maxConcurrent" className="text-xs font-medium">
+            <Label htmlFor={`${uid}-plan-maxConcurrent`} className="text-xs font-medium">
               Máximo de futuros simultâneos
             </Label>
             <Input
-              id="plan-maxConcurrent"
+              id={`${uid}-plan-maxConcurrent`}
               name="maxConcurrent"
               type="number"
               min={1}
@@ -197,11 +200,11 @@ export function PlanBookingLimitsFieldset({
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Checkbox
-              id="plan-requireCompleteBeforeNext"
+              id={`${uid}-plan-requireCompleteBeforeNext`}
               name="requireCompleteBeforeNext"
               defaultChecked={initialLimits?.requireCompleteBeforeNext === true}
             />
-            <Label htmlFor="plan-requireCompleteBeforeNext" className="font-normal">
+            <Label htmlFor={`${uid}-plan-requireCompleteBeforeNext`} className="font-normal">
               Exigir concluir o atual antes de marcar o próximo
             </Label>
           </div>
