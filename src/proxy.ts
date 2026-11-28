@@ -1,9 +1,14 @@
+import { getPublicOrgVisibility } from '@/features/self-book/adapters/public-page-visibility'
+import {
+  isPublicPageNotFound,
+  publicPageFromPath,
+} from '@/features/self-book/core/public-page-gate'
 import { logger } from '@cbrl/log'
 import { updateSession } from '@cbrl/supabase/proxy'
-import type { NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
-  return updateSession(request, {
+  const response = await updateSession(request, {
     onError: (err) => {
       logger.warn('session refresh failed', {
         scope: 'auth',
@@ -11,6 +16,14 @@ export async function proxy(request: NextRequest) {
       })
     },
   })
+
+  const target = request.method === 'GET' ? publicPageFromPath(request.nextUrl.pathname) : null
+  if (target === null) return response
+  if (!(await isPublicPageNotFound(target, { lookup: getPublicOrgVisibility }))) return response
+
+  const notFound = NextResponse.rewrite(new URL('/_not-found', request.url), { status: 404 })
+  for (const cookie of response.cookies.getAll()) notFound.cookies.set(cookie)
+  return notFound
 }
 
 export const config = {
