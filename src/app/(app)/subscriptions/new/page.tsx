@@ -1,4 +1,5 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
+import { ResetAfterSubmit } from '@/components/reset-after-submit'
 import { isCapabilityLocked } from '@/features/billing/adapters/capability-lock'
 import { loadCustomersAndPlans } from '@/features/subscriptions/adapters/load-subscription-form'
 import { SubscriptionForm } from '@/features/subscriptions/ui/SubscriptionForm'
@@ -65,7 +66,9 @@ export default async function NewSubscriptionPage() {
         ]}
       />
       <h1 className="text-2xl font-semibold">Nova assinatura</h1>
-      <SubscriptionForm customers={customers} plans={plans} />
+      <ResetAfterSubmit>
+        <SubscriptionForm customers={customers} plans={plans} />
+      </ResetAfterSubmit>
     </Main>
   )
 }

@@ -11,12 +11,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@cbrl/design'
-import { useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 
 export function UnitFormDialog() {
   const [open, setOpen] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [confirmingDiscard, setConfirmingDiscard] = useState(false)
+
+  useLayoutEffect(
+    () => () => {
+      setOpen(false)
+      setDirty(false)
+      setConfirmingDiscard(false)
+    },
+    [],
+  )
 
   function onOpenChange(next: boolean) {
     if (!next && dirty) {

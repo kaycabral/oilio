@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@cbrl/design'
-import { useState, useTransition } from 'react'
+import { useId, useState, useTransition } from 'react'
 
 export function PlanForm({
   plan,
@@ -43,6 +43,7 @@ export function PlanForm({
   catalogItems: CatalogItem[]
   categories: Category[]
 }) {
+  const uid = useId()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -91,18 +92,24 @@ export function PlanForm({
       ) : null}
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="plan-name" className="text-sm font-medium">
+        <Label htmlFor={`${uid}-plan-name`} className="text-sm font-medium">
           Nome do plano
         </Label>
-        <Input id="plan-name" name="name" defaultValue={plan?.name ?? ''} required minLength={2} />
+        <Input
+          id={`${uid}-plan-name`}
+          name="name"
+          defaultValue={plan?.name ?? ''}
+          required
+          minLength={2}
+        />
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="plan-description" className="text-sm font-medium">
+        <Label htmlFor={`${uid}-plan-description`} className="text-sm font-medium">
           Descrição
         </Label>
         <Input
-          id="plan-description"
+          id={`${uid}-plan-description`}
           name="description"
           defaultValue={plan?.description ?? ''}
           placeholder="Opcional"
@@ -111,11 +118,11 @@ export function PlanForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
-          <Label htmlFor="plan-priceCents" className="text-sm font-medium">
+          <Label htmlFor={`${uid}-plan-priceCents`} className="text-sm font-medium">
             Preço (R$)
           </Label>
           <Input
-            id="plan-priceCents"
+            id={`${uid}-plan-priceCents`}
             name="priceCents"
             type="text"
             inputMode="decimal"
@@ -125,11 +132,11 @@ export function PlanForm({
           />
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="plan-billing-cycle" className="text-sm font-medium">
+          <Label htmlFor={`${uid}-plan-billing-cycle`} className="text-sm font-medium">
             Ciclo
           </Label>
           <Select name="billingCycle" defaultValue={plan?.billingCycle ?? 'monthly'} required>
-            <SelectTrigger id="plan-billing-cycle">
+            <SelectTrigger id={`${uid}-plan-billing-cycle`}>
               <SelectValue placeholder="Selecione…" />
             </SelectTrigger>
             <SelectContent>
@@ -213,11 +220,11 @@ export function PlanForm({
         </div>
         {limitKind === 'count' ? (
           <div className="flex flex-col gap-1 pt-1">
-            <Label htmlFor="plan-limitQuantity" className="text-sm font-medium">
+            <Label htmlFor={`${uid}-plan-limitQuantity`} className="text-sm font-medium">
               Quantidade por ciclo
             </Label>
             <Input
-              id="plan-limitQuantity"
+              id={`${uid}-plan-limitQuantity`}
               name="limitQuantity"
               type="number"
               min={1}
@@ -232,12 +239,12 @@ export function PlanForm({
         <legend className="px-1 text-sm font-medium">Unidades cobertas</legend>
         <div className="flex items-center gap-2 py-2 text-sm">
           <Checkbox
-            id="plan-restrictUnits"
+            id={`${uid}-plan-restrictUnits`}
             name="restrictUnits"
             checked={restrictUnits}
             onCheckedChange={(checked) => setRestrictUnits(checked === true)}
           />
-          <Label htmlFor="plan-restrictUnits" className="font-normal">
+          <Label htmlFor={`${uid}-plan-restrictUnits`} className="font-normal">
             Restringir a unidades específicas
           </Label>
         </div>
@@ -291,8 +298,8 @@ export function PlanForm({
       />
 
       <div className="flex items-center gap-2 text-sm">
-        <Checkbox id="plan-active" name="active" defaultChecked={plan?.active ?? true} />
-        <Label htmlFor="plan-active" className="font-normal">
+        <Checkbox id={`${uid}-plan-active`} name="active" defaultChecked={plan?.active ?? true} />
+        <Label htmlFor={`${uid}-plan-active`} className="font-normal">
           Ativo (disponível para assinatura)
         </Label>
       </div>

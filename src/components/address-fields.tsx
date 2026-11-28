@@ -11,7 +11,7 @@ import {
   FieldSet,
   Input,
 } from '@cbrl/design'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 
 function formatCep(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 8)
@@ -28,6 +28,7 @@ export function AddressFields({
   simplified?: boolean
   numberRequired?: boolean
 }) {
+  const uid = useId()
   const [postalCode, setPostalCode] = useState(defaults?.postalCode ?? '')
   const lookup = useCepLookup(postalCode)
   const [state, setState] = useState(defaults?.state ?? '')
@@ -52,11 +53,11 @@ export function AddressFields({
       <FieldLegend>Endereço</FieldLegend>
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor="addr-cep" required>
+          <FieldLabel htmlFor={`${uid}-addr-cep`} required>
             CEP
           </FieldLabel>
           <Input
-            id="addr-cep"
+            id={`${uid}-addr-cep`}
             name="postalCode"
             value={formatCep(postalCode)}
             onChange={(e) => setPostalCode(e.target.value)}
@@ -140,6 +141,7 @@ function SimplifiedBody({
   defaults: Address | null
   numberRequired: boolean
 }) {
+  const uid = useId()
   return (
     <>
       <input type="hidden" name="state" value={state} required />
@@ -149,11 +151,11 @@ function SimplifiedBody({
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Field>
-          <FieldLabel htmlFor="addr-number-s" required={numberRequired}>
+          <FieldLabel htmlFor={`${uid}-addr-number-s`} required={numberRequired}>
             Número
           </FieldLabel>
           <Input
-            id="addr-number-s"
+            id={`${uid}-addr-number-s`}
             name="number"
             defaultValue={defaults?.number ?? ''}
             placeholder={numberRequired ? 'Ex.: 123' : 'Opcional'}
@@ -161,9 +163,9 @@ function SimplifiedBody({
           />
         </Field>
         <Field className="md:col-span-2">
-          <FieldLabel htmlFor="addr-complement-s">Complemento</FieldLabel>
+          <FieldLabel htmlFor={`${uid}-addr-complement-s`}>Complemento</FieldLabel>
           <Input
-            id="addr-complement-s"
+            id={`${uid}-addr-complement-s`}
             name="complement"
             defaultValue={defaults?.complement ?? ''}
             placeholder="Opcional (sala, andar, etc.)"
@@ -203,15 +205,16 @@ function FullBody({
   defaults: Address | null
   numberRequired: boolean
 }) {
+  const uid = useId()
   return (
     <>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Field>
-          <FieldLabel htmlFor="addr-state" required>
+          <FieldLabel htmlFor={`${uid}-addr-state`} required>
             Estado
           </FieldLabel>
           <Input
-            id="addr-state"
+            id={`${uid}-addr-state`}
             name="state"
             value={state}
             onChange={(e) => setState(e.target.value)}
@@ -219,11 +222,11 @@ function FullBody({
           />
         </Field>
         <Field className="md:col-span-3">
-          <FieldLabel htmlFor="addr-city" required>
+          <FieldLabel htmlFor={`${uid}-addr-city`} required>
             Cidade
           </FieldLabel>
           <Input
-            id="addr-city"
+            id={`${uid}-addr-city`}
             name="city"
             value={city}
             onChange={(e) => setCity(e.target.value)}
@@ -233,11 +236,11 @@ function FullBody({
       </div>
 
       <Field>
-        <FieldLabel htmlFor="addr-neighborhood" required>
+        <FieldLabel htmlFor={`${uid}-addr-neighborhood`} required>
           Bairro
         </FieldLabel>
         <Input
-          id="addr-neighborhood"
+          id={`${uid}-addr-neighborhood`}
           name="neighborhood"
           value={neighborhood}
           onChange={(e) => setNeighborhood(e.target.value)}
@@ -246,11 +249,11 @@ function FullBody({
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="addr-street" required>
+        <FieldLabel htmlFor={`${uid}-addr-street`} required>
           Logradouro
         </FieldLabel>
         <Input
-          id="addr-street"
+          id={`${uid}-addr-street`}
           name="street"
           value={street}
           onChange={(e) => setStreet(e.target.value)}
@@ -260,11 +263,11 @@ function FullBody({
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Field>
-          <FieldLabel htmlFor="addr-number" required={numberRequired}>
+          <FieldLabel htmlFor={`${uid}-addr-number`} required={numberRequired}>
             Número
           </FieldLabel>
           <Input
-            id="addr-number"
+            id={`${uid}-addr-number`}
             name="number"
             defaultValue={defaults?.number ?? ''}
             placeholder={numberRequired ? 'Ex.: 123' : 'Opcional'}
@@ -272,9 +275,9 @@ function FullBody({
           />
         </Field>
         <Field className="md:col-span-2">
-          <FieldLabel htmlFor="addr-complement">Complemento</FieldLabel>
+          <FieldLabel htmlFor={`${uid}-addr-complement`}>Complemento</FieldLabel>
           <Input
-            id="addr-complement"
+            id={`${uid}-addr-complement`}
             name="complement"
             defaultValue={defaults?.complement ?? ''}
             placeholder="Opcional (sala, andar, etc.)"

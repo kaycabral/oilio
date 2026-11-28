@@ -2,7 +2,7 @@
 
 import type { ProductSuggestion } from '@/features/catalog/core/catalog-item-form'
 import { Input } from '@cbrl/design'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 export function ProductNameCombobox({
   defaultName,
@@ -23,6 +23,7 @@ export function ProductNameCombobox({
   onCleared: () => void
   onDismiss: () => void
 }) {
+  const uid = useId()
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -90,7 +91,7 @@ export function ProductNameCombobox({
     <div className="relative">
       <Input
         ref={inputRef}
-        id="catalog-name"
+        id={`${uid}-catalog-name`}
         name="name"
         defaultValue={defaultName}
         required={required}

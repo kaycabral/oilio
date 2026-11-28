@@ -6,7 +6,7 @@ import { useSettingsReload } from '@/features/settings/ui/settings-modal-context
 import { useFormValidity } from '@/hooks/use-form-validity'
 import { Button, DateField, Input, SettingRow, SettingRowGroup } from '@cbrl/design'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useId, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 // global `users/{uid}` profile; the write reflects live across every screen
@@ -19,6 +19,7 @@ export function EditProfileForm({
   defaultMobile: string
   defaultBirthDate: string
 }) {
+  const uid = useId()
   const router = useRouter()
   const reloadSection = useSettingsReload()
   const [pending, startTransition] = useTransition()
@@ -47,10 +48,10 @@ export function EditProfileForm({
         <SettingRow
           title="Nome completo"
           description="Como você aparece para sua equipe"
-          htmlFor="profile-name"
+          htmlFor={`${uid}-profile-name`}
         >
           <Input
-            id="profile-name"
+            id={`${uid}-profile-name`}
             name="name"
             defaultValue={defaultName}
             required
@@ -62,10 +63,10 @@ export function EditProfileForm({
         <SettingRow
           title="Celular"
           description="Usado para login e notificações"
-          htmlFor="profile-mobile"
+          htmlFor={`${uid}-profile-mobile`}
         >
           <PhoneInput
-            id="profile-mobile"
+            id={`${uid}-profile-mobile`}
             name="mobile"
             defaultValue={defaultMobile}
             required
@@ -73,9 +74,9 @@ export function EditProfileForm({
           />
         </SettingRow>
 
-        <SettingRow title="Data de nascimento" htmlFor="profile-birthDate">
+        <SettingRow title="Data de nascimento" htmlFor={`${uid}-profile-birthDate`}>
           <DateField
-            id="profile-birthDate"
+            id={`${uid}-profile-birthDate`}
             name="birthDate"
             defaultValue={defaultBirthDate}
             required

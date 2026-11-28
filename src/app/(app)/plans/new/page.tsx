@@ -1,4 +1,5 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
+import { ResetAfterSubmit } from '@/components/reset-after-submit'
 import { loadNewPlanPage } from '@/features/plans/adapters/load-plans'
 import { PlanForm } from '@/features/plans/ui/PlanForm'
 import { Main } from '@cbrl/design'
@@ -20,7 +21,9 @@ export default async function NewPlanPage() {
         ]}
       />
       <h1 className="text-2xl font-semibold">Novo plano</h1>
-      <PlanForm units={units} catalogItems={catalogItems} categories={categories} />
+      <ResetAfterSubmit>
+        <PlanForm units={units} catalogItems={catalogItems} categories={categories} />
+      </ResetAfterSubmit>
     </Main>
   )
 }
