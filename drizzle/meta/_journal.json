@@ -169,6 +169,13 @@
       "when": 1795030021934,
       "tag": "0023_app_role_and_api_lockdown",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795874506448,
+      "tag": "0024_runtime_role_least_privilege",
+      "breakpoints": true
     }
   ]
 }

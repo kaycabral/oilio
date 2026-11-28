@@ -1,4 +1,5 @@
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import { buildUser } from '@/shared/fixtures/domain-builders'
 import { listCustomersForOrg } from '@/shared/org/customer-read'
@@ -28,7 +29,7 @@ function uniq(prefix: string): string {
 }
 
 async function seedPublishedOrg(orgId: string, slug: string): Promise<void> {
-  const pool = getEventStorePool()
+  const pool = ownerPool()
   await pool.query(
     `INSERT INTO orgs
        (org_id, id, last_event_version, name, slug, vertical, branding, owner_user_id,
@@ -66,7 +67,7 @@ async function runComplete(fd: FormData): Promise<void> {
 
 describe('completeProfile materializes a Customer (brief 0077 #1278)', () => {
   beforeEach(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query("DELETE FROM client_funnel_events WHERE org_id LIKE 'org-mat-%'")
     await pool.query("DELETE FROM customers WHERE org_id LIKE 'org-mat-%'")
     await pool.query("DELETE FROM public_org_directory WHERE org_id LIKE 'org-mat-%'")
@@ -100,7 +101,7 @@ describe('completeProfile materializes a Customer (brief 0077 #1278)', () => {
     expect(customers[0]?.userId).toBe(uid)
     expect(customers[0]?.acquisition?.source).toBe('whatsapp')
 
-    const events = await getEventStorePool().query<{ event: string }>(
+    const events = await ownerPool().query<{ event: string }>(
       'SELECT event FROM client_funnel_events WHERE org_id = $1 ORDER BY id',
       [orgId],
     )

@@ -16,7 +16,8 @@ import type { CashMovement } from '@/domain/types/cash-movement'
 import type { Commission } from '@/domain/types/commission'
 import type { Order } from '@/domain/types/order'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildCloseOrderSteps } from './order-saga'
@@ -165,7 +166,7 @@ function orderCreatedStep(): SagaStep {
 }
 
 async function seedParents(): Promise<void> {
-  const pool = getEventStorePool()
+  const pool = ownerPool()
   await pool.query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
@@ -214,12 +215,12 @@ async function seedPrereqs(): Promise<void> {
 }
 
 function readCount(table: string, ref: AggregateRef): Promise<number> {
-  return getEventStorePool()
+  return ownerPool()
     .query(`SELECT 1 FROM ${table} WHERE org_id = $1 AND id = $2`, [ref.orgId, ref.id])
     .then((res) => res.rowCount ?? 0)
 }
 function readOrderStatus(ref: AggregateRef): Promise<string | null> {
-  return getEventStorePool()
+  return ownerPool()
     .query<{ status: string }>('SELECT status FROM orders WHERE org_id = $1 AND id = $2', [
       ref.orgId,
       ref.id,
@@ -227,7 +228,7 @@ function readOrderStatus(ref: AggregateRef): Promise<string | null> {
     .then((res) => res.rows[0]?.status ?? null)
 }
 function readSubscriptionVersion(ref: AggregateRef): Promise<number | null> {
-  return getEventStorePool()
+  return ownerPool()
     .query<{ last_event_version: string }>(
       'SELECT last_event_version FROM subscriptions WHERE org_id = $1 AND id = $2',
       [ref.orgId, ref.id],
@@ -237,7 +238,7 @@ function readSubscriptionVersion(ref: AggregateRef): Promise<number | null> {
 
 describe('close-order cascade — ACID (Postgres)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE events, projections, orders, commissions, cash_movements, appointments, subscriptions, catalog_items, member_operations, customers, units, orgs CASCADE',
     )
   })
@@ -301,7 +302,7 @@ describe('close-order cascade — ACID (Postgres)', () => {
 
 describe('undo-close cascade — ACID (Postgres)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE events, projections, orders, commissions, cash_movements, appointments, subscriptions, catalog_items, member_operations, customers, units, orgs CASCADE',
     )
   })

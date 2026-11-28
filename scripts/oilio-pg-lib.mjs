@@ -67,6 +67,33 @@ export function resolveConnection() {
   return { oilioUrl: LOCAL_OILIO_URL, adminUrl: ADMIN_URL, dbAttached }
 }
 
+// The suites connect the code under test as the `oilio_app` runtime role (no
+// BYPASSRLS, not the owner), exactly as production does; the owner URLs only
+// migrate and seed fixtures. The password is local to the ephemeral Postgres;
+// the suites' globalSetup gives the NOLOGIN role this login.
+export const RUNTIME_ROLE = 'oilio_app'
+const RUNTIME_ROLE_PASSWORD = 'oilio_app_test_only'
+
+export function withRuntimeRole(url) {
+  const runtime = new URL(url)
+  runtime.username = RUNTIME_ROLE
+  runtime.password = RUNTIME_ROLE_PASSWORD
+  return runtime.toString()
+}
+
+// Env for the suites that exercise the app (`test:integration:events:pg`,
+// `test:integration:pg`): owner URLs for migrations/fixtures, runtime-role URLs
+// for everything the app itself opens.
+export function runtimeSuiteEnv({ oilioUrl, productUrl }) {
+  return {
+    ...process.env,
+    OILIO_OWNER_DATABASE_URL: oilioUrl,
+    PRODUCT_OWNER_DATABASE_URL: productUrl,
+    OILIO_DATABASE_URL: withRuntimeRole(oilioUrl),
+    DATABASE_URL: withRuntimeRole(productUrl),
+  }
+}
+
 export function run(cmd, args, opts = {}) {
   const res = spawnSync(cmd, args, { stdio: 'inherit', ...opts })
   if (res.error) throw res.error

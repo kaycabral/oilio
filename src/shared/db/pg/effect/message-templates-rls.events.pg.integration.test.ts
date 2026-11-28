@@ -1,6 +1,7 @@
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
 
 const APP_ROLE = 'oilio_rls_app'
 const APP_PASSWORD = 'rls_test'
@@ -11,7 +12,7 @@ const ORG_B = 'org-b'
 let appUrl: string
 
 async function seedOrg(id: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [id],
@@ -19,7 +20,7 @@ async function seedOrg(id: string): Promise<void> {
 }
 
 async function seedTemplate(orgId: string, type: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO message_templates (org_id, type, body, enabled, last_actor_uid, updated_at)
      VALUES ($1,$2,'Olá!',true,'owner','2026-01-01T00:00:00Z')`,
     [orgId, type],
@@ -35,7 +36,7 @@ async function appClient(orgId: string): Promise<Client> {
 
 describe('Postgres RLS isolation — message_templates (brief 0062, AC-03)', () => {
   beforeAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
@@ -48,11 +49,11 @@ describe('Postgres RLS isolation — message_templates (brief 0062, AC-03)', () 
   })
 
   beforeEach(async () => {
-    await getEventStorePool().query('TRUNCATE message_templates, orgs CASCADE')
+    await ownerPool().query('TRUNCATE message_templates, orgs CASCADE')
   })
 
   afterAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await closeEventStoreDb()

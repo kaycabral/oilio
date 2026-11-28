@@ -2,7 +2,8 @@ import { CatalogItemConfig } from '@/domain/aggregates/catalog-item/config'
 import { aggregateRef, appendEvent } from '@/domain/effect'
 import type { CatalogProductItem, CatalogServiceItem } from '@/domain/types/catalog-item'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
@@ -64,7 +65,7 @@ function product(id: string, overrides: Partial<CatalogProductItem> = {}): Catal
 }
 
 async function seedOrg(orgId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id) DO NOTHING`,
@@ -73,7 +74,7 @@ async function seedOrg(orgId: string): Promise<void> {
 }
 
 async function seedCategory(orgId: string, categoryId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO categories (org_id, id, last_event_version, name, icon, color, active, archived_at, created_at, updated_at)
      VALUES ($1,$2,1,'Cat',NULL,NULL,true,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -95,7 +96,7 @@ const create = async (item: CatalogServiceItem | CatalogProductItem) => {
 }
 
 async function seedUnit(orgId: string, unitId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
      VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -105,9 +106,7 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
 
 describe('Catalog-item reads — Postgres (brief 0058)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query(
-      'TRUNCATE events, projections, catalog_items, categories, orgs CASCADE',
-    )
+    await ownerPool().query('TRUNCATE events, projections, catalog_items, categories, orgs CASCADE')
   })
 
   afterAll(async () => {

@@ -1,6 +1,7 @@
 import { defaultPermissionsForRole, type Role } from '@/domain'
 import type { SessionUser } from '@/shared/auth/session'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,7 +30,7 @@ function id(prefix: string): string {
 }
 
 function pool() {
-  return getEventStorePool()
+  return ownerPool()
 }
 
 const APPOINTMENT_AGENDA = {

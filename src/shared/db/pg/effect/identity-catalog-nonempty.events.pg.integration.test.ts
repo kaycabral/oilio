@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
+import { closeEventStoreDb } from '../pool'
 
 const ORG = 'org-id-cat'
 
@@ -24,7 +25,7 @@ const BLANK_ADDRESS = JSON.stringify({
 })
 
 async function seedOrg(id: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [id],
@@ -37,7 +38,7 @@ function insertUnit(
   fiscalKind: 'informal' | 'company',
   fiscal: string,
 ): Promise<unknown> {
-  return getEventStorePool().query(
+  return ownerPool().query(
     `INSERT INTO units
        (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind,
         address, agenda, fiscal, created_at, updated_at)
@@ -49,7 +50,7 @@ function insertUnit(
 }
 
 function insertCatalogItem(id: string, unitIds: string): Promise<unknown> {
-  return getEventStorePool().query(
+  return ownerPool().query(
     `INSERT INTO catalog_items
        (org_id, id, last_event_version, kind, name, price_cents, price_visibility,
         active, public_visible, duration_minutes, unit_ids, created_at, updated_at)
@@ -65,14 +66,14 @@ beforeAll(async () => {
 })
 
 async function cleanup(): Promise<void> {
-  await getEventStorePool().query(`DELETE FROM catalog_items WHERE org_id = $1`, [ORG])
-  await getEventStorePool().query(`DELETE FROM units WHERE org_id = $1`, [ORG])
-  await getEventStorePool().query(`DELETE FROM orgs WHERE org_id = $1`, [ORG])
+  await ownerPool().query(`DELETE FROM catalog_items WHERE org_id = $1`, [ORG])
+  await ownerPool().query(`DELETE FROM units WHERE org_id = $1`, [ORG])
+  await ownerPool().query(`DELETE FROM orgs WHERE org_id = $1`, [ORG])
 }
 
 beforeEach(async () => {
-  await getEventStorePool().query(`DELETE FROM catalog_items WHERE org_id = $1`, [ORG])
-  await getEventStorePool().query(`DELETE FROM units WHERE org_id = $1`, [ORG])
+  await ownerPool().query(`DELETE FROM catalog_items WHERE org_id = $1`, [ORG])
+  await ownerPool().query(`DELETE FROM units WHERE org_id = $1`, [ORG])
 })
 
 afterAll(async () => {

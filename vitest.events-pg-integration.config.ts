@@ -26,6 +26,7 @@ export default defineConfig({
     server: { deps: { inline: [/@cbrl\//] } },
     include: ['src/**/*.events.pg.integration.test.ts'],
     globalSetup: './src/shared/db/pg/test/global-setup.ts',
+    setupFiles: ['./src/shared/db/pg/test/owner-pool-setup.ts'],
     testTimeout: 30_000,
     hookTimeout: 30_000,
     // One shared Postgres database; specs clean up between tests. Sequential

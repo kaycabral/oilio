@@ -14,9 +14,10 @@ import type { Goal } from '@/domain/types/goal'
 import type { StoredInvite } from '@/domain/types/invite'
 import type { StoredMemberOperation } from '@/domain/types/member-operation'
 import type { SubscriptionPlan } from '@/domain/types/subscription-plan'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
 import { deletePostgresProjection, PostgresPersistenceLayer } from './postgres-layer'
 
 const ORG = 'org-cfg'
@@ -38,7 +39,7 @@ const refOf = (table: keyof typeof CONFIG_BY_TABLE, id: string): AggregateRef =>
   aggregateRef(CONFIG_BY_TABLE[table], ORG, id)
 
 async function seedOrg(): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug','barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id) DO NOTHING`,
@@ -47,7 +48,7 @@ async function seedOrg(): Promise<void> {
 }
 
 async function seedUnit(): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO units (org_id, id, last_event_version, name, slug, timezone, agenda_mode, fiscal_kind, address, agenda, fiscal, created_at, updated_at)
      VALUES ($1,$2,1,'Unit','unit-'||$2,'America/Sao_Paulo','always_open','informal','{"postalCode":"01310100","state":"SP","city":"São Paulo","neighborhood":"Bela Vista","street":"Avenida Paulista","number":"1000","complement":null}'::jsonb,'{}'::jsonb,'{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id, id) DO NOTHING`,
@@ -56,7 +57,7 @@ async function seedUnit(): Promise<void> {
 }
 
 async function rowCount(table: string, ref: AggregateRef): Promise<number> {
-  const res = await getEventStorePool().query<{ n: number }>(
+  const res = await ownerPool().query<{ n: number }>(
     `SELECT count(*)::int AS n FROM ${table} WHERE org_id = $1 AND id = $2`,
     [ref.orgId, ref.id],
   )
@@ -64,7 +65,7 @@ async function rowCount(table: string, ref: AggregateRef): Promise<number> {
 }
 
 async function genericCount(ref: AggregateRef): Promise<number> {
-  const res = await getEventStorePool().query<{ n: number }>(
+  const res = await ownerPool().query<{ n: number }>(
     `SELECT count(*)::int AS n FROM projections WHERE org_id = $1 AND id = $2`,
     [ref.orgId, ref.id],
   )
@@ -211,7 +212,7 @@ const CREATES: ReadonlyArray<{
     table: 'member_operations',
     id: 'pro-1',
     create: async (id) => {
-      await getEventStorePool().query(
+      await ownerPool().query(
         `INSERT INTO memberships (org_id, id, user_id, last_event_version, role, status, joined_at, permissions, updated_at)
          VALUES ($1,$1||'_user-'||$2,'user-'||$2,1,'member_operator','active',$3,'{}'::jsonb,$3)
          ON CONFLICT (org_id, id) DO NOTHING`,
@@ -307,7 +308,7 @@ const creatorFor = (table: keyof typeof CONFIG_BY_TABLE): ((id: string) => Promi
 
 describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query(
+    await ownerPool().query(
       'TRUNCATE events, projections, member_operations, memberships, customers, invites, categories, subscription_plans, agenda_blocks, goals, notifications, units, orgs CASCADE',
     )
     await seedOrg()
@@ -382,7 +383,7 @@ describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
 
   it('AC-01: the DATABASE refuses an invite with an invalid status (enum CHECK)', async () => {
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO invites (org_id, id, last_event_version, role, token_hash, expires_at, status, invited_by, created_at, updated_at)
          VALUES ($1,'x',1,'member_operator','h','2026-01-01T00:00:00Z','teleported','owner','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG],
@@ -392,7 +393,7 @@ describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
 
   it('AC-01: the DATABASE refuses a memberOperation with a blank user_id (non-empty CHECK)', async () => {
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO member_operations (org_id, id, last_event_version, user_id, member_id, unit_ids, catalog_service_ids, created_at, updated_at)
          VALUES ($1,'x',1,'   ',$1||'_   ','[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG],
@@ -402,7 +403,7 @@ describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
 
   it('AC-01: the DATABASE refuses a subscription_plan with an invalid usage_limit_kind (union discriminant CHECK)', async () => {
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO subscription_plans (org_id, id, last_event_version, name, price_cents, billing_cycle, active, usage_limit_kind, usage_limit, included_item_ids, included_category_ids, created_at, updated_at)
          VALUES ($1,'x',1,'P',100,'monthly',true,'infinite','{}'::jsonb,'[]'::jsonb,'[]'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG],
@@ -412,7 +413,7 @@ describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
 
   it('AC-01: the DATABASE refuses a goal with a non-positive target_cents (positive CHECK)', async () => {
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO goals (org_id, id, unit_id, last_event_version, period, type, target_cents, created_at, updated_at)
          VALUES ($1,'x',$2,1,'2026-06','profit',0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG, UNIT],
@@ -422,7 +423,7 @@ describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
 
   it('AC-01: the DATABASE refuses an agenda_block with an invalid kind (discriminant CHECK)', async () => {
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO agenda_blocks (org_id, id, unit_id, last_event_version, kind, block, created_at, updated_at)
          VALUES ($1,'x',$2,1,'sometimes','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG, UNIT],
@@ -432,7 +433,7 @@ describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
 
   it('AC-01: the DATABASE refuses a category whose org_id has no org (FK)', async () => {
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO categories (org_id, id, last_event_version, name, active, created_at, updated_at)
          VALUES ('ghost-org','x',1,'C',true,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [],
@@ -455,7 +456,7 @@ describe('Postgres typed projections — config (brief 0060, AC-01)', () => {
     await deletePostgresProjection(catDelRef)
 
     expect(await rowCount('categories', catDelRef)).toBe(0)
-    const events = await getEventStorePool().query<{ n: number }>(
+    const events = await ownerPool().query<{ n: number }>(
       'SELECT count(*)::int AS n FROM events WHERE aggregate_type = $1 AND org_id = $2 AND aggregate_id = $3',
       [catDelRef.type, catDelRef.orgId, catDelRef.id],
     )

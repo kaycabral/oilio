@@ -1,5 +1,6 @@
 import { allowedNotificationTypesForRole } from '@/domain'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { fetchUnreadNotificationsForUnit } from '@/shared/org/notification-read'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -8,7 +9,7 @@ function uniqueOrgId(label: string): string {
 }
 
 async function seedOrg(orgId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId],
@@ -16,7 +17,7 @@ async function seedOrg(orgId: string): Promise<void> {
 }
 
 async function seed(orgId: string, id: string, type: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO notifications (org_id, id, unit_id, last_event_version, type, source, event_key, customer_id, appointment_id, subscription_id, read_at, dispatched_at, valid_until, snoozed_until, payload, dispatch, created_at, updated_at)
      VALUES ($1,$2,'u1',1,$3,'cron',$4,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,NULL,'2026-06-01T10:00:00.000Z','2026-01-01T00:00:00Z')`,
     [orgId, id, type, `${id}-key`],
@@ -25,7 +26,7 @@ async function seed(orgId: string, id: string, type: string): Promise<void> {
 
 describe('fetchUnreadNotificationsForUnit role filter (AC-18/19)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query('TRUNCATE notifications, orgs CASCADE')
+    await ownerPool().query('TRUNCATE notifications, orgs CASCADE')
   })
 
   afterAll(async () => {

@@ -1,6 +1,7 @@
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
 
 const APP_ROLE = 'oilio_rls_probe'
 const APP_PASSWORD = 'rls_probe'
@@ -10,7 +11,7 @@ const ORG_B = 'probe-org-b'
 let appUrl: string
 
 async function seedEvent(orgId: string, aggregateId: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO events (aggregate_type, aggregate_id, version, org_id, envelope, occurred_at)
      VALUES ('order', $2, 1, $1, $3::jsonb, '2026-05-01T12:00:00Z')`,
     [
@@ -36,7 +37,7 @@ async function connect(): Promise<Client> {
 
 describe('SONDA: RLS na events vs. caminho de replay (sem GUC)', () => {
   beforeAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
@@ -52,11 +53,11 @@ describe('SONDA: RLS na events vs. caminho de replay (sem GUC)', () => {
   })
 
   beforeEach(async () => {
-    await getEventStorePool().query(`DELETE FROM events WHERE org_id IN ($1,$2)`, [ORG_A, ORG_B])
+    await ownerPool().query(`DELETE FROM events WHERE org_id IN ($1,$2)`, [ORG_A, ORG_B])
   })
 
   afterAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool
       .query(`DROP POLICY IF EXISTS events_org_isolation_probe ON events`)
       .catch(() => undefined)

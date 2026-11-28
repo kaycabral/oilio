@@ -1,4 +1,5 @@
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { assertActiveUnitQuota } from './units-quota'
 
@@ -10,7 +11,7 @@ function uniqOrg(): string {
 }
 
 function pool() {
-  return getEventStorePool()
+  return ownerPool()
 }
 
 async function seedOrg(orgId: string): Promise<void> {

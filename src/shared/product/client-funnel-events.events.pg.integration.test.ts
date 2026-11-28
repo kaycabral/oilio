@@ -1,4 +1,5 @@
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { emitClientFunnelEvent } from './client-funnel-events'
 
@@ -22,7 +23,7 @@ type FunnelRow = {
 }
 
 async function rowsFor(orgId: string): Promise<FunnelRow[]> {
-  const res = await getEventStorePool().query<FunnelRow>(
+  const res = await ownerPool().query<FunnelRow>(
     'SELECT * FROM client_funnel_events WHERE org_id = $1 ORDER BY id',
     [orgId],
   )
@@ -31,9 +32,7 @@ async function rowsFor(orgId: string): Promise<FunnelRow[]> {
 
 describe('client_funnel_events transport (brief 0077 AC-12)', () => {
   beforeEach(async () => {
-    await getEventStorePool().query(
-      "DELETE FROM client_funnel_events WHERE org_id LIKE 'org-funnel-%'",
-    )
+    await ownerPool().query("DELETE FROM client_funnel_events WHERE org_id LIKE 'org-funnel-%'")
   })
 
   afterAll(async () => {
@@ -107,7 +106,7 @@ describe('client_funnel_events transport (brief 0077 AC-12)', () => {
   it('is best-effort: a DB CHECK violation (bad intent) is swallowed, not thrown', async () => {
     const orgId = uniqueOrg()
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO client_funnel_events (event, org_id, intent, ts)
          VALUES ('client_signed_in', $1, 'nonsense', now())`,
         [orgId],

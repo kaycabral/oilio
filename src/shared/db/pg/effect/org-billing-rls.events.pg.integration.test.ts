@@ -2,9 +2,10 @@ import { OrgBillingConfig } from '@/domain/aggregates/org-billing/config'
 import { applyOrgBillingEvent } from '@/domain/aggregates/org-billing/reducer'
 import { INITIAL_ORG_BILLING_STATE } from '@/domain/aggregates/org-billing/types'
 import { aggregateRef } from '@/domain/effect'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Client, Pool, type PoolClient } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeEventStoreDb, getEventStorePool } from '../pool'
+import { closeEventStoreDb } from '../pool'
 import { orgBillingProjector } from './org-billing-projector'
 
 const APP_ROLE = 'oilio_billing_rls_app'
@@ -16,7 +17,7 @@ const ORG_B = 'org-b'
 let appUrl: string
 
 async function seedOrg(id: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO orgs (org_id, id, last_event_version, name, slug, vertical, owner_user_id, branding, created_at, updated_at)
      VALUES ($1,$1,1,'Org','slug-'||$1,'barbershop','owner','{}'::jsonb,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
      ON CONFLICT (org_id) DO NOTHING`,
@@ -25,7 +26,7 @@ async function seedOrg(id: string): Promise<void> {
 }
 
 async function seedBilling(orgId: string, tier: string): Promise<void> {
-  await getEventStorePool().query(
+  await ownerPool().query(
     `INSERT INTO org_billing (org_id, id, last_event_version, tier, status, unit_quantity, cancel_at_period_end, created_at, updated_at)
      VALUES ($1,$1,1,$2,'active',1,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
     [orgId, tier],
@@ -51,7 +52,7 @@ async function appPoolClient(orgId: string): Promise<PoolClient> {
 
 describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
   beforeAll(async () => {
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOBYPASSRLS`)
@@ -64,13 +65,13 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
   })
 
   beforeEach(async () => {
-    await getEventStorePool().query('TRUNCATE org_billing_stripe_index, org_billing, orgs CASCADE')
+    await ownerPool().query('TRUNCATE org_billing_stripe_index, org_billing, orgs CASCADE')
   })
 
   afterAll(async () => {
     await appPool?.end()
     appPool = null
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(`DROP OWNED BY ${APP_ROLE}`).catch(() => undefined)
     await pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined)
     await closeEventStoreDb()
@@ -158,7 +159,7 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
   it('rejects an invalid tier (CHECK org_billing_tier_check)', async () => {
     await seedOrg(ORG_A)
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO org_billing (org_id, id, last_event_version, tier, status, unit_quantity, cancel_at_period_end, created_at, updated_at)
          VALUES ($1,$1,1,'enterprise','active',1,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG_A],
@@ -169,7 +170,7 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
   it('rejects an invalid status (CHECK org_billing_status_check)', async () => {
     await seedOrg(ORG_A)
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO org_billing (org_id, id, last_event_version, tier, status, unit_quantity, cancel_at_period_end, created_at, updated_at)
          VALUES ($1,$1,1,'pro','frozen',1,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG_A],
@@ -180,7 +181,7 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
   it('rejects a negative unit_quantity (CHECK org_billing_unit_quantity_nonneg)', async () => {
     await seedOrg(ORG_A)
     await expect(
-      getEventStorePool().query(
+      ownerPool().query(
         `INSERT INTO org_billing (org_id, id, last_event_version, tier, status, unit_quantity, cancel_at_period_end, created_at, updated_at)
          VALUES ($1,$1,1,'pro','active',-1,false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
         [ORG_A],
@@ -191,7 +192,7 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
   it('rejects two orgs sharing the same stripe_subscription_id (partial UNIQUE)', async () => {
     await seedOrg(ORG_A)
     await seedOrg(ORG_B)
-    const pool = getEventStorePool()
+    const pool = ownerPool()
     await pool.query(
       `INSERT INTO org_billing (org_id, id, last_event_version, tier, status, unit_quantity, stripe_subscription_id, cancel_at_period_end, created_at, updated_at)
        VALUES ($1,$1,1,'pro','active',1,'sub_dup',false,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
@@ -208,7 +209,7 @@ describe('Postgres RLS + CHECK — org_billing (brief 0071, AC-02)', () => {
 
   it('org_billing_stripe_index is readable WITHOUT an org GUC (session-less webhook lookup)', async () => {
     await seedOrg(ORG_A)
-    await getEventStorePool().query(
+    await ownerPool().query(
       `INSERT INTO org_billing_stripe_index (stripe_customer_id, org_id) VALUES ('cus_x', $1)`,
       [ORG_A],
     )

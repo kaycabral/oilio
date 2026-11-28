@@ -3,7 +3,8 @@ import { MemberOperationConfig } from '@/domain/aggregates'
 import { aggregateRef, appendEvent } from '@/domain/effect'
 import type { StoredMemberOperation } from '@/domain/types/member-operation'
 import { PostgresPersistenceLayer } from '@/shared/db/pg/effect/postgres-layer'
-import { closeEventStoreDb, getEventStorePool } from '@/shared/db/pg/pool'
+import { closeEventStoreDb } from '@/shared/db/pg/pool'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { putUser } from '@/shared/db/pg/users-store'
 import { buildUser } from '@/shared/fixtures/domain-builders'
 import { Effect } from 'effect'
@@ -23,7 +24,7 @@ function id(prefix: string): string {
 }
 
 function pool() {
-  return getEventStorePool()
+  return ownerPool()
 }
 
 async function seedOrg(orgId: string): Promise<void> {
