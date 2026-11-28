@@ -1938,6 +1938,11 @@ export async function enterUnitsAfterCreate(page: Page): Promise<void> {
   await expect(page.getByRole('dialog')).toBeHidden({ timeout: 10000 })
   await page.waitForURL(/\/(organizations|units|select-unit|agenda)$/, { timeout: 10000 })
   await page.goto('/organizations')
+  await expect(
+    page
+      .getByRole('heading', { name: 'Negócios', level: 1 })
+      .or(page.getByText('Escolha a unidade')),
+  ).toBeVisible()
   if (/\/select-unit$/.test(new URL(page.url()).pathname)) {
     const unitId = await page
       .getByRole('button', { name: /Unidade/ })
