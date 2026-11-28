@@ -16,7 +16,7 @@ permissions: {}
 jobs:
   rebase:
     name: Rebase
-    uses: kaycabral/toolkit/.github/workflows/dependabot-rebase.yml@9c5c2ac51e3a3fc366c2147141c6abbec98ddfb4 # main
+    uses: kaycabral/toolkit/.github/workflows/dependabot-rebase.yml@bbf51e77698631fd010739c2f40a0061d24e6819 # main
     permissions:
       pull-requests: read
     secrets:

@@ -27,7 +27,7 @@ permissions: {}
 jobs:
   provenance:
     name: Provenance
-    uses: kaycabral/toolkit/.github/workflows/provenance.yml@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
+    uses: kaycabral/toolkit/.github/workflows/provenance.yml@bbf51e77698631fd010739c2f40a0061d24e6819 # main
     permissions:
       contents: read
       pull-requests: read
@@ -66,7 +66,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: kaycabral/toolkit/.github/actions/setup@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
+      - uses: kaycabral/toolkit/.github/actions/setup@bbf51e77698631fd010739c2f40a0061d24e6819 # main
       - name: Apply pending migrations
         env:
           # Supabase session pooler (port 5432) as `postgres`: IPv4-reachable

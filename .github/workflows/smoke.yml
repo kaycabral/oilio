@@ -108,8 +108,8 @@ jobs:
         with:
           ref: ${{ steps.target.outputs.sha }}
           persist-credentials: false
-      - uses: kaycabral/toolkit/.github/actions/setup@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
-      - uses: kaycabral/toolkit/.github/actions/playwright@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
+      - uses: kaycabral/toolkit/.github/actions/setup@bbf51e77698631fd010739c2f40a0061d24e6819 # main
+      - uses: kaycabral/toolkit/.github/actions/playwright@bbf51e77698631fd010739c2f40a0061d24e6819 # main
 
       - name: Run the smoke suite
         env:

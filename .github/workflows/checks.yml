@@ -25,11 +25,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: kaycabral/toolkit/.github/actions/setup@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
+      - uses: kaycabral/toolkit/.github/actions/setup@bbf51e77698631fd010739c2f40a0061d24e6819 # main
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
-      - uses: kaycabral/toolkit/.github/actions/drizzle-migrations@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
+      - uses: kaycabral/toolkit/.github/actions/drizzle-migrations@bbf51e77698631fd010739c2f40a0061d24e6819 # main
         with:
           folders: drizzle drizzle/product
           check: pnpm db:check
@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: kaycabral/toolkit/.github/actions/setup@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
+      - uses: kaycabral/toolkit/.github/actions/setup@bbf51e77698631fd010739c2f40a0061d24e6819 # main
       - run: pnpm test
 
   # Native constraints, RLS and the event store against a real, ephemeral
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: kaycabral/toolkit/.github/actions/setup@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
+      - uses: kaycabral/toolkit/.github/actions/setup@bbf51e77698631fd010739c2f40a0061d24e6819 # main
       - run: ${{ matrix.suite.run }}
 
   # The whole Playwright suite against the LOCAL Supabase stack, on the
@@ -104,7 +104,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: kaycabral/toolkit/.github/actions/setup@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
+      - uses: kaycabral/toolkit/.github/actions/setup@bbf51e77698631fd010739c2f40a0061d24e6819 # main
       # `supabase start` intermittently restarts the db container and then fails
       # to bind its host port ("address already in use"), occasionally on several
       # shards at once. Tear the stack down and start once more before failing.
@@ -115,7 +115,7 @@ jobs:
             pnpm exec supabase stop --no-backup --workdir .
             pnpm db:start
           fi
-      - uses: kaycabral/toolkit/.github/actions/playwright@0dd0a4fa17c44d7ac401f8cc96bd0c4615cb56c1 # main
+      - uses: kaycabral/toolkit/.github/actions/playwright@bbf51e77698631fd010739c2f40a0061d24e6819 # main
       - name: Run shard
         run: pnpm test:e2e
       - if: failure()
