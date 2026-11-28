@@ -176,6 +176,7 @@ test.describe('Financeiro venda + relatório — DoD (#1059 · 0031)', { tag: '@
       await expect(authedPage.getByRole('button', { name: /suprimento/i })).toHaveCount(0)
 
       await authedPage.goto('/cash/categories')
+      await expect(authedPage).toHaveURL(/\/reports$/)
       await expect(authedPage.getByRole('heading', { name: /categorias de despesa/i })).toHaveCount(
         0,
       )
