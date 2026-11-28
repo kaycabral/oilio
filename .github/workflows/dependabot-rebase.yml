@@ -1,0 +1,24 @@
+# After main moves (push or the auto-merge dispatch), asks Dependabot to rebase
+# the oldest BEHIND PR of an auto-merge group so the chain keeps merging. The
+# comment comes from the cbrl-dependabot-rebase App: Dependabot ignores the
+# GITHUB_TOKEN. See the reusable workflow for details.
+name: Dependabot rebase
+
+on:
+  workflow_run:
+    workflows: [Main]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  rebase:
+    name: Rebase
+    uses: kaycabral/toolkit/.github/workflows/dependabot-rebase.yml@8ad6e870af4908070e9d826a03638b149003f06b # ci/dependabot-rebase (bump to main after toolkit#72 merges)
+    permissions:
+      pull-requests: read
+    secrets:
+      app-id: ${{ vars.DEPENDABOT_REBASE_APP_ID || secrets.DEPENDABOT_REBASE_APP_ID }}
+      app-private-key: ${{ secrets.DEPENDABOT_REBASE_APP_PRIVATE_KEY }}
