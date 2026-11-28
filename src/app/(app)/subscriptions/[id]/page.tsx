@@ -3,12 +3,16 @@ import { loadSubscriptionDetail } from '@/features/subscriptions/adapters/load-s
 import { SubscriptionDetail } from '@/features/subscriptions/ui/SubscriptionDetail'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
+
+export const instant = false
 
 export default async function SubscriptionDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
+  await connection()
   const { id } = await params
   const data = await loadSubscriptionDetail(id)
   if (!data) notFound()

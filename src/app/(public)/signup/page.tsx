@@ -10,6 +10,9 @@ import { buildSignupNext } from '@/features/onboarding/core/signup-context'
 import { getPublicOrgBundle } from '@/features/self-book/adapters/public-org'
 import type { Metadata } from 'next'
 import Image from 'next/image'
+import { connection } from 'next/server'
+
+export const instant = false
 
 type PageProps = { searchParams: Promise<Record<string, string | undefined>> }
 
@@ -23,6 +26,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
 }
 
 export default async function PublicSignupPage({ searchParams }: PageProps) {
+  await connection()
   const params = await searchParams
   const from = params.from
   const bundle = from ? await getPublicOrgBundle(from) : null

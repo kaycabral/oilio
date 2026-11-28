@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 
-const NotificationTypeSchema = Schema.Union(
+const NotificationTypeSchema = Schema.Union([
   Schema.Literal('birthday'),
   Schema.Literal('subscription_expiring_tomorrow'),
   Schema.Literal('subscription_expired'),
@@ -9,9 +9,9 @@ const NotificationTypeSchema = Schema.Union(
   Schema.Literal('cash_register_open'),
   Schema.Literal('new_customer'),
   Schema.Literal('payment_failure'),
-)
+])
 
-const NotificationSourceSchema = Schema.Union(Schema.Literal('cron'), Schema.Literal('event'))
+const NotificationSourceSchema = Schema.Union([Schema.Literal('cron'), Schema.Literal('event')])
 
 const NullableString = Schema.NullOr(Schema.String)
 
@@ -23,7 +23,7 @@ export const NotificationCreatedSchema = Schema.Struct({
   customerId: NullableString,
   appointmentId: NullableString,
   subscriptionId: NullableString,
-  payload: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+  payload: Schema.Record(Schema.String, Schema.Unknown),
   source: NotificationSourceSchema,
   eventKey: Schema.String,
   validUntil: NullableString,
@@ -48,13 +48,13 @@ export const NotificationExpiredSchema = Schema.Struct({
   _tag: Schema.Literal('notification.expired'),
 })
 
-export const NotificationEventSchema = Schema.Union(
+export const NotificationEventSchema = Schema.Union([
   NotificationCreatedSchema,
   NotificationDispatchedSchema,
   NotificationReadSchema,
   NotificationSnoozedSchema,
   NotificationExpiredSchema,
-)
+])
 
 export type NotificationCreated = typeof NotificationCreatedSchema.Type
 export type NotificationDispatched = typeof NotificationDispatchedSchema.Type

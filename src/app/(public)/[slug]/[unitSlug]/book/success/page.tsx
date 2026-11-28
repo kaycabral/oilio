@@ -12,6 +12,9 @@ import { Schema } from 'effect'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
+
+export const instant = false
 
 const decodeAppointment = Schema.decodeUnknownSync(Appointment)
 
@@ -39,6 +42,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function WizardSuccessPage({ params, searchParams }: PageProps) {
+  await connection()
   const { slug, unitSlug } = await params
   const sp = await searchParams
   const apptId = typeof sp.appt === 'string' ? sp.appt : null

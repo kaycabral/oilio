@@ -54,21 +54,14 @@ vi.mock('@/components/app-shell', () => ({
   ),
 }))
 
-const REDIRECT_SENTINEL = Symbol('NEXT_REDIRECT')
-type RedirectError = Error & { [REDIRECT_SENTINEL]: true }
-vi.mock('next/headers', () => ({
-  cookies: () => Promise.resolve({ get: () => undefined }),
+vi.mock('next/server', () => ({ connection: vi.fn(async () => {}) }))
+
+vi.mock('@/components/gate-redirect', () => ({
+  GateRedirect: ({ to }: { to: string }) => <a href={to}>redirect</a>,
 }))
 
-vi.mock('next/navigation', () => ({
-  redirect: (path: string) => {
-    const err: RedirectError = Object.assign(new Error(`__REDIRECT__:${path}`), {
-      [REDIRECT_SENTINEL]: true as const,
-    })
-    throw err
-  },
-}))
-
+import { GateRedirect } from '@/components/gate-redirect'
+import { isValidElement } from 'react'
 import AppLayout from './layout'
 
 function callLayout() {
@@ -76,14 +69,14 @@ function callLayout() {
 }
 
 async function captureRedirect(): Promise<string> {
-  try {
-    await callLayout()
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    if (msg.startsWith('__REDIRECT__:')) return msg.slice('__REDIRECT__:'.length)
-    throw err
-  }
-  throw new Error('Expected redirect to be thrown, but layout resolved')
+  const out = await callLayout()
+  if (isValidElement<{ to: string }>(out) && out.type === GateRedirect) return out.props.to
+  throw new Error('Expected a GateRedirect, but layout rendered the app')
+}
+
+async function expectAppShell(): Promise<void> {
+  const out = await callLayout()
+  expect(isValidElement(out) && out.type !== GateRedirect).toBe(true)
 }
 
 beforeEach(() => {
@@ -158,7 +151,7 @@ describe('AppLayout — auth and org gating', () => {
       id: 't1',
       name: 'Test',
     })
-    await expect(callLayout()).resolves.toBeTruthy()
+    await expectAppShell()
   })
 
   it('renders the app shell for a non-owner (manager) with no units', async () => {
@@ -184,7 +177,7 @@ describe('AppLayout — auth and org gating', () => {
       id: 't1',
       name: 'Test',
     })
-    await expect(callLayout()).resolves.toBeTruthy()
+    await expectAppShell()
   })
 
   it('renders the app shell once the org has at least one unit (#986)', async () => {
@@ -238,7 +231,7 @@ describe('AppLayout — auth and org gating', () => {
       ],
       activeUnitId: 'unit-1',
     })
-    await expect(callLayout()).resolves.toBeTruthy()
+    await expectAppShell()
   })
 
   it('redirects to /onboarding/profile when the user has not completed the post-OAuth step (#838)', async () => {
@@ -262,5 +255,30 @@ describe('AppLayout — auth and org gating', () => {
     })
     await expect(captureRedirect()).resolves.toBe('/onboarding/profile')
     expect(mocks.getOrg).not.toHaveBeenCalled()
+  })
+
+  it('sends an owner with several units and no valid choice to /select-unit', async () => {
+    mocks.getSessionUser.mockResolvedValue({
+      uid: 'u1',
+      authUserId: 'u1',
+      email: 'a@b.com',
+      displayName: null,
+      picture: null,
+      emailVerified: true,
+    })
+    mocks.getActiveOrgContext.mockResolvedValue({
+      user: {
+        uid: 'u1',
+        displayName: 'A',
+        email: 'a@b.com',
+        avatarUrl: null,
+        completionCompleted: true,
+      },
+      membership: { orgId: 't1', userId: 'u1', role: 'owner' },
+    })
+    mocks.getOrg.mockResolvedValue({ id: 't1', name: 'Test' })
+    mocks.needsUnitSelection.mockResolvedValue(true)
+    await expect(captureRedirect()).resolves.toBe('/select-unit')
+    expect(mocks.resolveActiveUnit).not.toHaveBeenCalled()
   })
 })

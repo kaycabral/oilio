@@ -1,5 +1,5 @@
 import { StoredOrgBilling } from '@/domain/types/org-billing'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const OrgBillingActivatedSchema = Schema.Struct({
   _tag: Schema.Literal('org_billing.activated'),
@@ -8,19 +8,19 @@ export const OrgBillingActivatedSchema = Schema.Struct({
 
 export const OrgBillingUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('org_billing.updated'),
-  changes: Schema.partial(StoredOrgBilling),
+  changes: StoredOrgBilling.mapFields(Struct.map(Schema.optional)),
 })
 
 export const OrgBillingCanceledSchema = Schema.Struct({
   _tag: Schema.Literal('org_billing.canceled'),
-  changes: Schema.partial(StoredOrgBilling),
+  changes: StoredOrgBilling.mapFields(Struct.map(Schema.optional)),
 })
 
-export const OrgBillingEventSchema = Schema.Union(
+export const OrgBillingEventSchema = Schema.Union([
   OrgBillingActivatedSchema,
   OrgBillingUpdatedSchema,
   OrgBillingCanceledSchema,
-)
+])
 
 export type OrgBillingActivated = typeof OrgBillingActivatedSchema.Type
 export type OrgBillingUpdated = typeof OrgBillingUpdatedSchema.Type

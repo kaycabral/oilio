@@ -5,9 +5,6 @@ import { requireEnv } from '@cbrl/env'
 import { logger, withRequestContext } from '@cbrl/log'
 import { NextResponse } from 'next/server'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
-
 async function reserveEvent(eventId: string): Promise<boolean> {
   const res = await getEventStorePool().query(
     'INSERT INTO stripe_webhook_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING',

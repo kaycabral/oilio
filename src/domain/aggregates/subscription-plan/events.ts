@@ -1,5 +1,5 @@
 import { SubscriptionPlan } from '@/domain/types/subscription-plan'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const SubscriptionPlanCreatedSchema = Schema.Struct({
   _tag: Schema.Literal('subscription_plan.created'),
@@ -8,7 +8,7 @@ export const SubscriptionPlanCreatedSchema = Schema.Struct({
 
 export const SubscriptionPlanUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('subscription_plan.updated'),
-  changes: Schema.partial(SubscriptionPlan),
+  changes: SubscriptionPlan.mapFields(Struct.map(Schema.optional)),
 })
 
 export const SubscriptionPlanDeletedSchema = Schema.Struct({
@@ -20,12 +20,12 @@ export const SubscriptionPlanArchivedSchema = Schema.Struct({
   archivedAt: Schema.NullOr(Schema.String),
 })
 
-export const SubscriptionPlanEventSchema = Schema.Union(
+export const SubscriptionPlanEventSchema = Schema.Union([
   SubscriptionPlanCreatedSchema,
   SubscriptionPlanUpdatedSchema,
   SubscriptionPlanDeletedSchema,
   SubscriptionPlanArchivedSchema,
-)
+])
 
 export type SubscriptionPlanCreated = typeof SubscriptionPlanCreatedSchema.Type
 export type SubscriptionPlanUpdated = typeof SubscriptionPlanUpdatedSchema.Type

@@ -23,12 +23,12 @@ import {
 } from './domain-builders'
 
 const NOW = '2026-06-15T12:00:00.000Z'
-const decodes = (schema: Schema.Schema.AnyNoContext, value: unknown): void => {
+const decodes = (schema: Schema.Decoder<unknown>, value: unknown): void => {
   expect(() => {
     Schema.decodeUnknownSync(schema)(value)
   }).not.toThrow()
 }
-const rejects = (schema: Schema.Schema.AnyNoContext, value: unknown): void => {
+const rejects = (schema: Schema.Decoder<unknown>, value: unknown): void => {
   expect(() => {
     Schema.decodeUnknownSync(schema)(value)
   }).toThrow()

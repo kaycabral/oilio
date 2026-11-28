@@ -2,12 +2,16 @@ import { loadCatalogPage } from '@/features/catalog/adapters/load-catalog'
 import { CatalogList } from '@/features/catalog/ui/CatalogList'
 import { CategoryManager } from '@/features/catalog/ui/CategoryManager'
 import { Main } from '@cbrl/design'
+import { connection } from 'next/server'
+
+export const instant = false
 
 export default async function CatalogPage({
   searchParams,
 }: {
   searchParams: Promise<{ kind?: string; categoryId?: string; q?: string }>
 }) {
+  await connection()
   const params = await searchParams
   const {
     items,

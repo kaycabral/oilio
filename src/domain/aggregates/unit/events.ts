@@ -1,10 +1,9 @@
 import { CompanyProfile } from '@/domain/types/tax'
 import { CompleteAddress, StoredUnit } from '@/domain/types/unit'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
-const StoredUnitWithCompleteAddress = Schema.extend(
-  StoredUnit.pipe(Schema.omit('address')),
-  Schema.Struct({ address: CompleteAddress }),
+const StoredUnitWithCompleteAddress = StoredUnit.mapFields(Struct.omit(['address'])).mapFields(
+  Struct.assign({ address: CompleteAddress }),
 )
 
 export const UnitCreatedSchema = Schema.Struct({
@@ -14,7 +13,7 @@ export const UnitCreatedSchema = Schema.Struct({
 
 export const UnitUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('unit.updated'),
-  changes: Schema.partial(StoredUnitWithCompleteAddress),
+  changes: StoredUnitWithCompleteAddress.mapFields(Struct.map(Schema.optional)),
 })
 
 export const UnitDeletedSchema = Schema.Struct({
@@ -33,13 +32,13 @@ export const UnitFormalizedSchema = Schema.Struct({
   formalizedAt: Schema.String,
 })
 
-export const UnitEventSchema = Schema.Union(
+export const UnitEventSchema = Schema.Union([
   UnitCreatedSchema,
   UnitUpdatedSchema,
   UnitDeletedSchema,
   UnitArchivedSchema,
   UnitFormalizedSchema,
-)
+])
 
 export type UnitCreated = typeof UnitCreatedSchema.Type
 export type UnitUpdated = typeof UnitUpdatedSchema.Type

@@ -15,11 +15,11 @@ export const AgendaBlockDeletedSchema = Schema.Struct({
   _tag: Schema.Literal('agenda_block.deleted'),
 })
 
-export const AgendaBlockEventSchema = Schema.Union(
+export const AgendaBlockEventSchema = Schema.Union([
   AgendaBlockCreatedSchema,
   AgendaBlockUpdatedSchema,
   AgendaBlockDeletedSchema,
-)
+])
 
 export type AgendaBlockCreated = typeof AgendaBlockCreatedSchema.Type
 export type AgendaBlockUpdated = typeof AgendaBlockUpdatedSchema.Type

@@ -1,5 +1,5 @@
 import { StoredMemberOperation } from '@/domain/types/member-operation'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const MemberOperationCreatedSchema = Schema.Struct({
   _tag: Schema.Literal('member_operation.created'),
@@ -8,7 +8,7 @@ export const MemberOperationCreatedSchema = Schema.Struct({
 
 export const MemberOperationUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('member_operation.updated'),
-  changes: Schema.partial(StoredMemberOperation),
+  changes: StoredMemberOperation.mapFields(Struct.map(Schema.optional)),
 })
 
 export const MemberOperationDeletedSchema = Schema.Struct({
@@ -23,13 +23,13 @@ export const MemberOperationSuspendedSchema = Schema.Struct({
   _tag: Schema.Literal('member_operation.suspended'),
 })
 
-export const MemberOperationEventSchema = Schema.Union(
+export const MemberOperationEventSchema = Schema.Union([
   MemberOperationCreatedSchema,
   MemberOperationUpdatedSchema,
   MemberOperationDeletedSchema,
   MemberOperationActivatedSchema,
   MemberOperationSuspendedSchema,
-)
+])
 
 export type MemberOperationCreated = typeof MemberOperationCreatedSchema.Type
 export type MemberOperationUpdated = typeof MemberOperationUpdatedSchema.Type

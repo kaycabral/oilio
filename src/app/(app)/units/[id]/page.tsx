@@ -9,8 +9,12 @@ import { UnitForm } from '@/features/units/ui/UnitForm'
 import { UnitPublishCard } from '@/features/units/ui/UnitPublishCard'
 import { toRoute } from '@/shared/routes'
 import { Main, Typography } from '@cbrl/design'
+import { connection } from 'next/server'
+
+export const instant = false
 
 export default async function EditUnitPage({ params }: { params: Promise<{ id: string }> }) {
+  await connection()
   const { id } = await params
   const { orgId, unit, org, unitTaxIdentity, canFormalize } = await loadUnitForEdit(id)
 
@@ -31,7 +35,7 @@ export default async function EditUnitPage({ params }: { params: Promise<{ id: s
         ]}
       />
       <Typography variant="pageTitle">Editar unidade</Typography>
-      <UnitForm unit={unit} />
+      <UnitForm key={unit.updatedAt} unit={unit} />
 
       <UnitAgendaSettings unit={unit} />
 

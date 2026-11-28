@@ -1,24 +1,20 @@
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 import type { Vertical } from './enums'
 import { SlotMinutes } from './unit'
 
-export const SuggestedService = Schema.mutable(
-  Schema.Struct({
-    name: Schema.String,
-    category: Schema.String,
-    durationMinutes: Schema.Number,
-    priceCents: Schema.Number,
-  }),
-)
+export const SuggestedService = Schema.Struct({
+  name: Schema.String,
+  category: Schema.String,
+  durationMinutes: Schema.Number,
+  priceCents: Schema.Number,
+}).mapFields(Struct.map(Schema.mutableKey))
 export type SuggestedService = typeof SuggestedService.Type
 
-export const VerticalDefaults = Schema.mutable(
-  Schema.Struct({
-    suggestedServices: Schema.mutable(Schema.Array(SuggestedService)),
-    defaultSlotMinutes: SlotMinutes,
-  }),
-)
+export const VerticalDefaults = Schema.Struct({
+  suggestedServices: Schema.mutable(Schema.Array(SuggestedService)),
+  defaultSlotMinutes: SlotMinutes,
+}).mapFields(Struct.map(Schema.mutableKey))
 export type VerticalDefaults = typeof VerticalDefaults.Type
 
 export const VERTICAL_DEFAULTS: Record<Vertical, VerticalDefaults> = {

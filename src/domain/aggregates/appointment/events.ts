@@ -1,14 +1,14 @@
 import { Appointment, AppointmentActorRole } from '@/domain/types/appointment'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const AppointmentCreatedSchema = Schema.Struct({
   _tag: Schema.Literal('appointment.created'),
-  data: Schema.partial(Appointment),
+  data: Appointment.mapFields(Struct.map(Schema.optional)),
 })
 
 export const AppointmentUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('appointment.updated'),
-  changes: Schema.partial(Appointment),
+  changes: Appointment.mapFields(Struct.map(Schema.optional)),
 })
 
 export const AppointmentCompletedSchema = Schema.Struct({
@@ -41,7 +41,7 @@ export const AppointmentRescheduledSchema = Schema.Struct({
   noticeMinutes: Schema.Number,
 })
 
-export const AppointmentEventSchema = Schema.Union(
+export const AppointmentEventSchema = Schema.Union([
   AppointmentCreatedSchema,
   AppointmentUpdatedSchema,
   AppointmentCompletedSchema,
@@ -49,7 +49,7 @@ export const AppointmentEventSchema = Schema.Union(
   AppointmentNoShowSchema,
   AppointmentNoShowRevertedSchema,
   AppointmentRescheduledSchema,
-)
+])
 
 export type AppointmentCreated = typeof AppointmentCreatedSchema.Type
 export type AppointmentUpdated = typeof AppointmentUpdatedSchema.Type

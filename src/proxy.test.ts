@@ -1,3 +1,4 @@
+import type { PublicOrgVisibility } from '@/features/self-book/core/public-page-gate'
 import { fakeSupabaseAuth } from '@/shared/auth/fake-supabase-ssr'
 import type * as Log from '@cbrl/log'
 import { AuthRetryableFetchError, type JwtPayload } from '@supabase/supabase-js'
@@ -5,9 +6,15 @@ import { tryToParsePath } from 'next/dist/lib/try-to-parse-path'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ warn: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  warn: vi.fn(),
+  lookup: vi.fn((): Promise<PublicOrgVisibility> => Promise.resolve(null)),
+}))
 
 vi.mock('@supabase/ssr', () => import('@/shared/auth/fake-supabase-ssr'))
+vi.mock('@/features/self-book/adapters/public-page-visibility', () => ({
+  getPublicOrgVisibility: mocks.lookup,
+}))
 vi.mock('@cbrl/log', async (importOriginal) => ({
   ...(await importOriginal<typeof Log>()),
   logger: { debug: vi.fn(), info: vi.fn(), warn: mocks.warn, error: vi.fn() },
@@ -48,6 +55,7 @@ beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test')
   fakeSupabaseAuth.reset()
   mocks.warn.mockClear()
+  mocks.lookup.mockReset().mockResolvedValue(null)
 })
 
 afterEach(() => {
@@ -127,6 +135,37 @@ describe('proxy — Supabase outage', () => {
     const res = await proxy(pageRequest())
     expect(res.headers.get('x-middleware-next')).toBe('1')
     expect(fakeSupabaseAuth.clients).toEqual([])
+  })
+})
+
+describe('proxy — public page 404', () => {
+  it('answers 404 for an unknown org before the page streams', async () => {
+    fakeSupabaseAuth.keepsSession(CLAIMS)
+    const res = await proxy(pageRequest('/no-such-org'))
+    expect(mocks.lookup).toHaveBeenCalledExactlyOnceWith('no-such-org')
+    expect(res.status).toBe(404)
+    expect(res.headers.get('x-middleware-rewrite')).toBe(`${ORIGIN}/_not-found`)
+  })
+
+  it('keeps the refreshed session cookie on the 404', async () => {
+    fakeSupabaseAuth.refreshesSession(CLAIMS, [REFRESHED], {})
+    const res = await proxy(pageRequest('/no-such-org/unit'))
+    expect(res.status).toBe(404)
+    expect(res.cookies.get(REFRESHED.name)?.value).toBe(REFRESHED.value)
+  })
+
+  it('lets a live public page through', async () => {
+    fakeSupabaseAuth.keepsSession(CLAIMS)
+    mocks.lookup.mockResolvedValue({ units: [{ slug: 'centro', live: true }] })
+    const res = await proxy(pageRequest('/barbearia/centro'))
+    expect(res.headers.get('x-middleware-next')).toBe('1')
+  })
+
+  it('does not look up app routes', async () => {
+    fakeSupabaseAuth.keepsSession(CLAIMS)
+    await proxy(pageRequest('/agenda'))
+    await proxy(pageRequest('/copilot'))
+    expect(mocks.lookup).not.toHaveBeenCalled()
   })
 })
 

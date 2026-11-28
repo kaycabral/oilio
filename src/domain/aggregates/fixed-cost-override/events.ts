@@ -1,5 +1,5 @@
 import { FixedCostOverride } from '@/domain/types/fixed-cost'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const FixedCostOverrideSetSchema = Schema.Struct({
   _tag: Schema.Literal('fixed_cost_override.set'),
@@ -8,13 +8,13 @@ export const FixedCostOverrideSetSchema = Schema.Struct({
 
 export const FixedCostOverrideUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('fixed_cost_override.updated'),
-  changes: Schema.partial(FixedCostOverride),
+  changes: FixedCostOverride.mapFields(Struct.map(Schema.optional)),
 })
 
-export const FixedCostOverrideEventSchema = Schema.Union(
+export const FixedCostOverrideEventSchema = Schema.Union([
   FixedCostOverrideSetSchema,
   FixedCostOverrideUpdatedSchema,
-)
+])
 
 export type FixedCostOverrideSet = typeof FixedCostOverrideSetSchema.Type
 export type FixedCostOverrideUpdated = typeof FixedCostOverrideUpdatedSchema.Type

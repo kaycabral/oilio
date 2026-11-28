@@ -52,7 +52,7 @@ export type AggregateConfig<
   readonly type: AggregateType
   readonly initialState: State
   readonly reducer: (state: State, event: Event, meta: EventMeta) => State
-  readonly schema: Schema.Schema<Event, Encoded>
+  readonly schema: Schema.Codec<Event, Encoded>
   readonly currentSchemaVersion: number
   readonly upcasters?: Readonly<Record<number, (raw: EventEnvelope) => EventEnvelope>>
 }
@@ -68,7 +68,7 @@ const EnvelopeSchema = Schema.Struct({
   timestamp: Schema.String,
   actorId: Schema.String,
   schemaVersion: Schema.Number,
-  payload: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+  payload: Schema.Record(Schema.String, Schema.Unknown),
 })
 
 function decodeEnvelope(doc: StoredDoc): EventEnvelope {
@@ -76,7 +76,7 @@ function decodeEnvelope(doc: StoredDoc): EventEnvelope {
 }
 
 function decodeEvent<Event extends { readonly _tag: string }, Encoded = Event>(
-  schema: Schema.Schema<Event, Encoded>,
+  schema: Schema.Codec<Event, Encoded>,
   envelope: EventEnvelope,
 ): Event {
   return Schema.decodeUnknownSync(schema)({ _tag: envelope._tag, ...envelope.payload })
@@ -122,11 +122,11 @@ export function appendEventToTx<
   tx: TransactionContext,
 ) {
   return Effect.gen(function* () {
-    const decodeResult = Schema.decodeUnknownEither(config.schema)({
+    const decodeResult = Schema.decodeUnknownResult(config.schema)({
       _tag: input._tag,
       ...input.payload,
     })
-    if (decodeResult._tag === 'Left') {
+    if (decodeResult._tag === 'Failure') {
       return yield* Effect.fail(
         new EventValidationError({
           aggregateType: config.type,
@@ -151,7 +151,7 @@ export function appendEventToTx<
     }
 
     const currentState = rehydrateState(config.initialState, projectionDoc)
-    const newState = config.reducer(currentState, decodeResult.right, envelope)
+    const newState = config.reducer(currentState, decodeResult.success, envelope)
 
     if (!input._tag.endsWith('.deleted')) {
       yield* tx.setDoc(ref, newState)
@@ -216,7 +216,7 @@ export function runSaga(steps: readonly SagaStep[]) {
 export type GuardReader = {
   readonly getDoc: <Def>(
     ref: AggregateRef,
-    schema: Schema.Schema<Def>,
+    schema: Schema.Decoder<Def>,
   ) => Effect.Effect<Def | null, never, never>
 }
 
@@ -250,7 +250,7 @@ export function appendEventGuardedToTx<
   return Effect.gen(function* () {
     const lockedGetDoc = tx.getDocForUpdate ?? tx.getDoc
     const reader: GuardReader = {
-      getDoc: <Def>(defRef: AggregateRef, schema: Schema.Schema<Def>) =>
+      getDoc: <Def>(defRef: AggregateRef, schema: Schema.Decoder<Def>) =>
         lockedGetDoc(defRef).pipe(
           Effect.map((d) => (d === null ? null : Schema.decodeUnknownSync(schema)(d))),
         ),
@@ -260,11 +260,11 @@ export function appendEventGuardedToTx<
       return { _tag: 'reject' as const, message: guarded.message }
     }
 
-    const decodeResult = Schema.decodeUnknownEither(config.schema)({
+    const decodeResult = Schema.decodeUnknownResult(config.schema)({
       _tag: tag,
       ...guarded.payload,
     })
-    if (decodeResult._tag === 'Left') {
+    if (decodeResult._tag === 'Failure') {
       return { _tag: 'invalid' as const }
     }
 
@@ -284,7 +284,7 @@ export function appendEventGuardedToTx<
     }
 
     const currentState = rehydrateState(config.initialState, projectionDoc)
-    const newState = config.reducer(currentState, decodeResult.right, envelope)
+    const newState = config.reducer(currentState, decodeResult.success, envelope)
     yield* tx.setDoc(ref, newState)
 
     return { _tag: 'ok' as const, envelope }
@@ -352,11 +352,11 @@ export function buildInitialEvent<
   readonly envelope: EventEnvelope<Event['_tag']>
   readonly projection: State
 } {
-  const decodeResult = Schema.decodeUnknownEither(config.schema)({
+  const decodeResult = Schema.decodeUnknownResult(config.schema)({
     _tag: input._tag,
     ...input.payload,
   })
-  if (decodeResult._tag === 'Left') {
+  if (decodeResult._tag === 'Failure') {
     throw new EventValidationError({
       aggregateType: config.type,
       message: `Invalid event '${input._tag}': schema validation failed`,
@@ -371,7 +371,7 @@ export function buildInitialEvent<
     schemaVersion: config.currentSchemaVersion,
     payload: input.payload,
   }
-  const projection = config.reducer(config.initialState, decodeResult.right, envelope)
+  const projection = config.reducer(config.initialState, decodeResult.success, envelope)
   return { envelope, projection }
 }
 

@@ -4,8 +4,12 @@ import { loadEditCatalogItemPage } from '@/features/catalog/adapters/load-catalo
 import { CatalogItemForm } from '@/features/catalog/ui/CatalogItemForm'
 import { ServiceMemberOperationsForm } from '@/features/catalog/ui/ServiceMemberOperationsForm'
 import { Main } from '@cbrl/design'
+import { connection } from 'next/server'
+
+export const instant = false
 
 export default async function EditCatalogItemPage({ params }: { params: Promise<{ id: string }> }) {
+  await connection()
   const { id } = await params
   const { item, units, categories, memberOperations } = await loadEditCatalogItemPage(id)
 
@@ -18,7 +22,13 @@ export default async function EditCatalogItemPage({ params }: { params: Promise<
         ]}
       />
       <h1 className="text-2xl font-semibold">Editar item</h1>
-      <CatalogItemForm kind={item.kind} item={item} units={units} categories={categories} />
+      <CatalogItemForm
+        key={item.updatedAt}
+        kind={item.kind}
+        item={item}
+        units={units}
+        categories={categories}
+      />
 
       {isCatalogService(item) ? (
         <section className="space-y-2">
@@ -27,7 +37,11 @@ export default async function EditCatalogItemPage({ params }: { params: Promise<
             Quem aparece no calendário público pra este serviço — mesmo dado também editável em{' '}
             <strong>Profissionais</strong>.
           </p>
-          <ServiceMemberOperationsForm service={item} memberOperations={memberOperations} />
+          <ServiceMemberOperationsForm
+            key={item.updatedAt}
+            service={item}
+            memberOperations={memberOperations}
+          />
         </section>
       ) : null}
     </Main>

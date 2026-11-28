@@ -15,7 +15,7 @@ export function isoToBrDate(iso: string): string {
 }
 
 export async function fillCatalogName(page: Page, value: string): Promise<void> {
-  const name = page.locator('input[name="name"]')
+  const name = page.locator('input[name="name"]').filter({ visible: true })
   await name.click()
   await name.fill(value)
   await expect(name).toHaveValue(value)

@@ -14,17 +14,14 @@ export interface LedgerSourceOps {
   ) => Effect.Effect<readonly LedgerEntry[], unknown>
 }
 
-export class AcquirerLedgerPort extends Context.Tag('AcquirerLedgerPort')<
-  AcquirerLedgerPort,
-  LedgerSourceOps
->() {}
+export class AcquirerLedgerPort extends Context.Service<AcquirerLedgerPort, LedgerSourceOps>()(
+  'AcquirerLedgerPort',
+) {}
 
-export class FiscalLedgerPort extends Context.Tag('FiscalLedgerPort')<
-  FiscalLedgerPort,
-  LedgerSourceOps
->() {}
+export class FiscalLedgerPort extends Context.Service<FiscalLedgerPort, LedgerSourceOps>()(
+  'FiscalLedgerPort',
+) {}
 
-export class BankLedgerPort extends Context.Tag('BankLedgerPort')<
-  BankLedgerPort,
-  LedgerSourceOps
->() {}
+export class BankLedgerPort extends Context.Service<BankLedgerPort, LedgerSourceOps>()(
+  'BankLedgerPort',
+) {}

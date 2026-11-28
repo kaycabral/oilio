@@ -4,10 +4,14 @@ import { getUserDoc } from '@/shared/org/membership'
 import { Main } from '@cbrl/design'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
+
+export const instant = false
 
 export const metadata: Metadata = { title: 'Meu perfil' }
 
 export default async function MeProfilePage() {
+  await connection()
   const session = await getSessionUser()
   if (!session) redirect('/login')
 

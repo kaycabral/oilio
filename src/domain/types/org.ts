@@ -1,14 +1,12 @@
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 import { Vertical } from './enums'
 
-export const OrgBranding = Schema.mutable(
-  Schema.Struct({
-    logoUrl: Schema.NullOr(Schema.String),
-    bannerUrl: Schema.NullOr(Schema.String),
-    description: Schema.NullOr(Schema.String),
-  }),
-)
+export const OrgBranding = Schema.Struct({
+  logoUrl: Schema.NullOr(Schema.String),
+  bannerUrl: Schema.NullOr(Schema.String),
+  description: Schema.NullOr(Schema.String),
+}).mapFields(Struct.map(Schema.mutableKey))
 export type OrgBranding = typeof OrgBranding.Type
 
 export const ORG_DESCRIPTION_MAX = 280
@@ -46,19 +44,17 @@ export function normalizeOrgBranding(raw: unknown): OrgBranding {
   }
 }
 
-export const Org = Schema.mutable(
-  Schema.Struct({
-    id: Schema.String,
-    name: Schema.String,
-    slug: Schema.String,
-    vertical: Vertical,
-    website: Schema.optional(Schema.NullOr(Schema.String)),
-    ownerUserId: Schema.String,
-    branding: OrgBranding,
-    createdAt: Schema.String,
-    updatedAt: Schema.String,
-  }),
-)
+export const Org = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  slug: Schema.String,
+  vertical: Vertical,
+  website: Schema.optional(Schema.NullOr(Schema.String)),
+  ownerUserId: Schema.String,
+  branding: OrgBranding,
+  createdAt: Schema.String,
+  updatedAt: Schema.String,
+}).mapFields(Struct.map(Schema.mutableKey))
 export type Org = typeof Org.Type
 
 export const StoredOrg = Org

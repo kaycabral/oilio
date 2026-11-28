@@ -1,16 +1,16 @@
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
-export const TaxIdentity = Schema.Union(
-  Schema.mutable(Schema.Struct({ kind: Schema.Literal('individual'), taxId: Schema.String })),
-  Schema.mutable(
-    Schema.Struct({
-      kind: Schema.Literal('company'),
-      taxId: Schema.String,
-      legalName: Schema.String,
-      tradeName: Schema.optional(Schema.NullOr(Schema.String)),
-    }),
+export const TaxIdentity = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal('individual'), taxId: Schema.String }).mapFields(
+    Struct.map(Schema.mutableKey),
   ),
-)
+  Schema.Struct({
+    kind: Schema.Literal('company'),
+    taxId: Schema.String,
+    legalName: Schema.String,
+    tradeName: Schema.optional(Schema.NullOr(Schema.String)),
+  }).mapFields(Struct.map(Schema.mutableKey)),
+])
 export type TaxIdentity = typeof TaxIdentity.Type
 
 export function isCompany(t: TaxIdentity): t is Extract<TaxIdentity, { kind: 'company' }> {
@@ -21,7 +21,7 @@ export function normalizeTaxId(raw: string): string {
   return raw.replace(/\D/g, '')
 }
 
-export const TaxRegime = Schema.Literal('mei', 'simples_nacional', 'other')
+export const TaxRegime = Schema.Literals(['mei', 'simples_nacional', 'other'])
 export type TaxRegime = typeof TaxRegime.Type
 
 export function deriveTaxRegime(optsForSimples: boolean, optsForMei: boolean): TaxRegime {
@@ -30,7 +30,7 @@ export function deriveTaxRegime(optsForSimples: boolean, optsForMei: boolean): T
   return 'other'
 }
 
-export const CompanySize = Schema.Literal('micro', 'small', 'other')
+export const CompanySize = Schema.Literals(['micro', 'small', 'other'])
 export type CompanySize = typeof CompanySize.Type
 
 export function deriveCompanySize(codigoPorte: number): CompanySize {
@@ -39,38 +39,35 @@ export function deriveCompanySize(codigoPorte: number): CompanySize {
   return 'other'
 }
 
-export const CnaeActivity = Schema.mutable(
-  Schema.Struct({ code: Schema.String, description: Schema.String }),
-)
+export const CnaeActivity = Schema.Struct({
+  code: Schema.String,
+  description: Schema.String,
+}).mapFields(Struct.map(Schema.mutableKey))
 export type CnaeActivity = typeof CnaeActivity.Type
 
-export const CompanyProfile = Schema.mutable(
-  Schema.Struct({
-    taxId: Schema.String,
-    isMei: Schema.Boolean,
-    taxRegime: TaxRegime,
-    primaryActivity: CnaeActivity,
-    secondaryActivities: Schema.mutable(Schema.Array(CnaeActivity)),
-    companySize: CompanySize,
-    legalNature: Schema.String,
-    registrationStatus: Schema.String,
-    shareCapital: Schema.Number,
-    activityStartedAt: Schema.String,
-  }),
-)
+export const CompanyProfile = Schema.Struct({
+  taxId: Schema.String,
+  isMei: Schema.Boolean,
+  taxRegime: TaxRegime,
+  primaryActivity: CnaeActivity,
+  secondaryActivities: Schema.mutable(Schema.Array(CnaeActivity)),
+  companySize: CompanySize,
+  legalNature: Schema.String,
+  registrationStatus: Schema.String,
+  shareCapital: Schema.Number,
+  activityStartedAt: Schema.String,
+}).mapFields(Struct.map(Schema.mutableKey))
 export type CompanyProfile = typeof CompanyProfile.Type
 
-export const UnitFiscal = Schema.Union(
-  Schema.mutable(Schema.Struct({ kind: Schema.Literal('informal') })),
-  Schema.mutable(
-    Schema.Struct({
-      kind: Schema.Literal('company'),
-      taxId: Schema.String,
-      companyProfile: CompanyProfile,
-      formalizedAt: Schema.String,
-    }),
-  ),
-)
+export const UnitFiscal = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal('informal') }).mapFields(Struct.map(Schema.mutableKey)),
+  Schema.Struct({
+    kind: Schema.Literal('company'),
+    taxId: Schema.String,
+    companyProfile: CompanyProfile,
+    formalizedAt: Schema.String,
+  }).mapFields(Struct.map(Schema.mutableKey)),
+])
 export type UnitFiscal = typeof UnitFiscal.Type
 
 export const INFORMAL_UNIT_FISCAL: UnitFiscal = { kind: 'informal' }

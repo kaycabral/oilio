@@ -2,8 +2,9 @@ import { loadReportsPage } from '@/features/reports/adapters/load-reports'
 import { ReportsView } from '@/features/reports/ui/ReportsView'
 import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
 
-export const dynamic = 'force-dynamic'
+export const instant = false
 
 type SearchParams = Record<string, string | string[] | undefined>
 
@@ -12,6 +13,7 @@ export default async function ReportsHubPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
+  await connection()
   const props = await loadReportsPage(await searchParams)
 
   if (!props.sales) notFound()

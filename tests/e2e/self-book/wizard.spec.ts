@@ -35,15 +35,15 @@ test.describe('Wizard de auto-agendamento (#844)', () => {
 
       await expect(authedPage).toHaveURL(new RegExp(`/${slug}/unidade-1/book\\?`))
       await expect(booking.confirmHeading()).toBeVisible()
-      await expect(authedPage.getByText(/Corte Premium/)).toBeVisible()
+      await expect(authedPage.getByText(/Corte Premium/).filter({ visible: true })).toBeVisible()
       await expect(booking.bookingAsNotice()).toBeVisible()
       await booking.confirmButton().click()
 
       await expect(authedPage).toHaveURL(new RegExp(`/${slug}/unidade-1/book/success\\?appt=`))
       await expect(booking.successHeading()).toBeVisible()
-      await expect(authedPage.getByText(/Corte Premium/)).toBeVisible()
-      await expect(authedPage.getByText(/Profissional 1/)).toBeVisible()
-      await expect(authedPage.getByText(/R\$\s*65,00/)).toBeVisible()
+      await expect(authedPage.getByText(/Corte Premium/).filter({ visible: true })).toBeVisible()
+      await expect(authedPage.getByText(/Profissional 1/).filter({ visible: true })).toBeVisible()
+      await expect(authedPage.getByText(/R\$\s*65,00/).filter({ visible: true })).toBeVisible()
     },
   )
 

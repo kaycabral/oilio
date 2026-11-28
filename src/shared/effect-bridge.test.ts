@@ -1,7 +1,7 @@
 import { CashMovementConfig, CommissionConfig } from '@/domain/aggregates'
-import { aggregateRef, appendEventToTx, PersistencePort } from '@/domain/effect'
+import { aggregateRef, appendEventToTx, PersistencePort, SecurityContext } from '@/domain/effect'
 import { docKey, makeReplayStore } from '@/domain/effect/test-layers'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Option } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { store, layer: memoryLayer } = makeReplayStore()
@@ -34,7 +34,13 @@ function pgDefect(code: string): Error {
   return Object.assign(new Error(`pg error ${code}`), { code })
 }
 
-import { commitGuardedThenAppend, commitSaga, emitEvent, emitEventGuarded } from './effect-bridge'
+import {
+  commitGuardedThenAppend,
+  commitSaga,
+  emitEvent,
+  emitEventGuarded,
+  securityLayer,
+} from './effect-bridge'
 
 const commission = {
   id: 'c1',
@@ -290,5 +296,64 @@ describe('emitEventGuarded — DB-defect net', () => {
       expect(result.error).not.toMatch(/23514/)
       expect(result.error).not.toMatch(/de novo/i)
     }
+  })
+})
+
+describe('securityLayer — org isolation across nested provides', () => {
+  const currentOrg = Effect.serviceOption(SecurityContext).pipe(
+    Effect.map((ctx) => Option.getOrNull(ctx)?.orgId ?? null),
+  )
+
+  const txOrgLayer = Layer.succeed(PersistencePort, {
+    getDoc: () => Effect.succeed(null),
+    getDocs: () => Effect.succeed([]),
+    getEvents: () => Effect.succeed([]),
+    setDoc: () => Effect.void,
+    runTransaction: (fn) => fn({ getDoc: () => Effect.succeed(null), setDoc: () => Effect.void }),
+  })
+
+  const txOrg = Effect.gen(function* () {
+    const persistence = yield* PersistencePort
+    return yield* persistence.runTransaction(() => currentOrg)
+  })
+
+  it('an inner provide for another org wins inside, and the outer org is restored after', async () => {
+    const program = Effect.gen(function* () {
+      const before = yield* currentOrg
+      const inner = yield* currentOrg.pipe(Effect.provide(securityLayer({ orgId: 'org-b' })))
+      const after = yield* currentOrg
+      return [before, inner, after]
+    }).pipe(Effect.provide(securityLayer({ orgId: 'org-a' })))
+
+    expect(await Effect.runPromise(program)).toEqual(['org-a', 'org-b', 'org-a'])
+  })
+
+  it('a persistence layer built by an outer provide reads the innermost org, never a memoized one', async () => {
+    const program = Effect.gen(function* () {
+      const outer = yield* txOrg
+      const inner = yield* txOrg.pipe(Effect.provide(securityLayer({ orgId: 'org-b' })))
+      return [outer, inner]
+    }).pipe(Effect.provide(Layer.merge(txOrgLayer, securityLayer({ orgId: 'org-a' }))))
+
+    expect(await Effect.runPromise(program)).toEqual(['org-a', 'org-b'])
+  })
+
+  it('concurrent sibling requests each see only their own org', async () => {
+    const orgs = ['org-a', 'org-b', 'org-c', 'org-d']
+    const program = Effect.all(
+      orgs.map((orgId) =>
+        Effect.yieldNow.pipe(
+          Effect.andThen(txOrg),
+          Effect.provide(Layer.merge(txOrgLayer, securityLayer({ orgId }))),
+        ),
+      ),
+      { concurrency: 'unbounded' },
+    )
+
+    expect(await Effect.runPromise(program)).toEqual(orgs)
+  })
+
+  it('no security layer means no org in context', async () => {
+    expect(await Effect.runPromise(currentOrg.pipe(Effect.provide(securityLayer())))).toBeNull()
   })
 })

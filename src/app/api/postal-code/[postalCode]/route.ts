@@ -2,7 +2,7 @@ import { lookupPostalCode } from '@cbrl/br/postal-code'
 import { withRequestContext } from '@cbrl/log'
 import { NextResponse } from 'next/server'
 
-export const revalidate = 604800
+const revalidate = 604800
 
 const FAILURE = {
   invalid: { error: 'CEP inválido.', status: 400 },

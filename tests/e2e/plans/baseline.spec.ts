@@ -25,7 +25,7 @@ test.describe('Plans — baseline (#17)', { tag: '@critical' }, () => {
 
     await rowAction(authedPage, new RegExp(ts), 'Editar')
     await expect(authedPage).toHaveURL(/\/plans\/.+/)
-    await authedPage.locator('input[name="name"]').fill(edited)
+    await authedPage.locator('input[name="name"]').filter({ visible: true }).fill(edited)
     await authedPage.locator('form').getByRole('button', { name: 'Salvar' }).click()
     await expect(authedPage).toHaveURL(/\/plans$/)
     await expect(authedPage.getByText(edited, { exact: true })).toBeVisible({ timeout: 5000 })

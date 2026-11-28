@@ -13,7 +13,17 @@ const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
   : 'https://*.supabase.co'
 
 const nextConfig: NextConfig = {
+  cacheComponents: true,
+  partialPrefetching: true,
   typedRoutes: true,
+  turbopack: {
+    rules: {
+      '*.css': {
+        loaders: ['@tailwindcss/turbopack'],
+        as: '*.css',
+      },
+    },
+  },
   // Pin the dev overlay to the bottom-right (default is bottom-left, which
   // overlaps the app's own bottom-left UI in dev).
   devIndicators: { position: 'bottom-right' },

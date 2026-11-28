@@ -1,6 +1,6 @@
 import { FixedCost, FixedCostCategory } from '@/domain/types/fixed-cost'
 import { NonEmptyString } from '@/domain/value-objects'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const FixedCostCreatedSchema = Schema.Struct({
   _tag: Schema.Literal('fixed_cost.created'),
@@ -9,9 +9,8 @@ export const FixedCostCreatedSchema = Schema.Struct({
 
 export const FixedCostUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('fixed_cost.updated'),
-  changes: Schema.partialWith(
-    Schema.mutable(Schema.Struct({ name: NonEmptyString, category: FixedCostCategory })),
-    { exact: true },
+  changes: Schema.Struct({ name: NonEmptyString, category: FixedCostCategory }).mapFields(
+    Struct.map(Schema.optionalKey),
   ),
 })
 
@@ -25,12 +24,12 @@ export const FixedCostArchivedSchema = Schema.Struct({
   archivedAt: Schema.NullOr(Schema.String),
 })
 
-export const FixedCostEventSchema = Schema.Union(
+export const FixedCostEventSchema = Schema.Union([
   FixedCostCreatedSchema,
   FixedCostUpdatedSchema,
   FixedCostSupersededSchema,
   FixedCostArchivedSchema,
-)
+])
 
 export type FixedCostCreated = typeof FixedCostCreatedSchema.Type
 export type FixedCostUpdated = typeof FixedCostUpdatedSchema.Type
