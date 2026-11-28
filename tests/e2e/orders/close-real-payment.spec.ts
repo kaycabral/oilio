@@ -1,7 +1,7 @@
 import { SubscriptionConfig } from '@/domain/aggregates/subscription/config'
 import { aggregateRef } from '@/domain/effect'
 import type { Page } from '@playwright/test'
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 import { expect, test } from '../fixtures'
 import { addCatalogItemToOrder } from '../helpers/orders'
 import { choosePaymentMethod } from '../helpers/select'
@@ -19,7 +19,7 @@ import { AgendaPage } from '../pages'
 
 const SubscriptionRowSchema = Schema.Struct({
   current_period: Schema.Struct({
-    consumed: Schema.optionalWith(Schema.Number, { default: () => 0 }),
+    consumed: Schema.Number.pipe(Schema.withDecodingDefaultType(Effect.succeed(0))),
   }),
 })
 const decodeSubscriptionRow = Schema.decodeUnknownSync(SubscriptionRowSchema)

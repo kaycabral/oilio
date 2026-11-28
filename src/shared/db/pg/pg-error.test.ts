@@ -1,8 +1,13 @@
-import * as Cause from 'effect/Cause'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { isForeignKeyViolation, isUniqueViolation, USERS_MOBILE_UNIQUE } from './pg-error'
 
-const FIBER_FAILURE_CAUSE = Symbol.for('effect/Runtime/FiberFailure/Cause')
+function rejectionOf(defect: unknown): Promise<unknown> {
+  return Effect.runPromise(Effect.die(defect)).then(
+    () => undefined,
+    (err: unknown) => err,
+  )
+}
 
 describe('isForeignKeyViolation', () => {
   it('a bare pg DatabaseError with code 23503 is a violation', () => {
@@ -34,14 +39,12 @@ describe('isForeignKeyViolation', () => {
     expect(isForeignKeyViolation(nested)).toBe(false)
   })
 
-  it('unwraps a FiberFailure-parked Cause and re-checks the squashed defect', () => {
-    const parked = { [FIBER_FAILURE_CAUSE]: Cause.die({ code: '23503' }) }
-    expect(isForeignKeyViolation(parked)).toBe(true)
+  it('classifies the defect an Effect run rejects with (no runtime wrapper)', async () => {
+    expect(isForeignKeyViolation(await rejectionOf({ code: '23503' }))).toBe(true)
   })
 
-  it('a FiberFailure parking a non-FK defect is not a violation', () => {
-    const parked = { [FIBER_FAILURE_CAUSE]: Cause.die({ code: '23505' }) }
-    expect(isForeignKeyViolation(parked)).toBe(false)
+  it('a non-FK defect rejected by an Effect run is not a violation', async () => {
+    expect(isForeignKeyViolation(await rejectionOf({ code: '23505' }))).toBe(false)
   })
 
   it('terminates on a self-referential cause cycle (no infinite loop)', () => {
@@ -52,12 +55,10 @@ describe('isForeignKeyViolation', () => {
 })
 
 describe('isUniqueViolation', () => {
-  it('matches a unique violation on the named constraint, even parked in a FiberFailure', () => {
+  it('matches a unique violation on the named constraint, even rejected by an Effect run', async () => {
     const pgError = { code: '23505', constraint: USERS_MOBILE_UNIQUE }
     expect(isUniqueViolation(pgError, USERS_MOBILE_UNIQUE)).toBe(true)
-    expect(
-      isUniqueViolation({ [FIBER_FAILURE_CAUSE]: Cause.die(pgError) }, USERS_MOBILE_UNIQUE),
-    ).toBe(true)
+    expect(isUniqueViolation(await rejectionOf(pgError), USERS_MOBILE_UNIQUE)).toBe(true)
   })
 
   it('rejects another constraint or SQLSTATE', () => {

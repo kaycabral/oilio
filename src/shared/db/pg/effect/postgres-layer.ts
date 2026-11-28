@@ -8,7 +8,7 @@ import type {
 } from '@/domain/effect'
 import { PersistencePort, SecurityContext } from '@/domain/effect'
 import { competenceOf } from '@/domain/utils/event-competence'
-import { Effect, Layer, Option } from 'effect'
+import { Effect, Layer, Option, Result } from 'effect'
 import type { PoolClient } from 'pg'
 import { setRlsGucs } from '../guc'
 import { getEventStorePool } from '../pool'
@@ -221,13 +221,13 @@ const postgresOps: PersistenceOps = {
                   return deleteProjectionRow(client, ref)
                 }),
             }
-            const either = await Effect.runPromise(Effect.either(fn(txCtx)))
-            if (either._tag === 'Left') {
+            const result = await Effect.runPromise(Effect.result(fn(txCtx)))
+            if (Result.isFailure(result)) {
               await client.query('ROLLBACK')
-              return either
+              return result
             }
             await client.query('COMMIT')
-            return either
+            return result
           } catch (err) {
             await client.query('ROLLBACK')
             throw err
@@ -235,8 +235,8 @@ const postgresOps: PersistenceOps = {
             client.release()
           }
         }).pipe(
-          Effect.flatMap((either) =>
-            either._tag === 'Left' ? Effect.fail(either.left) : Effect.succeed(either.right),
+          Effect.flatMap((result) =>
+            Result.isFailure(result) ? Effect.fail(result.failure) : Effect.succeed(result.success),
           ),
         ),
       ),

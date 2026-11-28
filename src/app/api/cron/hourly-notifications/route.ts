@@ -16,7 +16,7 @@ async function postHandler(request: Request) {
 
   const created = await Effect.runPromise(
     generateHourlyNotifications().pipe(
-      Effect.catchAll(() => Effect.succeed(0)),
+      Effect.catch(() => Effect.succeed(0)),
       Effect.provide(PostgresLayerLive),
     ),
   )

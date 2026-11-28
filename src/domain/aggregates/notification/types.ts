@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 
-export const NotificationType = Schema.Literal(
+export const NotificationType = Schema.Literals([
   'birthday',
   'subscription_expiring_tomorrow',
   'subscription_expired',
@@ -9,10 +9,10 @@ export const NotificationType = Schema.Literal(
   'cash_register_open',
   'new_customer',
   'payment_failure',
-)
+])
 export type NotificationType = typeof NotificationType.Type
 
-export const NotificationSource = Schema.Literal('cron', 'event')
+export const NotificationSource = Schema.Literals(['cron', 'event'])
 export type NotificationSource = typeof NotificationSource.Type
 
 export const NotificationState = Schema.Struct({
@@ -23,7 +23,7 @@ export const NotificationState = Schema.Struct({
   customerId: Schema.NullOr(Schema.String),
   appointmentId: Schema.NullOr(Schema.String),
   subscriptionId: Schema.NullOr(Schema.String),
-  payload: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+  payload: Schema.Record(Schema.String, Schema.Unknown),
   source: NotificationSource,
   eventKey: Schema.String,
   createdAt: Schema.NullOr(Schema.String),

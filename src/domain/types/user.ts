@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 import { TaxIdentity } from './tax'
 
@@ -21,37 +21,31 @@ const userCommonFields = {
   updatedAt: Schema.String,
 }
 
-const UserIncomplete = Schema.mutable(
-  Schema.Struct({
-    ...userCommonFields,
-    anonymizedAt: Schema.Null,
-    completionCompleted: Schema.Literal(false),
-    mobile: Schema.NullOr(Schema.String),
-    birthDate: Schema.NullOr(Schema.String),
-  }),
-)
+const UserIncomplete = Schema.Struct({
+  ...userCommonFields,
+  anonymizedAt: Schema.Null,
+  completionCompleted: Schema.Literal(false),
+  mobile: Schema.NullOr(Schema.String),
+  birthDate: Schema.NullOr(Schema.String),
+}).mapFields(Struct.map(Schema.mutableKey))
 
-const UserComplete = Schema.mutable(
-  Schema.Struct({
-    ...userCommonFields,
-    anonymizedAt: Schema.Null,
-    completionCompleted: Schema.Literal(true),
-    mobile: Schema.String,
-    birthDate: Schema.String,
-  }),
-)
+const UserComplete = Schema.Struct({
+  ...userCommonFields,
+  anonymizedAt: Schema.Null,
+  completionCompleted: Schema.Literal(true),
+  mobile: Schema.String,
+  birthDate: Schema.String,
+}).mapFields(Struct.map(Schema.mutableKey))
 
-const UserAnonymized = Schema.mutable(
-  Schema.Struct({
-    ...userCommonFields,
-    anonymizedAt: Schema.String,
-    completionCompleted: Schema.Boolean,
-    mobile: Schema.Null,
-    birthDate: Schema.Null,
-  }),
-)
+const UserAnonymized = Schema.Struct({
+  ...userCommonFields,
+  anonymizedAt: Schema.String,
+  completionCompleted: Schema.Boolean,
+  mobile: Schema.Null,
+  birthDate: Schema.Null,
+}).mapFields(Struct.map(Schema.mutableKey))
 
-export const User = Schema.Union(UserIncomplete, UserComplete, UserAnonymized)
+export const User = Schema.Union([UserIncomplete, UserComplete, UserAnonymized])
 export type User = typeof User.Type
 export type UserComplete = typeof UserComplete.Type
 export type UserIncomplete = typeof UserIncomplete.Type

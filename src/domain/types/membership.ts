@@ -1,24 +1,22 @@
-import { Schema } from 'effect'
+import { Effect, Schema, Struct } from 'effect'
 
 import { canManageOrg, MembershipStatus, Role } from './enums'
 
-export const MembershipPermissions = Schema.mutable(
-  Schema.Struct({
-    canHaveAgenda: Schema.Boolean,
-    canManageOwnAgenda: Schema.Boolean,
-    canCreateAppointment: Schema.Boolean,
-    canCancelAppointment: Schema.Boolean,
-    canManageCustomers: Schema.Boolean,
-    canManageOperators: Schema.Boolean,
-    canManageCatalog: Schema.Boolean,
-    canViewFinancials: Schema.Boolean,
-    canManagePlans: Schema.Boolean,
-    canManageSubscriptions: Schema.Boolean,
-    canManageBilling: Schema.optionalWith(Schema.Boolean, { default: () => false, exact: true }),
-    canBeBooked: Schema.Boolean,
-    canEarnCommission: Schema.Boolean,
-  }),
-)
+export const MembershipPermissions = Schema.Struct({
+  canHaveAgenda: Schema.Boolean,
+  canManageOwnAgenda: Schema.Boolean,
+  canCreateAppointment: Schema.Boolean,
+  canCancelAppointment: Schema.Boolean,
+  canManageCustomers: Schema.Boolean,
+  canManageOperators: Schema.Boolean,
+  canManageCatalog: Schema.Boolean,
+  canViewFinancials: Schema.Boolean,
+  canManagePlans: Schema.Boolean,
+  canManageSubscriptions: Schema.Boolean,
+  canManageBilling: Schema.Boolean.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(false))),
+  canBeBooked: Schema.Boolean,
+  canEarnCommission: Schema.Boolean,
+}).mapFields(Struct.map(Schema.mutableKey))
 export type MembershipPermissions = typeof MembershipPermissions.Type
 
 export const MembershipFields = {
@@ -34,7 +32,7 @@ export const MembershipFields = {
   permissions: MembershipPermissions,
 } as const
 
-export const Membership = Schema.mutable(Schema.Struct(MembershipFields))
+export const Membership = Schema.Struct(MembershipFields).mapFields(Struct.map(Schema.mutableKey))
 export type Membership = typeof Membership.Type
 
 export function membershipDocId(orgId: string, userId: string): string {

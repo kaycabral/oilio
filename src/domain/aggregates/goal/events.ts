@@ -1,5 +1,5 @@
 import { Goal } from '@/domain/types/goal'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const GoalDefinedSchema = Schema.Struct({
   _tag: Schema.Literal('goal.defined'),
@@ -8,10 +8,10 @@ export const GoalDefinedSchema = Schema.Struct({
 
 export const GoalUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('goal.updated'),
-  changes: Schema.partial(Goal),
+  changes: Goal.mapFields(Struct.map(Schema.optional)),
 })
 
-export const GoalEventSchema = Schema.Union(GoalDefinedSchema, GoalUpdatedSchema)
+export const GoalEventSchema = Schema.Union([GoalDefinedSchema, GoalUpdatedSchema])
 
 export type GoalDefined = typeof GoalDefinedSchema.Type
 export type GoalUpdated = typeof GoalUpdatedSchema.Type

@@ -171,7 +171,7 @@ import { upsertUnitsPii } from '@/shared/db/pg/units-pii-store'
 import { getUserById, putUser } from '@/shared/db/pg/users-store'
 import { buildStoredCustomer, buildUser } from '@/shared/fixtures/domain-builders'
 import { buildAddress } from '@/shared/fixtures/seed-domain-builders'
-import { Schema } from 'effect'
+import { Schema, SchemaTransformation } from 'effect'
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 
 function uniqueSuffix() {
@@ -752,20 +752,20 @@ async function readMemberOperationUserId(
   return typeof uid === 'string' && uid ? uid : null
 }
 
-const TimestamptzRowCell = Schema.transform(
-  Schema.Union(Schema.String, Schema.DateFromSelf),
-  Schema.String,
-  {
-    strict: true,
-    decode: (value) => (value instanceof Date ? value.toISOString() : value),
-    encode: (value) => value,
-  },
+const TimestamptzRowCell = Schema.Union([Schema.String, Schema.Date]).pipe(
+  Schema.decodeTo(
+    Schema.String,
+    SchemaTransformation.transform<string, string | Date>({
+      decode: (value) => (value instanceof Date ? value.toISOString() : value),
+      encode: (value) => value,
+    }),
+  ),
 )
 
 const MemberOperationRowSchema = Schema.Struct({
   org_id: Schema.String,
   id: Schema.String,
-  last_event_version: Schema.Union(Schema.String, Schema.Number),
+  last_event_version: Schema.Union([Schema.String, Schema.Number]),
   user_id: Schema.String,
   member_id: Schema.String,
   default_commission: Schema.Unknown,
@@ -779,11 +779,11 @@ const MembershipRowSchema = Schema.Struct({
   org_id: Schema.String,
   id: Schema.String,
   user_id: Schema.String,
-  last_event_version: Schema.Union(Schema.String, Schema.Number),
+  last_event_version: Schema.Union([Schema.String, Schema.Number]),
   role: Schema.String,
   status: Schema.String,
-  rls_unit_scope: Schema.Union(Schema.String, Schema.Null),
-  invited_by: Schema.Union(Schema.String, Schema.Null),
+  rls_unit_scope: Schema.Union([Schema.String, Schema.Null]),
+  invited_by: Schema.Union([Schema.String, Schema.Null]),
   joined_at: TimestamptzRowCell,
   permissions: Schema.Unknown,
   updated_at: TimestamptzRowCell,

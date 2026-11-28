@@ -29,7 +29,7 @@ type ReadMovement = {
 const CashMovementRow = Schema.Struct({
   kind: Schema.String,
   direction: Schema.String,
-  amount_cents: Schema.Union(Schema.NumberFromString, Schema.Number),
+  amount_cents: Schema.Union([Schema.NumberFromString, Schema.Number]),
   order_id: Schema.NullOr(Schema.String),
 })
 const decodeCashMovementRow = Schema.decodeUnknownSync(CashMovementRow)

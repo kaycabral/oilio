@@ -1,12 +1,12 @@
 import { OpenOrder, OrderItem, PaymentMethod } from '@/domain/types/order'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const OrderCreatedSchema = Schema.Struct({
   _tag: Schema.Literal('order.created'),
   data: OpenOrder,
 })
 
-const OrderChanges = Schema.partial(OpenOrder)
+const OrderChanges = OpenOrder.mapFields(Struct.map(Schema.optional))
 
 export const OrderItemAddedSchema = Schema.Struct({
   _tag: Schema.Literal('order.item_added'),
@@ -63,7 +63,7 @@ export const OrderReopenedSchema = Schema.Struct({
   subscriptionRestored: Schema.Boolean,
 })
 
-export const OrderEventSchema = Schema.Union(
+export const OrderEventSchema = Schema.Union([
   OrderCreatedSchema,
   OrderItemAddedSchema,
   OrderItemRemovedSchema,
@@ -74,7 +74,7 @@ export const OrderEventSchema = Schema.Union(
   OrderCancelledSchema,
   OrderClosedSchema,
   OrderReopenedSchema,
-)
+])
 
 export type OrderCreated = typeof OrderCreatedSchema.Type
 export type OrderItemAdded = typeof OrderItemAddedSchema.Type

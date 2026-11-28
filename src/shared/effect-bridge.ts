@@ -50,7 +50,7 @@ export async function emitEvent<
       Effect.catchTag('EventValidationError', () =>
         Effect.succeed({ ok: false as const, error: messageForCategory('validation') }),
       ),
-      Effect.catchAllDefect(catchWriteDefect),
+      Effect.catchDefect(catchWriteDefect),
       Effect.provide(Layer.merge(PostgresPersistenceLayer, securityLayer(security))),
     ),
   )
@@ -71,7 +71,7 @@ export async function emitEventGuarded<
       Effect.catchTag('GuardRejectedError', (e) =>
         Effect.succeed({ ok: false as const, error: e.message }),
       ),
-      Effect.catchAllDefect(catchWriteDefect),
+      Effect.catchDefect(catchWriteDefect),
       Effect.provide(PostgresPersistenceLayer),
     ),
   )
@@ -97,7 +97,7 @@ export async function commitSaga(
       Effect.catchTag('GuardRejectedError', (e) =>
         Effect.succeed({ ok: false as const, error: e.message }),
       ),
-      Effect.catchAllDefect(catchWriteDefect),
+      Effect.catchDefect(catchWriteDefect),
       Effect.provide(Layer.merge(PostgresPersistenceLayer, securityLayer(security))),
     ),
   )
@@ -153,7 +153,7 @@ export async function commitGuardedThenAppend<
       Effect.catchTag('EventValidationError', () =>
         Effect.succeed({ ok: false as const, error: messageForCategory('validation') }),
       ),
-      Effect.catchAllDefect(catchWriteDefect),
+      Effect.catchDefect(catchWriteDefect),
       Effect.provide(PostgresPersistenceLayer),
     ),
   )

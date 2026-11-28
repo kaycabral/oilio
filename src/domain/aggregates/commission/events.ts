@@ -1,5 +1,5 @@
 import { Commission, CommissionFields } from '@/domain/types/commission'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const CommissionCreatedSchema = Schema.Struct({
   _tag: Schema.Literal('commission.created'),
@@ -8,18 +8,18 @@ export const CommissionCreatedSchema = Schema.Struct({
 
 export const CommissionUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('commission.updated'),
-  changes: Schema.partial(CommissionFields),
+  changes: CommissionFields.mapFields(Struct.map(Schema.optional)),
 })
 
 export const CommissionDeletedSchema = Schema.Struct({
   _tag: Schema.Literal('commission.deleted'),
 })
 
-export const CommissionEventSchema = Schema.Union(
+export const CommissionEventSchema = Schema.Union([
   CommissionCreatedSchema,
   CommissionUpdatedSchema,
   CommissionDeletedSchema,
-)
+])
 
 export type CommissionCreated = typeof CommissionCreatedSchema.Type
 export type CommissionUpdated = typeof CommissionUpdatedSchema.Type

@@ -14,7 +14,7 @@ import {
   type MembershipRow,
 } from '@/shared/db/pg/effect/membership-projector'
 import { patchUser } from '@/shared/db/pg/users-store'
-import { Schema } from 'effect'
+import { Schema, SchemaTransformation } from 'effect'
 import { expect, test } from '../fixtures'
 import {
   pgReadProjection,
@@ -23,20 +23,21 @@ import {
   type SeededOrg,
 } from '../helpers/session'
 
-const TimestamptzString = Schema.transform(
-  Schema.Union(Schema.String, Schema.DateFromSelf),
-  Schema.String,
-  {
-    decode: (value) => (value instanceof Date ? value.toISOString() : value),
-    encode: (value) => value,
-  },
+const TimestamptzString = Schema.Union([Schema.String, Schema.Date]).pipe(
+  Schema.decodeTo(
+    Schema.String,
+    SchemaTransformation.transform<string, string | Date>({
+      decode: (value) => (value instanceof Date ? value.toISOString() : value),
+      encode: (value) => value,
+    }),
+  ),
 )
 
 const MembershipRowSchema = Schema.Struct({
   org_id: Schema.String,
   id: Schema.String,
   user_id: Schema.String,
-  last_event_version: Schema.Union(Schema.String, Schema.Number),
+  last_event_version: Schema.Union([Schema.String, Schema.Number]),
   role: Schema.String,
   status: Schema.String,
   rls_unit_scope: Schema.NullOr(Schema.String),

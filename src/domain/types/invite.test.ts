@@ -2,7 +2,7 @@ import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { INVITE_TTL_MS, StoredInvite } from './invite'
 
-const decode = Schema.decodeUnknownEither(StoredInvite)
+const decode = Schema.decodeUnknownResult(StoredInvite)
 
 function storedRow(over: Partial<Record<string, unknown>> = {}) {
   return {
@@ -23,7 +23,7 @@ function storedRow(over: Partial<Record<string, unknown>> = {}) {
 
 describe('StoredInvite acceptance consistency (first-accept-wins guard)', () => {
   it('accepts a pending invite with no accepter', () => {
-    expect(decode(storedRow())._tag).toBe('Right')
+    expect(decode(storedRow())._tag).toBe('Success')
   })
 
   it('accepts an accepted invite that carries who + when', () => {
@@ -32,15 +32,15 @@ describe('StoredInvite acceptance consistency (first-accept-wins guard)', () => 
       acceptedByUid: 'uid-42',
       acceptedAt: '2026-07-04T00:00:00.000Z',
     })
-    expect(decode(row)._tag).toBe('Right')
+    expect(decode(row)._tag).toBe('Success')
   })
 
   it('rejects a pending invite that already names an accepter (leaked accept)', () => {
-    expect(decode(storedRow({ acceptedByUid: 'uid-42' }))._tag).toBe('Left')
+    expect(decode(storedRow({ acceptedByUid: 'uid-42' }))._tag).toBe('Failure')
   })
 
   it('rejects an accepted invite with no accepter (accepted sem quem/quando)', () => {
-    expect(decode(storedRow({ status: 'accepted' }))._tag).toBe('Left')
+    expect(decode(storedRow({ status: 'accepted' }))._tag).toBe('Failure')
   })
 })
 

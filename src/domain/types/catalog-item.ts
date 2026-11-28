@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 import { NonNegativeInt } from '@/domain/value-objects'
 import { CommissionRule } from './member-operation'
@@ -9,7 +9,7 @@ import {
 } from './service'
 
 export const CATALOG_ITEM_KINDS = ['service', 'product'] as const
-export const CatalogItemKind = Schema.Literal(...CATALOG_ITEM_KINDS)
+export const CatalogItemKind = Schema.Literals(CATALOG_ITEM_KINDS)
 export type CatalogItemKind = typeof CatalogItemKind.Type
 
 export const CatalogItemUnitOverride = ServiceUnitOverride
@@ -23,9 +23,7 @@ const CatalogItemBaseFields = {
   priceCents: NonNegativeInt,
   commission: Schema.NullOr(CommissionRule),
   unitIds: Schema.mutable(Schema.Array(Schema.String)),
-  unitOverrides: Schema.NullOr(
-    Schema.mutable(Schema.Record({ key: Schema.String, value: CatalogItemUnitOverride })),
-  ),
+  unitOverrides: Schema.NullOr(Schema.Record(Schema.String, CatalogItemUnitOverride)),
   publicVisible: Schema.Boolean,
   priceVisibility: ServicePriceVisibility,
   active: Schema.Boolean,
@@ -34,45 +32,39 @@ const CatalogItemBaseFields = {
   updatedAt: Schema.String,
 }
 
-export const CatalogServiceItem = Schema.mutable(
-  Schema.Struct({
-    ...CatalogItemBaseFields,
-    kind: Schema.Literal('service'),
-    durationMinutes: NonNegativeInt,
-    requiredResources: Schema.mutable(Schema.Array(Schema.String)),
-  }),
-)
+export const CatalogServiceItem = Schema.Struct({
+  ...CatalogItemBaseFields,
+  kind: Schema.Literal('service'),
+  durationMinutes: NonNegativeInt,
+  requiredResources: Schema.mutable(Schema.Array(Schema.String)),
+}).mapFields(Struct.map(Schema.mutableKey))
 export type CatalogServiceItem = typeof CatalogServiceItem.Type
 
-export const CatalogProductItem = Schema.mutable(
-  Schema.Struct({
-    ...CatalogItemBaseFields,
-    kind: Schema.Literal('product'),
-    sku: Schema.NullOr(Schema.String),
-    stock: Schema.Number,
-    gtin14: Schema.NullOr(Schema.String),
-    reconciliationPending: Schema.optional(Schema.Boolean),
-    reconciliationLastAttempt: Schema.optional(Schema.String),
-  }),
-)
+export const CatalogProductItem = Schema.Struct({
+  ...CatalogItemBaseFields,
+  kind: Schema.Literal('product'),
+  sku: Schema.NullOr(Schema.String),
+  stock: Schema.Number,
+  gtin14: Schema.NullOr(Schema.String),
+  reconciliationPending: Schema.optional(Schema.Boolean),
+  reconciliationLastAttempt: Schema.optional(Schema.String),
+}).mapFields(Struct.map(Schema.mutableKey))
 export type CatalogProductItem = typeof CatalogProductItem.Type
 
-export const CatalogItem = Schema.Union(CatalogServiceItem, CatalogProductItem)
+export const CatalogItem = Schema.Union([CatalogServiceItem, CatalogProductItem])
 export type CatalogItem = typeof CatalogItem.Type
 
-export const CatalogItemChanges = Schema.partial(
-  Schema.Struct({
-    ...CatalogItemBaseFields,
-    kind: CatalogItemKind,
-    durationMinutes: NonNegativeInt,
-    requiredResources: Schema.mutable(Schema.Array(Schema.String)),
-    sku: Schema.NullOr(Schema.String),
-    stock: Schema.Number,
-    gtin14: Schema.NullOr(Schema.String),
-    reconciliationPending: Schema.Boolean,
-    reconciliationLastAttempt: Schema.String,
-  }),
-)
+export const CatalogItemChanges = Schema.Struct({
+  ...CatalogItemBaseFields,
+  kind: CatalogItemKind,
+  durationMinutes: NonNegativeInt,
+  requiredResources: Schema.mutable(Schema.Array(Schema.String)),
+  sku: Schema.NullOr(Schema.String),
+  stock: Schema.Number,
+  gtin14: Schema.NullOr(Schema.String),
+  reconciliationPending: Schema.Boolean,
+  reconciliationLastAttempt: Schema.String,
+}).mapFields(Struct.map(Schema.optional))
 export type CatalogItemChanges = typeof CatalogItemChanges.Type
 
 export function isCatalogService(item: CatalogItem): item is CatalogServiceItem {
@@ -104,18 +96,16 @@ export function resolveCatalogItemForUnit(
   }
 }
 
-export const PublicCatalogItem = Schema.mutable(
-  Schema.Struct({
-    id: Schema.String,
-    kind: CatalogItemKind,
-    name: Schema.String,
-    categoryId: Schema.NullOr(Schema.String),
-    categoryName: Schema.NullOr(Schema.String),
-    requiredResources: Schema.mutable(Schema.Array(Schema.String)),
-    priceCents: Schema.NullOr(Schema.Number),
-    durationMinutes: Schema.NullOr(Schema.Number),
-  }),
-)
+export const PublicCatalogItem = Schema.Struct({
+  id: Schema.String,
+  kind: CatalogItemKind,
+  name: Schema.String,
+  categoryId: Schema.NullOr(Schema.String),
+  categoryName: Schema.NullOr(Schema.String),
+  requiredResources: Schema.mutable(Schema.Array(Schema.String)),
+  priceCents: Schema.NullOr(Schema.Number),
+  durationMinutes: Schema.NullOr(Schema.Number),
+}).mapFields(Struct.map(Schema.mutableKey))
 export type PublicCatalogItem = typeof PublicCatalogItem.Type
 
 export function toPublicCatalogItem(

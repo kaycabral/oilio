@@ -1,15 +1,17 @@
 import { classifyError } from '@/shared/errors/classify'
 import { ERROR_MESSAGES, messageForCategory } from '@/shared/errors/messages'
-import * as Cause from 'effect/Cause'
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 function pgError(code: string, constraint?: string): Error {
   return Object.assign(new Error(`pg error ${code}`), { code, constraint })
 }
 
-const FIBER_FAILURE_CAUSE = Symbol.for('effect/Runtime/FiberFailure/Cause')
-function fiberWrapped(err: Error): unknown {
-  return { [FIBER_FAILURE_CAUSE]: Cause.die(err) }
+function rejectionOf(err: Error): Promise<unknown> {
+  return Effect.runPromise(Effect.die(err)).then(
+    () => undefined,
+    (rejected: unknown) => rejected,
+  )
 }
 
 describe('classifyError', () => {
@@ -51,9 +53,9 @@ describe('classifyError', () => {
     expect(classifyError(null)).toBe('unknown')
   })
 
-  it('unwraps a FiberFailure-parked pg error (the saga path)', () => {
-    expect(classifyError(fiberWrapped(pgError('23503')))).toBe('integrity')
-    expect(classifyError(fiberWrapped(pgError('42501')))).toBe('forbidden')
+  it('classifies the pg defect an Effect run rejects with (the saga path)', async () => {
+    expect(classifyError(await rejectionOf(pgError('23503')))).toBe('integrity')
+    expect(classifyError(await rejectionOf(pgError('42501')))).toBe('forbidden')
   })
 })
 
