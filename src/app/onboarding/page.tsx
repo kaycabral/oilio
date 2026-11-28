@@ -4,10 +4,17 @@ import { getUserDoc, getUserMemberships } from '@/shared/org/membership'
 import { isSupabaseConfigured } from '@cbrl/supabase'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
+import { Suspense } from 'react'
 
-export const instant = false
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={null}>
+      <OnboardingPageContent />
+    </Suspense>
+  )
+}
 
-export default async function OnboardingPage() {
+async function OnboardingPageContent() {
   await connection()
   if (!isSupabaseConfigured()) redirect('/')
 

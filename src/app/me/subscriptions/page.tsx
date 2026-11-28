@@ -4,8 +4,6 @@ import { Main } from '@cbrl/design'
 import type { Metadata } from 'next'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export const metadata: Metadata = { title: 'Minhas assinaturas' }
 
 export default async function MySubscriptionsPage() {
