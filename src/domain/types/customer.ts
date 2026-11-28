@@ -1,31 +1,35 @@
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 import { Attribution } from './attribution'
 
-export const Customer = Schema.mutable(
-  Schema.Struct({
-    id: Schema.String,
-    orgId: Schema.String,
-    userId: Schema.String,
-    name: Schema.String,
-    mobile: Schema.String,
-    birthDate: Schema.NullOr(Schema.String),
-    avatarUrl: Schema.NullOr(Schema.String),
-    archivedAt: Schema.NullOr(Schema.String),
-    deactivatedAt: Schema.NullOr(Schema.String),
-    acquisition: Schema.NullOr(Attribution),
-    createdAt: Schema.String,
-    updatedAt: Schema.String,
-  }),
-)
+export const Customer = Schema.Struct({
+  id: Schema.String,
+  orgId: Schema.String,
+  userId: Schema.String,
+  name: Schema.String,
+  mobile: Schema.String,
+  birthDate: Schema.NullOr(Schema.String),
+  avatarUrl: Schema.NullOr(Schema.String),
+  archivedAt: Schema.NullOr(Schema.String),
+  deactivatedAt: Schema.NullOr(Schema.String),
+  acquisition: Schema.NullOr(Attribution),
+  createdAt: Schema.String,
+  updatedAt: Schema.String,
+}).mapFields(Struct.map(Schema.mutableKey))
 export type Customer = typeof Customer.Type
 
-export const StoredCustomer = Customer.pipe(Schema.omit('name', 'mobile', 'birthDate', 'avatarUrl'))
+export const StoredCustomer = Customer.mapFields(
+  Struct.omit(['name', 'mobile', 'birthDate', 'avatarUrl']),
+)
 export type StoredCustomer = typeof StoredCustomer.Type
 
-export const BirthDateParseResult = Schema.Union(
-  Schema.mutable(Schema.Struct({ ok: Schema.Literal(true), value: Schema.NullOr(Schema.String) })),
-  Schema.mutable(Schema.Struct({ ok: Schema.Literal(false), error: Schema.String })),
-)
+export const BirthDateParseResult = Schema.Union([
+  Schema.Struct({ ok: Schema.Literal(true), value: Schema.NullOr(Schema.String) }).mapFields(
+    Struct.map(Schema.mutableKey),
+  ),
+  Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }).mapFields(
+    Struct.map(Schema.mutableKey),
+  ),
+])
 export type BirthDateParseResult = typeof BirthDateParseResult.Type
 
 export function parseBirthDate(raw: string, today: Date = new Date()): BirthDateParseResult {

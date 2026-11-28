@@ -1,5 +1,5 @@
 import { Category } from '@/domain/types/category'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const CategoryCreatedSchema = Schema.Struct({
   _tag: Schema.Literal('category.created'),
@@ -8,7 +8,7 @@ export const CategoryCreatedSchema = Schema.Struct({
 
 export const CategoryUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('category.updated'),
-  changes: Schema.partial(Category),
+  changes: Category.mapFields(Struct.map(Schema.optional)),
 })
 
 export const CategoryDeletedSchema = Schema.Struct({
@@ -20,12 +20,12 @@ export const CategoryArchivedSchema = Schema.Struct({
   archivedAt: Schema.NullOr(Schema.String),
 })
 
-export const CategoryEventSchema = Schema.Union(
+export const CategoryEventSchema = Schema.Union([
   CategoryCreatedSchema,
   CategoryUpdatedSchema,
   CategoryDeletedSchema,
   CategoryArchivedSchema,
-)
+])
 
 export type CategoryCreated = typeof CategoryCreatedSchema.Type
 export type CategoryUpdated = typeof CategoryUpdatedSchema.Type

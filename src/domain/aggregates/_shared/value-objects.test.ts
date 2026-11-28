@@ -1,4 +1,4 @@
-import { Either } from 'effect'
+import { Result } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { AggregateVersion, Money, OrgId } from './value-objects'
@@ -10,11 +10,11 @@ describe('Money', () => {
   })
 
   it('AC-09: rejects negative value', () => {
-    expect(Either.isLeft(Money.either(-1))).toBe(true)
+    expect(Result.isFailure(Money.result(-1))).toBe(true)
   })
 
   it('AC-09: rejects non-integer', () => {
-    expect(Either.isLeft(Money.either(10.5))).toBe(true)
+    expect(Result.isFailure(Money.result(10.5))).toBe(true)
   })
 })
 
@@ -24,7 +24,7 @@ describe('OrgId', () => {
   })
 
   it('AC-09: rejects empty string', () => {
-    expect(Either.isLeft(OrgId.either(''))).toBe(true)
+    expect(Result.isFailure(OrgId.result(''))).toBe(true)
   })
 })
 
@@ -35,10 +35,10 @@ describe('AggregateVersion', () => {
   })
 
   it('rejects negative', () => {
-    expect(Either.isLeft(AggregateVersion.either(-1))).toBe(true)
+    expect(Result.isFailure(AggregateVersion.result(-1))).toBe(true)
   })
 
   it('rejects float', () => {
-    expect(Either.isLeft(AggregateVersion.either(1.5))).toBe(true)
+    expect(Result.isFailure(AggregateVersion.result(1.5))).toBe(true)
   })
 })

@@ -17,7 +17,7 @@ async function postHandler(request: Request) {
 
   const reconciled = await Effect.runPromise(
     reconcilePendingProducts(now).pipe(
-      Effect.catchAllDefect(() => Effect.succeed(0)),
+      Effect.catchDefect(() => Effect.succeed(0)),
       Effect.provide(PostgresLayerLive),
     ),
   )

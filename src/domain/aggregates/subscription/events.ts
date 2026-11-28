@@ -1,17 +1,22 @@
 import { Schema } from 'effect'
 
-const StatusSchema = Schema.Literal('active', 'past_due', 'cancelled', 'cancelled_for_non_payment')
+const StatusSchema = Schema.Literals([
+  'active',
+  'past_due',
+  'cancelled',
+  'cancelled_for_non_payment',
+])
 
-const UsageLimitSchema = Schema.Union(
+const UsageLimitSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal('unlimited') }),
   Schema.Struct({ kind: Schema.Literal('count'), quantity: Schema.Number }),
-)
+])
 
 const PlanSnapshotSchema = Schema.Struct({
   planId: Schema.String,
   name: Schema.String,
   priceCents: Schema.Number,
-  billingCycle: Schema.Literal('monthly', 'quarterly', 'semiannual', 'annual'),
+  billingCycle: Schema.Literals(['monthly', 'quarterly', 'semiannual', 'annual']),
   includedItemIds: Schema.mutable(Schema.Array(Schema.String)),
   includedCategoryIds: Schema.mutable(Schema.Array(Schema.String)),
   usageLimit: UsageLimitSchema,
@@ -101,7 +106,7 @@ export const SubscriptionDeletedSchema = Schema.Struct({
   deletedBy: Schema.String,
 })
 
-export const SubscriptionEventSchema = Schema.Union(
+export const SubscriptionEventSchema = Schema.Union([
   SubscriptionCreatedSchema,
   SubscriptionChargeSettledSchema,
   ChargeFailedSchema,
@@ -113,7 +118,7 @@ export const SubscriptionEventSchema = Schema.Union(
   SubscriptionPlanChangedSchema,
   SubscriptionUsageIncrementedSchema,
   SubscriptionDeletedSchema,
-)
+])
 
 export type SubscriptionCreated = typeof SubscriptionCreatedSchema.Type
 export type SubscriptionChargeSettled = typeof SubscriptionChargeSettledSchema.Type

@@ -1,8 +1,8 @@
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 import type { NotificationType } from '../aggregates/notification/types'
 
-const NotificationTypeSchema = Schema.Literal(
+const NotificationTypeSchema = Schema.Literals([
   'birthday',
   'subscription_expiring_tomorrow',
   'subscription_expired',
@@ -11,7 +11,7 @@ const NotificationTypeSchema = Schema.Literal(
   'cash_register_open',
   'new_customer',
   'payment_failure',
-)
+])
 type _ProofNotificationType = [
   typeof NotificationTypeSchema.Type extends NotificationType ? true : false,
   NotificationType extends typeof NotificationTypeSchema.Type ? true : false,
@@ -19,17 +19,15 @@ type _ProofNotificationType = [
 const _proofNotificationType: _ProofNotificationType = [true, true]
 void _proofNotificationType
 
-export const MessageTemplate = Schema.mutable(
-  Schema.Struct({
-    id: Schema.String,
-    orgId: Schema.String,
-    type: NotificationTypeSchema,
-    body: Schema.String,
-    enabled: Schema.Boolean,
-    updatedAt: Schema.String,
-    lastActorUid: Schema.NullOr(Schema.String),
-  }),
-)
+export const MessageTemplate = Schema.Struct({
+  id: Schema.String,
+  orgId: Schema.String,
+  type: NotificationTypeSchema,
+  body: Schema.String,
+  enabled: Schema.Boolean,
+  updatedAt: Schema.String,
+  lastActorUid: Schema.NullOr(Schema.String),
+}).mapFields(Struct.map(Schema.mutableKey))
 export type MessageTemplate = typeof MessageTemplate.Type
 
 export const DISPATCHABLE_NOTIFICATION_TYPES = [
@@ -53,14 +51,12 @@ export const NOTIFICATION_TEMPLATE_PLACEHOLDERS = [
   '{voucher_atual}',
 ] as const
 
-export const NotificationTemplateVars = Schema.mutable(
-  Schema.Struct({
-    cliente_nome: Schema.optional(Schema.String),
-    servico: Schema.optional(Schema.String),
-    valor: Schema.optional(Schema.String),
-    voucher_atual: Schema.optional(Schema.String),
-  }),
-)
+export const NotificationTemplateVars = Schema.Struct({
+  cliente_nome: Schema.optional(Schema.String),
+  servico: Schema.optional(Schema.String),
+  valor: Schema.optional(Schema.String),
+  voucher_atual: Schema.optional(Schema.String),
+}).mapFields(Struct.map(Schema.mutableKey))
 export type NotificationTemplateVars = typeof NotificationTemplateVars.Type
 
 export const DEFAULT_NOTIFICATION_TEMPLATES: Record<DispatchableNotificationType, string> = {

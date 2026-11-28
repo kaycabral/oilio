@@ -11,7 +11,7 @@ export const CAPABILITIES = [
   'team.unlimited',
   'support.priority',
 ] as const
-export const Capability = Schema.Literal(...CAPABILITIES)
+export const Capability = Schema.Literals(CAPABILITIES)
 export type Capability = typeof Capability.Type
 
 const PRO_CAPABILITIES: readonly Capability[] = [

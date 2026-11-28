@@ -17,10 +17,9 @@ export type PersistenceOps = {
   ) => Effect.Effect<A, E, never>
 }
 
-export class PersistencePort extends Context.Tag('PersistencePort')<
-  PersistencePort,
-  PersistenceOps
->() {}
+export class PersistencePort extends Context.Service<PersistencePort, PersistenceOps>()(
+  'PersistencePort',
+) {}
 
 export type WhereOp =
   '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not-in' | 'array-contains' | 'array-contains-any'
@@ -47,20 +46,20 @@ export type TransactionContext = {
   readonly deleteDoc?: (ref: AggregateRef) => Effect.Effect<void, never, never>
 }
 
-export class SecurityContext extends Context.Tag('SecurityContext')<
+export class SecurityContext extends Context.Service<
   SecurityContext,
   {
     readonly orgId: string
     readonly unitId: string | null
     readonly memberOperationId?: string | null
   }
->() {}
+>()('SecurityContext') {}
 
-export class LoggerService extends Context.Tag('LoggerService')<
+export class LoggerService extends Context.Service<
   LoggerService,
   {
     readonly info: (message: string, data?: Record<string, unknown>) => Effect.Effect<void>
     readonly error: (message: string, data?: Record<string, unknown>) => Effect.Effect<void>
     readonly warn: (message: string, data?: Record<string, unknown>) => Effect.Effect<void>
   }
->() {}
+>()('LoggerService') {}

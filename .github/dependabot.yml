@@ -32,10 +32,6 @@ updates:
         versions: ['>=7']
       - dependency-name: eslint
         versions: ['>=10']
-      # effect 4 rewrites Schema, Context, catch* and drops FiberFailure: the
-      # domain migration is planned work, tracked in kaycabral/oilio#34.
-      - dependency-name: effect
-        versions: ['>=4']
     # Groups drive auto-merge (dependabot-auto-merge.yml): `minor-and-patch` and
     # the `actions` group below merge by themselves. `critical` holds what CI can't fully prove (payments, auth,
     # database, framework, error reporting) and waits for a human, as do

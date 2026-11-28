@@ -41,7 +41,7 @@ export async function commitAppointmentBooking({
       payload: { data: appointment },
     }).pipe(
       Effect.map(() => ({ ok: true as const })),
-      Effect.catchAllDefect((defect) => {
+      Effect.catchDefect((defect) => {
         if (isSlotTakenDefect(defect)) {
           return Effect.succeed({ ok: false as const, error: 'slot_taken' as const })
         }

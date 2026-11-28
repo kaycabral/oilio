@@ -57,8 +57,8 @@ function reconcileOne(
     yield* clearMarker(orgId, item.id, resolvedGtin, now)
     return true
   }).pipe(
-    Effect.catchAll(() => Effect.succeed(false)),
-    Effect.catchAllDefect(() => Effect.succeed(false)),
+    Effect.catch(() => Effect.succeed(false)),
+    Effect.catchDefect(() => Effect.succeed(false)),
   )
 }
 

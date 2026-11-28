@@ -1,42 +1,40 @@
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 import { NonEmptyString, NonNegativeInt } from '@/domain/value-objects'
 import { CommissionRule } from './member-operation'
 
 export const ORDER_STATUSES = ['open', 'closed', 'cancelled'] as const
-export const OrderStatus = Schema.Literal(...ORDER_STATUSES)
+export const OrderStatus = Schema.Literals(ORDER_STATUSES)
 export type OrderStatus = typeof OrderStatus.Type
 
 export const PAYMENT_METHODS = ['cash', 'credit_card', 'debit_card', 'pix'] as const
-export const PaymentMethod = Schema.Literal(...PAYMENT_METHODS)
+export const PaymentMethod = Schema.Literals(PAYMENT_METHODS)
 export type PaymentMethod = typeof PaymentMethod.Type
 
 export const ORDER_ITEM_KINDS = ['service', 'product'] as const
-export const OrderItemKind = Schema.Literal(...ORDER_ITEM_KINDS)
+export const OrderItemKind = Schema.Literals(ORDER_ITEM_KINDS)
 export type OrderItemKind = typeof OrderItemKind.Type
 
 export const ORDER_COVERAGES = ['sale', 'subscription'] as const
-export const OrderCoverage = Schema.Literal(...ORDER_COVERAGES)
+export const OrderCoverage = Schema.Literals(ORDER_COVERAGES)
 export type OrderCoverage = typeof OrderCoverage.Type
 
 export function coverageOf(item: { coverage?: OrderCoverage }): OrderCoverage {
   return item.coverage ?? 'sale'
 }
 
-export const OrderItem = Schema.mutable(
-  Schema.Struct({
-    id: NonEmptyString,
-    kind: OrderItemKind,
-    refId: NonEmptyString,
-    name: NonEmptyString,
-    quantity: Schema.Number,
-    unitPriceCents: NonNegativeInt,
-    commission: Schema.NullOr(CommissionRule),
-    attributedUserId: NonEmptyString,
-    coverage: Schema.optional(OrderCoverage),
-    subscriptionId: Schema.optional(Schema.NullOr(Schema.String)),
-  }),
-)
+export const OrderItem = Schema.Struct({
+  id: NonEmptyString,
+  kind: OrderItemKind,
+  refId: NonEmptyString,
+  name: NonEmptyString,
+  quantity: Schema.Number,
+  unitPriceCents: NonNegativeInt,
+  commission: Schema.NullOr(CommissionRule),
+  attributedUserId: NonEmptyString,
+  coverage: Schema.optional(OrderCoverage),
+  subscriptionId: Schema.optional(Schema.NullOr(Schema.String)),
+}).mapFields(Struct.map(Schema.mutableKey))
 export type OrderItem = typeof OrderItem.Type
 
 const orderCommonFields = {
@@ -53,32 +51,26 @@ const orderCommonFields = {
   updatedAt: Schema.String,
 }
 
-export const OpenOrder = Schema.mutable(
-  Schema.Struct({
-    ...orderCommonFields,
-    status: Schema.Literal('open'),
-    closedAt: Schema.Null,
-    paymentMethod: Schema.Null,
-  }),
-)
-export const ClosedOrder = Schema.mutable(
-  Schema.Struct({
-    ...orderCommonFields,
-    status: Schema.Literal('closed'),
-    closedAt: Schema.String,
-    paymentMethod: Schema.NullOr(PaymentMethod),
-  }),
-)
-export const CancelledOrder = Schema.mutable(
-  Schema.Struct({
-    ...orderCommonFields,
-    status: Schema.Literal('cancelled'),
-    closedAt: Schema.Null,
-    paymentMethod: Schema.Null,
-  }),
-)
+export const OpenOrder = Schema.Struct({
+  ...orderCommonFields,
+  status: Schema.Literal('open'),
+  closedAt: Schema.Null,
+  paymentMethod: Schema.Null,
+}).mapFields(Struct.map(Schema.mutableKey))
+export const ClosedOrder = Schema.Struct({
+  ...orderCommonFields,
+  status: Schema.Literal('closed'),
+  closedAt: Schema.String,
+  paymentMethod: Schema.NullOr(PaymentMethod),
+}).mapFields(Struct.map(Schema.mutableKey))
+export const CancelledOrder = Schema.Struct({
+  ...orderCommonFields,
+  status: Schema.Literal('cancelled'),
+  closedAt: Schema.Null,
+  paymentMethod: Schema.Null,
+}).mapFields(Struct.map(Schema.mutableKey))
 
-export const Order = Schema.Union(OpenOrder, ClosedOrder, CancelledOrder)
+export const Order = Schema.Union([OpenOrder, ClosedOrder, CancelledOrder])
 export type Order = typeof Order.Type
 export type OpenOrder = typeof OpenOrder.Type
 export type ClosedOrder = typeof ClosedOrder.Type

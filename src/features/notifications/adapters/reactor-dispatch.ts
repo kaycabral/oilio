@@ -21,7 +21,7 @@ export async function dispatchNotificationReactions(
 
   await Effect.runPromise(
     reactor(envelope).pipe(
-      Effect.catchAll(() => Effect.void),
+      Effect.catch(() => Effect.void),
       Effect.provide(PostgresLayerLive),
     ),
   )

@@ -8,7 +8,7 @@ import {
 } from '@/domain'
 
 const CnaeSecundaria = Schema.Struct({
-  codigo: Schema.optional(Schema.Union(Schema.Number, Schema.String)),
+  codigo: Schema.optional(Schema.Union([Schema.Number, Schema.String])),
   descricao: Schema.optional(Schema.String),
 })
 
@@ -19,12 +19,12 @@ export const BrasilApiCnpjResponse = Schema.Struct({
   descricao_situacao_cadastral: Schema.optional(Schema.String),
   opcao_pelo_simples: Schema.optional(Schema.NullOr(Schema.Boolean)),
   opcao_pelo_mei: Schema.optional(Schema.NullOr(Schema.Boolean)),
-  codigo_porte: Schema.optional(Schema.Union(Schema.Number, Schema.String)),
-  cnae_fiscal: Schema.optional(Schema.Union(Schema.Number, Schema.String)),
+  codigo_porte: Schema.optional(Schema.Union([Schema.Number, Schema.String])),
+  cnae_fiscal: Schema.optional(Schema.Union([Schema.Number, Schema.String])),
   cnae_fiscal_descricao: Schema.optional(Schema.String),
   cnaes_secundarios: Schema.optional(Schema.Array(CnaeSecundaria)),
   natureza_juridica: Schema.optional(Schema.String),
-  capital_social: Schema.optional(Schema.Union(Schema.Number, Schema.String)),
+  capital_social: Schema.optional(Schema.Union([Schema.Number, Schema.String])),
   data_inicio_atividade: Schema.optional(Schema.String),
 })
 export type BrasilApiCnpjResponse = typeof BrasilApiCnpjResponse.Type

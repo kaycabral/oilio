@@ -1,11 +1,11 @@
 import { Schema } from 'effect'
 
 export const TIERS = ['free', 'pro', 'advanced'] as const
-export const Tier = Schema.Literal(...TIERS)
+export const Tier = Schema.Literals(TIERS)
 export type Tier = typeof Tier.Type
 
 export const BILLING_CYCLES = ['monthly', 'annual'] as const
-export const BillingCycle = Schema.Literal(...BILLING_CYCLES)
+export const BillingCycle = Schema.Literals(BILLING_CYCLES)
 export type BillingCycle = typeof BillingCycle.Type
 
 export const TIER_ORDER: readonly Tier[] = TIERS

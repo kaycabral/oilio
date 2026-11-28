@@ -15,7 +15,7 @@ A migração do oilio (Firestore → Cloud SQL Postgres) é incremental por boun
 
 ### D1 — `PersistencePort`: a Tag neutra que o event store consome
 
-O event store passa a rodar sobre um **`PersistencePort`** (`Context.Tag` do Effect) — não mais sobre `FirestoreService` direto. A porta expõe o mínimo que `appendEvent`/`appendEventGuarded`/`replayAggregate` precisam: leitura de stream (`getEvents`) e uma transação que escreve evento + projeção atomicamente. Dois Layers a satisfazem:
+O event store passa a rodar sobre um **`PersistencePort`** (serviço `Context.Service` do Effect; era `Context.Tag` no Effect 3) — não mais sobre `FirestoreService` direto. A porta expõe o mínimo que `appendEvent`/`appendEventGuarded`/`replayAggregate` precisam: leitura de stream (`getEvents`) e uma transação que escreve evento + projeção atomicamente. Dois Layers a satisfazem:
 
 - **Firestore Layer** (atual — comportamento preservado): a implementação de hoje, intacta.
 - **Postgres Layer** (novo): escreve o evento na tabela `events` e a projeção na mesma transação `pg` (ACID).

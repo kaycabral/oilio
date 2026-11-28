@@ -16,10 +16,10 @@ import {
 
 type CounterState = { readonly count: number; readonly _version: number }
 
-const CounterEvent = Schema.Union(
+const CounterEvent = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal('Incremented'), amount: Schema.Number }),
   Schema.Struct({ _tag: Schema.Literal('Reset') }),
-)
+])
 type CounterEvent = typeof CounterEvent.Type
 
 const CounterConfig: AggregateConfig<CounterState, CounterEvent> = {

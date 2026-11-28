@@ -1,20 +1,18 @@
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const ATTRIBUTION_INTENTS = ['signup', 'booking'] as const
-export const AttributionIntent = Schema.Literal(...ATTRIBUTION_INTENTS)
+export const AttributionIntent = Schema.Literals(ATTRIBUTION_INTENTS)
 export type AttributionIntent = typeof AttributionIntent.Type
 
-export const Attribution = Schema.mutable(
-  Schema.Struct({
-    source: Schema.NullOr(Schema.String),
-    medium: Schema.NullOr(Schema.String),
-    campaign: Schema.NullOr(Schema.String),
-    content: Schema.NullOr(Schema.String),
-    term: Schema.NullOr(Schema.String),
-    actorId: Schema.NullOr(Schema.String),
-    intent: AttributionIntent,
-  }),
-)
+export const Attribution = Schema.Struct({
+  source: Schema.NullOr(Schema.String),
+  medium: Schema.NullOr(Schema.String),
+  campaign: Schema.NullOr(Schema.String),
+  content: Schema.NullOr(Schema.String),
+  term: Schema.NullOr(Schema.String),
+  actorId: Schema.NullOr(Schema.String),
+  intent: AttributionIntent,
+}).mapFields(Struct.map(Schema.mutableKey))
 export type Attribution = typeof Attribution.Type
 
 export const ATTRIBUTION_PARAM = {

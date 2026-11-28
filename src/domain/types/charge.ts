@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 import { NonNegativeInt } from '@/domain/value-objects'
 
@@ -10,7 +10,7 @@ export const CHARGE_STATUSES = [
   'refunded',
   'cancelled',
 ] as const
-export const ChargeStatus = Schema.Literal(...CHARGE_STATUSES)
+export const ChargeStatus = Schema.Literals(CHARGE_STATUSES)
 export type ChargeStatus = typeof ChargeStatus.Type
 
 export const ChargeFields = Schema.Struct({
@@ -34,13 +34,15 @@ export const ChargeFields = Schema.Struct({
   updatedAt: Schema.String,
 })
 
-export const Charge = Schema.mutable(
-  ChargeFields.pipe(
-    Schema.filter((c) => (c.status === 'paid' ? c.paidAt !== null : true), {
-      message: () => 'charge paid requires paidAt',
+export const Charge = ChargeFields.mapFields(Struct.map(Schema.mutableKey)).pipe(
+  Schema.check(
+    Schema.makeFilter((c) => (c.status === 'paid' ? c.paidAt !== null : true), {
+      message: 'charge paid requires paidAt',
     }),
-    Schema.filter((c) => (c.status === 'refunded' ? c.refundedAt !== null : true), {
-      message: () => 'charge refunded requires refundedAt',
+  ),
+  Schema.check(
+    Schema.makeFilter((c) => (c.status === 'refunded' ? c.refundedAt !== null : true), {
+      message: 'charge refunded requires refundedAt',
     }),
   ),
 )

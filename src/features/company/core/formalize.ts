@@ -15,7 +15,7 @@ export type FormalizationInput = {
   tradeName: string | null
 }
 
-const decodeCompanyProfile = Schema.decodeUnknownEither(CompanyProfileSchema)
+const decodeCompanyProfile = Schema.decodeUnknownResult(CompanyProfileSchema)
 
 export function parseFormalizationFromForm(formData: FormData): FormalizationInput | string {
   const taxId = normalizeTaxId(formString(formData, 'taxId').trim())
@@ -32,8 +32,8 @@ export function parseFormalizationFromForm(formData: FormData): FormalizationInp
   }
 
   const decoded = decodeCompanyProfile(parsedJson)
-  if (decoded._tag === 'Left') return 'Dados do CNPJ inválidos. Consulte novamente.'
-  const companyProfile = decoded.right
+  if (decoded._tag === 'Failure') return 'Dados do CNPJ inválidos. Consulte novamente.'
+  const companyProfile = decoded.success
 
   if (normalizeTaxId(companyProfile.taxId) !== taxId) {
     return 'Dados do CNPJ inválidos. Consulte novamente.'

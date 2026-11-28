@@ -1,5 +1,5 @@
 import { StoredInvite, StoredInviteFields } from '@/domain/types/invite'
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 
 export const InviteCreatedSchema = Schema.Struct({
   _tag: Schema.Literal('invite.created'),
@@ -8,18 +8,18 @@ export const InviteCreatedSchema = Schema.Struct({
 
 export const InviteUpdatedSchema = Schema.Struct({
   _tag: Schema.Literal('invite.updated'),
-  changes: Schema.partial(StoredInviteFields),
+  changes: StoredInviteFields.mapFields(Struct.map(Schema.optional)),
 })
 
 export const InviteDeletedSchema = Schema.Struct({
   _tag: Schema.Literal('invite.deleted'),
 })
 
-export const InviteEventSchema = Schema.Union(
+export const InviteEventSchema = Schema.Union([
   InviteCreatedSchema,
   InviteUpdatedSchema,
   InviteDeletedSchema,
-)
+])
 
 export type InviteCreated = typeof InviteCreatedSchema.Type
 export type InviteUpdated = typeof InviteUpdatedSchema.Type

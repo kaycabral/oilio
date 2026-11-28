@@ -2,17 +2,21 @@ import { CatalogItem, CatalogItemChanges } from '@/domain/types/catalog-item'
 import { Schema } from 'effect'
 
 const UnitScopedCatalogItem = CatalogItem.pipe(
-  Schema.filter((item) => item.unitIds.length > 0, {
-    identifier: 'UnitScopedCatalogItem',
-    message: () => 'a catalog item must be scoped to at least one unit',
-  }),
+  Schema.check(
+    Schema.makeFilter((item) => item.unitIds.length > 0, {
+      identifier: 'UnitScopedCatalogItem',
+      message: 'a catalog item must be scoped to at least one unit',
+    }),
+  ),
 )
 
 const UnitScopedCatalogItemChanges = CatalogItemChanges.pipe(
-  Schema.filter((changes) => changes.unitIds === undefined || changes.unitIds.length > 0, {
-    identifier: 'UnitScopedCatalogItemChanges',
-    message: () => 'a catalog item update cannot clear its unit scope',
-  }),
+  Schema.check(
+    Schema.makeFilter((changes) => changes.unitIds === undefined || changes.unitIds.length > 0, {
+      identifier: 'UnitScopedCatalogItemChanges',
+      message: 'a catalog item update cannot clear its unit scope',
+    }),
+  ),
 )
 
 export const CatalogItemCreatedSchema = Schema.Struct({
@@ -34,12 +38,12 @@ export const CatalogItemArchivedSchema = Schema.Struct({
   archivedAt: Schema.NullOr(Schema.String),
 })
 
-export const CatalogItemEventSchema = Schema.Union(
+export const CatalogItemEventSchema = Schema.Union([
   CatalogItemCreatedSchema,
   CatalogItemUpdatedSchema,
   CatalogItemDeletedSchema,
   CatalogItemArchivedSchema,
-)
+])
 
 export type CatalogItemCreated = typeof CatalogItemCreatedSchema.Type
 export type CatalogItemUpdated = typeof CatalogItemUpdatedSchema.Type

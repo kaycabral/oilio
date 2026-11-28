@@ -7,16 +7,16 @@ import { pgReadProjection, seedCatalogItem, seedCategory } from '../helpers/sess
 const ServiceRow = Schema.Struct({
   kind: Schema.String,
   name: Schema.String,
-  duration_minutes: Schema.Union(Schema.String, Schema.Number, Schema.Null),
+  duration_minutes: Schema.Union([Schema.String, Schema.Number, Schema.Null]),
 })
 const ProductRow = Schema.Struct({
   kind: Schema.String,
-  sku: Schema.Union(Schema.String, Schema.Null),
-  stock: Schema.Union(Schema.String, Schema.Number, Schema.Null),
+  sku: Schema.Union([Schema.String, Schema.Null]),
+  stock: Schema.Union([Schema.String, Schema.Number, Schema.Null]),
 })
 const DegenerateRow = Schema.Struct({
   kind: Schema.String,
-  category_id: Schema.Union(Schema.String, Schema.Null),
+  category_id: Schema.Union([Schema.String, Schema.Null]),
   commission: Schema.Unknown,
 })
 
