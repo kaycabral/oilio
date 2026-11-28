@@ -9,8 +9,6 @@ import { listUnitsForOrg } from '@/shared/org/unit-read'
 import { SettingsSection } from '@cbrl/design'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export default async function BillingPage() {
   await connection()
   const ctx = await requireManagerPage()

@@ -4,8 +4,6 @@ import { TeamList } from '@/features/team/ui/TeamList'
 import { Main } from '@cbrl/design'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export default async function TeamPage({
   searchParams,
 }: {

@@ -10,8 +10,6 @@ import { isSupabaseConfigured } from '@cbrl/supabase'
 import { notFound, redirect } from 'next/navigation'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export default async function NotificationSettingsPage() {
   await connection()
   if (!isFeatureEnabled('notifications')) notFound()

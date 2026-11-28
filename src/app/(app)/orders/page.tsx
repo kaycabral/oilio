@@ -5,8 +5,6 @@ import { Store } from 'lucide-react'
 import Link from 'next/link'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export default async function OrdersPage({
   searchParams,
 }: {

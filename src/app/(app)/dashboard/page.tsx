@@ -3,8 +3,6 @@ import { DashboardView } from '@/features/dashboard/ui/DashboardView'
 import { Main } from '@cbrl/design'
 import { connection } from 'next/server'
 
-export const instant = false
-
 type SearchParams = Record<string, string | string[] | undefined>
 
 export default async function DashboardPage({

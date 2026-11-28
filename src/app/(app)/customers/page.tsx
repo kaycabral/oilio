@@ -3,8 +3,6 @@ import { CustomersList } from '@/features/customers/ui/CustomersList'
 import { Main } from '@cbrl/design'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export default async function CustomersPage({
   searchParams,
 }: {

@@ -5,8 +5,6 @@ import { Main } from '@cbrl/design'
 import { notFound } from 'next/navigation'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export default async function EditPlanPage({ params }: { params: Promise<{ id: string }> }) {
   await connection()
   const { id } = await params

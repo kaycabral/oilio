@@ -3,8 +3,6 @@ import { AgendaView } from '@/features/agenda/ui/AgendaView'
 import { Main } from '@cbrl/design'
 import { connection } from 'next/server'
 
-export const instant = false
-
 export default async function AgendaPage({
   searchParams,
 }: {
