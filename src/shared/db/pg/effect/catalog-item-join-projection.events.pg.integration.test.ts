@@ -1,11 +1,11 @@
 import { CatalogItemConfig } from '@/domain/aggregates/catalog-item/config'
 import { aggregateRef, appendEvent, replayAggregate } from '@/domain/effect'
 import type { CatalogServiceItem } from '@/domain/types/catalog-item'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Effect } from 'effect'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb } from '../pool'
-import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { PostgresPersistenceLayer } from './postgres-layer'
 
 const ORG = 'org-ciu'

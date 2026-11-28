@@ -1,6 +1,6 @@
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb } from './pool'
-import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 
 const UNIQUE_VIOLATION = '23505'
 const CONSTRAINT = 'users_mobile_unique'

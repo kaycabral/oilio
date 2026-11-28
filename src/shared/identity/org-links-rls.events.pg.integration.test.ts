@@ -1,8 +1,8 @@
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { isLinkedToOrg, linkCustomerOrg, listLinkedOrgIds } from '@/shared/identity/org-links'
 import { Client } from 'pg'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb } from '../db/pg/pool'
-import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 
 const APP_ROLE = 'oilio_links_app'
 const APP_PASSWORD = 'rls_test'

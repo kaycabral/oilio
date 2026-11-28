@@ -1,10 +1,10 @@
 import { ChargeConfig, SubscriptionConfig } from '@/domain/aggregates'
 import { aggregateRef, type AggregateRef } from '@/domain/effect'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { commitGuardedThenAppend } from '@/shared/effect-bridge'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb } from '../pool'
-import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 
 const ORG = 't1'
 const SUB = 'sub-1'

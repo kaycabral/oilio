@@ -106,9 +106,7 @@ async function seedUnit(orgId: string, unitId: string): Promise<void> {
 
 describe('Catalog-item reads — Postgres (brief 0058)', () => {
   beforeEach(async () => {
-    await ownerPool().query(
-      'TRUNCATE events, projections, catalog_items, categories, orgs CASCADE',
-    )
+    await ownerPool().query('TRUNCATE events, projections, catalog_items, categories, orgs CASCADE')
   })
 
   afterAll(async () => {

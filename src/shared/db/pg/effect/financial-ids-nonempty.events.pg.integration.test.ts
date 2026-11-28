@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { closeEventStoreDb } from '../pool'
 import { ownerPool } from '@/shared/db/pg/test/owner-pool'
+import { closeEventStoreDb } from '../pool'
 
 const ORG = 'org-fin-ne'
 const UNIT = 'unit-fin'

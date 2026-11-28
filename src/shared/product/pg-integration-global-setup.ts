@@ -1,4 +1,3 @@
-import { requireEnv } from '@cbrl/env'
 import { closeDb, runMigrations } from '@/product'
 import { closeEventStoreDb, runEventStoreMigrations } from '@/shared/db/pg'
 import {
@@ -6,6 +5,7 @@ import {
   OWNER_DATABASE_URL_ENV,
   PRODUCT_OWNER_DATABASE_URL_ENV,
 } from '@/shared/db/pg/test/owner-pool'
+import { requireEnv } from '@cbrl/env'
 
 const REQUIRED = [
   'DATABASE_URL',

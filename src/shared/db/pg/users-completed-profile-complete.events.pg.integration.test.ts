@@ -1,6 +1,6 @@
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb } from './pool'
-import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 
 const CHECK_VIOLATION = '23514'
 const CONSTRAINT = 'users_completed_profile_complete'

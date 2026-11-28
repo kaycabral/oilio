@@ -32,9 +32,7 @@ async function rowsFor(orgId: string): Promise<FunnelRow[]> {
 
 describe('client_funnel_events transport (brief 0077 AC-12)', () => {
   beforeEach(async () => {
-    await ownerPool().query(
-      "DELETE FROM client_funnel_events WHERE org_id LIKE 'org-funnel-%'",
-    )
+    await ownerPool().query("DELETE FROM client_funnel_events WHERE org_id LIKE 'org-funnel-%'")
   })
 
   afterAll(async () => {

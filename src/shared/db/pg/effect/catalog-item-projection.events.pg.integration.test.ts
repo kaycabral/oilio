@@ -5,10 +5,10 @@ import type {
   CatalogProductItem,
   CatalogServiceItem,
 } from '@/domain/types/catalog-item'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb } from '../pool'
-import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { PostgresPersistenceLayer, deletePostgresProjection } from './postgres-layer'
 
 const ORG = 'org-cat'

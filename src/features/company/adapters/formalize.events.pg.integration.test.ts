@@ -104,9 +104,7 @@ async function formalize(): Promise<{ ok: true } | { ok: false; error: string }>
 
 describe('formalizeUnit — Postgres (brief 0048 / 0062 cutover)', () => {
   beforeEach(async () => {
-    await ownerPool().query(
-      'TRUNCATE events, projections, units, unit_tax_identity, orgs CASCADE',
-    )
+    await ownerPool().query('TRUNCATE events, projections, units, unit_tax_identity, orgs CASCADE')
     await seedOrg()
     await createInformalUnit()
   })

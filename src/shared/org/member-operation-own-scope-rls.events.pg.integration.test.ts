@@ -1,7 +1,7 @@
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb } from '../db/pg/pool'
-import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 
 const APP_ROLE = 'oilio_prof_app'
 const APP_PASSWORD = 'rls_test'

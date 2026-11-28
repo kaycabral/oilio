@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { closeEventStoreDb } from '../pool'
 import { ownerPool } from '@/shared/db/pg/test/owner-pool'
+import { closeEventStoreDb } from '../pool'
 
 const ORG = 'org-nonempty'
 
@@ -56,10 +56,9 @@ describe('PII contact non-empty constraints (#1283 Group B)', () => {
 
   it('rejects an empty invites_pii.mobile (AC-03)', async () => {
     await expect(
-      ownerPool().query(
-        `INSERT INTO invites_pii (org_id, id, mobile) VALUES ($1,'inv-1','')`,
-        [ORG],
-      ),
+      ownerPool().query(`INSERT INTO invites_pii (org_id, id, mobile) VALUES ($1,'inv-1','')`, [
+        ORG,
+      ]),
     ).rejects.toThrow(/invites_pii_mobile_(nonempty|br_format)/)
   })
 

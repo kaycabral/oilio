@@ -128,11 +128,7 @@
     "public.product_source": {
       "name": "product_source",
       "schema": "public",
-      "values": [
-        "official",
-        "external",
-        "org-contributed"
-      ]
+      "values": ["official", "external", "org-contributed"]
     }
   },
   "schemas": {},

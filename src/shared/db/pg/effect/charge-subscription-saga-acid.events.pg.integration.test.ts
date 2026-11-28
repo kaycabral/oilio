@@ -7,10 +7,10 @@ import {
   type SagaStep,
 } from '@/domain/effect'
 import type { Charge } from '@/domain/types/charge'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb } from '../pool'
-import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { PostgresPersistenceLayer } from './postgres-layer'
 
 const ORG = 't1'

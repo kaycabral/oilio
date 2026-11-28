@@ -77,15 +77,11 @@ const createMembership = (data: Membership) =>
 
 describe('Identity reads — Postgres (brief 0059, AC-04)', () => {
   beforeEach(async () => {
-    await ownerPool().query(
-      'TRUNCATE events, projections, units, memberships, orgs CASCADE',
-    )
+    await ownerPool().query('TRUNCATE events, projections, units, memberships, orgs CASCADE')
   })
 
   afterEach(async () => {
-    await ownerPool().query(
-      'TRUNCATE events, projections, units, memberships, orgs CASCADE',
-    )
+    await ownerPool().query('TRUNCATE events, projections, units, memberships, orgs CASCADE')
   })
 
   afterAll(async () => {

@@ -61,9 +61,11 @@ describe('runtime role (oilio_app): least privilege, bound by RLS (#80)', () => 
 
   it('the app pool connects as oilio_app: no superuser, no BYPASSRLS, owns nothing', async () => {
     const pool = getEventStorePool()
-    const role = await pool.query<{ current_user: string; rolsuper: boolean; rolbypassrls: boolean }>(
-      'SELECT current_user, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user',
-    )
+    const role = await pool.query<{
+      current_user: string
+      rolsuper: boolean
+      rolbypassrls: boolean
+    }>('SELECT current_user, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user')
     expect(role.rows).toEqual([{ current_user: 'oilio_app', rolsuper: false, rolbypassrls: false }])
 
     const owned = await pool.query(
@@ -91,7 +93,9 @@ describe('runtime role (oilio_app): least privilege, bound by RLS (#80)', () => 
     await seedOrg(ORG_A)
     await seedOrg(ORG_B)
 
-    const seen = await asRuntime(ORG_A, (c) => c.query<{ org_id: string }>('SELECT org_id FROM orgs'))
+    const seen = await asRuntime(ORG_A, (c) =>
+      c.query<{ org_id: string }>('SELECT org_id FROM orgs'),
+    )
     expect(seen.rows.map((r) => r.org_id)).toEqual([ORG_A])
 
     const unscoped = await getEventStorePool().query('SELECT org_id FROM orgs')

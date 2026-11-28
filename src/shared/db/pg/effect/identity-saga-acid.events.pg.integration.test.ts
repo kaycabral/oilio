@@ -3,10 +3,10 @@ import { OrgConfig } from '@/domain/aggregates/org/config'
 import { aggregateRef, appendEventToTx, runSaga, type SagaStep } from '@/domain/effect'
 import { defaultPermissionsForRole, type Membership } from '@/domain/types/membership'
 import { DEFAULT_ORG_BRANDING, type StoredOrg } from '@/domain/types/org'
+import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { Effect } from 'effect'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeEventStoreDb } from '../pool'
-import { ownerPool } from '@/shared/db/pg/test/owner-pool'
 import { PostgresPersistenceLayer } from './postgres-layer'
 
 const ORG = 'saga-org'
@@ -72,22 +72,18 @@ function membershipStep(data: Membership): SagaStep {
 }
 
 async function readOrg(id: string): Promise<number> {
-  const res = await ownerPool().query('SELECT 1 FROM orgs WHERE org_id = $1 AND id = $1', [
+  const res = await ownerPool().query('SELECT 1 FROM orgs WHERE org_id = $1 AND id = $1', [id])
+  return res.rowCount ?? 0
+}
+async function readMembership(orgId: string, id: string): Promise<number> {
+  const res = await ownerPool().query('SELECT 1 FROM memberships WHERE org_id = $1 AND id = $2', [
+    orgId,
     id,
   ])
   return res.rowCount ?? 0
 }
-async function readMembership(orgId: string, id: string): Promise<number> {
-  const res = await ownerPool().query(
-    'SELECT 1 FROM memberships WHERE org_id = $1 AND id = $2',
-    [orgId, id],
-  )
-  return res.rowCount ?? 0
-}
 async function countEvents(aggregateId: string): Promise<number> {
-  const res = await ownerPool().query('SELECT 1 FROM events WHERE aggregate_id = $1', [
-    aggregateId,
-  ])
+  const res = await ownerPool().query('SELECT 1 FROM events WHERE aggregate_id = $1', [aggregateId])
   return res.rowCount ?? 0
 }
 

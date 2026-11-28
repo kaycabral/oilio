@@ -63,9 +63,7 @@ describe('Postgres RLS + CHECK — fixed_costs (brief 0092, Grupo A)', () => {
   })
 
   beforeEach(async () => {
-    await ownerPool().query(
-      'TRUNCATE fixed_costs, fixed_cost_overrides, units, orgs CASCADE',
-    )
+    await ownerPool().query('TRUNCATE fixed_costs, fixed_cost_overrides, units, orgs CASCADE')
   })
 
   afterAll(async () => {

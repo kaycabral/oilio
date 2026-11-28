@@ -251,18 +251,18 @@ async function membershipStatus(orgId: string, membershipId: string): Promise<st
 }
 
 async function rowExists(table: string, orgId: string, id: string): Promise<boolean> {
-  const res = await ownerPool().query(
-    `SELECT 1 FROM ${table} WHERE org_id = $1 AND id = $2`,
-    [orgId, id],
-  )
+  const res = await ownerPool().query(`SELECT 1 FROM ${table} WHERE org_id = $1 AND id = $2`, [
+    orgId,
+    id,
+  ])
   return (res.rowCount ?? 0) > 0
 }
 
 async function piiExists(table: string, orgId: string, id: string): Promise<boolean> {
-  const res = await ownerPool().query(
-    `SELECT 1 FROM ${table} WHERE org_id = $1 AND id = $2`,
-    [orgId, id],
-  )
+  const res = await ownerPool().query(`SELECT 1 FROM ${table} WHERE org_id = $1 AND id = $2`, [
+    orgId,
+    id,
+  ])
   return (res.rowCount ?? 0) > 0
 }
 
