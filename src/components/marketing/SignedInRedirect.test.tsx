@@ -20,21 +20,11 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
-vi.mock('@/components/marketing/MarketingShell', () => ({
-  MarketingShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}))
-vi.mock('@/components/Hero', () => ({ Hero: () => null }))
-vi.mock('@/components/landing/Features', () => ({ Features: () => null }))
-vi.mock('@/components/landing/Verticals', () => ({ Verticals: () => null }))
-vi.mock('@/components/landing/MultiBusiness', () => ({ MultiBusiness: () => null }))
-vi.mock('@/components/landing/HowItWorks', () => ({ HowItWorks: () => null }))
-vi.mock('@/components/landing/ClosingCta', () => ({ ClosingCta: () => null }))
-
-import HomePage from './page'
+import { SignedInRedirect } from './SignedInRedirect'
 
 async function captureRedirect(): Promise<string | null> {
   try {
-    await HomePage()
+    await SignedInRedirect()
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.startsWith('__REDIRECT__:')) return msg.slice('__REDIRECT__:'.length)
@@ -49,7 +39,7 @@ beforeEach(() => {
   mocks.resolvePostAuthDestination.mockReset()
 })
 
-describe('HomePage — landing gate', () => {
+describe('SignedInRedirect — marketing gate', () => {
   it('routes a logged-in client to their resolved destination, not always /dashboard', async () => {
     mocks.getSessionUser.mockResolvedValue({ uid: 'client-1' })
     mocks.resolvePostAuthDestination.mockResolvedValue('/me/appointments')
@@ -62,7 +52,13 @@ describe('HomePage — landing gate', () => {
     expect(await captureRedirect()).toBe('/dashboard')
   })
 
-  it('renders the marketing page for an anonymous visitor', async () => {
+  it('skips the session read when Supabase is not configured', async () => {
+    mocks.isSupabaseConfigured.mockReturnValue(false)
+    expect(await captureRedirect()).toBeNull()
+    expect(mocks.getSessionUser).not.toHaveBeenCalled()
+  })
+
+  it('renders nothing for an anonymous visitor', async () => {
     mocks.getSessionUser.mockResolvedValue(null)
     expect(await captureRedirect()).toBeNull()
     expect(mocks.resolvePostAuthDestination).not.toHaveBeenCalled()
